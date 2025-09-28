@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Erro - API Mercado Livre{% endblock %}
+
+{% block header_title %}❌ Ops! Algo deu errado{% endblock %}
+{% block header_subtitle %}{{ error_message }}{% endblock %}
+
+{% block content %}
+<div class="info" style="background: linear-gradient(135deg, #f8d7da, #f5c6cb); border-left-color: #dc3545;">
+    <h3>⚠️ Erro {{ error_type|title }}:</h3>
+    <p>{{ error_message }}</p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        <h3>🔧 Possíveis Soluções:</h3>
+        <ul>
+            <li>Verifique se suas credenciais estão corretas</li>
+            <li>Confirme se a URL de callback está configurada</li>
+            <li>Verifique se o token não expirou</li>
+            <li>Tente fazer login novamente</li>
+        </ul>
+    </div>
+    
+    <div class="card">
+        <h3>📞 Precisa de Ajuda?</h3>
+        <ul>
+            <li>Consulte a documentação da API</li>
+            <li>Verifique os logs do servidor</li>
+            <li>Teste os endpoints de saúde</li>
+        </ul>
+    </div>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="/" class="button">🏠 Voltar ao Início</a>
+    <a href="/login" class="button secondary">🔐 Tentar Login Novamente</a>
+    <a href="/docs" class="button secondary">📚 Documentação</a>
+</div>
+
+<div class="info">
+    <h3>🔍 Informações Técnicas:</h3>
+    <div class="code">
+        Tipo do Erro: {{ error_type }}<br>
+        Mensagem: {{ error_message }}<br>
+        Timestamp: {{ "now"|strftime("%Y-%m-%d %H:%M:%S") }}
+    </div>
+</div>
+{% endblock %}

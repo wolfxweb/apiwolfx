@@ -1,0 +1,151 @@
+/* Bootstrap Icons CSS */
+/* Este arquivo contém as definições CSS para os ícones Bootstrap */
+
+/* Classe base para ícones */
+.bi {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -.125em;
+    fill: currentColor;
+}
+
+/* Tamanhos de ícones */
+.bi-xs {
+    font-size: 0.75rem;
+}
+
+.bi-sm {
+    font-size: 0.875rem;
+}
+
+.bi-lg {
+    font-size: 1.25rem;
+}
+
+.bi-xl {
+    font-size: 1.5rem;
+}
+
+.bi-2x {
+    font-size: 2rem;
+}
+
+.bi-3x {
+    font-size: 3rem;
+}
+
+.bi-4x {
+    font-size: 4rem;
+}
+
+.bi-5x {
+    font-size: 5rem;
+}
+
+/* Cores dos ícones */
+.bi-primary {
+    color: var(--bs-primary);
+}
+
+.bi-secondary {
+    color: var(--bs-secondary);
+}
+
+.bi-success {
+    color: var(--bs-success);
+}
+
+.bi-danger {
+    color: var(--bs-danger);
+}
+
+.bi-warning {
+    color: var(--bs-warning);
+}
+
+.bi-info {
+    color: var(--bs-info);
+}
+
+.bi-light {
+    color: var(--bs-light);
+}
+
+.bi-dark {
+    color: var(--bs-dark);
+}
+
+/* Ícones específicos para Mercado Livre */
+.bi-ml-green {
+    color: #00a650;
+}
+
+.bi-ml-blue {
+    color: #3483fa;
+}
+
+.bi-ml-yellow {
+    color: #fff159;
+}
+
+/* Animações para ícones */
+.bi-spin {
+    animation: bi-spin 1s linear infinite;
+}
+
+@keyframes bi-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.bi-pulse {
+    animation: bi-pulse 1s ease-in-out infinite;
+}
+
+@keyframes bi-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Hover effects */
+.bi-hover:hover {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+}
+
+/* Ícones em botões */
+.btn .bi {
+    margin-right: 0.5rem;
+}
+
+.btn .bi:last-child {
+    margin-right: 0;
+    margin-left: 0.5rem;
+}
+
+/* Ícones em cards */
+.card .bi {
+    margin-right: 0.5rem;
+}
+
+/* Ícones em listas */
+.list-group-item .bi {
+    margin-right: 0.75rem;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .bi-lg {
+        font-size: 1.125rem;
+    }
+    
+    .bi-xl {
+        font-size: 1.25rem;
+    }
+    
+    .bi-2x {
+        font-size: 1.5rem;
+    }
+}

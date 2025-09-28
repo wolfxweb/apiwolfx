@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Home - API Mercado Livre{% endblock %}
+
+{% block header_title %}🏠 Home - API Mercado Livre{% endblock %}
+{% block header_subtitle %}Bem-vindo à sua API de integração com o Mercado Livre{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="text-center mb-5">
+    <h1 class="display-4 fw-bold text-primary mb-3">
+        <i class="bi bi-shield-lock-fill"></i> API Mercado Livre
+    </h1>
+    <p class="lead text-muted">Integração profissional com Mercado Livre</p>
+</div>
+
+<!-- Instruções -->
+<div class="alert alert-info">
+    <h4 class="alert-heading">
+        <i class="bi bi-lightbulb-fill"></i> Para começar:
+    </h4>
+    <ol class="mb-0">
+        <li>Configure suas credenciais no arquivo <code>app/config/settings.py</code></li>
+        <li>Clique no botão abaixo para fazer login</li>
+        <li>Autorize a aplicação no Mercado Livre</li>
+        <li>Você receberá seu token de acesso!</li>
+    </ol>
+</div>
+
+<!-- Botões de Ação -->
+<div class="text-center my-5">
+    <a href="/login" class="btn btn-primary btn-lg me-3">
+        <i class="bi bi-shield-lock-fill"></i> Fazer Login no Mercado Livre
+    </a>
+    <a href="/docs" class="btn btn-outline-primary btn-lg">
+        <i class="bi bi-book-fill"></i> Ver Documentação
+    </a>
+</div>
+
+<!-- Cards de Funcionalidades -->
+<div class="row g-4 mb-5">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-shield-lock-fill text-success fs-1"></i>
+                </div>
+                <h5 class="card-title text-primary">Autenticação</h5>
+                <p class="card-text">Faça login com sua conta do Mercado Livre e obtenha seu token de acesso para usar a API.</p>
+                <a href="/login" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-in-right"></i> Fazer Login
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-bag-fill text-info fs-1"></i>
+                </div>
+                <h5 class="card-title text-primary">Produtos</h5>
+                <p class="card-text">Busque produtos, obtenha detalhes e gerencie itens do Mercado Livre.</p>
+                <a href="/products/search?q=exemplo" class="btn btn-outline-primary">
+                    <i class="bi bi-search"></i> Buscar Produtos
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-person-fill text-success fs-1"></i>
+                </div>
+                <h5 class="card-title text-primary">Usuário</h5>
+                <p class="card-text">Visualize suas informações pessoais e gerencie seus itens.</p>
+                <a href="/user" class="btn btn-outline-primary">
+                    <i class="bi bi-person-lines-fill"></i> Meus Dados
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-folder-fill text-info fs-1"></i>
+                </div>
+                <h5 class="card-title text-primary">Categorias</h5>
+                <p class="card-text">Explore as categorias disponíveis no Mercado Livre.</p>
+                <a href="/categories/" class="btn btn-outline-primary">
+                    <i class="bi bi-grid-3x3-gap-fill"></i> Ver Categorias
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Informações de Configuração -->
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="alert alert-warning">
+            <h4 class="alert-heading">
+                <i class="bi bi-tools"></i> Configuração necessária:
+            </h4>
+            <p>No arquivo <code>app/config/settings.py</code>, configure:</p>
+            <pre class="bg-dark text-light p-3 rounded"><code>self.ml_app_id = "SEU_APP_ID_AQUI"
+self.ml_client_secret = "SEU_CLIENT_SECRET_AQUI"
+self.ml_redirect_uri = "https://sua-url.ngrok.io/callback"</code></pre>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="alert alert-info">
+            <h4 class="alert-heading">
+                <i class="bi bi-globe"></i> URLs da API:
+            </h4>
+            <ul class="mb-0">
+                <li><strong>API Principal:</strong> <a href="/" class="text-decoration-none">/</a></li>
+                <li><strong>Login:</strong> <a href="/login" class="text-decoration-none">/login</a></li>
+                <li><strong>Callback:</strong> <a href="/callback" class="text-decoration-none">/callback</a></li>
+                <li><strong>Documentação:</strong> <a href="/docs" class="text-decoration-none">/docs</a></li>
+                <li><strong>Status:</strong> <a href="/health" class="text-decoration-none">/health</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-success">
+    <h4 class="alert-heading">
+        <i class="bi bi-phone"></i> Como usar:
+    </h4>
+    <ol class="mb-0">
+        <li>Acesse o painel do desenvolvedor do Mercado Livre</li>
+        <li>Configure a URL de redirecionamento: <code>https://sua-url.ngrok.io/callback</code></li>
+        <li>Copie o App ID e Client Secret</li>
+        <li>Configure no arquivo de configuração</li>
+        <li>Faça login e receba seu token!</li>
+    </ol>
+</div>
+{% endblock %}

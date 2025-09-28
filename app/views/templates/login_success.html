@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Login Concluído - API Mercado Livre{% endblock %}
+
+{% block header_title %}✅ Login Concluído!{% endblock %}
+{% block header_subtitle %}Você foi autenticado com sucesso no Mercado Livre{% endblock %}
+
+{% block content %}
+<div class="info" style="background: linear-gradient(135deg, #d4edda, #c3e6cb); border-left-color: #28a745;">
+    <h3>🎉 Parabéns!</h3>
+    <p>Seu login foi realizado com sucesso. Agora você pode usar a API do Mercado Livre.</p>
+</div>
+
+<div class="card">
+    <h3>🔑 Seu Token de Acesso:</h3>
+    <div class="code" style="word-break: break-all;">
+        {{ access_token }}
+    </div>
+    <p><small>Copie este token para usar nas requisições da API</small></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        <h3>📋 Informações do Token:</h3>
+        <ul>
+            <li><strong>Tipo:</strong> {{ token_type }}</li>
+            <li><strong>Expira em:</strong> {{ expires_in }} segundos</li>
+            <li><strong>Escopo:</strong> {{ scope }}</li>
+            <li><strong>User ID:</strong> {{ user_id }}</li>
+            {% if refresh_token %}
+            <li><strong>Refresh Token:</strong> {{ refresh_token }}</li>
+            {% endif %}
+        </ul>
+    </div>
+    
+    <div class="card">
+        <h3>🚀 Próximos Passos:</h3>
+        <ul>
+            <li>Use este token para fazer requisições autenticadas</li>
+            <li>Explore a documentação da API</li>
+            <li>Teste os endpoints disponíveis</li>
+        </ul>
+    </div>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="/user?access_token={{ access_token }}" class="button">👤 Ver Meus Dados</a>
+    <a href="/docs" class="button secondary">📚 Documentação</a>
+    <a href="/" class="button secondary">🏠 Início</a>
+</div>
+
+<div class="info">
+    <h3>💡 Exemplos de uso:</h3>
+    <div class="code">
+        # Buscar produtos<br>
+        GET /products/search?q=termo&access_token={{ access_token }}<br><br>
+        # Informações do usuário<br>
+        GET /user?access_token={{ access_token }}<br><br>
+        # Itens do usuário<br>
+        GET /users/{{ user_id }}/items?access_token={{ access_token }}
+    </div>
+</div>
+{% endblock %}

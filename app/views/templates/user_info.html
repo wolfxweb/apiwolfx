@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Meus Dados - API Mercado Livre{% endblock %}
+
+{% block header_title %}👤 Meus Dados do Mercado Livre{% endblock %}
+{% block header_subtitle %}Informações da sua conta no Mercado Livre{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3>📋 Informações Pessoais:</h3>
+    <div class="grid">
+        <div>
+            <strong>ID:</strong> {{ user_id }}<br>
+            <strong>Nickname:</strong> {{ nickname }}<br>
+            <strong>Email:</strong> {{ email }}
+        </div>
+        <div>
+            <strong>Nome:</strong> {{ first_name }} {{ last_name }}<br>
+            <strong>País:</strong> {{ country_id }}<br>
+            <strong>Site:</strong> {{ site_id }}
+        </div>
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <a href="{{ permalink }}" target="_blank" class="button">🔗 Ver Perfil no Mercado Livre</a>
+    </div>
+</div>
+
+<div class="grid">
+    <div class="card">
+        <h3>🛍️ Meus Produtos</h3>
+        <p>Visualize e gerencie seus produtos no Mercado Livre.</p>
+        <a href="/users/{{ user_id }}/items" class="button secondary">Ver Meus Itens</a>
+    </div>
+    
+    <div class="card">
+        <h3>🔍 Buscar Produtos</h3>
+        <p>Busque produtos em todo o Mercado Livre.</p>
+        <a href="/products/search" class="button secondary">Buscar Produtos</a>
+    </div>
+    
+    <div class="card">
+        <h3>📂 Categorias</h3>
+        <p>Explore as categorias disponíveis.</p>
+        <a href="/categories/" class="button secondary">Ver Categorias</a>
+    </div>
+    
+    <div class="card">
+        <h3>📚 Documentação</h3>
+        <p>Acesse a documentação completa da API.</p>
+        <a href="/docs" class="button secondary">Ver Documentação</a>
+    </div>
+</div>
+
+<div class="info">
+    <h3>🔗 Links Úteis:</h3>
+    <ul>
+        <li><a href="{{ permalink }}" target="_blank">Perfil no Mercado Livre</a></li>
+        <li><a href="/docs">Documentação da API</a></li>
+        <li><a href="/health">Status da API</a></li>
+    </ul>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="/" class="button">🏠 Início</a>
+    <a href="/docs" class="button secondary">📚 Documentação</a>
+</div>
+{% endblock %}
