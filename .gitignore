@@ -115,3 +115,25 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+
+# Database
+*.sqlite3
+*.db
+
+# Logs
+logs/
+*.log
+
+# Backup files
+*.sql
+*.dump

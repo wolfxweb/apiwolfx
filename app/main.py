@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config.settings import settings
+from app.config.database import engine, Base
 from app.routes.main_routes import main_router
 
 # Inicializar FastAPI
@@ -23,6 +24,17 @@ app.add_middleware(
 
 # Configurar arquivos estáticos
 app.mount("/static", StaticFiles(directory="public"), name="static")
+
+# Criar tabelas do banco de dados
+@app.on_event("startup")
+async def startup_event():
+    """Evento de inicialização da aplicação"""
+    try:
+        # Criar tabelas se não existirem
+        Base.metadata.create_all(bind=engine)
+        print("✅ Banco de dados inicializado")
+    except Exception as e:
+        print(f"❌ Erro ao inicializar banco de dados: {e}")
 
 # Incluir todas as rotas com prefixo /api
 app.include_router(main_router, prefix="/api")

@@ -65,36 +65,47 @@ apiwolfx/
 
 ## 🚀 Instalação
 
-### 1. Clone o repositório
+### Opção 1: Docker (Recomendado)
 ```bash
+# Clone o repositório
 git clone https://github.com/seu-usuario/apiwolfx.git
 cd apiwolfx
+
+# Execute com Docker
+./run_docker.sh
 ```
 
-### 2. Crie um ambiente virtual
+### Opção 2: Instalação Local
 ```bash
+# Clone o repositório
+git clone https://github.com/seu-usuario/apiwolfx.git
+cd apiwolfx
+
+# Crie um ambiente virtual
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # ou
 venv\Scripts\activate     # Windows
-```
 
-### 3. Instale as dependências
-```bash
+# Instale as dependências
 pip install -r requirements.txt
-```
 
-### 4. Configure as credenciais
-Edite o arquivo `app/config/settings.py`:
-```python
-self.ml_app_id = "SEU_APP_ID_AQUI"
-self.ml_client_secret = "SEU_CLIENT_SECRET_AQUI"
-self.ml_redirect_uri = "https://sua-url.ngrok.io/api/callback"
+# Configure as credenciais
+# Edite o arquivo app/config/settings.py
 ```
 
 ## 🎯 Como Usar
 
-### Com ngrok (Recomendado)
+### Com Docker (Recomendado)
+```bash
+# Produção
+./run_docker.sh
+
+# Desenvolvimento
+./run_dev.sh
+```
+
+### Com ngrok (Local)
 ```bash
 python start.py
 ```
@@ -106,11 +117,17 @@ python run_local.py
 
 ## 📱 URLs da API
 
+### API
 - **Home**: `/`
 - **Login**: `/login`
 - **Callback**: `/api/callback`
 - **Documentação**: `/docs`
 - **Status**: `/health`
+
+### Docker
+- **API**: http://localhost:8000
+- **phpMyAdmin**: http://localhost:8080
+- **Documentação**: http://localhost:8000/docs
 
 ## 🔧 Configuração no Mercado Livre
 

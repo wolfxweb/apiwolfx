@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # API FastAPI - Desenvolvimento
+  api:
+    build: .
+    container_name: apiwolfx-api-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql://root:password@db:3306/apiwolfx
+      - ML_APP_ID=6987936494418444
+      - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
+      - ML_REDIRECT_URI=http://localhost:8000/api/callback
+      - DEBUG=True
+    depends_on:
+      - db
+    volumes:
+      - ./app:/app/app
+      - ./public:/app/public
+      - ./logs:/app/logs
+    networks:
+      - apiwolfx-network
+    restart: unless-stopped
+    command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Banco de dados MySQL
+  db:
+    image: mysql:8.0
+    container_name: apiwolfx-db-dev
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: apiwolfx
+      MYSQL_USER: apiwolfx
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - apiwolfx-network
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+
+  # phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: apiwolfx-phpmyadmin-dev
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: password
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    networks:
+      - apiwolfx-network
+    restart: unless-stopped
+
+  # Redis para cache (opcional)
+  redis:
+    image: redis:7-alpine
+    container_name: apiwolfx-redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - apiwolfx-network
+    restart: unless-stopped
+
+  # Mailhog para emails de desenvolvimento
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: apiwolfx-mailhog-dev
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - apiwolfx-network
+    restart: unless-stopped
+
+volumes:
+  mysql_dev_data:
+
+networks:
+  apiwolfx-network:
+    driver: bridge
