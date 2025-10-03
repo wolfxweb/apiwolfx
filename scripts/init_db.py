@@ -7,7 +7,10 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config.database import engine, Base
-from app.models.database_models import User, Token, Product, Category, ApiLog
+from app.models.saas_models import (
+    Company, User, MLAccount, UserMLAccount, Token,
+    Product, UserSession, Subscription, ApiLog
+)
 import logging
 
 logging.basicConfig(level=logging.INFO)

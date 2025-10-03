@@ -1,7 +1,7 @@
 """
 Modelos do banco de dados usando SQLAlchemy
 """
-from sqlalchemy import Column, Integer, String, Text, Decimal, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Text, Numeric, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base
@@ -52,7 +52,7 @@ class Product(Base):
     ml_item_id = Column(String(50), unique=True, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String(500), nullable=False)
-    price = Column(Decimal(10, 2))
+    price = Column(Numeric(10, 2))
     currency_id = Column(String(10))
     condition = Column(String(50))
     permalink = Column(String(500))

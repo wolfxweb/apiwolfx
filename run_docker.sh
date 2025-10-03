@@ -25,13 +25,12 @@ docker-compose down
 echo "🔨 Construindo e iniciando containers..."
 docker-compose up --build -d
 
-# Aguardar banco de dados inicializar
-echo "⏳ Aguardando banco de dados inicializar..."
-sleep 10
+# Aguardar aplicação inicializar
+echo "⏳ Aguardando aplicação inicializar..."
+sleep 5
 
-# Inicializar banco de dados
-echo "🗄️ Inicializando banco de dados..."
-docker-compose exec api python scripts/init_db.py
+# Nota: Usando PostgreSQL externo - não precisa inicializar banco local
+echo "ℹ️  Usando PostgreSQL externo: pgadmin.wolfx.com.br"
 
 echo ""
 echo "✅ Aplicação iniciada com sucesso!"
@@ -39,14 +38,13 @@ echo ""
 echo "🌐 URLs disponíveis:"
 echo "   • API: http://localhost:8000"
 echo "   • Documentação: http://localhost:8000/docs"
-echo "   • phpMyAdmin: http://localhost:8080"
 echo "   • Status: http://localhost:8000/health"
 echo ""
-echo "🔑 Credenciais do banco:"
-echo "   • Host: localhost:3306"
-echo "   • Usuário: root"
-echo "   • Senha: password"
-echo "   • Banco: apiwolfx"
+echo "🔑 Banco de dados PostgreSQL:"
+echo "   • Host: pgadmin.wolfx.com.br:5432"
+echo "   • Usuário: postgres"
+echo "   • Banco: comercial"
+echo "   • Interface: https://pgadmin.wolfx.com.br/"
 echo ""
 echo "📊 Para ver logs:"
 echo "   docker-compose logs -f"

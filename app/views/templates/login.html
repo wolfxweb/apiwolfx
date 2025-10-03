@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Login - API Mercado Livre{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white text-center">
+                <h4 class="mb-0">
+                    <i class="bi bi-box-arrow-in-right"></i> Login
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <!-- Mensagens de erro/sucesso -->
+                {% if error %}
+                <div class="alert alert-danger" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill"></i> {{ error }}
+                </div>
+                {% endif %}
+                
+                {% if success %}
+                <div class="alert alert-success" role="alert">
+                    <i class="bi bi-check-circle-fill"></i> {{ success }}
+                </div>
+                {% endif %}
+                
+                <!-- Formulário de Login -->
+                <form method="POST" action="/auth/login">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">
+                            <i class="bi bi-envelope-fill"></i> Email
+                        </label>
+                        <input type="email" class="form-control" id="email" name="email" 
+                               placeholder="seu@email.com" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            <i class="bi bi-lock-fill"></i> Senha
+                        </label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   placeholder="Sua senha" required>
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <i class="bi bi-eye" id="toggleIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                        <label class="form-check-label" for="remember">
+                            Lembrar de mim
+                        </label>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-box-arrow-in-right"></i> Entrar
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <!-- Links adicionais -->
+                <div class="text-center">
+                    <p class="mb-2">
+                        <a href="/auth/forgot-password" class="text-decoration-none">
+                            <i class="bi bi-question-circle"></i> Esqueceu a senha?
+                        </a>
+                    </p>
+                    <p class="mb-0">
+                        Não tem uma conta? 
+                        <a href="/auth/register" class="text-decoration-none fw-bold">
+                            <i class="bi bi-person-plus-fill"></i> Cadastre-se
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Informações adicionais -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="bi bi-info-circle-fill text-info"></i> Informações
+                </h6>
+                <p class="card-text small text-muted">
+                    Faça login para acessar sua conta e gerenciar suas integrações com o Mercado Livre.
+                </p>
+                <ul class="list-unstyled small">
+                    <li><i class="bi bi-check-circle text-success"></i> Acesso seguro</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Multi-tenant</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Integração ML</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Toggle password visibility
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const password = document.getElementById('password');
+    const icon = document.getElementById('toggleIcon');
+    
+    if (password.type === 'password') {
+        password.type = 'text';
+        icon.className = 'bi bi-eye-slash';
+    } else {
+        password.type = 'password';
+        icon.className = 'bi bi-eye';
+    }
+});
+
+// Auto-focus no campo email
+document.getElementById('email').focus();
+
+// Validação do formulário
+document.querySelector('form').addEventListener('submit', function(e) {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    if (!email || !password) {
+        e.preventDefault();
+        alert('Por favor, preencha todos os campos.');
+        return;
+    }
+    
+    // Mostrar loading
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Entrando...';
+    submitBtn.disabled = true;
+    
+    // Reabilitar após 3 segundos (caso não redirecione)
+    setTimeout(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }, 3000);
+});
+</script>
+{% endblock %}

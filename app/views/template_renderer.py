@@ -26,6 +26,9 @@ class TemplateRenderer:
             # Processar herança de templates
             content = self._process_extends(content)
             
+            # Processar condições PRIMEIRO
+            content = self._process_conditions(content, context)
+            
             # Substituir variáveis no template
             content = self._replace_variables(content, context)
             
@@ -83,10 +86,124 @@ class TemplateRenderer:
     
     def _replace_variables(self, content: str, context: dict) -> str:
         """Substitui variáveis no template"""
-        # Substituir variáveis simples {{ variavel }}
-        for key, value in context.items():
-            content = content.replace(f"{{{{ {key} }}}}", str(value))
-            content = content.replace(f"{{{{{key}}}}}", str(value))
+        import re
+        
+        # Padrão para variáveis aninhadas {{ user.first_name }}
+        def replace_nested_var(match):
+            var_path = match.group(1).strip()
+            parts = var_path.split('.')
+            
+            # Navegar pela estrutura aninhada
+            current = context
+            for part in parts:
+                if isinstance(current, dict) and part in current:
+                    current = current[part]
+                else:
+                    return ""  # Retornar vazio se não encontrar
+            
+            # Converter None para string vazia
+            if current is None:
+                return ""
+            return str(current)
+        
+        # Substituir variáveis aninhadas {{ user.first_name }}
+        content = re.sub(r'\{\{\s*([^}]+)\s*\}\}', replace_nested_var, content)
+        
+        return content
+    
+    def _process_conditions(self, content: str, context: dict) -> str:
+        """Processa condições {% if %} no template"""
+        import re
+        
+        # Padrão para {% if variavel %} com suporte a condições aninhadas
+        if_pattern = r'{%\s*if\s+([^%]+?)\s*%}(.*?){%\s*endif\s*%}'
+        
+        def process_if(match):
+            condition = match.group(1).strip()
+            if_content = match.group(2)
+            
+            # Processar condições simples (variavel)
+            if not '.' in condition and not '==' in condition and not '!=' in condition:
+                var_value = context.get(condition)
+                if var_value and var_value != "" and var_value != "None" and var_value != []:
+                    return if_content
+                else:
+                    return ""
+            
+            # Processar condições com comparação (==, !=)
+            elif '==' in condition:
+                parts = condition.split('==')
+                var_name = parts[0].strip()
+                var_value = parts[1].strip().strip('"\'')
+                context_value = context.get(var_name)
+                if str(context_value) == var_value:
+                    return if_content
+                else:
+                    return ""
+            
+            # Processar condições com !=
+            elif '!=' in condition:
+                parts = condition.split('!=')
+                var_name = parts[0].strip()
+                var_value = parts[1].strip().strip('"\'')
+                context_value = context.get(var_name)
+                if str(context_value) != var_value:
+                    return if_content
+                else:
+                    return ""
+            
+            return ""
+        
+        # Processar todas as condições (múltiplas passadas para lidar com aninhamento)
+        for _ in range(5):  # Máximo 5 níveis de aninhamento
+            new_content = re.sub(if_pattern, process_if, content, flags=re.DOTALL)
+            if new_content == content:  # Se não houve mudança, parar
+                break
+            content = new_content
+        
+        # Processar loops {% for %}
+        content = self._process_loops(content, context)
+        
+        return content
+    
+    def _process_loops(self, content: str, context: dict) -> str:
+        """Processa loops {% for %} no template"""
+        import re
+        
+        # Padrão para {% for item in lista %}
+        for_pattern = r'{%\s*for\s+(\w+)\s+in\s+(\w+)\s*%}(.*?){%\s*endfor\s*%}'
+        
+        def process_for(match):
+            item_name = match.group(1)
+            list_name = match.group(2)
+            loop_content = match.group(3)
+            
+            # Obter lista do contexto
+            items = context.get(list_name, [])
+            if not isinstance(items, list):
+                return ""
+            
+            # Processar cada item da lista
+            result = ""
+            for item in items:
+                # Criar contexto temporário com o item atual
+                temp_context = context.copy()
+                temp_context[item_name] = item
+                
+                # Processar conteúdo do loop com o item atual
+                item_content = loop_content
+                for key, value in temp_context.items():
+                    if value is None:
+                        value = ""
+                    item_content = item_content.replace(f"{{{{ {key} }}}}", str(value))
+                    item_content = item_content.replace(f"{{{{{key}}}}}", str(value))
+                
+                result += item_content
+            
+            return result
+        
+        # Processar todos os loops
+        content = re.sub(for_pattern, process_for, content, flags=re.DOTALL)
         
         return content
     
@@ -127,3 +244,10 @@ class TemplateRenderer:
             "error_type": error_type
         }
         return self.render("error.html", context)
+
+# Instância global do renderizador
+_renderer = TemplateRenderer()
+
+def render_template(template_name: str, **context) -> HTMLResponse:
+    """Função de conveniência para renderizar templates"""
+    return _renderer.render(template_name, context)

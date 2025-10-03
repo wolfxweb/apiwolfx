@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Contas Mercado Livre - API Mercado Livre{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header da Página -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="bi bi-shop"></i> Contas Mercado Livre
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Gerencie suas contas conectadas do Mercado Livre
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Mensagens de Sucesso/Erro -->
+            {% if success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle-fill"></i>
+                Conta {{ success }} com sucesso!
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+            
+            {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+            
+            <!-- Lista de Contas Conectadas -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                       Contas Conectadas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Lista de contas conectadas -->
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    <i class="bi bi-shop-fill text-success" style="font-size: 2rem;"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1">WOLFXDISTRIBUIDORA</h6>
+                                    <p class="text-muted mb-1">wolfxpj@gmail.com</p>
+                                    <small class="text-success">
+                                        <i class="bi bi-check-circle-fill"></i> Conectada
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="/ml/disconnect/6" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-x-circle"></i> Desconectar
+                            </a>
+                        </div>
+                    </div>
+                    <hr>
+                    
+                    <!-- Botão para conectar mais contas -->
+                    <div class="text-center mt-4">
+                        <a href="/ml/connect" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Conectar Nova Conta
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+{% endblock %}

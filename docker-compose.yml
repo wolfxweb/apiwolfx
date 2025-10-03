@@ -8,12 +8,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=mysql://root:password@db:3306/apiwolfx
+      - DATABASE_URL=postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial
       - ML_APP_ID=6987936494418444
       - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
-      - ML_REDIRECT_URI=http://localhost:8000/api/callback
-    depends_on:
-      - db
+      - ML_REDIRECT_URI=https://ab6f7ca137ca.ngrok-free.app/api/callback
+    # depends_on:
+      # - db
     volumes:
       - ./app:/app/app
       - ./public:/app/public
@@ -21,42 +21,42 @@ services:
       - apiwolfx-network
     restart: unless-stopped
 
-  # Banco de dados MySQL
-  db:
-    image: mysql:8.0
-    container_name: apiwolfx-db
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: apiwolfx
-      MYSQL_USER: apiwolfx
-      MYSQL_PASSWORD: password
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - apiwolfx-network
-    restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password
+  # Banco de dados MySQL - REMOVIDO (usando PostgreSQL externo)
+  # db:
+  #   image: mysql:8.0
+  #   container_name: apiwolfx-db
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: password
+  #     MYSQL_DATABASE: apiwolfx
+  #     MYSQL_USER: apiwolfx
+  #     MYSQL_PASSWORD: password
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #     - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+  #   networks:
+  #     - apiwolfx-network
+  #   restart: unless-stopped
+  #   command: --default-authentication-plugin=mysql_native_password
 
-  # phpMyAdmin
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin:latest
-    container_name: apiwolfx-phpmyadmin
-    environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
-      PMA_USER: root
-      PMA_PASSWORD: password
-      MYSQL_ROOT_PASSWORD: password
-    ports:
-      - "8080:80"
-    depends_on:
-      - db
-    networks:
-      - apiwolfx-network
-    restart: unless-stopped
+  # phpMyAdmin - REMOVIDO (usando PostgreSQL externo)
+  # phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin:latest
+  #   container_name: apiwolfx-phpmyadmin
+  #   environment:
+  #     PMA_HOST: db
+  #     PMA_PORT: 3306
+  #     PMA_USER: root
+  #     PMA_PASSWORD: password
+  #     MYSQL_ROOT_PASSWORD: password
+  #   ports:
+  #     - "8080:80"
+  #   depends_on:
+  #     - db
+  #   networks:
+  #     - apiwolfx-network
+  #   restart: unless-stopped
 
   # ngrok (opcional)
   ngrok:
@@ -71,8 +71,8 @@ services:
     profiles:
       - ngrok
 
-volumes:
-  mysql_data:
+# volumes:
+  # mysql_data:  # Removido - usando PostgreSQL externo
 
 networks:
   apiwolfx-network:
