@@ -316,8 +316,7 @@ async def search_products(
                 'title': MLProduct.title,
                 'price': MLProduct.price,
                 'available_quantity': MLProduct.available_quantity,
-                'status': MLProduct.status,
-                'last_sync': MLProduct.last_sync
+                'status': MLProduct.status
             }
             
             if sort in sort_mapping:
@@ -355,6 +354,8 @@ async def search_products(
                     "thumbnail": p.thumbnail,
                     "permalink": p.permalink,
                     "shipping": p.shipping,
+                    "catalog_product_id": p.catalog_product_id,
+                    "catalog_listing": p.catalog_listing,
                     "last_sync": p.last_sync.isoformat() if p.last_sync else None
                 }
                 for p in products
