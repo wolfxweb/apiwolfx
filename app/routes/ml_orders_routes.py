@@ -78,7 +78,7 @@ async def sync_orders_api(
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """API para sincronizar orders da API do Mercado Libre"""
+    """API para sincronizar orders da API do Mercado Libre (apenas recentes)"""
     try:
         if not session_token:
             return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
@@ -91,12 +91,42 @@ async def sync_orders_api(
         company_id = user_data["company"]["id"]
         
         controller = MLOrdersController(db)
-        result = controller.sync_orders(company_id=company_id, ml_account_id=ml_account_id)
+        result = controller.sync_orders(company_id=company_id, ml_account_id=ml_account_id, is_full_import=False)
         
         return JSONResponse(content=result)
         
     except Exception as e:
         logging.error(f"Erro no endpoint sync orders: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.get("/api/orders/import")
+async def import_orders_api(
+    ml_account_id: Optional[int] = Query(None),
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para importar TODOS os orders da API do Mercado Libre"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        controller = MLOrdersController(db)
+        result = controller.sync_orders(company_id=company_id, ml_account_id=ml_account_id, is_full_import=True)
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        logging.error(f"Erro no endpoint import orders: {e}")
         return JSONResponse(content={
             "success": False,
             "error": f"Erro interno: {str(e)}"

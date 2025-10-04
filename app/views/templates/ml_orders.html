@@ -18,11 +18,11 @@
                     </p>
                 </div>
                 <div>
-                    <button class="btn btn-primary me-2" onclick="syncOrders()">
+                    <button id="sync-btn" class="btn btn-primary me-2" onclick="syncOrders()">
                         <i class="bi bi-arrow-clockwise"></i> Sincronizar
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="refreshOrders()">
-                        <i class="bi bi-arrow-repeat"></i> Atualizar
+                    <button id="import-btn" class="btn btn-success" onclick="importOrders()">
+                        <i class="bi bi-download"></i> Importar Pedidos
                     </button>
                 </div>
             </div>
@@ -163,6 +163,117 @@
     </div>
 </div>
 
+<!-- Modal de Confirmação para Importação -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalLabel">
+                    <i class="bi bi-download text-success me-2"></i>Importar Pedidos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="bi bi-cloud-download text-primary" style="font-size: 3rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">Deseja importar TODOS os pedidos da conta?</h6>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Atenção:</strong> Esta operação pode demorar alguns minutos, dependendo da quantidade de pedidos.
+                </div>
+                <ul class="list-unstyled">
+                    <li><i class="bi bi-check-circle text-success me-2"></i>Serão importados todos os pedidos históricos</li>
+                    <li><i class="bi bi-check-circle text-success me-2"></i>Pedidos já existentes serão atualizados</li>
+                    <li><i class="bi bi-check-circle text-success me-2"></i>Novos pedidos serão adicionados ao banco</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="confirmImport()">
+                    <i class="bi bi-download me-1"></i>Confirmar Importação
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Estilos para botões em loading */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+.btn .spinner-border {
+    color: currentColor;
+}
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-spinner {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    text-align: center;
+}
+
+/* Estilos para o modal de importação */
+#importModal .modal-content {
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+#importModal .modal-header {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border-radius: 12px 12px 0 0;
+    border: none;
+}
+
+#importModal .modal-header .btn-close {
+    filter: invert(1);
+}
+
+#importModal .modal-body {
+    padding: 2rem;
+}
+
+#importModal .alert-info {
+    border-left: 4px solid #17a2b8;
+    background-color: #f8f9fa;
+}
+
+#importModal .list-unstyled li {
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+#importModal .modal-footer {
+    border: none;
+    padding: 1rem 2rem 2rem 2rem;
+}
+</style>
+
 <script>
 let currentPage = 1;
 let currentLimit = 50;
@@ -188,8 +299,8 @@ function loadOrders(page = 1) {
         offset: (page - 1) * (urlParams.get('limit') || currentLimit)
     };
     
-    // Construir URL da API
-    let apiUrl = `/api/orders?page=${page}&limit=${filters.limit}&offset=${filters.offset}`;
+    // Construir URL da API (com prefixo /ml)
+    let apiUrl = `/ml/api/orders?page=${page}&limit=${filters.limit}&offset=${filters.offset}`;
     
     if (filters.ml_account_id) apiUrl += `&ml_account_id=${encodeURIComponent(filters.ml_account_id)}`;
     if (filters.status_filter) apiUrl += `&status_filter=${encodeURIComponent(filters.status_filter)}`;
@@ -207,18 +318,20 @@ function loadOrders(page = 1) {
         return response.json();
     })
     .then(data => {
+        console.log('Resposta da API:', data);
         if (data && data.success) {
             renderOrders(data.orders);
             updateOrdersCount(data.total);
             renderPagination(data.total, filters.limit, page);
             loadAccountsFilter(data.accounts || []);
         } else {
+            console.error('Erro na API:', data);
             showError('Erro ao carregar pedidos: ' + (data?.error || 'Erro desconhecido'));
         }
     })
     .catch(error => {
-        console.error('Erro:', error);
-        showError('Erro ao carregar pedidos');
+        console.error('Erro na requisição:', error);
+        showError('Erro ao carregar pedidos: ' + error.message);
     })
     .finally(() => {
         showLoading(false);
@@ -379,16 +492,25 @@ function applyFilters() {
 }
 
 function syncOrders() {
+    const syncBtn = document.getElementById('sync-btn');
+    const importBtn = document.getElementById('import-btn');
+    
+    // Desabilitar botões e mostrar loading
+    syncBtn.disabled = true;
+    importBtn.disabled = true;
+    syncBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Sincronizando...';
+    
     showLoading(true);
     
-    fetch('/api/orders/sync', {
+    fetch('/ml/api/orders/sync', {
         method: 'GET',
         credentials: 'include'
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Resposta da sincronização:', data);
         if (data && data.success) {
-            showSuccess(`Sincronização concluída: ${data.saved_count} pedidos criados, ${data.updated_count} pedidos atualizados`);
+            showSuccess(`Sincronização concluída: ${data.total_saved || 0} pedidos criados, ${data.total_updated || 0} pedidos atualizados`);
             loadOrders(currentPage);
         } else {
             showError('Erro ao sincronizar pedidos: ' + (data?.error || 'Erro desconhecido'));
@@ -399,12 +521,64 @@ function syncOrders() {
         showError('Erro ao sincronizar pedidos');
     })
     .finally(() => {
+        // Reabilitar botões e restaurar texto
+        syncBtn.disabled = false;
+        importBtn.disabled = false;
+        syncBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Sincronizar';
         showLoading(false);
     });
 }
 
 function refreshOrders() {
     loadOrders(currentPage);
+}
+
+function importOrders() {
+    // Mostrar modal de confirmação
+    const modal = new bootstrap.Modal(document.getElementById('importModal'));
+    modal.show();
+}
+
+function confirmImport() {
+    // Fechar o modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('importModal'));
+    modal.hide();
+    
+    const syncBtn = document.getElementById('sync-btn');
+    const importBtn = document.getElementById('import-btn');
+    
+    // Desabilitar botões e mostrar loading
+    syncBtn.disabled = true;
+    importBtn.disabled = true;
+    importBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Importando...';
+    
+    showLoading(true);
+    
+    fetch('/ml/api/orders/import', {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Resposta da importação:', data);
+        if (data && data.success) {
+            showSuccess(`Importação concluída: ${data.total_saved || 0} pedidos criados, ${data.total_updated || 0} pedidos atualizados`);
+            loadOrders(currentPage);
+        } else {
+            showError('Erro ao importar pedidos: ' + (data?.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showError('Erro ao importar pedidos: ' + error.message);
+    })
+    .finally(() => {
+        // Reabilitar botões e restaurar texto
+        syncBtn.disabled = false;
+        importBtn.disabled = false;
+        importBtn.innerHTML = '<i class="bi bi-download"></i> Importar Pedidos';
+        showLoading(false);
+    });
 }
 
 function viewOrderDetails(orderId) {

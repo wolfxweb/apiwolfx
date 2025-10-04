@@ -45,46 +45,104 @@ class MLOrdersController:
                     "accounts": []
                 }
             
-            # Buscar orders de todas as contas
+            # Buscar orders diretamente do banco de dados
+            from app.models.saas_models import MLOrder, OrderStatus
+            from sqlalchemy import and_, or_
+            
+            # Construir query base
+            query = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id
+            )
+            
+            # Se ml_account_id foi especificado, filtrar por conta
+            if ml_account_id:
+                query = query.filter(MLOrder.ml_account_id == ml_account_id)
+            else:
+                # Filtrar apenas contas da empresa
+                account_ids = [acc.id for acc in accounts]
+                query = query.filter(MLOrder.ml_account_id.in_(account_ids))
+            
+            # Aplicar filtros
+            if status_filter:
+                try:
+                    status_enum = OrderStatus(status_filter)
+                    query = query.filter(MLOrder.status == status_enum)
+                except ValueError:
+                    logger.warning(f"Status inválido: {status_filter}")
+            
+            if date_from:
+                try:
+                    from datetime import datetime
+                    date_from_obj = datetime.fromisoformat(date_from)
+                    query = query.filter(MLOrder.date_created >= date_from_obj)
+                except ValueError:
+                    logger.warning(f"Data inválida: {date_from}")
+            
+            if date_to:
+                try:
+                    from datetime import datetime
+                    date_to_obj = datetime.fromisoformat(date_to)
+                    query = query.filter(MLOrder.date_created <= date_to_obj)
+                except ValueError:
+                    logger.warning(f"Data inválida: {date_to}")
+            
+            # Ordenar por data de criação (mais recentes primeiro)
+            query = query.order_by(MLOrder.date_created.desc())
+            
+            # Contar total
+            total_orders = query.count()
+            
+            # Aplicar paginação
+            orders = query.offset(offset).limit(limit).all()
+            
+            # Converter para formato de resposta
             all_orders = []
-            total_orders = 0
-            accounts_data = []
-            
-            for account in accounts:
-                # Buscar orders desta conta
-                result = self.orders_service.get_orders_by_account(
-                    account.id, company_id, limit, offset, 
-                    status_filter, date_from, date_to
-                )
+            for order in orders:
+                # Buscar informações da conta ML
+                account = next((acc for acc in accounts if acc.id == order.ml_account_id), None)
                 
-                if result.get("success"):
-                    orders = result.get("orders", [])
-                    # Adicionar informações da conta a cada order
-                    for order in orders:
-                        order["account_nickname"] = account.nickname
-                        order["account_email"] = account.email
-                        order["account_country"] = account.country_id
-                    
-                    all_orders.extend(orders)
-                    total_orders += result.get("total", 0)
-                    
-                    accounts_data.append({
-                        "id": account.id,
-                        "nickname": account.nickname,
-                        "email": account.email,
-                        "country_id": account.country_id,
-                        "orders_count": result.get("total", 0)
-                    })
+                order_data = {
+                    "id": order.id,
+                    "ml_order_id": order.ml_order_id,
+                    "order_id": order.order_id,
+                    "buyer_nickname": order.buyer_nickname,
+                    "buyer_email": order.buyer_email,
+                    "status": order.status.value if order.status else None,
+                    "status_detail": order.status_detail,
+                    "total_amount": order.total_amount,
+                    "currency_id": order.currency_id,
+                    "payment_status": order.payment_status,
+                    "shipping_cost": order.shipping_cost,
+                    "shipping_method": order.shipping_method,
+                    "date_created": order.date_created.isoformat() if order.date_created else None,
+                    "last_updated": order.last_updated.isoformat() if order.last_updated else None,
+                    "order_items": order.order_items,
+                    "shipping_address": order.shipping_address,
+                    "account_nickname": account.nickname if account else "N/A",
+                    "account_email": account.email if account else "N/A",
+                    "account_country": account.country_id if account else "N/A"
+                }
+                all_orders.append(order_data)
             
-            # Ordenar orders por data (mais recentes primeiro)
-            all_orders.sort(key=lambda x: x.get("date_created", ""), reverse=True)
-            
-            # Aplicar paginação global
-            paginated_orders = all_orders[offset:offset + limit]
+            # Criar lista de contas com contagem de orders
+            accounts_data = []
+            for account in accounts:
+                account_orders_count = self.db.query(MLOrder).filter(
+                    MLOrder.ml_account_id == account.id,
+                    MLOrder.company_id == company_id
+                ).count()
+                
+                accounts_data.append({
+                    "id": account.id,
+                    "nickname": account.nickname,
+                    "email": account.email,
+                    "country_id": account.country_id,
+                    "orders_count": account_orders_count
+                })
             
             return {
                 "success": True,
-                "orders": paginated_orders,
+                "orders": all_orders,
                 "total": total_orders,
                 "limit": limit,
                 "offset": offset,
@@ -102,7 +160,7 @@ class MLOrdersController:
                 "accounts": []
             }
     
-    def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None) -> Dict:
+    def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None, is_full_import: bool = False) -> Dict:
         """Sincroniza orders da API do Mercado Libre"""
         try:
             logger.info(f"Sincronizando orders para company_id: {company_id}")
@@ -133,7 +191,7 @@ class MLOrdersController:
             
             for account in accounts:
                 try:
-                    result = self.orders_service.sync_orders_from_api(account.id, company_id)
+                    result = self.orders_service.sync_orders_from_api(account.id, company_id, is_full_import=is_full_import)
                     
                     if result.get("success"):
                         sync_results.append({

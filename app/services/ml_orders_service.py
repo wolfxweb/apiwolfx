@@ -113,7 +113,7 @@ class MLOrdersService:
             }
     
     def sync_orders_from_api(self, ml_account_id: int, company_id: int, 
-                           limit: int = 100) -> Dict:
+                           limit: int = 50, is_full_import: bool = False) -> Dict:
         """Sincroniza orders da API do Mercado Libre para o banco"""
         try:
             logger.info(f"Sincronizando orders para ml_account_id: {ml_account_id}")
@@ -140,7 +140,12 @@ class MLOrdersService:
                 }
             
             # Buscar orders da API
-            orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit)
+            if is_full_import:
+                # Importação completa - buscar em lotes
+                orders_data = self._fetch_all_orders_from_api(access_token, account.ml_user_id)
+            else:
+                # Sincronização rápida - apenas os mais recentes
+                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit)
             
             if not orders_data:
                 return {
@@ -181,7 +186,45 @@ class MLOrdersService:
                 "error": str(e)
             }
     
-    def _fetch_orders_from_api(self, access_token: str, seller_id: str, limit: int = 100) -> List[Dict]:
+    def _fetch_all_orders_from_api(self, access_token: str, seller_id: str) -> List[Dict]:
+        """Busca TODOS os orders da API do Mercado Libre em lotes"""
+        try:
+            all_orders = []
+            offset = 0
+            limit = 50  # Máximo permitido pela API
+            max_requests = 20  # Limite de segurança para evitar loops infinitos
+            
+            for request_count in range(max_requests):
+                logger.info(f"Buscando orders - offset: {offset}, limit: {limit}")
+                
+                orders_batch = self._fetch_orders_from_api(access_token, seller_id, limit, offset)
+                
+                if not orders_batch:
+                    logger.info(f"Nenhuma order encontrada no lote {request_count + 1}")
+                    break
+                
+                all_orders.extend(orders_batch)
+                logger.info(f"Lote {request_count + 1}: {len(orders_batch)} orders encontradas")
+                
+                # Se retornou menos que o limite, chegamos ao fim
+                if len(orders_batch) < limit:
+                    logger.info(f"Fim dos orders atingido - total: {len(all_orders)}")
+                    break
+                
+                offset += limit
+                
+                # Pequena pausa entre requisições para não sobrecarregar a API
+                import time
+                time.sleep(0.5)
+            
+            logger.info(f"Importação completa finalizada: {len(all_orders)} orders totais")
+            return all_orders
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar todos os orders da API: {e}")
+            return []
+
+    def _fetch_orders_from_api(self, access_token: str, seller_id: str, limit: int = 50, offset: int = 0) -> List[Dict]:
         """Busca orders da API do Mercado Libre"""
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -191,7 +234,7 @@ class MLOrdersService:
             params = {
                 "seller": seller_id,
                 "limit": limit,
-                "offset": 0,
+                "offset": offset,
                 "sort": "date_desc"
             }
             
