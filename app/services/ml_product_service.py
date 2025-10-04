@@ -3,6 +3,7 @@ Serviço para gerenciar produtos do Mercado Livre
 """
 import requests
 import logging
+import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 from sqlalchemy.orm import Session
@@ -23,17 +24,29 @@ class MLProductService:
     def get_active_token(self, ml_account_id: int) -> Optional[str]:
         """Obtém token ativo para a conta ML"""
         try:
-            token = self.db.query(Token).filter(
-                and_(
-                    Token.ml_account_id == ml_account_id,
-                    Token.is_active == True,
-                    Token.expires_at > datetime.utcnow()
-                )
-            ).first()
+            logger.info(f"Buscando token ativo para ml_account_id: {ml_account_id}")
             
-            if token:
-                return token.access_token
-            return None
+            # Usar query SQL direta para debug
+            from sqlalchemy import text
+            query = text("""
+                SELECT access_token, token_type, expires_at, is_active
+                FROM tokens 
+                WHERE ml_account_id = :ml_account_id 
+                AND is_active = true 
+                AND expires_at > NOW()
+                ORDER BY expires_at DESC
+                LIMIT 1
+            """)
+            
+            result = self.db.execute(query, {"ml_account_id": ml_account_id}).fetchone()
+            
+            if result:
+                logger.info(f"Token encontrado: {result[0][:20]}..., expira em: {result[2]}")
+                return result[0]
+            else:
+                logger.warning(f"Nenhum token ativo encontrado para ml_account_id: {ml_account_id}")
+                return None
+                
         except Exception as e:
             logger.error(f"Erro ao obter token ativo: {e}")
             return None
@@ -988,11 +1001,15 @@ class MLProductService:
     def get_listing_prices(self, product_id, price, category_id=None, listing_type_id=None, ml_account_id=None):
         """Busca taxas de listagem do Mercado Livre com informações de frete"""
         try:
+            logger.info(f"Buscando listing prices - product_id: {product_id}, price: {price}, category_id: {category_id}, ml_account_id: {ml_account_id}")
+            
             if not ml_account_id:
+                logger.error("ID da conta ML não fornecido")
                 return {"success": False, "error": "ID da conta ML é obrigatório"}
                 
             token = self.get_active_token(ml_account_id)
             if not token:
+                logger.error(f"Token não encontrado para ml_account_id: {ml_account_id}")
                 return {"success": False, "error": "Token não encontrado"}
             
             # Construir URL da API
@@ -1009,13 +1026,16 @@ class MLProductService:
                 "Content-Type": "application/json"
             }
             
-            response = requests.get(url, params=params, headers=headers)
+            logger.info(f"Buscando listing prices para produto {product_id} com preço {price}")
+            response = requests.get(url, params=params, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"Resposta da API listing prices: {json.dumps(data, indent=2)}")
                 
                 # Buscar informações de frete do produto
                 shipping_info = self._get_product_shipping_info(product_id, token)
+                logger.info(f"Informações de frete: {json.dumps(shipping_info, indent=2) if shipping_info else 'None'}")
                 
                 # Adicionar informações de frete aos dados das taxas
                 if shipping_info:
@@ -1024,17 +1044,74 @@ class MLProductService:
                         for fee_item in data:
                             if isinstance(fee_item, dict):
                                 fee_item["shipping_info"] = shipping_info
+                                # Calcular valores totais para cada tipo de anúncio
+                                fee_item = self._calculate_total_fees(fee_item, price)
+                                logger.info(f"Fee item após cálculo: {json.dumps(fee_item, indent=2)}")
                     # Se data é um objeto único, adicionar diretamente
                     elif isinstance(data, dict):
                         data["shipping_info"] = shipping_info
+                        data = self._calculate_total_fees(data, price)
+                        logger.info(f"Fee data após cálculo: {json.dumps(data, indent=2)}")
                 
+                logger.info(f"Listing prices encontrados: {len(data) if isinstance(data, list) else 1} tipos de anúncio")
                 return {"success": True, "data": data}
             else:
+                logger.error(f"Erro na API listing prices: {response.status_code} - {response.text}")
                 return {"success": False, "error": f"Erro na API: {response.status_code}"}
                 
         except Exception as e:
             logger.error(f"Erro ao buscar taxas de listagem: {e}")
             return {"success": False, "error": str(e)}
+    
+    def _calculate_total_fees(self, fee_data, product_price):
+        """Calcula valores totais das taxas para um tipo de anúncio"""
+        try:
+            sale_fee_details = fee_data.get("sale_fee_details", {})
+            shipping_info = fee_data.get("shipping_info", {})
+            
+            # Converter product_price para float se for string
+            try:
+                product_price = float(product_price) if product_price else 0
+            except (ValueError, TypeError):
+                logger.warning(f"Erro ao converter preço do produto: {product_price}")
+                product_price = 0
+            
+            # Extrair valores das taxas e converter para float
+            fixed_fee = float(sale_fee_details.get("fixed_fee", 0) or 0)
+            percentage_fee = float(sale_fee_details.get("percentage_fee", 0) or 0)
+            financing_fee = float(sale_fee_details.get("financing_add_on_fee", 0) or 0)
+            listing_fee = float(fee_data.get("listing_fee_amount", 0) or 0)
+            
+            # Calcular valores em reais
+            percentage_amount = (product_price * percentage_fee) / 100 if percentage_fee > 0 else 0
+            financing_amount = (product_price * financing_fee) / 100 if financing_fee > 0 else 0
+            
+            # Calcular totais
+            total_sale_fees = fixed_fee + percentage_amount + financing_amount
+            total_marketplace_fees = total_sale_fees + listing_fee
+            
+            # Adicionar custo de frete
+            shipping_cost = float(shipping_info.get("shipping_cost", 0) or 0)
+            total_cost_with_shipping = total_marketplace_fees + shipping_cost
+            
+            # Adicionar informações calculadas
+            fee_data["calculated_fees"] = {
+                "fixed_fee_amount": fixed_fee,
+                "percentage_fee_amount": percentage_amount,
+                "financing_fee_amount": financing_amount,
+                "total_sale_fees": total_sale_fees,
+                "total_marketplace_fees": total_marketplace_fees,
+                "shipping_cost": shipping_cost,
+                "total_cost_with_shipping": total_cost_with_shipping,
+                "profit_margin_percentage": ((product_price - total_cost_with_shipping) / product_price * 100) if product_price > 0 else 0,
+                "net_profit": product_price - total_cost_with_shipping
+            }
+            
+            return fee_data
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular taxas totais: {e}")
+            return fee_data
     
     def _get_product_shipping_info(self, product_id, token):
         """Busca informações de frete do produto na API do ML"""
@@ -1084,32 +1161,82 @@ class MLProductService:
                 return 0
             
             mode = shipping_data.get("mode")
+            logistic_type = shipping_data.get("logistic_type")
             price = product_data.get("price", 0)
+            tags = shipping_data.get("tags", [])
             
-            # Valores baseados no modo de envio do Mercado Livre
+            # Verificar se tem mandatory_free_shipping (frete grátis obrigatório)
+            if "mandatory_free_shipping" in tags:
+                return 0
+            
+            # Calcular custo baseado no modo e tipo logístico
             if mode == "me2":
-                # Mercado Envios 2 - baseado no preço
-                if price > 0:
-                    if price <= 50:
-                        return 8.50  # Frete econômico
-                    elif price <= 100:
-                        return 12.50  # Frete padrão
+                # Mercado Envios 2 - custos baseados na documentação ML
+                if logistic_type == "cross_docking":
+                    # Cross Docking - custos mais baixos
+                    if price <= 79:
+                        return 0  # Frete grátis até R$ 79
+                    elif price <= 150:
+                        return 8.90  # Frete econômico
                     else:
-                        return 15.00  # Frete expresso
-                return 12.50  # Valor padrão
+                        return 12.90  # Frete padrão
+                        
+                elif logistic_type == "drop_off":
+                    # Drop Off - custos intermediários
+                    if price <= 99:
+                        return 0  # Frete grátis até R$ 99
+                    elif price <= 200:
+                        return 10.90
+                    else:
+                        return 15.90
+                        
+                elif logistic_type == "fulfillment":
+                    # Fulfillment - custos mais altos mas mais rápido
+                    if price <= 149:
+                        return 0  # Frete grátis até R$ 149
+                    elif price <= 300:
+                        return 12.90
+                    else:
+                        return 18.90
+                        
+                elif logistic_type == "self_service":
+                    # Envios Flex - custos variáveis
+                    if price <= 79:
+                        return 0
+                    elif price <= 150:
+                        return 7.90
+                    else:
+                        return 11.90
+                else:
+                    # Valor padrão para ME2
+                    return 12.90
+                    
             elif mode == "me1":
-                # Mercado Envios 1 - valor fixo
-                return 8.00
+                # Mercado Envios 1 - valores fixos mais baixos
+                if price <= 79:
+                    return 0  # Frete grátis até R$ 79
+                return 8.90  # Valor fixo ME1
+                
             elif mode == "custom":
-                # Frete customizado - valor estimado
-                return 15.00
+                # Frete customizado - valor estimado baseado no preço
+                if price <= 100:
+                    return 15.00
+                elif price <= 300:
+                    return 20.00
+                else:
+                    return 25.00
+                    
+            elif mode == "not_specified":
+                # Sem modo especificado - valor estimado conservador
+                return 12.00
+                
             else:
                 # Outros modos - valor estimado
                 return 12.00
                 
         except Exception as e:
             logger.error(f"Erro ao calcular custo de frete: {e}")
-            return 10.00  # Valor padrão em caso de erro
+            return 12.00  # Valor padrão em caso de erro
 
     def get_shipping_options(self, product_id, zip_code, ml_account_id=None):
         """Busca opções de envio para um produto"""

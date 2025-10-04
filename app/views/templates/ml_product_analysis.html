@@ -243,66 +243,38 @@ function loadMarketplaceFees(product) {
                    return;
                }
                
-               // Se fees é um array, pegar o primeiro item
+               // Se fees é um array, mostrar comparação entre tipos de anúncio
                // Se fees é um objeto, usar diretamente
-               const fee = Array.isArray(fees) ? fees[0] : fees;
-               const saleFeeDetails = fee.sale_fee_details || {};
-               
-               // Função para tratar valores N/A como 0
-               function safeParse(value) {
-                   if (value === null || value === undefined || value === 'N/A' || value === '') {
-                       return 0;
-                   }
-                   return parseFloat(value) || 0;
-               }
-               
-               // Extrair valores individuais com tratamento de N/A
-               const fixedFee = safeParse(saleFeeDetails.fixed_fee);
-               const percentageFee = safeParse(saleFeeDetails.percentage_fee);
-               const financingFee = safeParse(saleFeeDetails.financing_add_on_fee);
-               const listingFee = safeParse(fee.listing_fee_amount);
-               
-               // Buscar preço do produto para calcular percentual em reais
-               const productPrice = parseFloat(document.getElementById('product-price').textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
-               
-               // Calcular valores em reais dos percentuais
-               const percentageAmount = (productPrice * percentageFee) / 100;
-               const financingAmount = (productPrice * financingFee) / 100;
-               
-               // Calcular totais
-               const totalSaleFees = fixedFee + percentageAmount + financingAmount;
-               const totalFees = totalSaleFees + listingFee;
-               
-               // Verificar informações de frete da API
-               const shippingInfo = fee.shipping_info || {};
-               const hasFreeShipping = shippingInfo.free_shipping || fee.free_shipping || fee.shipping_free || false;
-               
-               // Buscar custo de frete real da API
-               let shippingCost = 0;
-               if (hasFreeShipping) {
-                   shippingCost = 0;
+               if (Array.isArray(fees)) {
+                   renderMultipleListingTypes(fees);
                } else {
-                   // Usar o custo de frete calculado pela API
-                   shippingCost = shippingInfo.shipping_cost || 0;
+                   renderSingleListingType(fees);
                }
+           }
+           
+           function renderSingleListingType(fee) {
+               const feesContainer = document.getElementById('marketplace-fees');
+               const calculatedFees = fee.calculated_fees || {};
+               const saleFeeDetails = fee.sale_fee_details || {};
+               const shippingInfo = fee.shipping_info || {};
                
-               const shippingMode = shippingInfo.mode || 'N/A';
-               const logisticType = shippingInfo.logistic_type || 'N/A';
-               
-               // Custo total incluindo frete
-               const totalCostWithShipping = totalFees + shippingCost;
+               // Buscar preço do produto
+               const productPrice = parseFloat(document.getElementById('product-price').textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
                
                feesContainer.innerHTML = `
                    <div class="mb-3">
                        <h6 class="text-primary mb-2">
-                           <i class="bi bi-tag"></i> Taxa de Publicação
+                           <i class="bi bi-tag"></i> ${fee.listing_type_name || 'Tipo de Anúncio'}
                        </h6>
                        <div class="d-flex justify-content-between">
                            <span>Taxa de Publicação:</span>
-                           <strong class="${listingFee === 0 ? 'text-success' : 'text-primary'}">
-                               ${formatPrice(listingFee)}
+                           <strong class="${(fee.listing_fee_amount || 0) === 0 ? 'text-success' : 'text-primary'}">
+                               ${formatPrice(fee.listing_fee_amount || 0)}
                            </strong>
                        </div>
+                       <small class="text-muted">
+                           Exposição: ${fee.listing_exposure || 'N/A'}
+                       </small>
                    </div>
                    
                    <div class="mb-3">
@@ -312,25 +284,25 @@ function loadMarketplaceFees(product) {
                        
                        <div class="d-flex justify-content-between mb-1">
                            <span class="text-muted">Taxa Fixa:</span>
-                           <span class="text-primary">${formatPrice(fixedFee)}</span>
+                           <span class="text-primary">${formatPrice(calculatedFees.fixed_fee_amount || 0)}</span>
                        </div>
                        
                        <div class="d-flex justify-content-between mb-1">
-                           <span class="text-muted">Comissão ML (${percentageFee}%):</span>
-                           <span class="text-primary">${formatPrice(percentageAmount)}</span>
+                           <span class="text-muted">Comissão ML (${saleFeeDetails.percentage_fee || 0}%):</span>
+                           <span class="text-primary">${formatPrice(calculatedFees.percentage_fee_amount || 0)}</span>
                        </div>
                        
-                       ${financingFee > 0 ? `
+                       ${saleFeeDetails.financing_add_on_fee > 0 ? `
                            <div class="d-flex justify-content-between mb-1">
-                               <span class="text-muted">Taxa de Financiamento (${financingFee}%):</span>
-                               <span class="text-primary">${formatPrice(financingAmount)}</span>
+                               <span class="text-muted">Taxa de Financiamento (${saleFeeDetails.financing_add_on_fee}%):</span>
+                               <span class="text-primary">${formatPrice(calculatedFees.financing_fee_amount || 0)}</span>
                            </div>
                        ` : ''}
                        
                        <hr class="my-2">
                        <div class="d-flex justify-content-between fw-bold">
                            <span>Subtotal Taxa de Venda:</span>
-                           <span class="text-primary">${formatPrice(totalSaleFees)}</span>
+                           <span class="text-primary">${formatPrice(calculatedFees.total_sale_fees || 0)}</span>
                        </div>
                    </div>
                    
@@ -340,62 +312,110 @@ function loadMarketplaceFees(product) {
                        </h6>
                        <div class="d-flex justify-content-between mb-1">
                            <span>Frete:</span>
-                           <strong class="${hasFreeShipping ? 'text-success' : 'text-primary'}">
-                               ${hasFreeShipping ? 'GRÁTIS' : formatPrice(shippingCost)}
+                           <strong class="${shippingInfo.free_shipping ? 'text-success' : 'text-primary'}">
+                               ${shippingInfo.free_shipping ? 'GRÁTIS (R$ 0,00)' : formatPrice(calculatedFees.shipping_cost || 0)}
                            </strong>
                        </div>
                        
                        <div class="d-flex justify-content-between mb-1">
-                           <span class="text-muted">Modo:</span>
-                           <span class="text-info">${shippingMode}</span>
-                       </div>
-                       
-                       <div class="d-flex justify-content-between mb-1">
                            <span class="text-muted">Tipo Logístico:</span>
-                           <span class="text-info">${logisticType}</span>
+                           <span class="text-info">${shippingInfo.logistic_type || 'N/A'}</span>
                        </div>
-                       
-                       ${hasFreeShipping ? `
-                           <div class="mt-2">
-                               <small class="text-success">
-                                   <i class="bi bi-check-circle"></i>
-                                   Frete grátis incluído no custo do produto
-                               </small>
-                           </div>
-                       ` : ''}
                    </div>
                    
                    <hr class="my-3">
                    <div class="d-flex justify-content-between fw-bold fs-5">
-                       <span class="text-dark">TOTAL DE TAXAS + FRETE:</span>
-                       <span class="text-danger">${formatPrice(totalCostWithShipping)}</span>
+                       <span class="text-dark">TOTAL DE CUSTOS:</span>
+                       <span class="text-danger">${formatPrice(calculatedFees.total_cost_with_shipping || 0)}</span>
                    </div>
                    
                    <div class="mt-3">
                        <div class="row text-center">
                            <div class="col-6">
-                               <small class="text-muted">Margem Total</small>
-                               <div class="fw-bold text-warning">
-                                   ${productPrice > 0 ? ((totalCostWithShipping / productPrice) * 100).toFixed(2) : '0.00'}%
+                               <small class="text-muted">Margem de Lucro</small>
+                               <div class="fw-bold ${(calculatedFees.profit_margin_percentage || 0) >= 20 ? 'text-success' : (calculatedFees.profit_margin_percentage || 0) >= 10 ? 'text-warning' : 'text-danger'}">
+                                   ${(calculatedFees.profit_margin_percentage || 0).toFixed(1)}%
                                </div>
                            </div>
                            <div class="col-6">
-                               <small class="text-muted">Tipo de Anúncio</small>
-                               <div class="fw-bold text-info">
-                                   ${fee.listing_type_name || 'N/A'}
+                               <small class="text-muted">Lucro Líquido</small>
+                               <div class="fw-bold ${(calculatedFees.net_profit || 0) > 0 ? 'text-success' : 'text-danger'}">
+                                   ${formatPrice(calculatedFees.net_profit || 0)}
                                </div>
                            </div>
                        </div>
                    </div>
+               `;
+           }
+           
+           function renderMultipleListingTypes(fees) {
+               const feesContainer = document.getElementById('marketplace-fees');
+               const productPrice = parseFloat(document.getElementById('product-price').textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+               
+               let html = '<h6 class="text-primary mb-3"><i class="bi bi-bar-chart"></i> Comparação de Tipos de Anúncio</h6>';
+               
+               // Ordenar por custo total crescente
+               fees.sort((a, b) => {
+                   const costA = (a.calculated_fees?.total_cost_with_shipping || 0);
+                   const costB = (b.calculated_fees?.total_cost_with_shipping || 0);
+                   return costA - costB;
+               });
+               
+               fees.forEach((fee, index) => {
+                   const calculatedFees = fee.calculated_fees || {};
+                   const shippingInfo = fee.shipping_info || {};
+                   const isBestOption = index === 0;
                    
-                   <div class="mt-2">
-                       <small class="text-muted">
-                           <i class="bi bi-info-circle"></i>
-                           Valores calculados sobre preço de R$ ${formatPrice(productPrice)}
-                           ${hasFreeShipping ? ' • Frete grátis incluído' : ''}
-                       </small>
+                   html += `
+                       <div class="card mb-2 ${isBestOption ? 'border-success' : ''}">
+                           <div class="card-body py-2">
+                               <div class="d-flex justify-content-between align-items-center">
+                                   <div>
+                                       <h6 class="mb-0 ${isBestOption ? 'text-success' : ''}">
+                                           ${fee.listing_type_name || 'N/A'}
+                                           ${isBestOption ? '<i class="bi bi-star-fill text-warning ms-1"></i>' : ''}
+                                       </h6>
+                                       <small class="text-muted">${fee.listing_exposure || 'N/A'} • ${fee.requires_picture ? 'Com foto' : 'Sem foto'}</small>
+                                   </div>
+                                   <div class="text-end">
+                                       <div class="fw-bold ${isBestOption ? 'text-success' : 'text-primary'}">
+                                           ${formatPrice(calculatedFees.total_cost_with_shipping || 0)}
+                                       </div>
+                                       <small class="text-muted">
+                                           Lucro: ${formatPrice(calculatedFees.net_profit || 0)}
+                                           (${(calculatedFees.profit_margin_percentage || 0).toFixed(1)}%)
+                                       </small>
+                                   </div>
+                               </div>
+                           </div>
+                       </div>
+                   `;
+               });
+               
+               // Adicionar resumo
+               const bestOption = fees[0];
+               const worstOption = fees[fees.length - 1];
+               const bestFees = bestOption.calculated_fees || {};
+               const worstFees = worstOption.calculated_fees || {};
+               
+               html += `
+                   <div class="mt-3 p-3 bg-light rounded">
+                       <h6 class="text-success mb-2">
+                           <i class="bi bi-lightbulb"></i> Recomendação
+                       </h6>
+                       <p class="mb-1">
+                           <strong>Melhor opção:</strong> ${bestOption.listing_type_name} 
+                           - Custo total: ${formatPrice(bestFees.total_cost_with_shipping || 0)}
+                           - Lucro: ${formatPrice(bestFees.net_profit || 0)}
+                       </p>
+                       <p class="mb-0">
+                           <strong>Economia:</strong> ${formatPrice((worstFees.total_cost_with_shipping || 0) - (bestFees.total_cost_with_shipping || 0))} 
+                           comparado ao ${worstOption.listing_type_name}
+                       </p>
                    </div>
                `;
+               
+               feesContainer.innerHTML = html;
            }
 
 function showFeesError(message) {
@@ -433,11 +453,38 @@ function loadShippingCosts(product) {
 }
 
 function loadProfitabilityAnalysis(product) {
-    // Simular carregamento de análise de rentabilidade
+    // Aguardar que as taxas sejam carregadas primeiro
     setTimeout(() => {
         const profitabilityContainer = document.getElementById('profitability-analysis');
         const productPrice = parseFloat(product.price) || 0;
-        const totalFees = 0; // Será calculado dinamicamente
+        
+        // Tentar obter os custos das taxas já calculadas
+        const feesContainer = document.getElementById('marketplace-fees');
+        let totalFees = 0;
+        let profitMargin = 0;
+        let roi = 0;
+        
+        // Extrair custos totais se já estiverem calculados
+        const totalCostsElement = feesContainer.querySelector('[class*="total-cost"]') || 
+                                  feesContainer.querySelector('*:contains("TOTAL DE CUSTOS")');
+        
+        if (totalCostsElement) {
+            const costText = totalCostsElement.textContent;
+            const costMatch = costText.match(/R\$\s*([0-9,]+\.?[0-9]*)/);
+            if (costMatch) {
+                totalFees = parseFloat(costMatch[1].replace(',', '.'));
+            }
+        }
+        
+        // Se não encontrou os custos, usar valor padrão baseado no produto
+        if (totalFees === 0) {
+            // Estimativa baseada no preço (taxa média do Mercado Livre ~15%)
+            totalFees = productPrice * 0.15;
+        }
+        
+        const netProfit = productPrice - totalFees;
+        profitMargin = productPrice > 0 ? (netProfit / productPrice) * 100 : 0;
+        roi = totalFees > 0 ? (netProfit / totalFees) * 100 : 0;
         
         profitabilityContainer.innerHTML = `
             <div class="row">
@@ -456,7 +503,7 @@ function loadProfitabilityAnalysis(product) {
                 <div class="col-md-4">
                     <div class="text-center p-3 border rounded">
                         <h6 class="text-muted">Lucro Líquido</h6>
-                        <h4 class="text-success">${formatPrice(productPrice - totalFees)}</h4>
+                        <h4 class="text-success">${formatPrice(netProfit)}</h4>
                     </div>
                 </div>
             </div>
@@ -465,18 +512,22 @@ function loadProfitabilityAnalysis(product) {
                 <div class="col-md-6">
                     <div class="d-flex justify-content-between">
                         <span>Margem de Lucro:</span>
-                        <strong class="text-success">0%</strong>
+                        <strong class="${profitMargin >= 20 ? 'text-success' : profitMargin >= 10 ? 'text-warning' : 'text-danger'}">
+                            ${profitMargin.toFixed(1)}%
+                        </strong>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="d-flex justify-content-between">
                         <span>ROI:</span>
-                        <strong class="text-success">0%</strong>
+                        <strong class="${roi >= 50 ? 'text-success' : roi >= 25 ? 'text-warning' : 'text-danger'}">
+                            ${roi.toFixed(1)}%
+                        </strong>
                     </div>
                 </div>
             </div>
         `;
-    }, 2000);
+    }, 3000); // Aumentar tempo para aguardar cálculo das taxas
 }
 
 function loadRecommendations(product) {
@@ -619,11 +670,13 @@ function showError(message) {
 }
 
 function formatPrice(price, currency = 'BRL') {
-    if (!price) return 'N/A';
-    
+    // Converter para número
     const numericPrice = typeof price === 'string' ? parseFloat(price) : price;
     
-    if (isNaN(numericPrice)) return 'N/A';
+    // Se não for um número válido, retornar R$ 0,00
+    if (isNaN(numericPrice) || numericPrice === null || numericPrice === undefined) {
+        return 'R$ 0,00';
+    }
     
     return new Intl.NumberFormat('pt-BR', {
         style: 'currency',
