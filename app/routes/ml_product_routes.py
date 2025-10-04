@@ -199,7 +199,8 @@ async def get_sync_history(
         controller = MLProductController(db)
         result = controller.get_sync_history(
             company_id=user["company"]["id"],
-            ml_account_id=ml_account_id
+            ml_account_id=ml_account_id,
+            user_id=user["id"]
         )
         
         if result['success']:
@@ -243,6 +244,49 @@ async def get_products_stats(
         return JSONResponse(
             status_code=500,
             content={"error": f"Erro ao buscar estatísticas: {str(e)}"}
+        )
+
+@ml_product_router.get("/api/accounts")
+async def get_ml_accounts(
+    request: Request,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """API para buscar contas ML do usuário"""
+    try:
+        from app.models.saas_models import MLAccount, UserMLAccount, MLAccountStatus
+        
+        # Buscar contas ML que o usuário tem permissão de acessar
+        accounts = db.query(MLAccount).join(UserMLAccount).filter(
+            MLAccount.company_id == user["company"]["id"],
+            MLAccount.status == MLAccountStatus.ACTIVE,
+            UserMLAccount.user_id == user["id"],
+            UserMLAccount.can_read == True
+        ).all()
+        
+        return JSONResponse(content={
+            "success": True,
+            "accounts": [
+                {
+                    "id": acc.id,
+                    "nickname": acc.nickname,
+                    "email": acc.email,
+                    "country_id": acc.country_id,
+                    "site_id": acc.site_id,
+                    "is_primary": acc.is_primary,
+                    "status": acc.status.value if hasattr(acc.status, 'value') else str(acc.status),
+                    "last_sync": acc.last_sync.isoformat() if acc.last_sync else None,
+                    "created_at": acc.created_at.isoformat() if acc.created_at else None
+                }
+                for acc in accounts
+            ],
+            "total_accounts": len(accounts)
+        })
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro ao buscar contas: {str(e)}"}
         )
 
 @ml_product_router.get("/api/search")

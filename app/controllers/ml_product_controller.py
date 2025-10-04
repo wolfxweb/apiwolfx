@@ -5,7 +5,7 @@ import logging
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 
-from app.models.saas_models import MLAccount, MLProduct, User, MLAccountStatus
+from app.models.saas_models import MLAccount, MLProduct, User, MLAccountStatus, UserMLAccount
 from app.services.ml_product_service import MLProductService
 from app.views.template_renderer import render_template
 
@@ -22,11 +22,22 @@ class MLProductController:
                          status: Optional[str] = None, page: int = 1, limit: int = 20) -> str:
         """Renderiza página de produtos ML"""
         try:
-            # Buscar contas ML da empresa
-            ml_accounts = self.db.query(MLAccount).filter(
-                MLAccount.company_id == company_id,
-                MLAccount.status == MLAccountStatus.ACTIVE
-            ).all()
+            user_id = user_data.get('id') if user_data else None
+            
+            # Buscar contas ML que o usuário tem permissão de acessar
+            if user_id:
+                ml_accounts = self.db.query(MLAccount).join(UserMLAccount).filter(
+                    MLAccount.company_id == company_id,
+                    MLAccount.status == MLAccountStatus.ACTIVE,
+                    UserMLAccount.user_id == user_id,
+                    UserMLAccount.can_read == True
+                ).all()
+            else:
+                # Fallback para admin - buscar todas as contas da empresa
+                ml_accounts = self.db.query(MLAccount).filter(
+                    MLAccount.company_id == company_id,
+                    MLAccount.status == MLAccountStatus.ACTIVE
+                ).all()
             
             if not ml_accounts:
                 return render_template('ml_products.html',
@@ -106,12 +117,17 @@ class MLProductController:
                     'error': 'Conta ML não encontrada ou não pertence à empresa'
                 }
             
-            # Verificar permissões do usuário
-            user = self.db.query(User).filter(User.id == user_id).first()
-            if not user or user.company_id != company_id:
+            # Verificar permissões do usuário para esta conta ML
+            user_account = self.db.query(UserMLAccount).filter(
+                UserMLAccount.user_id == user_id,
+                UserMLAccount.ml_account_id == ml_account_id,
+                UserMLAccount.can_write == True
+            ).first()
+            
+            if not user_account:
                 return {
                     'success': False,
-                    'error': 'Usuário não autorizado'
+                    'error': 'Usuário não tem permissão para sincronizar esta conta ML'
                 }
             
             # Iniciar sincronização
@@ -147,12 +163,17 @@ class MLProductController:
                     'error': 'Conta ML não encontrada ou não pertence à empresa'
                 }
             
-            # Verificar permissões do usuário
-            user = self.db.query(User).filter(User.id == user_id).first()
-            if not user or user.company_id != company_id:
+            # Verificar permissões do usuário para esta conta ML
+            user_account = self.db.query(UserMLAccount).filter(
+                UserMLAccount.user_id == user_id,
+                UserMLAccount.ml_account_id == ml_account_id,
+                UserMLAccount.can_write == True
+            ).first()
+            
+            if not user_account:
                 return {
                     'success': False,
-                    'error': 'Usuário não autorizado'
+                    'error': 'Usuário não tem permissão para importar produtos desta conta ML'
                 }
             
             if import_type == 'single':
@@ -272,7 +293,7 @@ class MLProductController:
                 'error': f'Erro ao buscar produto: {str(e)}'
             }
     
-    def get_sync_history(self, company_id: int, ml_account_id: int) -> Dict:
+    def get_sync_history(self, company_id: int, ml_account_id: int, user_id: int) -> Dict:
         """Busca histórico de sincronizações"""
         try:
             # Verificar se conta ML pertence à empresa
@@ -285,6 +306,19 @@ class MLProductController:
                 return {
                     'success': False,
                     'error': 'Conta ML não encontrada'
+                }
+            
+            # Verificar permissões do usuário para esta conta ML
+            user_account = self.db.query(UserMLAccount).filter(
+                UserMLAccount.user_id == user_id,
+                UserMLAccount.ml_account_id == ml_account_id,
+                UserMLAccount.can_read == True
+            ).first()
+            
+            if not user_account:
+                return {
+                    'success': False,
+                    'error': 'Usuário não tem permissão para acessar esta conta ML'
                 }
             
             history = self.product_service.get_sync_history(ml_account_id, company_id)

@@ -271,56 +271,71 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadMLAccounts() {
-    // Simular carregamento de contas ML
-    mlAccounts = [
-        {id: 7, nickname: 'WOLFXDISTRIBUIDORA', country_id: 'BR'}
-    ];
-    
-    // Preencher selects
-    const selects = ['ml_account_select', 'ml_account_id'];
-    selects.forEach(selectId => {
-        const select = document.getElementById(selectId);
-        if (select) {
-            mlAccounts.forEach(account => {
-                const option = document.createElement('option');
-                option.value = account.id;
-                option.textContent = `${account.nickname} (${account.country_id})`;
-                select.appendChild(option);
+    // Carregar contas ML reais via API
+    fetch('/ml/products/api/accounts')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mlAccounts = data.accounts;
+            
+            // Preencher selects
+            const selects = ['ml_account_select', 'ml_account_id'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    // Limpar opções existentes (exceto a primeira)
+                    while (select.children.length > 1) {
+                        select.removeChild(select.lastChild);
+                    }
+                    
+                    mlAccounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account.id;
+                        option.textContent = `${account.nickname} (${account.country_id})`;
+                        select.appendChild(option);
+                    });
+                }
             });
+        } else {
+            console.error('Erro ao carregar contas ML:', data.error);
+            showAlert('danger', 'Erro ao carregar contas ML');
         }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showAlert('danger', 'Erro ao carregar contas ML');
     });
 }
 
 function loadProducts() {
-    // Simular carregamento de produtos
-    const products = [
-        {
-            id: 1,
-            ml_item_id: 'MLB1234567890',
-            title: 'Produto Teste 1 - Ativo',
-            price: 99.90,
-            currency_id: 'BRL',
-            available_quantity: 10,
-            sold_quantity: 5,
-            status: 'active',
-            category_id: 'MLB1234',
-            last_sync: '2025-10-04 10:30:00'
-        },
-        {
-            id: 2,
-            ml_item_id: 'MLB1234567891',
-            title: 'Produto Teste 2 - Pausado',
-            price: 149.90,
-            currency_id: 'BRL',
-            available_quantity: 5,
-            sold_quantity: 2,
-            status: 'paused',
-            category_id: 'MLB5678',
-            last_sync: '2025-10-04 09:15:00'
-        }
-    ];
+    // Carregar produtos reais do banco de dados
+    const urlParams = new URLSearchParams(window.location.search);
+    const mlAccountId = urlParams.get('ml_account_id');
+    const status = urlParams.get('status');
+    const page = urlParams.get('page') || 1;
+    const limit = urlParams.get('limit') || 20;
     
-    renderProducts(products);
+    let apiUrl = `/ml/products/api/search?page=${page}&limit=${limit}`;
+    if (mlAccountId) apiUrl += `&ml_account_id=${mlAccountId}`;
+    if (status) apiUrl += `&status=${status}`;
+    
+    fetch(apiUrl)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderProducts(data.products);
+            updatePagination(data.page, data.limit, data.total, data.has_next, data.has_prev);
+        } else {
+            console.error('Erro ao carregar produtos:', data.error);
+            showAlert('danger', 'Erro ao carregar produtos');
+            renderProducts([]);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showAlert('danger', 'Erro ao carregar produtos');
+        renderProducts([]);
+    });
 }
 
 function renderProducts(products) {
@@ -335,6 +350,10 @@ function renderProducts(products) {
                     <h4 class="mt-3">Nenhum produto encontrado</h4>
                     <p class="text-muted">
                         Nenhum produto foi encontrado com os filtros aplicados.
+                        <br>
+                        <button class="btn btn-primary mt-2" onclick="showImportProductModal()">
+                            <i class="bi bi-plus-circle"></i> Importar Produto
+                        </button>
                     </p>
                 </td>
             </tr>
@@ -345,14 +364,17 @@ function renderProducts(products) {
     
     let html = '';
     products.forEach(product => {
+        const thumbnail = product.thumbnail ? 
+            `<img src="${product.thumbnail}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;" alt="${product.title}">` :
+            `<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="bi bi-image text-muted"></i>
+            </div>`;
+        
         html += `
             <tr>
                 <td>
                     <div class="d-flex align-items-center">
-                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center"
-                             style="width: 40px; height: 40px;">
-                            <i class="bi bi-image text-muted"></i>
-                        </div>
+                        ${thumbnail}
                         <div>
                             <div class="fw-medium">${product.title.length > 50 ? product.title.substring(0, 50) + '...' : product.title}</div>
                             <small class="text-muted">ID: ${product.ml_item_id}</small>
@@ -361,12 +383,12 @@ function renderProducts(products) {
                 </td>
                 <td>
                     <div class="fw-medium">
-                        ${product.price ? `${product.price} ${product.currency_id}` : '<span class="text-muted">N/A</span>'}
+                        ${product.price ? `${product.price} ${product.currency_id || ''}` : '<span class="text-muted">N/A</span>'}
                     </div>
                 </td>
                 <td>
                     <div class="d-flex align-items-center">
-                        <span class="badge bg-success me-1">${product.available_quantity}</span>
+                        <span class="badge bg-success me-1">${product.available_quantity || 0}</span>
                         <small class="text-muted">
                             ${product.sold_quantity > 0 ? `(${product.sold_quantity} vendidos)` : ''}
                         </small>
@@ -376,13 +398,14 @@ function renderProducts(products) {
                     ${getStatusBadge(product.status)}
                 </td>
                 <td>
-                    <small class="text-muted">${product.category_id}</small>
+                    <small class="text-muted">${product.category_id || 'N/A'}</small>
                 </td>
                 <td>
-                    <small class="text-muted">${product.last_sync}</small>
+                    <small class="text-muted">${product.last_sync ? new Date(product.last_sync).toLocaleString() : 'Nunca'}</small>
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm">
+                        ${product.permalink ? `<a href="${product.permalink}" target="_blank" class="btn btn-outline-primary btn-sm" title="Ver no Mercado Livre"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
                         <button class="btn btn-outline-info btn-sm" 
                                 onclick="viewProductDetails(${product.id})"
                                 title="Ver detalhes">
@@ -398,6 +421,12 @@ function renderProducts(products) {
     totalProducts.textContent = `${products.length} produto(s)`;
 }
 
+function updatePagination(page, limit, total, hasNext, hasPrev) {
+    // Atualizar informações de paginação se necessário
+    const totalProducts = document.getElementById('total-products');
+    totalProducts.textContent = `${total} produto(s)`;
+}
+
 function getStatusBadge(status) {
     const badges = {
         'active': '<span class="badge bg-success">Ativo</span>',
@@ -407,6 +436,27 @@ function getStatusBadge(status) {
         'inactive': '<span class="badge bg-light text-dark">Inativo</span>'
     };
     return badges[status] || `<span class="badge bg-light text-dark">${status}</span>`;
+}
+
+function getStatusColor(status) {
+    switch(status) {
+        case 'active': return 'success';
+        case 'paused': return 'warning';
+        case 'closed': return 'secondary';
+        case 'under_review': return 'info';
+        default: return 'light';
+    }
+}
+
+function getStatusText(status) {
+    switch(status) {
+        case 'active': return 'Ativo';
+        case 'paused': return 'Pausado';
+        case 'closed': return 'Fechado';
+        case 'under_review': return 'Em Revisão';
+        case 'inactive': return 'Inativo';
+        default: return status;
+    }
 }
 
 function showImportProductModal() {
@@ -510,7 +560,10 @@ function syncProducts() {
         return;
     }
     
-    const mlAccountId = mlAccounts[0].id;
+    // Usar conta selecionada ou primeira disponível
+    const selectedAccountId = document.getElementById('ml_account_id').value;
+    const mlAccountId = selectedAccountId || mlAccounts[0].id;
+    
     const button = event.target;
     const originalText = button.innerHTML;
     button.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Sincronizando...';
@@ -557,41 +610,88 @@ function viewProductDetails(productId) {
     
     modal.show();
     
-    // Simular carregamento de detalhes
-    setTimeout(() => {
+    // Buscar detalhes reais do produto
+    fetch(`/ml/products/details/${productId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderProductDetails(data.product);
+        } else {
+            content.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    ${data.error || 'Erro ao carregar detalhes'}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
         content.innerHTML = `
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="bg-light rounded d-flex align-items-center justify-content-center" style="height: 200px;">
-                        <i class="bi bi-image display-4 text-muted"></i>
-                    </div>
-                </div>
-                <div class="col-md-8">
-                    <h4>Produto Teste ${productId}</h4>
-                    <p class="text-muted">Descrição do produto</p>
-                    
-                    <div class="row mb-3">
-                        <div class="col-sm-6">
-                            <strong>Preço:</strong> R$ 99,90
-                        </div>
-                        <div class="col-sm-6">
-                            <strong>Status:</strong> 
-                            <span class="badge bg-success">Ativo</span>
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-sm-6">
-                            <strong>Estoque:</strong> 10
-                        </div>
-                        <div class="col-sm-6">
-                            <strong>Vendidos:</strong> 5
-                        </div>
-                    </div>
-                </div>
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Erro ao carregar detalhes do produto
             </div>
         `;
-    }, 1000);
+    });
+}
+
+function renderProductDetails(product) {
+    const content = document.getElementById('productDetailsContent');
+    
+    const thumbnail = product.thumbnail ? 
+        `<img src="${product.thumbnail}" class="img-fluid rounded" alt="${product.title}">` :
+        `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="height: 200px;">
+            <i class="bi bi-image display-4 text-muted"></i>
+        </div>`;
+    
+    content.innerHTML = `
+        <div class="row">
+            <div class="col-md-4">
+                ${thumbnail}
+            </div>
+            <div class="col-md-8">
+                <h4>${product.title}</h4>
+                ${product.subtitle ? `<p class="text-muted">${product.subtitle}</p>` : ''}
+                
+                <div class="row mb-3">
+                    <div class="col-sm-6">
+                        <strong>Preço:</strong> ${product.price || 'N/A'} ${product.currency_id || ''}
+                    </div>
+                    <div class="col-sm-6">
+                        <strong>Status:</strong> 
+                        <span class="badge bg-${getStatusColor(product.status)}">${getStatusText(product.status)}</span>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-sm-6">
+                        <strong>Estoque:</strong> ${product.available_quantity || 0}
+                    </div>
+                    <div class="col-sm-6">
+                        <strong>Vendidos:</strong> ${product.sold_quantity || 0}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-sm-6">
+                        <strong>Categoria:</strong> ${product.category_id || 'N/A'}
+                    </div>
+                    <div class="col-sm-6">
+                        <strong>Condição:</strong> ${product.condition || 'N/A'}
+                    </div>
+                </div>
+                
+                ${product.permalink ? `
+                <div class="mb-3">
+                    <a href="${product.permalink}" target="_blank" class="btn btn-primary">
+                        <i class="bi bi-box-arrow-up-right"></i> Ver no Mercado Livre
+                    </a>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
 }
 
 function showAlert(type, message) {
