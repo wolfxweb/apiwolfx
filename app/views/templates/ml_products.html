@@ -35,13 +35,13 @@
             <div class="card">
                 <div class="card-body">
                     <form method="GET" class="row g-3">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="ml_account_id" class="form-label">Conta ML</label>
                             <select name="ml_account_id" id="ml_account_id" class="form-select">
                                 <option value="">Todas as contas</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="status" class="form-label">Status</label>
                             <select name="status" id="status" class="form-select">
                                 <option value="">Todos os status</option>
@@ -50,6 +50,30 @@
                                 <option value="closed">Fechado</option>
                                 <option value="under_review">Em Revisão</option>
                                 <option value="inactive">Inativo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="category_id" class="form-label">Categoria</label>
+                            <select name="category_id" id="category_id" class="form-select">
+                                <option value="">Todas as categorias</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="shipping_type" class="form-label">Tipo de Envio</label>
+                            <select name="shipping_type" id="shipping_type" class="form-select">
+                                <option value="">Todos os tipos</option>
+                                <option value="me2">Mercado Envios</option>
+                                <option value="fulfillment">Full Mercado Livre</option>
+                                <option value="drop_off">Correios</option>
+                                <option value="agency">Agência</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="catalog_listing" class="form-label">Catálogo</label>
+                            <select name="catalog_listing" id="catalog_listing" class="form-select">
+                                <option value="">Todos</option>
+                                <option value="true">Apenas catálogo</option>
+                                <option value="false">Apenas não catálogo</option>
                             </select>
                         </div>
                         <div class="col-md-2">
@@ -340,6 +364,7 @@ let currentAccount = null;
 // Carregar dados iniciais
 document.addEventListener('DOMContentLoaded', function() {
     loadMLAccounts();
+    loadFilterOptions();
     loadProducts();
     
     // Adicionar event listeners para mudança de tipo de importação
@@ -385,17 +410,63 @@ function loadMLAccounts() {
     });
 }
 
+function loadFilterOptions() {
+    // Carregar opções de filtros
+    fetch('/ml/products/api/filter-options')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Carregar categorias
+            const categorySelect = document.getElementById('category_id');
+            if (categorySelect) {
+                categorySelect.innerHTML = '<option value="">Todas as categorias</option>';
+                
+                data.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    categorySelect.appendChild(option);
+                });
+            }
+            
+            // Carregar tipos de envio
+            const shippingSelect = document.getElementById('shipping_type');
+            if (shippingSelect) {
+                shippingSelect.innerHTML = '<option value="">Todos os tipos</option>';
+                
+                data.shipping_types.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.value;
+                    option.textContent = type.label;
+                    shippingSelect.appendChild(option);
+                });
+            }
+        } else {
+            console.error('Erro ao carregar opções de filtros:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+    });
+}
+
 function loadProducts() {
     // Carregar produtos reais do banco de dados
     const urlParams = new URLSearchParams(window.location.search);
     const mlAccountId = urlParams.get('ml_account_id');
     const status = urlParams.get('status');
+    const categoryId = urlParams.get('category_id');
+    const shippingType = urlParams.get('shipping_type');
+    const catalogListing = urlParams.get('catalog_listing');
     const page = urlParams.get('page') || 1;
     const limit = urlParams.get('limit') || 20;
     
     let apiUrl = `/ml/products/api/search?page=${page}&limit=${limit}`;
     if (mlAccountId) apiUrl += `&ml_account_id=${mlAccountId}`;
     if (status) apiUrl += `&status=${status}`;
+    if (categoryId) apiUrl += `&category_id=${categoryId}`;
+    if (shippingType) apiUrl += `&shipping_type=${shippingType}`;
+    if (catalogListing) apiUrl += `&catalog_listing=${catalogListing}`;
     
     // Adicionar parâmetros de ordenação
     if (currentSort) {

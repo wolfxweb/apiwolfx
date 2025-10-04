@@ -28,8 +28,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 @ml_product_router.get("/", response_class=HTMLResponse)
 async def ml_products_page(
     request: Request,
-    ml_account_id: Optional[int] = Query(None),
+    ml_account_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    category_id: Optional[str] = Query(None),
+    shipping_type: Optional[str] = Query(None),
+    catalog_listing: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -271,13 +274,66 @@ async def get_ml_accounts(
             content={"success": False, "error": f"Erro ao buscar contas: {str(e)}"}
         )
 
+@ml_product_router.get("/api/filter-options")
+async def get_filter_options(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """API para buscar opções de filtros"""
+    try:
+        from sqlalchemy import distinct, func
+        from app.models.saas_models import MLProduct
+        
+        # Buscar categorias únicas
+        categories = db.query(
+            MLProduct.category_id,
+            MLProduct.category_name
+        ).filter(
+            MLProduct.company_id == user["company"]["id"],
+            MLProduct.category_id.isnot(None)
+        ).distinct().all()
+        
+        # Buscar tipos de envio únicos
+        shipping_types = db.query(
+            MLProduct.shipping.op('->>')('shipping_type').label('shipping_type')
+        ).filter(
+            MLProduct.company_id == user["company"]["id"],
+            MLProduct.shipping.isnot(None)
+        ).distinct().all()
+        
+        return JSONResponse(content={
+            "success": True,
+            "categories": [
+                {
+                    "id": cat.category_id,
+                    "name": cat.category_name or cat.category_id
+                }
+                for cat in categories
+            ],
+            "shipping_types": [
+                {
+                    "value": st.shipping_type,
+                    "label": st.shipping_type
+                }
+                for st in shipping_types if st.shipping_type
+            ]
+        })
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro ao buscar opções: {str(e)}"}
+        )
+
 @ml_product_router.get("/api/search")
 async def search_products(
     request: Request,
     q: Optional[str] = Query(None),
-    ml_account_id: Optional[int] = Query(None),
+    ml_account_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     category_id: Optional[str] = Query(None),
+    shipping_type: Optional[str] = Query(None),
+    catalog_listing: Optional[str] = Query(None),
     sort: Optional[str] = Query(None),
     order: Optional[str] = Query("asc"),
     page: int = Query(1, ge=1),
@@ -292,14 +348,35 @@ async def search_products(
         
         query = db.query(MLProduct).filter(MLProduct.company_id == user["company"]["id"])
         
-        if ml_account_id:
-            query = query.filter(MLProduct.ml_account_id == ml_account_id)
+        if ml_account_id and ml_account_id.strip():
+            try:
+                account_id = int(ml_account_id)
+                query = query.filter(MLProduct.ml_account_id == account_id)
+            except ValueError:
+                pass  # Ignorar se não for um inteiro válido
         
         if status:
-            query = query.filter(MLProduct.status == status)
+            try:
+                from app.models.saas_models import MLProductStatus
+                status_enum = MLProductStatus(status)
+                query = query.filter(MLProduct.status == status_enum)
+            except ValueError:
+                # Se o status não for válido, ignorar o filtro
+                pass
         
         if category_id:
             query = query.filter(MLProduct.category_id == category_id)
+        
+        if shipping_type:
+            # Filtrar por tipo de envio no campo JSON shipping
+            query = query.filter(MLProduct.shipping.op('->>')('shipping_type') == shipping_type)
+        
+        if catalog_listing:
+            # Filtrar por produtos de catálogo
+            if catalog_listing.lower() == 'true':
+                query = query.filter(MLProduct.catalog_listing == True)
+            elif catalog_listing.lower() == 'false':
+                query = query.filter(MLProduct.catalog_listing == False)
         
         if q:
             query = query.filter(
