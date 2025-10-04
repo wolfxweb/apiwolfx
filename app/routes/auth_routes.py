@@ -48,7 +48,7 @@ async def login(
         key="session_token",
         value=result["session_token"],
         httponly=True,
-        secure=True,
+        secure=False,  # False para desenvolvimento (HTTP)
         samesite="lax",
         max_age=86400 if remember else 3600  # 1 dia ou 1 hora
     )

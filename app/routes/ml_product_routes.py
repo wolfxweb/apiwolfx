@@ -324,9 +324,11 @@ async def search_products(
                     "sold_quantity": p.sold_quantity,
                     "status": p.status.value if p.status else None,
                     "category_id": p.category_id,
+                    "category_name": None,  # Campo não existe no modelo atual
                     "condition": p.condition,
                     "thumbnail": p.thumbnail,
                     "permalink": p.permalink,
+                    "shipping": p.shipping,
                     "last_sync": p.last_sync.isoformat() if p.last_sync else None
                 }
                 for p in products
