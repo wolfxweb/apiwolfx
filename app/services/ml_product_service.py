@@ -383,6 +383,7 @@ class MLProductService:
                 sold_quantity=api_data.get("sold_quantity", 0),
                 initial_quantity=api_data.get("initial_quantity", 0),
                 category_id=api_data.get("category_id"),
+                category_name=category_info.get("category_name"),
                 condition=api_data.get("condition"),
                 listing_type_id=api_data.get("listing_type_id"),
                 buying_mode=api_data.get("buying_mode"),
@@ -441,6 +442,11 @@ class MLProductService:
             product.available_quantity = api_data.get("available_quantity", product.available_quantity)
             product.sold_quantity = api_data.get("sold_quantity", product.sold_quantity)
             product.status = self._map_status(api_data.get("status"), product.status)
+            
+            # Atualizar categoria se mudou
+            if api_data.get("category_id") != product.category_id:
+                product.category_id = api_data.get("category_id", product.category_id)
+                product.category_name = category_info.get("category_name")
             product.sub_status = api_data.get("sub_status", product.sub_status)
             product.pictures = self._extract_pictures(api_data.get("pictures", []))
             product.attributes = processed_attributes

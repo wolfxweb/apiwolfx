@@ -336,6 +336,9 @@ async def search_products(
         offset = (page - 1) * limit
         products = query.offset(offset).limit(limit).all()
         
+        # Não precisamos mais buscar nomes das categorias da API
+        # pois agora estão salvos no banco de dados
+        
         return JSONResponse(content={
             "success": True,
             "products": [
@@ -349,7 +352,7 @@ async def search_products(
                     "sold_quantity": p.sold_quantity,
                     "status": p.status.value if p.status else None,
                     "category_id": p.category_id,
-                    "category_name": None,  # Campo não existe no modelo atual
+                    "category_name": p.category_name,
                     "condition": p.condition,
                     "thumbnail": p.thumbnail,
                     "permalink": p.permalink,

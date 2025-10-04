@@ -289,6 +289,7 @@ class MLProduct(Base):
     
     # Categoria e condição
     category_id = Column(String(50), index=True)
+    category_name = Column(String(255))  # Nome da categoria
     condition = Column(String(50), index=True)
     listing_type_id = Column(String(50))
     buying_mode = Column(String(50))
