@@ -40,12 +40,14 @@ async def ml_accounts(
     # Buscar contas ML do usuário
     accounts_result = ml_controller.get_user_ml_accounts(user_id, company_id, db)
     accounts = accounts_result.get("accounts", []) if accounts_result.get("success") else []
+    total_accounts = accounts_result.get("total_accounts", 0) if accounts_result.get("success") else 0
     
     from app.views.template_renderer import render_template
     return render_template("ml_accounts.html", 
                          user=user_data,
                          company=user_data.get("company", {}),
                          accounts=accounts,
+                         total_accounts=total_accounts,
                          success=success or "",
                          error=error or "")
 

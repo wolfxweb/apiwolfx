@@ -165,9 +165,6 @@ class TemplateRenderer:
                 break
             content = new_content
         
-        # Processar loops {% for %}
-        content = self._process_loops(content, context)
-        
         return content
     
     def _process_loops(self, content: str, context: dict) -> str:

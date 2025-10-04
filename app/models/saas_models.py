@@ -120,6 +120,7 @@ class MLAccount(Base):
     user_ml_accounts = relationship("UserMLAccount", back_populates="ml_account", cascade="all, delete-orphan")
     tokens = relationship("Token", back_populates="ml_account", cascade="all, delete-orphan")
     products = relationship("Product", back_populates="ml_account", cascade="all, delete-orphan")
+    ml_products = relationship("MLProduct", back_populates="ml_account", cascade="all, delete-orphan")
 
 class UserMLAccount(Base):
     """Associação entre Usuário e Conta ML (permissões)"""
@@ -250,6 +251,165 @@ class Subscription(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="subscriptions")
+
+class MLProductStatus(enum.Enum):
+    """Status do produto ML"""
+    ACTIVE = "active"
+    PAUSED = "paused"
+    CLOSED = "closed"
+    UNDER_REVIEW = "under_review"
+    INACTIVE = "inactive"
+
+class MLProduct(Base):
+    """Modelo de Produto do Mercado Livre"""
+    __tablename__ = "ml_products"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
+    
+    # Identificadores ML
+    ml_item_id = Column(String(50), unique=True, nullable=False, index=True)
+    user_product_id = Column(String(50), index=True)  # Novo modelo User Products
+    family_id = Column(String(50), index=True)        # Novo modelo User Products
+    family_name = Column(String(255))                 # Novo modelo User Products
+    
+    # Dados básicos
+    title = Column(String(500), nullable=False)
+    subtitle = Column(String(500))
+    price = Column(String(50))
+    base_price = Column(String(50))
+    original_price = Column(String(50))
+    currency_id = Column(String(10))
+    
+    # Quantidades
+    available_quantity = Column(Integer, default=0)
+    sold_quantity = Column(Integer, default=0)
+    initial_quantity = Column(Integer, default=0)
+    
+    # Categoria e condição
+    category_id = Column(String(50), index=True)
+    condition = Column(String(50), index=True)
+    listing_type_id = Column(String(50))
+    buying_mode = Column(String(50))
+    
+    # URLs e mídia
+    permalink = Column(String(500))
+    thumbnail = Column(String(500))
+    secure_thumbnail = Column(String(500))
+    pictures = Column(JSON)  # Array de URLs das imagens
+    
+    # Status e timestamps ML
+    status = Column(Enum(MLProductStatus), default=MLProductStatus.ACTIVE, index=True)
+    sub_status = Column(JSON)  # Array de sub-status
+    start_time = Column(DateTime)
+    stop_time = Column(DateTime)
+    end_time = Column(DateTime)
+    
+    # Dados do vendedor
+    seller_id = Column(String(50), index=True)
+    seller_custom_field = Column(String(100))  # SKU personalizado
+    seller_sku = Column(String(100))           # SKU do vendedor
+    
+    # Produto do catálogo
+    catalog_product_id = Column(String(50), index=True)
+    catalog_listing = Column(Boolean, default=False)
+    
+    # Atributos e características
+    attributes = Column(JSON)  # Atributos do produto
+    variations = Column(JSON)  # Variações do produto
+    tags = Column(JSON)        # Tags do produto
+    
+    # Envio
+    shipping = Column(JSON)    # Configurações de envio
+    free_shipping = Column(Boolean, default=False)
+    
+    # Promoções e preços
+    differential_pricing = Column(JSON)
+    deal_ids = Column(JSON)
+    
+    # Timestamps do sistema
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    last_sync = Column(DateTime, index=True)
+    last_ml_update = Column(DateTime)  # Última atualização no ML
+    
+    # Relacionamentos
+    company = relationship("Company")
+    ml_account = relationship("MLAccount")
+    sync_logs = relationship("MLProductSync", back_populates="ml_product", cascade="all, delete-orphan")
+    
+    # Índices compostos
+    __table_args__ = (
+        Index('ix_ml_products_company_account', 'company_id', 'ml_account_id'),
+        Index('ix_ml_products_account_status', 'ml_account_id', 'status'),
+        Index('ix_ml_products_category_status', 'category_id', 'status'),
+    )
+
+class MLProductSync(Base):
+    """Log de sincronização de produtos ML"""
+    __tablename__ = "ml_product_sync"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ml_product_id = Column(Integer, ForeignKey("ml_products.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
+    
+    # Tipo de sincronização
+    sync_type = Column(String(50), nullable=False, index=True)  # full, incremental, manual
+    sync_status = Column(String(50), nullable=False, index=True)  # success, error, partial
+    
+    # Dados da sincronização
+    items_processed = Column(Integer, default=0)
+    items_created = Column(Integer, default=0)
+    items_updated = Column(Integer, default=0)
+    items_errors = Column(Integer, default=0)
+    
+    # Detalhes
+    error_message = Column(Text)
+    sync_details = Column(JSON)
+    
+    # Timestamps
+    started_at = Column(DateTime, default=func.now())
+    completed_at = Column(DateTime)
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relacionamentos
+    ml_product = relationship("MLProduct", back_populates="sync_logs")
+    company = relationship("Company")
+    ml_account = relationship("MLAccount")
+
+class MLProductAttribute(Base):
+    """Atributos específicos de produtos ML"""
+    __tablename__ = "ml_product_attributes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ml_product_id = Column(Integer, ForeignKey("ml_products.id"), nullable=False, index=True)
+    
+    # Dados do atributo
+    attribute_id = Column(String(100), nullable=False, index=True)
+    attribute_name = Column(String(255), nullable=False)
+    value_id = Column(String(100))
+    value_name = Column(String(255))
+    value_struct = Column(JSON)
+    
+    # Metadados
+    attribute_group_id = Column(String(100))
+    attribute_group_name = Column(String(255))
+    source = Column(Integer)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    ml_product = relationship("MLProduct")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ml_product_attributes_product_id', 'ml_product_id'),
+        Index('ix_ml_product_attributes_attribute_id', 'attribute_id'),
+    )
 
 class ApiLog(Base):
     """Modelo de log da API (atualizado)"""

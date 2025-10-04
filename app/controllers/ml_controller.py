@@ -127,7 +127,8 @@ class MLController:
             
             return {
                 "success": True,
-                "accounts": accounts_data
+                "accounts": accounts_data,
+                "total_accounts": len(accounts_data)
             }
             
         except Exception as e:

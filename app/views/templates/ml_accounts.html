@@ -14,6 +14,11 @@
                     </h2>
                     <p class="text-muted mb-0">
                         Gerencie suas contas conectadas do Mercado Livre
+                        {% if total_accounts %}
+                            - {{ total_accounts }} conta(s) encontrada(s)
+                        {% else %}
+                            - Nenhuma conta conectada
+                        {% endif %}
                     </p>
                 </div>
             </div>
