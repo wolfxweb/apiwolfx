@@ -29,6 +29,52 @@ async def orders_list(
     from app.views.template_renderer import render_template
     return render_template("ml_orders.html", user=user_data)
 
+@ml_orders_router.get("/orders/{ml_order_id}", response_class=HTMLResponse)
+async def order_details_page(
+    ml_order_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de detalhes de um pedido específico"""
+    try:
+        if not session_token:
+            return RedirectResponse(url="/auth/login", status_code=302)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return RedirectResponse(url="/auth/login", status_code=302)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Buscar o pedido pelo ml_order_id primeiro
+        from app.models.saas_models import MLOrder
+        order = db.query(MLOrder).filter(
+            MLOrder.ml_order_id == ml_order_id,
+            MLOrder.company_id == company_id
+        ).first()
+        
+        if not order:
+            from app.views.template_renderer import render_template
+            return render_template("error.html", error_message="Pedido não encontrado", back_url="/ml/orders")
+        
+        # Buscar detalhes do pedido usando o ID interno
+        controller = MLOrdersController(db)
+        order_details = controller.get_order_details(company_id, order.id)
+        
+        if not order_details.get("success"):
+            from app.views.template_renderer import render_template
+            return render_template("error.html", error_message=order_details.get("error", "Pedido não encontrado"), back_url="/ml/orders")
+        
+        from app.views.template_renderer import render_template
+        return render_template("ml_order_details.html", user=user_data, order=order_details.get("order"), order_items=order_details.get("order_items", []))
+        
+    except Exception as e:
+        logging.error(f"Erro na página de detalhes do pedido: {e}")
+        from app.views.template_renderer import render_template
+        return render_template("error.html", error_message="Erro ao carregar detalhes do pedido", back_url="/ml/orders")
+
 @ml_orders_router.get("/api/orders")
 async def get_orders_api(
     ml_account_id: Optional[int] = Query(None),

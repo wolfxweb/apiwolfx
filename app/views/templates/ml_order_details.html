@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Detalhes do Pedido #{{ order.order_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/ml/orders">Pedidos</a></li>
+                            <li class="breadcrumb-item active">Pedido #{{ order.order_id }}</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-1">Detalhes do Pedido</h1>
+                    <p class="text-muted mb-0">Pedido #{{ order.order_id }} - Mercado Libre</p>
+                </div>
+                <div>
+                    <a href="/ml/orders" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Voltar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Informações do Pedido -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-receipt text-primary me-2"></i>Informações do Pedido
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>ID do Pedido:</strong></td>
+                                    <td>{{ order.order_id }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ID Mercado Libre:</strong></td>
+                                    <td>{{ order.ml_order_id }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td>
+                                        <span class="badge bg-{% if order.status == 'paid' %}success{% elif order.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                            {{ order.status|title if order.status else 'N/A' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status do Pagamento:</strong></td>
+                                    <td>
+                                        <span class="badge bg-{% if order.payment_status == 'approved' %}success{% elif order.payment_status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                            {{ order.payment_status|title if order.payment_status else 'N/A' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Data de Criação:</strong></td>
+                                    <td>{% if order.date_created %}{{ order.date_created[:10] }} {{ order.date_created[11:16] }}{% else %}N/A{% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Última Atualização:</strong></td>
+                                    <td>{% if order.last_updated %}{{ order.last_updated[:10] }} {{ order.last_updated[11:16] }}{% else %}N/A{% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Valor Total:</strong></td>
+                                    <td class="h5 text-success">R$ {{ "%.2f"|format(order.total_amount) if order.total_amount else '0,00' }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Moeda:</strong></td>
+                                    <td>{{ order.currency_id if order.currency_id else 'N/A' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person text-info me-2"></i>Informações do Comprador
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <td><strong>Nickname:</strong></td>
+                            <td>{{ order.buyer_nickname if order.buyer_nickname else 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Nome:</strong></td>
+                            <td>
+                                {% if order.buyer_first_name or order.buyer_last_name %}
+                                    {{ order.buyer_first_name or '' }} {{ order.buyer_last_name or '' }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Email:</strong></td>
+                            <td>{{ order.buyer_email if order.buyer_email else 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>ID Comprador:</strong></td>
+                            <td>{{ order.buyer_id if order.buyer_id else 'N/A' }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Itens do Pedido -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-box text-primary me-2"></i>Itens do Pedido
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if order_items %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Produto</th>
+                                        <th>SKU</th>
+                                        <th>Quantidade</th>
+                                        <th>Preço Unitário</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in order_items %}
+                                    <tr>
+                                        <td>
+                                            <div>
+                                                <strong>{{ item.item.title if item.item.title else 'Produto' }}</strong>
+                                                <br>
+                                                <small class="text-muted">ID: {{ item.item.id if item.item.id else 'N/A' }}</small>
+                                            </div>
+                                        </td>
+                                        <td>{{ item.item.seller_sku if item.item.seller_sku else 'N/A' }}</td>
+                                        <td>{{ item.quantity if item.quantity else '1' }}</td>
+                                        <td>R$ {{ "%.2f"|format(item.unit_price) if item.unit_price else '0,00' }}</td>
+                                        <td>R$ {{ "%.2f"|format(item.full_unit_price) if item.full_unit_price else '0,00' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-box text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2">Nenhum item encontrado para este pedido</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-radius: 8px;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 8px 8px 0 0 !important;
+}
+
+.table-borderless td {
+    border: none;
+    padding: 0.5rem 0;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+.breadcrumb {
+    background: none;
+    padding: 0;
+    margin-bottom: 0.5rem;
+}
+
+.breadcrumb-item a {
+    color: #6c757d;
+    text-decoration: none;
+}
+
+.breadcrumb-item a:hover {
+    color: #495057;
+}
+</style>
+{% endblock %}

@@ -582,8 +582,8 @@ function confirmImport() {
 }
 
 function viewOrderDetails(orderId) {
-    // Implementar modal ou página de detalhes
-    alert(`Detalhes do pedido: ${orderId}`);
+    // Navegar para a página de detalhes do pedido
+    window.location.href = `/ml/orders/${orderId}`;
 }
 
 function copyOrderId(orderId) {
