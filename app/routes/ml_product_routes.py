@@ -393,6 +393,7 @@ async def search_products(
                 'title': MLProduct.title,
                 'price': MLProduct.price,
                 'available_quantity': MLProduct.available_quantity,
+                'sold_quantity': MLProduct.sold_quantity,
                 'status': MLProduct.status
             }
             
