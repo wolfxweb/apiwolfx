@@ -4,6 +4,8 @@ Controller para gerenciar produtos do Mercado Livre
 import logging
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
+from fastapi import Request
+from fastapi.responses import HTMLResponse
 
 from app.models.saas_models import MLAccount, MLProduct, User, MLAccountStatus, UserMLAccount
 from app.services.ml_product_service import MLProductService
@@ -380,3 +382,37 @@ class MLProductController:
                 'success': False,
                 'error': f'Erro ao buscar estatísticas: {str(e)}'
             }
+    
+    def get_product_details_page(self, request: Request, user: Dict, product_id: int) -> HTMLResponse:
+        """Renderiza página de detalhes do produto"""
+        try:
+            # Buscar detalhes do produto
+            product_result = self.get_product_details(user["company"]["id"], product_id)
+            
+            if not product_result['success']:
+                return HTMLResponse(
+                    content=f"<h1>Produto não encontrado</h1><p>{product_result.get('error', 'Erro desconhecido')}</p>",
+                    status_code=404
+                )
+            
+            product = product_result['product']
+            
+            # Renderizar template
+            from app.views.template_renderer import TemplateRenderer
+            renderer = TemplateRenderer()
+            
+            return renderer.render(
+                "ml_product_details_simple.html",
+                {
+                    "product": product,
+                    "user": user,
+                    "request": request
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Erro ao renderizar página de detalhes: {e}")
+            return HTMLResponse(
+                content=f"<h1>Erro</h1><p>{str(e)}</p>",
+                status_code=500
+            )

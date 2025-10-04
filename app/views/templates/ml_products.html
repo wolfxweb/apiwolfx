@@ -11,7 +11,7 @@
                 <div>
                     <h1 class="h3 mb-1">Produtos Mercado Livre</h1>
                     <p class="text-muted mb-0">
-                        Gerencie seus produtos do Mercado Livre
+                            Gerencie seus produtos do Mercado Livre
                     </p>
                 </div>
                 <div>
@@ -170,25 +170,34 @@
                         <div class="mb-3">
                             <label class="form-label">Status dos Produtos</label>
                             <div class="row">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="status_all" 
+                                               name="product_status" value="all" checked>
+                                        <label class="form-check-label" for="status_all">
+                                            <span class="badge bg-primary">Todos</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="status_active" 
-                                               name="product_status" value="active" checked>
+                                               name="product_status" value="active">
                                         <label class="form-check-label" for="status_active">
                                             <span class="badge bg-success">Ativos</span>
                                         </label>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="status_paused" 
-                                               name="product_status" value="paused" checked>
+                                               name="product_status" value="paused">
                                         <label class="form-check-label" for="status_paused">
                                             <span class="badge bg-warning">Pausados</span>
                                         </label>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="status_closed" 
                                                name="product_status" value="closed">
@@ -224,7 +233,7 @@
                         </div>
                     </div>
                 </form>
-            </div>
+                </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-success" onclick="importProduct()" id="importButton">
@@ -235,24 +244,6 @@
     </div>
 </div>
 
-<!-- Modal de Detalhes do Produto -->
-<div class="modal fade" id="productDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Detalhes do Produto</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="productDetailsContent">
-                <div class="text-center">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Carregando...</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <script>
 // Variáveis globais
@@ -406,11 +397,11 @@ function renderProducts(products) {
                 <td>
                     <div class="btn-group btn-group-sm">
                         ${product.permalink ? `<a href="${product.permalink}" target="_blank" class="btn btn-outline-primary btn-sm" title="Ver no Mercado Livre"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
-                        <button class="btn btn-outline-info btn-sm" 
-                                onclick="viewProductDetails(${product.id})"
-                                title="Ver detalhes">
+                        <a href="/ml/products/details/${product.id}" 
+                           class="btn btn-outline-info btn-sm" 
+                           title="Ver detalhes">
                             <i class="bi bi-eye"></i>
-                        </button>
+                        </a>
                     </div>
                 </td>
             </tr>
@@ -438,26 +429,6 @@ function getStatusBadge(status) {
     return badges[status] || `<span class="badge bg-light text-dark">${status}</span>`;
 }
 
-function getStatusColor(status) {
-    switch(status) {
-        case 'active': return 'success';
-        case 'paused': return 'warning';
-        case 'closed': return 'secondary';
-        case 'under_review': return 'info';
-        default: return 'light';
-    }
-}
-
-function getStatusText(status) {
-    switch(status) {
-        case 'active': return 'Ativo';
-        case 'paused': return 'Pausado';
-        case 'closed': return 'Fechado';
-        case 'under_review': return 'Em Revisão';
-        case 'inactive': return 'Inativo';
-        default: return status;
-    }
-}
 
 function showImportProductModal() {
     const modal = new bootstrap.Modal(document.getElementById('importProductModal'));
@@ -512,7 +483,13 @@ function importProduct() {
             return;
         }
         
-        requestBody.product_statuses = selectedStatuses;
+        // Se "all" estiver selecionado, usar todos os status
+        if (selectedStatuses.includes('all')) {
+            requestBody.product_statuses = ['active', 'paused', 'closed', 'inactive'];
+        } else {
+            requestBody.product_statuses = selectedStatuses;
+        }
+        
         requestBody.limit = limit;
     }
     
@@ -596,103 +573,7 @@ function syncProducts() {
     });
 }
 
-function viewProductDetails(productId) {
-    const modal = new bootstrap.Modal(document.getElementById('productDetailsModal'));
-    const content = document.getElementById('productDetailsContent');
-    
-    content.innerHTML = `
-        <div class="text-center">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Carregando...</span>
-            </div>
-        </div>
-    `;
-    
-    modal.show();
-    
-    // Buscar detalhes reais do produto
-    fetch(`/ml/products/details/${productId}`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            renderProductDetails(data.product);
-        } else {
-            content.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    ${data.error || 'Erro ao carregar detalhes'}
-                </div>
-            `;
-        }
-    })
-    .catch(error => {
-        console.error('Erro:', error);
-        content.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i>
-                Erro ao carregar detalhes do produto
-            </div>
-        `;
-    });
-}
 
-function renderProductDetails(product) {
-    const content = document.getElementById('productDetailsContent');
-    
-    const thumbnail = product.thumbnail ? 
-        `<img src="${product.thumbnail}" class="img-fluid rounded" alt="${product.title}">` :
-        `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="height: 200px;">
-            <i class="bi bi-image display-4 text-muted"></i>
-        </div>`;
-    
-    content.innerHTML = `
-        <div class="row">
-            <div class="col-md-4">
-                ${thumbnail}
-            </div>
-            <div class="col-md-8">
-                <h4>${product.title}</h4>
-                ${product.subtitle ? `<p class="text-muted">${product.subtitle}</p>` : ''}
-                
-                <div class="row mb-3">
-                    <div class="col-sm-6">
-                        <strong>Preço:</strong> ${product.price || 'N/A'} ${product.currency_id || ''}
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>Status:</strong> 
-                        <span class="badge bg-${getStatusColor(product.status)}">${getStatusText(product.status)}</span>
-                    </div>
-                </div>
-                
-                <div class="row mb-3">
-                    <div class="col-sm-6">
-                        <strong>Estoque:</strong> ${product.available_quantity || 0}
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>Vendidos:</strong> ${product.sold_quantity || 0}
-                    </div>
-                </div>
-                
-                <div class="row mb-3">
-                    <div class="col-sm-6">
-                        <strong>Categoria:</strong> ${product.category_id || 'N/A'}
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>Condição:</strong> ${product.condition || 'N/A'}
-                    </div>
-                </div>
-                
-                ${product.permalink ? `
-                <div class="mb-3">
-                    <a href="${product.permalink}" target="_blank" class="btn btn-primary">
-                        <i class="bi bi-box-arrow-up-right"></i> Ver no Mercado Livre
-                    </a>
-                </div>
-                ` : ''}
-            </div>
-        </div>
-    `;
-}
 
 function showAlert(type, message) {
     const alertContainer = document.createElement('div');

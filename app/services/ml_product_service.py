@@ -66,7 +66,14 @@ class MLProductService:
             response = requests.get(url, headers=headers, params=params, timeout=30)
             response.raise_for_status()
             
-            return response.json()
+            data = response.json()
+            
+            # Retornar no formato esperado
+            return {
+                "success": True,
+                "products": data.get("results", []),
+                "total": data.get("paging", {}).get("total", 0)
+            }
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Erro na requisição para API ML: {e}")
@@ -87,7 +94,13 @@ class MLProductService:
             response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
             
-            return response.json()
+            product_data = response.json()
+            
+            # Buscar informações adicionais (descriptions, warranty, etc.)
+            additional_info = self._get_additional_product_info(ml_item_id, headers)
+            product_data.update(additional_info)
+            
+            return product_data
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Erro ao buscar detalhes do produto {ml_item_id}: {e}")
@@ -97,17 +110,29 @@ class MLProductService:
                             product_statuses: list, limit: int = 100) -> Dict:
         """Importa múltiplos produtos do Mercado Livre com filtro de status"""
         try:
+            print(f"🔍 SERVICE DEBUG - ml_account_id: {ml_account_id}")
+            print(f"🔍 SERVICE DEBUG - company_id: {company_id}")
+            print(f"🔍 SERVICE DEBUG - product_statuses: {product_statuses}")
+            print(f"🔍 SERVICE DEBUG - limit: {limit}")
+            
             # Obter token ativo
             token = self.get_active_token(ml_account_id)
             if not token:
+                print(f"❌ SERVICE ERROR - Token não encontrado para ml_account_id: {ml_account_id}")
                 return {
                     "success": False,
                     "error": "Token não encontrado ou expirado"
                 }
             
+            print(f"✅ SERVICE DEBUG - Token encontrado: {token[:20]}...")
+            
             # Buscar produtos do usuário com filtro de status
+            print(f"🔍 SERVICE DEBUG - Chamando fetch_user_products...")
             products_data = self.fetch_user_products(ml_account_id, limit=limit)
+            print(f"🔍 SERVICE DEBUG - Resultado fetch_user_products: {products_data}")
+            
             if not products_data.get('success'):
+                print(f"❌ SERVICE ERROR - fetch_user_products falhou: {products_data}")
                 return {
                     "success": False,
                     "error": "Erro ao buscar produtos do usuário"
@@ -115,11 +140,9 @@ class MLProductService:
             
             products = products_data.get('products', [])
             
-            # Filtrar produtos por status
-            filtered_products = [
-                p for p in products 
-                if p.get('status') in product_statuses
-            ]
+            # Como a API já retorna apenas produtos ativos, não precisamos filtrar
+            # Vamos usar todos os produtos retornados
+            filtered_products = products
             
             if not filtered_products:
                 return {
@@ -133,9 +156,9 @@ class MLProductService:
             items_updated = 0
             items_errors = 0
             
-            for product_data in filtered_products:
+            for product_id in filtered_products:
                 try:
-                    product_id = product_data['id']
+                    # product_id já é o ID do produto (string)
                     
                     # Buscar detalhes completos do produto
                     product_details = self.fetch_product_details(product_id, token)
@@ -225,12 +248,16 @@ class MLProductService:
             
             self.db.commit()
             
+            # Extrair resumo das informações
+            product_summary = self._extract_product_summary(product_details)
+            
             return {
                 "success": True,
                 "message": message,
                 "action": action,
                 "product_id": product_details.get('id'),
-                "title": product_details.get('title')
+                "title": product_details.get('title'),
+                "info": product_summary
             }
             
         except Exception as e:
@@ -329,6 +356,15 @@ class MLProductService:
     def _create_product_from_api(self, api_data: Dict, ml_account_id: int, company_id: int):
         """Cria produto a partir dos dados da API"""
         try:
+            # Buscar informações adicionais da categoria
+            category_info = self._get_category_info(api_data.get("category_id"))
+            
+            # Processar informações de envio
+            shipping_info = self._process_shipping_info(api_data.get("shipping", {}))
+            
+            # Processar atributos completos
+            processed_attributes = self._process_attributes(api_data.get("attributes", []))
+            
             # Mapear dados da API para o modelo
             product = MLProduct(
                 company_id=company_id,
@@ -364,10 +400,10 @@ class MLProductService:
                 seller_sku=self._extract_seller_sku(api_data.get("attributes", [])),
                 catalog_product_id=api_data.get("catalog_product_id"),
                 catalog_listing=api_data.get("catalog_listing", False),
-                attributes=api_data.get("attributes", []),
+                attributes=processed_attributes,
                 variations=api_data.get("variations", []),
                 tags=api_data.get("tags", []),
-                shipping=api_data.get("shipping", {}),
+                shipping=shipping_info,
                 free_shipping=api_data.get("shipping", {}).get("free_shipping", False),
                 differential_pricing=api_data.get("differential_pricing"),
                 deal_ids=api_data.get("deal_ids", []),
@@ -378,7 +414,7 @@ class MLProductService:
             self.db.add(product)
             self.db.commit()
             
-            logger.info(f"Produto criado: {product.ml_item_id} - {product.title}")
+            logger.info(f"Produto criado com informações completas: {product.ml_item_id} - {product.title}")
             
         except Exception as e:
             logger.error(f"Erro ao criar produto: {e}")
@@ -387,6 +423,18 @@ class MLProductService:
     def _update_product_from_api(self, product: MLProduct, api_data: Dict):
         """Atualiza produto existente com dados da API"""
         try:
+            # Buscar informações adicionais da categoria se mudou
+            if api_data.get("category_id") != product.category_id:
+                category_info = self._get_category_info(api_data.get("category_id"))
+            else:
+                category_info = {}
+            
+            # Processar informações de envio
+            shipping_info = self._process_shipping_info(api_data.get("shipping", {}))
+            
+            # Processar atributos completos
+            processed_attributes = self._process_attributes(api_data.get("attributes", []))
+            
             # Atualizar campos que podem mudar
             product.title = api_data.get("title", product.title)
             product.price = str(api_data.get("price", product.price))
@@ -395,17 +443,17 @@ class MLProductService:
             product.status = self._map_status(api_data.get("status"), product.status)
             product.sub_status = api_data.get("sub_status", product.sub_status)
             product.pictures = self._extract_pictures(api_data.get("pictures", []))
-            product.attributes = api_data.get("attributes", product.attributes)
+            product.attributes = processed_attributes
             product.variations = api_data.get("variations", product.variations)
             product.tags = api_data.get("tags", product.tags)
-            product.shipping = api_data.get("shipping", product.shipping)
+            product.shipping = shipping_info
             product.free_shipping = api_data.get("shipping", {}).get("free_shipping", product.free_shipping)
             product.last_sync = datetime.utcnow()
             product.last_ml_update = self._parse_datetime(api_data.get("last_updated"))
             
             self.db.commit()
             
-            logger.info(f"Produto atualizado: {product.ml_item_id} - {product.title}")
+            logger.info(f"Produto atualizado com informações completas: {product.ml_item_id} - {product.title}")
             
         except Exception as e:
             logger.error(f"Erro ao atualizar produto: {e}")
@@ -434,6 +482,320 @@ class MLProductService:
             if attr.get("id") == "SELLER_SKU":
                 return attr.get("value_name")
         return None
+    
+    def _get_category_info(self, category_id: str) -> Dict:
+        """Busca informações completas da categoria"""
+        try:
+            if not category_id:
+                return {}
+                
+            # Buscar informações da categoria via API
+            response = requests.get(
+                f"https://api.mercadolibre.com/categories/{category_id}",
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                category_data = response.json()
+                return {
+                    "category_name": category_data.get("name"),
+                    "category_path": self._extract_category_path(category_data),
+                    "domain_id": category_data.get("domain_id"),
+                    "attributes_count": len(category_data.get("attributes", [])),
+                    "children_categories": len(category_data.get("children_categories", [])),
+                    "settings": category_data.get("settings", {})
+                }
+            else:
+                logger.warning(f"Não foi possível buscar categoria {category_id}: {response.status_code}")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar categoria {category_id}: {e}")
+            return {}
+    
+    def _extract_category_path(self, category_data: Dict) -> List[Dict]:
+        """Extrai o caminho completo da categoria"""
+        path = []
+        current = category_data
+        
+        while current:
+            path.append({
+                "id": current.get("id"),
+                "name": current.get("name")
+            })
+            current = current.get("parent")
+            
+        return path[::-1]  # Inverter para começar do nível mais alto
+    
+    def _process_shipping_info(self, shipping_data: Dict) -> Dict:
+        """Processa informações completas de envio"""
+        try:
+            processed = {
+                "mode": shipping_data.get("mode"),
+                "logistic_type": shipping_data.get("logistic_type"),
+                "free_shipping": shipping_data.get("free_shipping", False),
+                "local_pick_up": shipping_data.get("local_pick_up", False),
+                "store_pick_up": shipping_data.get("store_pick_up", False),
+                "tags": shipping_data.get("tags", []),
+                "dimensions": shipping_data.get("dimensions"),
+                "methods": []
+            }
+            
+            # Processar métodos de envio
+            methods = shipping_data.get("methods", [])
+            for method in methods:
+                method_info = {
+                    "id": method.get("id"),
+                    "name": method.get("name"),
+                    "type": method.get("type"),
+                    "deliver_to": method.get("deliver_to"),
+                    "company_name": method.get("company_name"),
+                    "cost": method.get("cost"),
+                    "currency_id": method.get("currency_id"),
+                    "estimated_delivery_time": method.get("estimated_delivery_time")
+                }
+                processed["methods"].append(method_info)
+            
+            # Determinar tipo de envio principal
+            if processed["logistic_type"] == "fulfillment":
+                processed["shipping_type"] = "Full Mercado Livre"
+            elif processed["logistic_type"] == "cross_docking":
+                processed["shipping_type"] = "Mercado Envios"
+            elif processed["logistic_type"] == "xd_drop_off":
+                processed["shipping_type"] = "Agência"
+            elif processed["logistic_type"] == "drop_off":
+                processed["shipping_type"] = "Correios"
+            else:
+                processed["shipping_type"] = "Customizado"
+            
+            return processed
+            
+        except Exception as e:
+            logger.error(f"Erro ao processar shipping: {e}")
+            return shipping_data
+    
+    def _process_attributes(self, attributes: List[Dict]) -> List[Dict]:
+        """Processa atributos completos com informações adicionais"""
+        try:
+            processed = []
+            
+            for attr in attributes:
+                processed_attr = {
+                    "id": attr.get("id"),
+                    "name": attr.get("name"),
+                    "value_id": attr.get("value_id"),
+                    "value_name": attr.get("value_name"),
+                    "value_struct": attr.get("value_struct"),
+                    "attribute_group_id": attr.get("attribute_group_id"),
+                    "attribute_group_name": attr.get("attribute_group_name"),
+                    "tags": attr.get("tags", {}),
+                    "values": attr.get("values", [])
+                }
+                
+                # Adicionar informações extras se disponíveis
+                if attr.get("value_struct"):
+                    processed_attr["structured_value"] = self._process_structured_value(attr["value_struct"])
+                
+                # Identificar se é atributo de catálogo
+                if attr.get("tags", {}).get("catalog_listing_required"):
+                    processed_attr["is_catalog_required"] = True
+                
+                # Identificar atributos principais
+                if attr.get("attribute_group_id") == "MAIN":
+                    processed_attr["is_main_attribute"] = True
+                
+                processed.append(processed_attr)
+            
+            return processed
+            
+        except Exception as e:
+            logger.error(f"Erro ao processar atributos: {e}")
+            return attributes
+    
+    def _process_structured_value(self, value_struct: Dict) -> Dict:
+        """Processa valores estruturados (ex: dimensões, peso)"""
+        try:
+            processed = {}
+            
+            for key, value in value_struct.items():
+                if isinstance(value, dict) and "number" in value and "unit" in value:
+                    processed[key] = {
+                        "value": value["number"],
+                        "unit": value["unit"],
+                        "display": f"{value['number']} {value['unit']}"
+                    }
+                else:
+                    processed[key] = value
+            
+            return processed
+            
+        except Exception as e:
+            logger.error(f"Erro ao processar valor estruturado: {e}")
+            return value_struct
+    
+    def _get_additional_product_info(self, product_id: str, headers: Dict) -> Dict:
+        """Busca informações adicionais do produto (descriptions, warranty, etc.)"""
+        try:
+            additional_info = {}
+            
+            # Buscar descriptions
+            descriptions = self._get_product_descriptions(product_id, headers)
+            if descriptions:
+                additional_info["descriptions"] = descriptions
+            
+            # Buscar warranty
+            warranty = self._get_product_warranty(product_id, headers)
+            if warranty:
+                additional_info["warranty"] = warranty
+            
+            # Buscar questions
+            questions = self._get_product_questions(product_id, headers)
+            if questions:
+                additional_info["questions"] = questions
+            
+            # Buscar reviews
+            reviews = self._get_product_reviews(product_id, headers)
+            if reviews:
+                additional_info["reviews"] = reviews
+            
+            return additional_info
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar informações adicionais do produto {product_id}: {e}")
+            return {}
+    
+    def _get_product_descriptions(self, product_id: str, headers: Dict) -> List[Dict]:
+        """Busca descrições do produto"""
+        try:
+            response = requests.get(
+                f"https://api.mercadolibre.com/items/{product_id}/descriptions",
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Não foi possível buscar descriptions para {product_id}: {response.status_code}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar descriptions do produto {product_id}: {e}")
+            return []
+    
+    def _get_product_warranty(self, product_id: str, headers: Dict) -> Dict:
+        """Busca informações de garantia do produto"""
+        try:
+            response = requests.get(
+                f"https://api.mercadolibre.com/items/{product_id}/warranty",
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Não foi possível buscar warranty para {product_id}: {response.status_code}")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar warranty do produto {product_id}: {e}")
+            return {}
+    
+    def _get_product_questions(self, product_id: str, headers: Dict) -> List[Dict]:
+        """Busca perguntas do produto"""
+        try:
+            response = requests.get(
+                f"https://api.mercadolibre.com/questions/search?item_id={product_id}&limit=10",
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("questions", [])
+            else:
+                logger.warning(f"Não foi possível buscar questions para {product_id}: {response.status_code}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar questions do produto {product_id}: {e}")
+            return []
+    
+    def _get_product_reviews(self, product_id: str, headers: Dict) -> Dict:
+        """Busca avaliações do produto"""
+        try:
+            response = requests.get(
+                f"https://api.mercadolibre.com/reviews/item/{product_id}",
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Não foi possível buscar reviews para {product_id}: {response.status_code}")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar reviews do produto {product_id}: {e}")
+            return {}
+    
+    def _extract_product_summary(self, product_data: Dict) -> Dict:
+        """Extrai resumo das informações do produto"""
+        try:
+            # Extrair informações de categoria
+            category_info = self._get_category_info(product_data.get("category_id"))
+            
+            # Extrair informações de shipping
+            shipping_info = self._process_shipping_info(product_data.get("shipping", {}))
+            
+            # Extrair atributos principais
+            main_attributes = []
+            for attr in product_data.get("attributes", []):
+                if attr.get("attribute_group_id") == "MAIN":
+                    main_attributes.append({
+                        "name": attr.get("name"),
+                        "value": attr.get("value_name")
+                    })
+            
+            # Extrair informações de catálogo
+            is_catalog = product_data.get("catalog_listing", False)
+            catalog_id = product_data.get("catalog_product_id")
+            
+            return {
+                "title": product_data.get("title"),
+                "price": product_data.get("price"),
+                "currency": product_data.get("currency_id"),
+                "status": product_data.get("status"),
+                "condition": product_data.get("condition"),
+                "category": {
+                    "id": product_data.get("category_id"),
+                    "name": category_info.get("category_name"),
+                    "path": category_info.get("category_path")
+                },
+                "shipping": {
+                    "type": shipping_info.get("shipping_type"),
+                    "free_shipping": shipping_info.get("free_shipping"),
+                    "logistic_type": shipping_info.get("logistic_type")
+                },
+                "catalog": {
+                    "is_catalog": is_catalog,
+                    "catalog_id": catalog_id
+                },
+                "main_attributes": main_attributes,
+                "pictures_count": len(product_data.get("pictures", [])),
+                "attributes_count": len(product_data.get("attributes", [])),
+                "variations_count": len(product_data.get("variations", []))
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao extrair resumo do produto: {e}")
+            return {
+                "title": product_data.get("title", "N/A"),
+                "price": product_data.get("price", 0),
+                "currency": product_data.get("currency_id", "N/A")
+            }
     
     def _map_status(self, status: str, default_status: MLProductStatus = MLProductStatus.ACTIVE) -> MLProductStatus:
         """Mapeia status da API para enum"""

@@ -92,10 +92,16 @@ async def import_product(
     try:
         # Obter dados do corpo da requisição
         body = await request.json()
+        
+        # Log dos dados recebidos para debug
+        print(f"🔍 DEBUG - Dados recebidos: {body}")
+        print(f"🔍 DEBUG - Usuário: {user}")
+        
         ml_account_id = body.get("ml_account_id")
         import_type = body.get("import_type", "single")
         
         if not ml_account_id:
+            print(f"❌ ERRO - ml_account_id não fornecido: {ml_account_id}")
             return JSONResponse(
                 status_code=400,
                 content={"error": "ml_account_id é obrigatório"}
@@ -123,7 +129,11 @@ async def import_product(
             product_statuses = body.get("product_statuses", [])
             limit = body.get("limit", 100)
             
+            print(f"🔍 DEBUG - product_statuses: {product_statuses}")
+            print(f"🔍 DEBUG - limit: {limit}")
+            
             if not product_statuses:
+                print(f"❌ ERRO - product_statuses vazio: {product_statuses}")
                 return JSONResponse(
                     status_code=400,
                     content={"error": "product_statuses é obrigatório para importação em massa"}
@@ -158,34 +168,6 @@ async def import_product(
             content={"error": f"Erro na importação: {str(e)}"}
         )
 
-@ml_product_router.get("/details/{product_id}")
-async def get_product_details(
-    product_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user)
-):
-    """Buscar detalhes de um produto"""
-    try:
-        controller = MLProductController(db)
-        result = controller.get_product_details(
-            company_id=user["company"]["id"],
-            product_id=product_id
-        )
-        
-        if result['success']:
-            return JSONResponse(content=result)
-        else:
-            return JSONResponse(
-                status_code=404,
-                content=result
-            )
-            
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Erro ao buscar produto: {str(e)}"}
-        )
 
 @ml_product_router.get("/sync-history/{ml_account_id}")
 async def get_sync_history(
@@ -361,3 +343,46 @@ async def search_products(
             status_code=500,
             content={"error": f"Erro na busca: {str(e)}"}
         )
+
+@ml_product_router.get("/details/{product_id}", response_class=HTMLResponse)
+async def ml_product_details_page(
+    product_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de detalhes do produto (sem autenticação temporariamente)"""
+    try:
+        controller = MLProductController(db)
+        # Criar usuário mock para teste
+        mock_user = {
+            "id": 1,
+            "company": {"id": 15}
+        }
+        return controller.get_product_details_page(request, mock_user, product_id)
+    except Exception as e:
+        return HTMLResponse(
+            content=f"<h1>Erro</h1><p>{str(e)}</p>",
+            status_code=500
+        )
+
+@ml_product_router.get("/test-details/{product_id}", response_class=HTMLResponse)
+async def test_product_details_page(
+    product_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Teste de página de detalhes do produto (sem autenticação)"""
+    try:
+        controller = MLProductController(db)
+        # Criar usuário mock para teste
+        mock_user = {
+            "id": 1,
+            "company": {"id": 15}
+        }
+        return controller.get_product_details_page(request, mock_user, product_id)
+    except Exception as e:
+        return HTMLResponse(
+            content=f"<h1>Erro</h1><p>{str(e)}</p>",
+            status_code=500
+        )
+
