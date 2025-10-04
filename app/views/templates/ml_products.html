@@ -95,11 +95,21 @@
                                     <th width="50">
                                         <input type="checkbox" id="select-all-products" onchange="toggleSelectAll()">
                                     </th>
-                                    <th>Produto</th>
-                                    <th>Preço</th>
-                                    <th>Estoque</th>
-                                    <th>Status</th>
-                                    <th>Última Sincronização</th>
+                                    <th class="sortable" data-sort="title" onclick="sortTable('title')">
+                                        Produto <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="price" onclick="sortTable('price')">
+                                        Preço <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="available_quantity" onclick="sortTable('available_quantity')">
+                                        Estoque <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="status" onclick="sortTable('status')">
+                                        Status <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="last_sync" onclick="sortTable('last_sync')">
+                                        Última Sincronização <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
@@ -389,6 +399,11 @@ function loadProducts() {
     let apiUrl = `/ml/products/api/search?page=${page}&limit=${limit}`;
     if (mlAccountId) apiUrl += `&ml_account_id=${mlAccountId}`;
     if (status) apiUrl += `&status=${status}`;
+    
+    // Adicionar parâmetros de ordenação
+    if (currentSort) {
+        apiUrl += `&sort=${currentSort}&order=${currentOrder}`;
+    }
     
     fetch(apiUrl)
     .then(response => response.json())
@@ -956,5 +971,79 @@ function deleteProducts() {
         button.disabled = false;
     });
 }
+
+// Variáveis globais para ordenação
+let currentSort = null;
+let currentOrder = 'asc';
+
+// Função para ordenar a tabela
+function sortTable(column) {
+    // Se clicou na mesma coluna, alternar ordem
+    if (currentSort === column) {
+        currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort = column;
+        currentOrder = 'asc';
+    }
+    
+    // Atualizar ícones dos cabeçalhos
+    updateSortIcons(column, currentOrder);
+    
+    // Recarregar produtos com ordenação
+    loadProducts();
+}
+
+// Função para atualizar ícones de ordenação
+function updateSortIcons(activeColumn, order) {
+    const headers = document.querySelectorAll('.sortable');
+    
+    headers.forEach(header => {
+        const icon = header.querySelector('i');
+        const column = header.getAttribute('data-sort');
+        
+        // Remover classes de ordenação
+        header.classList.remove('sorted-asc', 'sorted-desc');
+        
+        if (column === activeColumn) {
+            // Adicionar classe de ordenação ativa
+            header.classList.add(order === 'asc' ? 'sorted-asc' : 'sorted-desc');
+            
+            // Atualizar ícone
+            if (order === 'asc') {
+                icon.className = 'bi bi-arrow-up ms-1';
+            } else {
+                icon.className = 'bi bi-arrow-down ms-1';
+            }
+        } else {
+            // Ícone padrão para colunas não ativas
+            icon.className = 'bi bi-arrow-down-up ms-1';
+        }
+    });
+}
+
+// Adicionar CSS para ordenação
+const sortStyle = document.createElement('style');
+sortStyle.textContent = `
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+    .sortable:hover {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+    }
+    .sortable i {
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    .sortable:hover i {
+        opacity: 1;
+    }
+    .sortable.sorted-asc i,
+    .sortable.sorted-desc i {
+        opacity: 1;
+    }
+`;
+document.head.appendChild(sortStyle);
 </script>
 {% endblock %}

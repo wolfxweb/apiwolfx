@@ -278,6 +278,8 @@ async def search_products(
     ml_account_id: Optional[int] = Query(None),
     status: Optional[str] = Query(None),
     category_id: Optional[str] = Query(None),
+    sort: Optional[str] = Query(None),
+    order: Optional[str] = Query("asc"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -306,6 +308,30 @@ async def search_products(
                     MLProduct.ml_item_id.ilike(f"%{q}%")
                 )
             )
+        
+        # Aplicar ordenação
+        if sort and order:
+            # Mapear campos de ordenação
+            sort_mapping = {
+                'title': MLProduct.title,
+                'price': MLProduct.price,
+                'available_quantity': MLProduct.available_quantity,
+                'status': MLProduct.status,
+                'last_sync': MLProduct.last_sync
+            }
+            
+            if sort in sort_mapping:
+                sort_column = sort_mapping[sort]
+                if order.lower() == 'desc':
+                    query = query.order_by(sort_column.desc())
+                else:
+                    query = query.order_by(sort_column.asc())
+            else:
+                # Ordenação padrão por ID
+                query = query.order_by(MLProduct.id.desc())
+        else:
+            # Ordenação padrão por ID
+            query = query.order_by(MLProduct.id.desc())
         
         total = query.count()
         offset = (page - 1) * limit
