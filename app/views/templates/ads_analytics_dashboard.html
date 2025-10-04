@@ -1,0 +1,663 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics & Performance{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">Analytics & Performance</h1>
+                    <p class="text-muted mb-0">Dashboard de métricas de publicidade do Mercado Livre</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="refreshDashboard()">
+                        <i class="bi bi-arrow-clockwise"></i> Atualizar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alertas -->
+    <div class="row mb-4" id="alerts-container">
+        <!-- Alerts serão inseridos aqui dinamicamente -->
+    </div>
+
+    <!-- Filtros de Data -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Filtros de Data</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="date_from" class="form-label">Data Inicial</label>
+                            <input type="date" id="date_from" class="form-control" value="">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="date_to" class="form-label">Data Final</label>
+                            <input type="date" id="date_to" class="form-control" value="">
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="btn-group me-2" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setQuickPeriod('7d')">7 dias</button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setQuickPeriod('30d')">30 dias</button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setQuickPeriod('90d')">90 dias</button>
+                            </div>
+                            <button type="button" class="btn btn-primary" onclick="loadDashboardData()">
+                                <i class="bi bi-search"></i> Aplicar Filtros
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="row mb-4" id="loading-container" style="display: none;">
+        <div class="col-12">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <p class="mt-2 text-muted">Carregando dados de analytics...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row mb-4" id="kpis-container">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">Total Investido</h5>
+                    <h2 class="mb-0" id="total-spend">R$ 0,00</h2>
+                    <small class="text-muted">Investimento total</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Total Vendido</h5>
+                    <h2 class="mb-0" id="total-revenue">R$ 0,00</h2>
+                    <small class="text-muted">Receita total</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-info">ROAS Médio</h5>
+                    <h2 class="mb-0" id="average-roas">0,00</h2>
+                    <small class="text-muted">Retorno sobre investimento</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-warning">Contas Ativas</h5>
+                    <h2 class="mb-0" id="active-accounts">0</h2>
+                    <small class="text-muted">Contas com campanhas</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Performance Diária</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="dailyPerformanceChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Distribuição de Gastos</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="spendDistributionChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance por Conta -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Performance por Conta</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-primary text-white">
+                                <tr>
+                                    <th>Conta</th>
+                                    <th>País</th>
+                                    <th>Investido</th>
+                                    <th>Vendido</th>
+                                    <th>ROAS</th>
+                                    <th>Cliques</th>
+                                    <th>Impressões</th>
+                                    <th>Vendas</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accounts-table-body">
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="bi bi-info-circle"></i> Carregando dados...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Produtos -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Top Produtos por Performance</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-primary text-white">
+                                <tr>
+                                    <th>Produto</th>
+                                    <th>Conta</th>
+                                    <th>Investido</th>
+                                    <th>Vendido</th>
+                                    <th>ROAS</th>
+                                    <th>Cliques</th>
+                                    <th>CTR</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-products-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="bi bi-info-circle"></i> Nenhum produto com dados de publicidade encontrado
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Insights -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Insights e Recomendações</h5>
+                </div>
+                <div class="card-body" id="insights-container">
+                    <div class="text-center text-muted">
+                        <i class="bi bi-lightbulb"></i> Analisando dados para gerar insights...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+let dailyChart = null;
+let spendChart = null;
+
+// Inicializar datas padrão (últimos 30 dias)
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+    
+    document.getElementById('date_from').value = thirtyDaysAgo.toISOString().split('T')[0];
+    document.getElementById('date_to').value = today.toISOString().split('T')[0];
+    
+    // Carregar dados iniciais
+    loadDashboardData();
+});
+
+function loadDashboardData() {
+    showLoading(true);
+    
+    const dateFrom = document.getElementById('date_from').value;
+    const dateTo = document.getElementById('date_to').value;
+    
+    const url = `/api/analytics/dashboard?date_from=${dateFrom}&date_to=${dateTo}`;
+    
+    fetch(url, {
+        credentials: 'include'  // Incluir cookies de sessão
+    })
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            
+            if (response.status === 401) {
+                // Não autenticado - redirecionar para login
+                console.log('Não autenticado, redirecionando...');
+                window.location.href = '/auth/login';
+                return;
+            }
+            
+            if (!response.ok) {
+                console.error('Response not ok:', response.status, response.statusText);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('Data received:', data);
+            
+            if (data && data.success) {
+                console.log('Success, rendering dashboard...');
+                renderDashboard(data.data);
+            } else {
+                const errorMsg = data?.error || 'Erro desconhecido';
+                console.error('API Error:', errorMsg);
+                
+                if (errorMsg.includes('Não autenticado') || errorMsg.includes('Sessão inválida')) {
+                    console.log('Sessão inválida, redirecionando...');
+                    window.location.href = '/auth/login';
+                } else {
+                    showError('Erro ao carregar dados: ' + errorMsg);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Fetch Error:', error);
+            showError('Erro ao carregar dados do dashboard: ' + error.message);
+        })
+        .finally(() => {
+            showLoading(false);
+        });
+}
+
+function renderDashboard(data) {
+    console.log('Dados recebidos:', data);
+    
+    if (data.kpis) {
+        renderKPIs(data.kpis);
+    }
+    
+    if (data.accounts) {
+        renderAccounts(data.accounts);
+    }
+    
+    if (data.daily_metrics && data.daily_metrics.length > 0) {
+        renderCharts(data);
+    } else {
+        renderEmptyCharts();
+    }
+    
+    if (data.top_products && data.top_products.length > 0) {
+        renderTopProducts(data.top_products);
+    } else {
+        renderEmptyTopProducts();
+    }
+    
+    renderInsights(data);
+}
+
+function renderKPIs(kpis) {
+    document.getElementById('total-spend').textContent = formatCurrency(kpis.total_spend);
+    document.getElementById('total-revenue').textContent = formatCurrency(kpis.total_revenue);
+    document.getElementById('average-roas').textContent = kpis.average_roas.toFixed(2);
+    document.getElementById('active-accounts').textContent = kpis.active_accounts;
+}
+
+function renderAccounts(accounts) {
+    const tbody = document.getElementById('accounts-table-body');
+    
+    if (!accounts || accounts.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                    <i class="bi bi-info-circle"></i> Nenhuma conta com dados de publicidade encontrada
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = accounts.map(account => `
+        <tr>
+            <td>
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-shop-fill text-success me-2"></i>
+                    <strong>${account.nickname}</strong>
+                </div>
+            </td>
+            <td>
+                <span class="badge bg-info">${account.country_id}</span>
+            </td>
+            <td>${formatCurrency(account.total_spend)}</td>
+            <td>${formatCurrency(account.total_revenue)}</td>
+            <td>
+                <span class="badge ${getROASBadgeClass(account.roas)}">
+                    ${account.roas.toFixed(2)}
+                </span>
+            </td>
+            <td>${formatNumber(account.total_clicks)}</td>
+            <td>${formatNumber(account.total_impressions)}</td>
+            <td>${formatNumber(account.total_sales)}</td>
+        </tr>
+    `).join('');
+}
+
+function renderCharts(data) {
+    // Performance Diária
+    const dailyCtx = document.getElementById('dailyPerformanceChart').getContext('2d');
+    if (dailyChart) {
+        dailyChart.destroy();
+    }
+    
+    dailyChart = new Chart(dailyCtx, {
+        type: 'line',
+        data: {
+            labels: data.daily_metrics.map(d => d.date),
+            datasets: [
+                {
+                    label: 'Investido',
+                    data: data.daily_metrics.map(d => d.spend),
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Vendido',
+                    data: data.daily_metrics.map(d => d.revenue),
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // Distribuição de Gastos
+    const spendCtx = document.getElementById('spendDistributionChart').getContext('2d');
+    if (spendChart) {
+        spendChart.destroy();
+    }
+    
+    spendChart = new Chart(spendCtx, {
+        type: 'doughnut',
+        data: {
+            labels: data.accounts.map(acc => acc.nickname),
+            datasets: [{
+                data: data.accounts.map(acc => acc.total_spend),
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 205, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function renderEmptyCharts() {
+    // Performance Diária vazio
+    const dailyCtx = document.getElementById('dailyPerformanceChart').getContext('2d');
+    if (dailyChart) {
+        dailyChart.destroy();
+    }
+    
+    dailyChart = new Chart(dailyCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' }
+            },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+    
+    // Distribuição de Gastos vazio
+    const spendCtx = document.getElementById('spendDistributionChart').getContext('2d');
+    if (spendChart) {
+        spendChart.destroy();
+    }
+    
+    spendChart = new Chart(spendCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Sem dados disponíveis'],
+            datasets: [{
+                data: [100],
+                backgroundColor: ['rgba(200, 200, 200, 0.5)'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+function renderTopProducts(products) {
+    const tbody = document.getElementById('top-products-table-body');
+    
+    tbody.innerHTML = products.map(product => `
+        <tr>
+            <td>
+                <div class="d-flex align-items-center">
+                    <img src="${product.thumbnail || '/static/images/no-image.png'}" 
+                         alt="${product.title}" 
+                         class="me-2" 
+                         style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">
+                    <div>
+                        <strong>${product.title.substring(0, 50)}${product.title.length > 50 ? '...' : ''}</strong>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="badge bg-info">${product.account_nickname}</span>
+            </td>
+            <td>${formatCurrency(product.spend)}</td>
+            <td>${formatCurrency(product.revenue)}</td>
+            <td>
+                <span class="badge ${getROASBadgeClass(product.roas)}">
+                    ${product.roas.toFixed(2)}
+                </span>
+            </td>
+            <td>${formatNumber(product.clicks)}</td>
+            <td>${((product.clicks / product.impressions) * 100).toFixed(2)}%</td>
+        </tr>
+    `).join('');
+}
+
+function renderEmptyTopProducts() {
+    const tbody = document.getElementById('top-products-table-body');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="7" class="text-center text-muted py-4">
+                <i class="bi bi-info-circle"></i> Nenhum produto com dados de publicidade encontrado
+            </td>
+        </tr>
+    `;
+}
+
+function renderInsights(data) {
+    const container = document.getElementById('insights-container');
+    const insights = [];
+    
+    if (data.kpis && data.kpis.total_spend > 0) {
+        const roas = data.kpis.average_roas;
+        
+        if (roas >= 4.0) {
+            insights.push({
+                type: 'success',
+                icon: 'bi-check-circle',
+                title: 'Excelente Performance',
+                message: `ROAS de ${roas.toFixed(2)} está acima da média do mercado. Continue investindo!`
+            });
+        } else if (roas >= 2.0) {
+            insights.push({
+                type: 'info',
+                icon: 'bi-info-circle',
+                title: 'Performance Boa',
+                message: `ROAS de ${roas.toFixed(2)} está na média. Considere otimizar campanhas.`
+            });
+        } else {
+            insights.push({
+                type: 'warning',
+                icon: 'bi-exclamation-triangle',
+                title: 'Performance Baixa',
+                message: `ROAS de ${roas.toFixed(2)} está abaixo da média. Revise estratégias de campanha.`
+            });
+        }
+        
+        if (data.kpis.total_accounts > 1) {
+            insights.push({
+                type: 'info',
+                icon: 'bi-graph-up',
+                title: 'Multi-Conta',
+                message: `Gerenciando ${data.kpis.total_accounts} contas ativas. Considere diversificar investimentos.`
+            });
+        }
+    } else {
+        insights.push({
+            type: 'secondary',
+            icon: 'bi-info-circle',
+            title: 'Sem Dados',
+            message: 'Nenhuma campanha ativa encontrada. Configure suas primeiras campanhas para ver insights.'
+        });
+    }
+    
+    container.innerHTML = insights.map(insight => `
+        <div class="alert alert-${insight.type} d-flex align-items-center" role="alert">
+            <i class="bi ${insight.icon} me-2"></i>
+            <div>
+                <strong>${insight.title}:</strong> ${insight.message}
+            </div>
+        </div>
+    `).join('');
+}
+
+function showLoading(show) {
+    document.getElementById('loading-container').style.display = show ? 'block' : 'none';
+}
+
+function showError(message) {
+    const alertContainer = document.getElementById('alerts-container');
+    alertContainer.innerHTML = `
+        <div class="col-12">
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+    `;
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(value || 0);
+}
+
+function formatNumber(value) {
+    return new Intl.NumberFormat('pt-BR').format(value || 0);
+}
+
+function getROASBadgeClass(roas) {
+    if (roas >= 4.0) return 'bg-success';
+    if (roas >= 2.0) return 'bg-primary';
+    if (roas >= 1.0) return 'bg-warning';
+    return 'bg-danger';
+}
+
+function setQuickPeriod(period) {
+    const today = new Date();
+    const dateTo = document.getElementById('date_to');
+    const dateFrom = document.getElementById('date_from');
+    
+    dateTo.value = today.toISOString().split('T')[0];
+    
+    let days;
+    switch(period) {
+        case '7d': days = 7; break;
+        case '30d': days = 30; break;
+        case '90d': days = 90; break;
+        default: days = 30;
+    }
+    
+    const fromDate = new Date(today.getTime() - (days * 24 * 60 * 60 * 1000));
+    dateFrom.value = fromDate.toISOString().split('T')[0];
+}
+
+function refreshDashboard() {
+    loadDashboardData();
+}
+</script>
+
+{% endblock %}
