@@ -76,7 +76,7 @@ def debug_mercadolibre_oficial():
     # 7. URLs para verificar no painel do Mercado Livre
     print("🌐 URLs para verificar no painel do Mercado Livre:")
     print("   • Painel: https://developers.mercadolibre.com/")
-    print("   • URL de callback: https://517fa7689a4d.ngrok-free.app/api/callback")
+    print("   • URL de callback: https://c7198784b3cb.ngrok-free.app/api/callback")
     print()
     
     # 8. Possíveis soluções

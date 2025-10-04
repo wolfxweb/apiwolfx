@@ -1,17 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Contas Mercado Livre - API Mercado Livre{% endblock %}
+{% block title %}Contas Mercado Livre{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
         <div class="col-12">
-            <!-- Header da Página -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h2 class="mb-1">
-                        <i class="bi bi-shop"></i> Contas Mercado Livre
-                    </h2>
+                    <h1 class="h3 mb-1">Contas Mercado Livre</h1>
                     <p class="text-muted mb-0">
                         Gerencie suas contas conectadas do Mercado Livre
                         {% if total_accounts %}
@@ -21,49 +19,82 @@
                         {% endif %}
                     </p>
                 </div>
+                <div>
+                    <a href="/ml/connect" class="btn btn-success me-2">
+                        <i class="bi bi-plus-circle"></i> Conectar Nova Conta
+                    </a>
+                </div>
             </div>
+        </div>
+    </div>
             
-            <!-- Mensagens de Sucesso/Erro -->
-            {% if success %}
+
+    <!-- Alertas -->
+    <div class="row mb-4" id="alerts-container">
+        {% if success %}
+        <div class="col-12">
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <i class="bi bi-check-circle-fill"></i>
                 Conta {{ success }} com sucesso!
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-            {% endif %}
-            
-            {% if error %}
+        </div>
+        {% endif %}
+        
+        {% if error %}
+        <div class="col-12">
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
                 <i class="bi bi-exclamation-triangle-fill"></i>
                 {{ error }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-            {% endif %}
+        </div>
+        {% endif %}
+    </div>
             
-            <!-- Tabela de Contas Conectadas -->
-            <div class="card mt-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0 text-white">
-                        Contas Conectadas
-                    </h5>
+    <!-- Contas -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Lista de Contas</h5>
+                    <span class="badge bg-primary" id="total-accounts">
+                        {% if total_accounts %}{{ total_accounts }} conta(s){% else %}0 conta(s){% endif %}
+                    </span>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
-                            <thead class="table-secondary text-white">
+                            <thead class="table-primary text-white">
                                 <tr>
-                                    <th>Conta</th>
-                                    <th>Email</th>
-                                    <th>País</th>
-                                    <th>Status</th>
-                                    <th>Conectada em</th>
+                                    <th width="50">
+                                        <input type="checkbox" id="select-all-accounts" onchange="toggleSelectAllAccounts()">
+                                    </th>
+                                    <th class="sortable" data-sort="nickname" onclick="sortTable('nickname')">
+                                        Conta <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="email" onclick="sortTable('email')">
+                                        Email <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="country_id" onclick="sortTable('country_id')">
+                                        País <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="status" onclick="sortTable('status')">
+                                        Status <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="created_at" onclick="sortTable('created_at')">
+                                        Conectada em <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="accounts-table-body">
                                 {% if accounts %}
                                     {% for account in accounts %}
                                     <tr>
+                                        <td>
+                                            <input type="checkbox" class="account-checkbox" value="{{ account.id }}">
+                                        </td>
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 <i class="bi bi-shop-fill text-success me-2"></i>
@@ -71,7 +102,9 @@
                                             </div>
                                         </td>
                                         <td>{{ account.email }}</td>
-                                        <td>{{ account.country_id }}</td>
+                                        <td>
+                                            <span class="badge bg-info">{{ account.country_id }}</span>
+                                        </td>
                                         <td>
                                             <span class="badge bg-success">
                                                 <i class="bi bi-check-circle-fill"></i> {{ account.status }}
@@ -86,16 +119,18 @@
                                                 <a href="/ml/accounts/{{ account.id }}/settings" class="btn btn-outline-secondary btn-sm" title="Configurações">
                                                     <i class="bi bi-gear"></i>
                                                 </a>
-                                                <a href="/ml/disconnect/{{ account.id }}" class="btn btn-outline-danger btn-sm" title="Desconectar">
-                                                    <i class="bi bi-x-circle"></i>
-                                                </a>
+                                                <form method="POST" action="/ml/disconnect/{{ account.id }}" style="display: inline;">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Desconectar" onclick="return confirm('Tem certeza que deseja desconectar esta conta?')">
+                                                        <i class="bi bi-x-circle"></i>
+                                                    </button>
+                                                </form>
                                             </div>
                                         </td>
                                     </tr>
                                     {% endfor %}
                                 {% else %}
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted py-4">
+                                        <td colspan="7" class="text-center text-muted py-4">
                                             <i class="bi bi-info-circle"></i> Nenhuma conta conectada
                                         </td>
                                     </tr>
@@ -103,17 +138,61 @@
                             </tbody>
                         </table>
                     </div>
-                    
-                    <!-- Botão para conectar mais contas -->
-                    <div class="card-footer text-center">
-                        <a href="/ml/connect" class="btn btn-primary">
-                            <i class="bi bi-plus-circle"></i> Conectar Nova Conta
-                        </a>
-                    </div>
                 </div>
             </div>
-            
         </div>
     </div>
 </div>
+
+<script>
+// Função para selecionar/deselecionar todas as contas
+function toggleSelectAllAccounts() {
+    const selectAll = document.getElementById('select-all-accounts');
+    const checkboxes = document.querySelectorAll('.account-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+}
+
+
+// Função para mostrar alertas
+function showAlert(type, message) {
+    const alertContainer = document.createElement('div');
+    alertContainer.className = `alert alert-${type} alert-dismissible fade show`;
+    alertContainer.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.getElementById('alerts-container');
+    container.appendChild(alertContainer);
+    
+    setTimeout(() => {
+        if (alertContainer.parentNode) {
+            alertContainer.remove();
+        }
+    }, 5000);
+}
+
+// Adicionar CSS para animação de spin
+const style = document.createElement('style');
+style.textContent = `
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .sortable {
+        cursor: pointer;
+    }
+    .sortable:hover {
+        background-color: rgba(255,255,255,0.1);
+    }
+`;
+document.head.appendChild(style);
+</script>
 {% endblock %}

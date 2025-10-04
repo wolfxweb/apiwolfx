@@ -1,0 +1,647 @@
+{% extends "base.html" %}
+
+{% block title %}Análise do Produto - Mercado Livre{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="bi bi-calculator text-success"></i>
+                        Análise do Produto
+                    </h1>
+                    <p class="text-muted mb-0">Análise completa de custos e rentabilidade</p>
+                </div>
+                <div>
+                    <a href="/ml/products" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Voltar aos Produtos
+                    </a>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="text-center py-5">
+                <div class="spinner-border text-success" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <p class="mt-3">Carregando análise do produto...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="alert alert-danger d-none">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Erro ao carregar análise:</strong>
+                <span id="error-message"></span>
+            </div>
+
+            <!-- Analysis Content -->
+            <div id="analysis-content" class="d-none">
+                <!-- Product Info -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-box"></i> Informações do Produto
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <img id="product-thumbnail" src="" alt="Produto" class="img-fluid rounded">
+                            </div>
+                            <div class="col-md-9">
+                                <h4 id="product-title" class="mb-2"></h4>
+                                <p id="product-description" class="text-muted mb-3"></p>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <strong>ID:</strong> <span id="product-ml-id"></span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Preço:</strong> <span id="product-price"></span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Status:</strong> <span id="product-status"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cost Analysis -->
+                <div class="row">
+                    <!-- Marketplace Fees -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-percent"></i> Taxas do Mercado Livre
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="marketplace-fees">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 mb-0">Calculando taxas...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Shipping Costs -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-truck"></i> Custos de Envio
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="shipping-costs">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 mb-0">Calculando envios...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profitability Analysis -->
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-graph-up"></i> Análise de Rentabilidade
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="profitability-analysis">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 mb-0">Calculando rentabilidade...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendations -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-warning text-dark">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-lightbulb"></i> Recomendações
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="recommendations">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 mb-0">Gerando recomendações...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productId = window.location.pathname.split('/').pop();
+    loadProductAnalysis(productId);
+});
+
+function loadProductAnalysis(productId) {
+    // Mostrar loading
+    document.getElementById('loading-state').classList.remove('d-none');
+    document.getElementById('analysis-content').classList.add('d-none');
+    document.getElementById('error-state').classList.add('d-none');
+
+    // Carregar dados do produto
+    fetch(`/ml/products/api/product/${productId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderProductInfo(data.product);
+                loadMarketplaceFees(data.product);
+                loadShippingCosts(data.product);
+                loadProfitabilityAnalysis(data.product);
+                loadRecommendations(data.product);
+                
+                // Mostrar conteúdo
+                document.getElementById('loading-state').classList.add('d-none');
+                document.getElementById('analysis-content').classList.remove('d-none');
+            } else {
+                showError(data.error || 'Erro ao carregar produto');
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            showError('Erro ao carregar análise do produto');
+        });
+}
+
+function renderProductInfo(product) {
+    document.getElementById('product-thumbnail').src = product.thumbnail || '/static/images/no-image.png';
+    document.getElementById('product-title').textContent = product.title;
+    document.getElementById('product-description').textContent = product.subtitle || 'Sem descrição';
+    document.getElementById('product-ml-id').textContent = product.ml_item_id;
+    document.getElementById('product-price').textContent = formatPrice(product.price, product.currency_id);
+    document.getElementById('product-status').innerHTML = getStatusBadge(product.status);
+}
+
+function loadMarketplaceFees(product) {
+    const feesContainer = document.getElementById('marketplace-fees');
+    
+    // Buscar taxas reais da API
+    fetch(`/ml/products/api/product/${product.id}/fees`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.fees.success) {
+                const fees = data.fees.data;
+                renderMarketplaceFees(fees);
+            } else {
+                showFeesError(data.fees?.error || 'Erro ao carregar taxas');
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar taxas:', error);
+            showFeesError('Erro de conexão');
+        });
+}
+
+           function renderMarketplaceFees(fees) {
+               const feesContainer = document.getElementById('marketplace-fees');
+               
+               if (!fees || (Array.isArray(fees) && fees.length === 0)) {
+                   feesContainer.innerHTML = `
+                       <div class="alert alert-warning">
+                           <i class="bi bi-exclamation-triangle"></i>
+                           Nenhuma taxa encontrada para este produto.
+                       </div>
+                   `;
+                   return;
+               }
+               
+               // Se fees é um array, pegar o primeiro item
+               // Se fees é um objeto, usar diretamente
+               const fee = Array.isArray(fees) ? fees[0] : fees;
+               const saleFeeDetails = fee.sale_fee_details || {};
+               
+               // Função para tratar valores N/A como 0
+               function safeParse(value) {
+                   if (value === null || value === undefined || value === 'N/A' || value === '') {
+                       return 0;
+                   }
+                   return parseFloat(value) || 0;
+               }
+               
+               // Extrair valores individuais com tratamento de N/A
+               const fixedFee = safeParse(saleFeeDetails.fixed_fee);
+               const percentageFee = safeParse(saleFeeDetails.percentage_fee);
+               const financingFee = safeParse(saleFeeDetails.financing_add_on_fee);
+               const listingFee = safeParse(fee.listing_fee_amount);
+               
+               // Buscar preço do produto para calcular percentual em reais
+               const productPrice = parseFloat(document.getElementById('product-price').textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+               
+               // Calcular valores em reais dos percentuais
+               const percentageAmount = (productPrice * percentageFee) / 100;
+               const financingAmount = (productPrice * financingFee) / 100;
+               
+               // Calcular totais
+               const totalSaleFees = fixedFee + percentageAmount + financingAmount;
+               const totalFees = totalSaleFees + listingFee;
+               
+               // Verificar informações de frete da API
+               const shippingInfo = fee.shipping_info || {};
+               const hasFreeShipping = shippingInfo.free_shipping || fee.free_shipping || fee.shipping_free || false;
+               
+               // Buscar custo de frete real da API
+               let shippingCost = 0;
+               if (hasFreeShipping) {
+                   shippingCost = 0;
+               } else {
+                   // Usar o custo de frete calculado pela API
+                   shippingCost = shippingInfo.shipping_cost || 0;
+               }
+               
+               const shippingMode = shippingInfo.mode || 'N/A';
+               const logisticType = shippingInfo.logistic_type || 'N/A';
+               
+               // Custo total incluindo frete
+               const totalCostWithShipping = totalFees + shippingCost;
+               
+               feesContainer.innerHTML = `
+                   <div class="mb-3">
+                       <h6 class="text-primary mb-2">
+                           <i class="bi bi-tag"></i> Taxa de Publicação
+                       </h6>
+                       <div class="d-flex justify-content-between">
+                           <span>Taxa de Publicação:</span>
+                           <strong class="${listingFee === 0 ? 'text-success' : 'text-primary'}">
+                               ${formatPrice(listingFee)}
+                           </strong>
+                       </div>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <h6 class="text-primary mb-2">
+                           <i class="bi bi-cart-check"></i> Taxa de Venda
+                       </h6>
+                       
+                       <div class="d-flex justify-content-between mb-1">
+                           <span class="text-muted">Taxa Fixa:</span>
+                           <span class="text-primary">${formatPrice(fixedFee)}</span>
+                       </div>
+                       
+                       <div class="d-flex justify-content-between mb-1">
+                           <span class="text-muted">Comissão ML (${percentageFee}%):</span>
+                           <span class="text-primary">${formatPrice(percentageAmount)}</span>
+                       </div>
+                       
+                       ${financingFee > 0 ? `
+                           <div class="d-flex justify-content-between mb-1">
+                               <span class="text-muted">Taxa de Financiamento (${financingFee}%):</span>
+                               <span class="text-primary">${formatPrice(financingAmount)}</span>
+                           </div>
+                       ` : ''}
+                       
+                       <hr class="my-2">
+                       <div class="d-flex justify-content-between fw-bold">
+                           <span>Subtotal Taxa de Venda:</span>
+                           <span class="text-primary">${formatPrice(totalSaleFees)}</span>
+                       </div>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <h6 class="text-primary mb-2">
+                           <i class="bi bi-truck"></i> Frete
+                       </h6>
+                       <div class="d-flex justify-content-between mb-1">
+                           <span>Frete:</span>
+                           <strong class="${hasFreeShipping ? 'text-success' : 'text-primary'}">
+                               ${hasFreeShipping ? 'GRÁTIS' : formatPrice(shippingCost)}
+                           </strong>
+                       </div>
+                       
+                       <div class="d-flex justify-content-between mb-1">
+                           <span class="text-muted">Modo:</span>
+                           <span class="text-info">${shippingMode}</span>
+                       </div>
+                       
+                       <div class="d-flex justify-content-between mb-1">
+                           <span class="text-muted">Tipo Logístico:</span>
+                           <span class="text-info">${logisticType}</span>
+                       </div>
+                       
+                       ${hasFreeShipping ? `
+                           <div class="mt-2">
+                               <small class="text-success">
+                                   <i class="bi bi-check-circle"></i>
+                                   Frete grátis incluído no custo do produto
+                               </small>
+                           </div>
+                       ` : ''}
+                   </div>
+                   
+                   <hr class="my-3">
+                   <div class="d-flex justify-content-between fw-bold fs-5">
+                       <span class="text-dark">TOTAL DE TAXAS + FRETE:</span>
+                       <span class="text-danger">${formatPrice(totalCostWithShipping)}</span>
+                   </div>
+                   
+                   <div class="mt-3">
+                       <div class="row text-center">
+                           <div class="col-6">
+                               <small class="text-muted">Margem Total</small>
+                               <div class="fw-bold text-warning">
+                                   ${productPrice > 0 ? ((totalCostWithShipping / productPrice) * 100).toFixed(2) : '0.00'}%
+                               </div>
+                           </div>
+                           <div class="col-6">
+                               <small class="text-muted">Tipo de Anúncio</small>
+                               <div class="fw-bold text-info">
+                                   ${fee.listing_type_name || 'N/A'}
+                               </div>
+                           </div>
+                       </div>
+                   </div>
+                   
+                   <div class="mt-2">
+                       <small class="text-muted">
+                           <i class="bi bi-info-circle"></i>
+                           Valores calculados sobre preço de R$ ${formatPrice(productPrice)}
+                           ${hasFreeShipping ? ' • Frete grátis incluído' : ''}
+                       </small>
+                   </div>
+               `;
+           }
+
+function showFeesError(message) {
+    const feesContainer = document.getElementById('marketplace-fees');
+    feesContainer.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Erro ao carregar taxas:</strong> ${message}
+        </div>
+    `;
+}
+
+function loadShippingCosts(product) {
+    // Simular carregamento de custos de envio
+    setTimeout(() => {
+        const shippingContainer = document.getElementById('shipping-costs');
+        shippingContainer.innerHTML = `
+            <div class="mb-3">
+                <label class="form-label">CEP de Destino:</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="destination-zip" placeholder="00000-000">
+                    <button class="btn btn-outline-primary" onclick="calculateShipping()">
+                        <i class="bi bi-calculator"></i> Calcular
+                    </button>
+                </div>
+            </div>
+            <div id="shipping-results" class="d-none">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Selecione um CEP para calcular os custos de envio.
+                </div>
+            </div>
+        `;
+    }, 1500);
+}
+
+function loadProfitabilityAnalysis(product) {
+    // Simular carregamento de análise de rentabilidade
+    setTimeout(() => {
+        const profitabilityContainer = document.getElementById('profitability-analysis');
+        const productPrice = parseFloat(product.price) || 0;
+        const totalFees = 0; // Será calculado dinamicamente
+        
+        profitabilityContainer.innerHTML = `
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="text-center p-3 border rounded">
+                        <h6 class="text-muted">Preço de Venda</h6>
+                        <h4 class="text-primary">${formatPrice(productPrice)}</h4>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center p-3 border rounded">
+                        <h6 class="text-muted">Custos Totais</h6>
+                        <h4 class="text-danger">${formatPrice(totalFees)}</h4>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center p-3 border rounded">
+                        <h6 class="text-muted">Lucro Líquido</h6>
+                        <h4 class="text-success">${formatPrice(productPrice - totalFees)}</h4>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="d-flex justify-content-between">
+                        <span>Margem de Lucro:</span>
+                        <strong class="text-success">0%</strong>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex justify-content-between">
+                        <span>ROI:</span>
+                        <strong class="text-success">0%</strong>
+                    </div>
+                </div>
+            </div>
+        `;
+    }, 2000);
+}
+
+function loadRecommendations(product) {
+    // Simular carregamento de recomendações
+    setTimeout(() => {
+        const recommendationsContainer = document.getElementById('recommendations');
+        recommendationsContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-lightbulb"></i>
+                <strong>Recomendação:</strong> Este produto tem boa rentabilidade. 
+                Considere aumentar o preço em 10% para maximizar o lucro.
+            </div>
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Atenção:</strong> Monitore os custos de envio para diferentes regiões.
+            </div>
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i>
+                <strong>Oportunidade:</strong> Produto com boa demanda. 
+                Considere investir em anúncios premium.
+            </div>
+        `;
+    }, 2500);
+}
+
+function calculateShipping() {
+    const zipCode = document.getElementById('destination-zip').value;
+    if (!zipCode) {
+        alert('Por favor, digite um CEP válido');
+        return;
+    }
+    
+    const productId = window.location.pathname.split('/').pop();
+    const resultsContainer = document.getElementById('shipping-results');
+    
+    // Mostrar loading
+    resultsContainer.classList.remove('d-none');
+    resultsContainer.innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Calculando...</span>
+            </div>
+            <p class="mt-2 mb-0">Calculando custos de envio...</p>
+        </div>
+    `;
+    
+    // Buscar opções de envio reais
+    fetch(`/ml/products/api/product/${productId}/shipping?zip_code=${zipCode}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.shipping.success) {
+                renderShippingOptions(data.shipping.data, zipCode);
+            } else {
+                showShippingError(data.shipping?.error || 'Erro ao calcular envio');
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao calcular envio:', error);
+            showShippingError('Erro de conexão');
+        });
+}
+
+function renderShippingOptions(shippingData, zipCode) {
+    const resultsContainer = document.getElementById('shipping-results');
+    
+    if (!shippingData.options || shippingData.options.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Nenhuma opção de envio encontrada para o CEP ${zipCode}.
+            </div>
+        `;
+        return;
+    }
+    
+    let optionsHtml = `
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i>
+            <strong>Opções de envio para CEP ${zipCode}</strong>
+        </div>
+        <div class="row">
+    `;
+    
+    shippingData.options.forEach(option => {
+        const cost = option.cost || 0;
+        const listCost = option.list_cost || 0;
+        const name = option.name || 'Opção de Envio';
+        const isFree = cost === 0;
+        
+        optionsHtml += `
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">${name}</h6>
+                        <div class="d-flex justify-content-between">
+                            <span>Custo:</span>
+                            <strong class="${isFree ? 'text-success' : 'text-primary'}">
+                                ${isFree ? 'GRÁTIS' : formatPrice(cost)}
+                            </strong>
+                        </div>
+                        ${listCost > 0 ? `
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted">Custo original:</small>
+                                <small class="text-muted">${formatPrice(listCost)}</small>
+                            </div>
+                        ` : ''}
+                        ${option.estimated_delivery_time ? `
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock"></i>
+                                    Entrega: ${option.estimated_delivery_time.shipping || 'N/A'}h
+                                </small>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    optionsHtml += '</div>';
+    resultsContainer.innerHTML = optionsHtml;
+}
+
+function showShippingError(message) {
+    const resultsContainer = document.getElementById('shipping-results');
+    resultsContainer.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Erro ao calcular envio:</strong> ${message}
+        </div>
+    `;
+}
+
+function showError(message) {
+    document.getElementById('loading-state').classList.add('d-none');
+    document.getElementById('analysis-content').classList.add('d-none');
+    document.getElementById('error-state').classList.remove('d-none');
+    document.getElementById('error-message').textContent = message;
+}
+
+function formatPrice(price, currency = 'BRL') {
+    if (!price) return 'N/A';
+    
+    const numericPrice = typeof price === 'string' ? parseFloat(price) : price;
+    
+    if (isNaN(numericPrice)) return 'N/A';
+    
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(numericPrice);
+}
+
+function getStatusBadge(status) {
+    const statusMap = {
+        'active': '<span class="badge bg-success">Ativo</span>',
+        'paused': '<span class="badge bg-warning">Pausado</span>',
+        'closed': '<span class="badge bg-danger">Fechado</span>',
+        'under_review': '<span class="badge bg-info">Em Revisão</span>',
+        'inactive': '<span class="badge bg-secondary">Inativo</span>'
+    };
+    return statusMap[status] || '<span class="badge bg-secondary">Desconhecido</span>';
+}
+</script>
+{% endblock %}

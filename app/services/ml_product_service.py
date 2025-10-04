@@ -900,3 +900,159 @@ class MLProductService:
         except Exception as e:
             logger.error(f"Erro ao buscar histórico de sincronização: {e}")
             raise Exception(f"Erro ao buscar histórico: {e}")
+
+    def get_listing_prices(self, product_id, price, category_id=None, listing_type_id=None, ml_account_id=None):
+        """Busca taxas de listagem do Mercado Livre com informações de frete"""
+        try:
+            if not ml_account_id:
+                return {"success": False, "error": "ID da conta ML é obrigatório"}
+                
+            token = self.get_active_token(ml_account_id)
+            if not token:
+                return {"success": False, "error": "Token não encontrado"}
+            
+            # Construir URL da API
+            url = f"https://api.mercadolibre.com/sites/MLB/listing_prices"
+            params = {"price": price}
+            
+            if category_id:
+                params["category_id"] = category_id
+            if listing_type_id:
+                params["listing_type_id"] = listing_type_id
+            
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.get(url, params=params, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Buscar informações de frete do produto
+                shipping_info = self._get_product_shipping_info(product_id, token)
+                
+                # Adicionar informações de frete aos dados das taxas
+                if shipping_info:
+                    # Se data é uma lista, iterar sobre cada item
+                    if isinstance(data, list):
+                        for fee_item in data:
+                            if isinstance(fee_item, dict):
+                                fee_item["shipping_info"] = shipping_info
+                    # Se data é um objeto único, adicionar diretamente
+                    elif isinstance(data, dict):
+                        data["shipping_info"] = shipping_info
+                
+                return {"success": True, "data": data}
+            else:
+                return {"success": False, "error": f"Erro na API: {response.status_code}"}
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar taxas de listagem: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _get_product_shipping_info(self, product_id, token):
+        """Busca informações de frete do produto na API do ML"""
+        try:
+            url = f"https://api.mercadolibre.com/items/{product_id}"
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            
+            logger.info(f"Buscando informações de frete para produto {product_id}")
+            response = requests.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                product_data = response.json()
+                shipping_data = product_data.get("shipping", {})
+                
+                # Calcular custo de frete baseado no modo e dados do produto
+                shipping_cost = self._calculate_shipping_cost(shipping_data, product_data)
+                
+                shipping_info = {
+                    "free_shipping": shipping_data.get("free_shipping", False),
+                    "mode": shipping_data.get("mode"),
+                    "logistic_type": shipping_data.get("logistic_type"),
+                    "local_pick_up": shipping_data.get("local_pick_up", False),
+                    "store_pick_up": shipping_data.get("store_pick_up", False),
+                    "tags": shipping_data.get("tags", []),
+                    "methods": shipping_data.get("methods", []),
+                    "shipping_cost": shipping_cost
+                }
+                
+                logger.info(f"Informações de frete encontradas: {shipping_info}")
+                return shipping_info
+            else:
+                logger.warning(f"Erro ao buscar informações de frete do produto {product_id}: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar informações de frete: {e}")
+            return None
+    
+    def _calculate_shipping_cost(self, shipping_data, product_data):
+        """Calcula o custo de frete baseado nos dados do produto"""
+        try:
+            # Se é frete grátis, retorna 0
+            if shipping_data.get("free_shipping", False):
+                return 0
+            
+            mode = shipping_data.get("mode")
+            price = product_data.get("price", 0)
+            
+            # Valores baseados no modo de envio do Mercado Livre
+            if mode == "me2":
+                # Mercado Envios 2 - baseado no preço
+                if price > 0:
+                    if price <= 50:
+                        return 8.50  # Frete econômico
+                    elif price <= 100:
+                        return 12.50  # Frete padrão
+                    else:
+                        return 15.00  # Frete expresso
+                return 12.50  # Valor padrão
+            elif mode == "me1":
+                # Mercado Envios 1 - valor fixo
+                return 8.00
+            elif mode == "custom":
+                # Frete customizado - valor estimado
+                return 15.00
+            else:
+                # Outros modos - valor estimado
+                return 12.00
+                
+        except Exception as e:
+            logger.error(f"Erro ao calcular custo de frete: {e}")
+            return 10.00  # Valor padrão em caso de erro
+
+    def get_shipping_options(self, product_id, zip_code, ml_account_id=None):
+        """Busca opções de envio para um produto"""
+        try:
+            if not ml_account_id:
+                return {"success": False, "error": "ID da conta ML é obrigatório"}
+                
+            token = self.get_active_token(ml_account_id)
+            if not token:
+                return {"success": False, "error": "Token não encontrado"}
+            
+            url = f"https://api.mercadolibre.com/items/{product_id}/shipping_options"
+            params = {"zip_code": zip_code}
+            
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.get(url, params=params, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {"success": True, "data": data}
+            else:
+                return {"success": False, "error": f"Erro na API: {response.status_code}"}
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar opções de envio: {e}")
+            return {"success": False, "error": str(e)}

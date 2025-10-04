@@ -533,3 +533,162 @@ async def delete_products(
             status_code=500,
             content={"error": f"Erro ao remover produtos: {str(e)}"}
         )
+
+@ml_product_router.get("/analysis/{product_id}", response_class=HTMLResponse)
+async def get_product_analysis_page(
+    product_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Página de análise do produto"""
+    try:
+        controller = MLProductController(db)
+        return controller.get_product_analysis_page(request, user, product_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao carregar análise do produto: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro interno do servidor: {e}")
+
+@ml_product_router.get("/api/product/{product_id}")
+async def get_product_for_analysis(
+    product_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """API para buscar dados do produto para análise"""
+    try:
+        from app.models.saas_models import MLProduct
+        
+        product = db.query(MLProduct).filter(
+            MLProduct.id == product_id,
+            MLProduct.company_id == user["company"]["id"]
+        ).first()
+        
+        if not product:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Produto não encontrado"}
+            )
+        
+        return JSONResponse(content={
+            "success": True,
+            "product": {
+                "id": product.id,
+                "ml_item_id": product.ml_item_id,
+                "title": product.title,
+                "subtitle": product.subtitle,
+                "price": product.price,
+                "currency_id": product.currency_id,
+                "status": product.status.value if product.status else None,
+                "thumbnail": product.thumbnail,
+                "category_id": product.category_id,
+                "category_name": product.category_name,
+                "condition": product.condition,
+                "listing_type_id": product.listing_type_id,
+                "buying_mode": product.buying_mode,
+                "permalink": product.permalink,
+                "available_quantity": product.available_quantity,
+                "sold_quantity": product.sold_quantity,
+                "shipping": product.shipping,
+                "catalog_listing": product.catalog_listing,
+                "catalog_product_id": product.catalog_product_id
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar produto para análise: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno do servidor: {e}"}
+        )
+
+@ml_product_router.get("/api/product/{product_id}/fees")
+async def get_product_fees(
+    product_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """API para buscar taxas do produto"""
+    try:
+        from app.models.saas_models import MLProduct
+        from app.services.ml_product_service import MLProductService
+        
+        product = db.query(MLProduct).filter(
+            MLProduct.id == product_id,
+            MLProduct.company_id == user["company"]["id"]
+        ).first()
+        
+        if not product:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Produto não encontrado"}
+            )
+        
+        service = MLProductService(db)
+        
+        # Buscar taxas de listagem
+        fees_result = service.get_listing_prices(
+            product_id=product.ml_item_id,
+            price=product.price,
+            category_id=product.category_id,
+            listing_type_id=product.listing_type_id,
+            ml_account_id=product.ml_account_id
+        )
+        
+        return JSONResponse(content={
+            "success": True,
+            "fees": fees_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar taxas do produto: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno do servidor: {e}"}
+        )
+
+@ml_product_router.get("/api/product/{product_id}/shipping")
+async def get_product_shipping(
+    product_id: int,
+    zip_code: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """API para buscar opções de envio do produto"""
+    try:
+        from app.models.saas_models import MLProduct
+        from app.services.ml_product_service import MLProductService
+        
+        product = db.query(MLProduct).filter(
+            MLProduct.id == product_id,
+            MLProduct.company_id == user["company"]["id"]
+        ).first()
+        
+        if not product:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Produto não encontrado"}
+            )
+        
+        service = MLProductService(db)
+        
+        # Buscar opções de envio
+        shipping_result = service.get_shipping_options(
+            product_id=product.ml_item_id,
+            zip_code=zip_code,
+            ml_account_id=product.ml_account_id
+        )
+        
+        return JSONResponse(content={
+            "success": True,
+            "shipping": shipping_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar opções de envio: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno do servidor: {e}"}
+        )

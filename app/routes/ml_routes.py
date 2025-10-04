@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime, timedelta
 
 from app.config.database import get_db
 from app.controllers.auth_controller import AuthController
@@ -196,6 +197,95 @@ async def ml_callback(
         
         # Redirecionar para página de contas com sucesso
         return RedirectResponse(url=f"/ml/accounts?success={action}", status_code=302)
+        
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(url=f"/ml/accounts?error=Erro interno: {str(e)}", status_code=302)
+
+@ml_router.get("/sync/{account_id}")
+async def ml_sync(
+    account_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Refresh token de uma conta do Mercado Livre"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    user_id = user_data["id"]
+    company_id = user_data["company"]["id"]
+    
+    try:
+        # Buscar conta ML
+        from app.models.saas_models import MLAccount, Token
+        
+        ml_account = db.query(MLAccount).filter(
+            MLAccount.id == account_id,
+            MLAccount.company_id == company_id
+        ).first()
+        
+        if not ml_account:
+            return RedirectResponse(url="/ml/accounts?error=Conta não encontrada", status_code=302)
+        
+        # Buscar refresh token ativo
+        refresh_token = db.query(Token).filter(
+            Token.ml_account_id == account_id,
+            Token.token_type == "refresh",
+            Token.is_active == True,
+            Token.expires_at > datetime.utcnow()
+        ).first()
+        
+        if not refresh_token:
+            # Se não tem refresh token, precisa reconectar
+            return RedirectResponse(url="/ml/connect?error=Reconexão necessária", status_code=302)
+        
+        # Usar o serviço para refresh token
+        from app.services.mercadolibre_service import MercadoLivreService
+        
+        ml_service = MercadoLivreService()
+        new_token = await ml_service.refresh_token(refresh_token.token_value)
+        
+        if not new_token:
+            return RedirectResponse(url="/ml/accounts?error=Erro ao renovar token", status_code=302)
+        
+        # Desativar tokens antigos
+        db.query(Token).filter(
+            Token.ml_account_id == account_id,
+            Token.is_active == True
+        ).update({"is_active": False})
+        
+        # Salvar novo access token
+        access_token = Token(
+            ml_account_id=account_id,
+            token_type="access",
+            token_value=new_token.access_token,
+            expires_at=datetime.utcnow() + timedelta(seconds=new_token.expires_in),
+            scope=new_token.scope,
+            is_active=True
+        )
+        db.add(access_token)
+        
+        # Salvar novo refresh token se disponível
+        if hasattr(new_token, 'refresh_token') and new_token.refresh_token:
+            new_refresh_token = Token(
+                ml_account_id=account_id,
+                token_type="refresh",
+                token_value=new_token.refresh_token,
+                expires_at=datetime.utcnow() + timedelta(days=30),
+                scope=new_token.scope,
+                is_active=True
+            )
+            db.add(new_refresh_token)
+        
+        db.commit()
+        
+        return RedirectResponse(url="/ml/accounts?success=token_updated", status_code=302)
         
     except Exception as e:
         db.rollback()

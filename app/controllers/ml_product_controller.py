@@ -481,3 +481,20 @@ class MLProductController:
                 'success': False,
                 'error': f'Erro ao remover produtos: {str(e)}'
             }
+
+    def get_product_analysis_page(self, request, user, product_id):
+        """Renderiza a página de análise do produto"""
+        try:
+            from app.views.template_renderer import TemplateRenderer
+            
+            renderer = TemplateRenderer()
+            return renderer.render(
+                template_name="ml_product_analysis.html",
+                context={
+                    "user": user,
+                    "product_id": product_id
+                }
+            )
+        except Exception as e:
+            logger.error(f"Erro ao renderizar página de análise: {e}")
+            raise
