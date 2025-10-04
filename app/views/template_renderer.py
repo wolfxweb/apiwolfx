@@ -29,6 +29,9 @@ class TemplateRenderer:
             # Processar condições PRIMEIRO
             content = self._process_conditions(content, context)
             
+            # Processar loops
+            content = self._process_loops(content, context)
+            
             # Substituir variáveis no template
             content = self._replace_variables(content, context)
             
@@ -115,12 +118,13 @@ class TemplateRenderer:
         """Processa condições {% if %} no template"""
         import re
         
-        # Padrão para {% if variavel %} com suporte a condições aninhadas
-        if_pattern = r'{%\s*if\s+([^%]+?)\s*%}(.*?){%\s*endif\s*%}'
+        # Padrão para {% if variavel %} com suporte a {% else %}
+        if_pattern = r'{%\s*if\s+([^%]+?)\s*%}(.*?)(?:{%\s*else\s*%}(.*?))?{%\s*endif\s*%}'
         
         def process_if(match):
             condition = match.group(1).strip()
             if_content = match.group(2)
+            else_content = match.group(3) if match.group(3) else ""
             
             # Processar condições simples (variavel)
             if not '.' in condition and not '==' in condition and not '!=' in condition:
@@ -128,7 +132,7 @@ class TemplateRenderer:
                 if var_value and var_value != "" and var_value != "None" and var_value != []:
                     return if_content
                 else:
-                    return ""
+                    return else_content
             
             # Processar condições com comparação (==, !=)
             elif '==' in condition:
@@ -195,8 +199,17 @@ class TemplateRenderer:
                 for key, value in temp_context.items():
                     if value is None:
                         value = ""
+                    # Substituir variáveis simples {{ key }}
                     item_content = item_content.replace(f"{{{{ {key} }}}}", str(value))
                     item_content = item_content.replace(f"{{{{{key}}}}}", str(value))
+                    
+                    # Substituir variáveis aninhadas {{ key.attribute }}
+                    if isinstance(value, dict):
+                        for attr_key, attr_value in value.items():
+                            if attr_value is None:
+                                attr_value = ""
+                            item_content = item_content.replace(f"{{{{ {key}.{attr_key} }}}}", str(attr_value))
+                            item_content = item_content.replace(f"{{{{{key}.{attr_key}}}}}", str(attr_value))
                 
                 result += item_content
             

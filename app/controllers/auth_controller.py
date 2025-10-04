@@ -28,13 +28,35 @@ class AuthController:
     def __init__(self):
         self.pwd_context = pwd_context
     
-    def get_login_page(self, error: str = None, success: str = None) -> HTMLResponse:
+    def get_login_page(self, error: str = None, success: str = None, session_token: str = None, db: Session = None) -> HTMLResponse:
         """Renderiza página de login"""
-        return render_template("login.html", error=error or "", success=success or "")
+        user_data = None
+        
+        # Se há session_token, verificar se o usuário já está logado
+        if session_token and db:
+            result = self.get_user_by_session(session_token, db)
+            if result.get("success"):
+                user_data = result["user"]
+        
+        return render_template("login.html", 
+                             user=user_data,
+                             error=error or "", 
+                             success=success or "")
     
-    def get_register_page(self, error: str = None, success: str = None) -> HTMLResponse:
+    def get_register_page(self, error: str = None, success: str = None, session_token: str = None, db: Session = None) -> HTMLResponse:
         """Renderiza página de cadastro"""
-        return render_template("register.html", error=error or "", success=success or "")
+        user_data = None
+        
+        # Se há session_token, verificar se o usuário já está logado
+        if session_token and db:
+            result = self.get_user_by_session(session_token, db)
+            if result.get("success"):
+                user_data = result["user"]
+        
+        return render_template("register.html", 
+                             user=user_data,
+                             error=error or "", 
+                             success=success or "")
     
     def login(self, email: str, password: str, remember: bool = False, db: Session = None) -> dict:
         """Processa login do usuário"""

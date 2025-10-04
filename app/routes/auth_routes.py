@@ -16,9 +16,15 @@ auth_router = APIRouter()
 auth_controller = AuthController()
 
 @auth_router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, error: str = None, success: str = None):
+async def login_page(
+    request: Request, 
+    error: str = None, 
+    success: str = None,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
     """Página de login"""
-    return auth_controller.get_login_page(error=error, success=success)
+    return auth_controller.get_login_page(error=error, success=success, session_token=session_token, db=db)
 
 @auth_router.post("/login")
 async def login(
@@ -50,9 +56,15 @@ async def login(
     return response
 
 @auth_router.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request, error: str = None, success: str = None):
+async def register_page(
+    request: Request, 
+    error: str = None, 
+    success: str = None,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
     """Página de cadastro"""
-    return auth_controller.get_register_page(error=error, success=success)
+    return auth_controller.get_register_page(error=error, success=success, session_token=session_token, db=db)
 
 @auth_router.post("/register")
 async def register(

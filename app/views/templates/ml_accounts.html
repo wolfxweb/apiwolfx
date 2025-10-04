@@ -35,40 +35,72 @@
             </div>
             {% endif %}
             
-            <!-- Lista de Contas Conectadas -->
+            <!-- Tabela de Contas Conectadas -->
             <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                       Contas Conectadas
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0 text-white">
+                        Contas Conectadas
                     </h5>
                 </div>
-                <div class="card-body">
-                    <!-- Lista de contas conectadas -->
-                    <div class="row mb-3">
-                        <div class="col-md-8">
-                            <div class="d-flex align-items-center">
-                                <div class="me-3">
-                                    <i class="bi bi-shop-fill text-success" style="font-size: 2rem;"></i>
-                                </div>
-                                <div>
-                                    <h6 class="mb-1">WOLFXDISTRIBUIDORA</h6>
-                                    <p class="text-muted mb-1">wolfxpj@gmail.com</p>
-                                    <small class="text-success">
-                                        <i class="bi bi-check-circle-fill"></i> Conectada
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 text-end">
-                            <a href="/ml/disconnect/6" class="btn btn-outline-danger btn-sm">
-                                <i class="bi bi-x-circle"></i> Desconectar
-                            </a>
-                        </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-secondary text-white">
+                                <tr>
+                                    <th>Conta</th>
+                                    <th>Email</th>
+                                    <th>País</th>
+                                    <th>Status</th>
+                                    <th>Conectada em</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if accounts %}
+                                    {% for account in accounts %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-shop-fill text-success me-2"></i>
+                                                <strong>{{ account.nickname }}</strong>
+                                            </div>
+                                        </td>
+                                        <td>{{ account.email }}</td>
+                                        <td>{{ account.country_id }}</td>
+                                        <td>
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle-fill"></i> {{ account.status }}
+                                            </span>
+                                        </td>
+                                        <td>{{ account.created_at }}</td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="/ml/sync/{{ account.id }}" class="btn btn-outline-primary btn-sm" title="Sincronizar">
+                                                    <i class="bi bi-arrow-clockwise"></i>
+                                                </a>
+                                                <a href="/ml/accounts/{{ account.id }}/settings" class="btn btn-outline-secondary btn-sm" title="Configurações">
+                                                    <i class="bi bi-gear"></i>
+                                                </a>
+                                                <a href="/ml/disconnect/{{ account.id }}" class="btn btn-outline-danger btn-sm" title="Desconectar">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">
+                                            <i class="bi bi-info-circle"></i> Nenhuma conta conectada
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
                     </div>
-                    <hr>
                     
                     <!-- Botão para conectar mais contas -->
-                    <div class="text-center mt-4">
+                    <div class="card-footer text-center">
                         <a href="/ml/connect" class="btn btn-primary">
                             <i class="bi bi-plus-circle"></i> Conectar Nova Conta
                         </a>

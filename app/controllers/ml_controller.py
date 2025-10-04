@@ -110,14 +110,19 @@ class MLController:
             
             accounts_data = []
             for account in accounts:
+                # Formatar data de criação
+                created_at_formatted = account.created_at.strftime('%d/%m/%Y') if account.created_at else 'N/A'
+                
                 accounts_data.append({
                     "id": account.id,
                     "nickname": account.nickname,
                     "email": account.email,
+                    "country_id": account.country_id,
                     "site_id": account.site_id,
                     "is_primary": account.is_primary,
-                    "last_sync": account.last_sync.isoformat() if account.last_sync else None,
-                    "created_at": account.created_at.isoformat()
+                    "status": account.status.value if hasattr(account.status, 'value') else str(account.status),
+                    "last_sync": account.last_sync,
+                    "created_at": created_at_formatted
                 })
             
             return {
