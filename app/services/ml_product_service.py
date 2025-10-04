@@ -100,6 +100,11 @@ class MLProductService:
             additional_info = self._get_additional_product_info(ml_item_id, headers)
             product_data.update(additional_info)
             
+            # Buscar preços promocionais
+            price_info = self._get_promotional_prices(ml_item_id, headers)
+            if price_info:
+                product_data.update(price_info)
+            
             return product_data
             
         except requests.exceptions.RequestException as e:
@@ -185,7 +190,7 @@ class MLProductService:
                     items_processed += 1
                     
                 except Exception as e:
-                    logger.error(f"Erro ao processar produto {product_data.get('id', 'unknown')}: {e}")
+                    logger.error(f"Erro ao processar produto {product_details.get('id', 'unknown')}: {e}")
                     items_errors += 1
                     continue
             
@@ -669,6 +674,83 @@ class MLProductService:
         except Exception as e:
             logger.error(f"Erro ao buscar informações adicionais do produto {product_id}: {e}")
             return {}
+    
+    def _get_promotional_prices(self, ml_item_id: str, headers: Dict) -> Dict:
+        """Busca preços promocionais do produto"""
+        try:
+            prices_url = f"{self.base_url}/items/{ml_item_id}/prices"
+            prices_response = requests.get(prices_url, headers=headers, timeout=10)
+            
+            if prices_response.status_code == 200:
+                prices_data = prices_response.json()
+                prices = prices_data.get("prices", [])
+                
+                # Encontrar preço promocional ativo no marketplace
+                promotional_price = None
+                standard_price = None
+                
+                for price in prices:
+                    if price.get("type") == "promotion":
+                        # Verificar se é para marketplace e está ativo
+                        conditions = price.get("conditions", {})
+                        context_restrictions = conditions.get("context_restrictions", [])
+                        
+                        if "channel_marketplace" in context_restrictions:
+                            start_time = conditions.get("start_time")
+                            end_time = conditions.get("end_time")
+                            
+                            # Se não tem horários definidos ou está no período ativo
+                            if not start_time or not end_time or self._is_promotion_active(start_time, end_time):
+                                promotional_price = price
+                                break
+                    
+                    elif price.get("type") == "standard":
+                        # Preço padrão como fallback
+                        standard_price = price
+                
+                # Retornar preços processados
+                result = {}
+                if promotional_price:
+                    result["price"] = promotional_price.get("amount")
+                    result["base_price"] = promotional_price.get("regular_amount")
+                    result["original_price"] = promotional_price.get("regular_amount")
+                    result["is_promotional"] = True
+                    logger.info(f"Produto {ml_item_id} com preço promocional: {promotional_price.get('amount')} (original: {promotional_price.get('regular_amount')})")
+                elif standard_price:
+                    result["price"] = standard_price.get("amount")
+                    result["base_price"] = standard_price.get("amount")
+                    result["original_price"] = None
+                    result["is_promotional"] = False
+                
+                return result
+            else:
+                logger.warning(f"Erro ao buscar preços para {ml_item_id}: {prices_response.status_code}")
+                
+        except Exception as e:
+            logger.warning(f"Erro ao buscar preços promocionais para {ml_item_id}: {e}")
+        
+        return {}
+    
+    def _is_promotion_active(self, start_time: str, end_time: str) -> bool:
+        """Verifica se uma promoção está ativa"""
+        try:
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            
+            if start_time:
+                start = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                if now < start:
+                    return False
+            
+            if end_time:
+                end = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                if now > end:
+                    return False
+            
+            return True
+        except Exception as e:
+            logger.warning(f"Erro ao verificar período de promoção: {e}")
+            return True  # Em caso de erro, assume que está ativa
     
     def _get_product_descriptions(self, product_id: str, headers: Dict) -> List[Dict]:
         """Busca descrições do produto"""
