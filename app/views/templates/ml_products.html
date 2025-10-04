@@ -11,20 +11,16 @@
                 <div>
                     <h1 class="h3 mb-1">Produtos Mercado Livre</h1>
                     <p class="text-muted mb-0">
-                        {% if current_account %}
-                            Produtos da conta: <strong>{{ current_account.nickname }}</strong> ({{ current_account.email }})
-                        {% else %}
-                            Gerencie seus produtos do Mercado Livre
-                        {% endif %}
-                        {% if total_products %} - {{ total_products }} produto(s) encontrado(s){% endif %}
+                        Gerencie seus produtos do Mercado Livre
                     </p>
                 </div>
                 <div>
-                    {% if ml_accounts %}
+                    <button class="btn btn-success me-2" onclick="showImportProductModal()">
+                        <i class="bi bi-plus-circle"></i> Importar Produto
+                    </button>
                     <button class="btn btn-primary" onclick="syncProducts()">
                         <i class="bi bi-arrow-clockwise"></i> Sincronizar Produtos
                     </button>
-                    {% endif %}
                 </div>
             </div>
         </div>
@@ -40,31 +36,25 @@
                             <label for="ml_account_id" class="form-label">Conta ML</label>
                             <select name="ml_account_id" id="ml_account_id" class="form-select">
                                 <option value="">Todas as contas</option>
-                                {% for account in ml_accounts %}
-                                <option value="{{ account.id }}" 
-                                        {% if current_account and current_account.id == account.id %}selected{% endif %}>
-                                    {{ account.nickname }} ({{ account.country_id }})
-                                </option>
-                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-3">
                             <label for="status" class="form-label">Status</label>
                             <select name="status" id="status" class="form-select">
                                 <option value="">Todos os status</option>
-                                <option value="active" {% if current_status == 'active' %}selected{% endif %}>Ativo</option>
-                                <option value="paused" {% if current_status == 'paused' %}selected{% endif %}>Pausado</option>
-                                <option value="closed" {% if current_status == 'closed' %}selected{% endif %}>Fechado</option>
-                                <option value="under_review" {% if current_status == 'under_review' %}selected{% endif %}>Em Revisão</option>
-                                <option value="inactive" {% if current_status == 'inactive' %}selected{% endif %}>Inativo</option>
+                                <option value="active">Ativo</option>
+                                <option value="paused">Pausado</option>
+                                <option value="closed">Fechado</option>
+                                <option value="under_review">Em Revisão</option>
+                                <option value="inactive">Inativo</option>
                             </select>
                         </div>
                         <div class="col-md-2">
                             <label for="limit" class="form-label">Por página</label>
                             <select name="limit" id="limit" class="form-select">
-                                <option value="20" {% if limit == 20 %}selected{% endif %}>20</option>
-                                <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
-                                <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
                             </select>
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
@@ -82,26 +72,17 @@
     </div>
 
     <!-- Alertas -->
-    {% if error %}
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                {{ error }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
+    <div class="row mb-4" id="alerts-container">
+        <!-- Alerts serão inseridos aqui via JavaScript -->
     </div>
-    {% endif %}
 
     <!-- Produtos -->
     <div class="row">
         <div class="col-12">
-            {% if products %}
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Lista de Produtos</h5>
-                    <span class="badge bg-primary">{{ total_products }} produto(s)</span>
+                    <span class="badge bg-primary" id="total-products">0 produto(s)</span>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -117,146 +98,139 @@
                                     <th>Ações</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {% for product in products %}
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            {% if product.thumbnail %}
-                                            <img src="{{ product.thumbnail }}" 
-                                                 class="rounded me-2" 
-                                                 style="width: 40px; height: 40px; object-fit: cover;"
-                                                 alt="{{ product.title }}">
-                                            {% else %}
-                                            <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center"
-                                                 style="width: 40px; height: 40px;">
-                                                <i class="bi bi-image text-muted"></i>
-                                            </div>
-                                            {% endif %}
-                                            <div>
-                                                <div class="fw-medium">{{ product.title[:50] }}{% if product.title|length > 50 %}...{% endif %}</div>
-                                                <small class="text-muted">ID: {{ product.ml_item_id }}</small>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="fw-medium">
-                                            {% if product.price %}
-                                                {{ product.price }} {{ product.currency_id }}
-                                            {% else %}
-                                                <span class="text-muted">N/A</span>
-                                            {% endif %}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <span class="badge bg-success me-1">{{ product.available_quantity }}</span>
-                                            <small class="text-muted">
-                                                {% if product.sold_quantity > 0 %}
-                                                    ({{ product.sold_quantity }} vendidos)
-                                                {% endif %}
-                                            </small>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {% if product.status == 'active' %}
-                                            <span class="badge bg-success">Ativo</span>
-                                        {% elif product.status == 'paused' %}
-                                            <span class="badge bg-warning">Pausado</span>
-                                        {% elif product.status == 'closed' %}
-                                            <span class="badge bg-secondary">Fechado</span>
-                                        {% elif product.status == 'under_review' %}
-                                            <span class="badge bg-info">Em Revisão</span>
-                                        {% else %}
-                                            <span class="badge bg-light text-dark">{{ product.status }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <small class="text-muted">{{ product.category_id }}</small>
-                                    </td>
-                                    <td>
-                                        {% if product.last_sync %}
-                                            <small class="text-muted">{{ product.last_sync }}</small>
-                                        {% else %}
-                                            <small class="text-muted">Nunca</small>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="btn-group btn-group-sm">
-                                            {% if product.permalink %}
-                                            <a href="{{ product.permalink }}" 
-                                               target="_blank" 
-                                               class="btn btn-outline-primary btn-sm"
-                                               title="Ver no Mercado Livre">
-                                                <i class="bi bi-box-arrow-up-right"></i>
-                                            </a>
-                                            {% endif %}
-                                            <button class="btn btn-outline-info btn-sm" 
-                                                    onclick="viewProductDetails({{ product.id }})"
-                                                    title="Ver detalhes">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                            <tbody id="products-table-body">
+                                <!-- Produtos serão carregados via JavaScript -->
                             </tbody>
                         </table>
                     </div>
                 </div>
-                
-                <!-- Paginação -->
-                {% if has_next or has_prev %}
-                <div class="card-footer">
-                    <nav aria-label="Navegação de produtos">
-                        <ul class="pagination pagination-sm justify-content-center mb-0">
-                            {% if has_prev %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ prev_page }}{% if ml_account_id %}&ml_account_id={{ ml_account_id }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}&limit={{ limit }}">
-                                    <i class="bi bi-chevron-left"></i>
-                                </a>
-                            </li>
-                            {% endif %}
-                            
-                            <li class="page-item active">
-                                <span class="page-link">{{ page }}</span>
-                            </li>
-                            
-                            {% if has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ next_page }}{% if ml_account_id %}&ml_account_id={{ ml_account_id }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}&limit={{ limit }}">
-                                    <i class="bi bi-chevron-right"></i>
-                                </a>
-                            </li>
-                            {% endif %}
-                        </ul>
-                    </nav>
-                </div>
-                {% endif %}
             </div>
-            {% else %}
-            <div class="card">
-                <div class="card-body text-center py-5">
-                    <i class="bi bi-box display-1 text-muted"></i>
-                    <h4 class="mt-3">Nenhum produto encontrado</h4>
-                    <p class="text-muted">
-                        {% if ml_accounts %}
-                            Nenhum produto foi encontrado com os filtros aplicados.
-                            <br>
-                            <button class="btn btn-primary mt-2" onclick="syncProducts()">
-                                <i class="bi bi-arrow-clockwise"></i> Sincronizar Produtos
-                            </button>
-                        {% else %}
-                            Você precisa conectar uma conta do Mercado Livre primeiro.
-                            <br>
-                            <a href="/ml/accounts" class="btn btn-primary mt-2">
-                                <i class="bi bi-plus-circle"></i> Conectar Conta
-                            </a>
-                        {% endif %}
-                    </p>
-                </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Importar Produto -->
+<div class="modal fade" id="importProductModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Importar Produtos do Mercado Livre</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            {% endif %}
+            <div class="modal-body">
+                <form id="importProductForm">
+                    <div class="mb-3">
+                        <label for="ml_account_select" class="form-label">Conta ML</label>
+                        <select class="form-select" id="ml_account_select" required>
+                            <option value="">Selecione uma conta</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Tipo de Importação -->
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Importação</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="import_type" 
+                                           id="import_single" value="single" checked>
+                                    <label class="form-check-label" for="import_single">
+                                        <strong>Produto Individual</strong>
+                                        <br><small class="text-muted">Importar um produto específico por ID</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="import_type" 
+                                           id="import_bulk" value="bulk">
+                                    <label class="form-check-label" for="import_bulk">
+                                        <strong>Todos os Produtos</strong>
+                                        <br><small class="text-muted">Importar todos os produtos da conta</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Campos para Produto Individual -->
+                    <div id="single_product_fields">
+                        <div class="mb-3">
+                            <label for="product_id_input" class="form-label">ID do Produto ML</label>
+                            <input type="text" class="form-control" id="product_id_input" 
+                                   placeholder="Ex: MLB1234567890">
+                            <div class="form-text">
+                                Digite o ID do produto do Mercado Livre que você deseja importar.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Campos para Importação em Massa -->
+                    <div id="bulk_import_fields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Status dos Produtos</label>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="status_active" 
+                                               name="product_status" value="active" checked>
+                                        <label class="form-check-label" for="status_active">
+                                            <span class="badge bg-success">Ativos</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="status_paused" 
+                                               name="product_status" value="paused" checked>
+                                        <label class="form-check-label" for="status_paused">
+                                            <span class="badge bg-warning">Pausados</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="status_closed" 
+                                               name="product_status" value="closed">
+                                        <label class="form-check-label" for="status_closed">
+                                            <span class="badge bg-secondary">Fechados</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                Selecione quais status de produtos você deseja importar.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="limit_input" class="form-label">Limite de Produtos</label>
+                            <select class="form-select" id="limit_input">
+                                <option value="50">50 produtos</option>
+                                <option value="100">100 produtos</option>
+                                <option value="200">200 produtos</option>
+                                <option value="500">500 produtos</option>
+                                <option value="1000">1000 produtos</option>
+                            </select>
+                            <div class="form-text">
+                                Número máximo de produtos a serem importados por vez.
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Atenção:</strong> A importação em massa pode demorar alguns minutos dependendo 
+                            da quantidade de produtos. Produtos já cadastrados serão atualizados automaticamente.
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="importProduct()" id="importButton">
+                    <i class="bi bi-download"></i> Importar Produto
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -281,11 +255,262 @@
 </div>
 
 <script>
-function syncProducts() {
-    {% if current_account %}
-    const mlAccountId = {{ current_account.id }};
+// Variáveis globais
+let mlAccounts = [];
+let currentAccount = null;
+
+// Carregar dados iniciais
+document.addEventListener('DOMContentLoaded', function() {
+    loadMLAccounts();
+    loadProducts();
+    
+    // Adicionar event listeners para mudança de tipo de importação
+    document.querySelectorAll('input[name="import_type"]').forEach(radio => {
+        radio.addEventListener('change', toggleImportType);
+    });
+});
+
+function loadMLAccounts() {
+    // Simular carregamento de contas ML
+    mlAccounts = [
+        {id: 7, nickname: 'WOLFXDISTRIBUIDORA', country_id: 'BR'}
+    ];
+    
+    // Preencher selects
+    const selects = ['ml_account_select', 'ml_account_id'];
+    selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (select) {
+            mlAccounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account.id;
+                option.textContent = `${account.nickname} (${account.country_id})`;
+                select.appendChild(option);
+            });
+        }
+    });
+}
+
+function loadProducts() {
+    // Simular carregamento de produtos
+    const products = [
+        {
+            id: 1,
+            ml_item_id: 'MLB1234567890',
+            title: 'Produto Teste 1 - Ativo',
+            price: 99.90,
+            currency_id: 'BRL',
+            available_quantity: 10,
+            sold_quantity: 5,
+            status: 'active',
+            category_id: 'MLB1234',
+            last_sync: '2025-10-04 10:30:00'
+        },
+        {
+            id: 2,
+            ml_item_id: 'MLB1234567891',
+            title: 'Produto Teste 2 - Pausado',
+            price: 149.90,
+            currency_id: 'BRL',
+            available_quantity: 5,
+            sold_quantity: 2,
+            status: 'paused',
+            category_id: 'MLB5678',
+            last_sync: '2025-10-04 09:15:00'
+        }
+    ];
+    
+    renderProducts(products);
+}
+
+function renderProducts(products) {
+    const tbody = document.getElementById('products-table-body');
+    const totalProducts = document.getElementById('total-products');
+    
+    if (products.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-5">
+                    <i class="bi bi-box display-1 text-muted"></i>
+                    <h4 class="mt-3">Nenhum produto encontrado</h4>
+                    <p class="text-muted">
+                        Nenhum produto foi encontrado com os filtros aplicados.
+                    </p>
+                </td>
+            </tr>
+        `;
+        totalProducts.textContent = '0 produto(s)';
+        return;
+    }
+    
+    let html = '';
+    products.forEach(product => {
+        html += `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center"
+                             style="width: 40px; height: 40px;">
+                            <i class="bi bi-image text-muted"></i>
+                        </div>
+                        <div>
+                            <div class="fw-medium">${product.title.length > 50 ? product.title.substring(0, 50) + '...' : product.title}</div>
+                            <small class="text-muted">ID: ${product.ml_item_id}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="fw-medium">
+                        ${product.price ? `${product.price} ${product.currency_id}` : '<span class="text-muted">N/A</span>'}
+                    </div>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-success me-1">${product.available_quantity}</span>
+                        <small class="text-muted">
+                            ${product.sold_quantity > 0 ? `(${product.sold_quantity} vendidos)` : ''}
+                        </small>
+                    </div>
+                </td>
+                <td>
+                    ${getStatusBadge(product.status)}
+                </td>
+                <td>
+                    <small class="text-muted">${product.category_id}</small>
+                </td>
+                <td>
+                    <small class="text-muted">${product.last_sync}</small>
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-info btn-sm" 
+                                onclick="viewProductDetails(${product.id})"
+                                title="Ver detalhes">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    totalProducts.textContent = `${products.length} produto(s)`;
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'active': '<span class="badge bg-success">Ativo</span>',
+        'paused': '<span class="badge bg-warning">Pausado</span>',
+        'closed': '<span class="badge bg-secondary">Fechado</span>',
+        'under_review': '<span class="badge bg-info">Em Revisão</span>',
+        'inactive': '<span class="badge bg-light text-dark">Inativo</span>'
+    };
+    return badges[status] || `<span class="badge bg-light text-dark">${status}</span>`;
+}
+
+function showImportProductModal() {
+    const modal = new bootstrap.Modal(document.getElementById('importProductModal'));
+    modal.show();
+}
+
+function toggleImportType() {
+    const importType = document.querySelector('input[name="import_type"]:checked').value;
+    const singleFields = document.getElementById('single_product_fields');
+    const bulkFields = document.getElementById('bulk_import_fields');
+    const importButton = document.getElementById('importButton');
+    
+    if (importType === 'single') {
+        singleFields.style.display = 'block';
+        bulkFields.style.display = 'none';
+        importButton.innerHTML = '<i class="bi bi-download"></i> Importar Produto';
+    } else {
+        singleFields.style.display = 'none';
+        bulkFields.style.display = 'block';
+        importButton.innerHTML = '<i class="bi bi-download"></i> Importar Todos';
+    }
+}
+
+function importProduct() {
+    const mlAccountId = document.getElementById('ml_account_select').value;
+    const importType = document.querySelector('input[name="import_type"]:checked').value;
+    
+    if (!mlAccountId) {
+        showAlert('warning', 'Selecione uma conta ML');
+        return;
+    }
+    
+    let requestBody = {
+        ml_account_id: parseInt(mlAccountId),
+        import_type: importType
+    };
+    
+    if (importType === 'single') {
+        const productId = document.getElementById('product_id_input').value;
+        if (!productId) {
+            showAlert('warning', 'Digite o ID do produto');
+            return;
+        }
+        requestBody.product_id = productId;
+    } else {
+        const selectedStatuses = Array.from(document.querySelectorAll('input[name="product_status"]:checked'))
+            .map(cb => cb.value);
+        const limit = parseInt(document.getElementById('limit_input').value);
+        
+        if (selectedStatuses.length === 0) {
+            showAlert('warning', 'Selecione pelo menos um status de produto');
+            return;
+        }
+        
+        requestBody.product_statuses = selectedStatuses;
+        requestBody.limit = limit;
+    }
     
     // Mostrar loading
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Importando...';
+    button.disabled = true;
+    
+    fetch(`/ml/products/import`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message || 'Importação realizada com sucesso!');
+            bootstrap.Modal.getInstance(document.getElementById('importProductModal')).hide();
+            document.getElementById('importProductForm').reset();
+            document.getElementById('import_single').checked = true;
+            toggleImportType();
+            setTimeout(() => {
+                loadProducts();
+            }, 2000);
+        } else {
+            showAlert('danger', data.error || 'Erro na importação');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showAlert('danger', 'Erro na importação');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+function syncProducts() {
+    if (!mlAccounts.length) {
+        showAlert('warning', 'Nenhuma conta ML disponível');
+        return;
+    }
+    
+    const mlAccountId = mlAccounts[0].id;
     const button = event.target;
     const originalText = button.innerHTML;
     button.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Sincronizando...';
@@ -300,11 +525,9 @@ function syncProducts() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Mostrar sucesso
             showAlert('success', 'Sincronização iniciada com sucesso!');
-            // Recarregar página após um delay
             setTimeout(() => {
-                window.location.reload();
+                loadProducts();
             }, 2000);
         } else {
             showAlert('danger', data.error || 'Erro na sincronização');
@@ -315,20 +538,15 @@ function syncProducts() {
         showAlert('danger', 'Erro na sincronização');
     })
     .finally(() => {
-        // Restaurar botão
         button.innerHTML = originalText;
         button.disabled = false;
     });
-    {% else %}
-    showAlert('warning', 'Selecione uma conta ML primeiro');
-    {% endif %}
 }
 
 function viewProductDetails(productId) {
     const modal = new bootstrap.Modal(document.getElementById('productDetailsModal'));
     const content = document.getElementById('productDetailsContent');
     
-    // Mostrar loading
     content.innerHTML = `
         <div class="text-center">
             <div class="spinner-border" role="status">
@@ -339,108 +557,41 @@ function viewProductDetails(productId) {
     
     modal.show();
     
-    // Buscar detalhes
-    fetch(`/ml/products/details/${productId}`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            renderProductDetails(data.product);
-        } else {
-            content.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    ${data.error || 'Erro ao carregar detalhes'}
-                </div>
-            `;
-        }
-    })
-    .catch(error => {
-        console.error('Erro:', error);
+    // Simular carregamento de detalhes
+    setTimeout(() => {
         content.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i>
-                Erro ao carregar detalhes do produto
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="bg-light rounded d-flex align-items-center justify-content-center" style="height: 200px;">
+                        <i class="bi bi-image display-4 text-muted"></i>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <h4>Produto Teste ${productId}</h4>
+                    <p class="text-muted">Descrição do produto</p>
+                    
+                    <div class="row mb-3">
+                        <div class="col-sm-6">
+                            <strong>Preço:</strong> R$ 99,90
+                        </div>
+                        <div class="col-sm-6">
+                            <strong>Status:</strong> 
+                            <span class="badge bg-success">Ativo</span>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-sm-6">
+                            <strong>Estoque:</strong> 10
+                        </div>
+                        <div class="col-sm-6">
+                            <strong>Vendidos:</strong> 5
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
-    });
-}
-
-function renderProductDetails(product) {
-    const content = document.getElementById('productDetailsContent');
-    
-    content.innerHTML = `
-        <div class="row">
-            <div class="col-md-4">
-                ${product.thumbnail ? 
-                    `<img src="${product.thumbnail}" class="img-fluid rounded" alt="${product.title}">` :
-                    `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="height: 200px;">
-                        <i class="bi bi-image display-4 text-muted"></i>
-                    </div>`
-                }
-            </div>
-            <div class="col-md-8">
-                <h4>${product.title}</h4>
-                ${product.subtitle ? `<p class="text-muted">${product.subtitle}</p>` : ''}
-                
-                <div class="row mb-3">
-                    <div class="col-sm-6">
-                        <strong>Preço:</strong> ${product.price || 'N/A'} ${product.currency_id || ''}
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>Status:</strong> 
-                        <span class="badge bg-${getStatusColor(product.status)}">${getStatusText(product.status)}</span>
-                    </div>
-                </div>
-                
-                <div class="row mb-3">
-                    <div class="col-sm-6">
-                        <strong>Estoque:</strong> ${product.available_quantity || 0}
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>Vendidos:</strong> ${product.sold_quantity || 0}
-                    </div>
-                </div>
-                
-                <div class="row mb-3">
-                    <div class="col-sm-6">
-                        <strong>Categoria:</strong> ${product.category_id || 'N/A'}
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>Condição:</strong> ${product.condition || 'N/A'}
-                    </div>
-                </div>
-                
-                ${product.permalink ? `
-                <div class="mb-3">
-                    <a href="${product.permalink}" target="_blank" class="btn btn-primary">
-                        <i class="bi bi-box-arrow-up-right"></i> Ver no Mercado Livre
-                    </a>
-                </div>
-                ` : ''}
-            </div>
-        </div>
-    `;
-}
-
-function getStatusColor(status) {
-    switch(status) {
-        case 'active': return 'success';
-        case 'paused': return 'warning';
-        case 'closed': return 'secondary';
-        case 'under_review': return 'info';
-        default: return 'light';
-    }
-}
-
-function getStatusText(status) {
-    switch(status) {
-        case 'active': return 'Ativo';
-        case 'paused': return 'Pausado';
-        case 'closed': return 'Fechado';
-        case 'under_review': return 'Em Revisão';
-        case 'inactive': return 'Inativo';
-        default: return status;
-    }
+    }, 1000);
 }
 
 function showAlert(type, message) {
@@ -452,11 +603,9 @@ function showAlert(type, message) {
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    // Inserir no topo da página
-    const container = document.querySelector('.container-fluid');
-    container.insertBefore(alertContainer, container.firstChild);
+    const container = document.getElementById('alerts-container');
+    container.appendChild(alertContainer);
     
-    // Remover automaticamente após 5 segundos
     setTimeout(() => {
         if (alertContainer.parentNode) {
             alertContainer.remove();

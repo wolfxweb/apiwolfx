@@ -82,6 +82,82 @@ async def sync_products(
             content={"error": f"Erro na sincronização: {str(e)}"}
         )
 
+@ml_product_router.post("/import")
+async def import_product(
+    request: Request,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Importar produtos do Mercado Livre (individual ou em massa)"""
+    try:
+        # Obter dados do corpo da requisição
+        body = await request.json()
+        ml_account_id = body.get("ml_account_id")
+        import_type = body.get("import_type", "single")
+        
+        if not ml_account_id:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "ml_account_id é obrigatório"}
+            )
+        
+        controller = MLProductController(db)
+        
+        if import_type == "single":
+            product_id = body.get("product_id")
+            if not product_id:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "product_id é obrigatório para importação individual"}
+                )
+            
+            result = controller.import_products(
+                company_id=user["company"]["id"],
+                ml_account_id=ml_account_id,
+                user_id=user["id"],
+                import_type=import_type,
+                product_id=product_id
+            )
+        
+        elif import_type == "bulk":
+            product_statuses = body.get("product_statuses", [])
+            limit = body.get("limit", 100)
+            
+            if not product_statuses:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "product_statuses é obrigatório para importação em massa"}
+                )
+            
+            result = controller.import_products(
+                company_id=user["company"]["id"],
+                ml_account_id=ml_account_id,
+                user_id=user["id"],
+                import_type=import_type,
+                product_statuses=product_statuses,
+                limit=limit
+            )
+        
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "import_type deve ser 'single' ou 'bulk'"}
+            )
+        
+        if result['success']:
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+            
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Erro na importação: {str(e)}"}
+        )
+
 @ml_product_router.get("/details/{product_id}")
 async def get_product_details(
     product_id: int,

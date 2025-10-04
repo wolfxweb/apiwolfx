@@ -29,7 +29,7 @@ class MLProductController:
             ).all()
             
             if not ml_accounts:
-                return render_template('ml_products_fixed.html',
+                return render_template('ml_products.html',
                     user=user_data,
                     ml_accounts=[],
                     products=[],
@@ -54,7 +54,7 @@ class MLProductController:
             # Buscar conta atual
             current_account = next((acc for acc in ml_accounts if acc.id == ml_account_id), None)
             
-            return render_template('ml_products_fixed.html',
+            return render_template('ml_products.html',
                 user=user_data,
                 ml_accounts=[
                     {
@@ -83,7 +83,7 @@ class MLProductController:
             
         except Exception as e:
             logger.error(f"Erro ao renderizar página de produtos: {e}")
-            return render_template('ml_products_fixed.html',
+            return render_template('ml_products.html',
                 user=user_data,
                 ml_accounts=[],
                 products=[],
@@ -128,6 +128,78 @@ class MLProductController:
             return {
                 'success': False,
                 'error': f'Erro na sincronização: {str(e)}'
+            }
+    
+    def import_products(self, company_id: int, ml_account_id: int, user_id: int, 
+                       import_type: str, product_id: str = None, 
+                       product_statuses: list = None, limit: int = 100) -> Dict:
+        """Importa produtos do Mercado Livre (individual ou em massa)"""
+        try:
+            # Verificar se conta ML pertence à empresa
+            ml_account = self.db.query(MLAccount).filter(
+                MLAccount.id == ml_account_id,
+                MLAccount.company_id == company_id
+            ).first()
+            
+            if not ml_account:
+                return {
+                    'success': False,
+                    'error': 'Conta ML não encontrada ou não pertence à empresa'
+                }
+            
+            # Verificar permissões do usuário
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if not user or user.company_id != company_id:
+                return {
+                    'success': False,
+                    'error': 'Usuário não autorizado'
+                }
+            
+            if import_type == 'single':
+                # Importação de produto individual
+                if not product_id:
+                    return {
+                        'success': False,
+                        'error': 'ID do produto é obrigatório para importação individual'
+                    }
+                
+                result = self.product_service.import_single_product(ml_account_id, company_id, product_id)
+                
+                return {
+                    'success': result['success'],
+                    'message': result.get('message', 'Produto importado com sucesso'),
+                    'data': result
+                }
+            
+            elif import_type == 'bulk':
+                # Importação em massa
+                if not product_statuses:
+                    return {
+                        'success': False,
+                        'error': 'Status dos produtos é obrigatório para importação em massa'
+                    }
+                
+                result = self.product_service.import_bulk_products(
+                    ml_account_id, company_id, product_statuses, limit
+                )
+                
+                return {
+                    'success': result['success'],
+                    'message': result.get('message', 'Importação em massa realizada com sucesso'),
+                    'data': result
+                }
+            
+            else:
+                return {
+                    'success': False,
+                    'error': 'Tipo de importação inválido'
+                }
+            
+        except Exception as e:
+            logger.error(f"Erro ao importar produtos: {e}")
+            return {
+                'success': False,
+                'error': f'Erro na importação: {str(e)}'
             }
     
     def get_product_details(self, company_id: int, product_id: int) -> Dict:

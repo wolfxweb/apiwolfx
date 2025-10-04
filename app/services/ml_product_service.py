@@ -93,6 +93,154 @@ class MLProductService:
             logger.error(f"Erro ao buscar detalhes do produto {ml_item_id}: {e}")
             raise Exception(f"Erro ao buscar produto: {e}")
     
+    def import_bulk_products(self, ml_account_id: int, company_id: int, 
+                            product_statuses: list, limit: int = 100) -> Dict:
+        """Importa múltiplos produtos do Mercado Livre com filtro de status"""
+        try:
+            # Obter token ativo
+            token = self.get_active_token(ml_account_id)
+            if not token:
+                return {
+                    "success": False,
+                    "error": "Token não encontrado ou expirado"
+                }
+            
+            # Buscar produtos do usuário com filtro de status
+            products_data = self.fetch_user_products(ml_account_id, limit=limit)
+            if not products_data.get('success'):
+                return {
+                    "success": False,
+                    "error": "Erro ao buscar produtos do usuário"
+                }
+            
+            products = products_data.get('products', [])
+            
+            # Filtrar produtos por status
+            filtered_products = [
+                p for p in products 
+                if p.get('status') in product_statuses
+            ]
+            
+            if not filtered_products:
+                return {
+                    "success": False,
+                    "error": f"Nenhum produto encontrado com os status selecionados: {', '.join(product_statuses)}"
+                }
+            
+            # Processar produtos
+            items_processed = 0
+            items_created = 0
+            items_updated = 0
+            items_errors = 0
+            
+            for product_data in filtered_products:
+                try:
+                    product_id = product_data['id']
+                    
+                    # Buscar detalhes completos do produto
+                    product_details = self.fetch_product_details(product_id, token)
+                    if not product_details:
+                        items_errors += 1
+                        continue
+                    
+                    # Verificar se produto já existe
+                    existing_product = self.db.query(MLProduct).filter(
+                        MLProduct.ml_item_id == product_id
+                    ).first()
+                    
+                    if existing_product:
+                        # Atualizar produto existente
+                        self._update_product_from_api(existing_product, product_details)
+                        items_updated += 1
+                    else:
+                        # Criar novo produto
+                        self._create_product_from_api(
+                            product_details, ml_account_id, company_id
+                        )
+                        items_created += 1
+                    
+                    items_processed += 1
+                    
+                except Exception as e:
+                    logger.error(f"Erro ao processar produto {product_data.get('id', 'unknown')}: {e}")
+                    items_errors += 1
+                    continue
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": f"Importação concluída! {items_processed} produtos processados: {items_created} criados, {items_updated} atualizados, {items_errors} erros",
+                "items_processed": items_processed,
+                "items_created": items_created,
+                "items_updated": items_updated,
+                "items_errors": items_errors,
+                "total_found": len(filtered_products)
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Erro na importação em massa: {e}")
+            return {
+                "success": False,
+                "error": f"Erro na importação em massa: {str(e)}"
+            }
+    
+    def import_single_product(self, ml_account_id: int, company_id: int, product_id: str) -> Dict:
+        """Importa um produto específico do Mercado Livre"""
+        try:
+            # Obter token ativo
+            token = self.get_active_token(ml_account_id)
+            if not token:
+                return {
+                    "success": False,
+                    "error": "Token não encontrado ou expirado"
+                }
+            
+            # Buscar detalhes do produto na API do ML
+            product_details = self.fetch_product_details(product_id, token)
+            if not product_details:
+                return {
+                    "success": False,
+                    "error": "Produto não encontrado no Mercado Livre"
+                }
+            
+            # Verificar se produto já existe
+            existing_product = self.db.query(MLProduct).filter(
+                MLProduct.ml_item_id == product_id
+            ).first()
+            
+            if existing_product:
+                # Atualizar produto existente
+                self._update_product_from_api(existing_product, product_details)
+                message = f"Produto '{product_details.get('title', product_id)}' atualizado com sucesso!"
+                action = "updated"
+            else:
+                # Criar novo produto
+                new_product = self._create_product_from_api(
+                    product_details, ml_account_id, company_id
+                )
+                message = f"Produto '{product_details.get('title', product_id)}' importado com sucesso!"
+                action = "created"
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": message,
+                "action": action,
+                "product_id": product_details.get('id'),
+                "title": product_details.get('title')
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Erro ao importar produto {product_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Erro ao importar produto: {str(e)}"
+            }
+    
     def sync_products_incremental(self, ml_account_id: int, company_id: int) -> Dict:
         """Sincronização incremental de produtos"""
         try:
