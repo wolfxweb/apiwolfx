@@ -18,8 +18,11 @@
                     <button class="btn btn-success me-2" onclick="showImportProductModal()">
                         <i class="bi bi-plus-circle"></i> Importar Produto
                     </button>
-                    <button class="btn btn-primary" onclick="syncProducts()">
+                    <button class="btn btn-primary me-2" onclick="syncProducts()">
                         <i class="bi bi-arrow-clockwise"></i> Sincronizar Produtos
+                    </button>
+                    <button class="btn btn-danger me-2" onclick="showDeleteProductsModal()">
+                        <i class="bi bi-trash"></i> Remover Produtos
                     </button>
                 </div>
             </div>
@@ -89,6 +92,9 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-primary text-white">
                                 <tr>
+                                    <th width="50">
+                                        <input type="checkbox" id="select-all-products" onchange="toggleSelectAll()">
+                                    </th>
                                     <th>Produto</th>
                                     <th>Preço</th>
                                     <th>Estoque</th>
@@ -244,6 +250,62 @@
     </div>
 </div>
 
+<!-- Modal de Remoção de Produtos -->
+<div class="modal fade" id="deleteProductsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle"></i> Remover Produtos
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Atenção!</strong> Esta ação não pode ser desfeita.
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Escolha o que remover:</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="deleteOption" id="deleteAll" value="all" checked>
+                        <label class="form-check-label" for="deleteAll">
+                            <strong>Remover todos os produtos</strong>
+                            <small class="text-muted d-block">Remove todos os produtos da base de dados</small>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="deleteOption" id="deleteSelected" value="selected">
+                        <label class="form-check-label" for="deleteSelected">
+                            <strong>Remover apenas produtos selecionados</strong>
+                            <small class="text-muted d-block">Remove apenas os produtos marcados na tabela</small>
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="selected-count" class="alert alert-info" style="display: none;">
+                    <i class="bi bi-info-circle"></i>
+                    <span id="selected-text">0 produtos selecionados</span>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="confirmationText" class="form-label">
+                        Para confirmar, digite <strong>"REMOVER"</strong>:
+                    </label>
+                    <input type="text" class="form-control" id="confirmationText" placeholder="Digite REMOVER para confirmar">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="deleteProducts()" id="deleteButton" disabled>
+                    <i class="bi bi-trash"></i> Remover Produtos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <script>
 // Variáveis globais
@@ -336,7 +398,7 @@ function renderProducts(products) {
     if (products.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center py-5">
+                <td colspan="8" class="text-center py-5">
                     <i class="bi bi-box display-1 text-muted"></i>
                     <h4 class="mt-3">Nenhum produto encontrado</h4>
                     <p class="text-muted">
@@ -363,6 +425,9 @@ function renderProducts(products) {
         
         html += `
             <tr>
+                <td>
+                    <input type="checkbox" class="form-check-input product-checkbox" value="${product.id}" onchange="updateSelectAllCheckbox()">
+                </td>
                 <td>
                     <div class="d-flex align-items-center">
                         ${thumbnail}
@@ -606,5 +671,153 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Funções para remoção de produtos
+function showDeleteProductsModal() {
+    // Atualizar contador de produtos selecionados
+    updateSelectedCount();
+    
+    // Limpar campo de confirmação
+    document.getElementById('confirmationText').value = '';
+    document.getElementById('deleteButton').disabled = true;
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteProductsModal'));
+    modal.show();
+}
+
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('select-all-products');
+    const productCheckboxes = document.querySelectorAll('.product-checkbox');
+    
+    productCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+    
+    updateSelectedCount();
+}
+
+function updateSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('select-all-products');
+    const productCheckboxes = document.querySelectorAll('.product-checkbox');
+    const checkedBoxes = document.querySelectorAll('.product-checkbox:checked');
+    
+    if (checkedBoxes.length === 0) {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = false;
+    } else if (checkedBoxes.length === productCheckboxes.length) {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = true;
+    } else {
+        selectAllCheckbox.indeterminate = true;
+    }
+    
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checkedBoxes = document.querySelectorAll('.product-checkbox:checked');
+    const count = checkedBoxes.length;
+    const selectedCountDiv = document.getElementById('selected-count');
+    const selectedText = document.getElementById('selected-text');
+    const deleteSelectedRadio = document.getElementById('deleteSelected');
+    
+    selectedText.textContent = `${count} produto(s) selecionado(s)`;
+    
+    if (count > 0) {
+        selectedCountDiv.style.display = 'block';
+        deleteSelectedRadio.disabled = false;
+    } else {
+        selectedCountDiv.style.display = 'none';
+        deleteSelectedRadio.disabled = true;
+        if (deleteSelectedRadio.checked) {
+            document.getElementById('deleteAll').checked = true;
+        }
+    }
+    
+    // Habilitar/desabilitar botão de remoção baseado na confirmação
+    updateDeleteButton();
+}
+
+function updateDeleteButton() {
+    const confirmationText = document.getElementById('confirmationText').value;
+    const deleteButton = document.getElementById('deleteButton');
+    
+    deleteButton.disabled = confirmationText !== 'REMOVER';
+}
+
+// Adicionar listener para o campo de confirmação
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmationInput = document.getElementById('confirmationText');
+    if (confirmationInput) {
+        confirmationInput.addEventListener('input', updateDeleteButton);
+    }
+});
+
+function deleteProducts() {
+    const deleteOption = document.querySelector('input[name="deleteOption"]:checked').value;
+    const confirmationText = document.getElementById('confirmationText').value;
+    
+    if (confirmationText !== 'REMOVER') {
+        showAlert('warning', 'Digite "REMOVER" para confirmar');
+        return;
+    }
+    
+    let productIds = [];
+    
+    if (deleteOption === 'selected') {
+        const checkedBoxes = document.querySelectorAll('.product-checkbox:checked');
+        productIds = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+        
+        if (productIds.length === 0) {
+            showAlert('warning', 'Selecione pelo menos um produto para remover');
+            return;
+        }
+    }
+    
+    // Mostrar loading
+    const button = document.getElementById('deleteButton');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Removendo...';
+    button.disabled = true;
+    
+    // Fazer requisição
+    const requestBody = {
+        delete_all: deleteOption === 'all',
+        product_ids: productIds
+    };
+    
+    fetch('/ml/products/delete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            
+            // Fechar modal
+            bootstrap.Modal.getInstance(document.getElementById('deleteProductsModal')).hide();
+            
+            // Recarregar produtos
+            setTimeout(() => {
+                loadProducts();
+            }, 1000);
+        } else {
+            showAlert('danger', data.error || 'Erro ao remover produtos');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showAlert('danger', 'Erro na comunicação com o servidor');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
 </script>
 {% endblock %}

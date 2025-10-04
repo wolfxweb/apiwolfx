@@ -416,3 +416,68 @@ class MLProductController:
                 content=f"<h1>Erro</h1><p>{str(e)}</p>",
                 status_code=500
             )
+    
+    def delete_products(self, company_id: int, user_id: int, delete_all: bool = False, product_ids: list = []) -> Dict:
+        """Remove produtos da base de dados"""
+        try:
+            from app.models.saas_models import MLProduct
+            
+            if delete_all:
+                # Remover todos os produtos da empresa
+                deleted_count = self.db.query(MLProduct).filter(
+                    MLProduct.company_id == company_id
+                ).delete()
+                
+                self.db.commit()
+                
+                return {
+                    'success': True,
+                    'message': f'{deleted_count} produto(s) removido(s) com sucesso',
+                    'deleted_count': deleted_count,
+                    'action': 'delete_all'
+                }
+            
+            elif product_ids:
+                # Remover produtos específicos
+                if not isinstance(product_ids, list):
+                    product_ids = [product_ids]
+                
+                # Verificar se os produtos pertencem à empresa
+                products_to_delete = self.db.query(MLProduct).filter(
+                    MLProduct.id.in_(product_ids),
+                    MLProduct.company_id == company_id
+                ).all()
+                
+                if not products_to_delete:
+                    return {
+                        'success': False,
+                        'error': 'Nenhum produto encontrado ou você não tem permissão para removê-los'
+                    }
+                
+                # Remover produtos
+                for product in products_to_delete:
+                    self.db.delete(product)
+                
+                self.db.commit()
+                
+                return {
+                    'success': True,
+                    'message': f'{len(products_to_delete)} produto(s) removido(s) com sucesso',
+                    'deleted_count': len(products_to_delete),
+                    'deleted_products': [p.id for p in products_to_delete],
+                    'action': 'delete_selected'
+                }
+            
+            else:
+                return {
+                    'success': False,
+                    'error': 'Nenhuma opção de remoção especificada'
+                }
+                
+        except Exception as e:
+            logger.error(f"Erro ao remover produtos: {e}")
+            self.db.rollback()
+            return {
+                'success': False,
+                'error': f'Erro ao remover produtos: {str(e)}'
+            }

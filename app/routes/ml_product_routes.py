@@ -386,3 +386,40 @@ async def test_product_details_page(
             status_code=500
         )
 
+@ml_product_router.post("/delete")
+async def delete_products(
+    body: dict,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove produtos da base de dados"""
+    try:
+        print(f"🔍 DEBUG DELETE - Dados recebidos: {body}")
+        print(f"🔍 DEBUG DELETE - Usuário: {user}")
+        
+        delete_all = body.get("delete_all", False)
+        product_ids = body.get("product_ids", [])
+        
+        controller = MLProductController(db)
+        
+        result = controller.delete_products(
+            company_id=user["company"]["id"],
+            user_id=user["id"],
+            delete_all=delete_all,
+            product_ids=product_ids
+        )
+        
+        if result['success']:
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+            
+    except Exception as e:
+        print(f"❌ ERRO DELETE: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Erro ao remover produtos: {str(e)}"}
+        )
