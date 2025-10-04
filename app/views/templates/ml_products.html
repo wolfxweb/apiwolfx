@@ -453,7 +453,7 @@ function loadFilterOptions() {
     });
 }
 
-function loadProducts() {
+function loadProducts(newPage = null) {
     // Carregar produtos reais do banco de dados
     const urlParams = new URLSearchParams(window.location.search);
     const mlAccountId = urlParams.get('ml_account_id');
@@ -461,7 +461,7 @@ function loadProducts() {
     const categoryId = urlParams.get('category_id');
     const shippingType = urlParams.get('shipping_type');
     const catalogListing = urlParams.get('catalog_listing');
-    const page = urlParams.get('page') || 1;
+    const page = newPage || urlParams.get('page') || 1;
     const limit = urlParams.get('limit') || 20;
     
     let apiUrl = `/ml/products/api/search?page=${page}&limit=${limit}`;

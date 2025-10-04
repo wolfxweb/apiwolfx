@@ -931,6 +931,8 @@ class MLProductService:
                         "ml_item_id": p.ml_item_id,
                         "title": p.title,
                         "price": p.price,
+                        "base_price": p.base_price,
+                        "original_price": p.original_price,
                         "currency_id": p.currency_id,
                         "available_quantity": p.available_quantity,
                         "sold_quantity": p.sold_quantity,
