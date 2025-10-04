@@ -77,7 +77,25 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <strong>Preço:</strong> 
-                                <span class="h5 text-primary">R$ {{ product.price }}</span>
+                                {% if product.original_price and product.original_price != product.price %}
+                                    <div class="d-flex flex-column">
+                                        <span class="h5 text-success fw-bold">R$ {{ product.price }}</span>
+                                        <span class="text-decoration-line-through text-muted small">R$ {{ product.original_price }}</span>
+                                        <span class="badge bg-danger small">
+                                            -{{ (((product.original_price|float - product.price|float) / product.original_price|float) * 100)|round }}%
+                                        </span>
+                                    </div>
+                                {% elif product.base_price and product.base_price != product.price %}
+                                    <div class="d-flex flex-column">
+                                        <span class="h5 text-success fw-bold">R$ {{ product.price }}</span>
+                                        <span class="text-decoration-line-through text-muted small">R$ {{ product.base_price }}</span>
+                                        <span class="badge bg-warning text-dark small">
+                                            -{{ (((product.base_price|float - product.price|float) / product.base_price|float) * 100)|round }}%
+                                        </span>
+                                    </div>
+                                {% else %}
+                                    <span class="h5 text-primary">R$ {{ product.price }}</span>
+                                {% endif %}
                                 <small class="text-muted">{{ product.currency_id }}</small>
                             </div>
                             <div class="col-md-6 mb-3">

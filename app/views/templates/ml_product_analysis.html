@@ -59,7 +59,7 @@
                                         <strong>ID:</strong> <span id="product-ml-id"></span>
                                     </div>
                                     <div class="col-md-4">
-                                        <strong>Preço:</strong> <span id="product-price"></span>
+                                        <strong>Preço:</strong> <div id="product-price"></div>
                                     </div>
                                     <div class="col-md-4">
                                         <strong>Status:</strong> <span id="product-status"></span>
@@ -206,7 +206,7 @@ function renderProductInfo(product) {
     document.getElementById('product-title').textContent = product.title;
     document.getElementById('product-description').textContent = product.subtitle || 'Sem descrição';
     document.getElementById('product-ml-id').textContent = product.ml_item_id;
-    document.getElementById('product-price').textContent = formatPrice(product.price, product.currency_id);
+    document.getElementById('product-price').innerHTML = formatProductPriceForAnalysis(product);
     document.getElementById('product-status').innerHTML = getStatusBadge(product.status);
 }
 
@@ -631,6 +631,59 @@ function formatPrice(price, currency = 'BRL') {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     }).format(numericPrice);
+}
+
+function formatProductPriceForAnalysis(product) {
+    if (!product.price) return '<span class="text-muted">N/A</span>';
+    
+    const currentPrice = parseFloat(product.price);
+    const originalPrice = product.original_price ? parseFloat(product.original_price) : null;
+    const basePrice = product.base_price ? parseFloat(product.base_price) : null;
+    
+    // Se há preço original e é diferente do preço atual, mostrar desconto
+    if (originalPrice && originalPrice > currentPrice && originalPrice > 0) {
+        const discountPercent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+        
+        return `
+            <div class="d-flex flex-column">
+                <div class="text-success fw-bold">
+                    ${formatPrice(currentPrice, product.currency_id)}
+                </div>
+                <div class="text-decoration-line-through text-muted small">
+                    ${formatPrice(originalPrice, product.currency_id)}
+                </div>
+                <div class="badge bg-danger small">
+                    -${discountPercent}%
+                </div>
+            </div>
+        `;
+    }
+    
+    // Se há base_price diferente do preço atual, mostrar promoção
+    if (basePrice && basePrice > currentPrice && basePrice > 0) {
+        const discountPercent = Math.round(((basePrice - currentPrice) / basePrice) * 100);
+        
+        return `
+            <div class="d-flex flex-column">
+                <div class="text-success fw-bold">
+                    ${formatPrice(currentPrice, product.currency_id)}
+                </div>
+                <div class="text-decoration-line-through text-muted small">
+                    ${formatPrice(basePrice, product.currency_id)}
+                </div>
+                <div class="badge bg-warning text-dark small">
+                    -${discountPercent}%
+                </div>
+            </div>
+        `;
+    }
+    
+    // Preço normal sem desconto
+    return `
+        <div class="text-primary fw-bold">
+            ${formatPrice(currentPrice, product.currency_id)}
+        </div>
+    `;
 }
 
 function getStatusBadge(status) {

@@ -556,7 +556,7 @@ function renderProducts(products) {
                 </td>
                 <td>
                     <div class="fw-medium">
-                        ${product.price ? formatPrice(product.price, product.currency_id) : '<span class="text-muted">N/A</span>'}
+                        ${formatProductPrice(product)}
                     </div>
                 </td>
                 <td>
@@ -733,6 +733,59 @@ function formatPrice(price, currency = 'BRL') {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     }).format(numericPrice);
+}
+
+function formatProductPrice(product) {
+    if (!product.price) return '<span class="text-muted">N/A</span>';
+    
+    const currentPrice = parseFloat(product.price);
+    const originalPrice = product.original_price ? parseFloat(product.original_price) : null;
+    const basePrice = product.base_price ? parseFloat(product.base_price) : null;
+    
+    // Se há preço original e é diferente do preço atual, mostrar desconto
+    if (originalPrice && originalPrice > currentPrice && originalPrice > 0) {
+        const discountPercent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+        
+        return `
+            <div class="d-flex flex-column">
+                <div class="text-success fw-bold">
+                    ${formatPrice(currentPrice, product.currency_id)}
+                </div>
+                <div class="text-decoration-line-through text-muted small">
+                    ${formatPrice(originalPrice, product.currency_id)}
+                </div>
+                <div class="badge bg-danger small">
+                    -${discountPercent}%
+                </div>
+            </div>
+        `;
+    }
+    
+    // Se há base_price diferente do preço atual, mostrar promoção
+    if (basePrice && basePrice > currentPrice && basePrice > 0) {
+        const discountPercent = Math.round(((basePrice - currentPrice) / basePrice) * 100);
+        
+        return `
+            <div class="d-flex flex-column">
+                <div class="text-success fw-bold">
+                    ${formatPrice(currentPrice, product.currency_id)}
+                </div>
+                <div class="text-decoration-line-through text-muted small">
+                    ${formatPrice(basePrice, product.currency_id)}
+                </div>
+                <div class="badge bg-warning text-dark small">
+                    -${discountPercent}%
+                </div>
+            </div>
+        `;
+    }
+    
+    // Preço normal sem desconto
+    return `
+        <div class="text-primary fw-bold">
+            ${formatPrice(currentPrice, product.currency_id)}
+        </div>
+    `;
 }
 
 function showImportProductModal() {
