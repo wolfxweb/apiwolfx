@@ -556,7 +556,7 @@ function renderProducts(products) {
                 </td>
                 <td>
                     <div class="fw-medium">
-                        ${product.price ? `${product.price} ${product.currency_id || ''}` : '<span class="text-muted">N/A</span>'}
+                        ${product.price ? formatPrice(product.price, product.currency_id) : '<span class="text-muted">N/A</span>'}
                     </div>
                 </td>
                 <td>
@@ -715,6 +715,22 @@ function getShippingType(shipping) {
     return shipping;
 }
 
+function formatPrice(price, currency = 'BRL') {
+    if (!price) return 'N/A';
+    
+    // Converter para número se for string
+    const numericPrice = typeof price === 'string' ? parseFloat(price) : price;
+    
+    if (isNaN(numericPrice)) return 'N/A';
+    
+    // Formatar em reais brasileiros
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(numericPrice);
+}
 
 function showImportProductModal() {
     const modal = new bootstrap.Modal(document.getElementById('importProductModal'));
