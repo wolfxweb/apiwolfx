@@ -77,14 +77,10 @@
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label for="limit" class="form-label">Por página</label>
-                            <select name="limit" id="limit" class="form-select">
-                                <option value="20">20</option>
-                                <option value="50">50</option>
-                                <option value="100">100</option>
-                            </select>
+                            <label for="sku_filter" class="form-label">SKU</label>
+                            <input type="text" name="sku_filter" id="sku_filter" class="form-control" placeholder="Buscar por SKU...">
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
+                        <div class="col-md-6 d-flex align-items-end">
                             <button type="submit" class="btn btn-outline-primary me-2">
                                 <i class="bi bi-funnel"></i> Filtrar
                             </button>
@@ -124,6 +120,9 @@
                                     </th>
                                     <th class="sortable" data-sort="price" onclick="sortTable('price')">
                                         Preço <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="seller_sku" onclick="sortTable('seller_sku')">
+                                        SKU <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
                                     <th class="sortable" data-sort="available_quantity" onclick="sortTable('available_quantity')">
                                         Estoque <i class="bi bi-arrow-down-up ms-1"></i>
@@ -461,8 +460,9 @@ function loadProducts(newPage = null) {
     const categoryId = urlParams.get('category_id');
     const shippingType = urlParams.get('shipping_type');
     const catalogListing = urlParams.get('catalog_listing');
+    const skuFilter = urlParams.get('sku_filter');
     const page = newPage || urlParams.get('page') || 1;
-    const limit = urlParams.get('limit') || 20;
+    const limit = 20; // Valor fixo, sem filtro
     
     let apiUrl = `/ml/products/api/search?page=${page}&limit=${limit}`;
     if (mlAccountId) apiUrl += `&ml_account_id=${mlAccountId}`;
@@ -470,6 +470,7 @@ function loadProducts(newPage = null) {
     if (categoryId) apiUrl += `&category_id=${categoryId}`;
     if (shippingType) apiUrl += `&shipping_type=${shippingType}`;
     if (catalogListing) apiUrl += `&catalog_listing=${catalogListing}`;
+    if (skuFilter) apiUrl += `&sku_filter=${encodeURIComponent(skuFilter)}`;
     
     // Adicionar parâmetros de ordenação
     if (currentSort) {
@@ -557,6 +558,14 @@ function renderProducts(products) {
                 <td>
                     <div class="fw-medium">
                         ${formatProductPrice(product)}
+                    </div>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-tag text-muted me-1"></i>
+                        <span class="badge bg-light text-dark">
+                            ${product.seller_sku || 'N/A'}
+                        </span>
                     </div>
                 </td>
                 <td>

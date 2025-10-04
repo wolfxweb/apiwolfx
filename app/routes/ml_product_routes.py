@@ -334,6 +334,7 @@ async def search_products(
     category_id: Optional[str] = Query(None),
     shipping_type: Optional[str] = Query(None),
     catalog_listing: Optional[str] = Query(None),
+    sku_filter: Optional[str] = Query(None),
     sort: Optional[str] = Query(None),
     order: Optional[str] = Query("asc"),
     page: int = Query(1, ge=1),
@@ -377,6 +378,10 @@ async def search_products(
                 query = query.filter(MLProduct.catalog_listing == True)
             elif catalog_listing.lower() == 'false':
                 query = query.filter(MLProduct.catalog_listing == False)
+        
+        # Filtro por SKU
+        if sku_filter and sku_filter.strip():
+            query = query.filter(MLProduct.seller_sku.ilike(f'%{sku_filter.strip()}%'))
         
         if q:
             query = query.filter(
@@ -427,6 +432,7 @@ async def search_products(
                     "price": p.price,
                     "base_price": p.base_price,
                     "original_price": p.original_price,
+                    "seller_sku": p.seller_sku,
                     "currency_id": p.currency_id,
                     "available_quantity": p.available_quantity,
                     "sold_quantity": p.sold_quantity,
