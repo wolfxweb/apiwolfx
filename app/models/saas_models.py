@@ -1,7 +1,7 @@
 """
 Modelos SaaS Multi-tenant para API Mercado Livre
 """
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum, JSON, Index
+from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Enum, JSON, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base
@@ -441,4 +441,75 @@ class ApiLog(Base):
     company = relationship("Company")
     user = relationship("User")
     ml_account = relationship("MLAccount")
+
+class OrderStatus(enum.Enum):
+    """Status do pedido"""
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    PAID = "paid"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
+
+class MLOrder(Base):
+    """Modelo de Pedidos do Mercado Libre"""
+    __tablename__ = "ml_orders"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
+    
+    # Dados do pedido ML
+    ml_order_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    order_id = Column(String(50), nullable=False, index=True)
+    
+    # Dados do comprador
+    buyer_id = Column(String(50), nullable=False, index=True)
+    buyer_nickname = Column(String(255))
+    buyer_email = Column(String(255))
+    buyer_first_name = Column(String(255))
+    buyer_last_name = Column(String(255))
+    
+    # Dados do pedido
+    status = Column(Enum(OrderStatus), nullable=False, index=True)
+    status_detail = Column(String(100))
+    total_amount = Column(Integer)  # Em centavos
+    currency_id = Column(String(10))
+    
+    # Dados de pagamento
+    payment_method_id = Column(String(50))
+    payment_type_id = Column(String(50))
+    payment_status = Column(String(50))
+    
+    # Dados de envio
+    shipping_cost = Column(Integer)  # Em centavos
+    shipping_method = Column(String(100))
+    shipping_status = Column(String(50))
+    
+    # Endereço de entrega
+    shipping_address = Column(JSON)
+    
+    # Dados adicionais
+    feedback = Column(JSON)
+    tags = Column(JSON)
+    order_items = Column(JSON)  # Lista de itens do pedido
+    
+    # Timestamps
+    date_created = Column(DateTime, index=True)
+    last_updated = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    ml_account = relationship("MLAccount")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ml_orders_company_ml_account', 'company_id', 'ml_account_id'),
+        Index('ix_ml_orders_buyer_id', 'buyer_id'),
+        Index('ix_ml_orders_date_created', 'date_created'),
+        Index('ix_ml_orders_status', 'status'),
+    )
 

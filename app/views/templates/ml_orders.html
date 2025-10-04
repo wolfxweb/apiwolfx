@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+
+{% block title %}Pedidos Mercado Livre{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">Pedidos Mercado Livre</h1>
+                    <p class="text-muted mb-0">
+                        Gerencie seus pedidos do Mercado Livre
+                        <span id="orders-count" class="ms-2">
+                            <i class="bi bi-info-circle"></i> Carregando...
+                        </span>
+                    </p>
+                </div>
+                <div>
+                    <button class="btn btn-primary me-2" onclick="syncOrders()">
+                        <i class="bi bi-arrow-clockwise"></i> Sincronizar
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="refreshOrders()">
+                        <i class="bi bi-arrow-repeat"></i> Atualizar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alertas -->
+    <div class="row mb-4" id="alerts-container">
+        <!-- Alerts serão inseridos aqui dinamicamente -->
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Filtros</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <label for="account_filter" class="form-label">Conta</label>
+                            <select name="account_filter" id="account_filter" class="form-select">
+                                <option value="">Todas as contas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="status_filter" class="form-label">Status</label>
+                            <select name="status_filter" id="status_filter" class="form-select">
+                                <option value="">Todos os status</option>
+                                <option value="pending">Pendente</option>
+                                <option value="confirmed">Confirmado</option>
+                                <option value="paid">Pago</option>
+                                <option value="shipped">Enviado</option>
+                                <option value="delivered">Entregue</option>
+                                <option value="cancelled">Cancelado</option>
+                                <option value="refunded">Reembolsado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="date_from" class="form-label">Data Inicial</label>
+                            <input type="date" name="date_from" id="date_from" class="form-control">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="date_to" class="form-label">Data Final</label>
+                            <input type="date" name="date_to" id="date_to" class="form-control">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="limit" class="form-label">Por página</label>
+                            <select name="limit" id="limit" class="form-select">
+                                <option value="20">20</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                                <i class="bi bi-search"></i> Aplicar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="row mb-4" id="loading-container" style="display: none;">
+        <div class="col-12">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <p class="mt-2 text-muted">Carregando pedidos...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Orders -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Lista de Pedidos</h5>
+                    <span class="badge bg-primary" id="total-orders">
+                        0 pedidos
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-primary text-white">
+                                <tr>
+                                    <th class="sortable" data-sort="ml_order_id" onclick="sortTable('ml_order_id')">
+                                        ID do Pedido <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="buyer_nickname" onclick="sortTable('buyer_nickname')">
+                                        Comprador <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="status" onclick="sortTable('status')">
+                                        Status <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="total_amount" onclick="sortTable('total_amount')">
+                                        Valor <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="account_nickname" onclick="sortTable('account_nickname')">
+                                        Conta <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="date_created" onclick="sortTable('date_created')">
+                                        Data <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="bi bi-info-circle"></i> Carregando pedidos...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paginação -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Navegação de pedidos">
+                <ul class="pagination justify-content-center" id="pagination">
+                    <!-- Paginação será inserida aqui dinamicamente -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let currentLimit = 50;
+let currentFilters = {};
+
+// Inicializar quando a página carregar
+document.addEventListener('DOMContentLoaded', function() {
+    loadOrders();
+});
+
+function loadOrders(page = 1) {
+    showLoading(true);
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Coletar filtros
+    const filters = {
+        ml_account_id: urlParams.get('account_filter') || '',
+        status_filter: urlParams.get('status_filter') || '',
+        date_from: urlParams.get('date_from') || '',
+        date_to: urlParams.get('date_to') || '',
+        limit: urlParams.get('limit') || currentLimit,
+        offset: (page - 1) * (urlParams.get('limit') || currentLimit)
+    };
+    
+    // Construir URL da API
+    let apiUrl = `/api/orders?page=${page}&limit=${filters.limit}&offset=${filters.offset}`;
+    
+    if (filters.ml_account_id) apiUrl += `&ml_account_id=${encodeURIComponent(filters.ml_account_id)}`;
+    if (filters.status_filter) apiUrl += `&status_filter=${encodeURIComponent(filters.status_filter)}`;
+    if (filters.date_from) apiUrl += `&date_from=${encodeURIComponent(filters.date_from)}`;
+    if (filters.date_to) apiUrl += `&date_to=${encodeURIComponent(filters.date_to)}`;
+    
+    fetch(apiUrl, {
+        credentials: 'include'
+    })
+    .then(response => {
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.success) {
+            renderOrders(data.orders);
+            updateOrdersCount(data.total);
+            renderPagination(data.total, filters.limit, page);
+            loadAccountsFilter(data.accounts || []);
+        } else {
+            showError('Erro ao carregar pedidos: ' + (data?.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showError('Erro ao carregar pedidos');
+    })
+    .finally(() => {
+        showLoading(false);
+    });
+}
+
+function renderOrders(orders) {
+    const tbody = document.getElementById('orders-table-body');
+    
+    if (!orders || orders.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                    <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = orders.map(order => `
+        <tr>
+            <td>
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-receipt text-primary me-2"></i>
+                    <strong>${order.ml_order_id || order.order_id}</strong>
+                </div>
+            </td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-person-circle text-success me-2"></i>
+                    <div>
+                        <strong>${order.buyer_nickname || 'N/A'}</strong>
+                        ${order.buyer_email ? `<br><small class="text-muted">${order.buyer_email}</small>` : ''}
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="badge ${getStatusBadgeClass(order.status)}">
+                    ${getStatusLabel(order.status)}
+                </span>
+            </td>
+            <td>
+                <div class="text-end">
+                    <strong>${formatCurrency(order.total_amount || 0, order.currency_id)}</strong>
+                    ${order.shipping_cost ? `<br><small class="text-muted">+ ${formatCurrency(order.shipping_cost, order.currency_id)} frete</small>` : ''}
+                </div>
+            </td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-shop-fill text-info me-2"></i>
+                    <div>
+                        <strong>${order.account_nickname || 'N/A'}</strong>
+                        ${order.account_country ? `<br><small class="text-muted">${order.account_country}</small>` : ''}
+                    </div>
+                </div>
+            </td>
+            <td>
+                <div>
+                    <strong>${formatDate(order.date_created)}</strong>
+                    ${order.last_updated ? `<br><small class="text-muted">Atualizado: ${formatDate(order.last_updated)}</small>` : ''}
+                </div>
+            </td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${order.ml_order_id}')" title="Ver detalhes">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="copyOrderId('${order.ml_order_id}')" title="Copiar ID">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderPagination(total, limit, currentPage) {
+    const pagination = document.getElementById('pagination');
+    const totalPages = Math.ceil(total / limit);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '';
+    
+    // Botão anterior
+    if (currentPage > 1) {
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="loadOrders(${currentPage - 1})">Anterior</a>
+            </li>
+        `;
+    }
+    
+    // Páginas
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadOrders(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    // Botão próximo
+    if (currentPage < totalPages) {
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="loadOrders(${currentPage + 1})">Próximo</a>
+            </li>
+        `;
+    }
+    
+    pagination.innerHTML = paginationHTML;
+}
+
+function loadAccountsFilter(accounts) {
+    const select = document.getElementById('account_filter');
+    const currentValue = new URLSearchParams(window.location.search).get('account_filter') || '';
+    
+    select.innerHTML = '<option value="">Todas as contas</option>';
+    
+    accounts.forEach(account => {
+        const option = document.createElement('option');
+        option.value = account.id;
+        option.textContent = `${account.nickname} (${account.country_id})`;
+        option.selected = currentValue == account.id;
+        select.appendChild(option);
+    });
+}
+
+function applyFilters() {
+    const filters = {
+        account_filter: document.getElementById('account_filter').value,
+        status_filter: document.getElementById('status_filter').value,
+        date_from: document.getElementById('date_from').value,
+        date_to: document.getElementById('date_to').value,
+        limit: document.getElementById('limit').value
+    };
+    
+    // Atualizar URL
+    const url = new URL(window.location);
+    Object.keys(filters).forEach(key => {
+        if (filters[key]) {
+            url.searchParams.set(key, filters[key]);
+        } else {
+            url.searchParams.delete(key);
+        }
+    });
+    
+    window.history.pushState({}, '', url);
+    loadOrders(1);
+}
+
+function syncOrders() {
+    showLoading(true);
+    
+    fetch('/api/orders/sync', {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data && data.success) {
+            showSuccess(`Sincronização concluída: ${data.saved_count} pedidos criados, ${data.updated_count} pedidos atualizados`);
+            loadOrders(currentPage);
+        } else {
+            showError('Erro ao sincronizar pedidos: ' + (data?.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showError('Erro ao sincronizar pedidos');
+    })
+    .finally(() => {
+        showLoading(false);
+    });
+}
+
+function refreshOrders() {
+    loadOrders(currentPage);
+}
+
+function viewOrderDetails(orderId) {
+    // Implementar modal ou página de detalhes
+    alert(`Detalhes do pedido: ${orderId}`);
+}
+
+function copyOrderId(orderId) {
+    navigator.clipboard.writeText(orderId).then(() => {
+        showSuccess('ID do pedido copiado!');
+    });
+}
+
+function updateOrdersCount(total) {
+    document.getElementById('orders-count').innerHTML = `<i class="bi bi-info-circle"></i> ${total} pedido(s) encontrado(s)`;
+    document.getElementById('total-orders').textContent = `${total} pedidos`;
+}
+
+function showLoading(show) {
+    document.getElementById('loading-container').style.display = show ? 'block' : 'none';
+}
+
+function showError(message) {
+    const alertContainer = document.getElementById('alerts-container');
+    alertContainer.innerHTML = `
+        <div class="col-12">
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+    `;
+}
+
+function showSuccess(message) {
+    const alertContainer = document.getElementById('alerts-container');
+    alertContainer.innerHTML = `
+        <div class="col-12">
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle-fill"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+    `;
+}
+
+function getStatusBadgeClass(status) {
+    const statusClasses = {
+        'pending': 'bg-warning',
+        'confirmed': 'bg-info',
+        'paid': 'bg-primary',
+        'shipped': 'bg-secondary',
+        'delivered': 'bg-success',
+        'cancelled': 'bg-danger',
+        'refunded': 'bg-dark'
+    };
+    return statusClasses[status] || 'bg-secondary';
+}
+
+function getStatusLabel(status) {
+    const statusLabels = {
+        'pending': 'Pendente',
+        'confirmed': 'Confirmado',
+        'paid': 'Pago',
+        'shipped': 'Enviado',
+        'delivered': 'Entregue',
+        'cancelled': 'Cancelado',
+        'refunded': 'Reembolsado'
+    };
+    return statusLabels[status] || status;
+}
+
+function formatCurrency(amount, currency = 'BRL') {
+    if (!amount) return 'R$ 0,00';
+    
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: currency || 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(amount / 100); // ML retorna em centavos
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+    } catch (e) {
+        return dateString;
+    }
+}
+
+function sortTable(column) {
+    // Implementar ordenação se necessário
+    console.log('Ordenar por:', column);
+}
+</script>
+
+{% endblock %}

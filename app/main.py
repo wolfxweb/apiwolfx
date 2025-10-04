@@ -8,6 +8,7 @@ from app.routes.saas_routes import saas_router
 from app.routes.auth_routes import auth_router
 from app.routes.ml_routes import ml_router
 from app.routes.ml_product_routes import ml_product_router
+from app.routes.ml_orders_routes import ml_orders_router
 from app.routes.ads_analytics_routes import ads_analytics_router
 
 # Inicializar FastAPI
@@ -47,6 +48,7 @@ app.include_router(saas_router, prefix="/api")
 app.include_router(auth_router, prefix="/auth")
 app.include_router(ml_router, prefix="/ml")
 app.include_router(ml_product_router, prefix="/ml")
+app.include_router(ml_orders_router, prefix="/ml")
 app.include_router(ads_analytics_router)  # Sem prefixo para /analytics
 
 # Rotas principais (sem prefixo para compatibilidade)
