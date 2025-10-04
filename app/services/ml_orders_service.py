@@ -79,19 +79,58 @@ class MLOrdersService:
                     "id": order.id,
                     "ml_order_id": order.ml_order_id,
                     "order_id": order.order_id,
+                    
+                    # Dados do comprador
                     "buyer_nickname": order.buyer_nickname,
                     "buyer_email": order.buyer_email,
+                    "buyer_first_name": order.buyer_first_name,
+                    "buyer_last_name": order.buyer_last_name,
+                    
+                    # Dados do vendedor
+                    "seller_nickname": order.seller_nickname,
+                    
+                    # Status e valores
                     "status": order.status.value if order.status else None,
                     "status_detail": order.status_detail,
                     "total_amount": order.total_amount,
+                    "paid_amount": order.paid_amount,
                     "currency_id": order.currency_id,
+                    
+                    # Pagamento
                     "payment_status": order.payment_status,
+                    "payment_method_id": order.payment_method_id,
+                    "payment_type_id": order.payment_type_id,
+                    
+                    # Envio
                     "shipping_cost": order.shipping_cost,
                     "shipping_method": order.shipping_method,
+                    "shipping_status": order.shipping_status,
+                    
+                    # Taxas
+                    "total_fees": order.total_fees,
+                    "sale_fees": order.sale_fees,
+                    "shipping_fees": order.shipping_fees,
+                    
+                    # Publicidade
+                    "is_advertising_sale": order.is_advertising_sale,
+                    "advertising_cost": order.advertising_cost,
+                    
+                    # Descontos
+                    "coupon_amount": order.coupon_amount,
+                    "discounts_applied": order.discounts_applied,
+                    
+                    # Datas
                     "date_created": order.date_created.isoformat() if order.date_created else None,
+                    "date_closed": order.date_closed.isoformat() if order.date_closed else None,
                     "last_updated": order.last_updated.isoformat() if order.last_updated else None,
+                    
+                    # Dados completos
                     "order_items": order.order_items,
-                    "shipping_address": order.shipping_address
+                    "shipping_address": order.shipping_address,
+                    "payments": order.payments,
+                    "tags": order.tags,
+                    "feedback": order.feedback,
+                    "context": order.context
                 })
             
             return {
@@ -251,8 +290,165 @@ class MLOrdersService:
             logger.error(f"Erro ao buscar orders da API: {e}")
             return []
     
+    def _fetch_complete_order_data(self, order_data: Dict, access_token: str) -> Dict:
+        """Busca informações completas de uma order incluindo detalhes de envio, descontos e publicidade"""
+        try:
+            ml_order_id = order_data.get("id")
+            complete_data = order_data.copy()
+            
+            # 1. Buscar detalhes completos da order
+            order_details = self._fetch_order_details(ml_order_id, access_token)
+            if order_details:
+                complete_data.update(order_details)
+            
+            # 2. Buscar detalhes de envio se existir shipping_id
+            shipping_id = order_data.get("shipping", {}).get("id")
+            if shipping_id:
+                shipping_details = self._fetch_shipping_details(shipping_id, access_token)
+                if shipping_details:
+                    complete_data["shipping_details"] = shipping_details
+            
+            # 3. Buscar descontos aplicados
+            discounts = self._fetch_order_discounts(ml_order_id, access_token)
+            if discounts:
+                complete_data["discounts_applied"] = discounts
+            
+            # 4. Verificar se foi venda por anúncio (Product Ads)
+            advertising_info = self._check_advertising_sale(order_data, access_token)
+            if advertising_info:
+                complete_data.update(advertising_info)
+            
+            # 5. Calcular taxas e comissões
+            fees_info = self._calculate_order_fees(order_data)
+            if fees_info:
+                complete_data.update(fees_info)
+            
+            return complete_data
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados completos da order {ml_order_id}: {e}")
+            return order_data
+    
+    def _fetch_order_details(self, ml_order_id: int, access_token: str) -> Optional[Dict]:
+        """Busca detalhes completos de uma order específica"""
+        try:
+            headers = {"Authorization": f"Bearer {access_token}"}
+            url = f"{self.base_url}/orders/{ml_order_id}"
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Erro ao buscar detalhes da order {ml_order_id}: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar detalhes da order: {e}")
+            return None
+    
+    def _fetch_shipping_details(self, shipping_id: str, access_token: str) -> Optional[Dict]:
+        """Busca detalhes de envio"""
+        try:
+            headers = {"Authorization": f"Bearer {access_token}"}
+            url = f"{self.base_url}/shipments/{shipping_id}"
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Erro ao buscar detalhes do envio {shipping_id}: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar detalhes do envio: {e}")
+            return None
+    
+    def _fetch_order_discounts(self, ml_order_id: int, access_token: str) -> Optional[Dict]:
+        """Busca descontos aplicados em uma order"""
+        try:
+            headers = {"Authorization": f"Bearer {access_token}"}
+            url = f"{self.base_url}/orders/{ml_order_id}/discounts"
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Erro ao buscar descontos da order {ml_order_id}: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar descontos da order: {e}")
+            return None
+    
+    def _check_advertising_sale(self, order_data: Dict, access_token: str) -> Optional[Dict]:
+        """Verifica se a venda foi através de anúncio (Product Ads)"""
+        try:
+            # Por enquanto, retornamos None pois a verificação de Product Ads
+            # requer análise mais complexa das métricas de publicidade
+            # TODO: Implementar verificação real de Product Ads
+            
+            # Verificar se há tags que indicam venda por anúncio
+            tags = order_data.get("tags", [])
+            context = order_data.get("context", {})
+            
+            advertising_info = {
+                "is_advertising_sale": False,
+                "advertising_campaign_id": None,
+                "advertising_cost": 0,
+                "advertising_metrics": {}
+            }
+            
+            # Verificar contexto da venda
+            flows = context.get("flows", [])
+            if "cbt" in flows:  # Cross Border Trade pode indicar publicidade
+                advertising_info["is_advertising_sale"] = True
+            
+            return advertising_info
+            
+        except Exception as e:
+            logger.error(f"Erro ao verificar venda por anúncio: {e}")
+            return None
+    
+    def _calculate_order_fees(self, order_data: Dict) -> Optional[Dict]:
+        """Calcula taxas e comissões da order"""
+        try:
+            order_items = order_data.get("order_items", [])
+            
+            total_fees = 0
+            listing_fees = 0
+            sale_fees = 0
+            shipping_fees = 0
+            
+            # Calcular taxas dos itens
+            for item in order_items:
+                sale_fee = item.get("sale_fee", 0)
+                if sale_fee:
+                    sale_fees += sale_fee
+                    total_fees += sale_fee
+            
+            # Calcular taxas de envio
+            shipping = order_data.get("shipping", {})
+            shipping_cost = shipping.get("cost", 0)
+            if shipping_cost:
+                shipping_fees = shipping_cost
+                total_fees += shipping_cost
+            
+            return {
+                "total_fees": total_fees,
+                "listing_fees": listing_fees,
+                "sale_fees": sale_fees,
+                "shipping_fees": shipping_fees
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular taxas da order: {e}")
+            return None
+    
     def _save_order_to_database(self, order_data: Dict, ml_account_id: int, company_id: int) -> Dict:
-        """Salva ou atualiza uma order no banco de dados"""
+        """Salva ou atualiza uma order no banco de dados com informações completas"""
         try:
             ml_order_id = order_data.get("id")
             
@@ -261,8 +457,14 @@ class MLOrdersService:
                 MLOrder.ml_order_id == ml_order_id
             ).first()
             
+            # Obter token para buscar informações adicionais
+            access_token = self._get_active_token(ml_account_id)
+            
+            # Buscar informações completas da order
+            complete_order_data = self._fetch_complete_order_data(order_data, access_token)
+            
             # Converter dados da API para o modelo
-            order_dict = self._convert_api_order_to_model(order_data, ml_account_id, company_id)
+            order_dict = self._convert_api_order_to_model(complete_order_data, ml_account_id, company_id)
             
             if existing_order:
                 # Atualizar order existente
@@ -283,7 +485,7 @@ class MLOrdersService:
             raise e
     
     def _convert_api_order_to_model(self, order_data: Dict, ml_account_id: int, company_id: int) -> Dict:
-        """Converte dados da API para formato do modelo"""
+        """Converte dados da API para formato do modelo - Versão Completa"""
         try:
             # Converter status
             status_mapping = {
@@ -309,6 +511,13 @@ class MLOrdersService:
                 except:
                     pass
             
+            date_closed = None
+            if order_data.get("date_closed"):
+                try:
+                    date_closed = datetime.fromisoformat(order_data["date_closed"].replace('Z', '+00:00'))
+                except:
+                    pass
+            
             last_updated = None
             if order_data.get("last_updated"):
                 try:
@@ -318,6 +527,9 @@ class MLOrdersService:
             
             # Extrair dados do comprador
             buyer = order_data.get("buyer", {})
+            
+            # Extrair dados do vendedor
+            seller = order_data.get("seller", {})
             
             # Extrair dados de pagamento
             payments = order_data.get("payments", [])
@@ -333,33 +545,99 @@ class MLOrdersService:
             
             # Extrair dados de envio
             shipping = order_data.get("shipping", {})
+            shipping_details = order_data.get("shipping_details", {})
+            
+            # Extrair cupom
+            coupon = order_data.get("coupon", {})
             
             return {
+                # === DADOS BÁSICOS ===
                 "company_id": company_id,
                 "ml_account_id": ml_account_id,
-                "ml_order_id": order_data.get("id"),  # Manter como número
-                "order_id": str(order_data.get("id")),  # Converter para string apenas o order_id
+                "ml_order_id": order_data.get("id"),
+                "order_id": str(order_data.get("id")),
+                
+                # Status e datas
+                "status": order_status,
+                "status_detail": order_data.get("status_detail"),
+                "date_created": date_created,
+                "date_closed": date_closed,
+                "last_updated": last_updated,
+                
+                # Valores monetários
+                "total_amount": order_data.get("total_amount"),
+                "paid_amount": order_data.get("paid_amount"),
+                "currency_id": order_data.get("currency_id"),
+                
+                # === DADOS DO COMPRADOR ===
                 "buyer_id": buyer.get("id"),
                 "buyer_nickname": buyer.get("nickname"),
                 "buyer_email": buyer.get("email"),
                 "buyer_first_name": buyer.get("first_name"),
                 "buyer_last_name": buyer.get("last_name"),
-                "status": order_status,
-                "status_detail": order_data.get("status_detail"),
-                "total_amount": order_data.get("total_amount"),
-                "currency_id": order_data.get("currency_id"),
+                "buyer_phone": buyer.get("phone"),
+                
+                # === DADOS DO VENDEDOR ===
+                "seller_id": seller.get("id"),
+                "seller_nickname": seller.get("nickname"),
+                "seller_phone": seller.get("phone"),
+                
+                # === PAGAMENTOS ===
+                "payments": payments,
                 "payment_method_id": payment_method_id,
                 "payment_type_id": payment_type_id,
                 "payment_status": payment_status,
-                "shipping_cost": shipping.get("cost"),
-                "shipping_method": shipping.get("method"),
-                "shipping_status": shipping.get("status"),
-                "shipping_address": shipping.get("receiver_address"),
-                "feedback": order_data.get("feedback"),
-                "tags": order_data.get("tags"),
+                
+                # === ENVIO E LOGÍSTICA ===
+                "shipping_id": shipping.get("id"),
+                "shipping_cost": shipping.get("cost") or shipping_details.get("cost"),
+                "shipping_method": shipping.get("method") or shipping_details.get("shipping_method"),
+                "shipping_status": shipping.get("status") or shipping_details.get("status"),
+                "shipping_address": shipping.get("receiver_address") or shipping_details.get("receiver_address"),
+                "shipping_details": shipping_details,
+                
+                # === ITENS DO PEDIDO ===
                 "order_items": order_data.get("order_items"),
-                "date_created": date_created,
-                "last_updated": last_updated
+                
+                # === TAXAS E COMISSÕES ===
+                "total_fees": order_data.get("total_fees", 0),
+                "listing_fees": order_data.get("listing_fees", 0),
+                "sale_fees": order_data.get("sale_fees", 0),
+                "shipping_fees": order_data.get("shipping_fees", 0),
+                
+                # === DESCONTOS E PROMOÇÕES ===
+                "discounts_applied": order_data.get("discounts_applied"),
+                "coupon_amount": coupon.get("amount", 0),
+                "coupon_id": coupon.get("id"),
+                
+                # === PUBLICIDADE E ANÚNCIOS ===
+                "is_advertising_sale": order_data.get("is_advertising_sale", False),
+                "advertising_campaign_id": order_data.get("advertising_campaign_id"),
+                "advertising_cost": order_data.get("advertising_cost", 0),
+                "advertising_metrics": order_data.get("advertising_metrics", {}),
+                
+                # === CONTEXTO DA VENDA ===
+                "context": order_data.get("context"),
+                "pack_id": order_data.get("pack_id"),
+                "pickup_id": order_data.get("pickup_id"),
+                
+                # === MEDIAÇÕES E DISPUTAS ===
+                "mediations": order_data.get("mediations"),
+                "order_request": order_data.get("order_request"),
+                
+                # === FEEDBACK ===
+                "feedback": order_data.get("feedback"),
+                
+                # === TAGS E METADADOS ===
+                "tags": order_data.get("tags"),
+                "fulfilled": order_data.get("fulfilled"),
+                "comment": order_data.get("comment"),
+                
+                # === IMPOSTOS ===
+                "taxes": order_data.get("taxes"),
+                
+                # === DETALHES DE CANCELAMENTO ===
+                "cancel_detail": order_data.get("cancel_detail")
             }
             
         except Exception as e:

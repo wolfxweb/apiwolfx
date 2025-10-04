@@ -453,63 +453,115 @@ class OrderStatus(enum.Enum):
     REFUNDED = "refunded"
 
 class MLOrder(Base):
-    """Modelo de Pedidos do Mercado Libre"""
+    """Modelo de Pedidos do Mercado Libre - Completo"""
     __tablename__ = "ml_orders"
     
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
     
-    # Dados do pedido ML
+    # === DADOS BÁSICOS DO PEDIDO ===
     ml_order_id = Column(BigInteger, unique=True, nullable=False, index=True)
     order_id = Column(String(50), nullable=False, index=True)
     
-    # Dados do comprador
+    # Status e datas
+    status = Column(Enum(OrderStatus), nullable=False, index=True)
+    status_detail = Column(String(100))
+    date_created = Column(DateTime, index=True)
+    date_closed = Column(DateTime, index=True)
+    last_updated = Column(DateTime, index=True)
+    
+    # Valores monetários
+    total_amount = Column(Integer)  # Em centavos
+    paid_amount = Column(Integer)   # Em centavos
+    currency_id = Column(String(10))
+    
+    # === DADOS DO COMPRADOR ===
     buyer_id = Column(String(50), nullable=False, index=True)
     buyer_nickname = Column(String(255))
     buyer_email = Column(String(255))
     buyer_first_name = Column(String(255))
     buyer_last_name = Column(String(255))
+    buyer_phone = Column(JSON)  # Dados de telefone do comprador
     
-    # Dados do pedido
-    status = Column(Enum(OrderStatus), nullable=False, index=True)
-    status_detail = Column(String(100))
-    total_amount = Column(Integer)  # Em centavos
-    currency_id = Column(String(10))
+    # === DADOS DO VENDEDOR ===
+    seller_id = Column(String(50), index=True)
+    seller_nickname = Column(String(255))
+    seller_phone = Column(JSON)  # Dados de telefone do vendedor
     
-    # Dados de pagamento
-    payment_method_id = Column(String(50))
-    payment_type_id = Column(String(50))
-    payment_status = Column(String(50))
+    # === PAGAMENTOS ===
+    payments = Column(JSON)  # Array completo de pagamentos
+    payment_method_id = Column(String(50))  # Método principal
+    payment_type_id = Column(String(50))    # Tipo principal
+    payment_status = Column(String(50))     # Status principal
     
-    # Dados de envio
+    # === ENVIO E LOGÍSTICA ===
+    shipping_id = Column(String(50), index=True)  # ID do envio para buscar detalhes
     shipping_cost = Column(Integer)  # Em centavos
     shipping_method = Column(String(100))
     shipping_status = Column(String(50))
+    shipping_address = Column(JSON)  # Endereço de entrega
+    shipping_details = Column(JSON)  # Detalhes completos do envio
     
-    # Endereço de entrega
-    shipping_address = Column(JSON)
+    # === ITENS DO PEDIDO ===
+    order_items = Column(JSON)  # Lista completa de itens com detalhes
     
-    # Dados adicionais
-    feedback = Column(JSON)
-    tags = Column(JSON)
-    order_items = Column(JSON)  # Lista de itens do pedido
+    # === TAXAS E COMISSÕES ===
+    total_fees = Column(Integer)      # Total de taxas em centavos
+    listing_fees = Column(Integer)    # Taxas de publicação em centavos
+    sale_fees = Column(Integer)       # Taxas de venda em centavos
+    shipping_fees = Column(Integer)   # Taxas de envio em centavos
     
-    # Timestamps
-    date_created = Column(DateTime, index=True)
-    last_updated = Column(DateTime, index=True)
+    # === DESCONTOS E PROMOÇÕES ===
+    discounts_applied = Column(JSON)  # Descontos aplicados (/orders/{id}/discounts)
+    coupon_amount = Column(Integer)   # Valor do cupom em centavos
+    coupon_id = Column(String(50))    # ID do cupom
+    
+    # === PUBLICIDADE E ANÚNCIOS ===
+    is_advertising_sale = Column(Boolean, default=False, index=True)  # Venda por anúncio
+    advertising_campaign_id = Column(String(50))  # ID da campanha
+    advertising_cost = Column(Integer)  # Custo publicitário em centavos
+    advertising_metrics = Column(JSON)  # Métricas de publicidade
+    
+    # === CONTEXTO DA VENDA ===
+    context = Column(JSON)  # Canal, site, flows (/orders/{id})
+    pack_id = Column(String(50))  # ID do pack se aplicável
+    pickup_id = Column(String(50))  # ID de retirada se aplicável
+    
+    # === MEDIAÇÕES E DISPUTAS ===
+    mediations = Column(JSON)  # Mediações e disputas
+    order_request = Column(JSON)  # Solicitações de troca/devolução
+    
+    # === FEEDBACK ===
+    feedback = Column(JSON)  # Feedback completo (comprador e vendedor)
+    
+    # === TAGS E METADADOS ===
+    tags = Column(JSON)  # Tags do pedido
+    fulfilled = Column(Boolean)  # Se foi cumprido
+    comment = Column(Text)  # Comentário do pedido
+    
+    # === IMPOSTOS ===
+    taxes = Column(JSON)  # Impostos aplicados
+    
+    # === DETALHES DE CANCELAMENTO ===
+    cancel_detail = Column(JSON)  # Detalhes se cancelado
+    
+    # === TIMESTAMPS ===
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
-    # Relacionamentos
+    # === RELACIONAMENTOS ===
     company = relationship("Company")
     ml_account = relationship("MLAccount")
     
-    # Índices
+    # === ÍNDICES ===
     __table_args__ = (
         Index('ix_ml_orders_company_ml_account', 'company_id', 'ml_account_id'),
         Index('ix_ml_orders_buyer_id', 'buyer_id'),
+        Index('ix_ml_orders_seller_id', 'seller_id'),
         Index('ix_ml_orders_date_created', 'date_created'),
         Index('ix_ml_orders_status', 'status'),
+        Index('ix_ml_orders_advertising', 'is_advertising_sale'),
+        Index('ix_ml_orders_shipping_id', 'shipping_id'),
     )
 

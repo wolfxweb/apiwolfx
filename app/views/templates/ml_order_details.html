@@ -29,7 +29,7 @@
 
     <!-- Informações do Pedido -->
     <div class="row mb-4">
-        <div class="col-md-8">
+        <div class="col-lg-8">
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
@@ -64,6 +64,16 @@
                                         </span>
                                     </td>
                                 </tr>
+                                {% if order.is_advertising_sale %}
+                                <tr>
+                                    <td><strong>Origem da Venda:</strong></td>
+                                    <td>
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-megaphone me-1"></i>Anúncio Pago
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endif %}
                             </table>
                         </div>
                         <div class="col-md-6">
@@ -73,12 +83,20 @@
                                     <td>{% if order.date_created %}{{ order.date_created[:10] }} {{ order.date_created[11:16] }}{% else %}N/A{% endif %}</td>
                                 </tr>
                                 <tr>
+                                    <td><strong>Data de Fechamento:</strong></td>
+                                    <td>{% if order.date_closed %}{{ order.date_closed[:10] }} {{ order.date_closed[11:16] }}{% else %}N/A{% endif %}</td>
+                                </tr>
+                                <tr>
                                     <td><strong>Última Atualização:</strong></td>
                                     <td>{% if order.last_updated %}{{ order.last_updated[:10] }} {{ order.last_updated[11:16] }}{% else %}N/A{% endif %}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Valor Total:</strong></td>
                                     <td class="h5 text-success">R$ {{ "%.2f"|format(order.total_amount) if order.total_amount else '0,00' }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Valor Pago:</strong></td>
+                                    <td class="h6 text-primary">R$ {{ "%.2f"|format(order.paid_amount) if order.paid_amount else '0,00' }}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Moeda:</strong></td>
@@ -179,6 +197,197 @@
             </div>
         </div>
     </div>
+
+    <!-- Taxas e Comissões -->
+    {% if order.total_fees or order.sale_fees or order.shipping_fees %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-calculator text-warning me-2"></i>Taxas e Comissões
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted">Taxa de Venda</h6>
+                                <h5 class="text-danger">R$ {{ "%.2f"|format(order.sale_fees) if order.sale_fees else '0,00' }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted">Taxa de Envio</h6>
+                                <h5 class="text-info">R$ {{ "%.2f"|format(order.shipping_fees) if order.shipping_fees else '0,00' }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted">Taxa de Publicação</h6>
+                                <h5 class="text-secondary">R$ {{ "%.2f"|format(order.listing_fees) if order.listing_fees else '0,00' }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center border-start">
+                                <h6 class="text-muted">Total de Taxas</h6>
+                                <h4 class="text-dark">R$ {{ "%.2f"|format(order.total_fees) if order.total_fees else '0,00' }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Descontos e Promoções -->
+    {% if order.coupon_amount or order.discounts_applied %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-tag text-success me-2"></i>Descontos e Promoções
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Valor do Cupom:</h6>
+                            <p class="h5 text-success">R$ {{ "%.2f"|format(order.coupon_amount) if order.coupon_amount else '0,00' }}</p>
+                        </div>
+                        {% if order.discounts_applied %}
+                        <div class="col-md-6">
+                            <h6>Detalhes dos Descontos:</h6>
+                            {% if order.discounts_applied.details %}
+                                {% for discount in order.discounts_applied.details %}
+                                <div class="mb-2">
+                                    <small class="text-muted">{{ discount.type|title }}: </small>
+                                    <span class="badge bg-success">{{ discount.supplier.meli_campaign if discount.supplier.meli_campaign else 'Desconto' }}</span>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Informações de Publicidade -->
+    {% if order.is_advertising_sale %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-megaphone me-2"></i>Informações de Publicidade
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Custo Publicitário:</h6>
+                            <p class="h5 text-info">R$ {{ "%.2f"|format(order.advertising_cost) if order.advertising_cost else '0,00' }}</p>
+                        </div>
+                        {% if order.advertising_campaign_id %}
+                        <div class="col-md-6">
+                            <h6>ID da Campanha:</h6>
+                            <p class="h6">{{ order.advertising_campaign_id }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if order.advertising_metrics %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h6>Métricas de Publicidade:</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <small class="text-muted">Cliques:</small>
+                                    <p class="mb-0">{{ order.advertising_metrics.clicks if order.advertising_metrics.clicks else '0' }}</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted">Impressões:</small>
+                                    <p class="mb-0">{{ order.advertising_metrics.impressions if order.advertising_metrics.impressions else '0' }}</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted">ROAS:</small>
+                                    <p class="mb-0">{{ "%.2f"|format(order.advertising_metrics.roas) if order.advertising_metrics.roas else '0,00' }}</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted">ACOS:</small>
+                                    <p class="mb-0">{{ "%.2f"|format(order.advertising_metrics.acos) if order.advertising_metrics.acos else '0,00' }}%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Informações Adicionais -->
+    {% if order.tags or order.feedback or order.context %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle text-secondary me-2"></i>Informações Adicionais
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% if order.tags %}
+                        <div class="col-md-4">
+                            <h6>Tags:</h6>
+                            <div>
+                                {% if order.tags is string %}
+                                    <span class="badge bg-secondary me-1 mb-1">{{ order.tags }}</span>
+                                {% else %}
+                                    {% for tag in order.tags %}
+                                        <span class="badge bg-secondary me-1 mb-1">{{ tag }}</span>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if order.feedback %}
+                        <div class="col-md-4">
+                            <h6>Feedback:</h6>
+                            <div>
+                                {% if order.feedback is string %}
+                                    <p class="text-muted">{{ order.feedback }}</p>
+                                {% else %}
+                                    <p class="mb-1"><strong>Comprador:</strong> {{ order.feedback.buyer if order.feedback.buyer else 'N/A' }}</p>
+                                    <p class="mb-0"><strong>Vendedor:</strong> {{ order.feedback.seller if order.feedback.seller else 'N/A' }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if order.context %}
+                        <div class="col-md-4">
+                            <h6>Contexto da Venda:</h6>
+                            <p class="mb-1"><strong>Canal:</strong> {{ order.context.channel if order.context.channel else 'N/A' }}</p>
+                            <p class="mb-1"><strong>Site:</strong> {{ order.context.site if order.context.site else 'N/A' }}</p>
+                            {% if order.context.flows %}
+                            <p class="mb-0"><strong>Fluxos:</strong> {{ order.context.flows|join(', ') }}</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <style>
