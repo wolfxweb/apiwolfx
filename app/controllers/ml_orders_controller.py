@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import logging
 
 from app.services.ml_orders_service import MLOrdersService
@@ -259,25 +259,58 @@ class MLOrdersController:
                 "id": order.id,
                 "ml_order_id": order.ml_order_id,
                 "order_id": order.order_id,
+                
+                # Dados do comprador
+                "buyer_id": order.buyer_id,
                 "buyer_nickname": order.buyer_nickname,
                 "buyer_email": order.buyer_email,
                 "buyer_first_name": order.buyer_first_name,
                 "buyer_last_name": order.buyer_last_name,
+                "buyer_phone": order.buyer_phone,
+                
+                # Dados do vendedor
+                "seller_id": order.seller_id,
+                "seller_nickname": order.seller_nickname,
+                "seller_phone": order.seller_phone,
+                
+                # Status e valores
                 "status": order.status.value if order.status else None,
                 "status_detail": order.status_detail,
                 "total_amount": order.total_amount,
+                "paid_amount": order.paid_amount,
                 "currency_id": order.currency_id,
+                
+                # Pagamento
                 "payment_method_id": order.payment_method_id,
                 "payment_type_id": order.payment_type_id,
                 "payment_status": order.payment_status,
+                "payments": order.payments,
+                
+                # Envio
                 "shipping_cost": order.shipping_cost,
                 "shipping_method": order.shipping_method,
                 "shipping_status": order.shipping_status,
                 "shipping_address": order.shipping_address,
+                "shipping_details": order.shipping_details,
+                
+                # Taxas
+                "total_fees": order.total_fees,
+                "sale_fees": order.sale_fees,
+                "shipping_fees": order.shipping_fees,
+                
+                # Descontos
+                "coupon_amount": order.coupon_amount,
+                "discounts_applied": order.discounts_applied,
+                
+                # Itens e outros dados
+                "order_items": order.order_items,
                 "feedback": order.feedback,
                 "tags": order.tags,
-                "order_items": order.order_items,
+                "context": order.context,
+                
+                # Datas
                 "date_created": order.date_created.isoformat() if order.date_created else None,
+                "date_closed": order.date_closed.isoformat() if order.date_closed else None,
                 "last_updated": order.last_updated.isoformat() if order.last_updated else None,
                 "created_at": order.created_at.isoformat() if order.created_at else None,
                 "updated_at": order.updated_at.isoformat() if order.updated_at else None
@@ -366,4 +399,52 @@ class MLOrdersController:
                 "success": False,
                 "error": str(e),
                 "summary": {}
+            }
+    
+    def delete_orders(self, company_id: int, order_ids: List[int]) -> Dict:
+        """Remove pedidos selecionados"""
+        try:
+            logger.info(f"Removendo pedidos: {order_ids} para company_id: {company_id}")
+            
+            if not order_ids:
+                return {
+                    "success": False,
+                    "error": "Nenhum pedido selecionado para remoção"
+                }
+            
+            result = self.orders_service.delete_orders(order_ids, company_id)
+            
+            if result.get("success"):
+                logger.info(f"Pedidos removidos com sucesso: {result.get('deleted_count', 0)}")
+            else:
+                logger.error(f"Erro ao remover pedidos: {result.get('error')}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Erro no controller ao remover pedidos: {e}")
+            return {
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+    
+    def delete_all_orders(self, company_id: int) -> Dict:
+        """Remove todos os pedidos da empresa"""
+        try:
+            logger.info(f"Removendo todos os pedidos para company_id: {company_id}")
+            
+            result = self.orders_service.delete_all_orders(company_id)
+            
+            if result.get("success"):
+                logger.info(f"Todos os pedidos removidos com sucesso: {result.get('deleted_count', 0)}")
+            else:
+                logger.error(f"Erro ao remover todos os pedidos: {result.get('error')}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Erro no controller ao remover todos os pedidos: {e}")
+            return {
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
             }

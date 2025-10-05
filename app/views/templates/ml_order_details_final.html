@@ -131,79 +131,6 @@
         </div>
     </div>
 
-    <!-- Informações de Pagamento -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-credit-card text-success me-2"></i>Informações de Pagamento
-                    </h5>
-                </div>
-                <div class="card-body">
-                    {% if order.payments %}
-                        {% for payment in order.payments %}
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <table class="table table-borderless">
-                                    <tr>
-                                        <td><strong>ID do Pagamento:</strong></td>
-                                        <td>{{ payment.id }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Método de Pagamento:</strong></td>
-                                        <td>{{ payment.payment_method_id|title }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Tipo de Pagamento:</strong></td>
-                                        <td>{{ payment.payment_type|title }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Status:</strong></td>
-                                        <td>
-                                            <span class="badge bg-success">{{ payment.status|title }}</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Parcelas:</strong></td>
-                                        <td>{{ payment.installments }}x</td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div class="col-md-6">
-                                <table class="table table-borderless">
-                                    <tr>
-                                        <td><strong>Valor da Transação:</strong></td>
-                                        <td class="h6 text-primary">R$ {{ "%.2f"|format(payment.transaction_amount) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Valor Total Pago:</strong></td>
-                                        <td class="h5 text-success">R$ {{ "%.2f"|format(payment.total_paid_amount) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Desconto (Cupom):</strong></td>
-                                        <td class="text-danger">- R$ {{ "%.2f"|format(payment.coupon_amount) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Taxa do Marketplace:</strong></td>
-                                        <td>R$ {{ "%.2f"|format(payment.marketplace_fee) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Data de Aprovação:</strong></td>
-                                        <td>{{ payment.date_approved[:10] if payment.date_approved else 'N/A' }}</td>
-                                    </tr>
-                                </table>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="text-muted">Nenhuma informação de pagamento disponível</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Itens do Pedido -->
     <div class="row mb-4">
         <div class="col-12">
@@ -214,34 +141,41 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Produto</th>
-                                    <th>Quantidade</th>
-                                    <th>Preço Unitário</th>
-                                    <th>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in order.order_items %}
-                                <tr>
-                                    <td>
-                                        <div>
-                                            <strong>{{ item.item.title }}</strong>
-                                            <br>
-                                            <small class="text-muted">SKU: {{ item.item.seller_sku if item.item.seller_sku else 'N/A' }}</small>
-                                        </div>
-                                    </td>
-                                    <td>{{ item.quantity }}</td>
-                                    <td>R$ {{ "%.2f"|format(item.unit_price) }}</td>
-                                    <td class="fw-bold">R$ {{ "%.2f"|format(item.unit_price * item.quantity) }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                    {% if order.order_items and order.order_items|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Produto</th>
+                                        <th>Quantidade</th>
+                                        <th>Preço Unitário</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in order.order_items %}
+                                    <tr>
+                                        <td>
+                                            <div>
+                                                <strong>{{ item.item.title }}</strong>
+                                                <br>
+                                                <small class="text-muted">SKU: {{ item.item.seller_sku if item.item.seller_sku else 'N/A' }}</small>
+                                            </div>
+                                        </td>
+                                        <td>{{ item.quantity }}</td>
+                                        <td>R$ {{ "%.2f"|format(item.unit_price) }}</td>
+                                        <td class="fw-bold">R$ {{ "%.2f"|format(item.unit_price * item.quantity) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-box text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2">Nenhum item encontrado para este pedido</p>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

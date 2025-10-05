@@ -21,8 +21,11 @@
                     <button id="sync-btn" class="btn btn-primary me-2" onclick="syncOrders()">
                         <i class="bi bi-arrow-clockwise"></i> Sincronizar
                     </button>
-                    <button id="import-btn" class="btn btn-success" onclick="importOrders()">
+                    <button id="import-btn" class="btn btn-success me-2" onclick="importOrders()">
                         <i class="bi bi-download"></i> Importar Pedidos
+                    </button>
+                    <button class="btn btn-danger" onclick="showDeleteOrdersModal()">
+                        <i class="bi bi-trash"></i> Remover Pedidos
                     </button>
                 </div>
             </div>
@@ -116,6 +119,9 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-primary text-white">
                                 <tr>
+                                    <th width="50">
+                                        <input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders()">
+                                    </th>
                                     <th class="sortable" data-sort="ml_order_id" onclick="sortTable('ml_order_id')">
                                         ID do Pedido <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
@@ -344,7 +350,7 @@ function renderOrders(orders) {
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center text-muted py-4">
+                <td colspan="8" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -354,6 +360,9 @@ function renderOrders(orders) {
     
     tbody.innerHTML = orders.map(order => `
         <tr>
+            <td>
+                <input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateSelectedOrdersCount()">
+            </td>
             <td>
                 <div class="d-flex align-items-center">
                     <i class="bi bi-receipt text-primary me-2"></i>
@@ -661,7 +670,7 @@ function formatCurrency(amount, currency = 'BRL') {
         currency: currency || 'BRL',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-    }).format(amount / 100); // ML retorna em centavos
+    }).format(amount); // Valor já está em reais
 }
 
 function formatDate(dateString) {
@@ -679,6 +688,237 @@ function sortTable(column) {
     // Implementar ordenação se necessário
     console.log('Ordenar por:', column);
 }
+
+// Funções para remoção de pedidos
+function showDeleteOrdersModal() {
+    // Atualizar contador de pedidos selecionados
+    updateSelectedOrdersCount();
+    
+    // Limpar campo de confirmação
+    document.getElementById('confirmationTextOrders').value = '';
+    document.getElementById('deleteOrdersButton').disabled = true;
+    
+    // Configurar opções de remoção
+    setupDeleteOptions();
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteOrdersModal'));
+    modal.show();
+}
+
+function setupDeleteOptions() {
+    const deleteSelected = document.getElementById('deleteSelected');
+    const deleteAll = document.getElementById('deleteAll');
+    const deleteSelectedButton = document.getElementById('deleteOrdersButton');
+    const deleteAllButton = document.getElementById('deleteAllOrdersButton');
+    
+    // Função para alternar entre os botões
+    function toggleButtons() {
+        if (deleteSelected.checked) {
+            deleteSelectedButton.style.display = 'inline-block';
+            deleteAllButton.style.display = 'none';
+            updateSelectedOrdersCount();
+        } else if (deleteAll.checked) {
+            deleteSelectedButton.style.display = 'none';
+            deleteAllButton.style.display = 'inline-block';
+            deleteAllButton.disabled = false;
+        }
+    }
+    
+    // Adicionar event listeners
+    deleteSelected.addEventListener('change', toggleButtons);
+    deleteAll.addEventListener('change', toggleButtons);
+    
+    // Configuração inicial
+    toggleButtons();
+}
+
+function toggleSelectAllOrders() {
+    const selectAllCheckbox = document.getElementById('select-all-orders');
+    const orderCheckboxes = document.querySelectorAll('.order-checkbox');
+    
+    orderCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+    
+    updateSelectedOrdersCount();
+}
+
+function updateSelectedOrdersCount() {
+    const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+    const selectedCount = selectedCheckboxes.length;
+    
+    document.getElementById('selectedOrdersCount').textContent = selectedCount;
+    
+    // Habilitar/desabilitar botão de remoção
+    const deleteButton = document.getElementById('deleteOrdersButton');
+    if (deleteButton) {
+        deleteButton.disabled = selectedCount === 0;
+    }
+}
+
+function confirmDeleteOrders() {
+    const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+    const selectedOrderIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+    
+    if (selectedOrderIds.length === 0) {
+        showAlert('warning', 'Selecione pelo menos um pedido para remover');
+        return;
+    }
+    
+    const confirmationText = document.getElementById('confirmationTextOrders').value;
+    if (confirmationText !== 'CONFIRMAR') {
+        showAlert('danger', 'Digite "CONFIRMAR" para prosseguir com a remoção');
+        return;
+    }
+    
+    // Desabilitar botão durante a operação
+    const deleteButton = document.getElementById('deleteOrdersButton');
+    deleteButton.disabled = true;
+    deleteButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Removendo...';
+    
+    fetch('/ml/api/orders/delete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+            order_ids: selectedOrderIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            
+            // Fechar modal
+            bootstrap.Modal.getInstance(document.getElementById('deleteOrdersModal')).hide();
+            
+            // Recarregar pedidos
+            setTimeout(() => {
+                loadOrders(currentPage);
+            }, 1000);
+        } else {
+            showAlert('danger', data.error || 'Erro ao remover pedidos');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showAlert('danger', 'Erro ao remover pedidos: ' + error.message);
+    })
+    .finally(() => {
+        // Reabilitar botão
+        deleteButton.disabled = false;
+        deleteButton.innerHTML = '<i class="bi bi-trash"></i> Confirmar Remoção';
+    });
+}
+
+function confirmDeleteAllOrders() {
+    const confirmationText = document.getElementById('confirmationTextOrders').value;
+    if (confirmationText !== 'CONFIRMAR') {
+        showAlert('danger', 'Digite "CONFIRMAR" para prosseguir com a remoção');
+        return;
+    }
+    
+    // Desabilitar botão durante a operação
+    const deleteButton = document.getElementById('deleteAllOrdersButton');
+    deleteButton.disabled = true;
+    deleteButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Removendo...';
+    
+    fetch('/ml/api/orders/delete-all', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            
+            // Fechar modal
+            bootstrap.Modal.getInstance(document.getElementById('deleteOrdersModal')).hide();
+            
+            // Recarregar pedidos
+            setTimeout(() => {
+                loadOrders(currentPage);
+            }, 1000);
+        } else {
+            showAlert('danger', data.error || 'Erro ao remover todos os pedidos');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showAlert('danger', 'Erro ao remover todos os pedidos: ' + error.message);
+    })
+    .finally(() => {
+        // Reabilitar botão
+        deleteButton.disabled = false;
+        deleteButton.innerHTML = '<i class="bi bi-trash"></i> Remover Todos';
+    });
+}
 </script>
+
+<!-- Modal de Remoção de Pedidos -->
+<div class="modal fade" id="deleteOrdersModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle"></i> Remover Pedidos
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Atenção:</strong> Esta ação não pode ser desfeita!
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Opções de Remoção:</h6>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="deleteOption" id="deleteSelected" value="selected" checked>
+                        <label class="form-check-label" for="deleteSelected">
+                            Remover pedidos selecionados (<span id="selectedOrdersCount">0</span>)
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="deleteOption" id="deleteAll" value="all">
+                        <label class="form-check-label" for="deleteAll">
+                            Remover TODOS os pedidos
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="confirmationTextOrders" class="form-label">
+                        Para confirmar, digite <strong>CONFIRMAR</strong>:
+                    </label>
+                    <input type="text" id="confirmationTextOrders" class="form-control" placeholder="Digite CONFIRMAR aqui">
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Importante:</strong> Os pedidos serão removidos apenas do banco de dados local. 
+                    Os pedidos originais no Mercado Libre não serão afetados.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteOrdersButton" onclick="confirmDeleteOrders()" disabled>
+                    <i class="bi bi-trash"></i> Remover Selecionados
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteAllOrdersButton" onclick="confirmDeleteAllOrders()" style="display: none;">
+                    <i class="bi bi-trash"></i> Remover Todos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}

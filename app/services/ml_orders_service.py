@@ -670,3 +670,91 @@ class MLOrdersService:
         except Exception as e:
             logger.error(f"Erro ao obter token ativo: {e}")
             return None
+    
+    def delete_orders(self, order_ids: List[int], company_id: int) -> Dict:
+        """Remove pedidos selecionados do banco de dados"""
+        try:
+            logger.info(f"Removendo pedidos: {order_ids} para company_id: {company_id}")
+            
+            # Buscar pedidos que pertencem à empresa
+            orders_to_delete = self.db.query(MLOrder).filter(
+                MLOrder.id.in_(order_ids),
+                MLOrder.company_id == company_id
+            ).all()
+            
+            if not orders_to_delete:
+                return {
+                    "success": False,
+                    "error": "Nenhum pedido encontrado para remoção"
+                }
+            
+            # Verificar se todos os pedidos pertencem à empresa
+            found_ids = [order.id for order in orders_to_delete]
+            missing_ids = set(order_ids) - set(found_ids)
+            
+            if missing_ids:
+                return {
+                    "success": False,
+                    "error": f"Alguns pedidos não foram encontrados ou não pertencem à sua empresa: {missing_ids}"
+                }
+            
+            # Remover pedidos
+            deleted_count = 0
+            for order in orders_to_delete:
+                self.db.delete(order)
+                deleted_count += 1
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": f"{deleted_count} pedido(s) removido(s) com sucesso",
+                "deleted_count": deleted_count
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao remover pedidos: {e}")
+            self.db.rollback()
+            return {
+                "success": False,
+                "error": f"Erro ao remover pedidos: {str(e)}"
+            }
+    
+    def delete_all_orders(self, company_id: int) -> Dict:
+        """Remove todos os pedidos da empresa do banco de dados"""
+        try:
+            logger.info(f"Removendo todos os pedidos para company_id: {company_id}")
+            
+            # Buscar todos os pedidos da empresa
+            orders_to_delete = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id
+            ).all()
+            
+            if not orders_to_delete:
+                return {
+                    "success": False,
+                    "error": "Nenhum pedido encontrado para remoção"
+                }
+            
+            # Contar pedidos antes de remover
+            total_count = len(orders_to_delete)
+            
+            # Remover todos os pedidos
+            for order in orders_to_delete:
+                self.db.delete(order)
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": f"Todos os pedidos ({total_count}) foram removidos com sucesso",
+                "deleted_count": total_count
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao remover todos os pedidos: {e}")
+            self.db.rollback()
+            return {
+                "success": False,
+                "error": f"Erro ao remover todos os pedidos: {str(e)}"
+            }

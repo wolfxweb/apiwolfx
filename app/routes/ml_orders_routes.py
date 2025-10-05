@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, Request, Cookie, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
+import csv
+import io
+import json
+from datetime import datetime
 
 from app.config.database import get_db
 from app.controllers.ml_orders_controller import MLOrdersController
@@ -68,7 +72,7 @@ async def order_details_page(
             return render_template("error.html", error_message=order_details.get("error", "Pedido não encontrado"), back_url="/ml/orders")
         
         from app.views.template_renderer import render_template
-        return render_template("ml_order_details.html", user=user_data, order=order_details.get("order"), order_items=order_details.get("order_items", []))
+        return render_template("ml_order_details.html", request=request, user=user_data, order=order_details.get("order"))
         
     except Exception as e:
         logging.error(f"Erro na página de detalhes do pedido: {e}")
@@ -232,6 +236,81 @@ async def get_orders_summary_api(
         
     except Exception as e:
         logging.error(f"Erro no endpoint orders summary: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.post("/api/orders/delete")
+async def delete_orders_api(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para remover pedidos selecionados"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Obter dados do corpo da requisição
+        body = await request.json()
+        order_ids = body.get("order_ids", [])
+        
+        if not order_ids:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Nenhum pedido selecionado"
+            }, status_code=400)
+        
+        controller = MLOrdersController(db)
+        result = controller.delete_orders(company_id=company_id, order_ids=order_ids)
+        
+        if result.get("success"):
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(content=result, status_code=400)
+        
+    except Exception as e:
+        logging.error(f"Erro no endpoint delete orders: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.post("/api/orders/delete-all")
+async def delete_all_orders_api(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para remover todos os pedidos da empresa"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        controller = MLOrdersController(db)
+        result = controller.delete_all_orders(company_id=company_id)
+        
+        if result.get("success"):
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(content=result, status_code=400)
+        
+    except Exception as e:
+        logging.error(f"Erro no endpoint delete all orders: {e}")
         return JSONResponse(content={
             "success": False,
             "error": f"Erro interno: {str(e)}"
