@@ -163,11 +163,25 @@
     <!-- Paginação -->
     <div class="row mt-4">
         <div class="col-12">
-            <nav aria-label="Navegação de pedidos">
-                <ul class="pagination justify-content-center" id="pagination">
-                    <!-- Paginação será inserida aqui dinamicamente -->
-                </ul>
-            </nav>
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-muted">
+                    <span id="pagination-info">Mostrando 0 de 0 pedidos</span>
+                </div>
+                <nav aria-label="Navegação de pedidos">
+                    <ul class="pagination mb-0" id="pagination">
+                        <!-- Paginação será inserida aqui dinamicamente -->
+                    </ul>
+                </nav>
+                <div class="d-flex align-items-center">
+                    <label for="page-size" class="form-label me-2 mb-0 small">Por página:</label>
+                    <select id="page-size" class="form-select form-select-sm" style="width: auto;" onchange="changePageSize()">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -299,13 +313,16 @@ function loadOrders(page = 1) {
     const urlParams = new URLSearchParams(window.location.search);
     
     // Coletar filtros
+    const pageSizeSelect = document.getElementById('page-size');
+    const selectedLimit = pageSizeSelect ? parseInt(pageSizeSelect.value) : currentLimit;
+    
     const filters = {
         ml_account_id: urlParams.get('account_filter') || '',
         status_filter: urlParams.get('status_filter') || '',
         date_from: urlParams.get('date_from') || '',
         date_to: urlParams.get('date_to') || '',
-        limit: urlParams.get('limit') || currentLimit,
-        offset: (page - 1) * (urlParams.get('limit') || currentLimit)
+        limit: selectedLimit,
+        offset: (page - 1) * selectedLimit
     };
     
     // Construir URL da API (com prefixo /ml)
@@ -423,7 +440,13 @@ function renderOrders(orders) {
 
 function renderPagination(total, limit, currentPage) {
     const pagination = document.getElementById('pagination');
+    const paginationInfo = document.getElementById('pagination-info');
     const totalPages = Math.ceil(total / limit);
+    
+    // Atualizar informações da paginação
+    const startItem = (currentPage - 1) * limit + 1;
+    const endItem = Math.min(currentPage * limit, total);
+    paginationInfo.textContent = `Mostrando ${startItem} a ${endItem} de ${total} pedidos`;
     
     if (totalPages <= 1) {
         pagination.innerHTML = '';
@@ -432,11 +455,24 @@ function renderPagination(total, limit, currentPage) {
     
     let paginationHTML = '';
     
+    // Botão primeira página
+    if (currentPage > 1) {
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="loadOrders(1)" title="Primeira página">
+                    <i class="bi bi-chevron-double-left"></i>
+                </a>
+            </li>
+        `;
+    }
+    
     // Botão anterior
     if (currentPage > 1) {
         paginationHTML += `
             <li class="page-item">
-                <a class="page-link" href="#" onclick="loadOrders(${currentPage - 1})">Anterior</a>
+                <a class="page-link" href="#" onclick="loadOrders(${currentPage - 1})" title="Página anterior">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
             </li>
         `;
     }
@@ -444,6 +480,15 @@ function renderPagination(total, limit, currentPage) {
     // Páginas
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(totalPages, currentPage + 2);
+    
+    // Adicionar reticências no início se necessário
+    if (startPage > 1) {
+        paginationHTML += `
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+        `;
+    }
     
     for (let i = startPage; i <= endPage; i++) {
         paginationHTML += `
@@ -453,11 +498,33 @@ function renderPagination(total, limit, currentPage) {
         `;
     }
     
+    // Adicionar reticências no final se necessário
+    if (endPage < totalPages) {
+        paginationHTML += `
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+        `;
+    }
+    
     // Botão próximo
     if (currentPage < totalPages) {
         paginationHTML += `
             <li class="page-item">
-                <a class="page-link" href="#" onclick="loadOrders(${currentPage + 1})">Próximo</a>
+                <a class="page-link" href="#" onclick="loadOrders(${currentPage + 1})" title="Próxima página">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        `;
+    }
+    
+    // Botão última página
+    if (currentPage < totalPages) {
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="loadOrders(${totalPages})" title="Última página">
+                    <i class="bi bi-chevron-double-right"></i>
+                </a>
             </li>
         `;
     }
@@ -481,12 +548,15 @@ function loadAccountsFilter(accounts) {
 }
 
 function applyFilters() {
+    const pageSizeSelect = document.getElementById('page-size');
+    const selectedLimit = pageSizeSelect ? parseInt(pageSizeSelect.value) : 50;
+    
     const filters = {
         account_filter: document.getElementById('account_filter').value,
         status_filter: document.getElementById('status_filter').value,
         date_from: document.getElementById('date_from').value,
         date_to: document.getElementById('date_to').value,
-        limit: document.getElementById('limit').value
+        limit: selectedLimit
     };
     
     // Atualizar URL
@@ -690,6 +760,12 @@ function formatDate(dateString) {
 function sortTable(column) {
     // Implementar ordenação se necessário
     console.log('Ordenar por:', column);
+}
+
+function changePageSize() {
+    const pageSize = document.getElementById('page-size').value;
+    currentLimit = parseInt(pageSize);
+    loadOrders(1); // Recarregar na primeira página
 }
 
 // Funções para remoção de pedidos
