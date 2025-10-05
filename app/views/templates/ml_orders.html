@@ -116,7 +116,7 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0">
+                        <table class="table table-hover mb-0 table-sm">
                             <thead class="table-primary text-white">
                                 <tr>
                                     <th width="50">
@@ -125,22 +125,22 @@
                                     <th class="sortable" data-sort="buyer_nickname" onclick="sortTable('buyer_nickname')">
                                         Comprador <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="total_amount" onclick="sortTable('total_amount')">
+                                    <th class="sortable text-end" data-sort="total_amount" onclick="sortTable('total_amount')">
                                         Valor do Produto <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="coupon_amount" onclick="sortTable('coupon_amount')">
+                                    <th class="sortable text-end" data-sort="coupon_amount" onclick="sortTable('coupon_amount')">
                                         Desconto (Cupom) <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="sale_fees" onclick="sortTable('sale_fees')">
+                                    <th class="sortable text-end" data-sort="sale_fees" onclick="sortTable('sale_fees')">
                                         Taxa do Mercado Livre <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="shipping_cost" onclick="sortTable('shipping_cost')">
+                                    <th class="sortable text-end" data-sort="shipping_cost" onclick="sortTable('shipping_cost')">
                                         Frete <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="paid_amount" onclick="sortTable('paid_amount')">
+                                    <th class="sortable text-end" data-sort="paid_amount" onclick="sortTable('paid_amount')">
                                         Total Final <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="net_profit" onclick="sortTable('net_profit')">
+                                    <th class="sortable text-end" data-sort="net_profit" onclick="sortTable('net_profit')">
                                         Receita Líquida <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
                                     <th>Ações</th>
@@ -362,7 +362,7 @@ function renderOrders(orders) {
     }
     
     tbody.innerHTML = orders.map(order => `
-        <tr>
+        <tr class="small">
             <td>
                 <input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateSelectedOrdersCount()">
             </td>
@@ -370,7 +370,7 @@ function renderOrders(orders) {
                 <div class="d-flex align-items-center">
                     <i class="bi bi-person-circle text-success me-2"></i>
                     <div>
-                        <strong>${order.buyer_nickname || 'N/A'}</strong>
+                        <strong class="small">${order.buyer_nickname || 'N/A'}</strong>
                         ${order.buyer_email ? `<br><small class="text-muted">${order.buyer_email}</small>` : ''}
                         <br><small class="text-muted">ID: ${order.ml_order_id || order.order_id}</small>
                         <br><small class="text-muted">Data: ${formatDate(order.date_created)}</small>
@@ -379,32 +379,32 @@ function renderOrders(orders) {
             </td>
             <td>
                 <div class="text-end">
-                    <strong>${formatCurrency(order.total_amount || 0, order.currency_id)}</strong>
+                    <strong class="small">${formatCurrency(order.total_amount || 0, order.currency_id)}</strong>
                 </div>
             </td>
             <td>
                 <div class="text-end">
-                    <span class="text-danger">- ${formatCurrency(order.coupon_amount || 0, order.currency_id)}</span>
+                    <span class="text-danger small">- ${formatCurrency(order.coupon_amount || 0, order.currency_id)}</span>
                 </div>
             </td>
             <td>
                 <div class="text-end">
-                    <span class="text-warning">${formatCurrency(order.sale_fees || 0, order.currency_id)}</span>
+                    <span class="text-warning small">${formatCurrency(order.sale_fees || 0, order.currency_id)}</span>
                 </div>
             </td>
             <td>
                 <div class="text-end">
-                    <span class="text-info">${formatCurrency(order.shipping_cost || 0, order.currency_id)}</span>
+                    <span class="text-info small">${formatCurrency(order.shipping_cost || 0, order.currency_id)}</span>
                 </div>
             </td>
             <td>
                 <div class="text-end">
-                    <strong class="text-primary">${formatCurrency(order.paid_amount || order.total_amount || 0, order.currency_id)}</strong>
+                    <strong class="text-primary small">${formatCurrency(order.paid_amount || order.total_amount || 0, order.currency_id)}</strong>
                 </div>
             </td>
             <td>
                 <div class="text-end">
-                    <strong class="text-success">${formatCurrency((order.total_amount || 0) - (order.sale_fees || 0), order.currency_id)}</strong>
+                    <strong class="text-success small">${formatCurrency((order.total_amount || 0) - (order.sale_fees || 0), order.currency_id)}</strong>
                 </div>
             </td>
             <td>
