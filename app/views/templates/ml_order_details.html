@@ -51,17 +51,23 @@
                                 <tr>
                                     <td><strong>Status:</strong></td>
                                     <td>
-                                        <span class="badge bg-success">
-                                            {{ order.status|title }}
-                                        </span>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Status do Pagamento:</strong></td>
-                                    <td>
-                                        <span class="badge bg-success">
-                                            {{ order.payment_status|title }}
-                                        </span>
+                                        {% if order.status %}
+                                            {% if order.status == 'PAID' or order.status == 'paid' %}
+                                                <span class="badge bg-success">Pago</span>
+                                            {% elif order.status == 'CONFIRMED' or order.status == 'confirmed' %}
+                                                <span class="badge bg-warning">Confirmado</span>
+                                            {% elif order.status == 'PENDING' or order.status == 'pending' %}
+                                                <span class="badge bg-info">Pendente</span>
+                                            {% elif order.status == 'CANCELLED' or order.status == 'cancelled' %}
+                                                <span class="badge bg-danger">Cancelado</span>
+                                            {% elif order.status == 'REFUNDED' or order.status == 'refunded' %}
+                                                <span class="badge bg-secondary">Reembolsado</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark">{{ order.status|title }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
                                     </td>
                                 </tr>
                             </table>
@@ -79,18 +85,6 @@
                                 <tr>
                                     <td><strong>Última Atualização:</strong></td>
                                     <td>{{ order.last_updated[:10] if order.last_updated else 'N/A' }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Valor Total:</strong></td>
-                                    <td class="h5 text-success">R$ {{ "%.2f"|format(order.total_amount) if order.total_amount else '0,00' }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Valor Pago:</strong></td>
-                                    <td class="h6 text-primary">R$ {{ "%.2f"|format(order.paid_amount) if order.paid_amount else '0,00' }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Moeda:</strong></td>
-                                    <td>{{ order.currency_id if order.currency_id else 'N/A' }}</td>
                                 </tr>
                             </table>
                         </div>
@@ -152,16 +146,66 @@
                                     </tr>
                                     <tr>
                                         <td><strong>Método de Pagamento:</strong></td>
-                                        <td>{{ payment.payment_method_id|title }}</td>
+                                        <td>
+                                            {% if payment.payment_method_id %}
+                                                {% if payment.payment_method_id == 'account_money' %}
+                                                    <span class="badge bg-info">Dinheiro na Conta</span>
+                                                {% elif payment.payment_method_id == 'credit_card' %}
+                                                    <span class="badge bg-primary">Cartão de Crédito</span>
+                                                {% elif payment.payment_method_id == 'debit_card' %}
+                                                    <span class="badge bg-secondary">Cartão de Débito</span>
+                                                {% elif payment.payment_method_id == 'bank_transfer' %}
+                                                    <span class="badge bg-success">Transferência Bancária</span>
+                                                {% elif payment.payment_method_id == 'pix' %}
+                                                    <span class="badge bg-warning">PIX</span>
+                                                {% else %}
+                                                    <span class="badge bg-light text-dark">{{ payment.payment_method_id|title }}</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td><strong>Tipo de Pagamento:</strong></td>
-                                        <td>{{ payment.payment_type|title }}</td>
+                                        <td>
+                                            {% if payment.payment_type %}
+                                                {% if payment.payment_type == 'account_money' %}
+                                                    <span class="badge bg-info">Dinheiro na Conta</span>
+                                                {% elif payment.payment_type == 'credit_card' %}
+                                                    <span class="badge bg-primary">Cartão de Crédito</span>
+                                                {% elif payment.payment_type == 'debit_card' %}
+                                                    <span class="badge bg-secondary">Cartão de Débito</span>
+                                                {% elif payment.payment_type == 'bank_transfer' %}
+                                                    <span class="badge bg-success">Transferência Bancária</span>
+                                                {% elif payment.payment_type == 'pix' %}
+                                                    <span class="badge bg-warning">PIX</span>
+                                                {% else %}
+                                                    <span class="badge bg-light text-dark">{{ payment.payment_type|title }}</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td><strong>Status:</strong></td>
                                         <td>
-                                            <span class="badge bg-success">{{ payment.status|title }}</span>
+                                            {% if payment.status %}
+                                                {% if payment.status == 'approved' or payment.status == 'APPROVED' %}
+                                                    <span class="badge bg-success">Aprovado</span>
+                                                {% elif payment.status == 'pending' or payment.status == 'PENDING' %}
+                                                    <span class="badge bg-warning">Pendente</span>
+                                                {% elif payment.status == 'rejected' or payment.status == 'REJECTED' %}
+                                                    <span class="badge bg-danger">Rejeitado</span>
+                                                {% elif payment.status == 'cancelled' or payment.status == 'CANCELLED' %}
+                                                    <span class="badge bg-secondary">Cancelado</span>
+                                                {% else %}
+                                                    <span class="badge bg-light text-dark">{{ payment.status|title }}</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
                                         </td>
                                     </tr>
                                     <tr>
@@ -215,41 +259,83 @@
                             </div>
                         </div>
                         
-                        <!-- Informações de Frete -->
-                        {% if order.shipping_cost or order.shipping_method %}
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <h6 class="text-muted mb-2">Informações de Frete</h6>
-                                <table class="table table-sm table-borderless">
-                                    <tr>
-                                        <td><strong>Custo do Frete:</strong></td>
-                                        <td>R$ {{ "%.2f"|format(order.shipping_cost) if order.shipping_cost else 'Grátis' }}</td>
-                                        <td><strong>Método de Envio:</strong></td>
-                                        <td>{{ order.shipping_method if order.shipping_method else 'N/A' }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Status do Envio:</strong></td>
-                                        <td>
-                                            <span class="badge bg-info">{{ order.shipping_status|title if order.shipping_status else 'N/A' }}</span>
-                                        </td>
-                                        <td><strong>Endereço:</strong></td>
-                                        <td>
-                                            {% if order.shipping_address %}
-                                                {{ order.shipping_address.receiver_name }}<br>
-                                                <small class="text-muted">
-                                                    {{ order.shipping_address.address_line }}<br>
-                                                    {{ order.shipping_address.city.name }}, {{ order.shipping_address.state.name }}<br>
-                                                    CEP: {{ order.shipping_address.zip_code }}
-                                                </small>
-                                            {% else %}
-                                                N/A
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                </table>
-                            </div>
-                        </div>
-                        {% endif %}
+       <!-- Informações de Frete -->
+       <div class="row mb-3">
+           <div class="col-12">
+               <h6 class="text-muted mb-2">Informações de Frete</h6>
+               <table class="table table-sm table-borderless">
+                   <tr>
+                       <td><strong>Custo do Frete:</strong></td>
+                       <td>R$ {{ "%.2f"|format(order.shipping_cost) if order.shipping_cost else 'Grátis' }}</td>
+                       <td><strong>Método de Envio:</strong></td>
+                       <td>
+                           {% if order.shipping_details and order.shipping_details.logistic_type %}
+                               {% if order.shipping_details.logistic_type == 'fulfillment' %}
+                                   <span class="badge bg-primary">Full Mercado Livre</span>
+                               {% elif order.shipping_details.logistic_type == 'cross_docking' %}
+                                   <span class="badge bg-info">Mercado Envios</span>
+                               {% elif order.shipping_details.logistic_type == 'xd_drop_off' %}
+                                   <span class="badge bg-warning">Agência</span>
+                               {% elif order.shipping_details.logistic_type == 'drop_off' %}
+                                   <span class="badge bg-secondary">Correios</span>
+                               {% else %}
+                                   <span class="badge bg-light text-dark">{{ order.shipping_details.logistic_type|title }}</span>
+                               {% endif %}
+                           {% elif order.shipping_method %}
+                               {{ order.shipping_method }}
+                           {% else %}
+                               N/A
+                           {% endif %}
+                       </td>
+                   </tr>
+                   <tr>
+                       <td><strong>Frete Pago Por:</strong></td>
+                       <td>
+                           {% if payment.shipping_cost and payment.shipping_cost > 0 %}
+                               <span class="badge bg-primary">Cliente</span>
+                           {% elif order.shipping_fees and order.shipping_fees > 0 %}
+                               <span class="badge bg-warning">Vendedor (Taxa de Envio)</span>
+                           {% else %}
+                               <span class="badge bg-success">Mercado Livre (Frete Grátis)</span>
+                           {% endif %}
+                       </td>
+                       <td><strong>Status do Envio:</strong></td>
+                       <td>
+                           {% if order.shipping_status %}
+                               {% if order.shipping_status == 'ready_to_ship' %}
+                                   <span class="badge bg-warning">Em Progresso</span>
+                               {% elif order.shipping_status == 'shipped' %}
+                                   <span class="badge bg-info">Enviado</span>
+                               {% elif order.shipping_status == 'delivered' %}
+                                   <span class="badge bg-success">Entregue</span>
+                               {% elif order.shipping_status == 'cancelled' %}
+                                   <span class="badge bg-danger">Cancelado</span>
+                               {% elif order.shipping_status == 'returned' %}
+                                   <span class="badge bg-secondary">Devolvido</span>
+                               {% else %}
+                                   <span class="badge bg-light text-dark">{{ order.shipping_status|title }}</span>
+                               {% endif %}
+                           {% else %}
+                               <span class="text-muted">N/A</span>
+                           {% endif %}
+                       </td>
+                   </tr>
+                   {% if order.shipping_address %}
+                   <tr>
+                       <td><strong>Endereço:</strong></td>
+                       <td colspan="3">
+                           {{ order.shipping_address.receiver_name }}<br>
+                           <small class="text-muted">
+                               {{ order.shipping_address.address_line }}<br>
+                               {{ order.shipping_address.city.name }}, {{ order.shipping_address.state.name }}<br>
+                               CEP: {{ order.shipping_address.zip_code }}
+                           </small>
+                       </td>
+                   </tr>
+                   {% endif %}
+               </table>
+           </div>
+       </div>
                         {% endfor %}
                     {% else %}
                         <p class="text-muted">Nenhuma informação de pagamento disponível</p>
