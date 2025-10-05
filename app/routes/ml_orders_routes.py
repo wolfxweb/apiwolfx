@@ -160,23 +160,30 @@ async def import_orders_api(
 ):
     """API para importar TODOS os orders da API do Mercado Libre"""
     try:
+        logging.info(f"Iniciando importação - ml_account_id: {ml_account_id}")
+        
         if not session_token:
+            logging.warning("Sessão não encontrada")
             return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
         
         result = AuthController().get_user_by_session(session_token, db)
         if result.get("error"):
+            logging.warning(f"Erro de autenticação: {result.get('error')}")
             return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]
+        logging.info(f"Usuário autenticado - company_id: {company_id}")
         
         controller = MLOrdersController(db)
+        logging.info("Iniciando sync_orders...")
         result = controller.sync_orders(company_id=company_id, ml_account_id=ml_account_id, is_full_import=True)
+        logging.info(f"Resultado do sync_orders: {result}")
         
         return JSONResponse(content=result)
         
     except Exception as e:
-        logging.error(f"Erro no endpoint import orders: {e}")
+        logging.error(f"Erro no endpoint import orders: {e}", exc_info=True)
         return JSONResponse(content={
             "success": False,
             "error": f"Erro interno: {str(e)}"

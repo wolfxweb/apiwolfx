@@ -200,10 +200,14 @@
                 <div class="text-center mb-3">
                     <i class="bi bi-cloud-download text-primary" style="font-size: 3rem;"></i>
                 </div>
-                <h6 class="text-center mb-3">Deseja importar TODOS os pedidos da conta?</h6>
+                <h6 class="text-center mb-3">Deseja importar pedidos da conta?</h6>
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle me-2"></i>
-                    <strong>Atenção:</strong> Esta operação pode demorar alguns minutos, dependendo da quantidade de pedidos.
+                    <strong>Importação limitada:</strong> Para evitar sobrecarga, serão importados até 50 pedidos por vez.
+                </div>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Atenção:</strong> Esta operação pode demorar alguns minutos. O sistema fará pausas automáticas.
                 </div>
                 <ul class="list-unstyled">
                     <li><i class="bi bi-check-circle text-success me-2"></i>Serão importados todos os pedidos históricos</li>
@@ -302,10 +306,70 @@ let currentPage = 1;
 let currentLimit = 50;
 let currentFilters = {};
 
+// Função para verificar se a resposta indica sessão expirada
+function checkSessionExpired(response) {
+    if (response.status === 401) {
+        showError('Sessão expirada. Redirecionando para login...');
+        
+        // Ocultar elementos de usuário logado
+        hideUserElements();
+        
+        setTimeout(() => {
+            window.location.href = '/auth/login';
+        }, 2000);
+        return true;
+    }
+    return false;
+}
+
+// Função para ocultar elementos de usuário logado
+function hideUserElements() {
+    // Ocultar botões de ação
+    const syncBtn = document.getElementById('sync-btn');
+    const importBtn = document.getElementById('import-btn');
+    const deleteBtn = document.querySelector('button[onclick="showDeleteOrdersModal()"]');
+    
+    if (syncBtn) syncBtn.style.display = 'none';
+    if (importBtn) importBtn.style.display = 'none';
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    
+    // Ocultar filtros
+    const filtersSection = document.querySelector('.row:has(.card .card-header h5)');
+    if (filtersSection) {
+        const filtersCard = filtersSection.querySelector('.card');
+        if (filtersCard && filtersCard.textContent.includes('Filtros')) {
+            filtersSection.style.display = 'none';
+        }
+    }
+    
+    // Ocultar tabela
+    const tableSection = document.querySelector('.row:has(.card .card-header h5)');
+    if (tableSection) {
+        const tableCard = tableSection.querySelector('.card');
+        if (tableCard && tableCard.textContent.includes('Lista de Pedidos')) {
+            tableSection.style.display = 'none';
+        }
+    }
+    
+    // Mostrar mensagem de sessão expirada
+    const alertContainer = document.getElementById('alerts-container');
+    if (alertContainer) {
+        alertContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-warning text-center" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Sessão expirada!</strong> Faça login novamente para continuar.
+                </div>
+            </div>
+        `;
+    }
+}
+
 // Inicializar quando a página carregar
 document.addEventListener('DOMContentLoaded', function() {
     loadOrders();
 });
+
 
 function loadOrders(page = 1) {
     showLoading(true);
@@ -337,8 +401,7 @@ function loadOrders(page = 1) {
         credentials: 'include'
     })
     .then(response => {
-        if (response.status === 401) {
-            window.location.href = '/auth/login';
+        if (checkSessionExpired(response)) {
             return;
         }
         return response.json();
@@ -588,7 +651,12 @@ function syncOrders() {
         method: 'GET',
         credentials: 'include'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (checkSessionExpired(response)) {
+            return;
+        }
+        return response.json();
+    })
     .then(data => {
         console.log('Resposta da sincronização:', data);
         if (data && data.success) {
@@ -640,11 +708,30 @@ function confirmImport() {
         method: 'GET',
         credentials: 'include'
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Status da resposta:', response.status);
+        if (checkSessionExpired(response)) {
+            return;
+        }
+        
+        // Verificar se a resposta é JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            // Se não for JSON, tentar ler como texto para debug
+            return response.text().then(text => {
+                console.error('Status da resposta:', response.status);
+                console.error('Content-Type:', contentType);
+                console.error('Resposta completa:', text);
+                throw new Error('Resposta não é JSON válido. Status: ' + response.status);
+            });
+        }
+    })
     .then(data => {
         console.log('Resposta da importação:', data);
         if (data && data.success) {
-            showSuccess(`Importação concluída: ${data.total_saved || 0} pedidos criados, ${data.total_updated || 0} pedidos atualizados`);
+            showSuccess(`Importação concluída: ${data.total_saved || 0} pedidos criados, ${data.total_updated || 0} pedidos atualizados. Importação limitada a 50 pedidos para evitar sobrecarga.`);
             loadOrders(currentPage);
         } else {
             showError('Erro ao importar pedidos: ' + (data?.error || 'Erro desconhecido'));

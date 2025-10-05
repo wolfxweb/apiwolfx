@@ -180,8 +180,9 @@ class MLOrdersService:
             
             # Buscar orders da API
             if is_full_import:
-                # Importação completa - buscar em lotes
-                orders_data = self._fetch_all_orders_from_api(access_token, account.ml_user_id)
+                # Importação completa - limitar para evitar sobrecarga
+                logger.info("Importação completa - limitando a 50 pedidos para evitar sobrecarga")
+                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit=50)
             else:
                 # Sincronização rápida - apenas os mais recentes
                 orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit)
@@ -196,7 +197,14 @@ class MLOrdersService:
             saved_count = 0
             updated_count = 0
             
-            for order_data in orders_data:
+            # Adicionar delay entre processamentos para evitar sobrecarga
+            import time
+            
+            for i, order_data in enumerate(orders_data):
+                # Adicionar delay a cada 5 pedidos para evitar sobrecarga
+                if i > 0 and i % 5 == 0:
+                    logger.info(f"Processando pedido {i+1}/{len(orders_data)} - pausa para evitar sobrecarga")
+                    time.sleep(5)  # Pausa de 5 segundos
                 try:
                     result = self._save_order_to_database(order_data, ml_account_id, company_id)
                     if result["action"] == "created":
@@ -277,7 +285,7 @@ class MLOrdersService:
                 "sort": "date_desc"
             }
             
-            response = requests.get(orders_url, headers=headers, params=params, timeout=30)
+            response = requests.get(orders_url, headers=headers, params=params, timeout=60)
             
             if response.status_code == 200:
                 data = response.json()
@@ -308,10 +316,14 @@ class MLOrdersService:
                 if shipping_details:
                     complete_data["shipping_details"] = shipping_details
             
-            # 3. Buscar descontos aplicados
-            discounts = self._fetch_order_discounts(ml_order_id, access_token)
-            if discounts:
-                complete_data["discounts_applied"] = discounts
+            # 3. Buscar descontos aplicados (com tratamento de erro para evitar sobrecarga)
+            try:
+                discounts = self._fetch_order_discounts(ml_order_id, access_token)
+                if discounts:
+                    complete_data["discounts_applied"] = discounts
+            except Exception as e:
+                logger.warning(f"Erro ao buscar descontos da order {ml_order_id}: {e}")
+                # Continuar sem descontos se houver erro
             
             # 4. Verificar se foi venda por anúncio (Product Ads)
             advertising_info = self._check_advertising_sale(order_data, access_token)
@@ -371,16 +383,23 @@ class MLOrdersService:
             headers = {"Authorization": f"Bearer {access_token}"}
             url = f"{self.base_url}/orders/{ml_order_id}/discounts"
             
-            response = requests.get(url, headers=headers, timeout=30)
+            # Timeout menor para evitar sobrecarga
+            response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 return response.json()
+            elif response.status_code == 404:
+                # 404 é normal - nem todos os pedidos têm descontos
+                return None
             else:
                 logger.warning(f"Erro ao buscar descontos da order {ml_order_id}: {response.status_code}")
                 return None
                 
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout ao buscar descontos da order {ml_order_id}")
+            return None
         except Exception as e:
-            logger.error(f"Erro ao buscar descontos da order: {e}")
+            logger.warning(f"Erro ao buscar descontos da order {ml_order_id}: {e}")
             return None
     
     def _check_advertising_sale(self, order_data: Dict, access_token: str) -> Optional[Dict]:
@@ -645,12 +664,13 @@ class MLOrdersService:
             raise e
     
     def _get_active_token(self, ml_account_id: int) -> Optional[str]:
-        """Obtém token ativo para uma conta ML específica"""
+        """Obtém token ativo para uma conta ML específica, tentando renovar se expirado"""
         try:
             from sqlalchemy import text
             
+            # Primeiro, tentar buscar token válido
             query = text("""
-                SELECT access_token
+                SELECT access_token, refresh_token, expires_at
                 FROM tokens 
                 WHERE ml_account_id = :ml_account_id 
                 AND is_active = true 
@@ -663,12 +683,102 @@ class MLOrdersService:
             
             if result:
                 return result[0]
-            else:
-                logger.warning(f"Nenhum token ativo encontrado para ml_account_id: {ml_account_id}")
-                return None
+            
+            # Se não encontrou token válido, tentar renovar com refresh token
+            logger.info(f"Token expirado para ml_account_id: {ml_account_id}, tentando renovar...")
+            
+            # Buscar refresh token
+            refresh_query = text("""
+                SELECT refresh_token, access_token
+                FROM tokens 
+                WHERE ml_account_id = :ml_account_id 
+                AND is_active = true 
+                AND refresh_token IS NOT NULL
+                ORDER BY expires_at DESC
+                LIMIT 1
+            """)
+            
+            refresh_result = self.db.execute(refresh_query, {"ml_account_id": ml_account_id}).fetchone()
+            
+            if refresh_result and refresh_result[0]:
+                # Tentar renovar o token
+                new_token = self._refresh_token(refresh_result[0], ml_account_id)
+                if new_token:
+                    return new_token
+            
+            logger.warning(f"Nenhum token ativo encontrado para ml_account_id: {ml_account_id}")
+            return None
                 
         except Exception as e:
             logger.error(f"Erro ao obter token ativo: {e}")
+            return None
+    
+    def _refresh_token(self, refresh_token: str, ml_account_id: int) -> Optional[str]:
+        """Tenta renovar token usando refresh token"""
+        try:
+            import requests
+            
+            # Dados para renovar token
+            data = {
+                "grant_type": "refresh_token",
+                "client_id": "6987936494418444",
+                "client_secret": "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl",
+                "refresh_token": refresh_token
+            }
+            
+            headers = {
+                "accept": "application/json",
+                "content-type": "application/x-www-form-urlencoded"
+            }
+            
+            response = requests.post("https://api.mercadolibre.com/oauth/token", data=data, headers=headers)
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                
+                # Salvar novo token no banco
+                from app.models.saas_models import Token
+                from datetime import datetime, timedelta
+                
+                # Desativar tokens antigos
+                self.db.query(Token).filter(
+                    Token.ml_account_id == ml_account_id,
+                    Token.is_active == True
+                ).update({"is_active": False})
+                
+                # Buscar user_id da empresa da conta ML
+                from app.models.saas_models import MLAccount, User
+                account = self.db.query(MLAccount).filter(MLAccount.id == ml_account_id).first()
+                user_id = None
+                if account:
+                    # Buscar qualquer usuário da empresa
+                    user = self.db.query(User).filter(User.company_id == account.company_id).first()
+                    user_id = user.id if user else None
+                
+                # Criar novo token
+                new_token = Token(
+                    user_id=user_id,
+                    ml_account_id=ml_account_id,
+                    access_token=token_data["access_token"],
+                    refresh_token=token_data.get("refresh_token"),
+                    token_type=token_data.get("token_type", "Bearer"),
+                    expires_in=token_data.get("expires_in", 21600),
+                    scope=token_data.get("scope", ""),
+                    expires_at=datetime.utcnow() + timedelta(seconds=token_data.get("expires_in", 21600)),
+                    is_active=True
+                )
+                
+                self.db.add(new_token)
+                self.db.commit()
+                
+                logger.info(f"Token renovado com sucesso para ml_account_id: {ml_account_id}")
+                return token_data["access_token"]
+            else:
+                logger.error(f"Erro ao renovar token: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erro ao renovar token: {e}")
             return None
     
     def delete_orders(self, order_ids: List[int], company_id: int) -> Dict:
