@@ -405,14 +405,6 @@ class MLOrdersService:
     def _check_advertising_sale(self, order_data: Dict, access_token: str) -> Optional[Dict]:
         """Verifica se a venda foi através de anúncio (Product Ads)"""
         try:
-            # Por enquanto, retornamos None pois a verificação de Product Ads
-            # requer análise mais complexa das métricas de publicidade
-            # TODO: Implementar verificação real de Product Ads
-            
-            # Verificar se há tags que indicam venda por anúncio
-            tags = order_data.get("tags", [])
-            context = order_data.get("context", {})
-            
             advertising_info = {
                 "is_advertising_sale": False,
                 "advertising_campaign_id": None,
@@ -420,10 +412,34 @@ class MLOrdersService:
                 "advertising_metrics": {}
             }
             
-            # Verificar contexto da venda
+            # Verificar se algum item do pedido tem listing_type_id que indica anúncio pago
+            order_items = order_data.get("order_items", [])
+            for item in order_items:
+                listing_type_id = item.get("listing_type_id")
+                
+                # Tipos de anúncios pagos no Mercado Livre
+                paid_listing_types = [
+                    "gold_pro",      # Anúncio Premium
+                    "gold_special", # Anúncio Clássico
+                    "gold"          # Anúncio Básico
+                ]
+                
+                if listing_type_id in paid_listing_types:
+                    advertising_info["is_advertising_sale"] = True
+                    logger.info(f"Venda identificada como anúncio pago (listing_type: {listing_type_id})")
+                    break
+            
+            # Verificar contexto da venda (flows específicos)
+            context = order_data.get("context", {})
             flows = context.get("flows", [])
-            if "cbt" in flows:  # Cross Border Trade pode indicar publicidade
-                advertising_info["is_advertising_sale"] = True
+            
+            # Alguns flows podem indicar publicidade
+            advertising_flows = ["cbt", "subscription", "reservation"]
+            for flow in flows:
+                if flow in advertising_flows:
+                    advertising_info["is_advertising_sale"] = True
+                    logger.info(f"Venda identificada como anúncio por flow: {flow}")
+                    break
             
             return advertising_info
             

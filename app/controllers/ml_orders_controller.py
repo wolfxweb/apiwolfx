@@ -324,6 +324,12 @@ class MLOrdersController:
                 "coupon_amount": order.coupon_amount,
                 "discounts_applied": order.discounts_applied,
                 
+                # Publicidade e anúncios
+                "is_advertising_sale": order.is_advertising_sale,
+                "advertising_campaign_id": order.advertising_campaign_id,
+                "advertising_cost": order.advertising_cost,
+                "advertising_metrics": order.advertising_metrics,
+                
                 # Itens e outros dados
                 "order_items": order.order_items,
                 "feedback": order.feedback,

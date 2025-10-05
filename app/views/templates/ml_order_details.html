@@ -70,21 +70,56 @@
                                         {% endif %}
                                     </td>
                                 </tr>
+                                <tr>
+                                    <td><strong>Origem da Venda:</strong></td>
+                                    <td>
+                                        {% if order.is_advertising_sale %}
+                                            <span class="badge bg-warning">
+                                                <i class="bi bi-megaphone me-1"></i>Anúncio Pago
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-search me-1"></i>Busca Orgânica
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
                             </table>
                         </div>
                         <div class="col-md-6">
                             <table class="table table-borderless">
                                 <tr>
                                     <td><strong>Data de Criação:</strong></td>
-                                    <td>{{ order.date_created[:10] if order.date_created else 'N/A' }}</td>
+                                    <td>
+                                        {% if order.date_created %}
+                                            {% set date_parts = order.date_created[:10].split('-') %}
+                                            {{ date_parts[2] }}/{{ date_parts[1] }}/{{ date_parts[0] }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td><strong>Data de Fechamento:</strong></td>
-                                    <td>{{ order.date_closed[:10] if order.date_closed else 'N/A' }}</td>
+                                    <td>
+                                        {% if order.date_closed %}
+                                            {% set date_parts = order.date_closed[:10].split('-') %}
+                                            {{ date_parts[2] }}/{{ date_parts[1] }}/{{ date_parts[0] }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td><strong>Última Atualização:</strong></td>
-                                    <td>{{ order.last_updated[:10] if order.last_updated else 'N/A' }}</td>
+                                    <td>
+                                        {% if order.last_updated %}
+                                            {% set date_parts = order.last_updated[:10].split('-') %}
+                                            {{ date_parts[2] }}/{{ date_parts[1] }}/{{ date_parts[0] }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
                                 </tr>
                             </table>
                         </div>
@@ -213,16 +248,15 @@
                             <div class="col-md-6">
                                 <table class="table table-borderless">
                                     <tr>
-                                        <td><strong>Valor da Transação:</strong></td>
-                                        <td class="h6 text-primary">R$ {{ "%.2f"|format(payment.transaction_amount) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Valor Total Pago:</strong></td>
-                                        <td class="h5 text-success">R$ {{ "%.2f"|format(payment.total_paid_amount) }}</td>
-                                    </tr>
-                                    <tr>
                                         <td><strong>Data de Aprovação:</strong></td>
-                                        <td>{{ payment.date_approved[:10] if payment.date_approved else 'N/A' }}</td>
+                                        <td>
+                                            {% if payment.date_approved %}
+                                                {% set date_parts = payment.date_approved[:10].split('-') %}
+                                                {{ date_parts[2] }}/{{ date_parts[1] }}/{{ date_parts[0] }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                 </table>
                             </div>
@@ -246,9 +280,9 @@
                                         <td>R$ {{ "%.2f"|format(order.shipping_cost) if order.shipping_cost else '0,00' }}</td>
                                     </tr>
                                     <tr class="border-top">
-                                        <td><strong>Total Final:</strong></td>
+                                        <td><strong>Valor Pago pelo Cliente:</strong></td>
                                         <td class="fw-bold h6">R$ {{ "%.2f"|format(payment.total_paid_amount) }}</td>
-                                        <td><strong>Lucro Líquido:</strong></td>
+                                        <td><strong>Receita Líquida:</strong></td>
                                         <td class="fw-bold text-success">R$ {{ "%.2f"|format(payment.transaction_amount - order.sale_fees) if order.sale_fees else '0,00' }}</td>
                                     </tr>
                                 </table>
