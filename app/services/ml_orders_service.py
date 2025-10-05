@@ -325,12 +325,22 @@ class MLOrdersService:
                 logger.warning(f"Erro ao buscar descontos da order {ml_order_id}: {e}")
                 # Continuar sem descontos se houver erro
             
-            # 4. Verificar se foi venda por anúncio (Product Ads)
-            advertising_info = self._check_advertising_sale(order_data, access_token)
+            # 4. Buscar dados de publicidade da API
+            advertising_info = self._fetch_advertising_data(ml_order_id, access_token)
             if advertising_info:
                 complete_data.update(advertising_info)
             
-            # 5. Calcular taxas e comissões
+            # 5. Verificar se foi venda por anúncio (Product Ads)
+            advertising_sale_info = self._check_advertising_sale(order_data, access_token)
+            if advertising_sale_info:
+                complete_data.update(advertising_sale_info)
+            
+            # 6. Verificar se contém produtos de catálogo
+            catalog_info = self._check_catalog_products(order_data)
+            if catalog_info:
+                complete_data.update(catalog_info)
+            
+            # 7. Calcular taxas e comissões
             fees_info = self._calculate_order_fees(order_data)
             if fees_info:
                 complete_data.update(fees_info)
@@ -402,6 +412,130 @@ class MLOrdersService:
             logger.warning(f"Erro ao buscar descontos da order {ml_order_id}: {e}")
             return None
     
+    def _fetch_advertising_data(self, ml_order_id: int, access_token: str) -> Optional[Dict]:
+        """Busca dados de publicidade de um pedido específico"""
+        try:
+            logger.info(f"Buscando dados de publicidade para order {ml_order_id}")
+            
+            # 1. Buscar dados de publicidade dos anunciantes
+            advertisers_data = self._fetch_advertisers_data(access_token)
+            if not advertisers_data:
+                logger.warning("Nenhum anunciante encontrado")
+                return None
+            
+            # 2. Para cada anunciante, buscar métricas de campanhas
+            advertising_info = {
+                "advertising_campaign_id": None,
+                "advertising_cost": 0,
+                "advertising_metrics": {}
+            }
+            
+            for advertiser in advertisers_data:
+                advertiser_id = advertiser.get("advertiser_id")
+                site_id = advertiser.get("site_id")
+                
+                if advertiser_id and site_id:
+                    # Buscar métricas de campanhas do anunciante
+                    campaign_metrics = self._fetch_campaign_metrics(advertiser_id, site_id, access_token)
+                    if campaign_metrics:
+                        # Correlacionar com o pedido específico
+                        order_advertising_data = self._correlate_order_with_advertising(
+                            ml_order_id, campaign_metrics
+                        )
+                        if order_advertising_data:
+                            advertising_info.update(order_advertising_data)
+                            break
+            
+            return advertising_info
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados de publicidade da order {ml_order_id}: {e}")
+            return None
+    
+    def _fetch_advertisers_data(self, access_token: str) -> Optional[List[Dict]]:
+        """Busca dados dos anunciantes"""
+        try:
+            url = f"{self.base_url}/advertising/advertisers"
+            params = {"product_id": "PADS"}
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "Api-Version": "1"
+            }
+            
+            response = requests.get(url, params=params, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            return data.get("advertisers", [])
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar anunciantes: {e}")
+            return None
+    
+    def _fetch_campaign_metrics(self, advertiser_id: int, site_id: str, access_token: str) -> Optional[Dict]:
+        """Busca métricas de campanhas de um anunciante"""
+        try:
+            # Buscar campanhas do anunciante
+            url = f"{self.base_url}/advertising/{site_id}/advertisers/{advertiser_id}/product_ads/campaigns/search"
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "api-version": "2"
+            }
+            
+            # Buscar métricas dos últimos 30 dias
+            from datetime import datetime, timedelta
+            date_to = datetime.now()
+            date_from = date_to - timedelta(days=30)
+            
+            params = {
+                "date_from": date_from.strftime("%Y-%m-%d"),
+                "date_to": date_to.strftime("%Y-%m-%d"),
+                "metrics": "clicks,prints,cost,cpc,acos,direct_amount,indirect_amount,total_amount"
+            }
+            
+            response = requests.get(url, params=params, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            return data
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar métricas de campanhas: {e}")
+            return None
+    
+    def _correlate_order_with_advertising(self, ml_order_id: int, campaign_metrics: Dict) -> Optional[Dict]:
+        """Correlaciona um pedido específico com dados de publicidade"""
+        try:
+            # Por enquanto, retornar dados estimados baseados nas métricas
+            # TODO: Implementar correlação mais precisa
+            
+            results = campaign_metrics.get("results", [])
+            if not results:
+                return None
+            
+            # Calcular métricas agregadas
+            total_cost = sum(campaign.get("metrics", {}).get("cost", 0) for campaign in results)
+            total_revenue = sum(campaign.get("metrics", {}).get("total_amount", 0) for campaign in results)
+            
+            # Estimar custo por pedido (aproximação)
+            estimated_cost_per_order = total_cost / max(len(results), 1)
+            
+            return {
+                "advertising_campaign_id": results[0].get("id") if results else None,
+                "advertising_cost": estimated_cost_per_order,
+                "advertising_metrics": {
+                    "total_cost": total_cost,
+                    "total_revenue": total_revenue,
+                    "roas": total_revenue / max(total_cost, 1),
+                    "campaigns_count": len(results)
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao correlacionar pedido com publicidade: {e}")
+            return None
+    
     def _check_advertising_sale(self, order_data: Dict, access_token: str) -> Optional[Dict]:
         """Verifica se a venda foi através de anúncio (Product Ads)"""
         try:
@@ -412,39 +546,118 @@ class MLOrdersService:
                 "advertising_metrics": {}
             }
             
-            # Verificar se algum item do pedido tem listing_type_id que indica anúncio pago
-            order_items = order_data.get("order_items", [])
-            for item in order_items:
-                listing_type_id = item.get("listing_type_id")
-                
-                # Tipos de anúncios pagos no Mercado Livre
-                paid_listing_types = [
-                    "gold_pro",      # Anúncio Premium
-                    "gold_special", # Anúncio Clássico
-                    "gold"          # Anúncio Básico
-                ]
-                
-                if listing_type_id in paid_listing_types:
-                    advertising_info["is_advertising_sale"] = True
-                    logger.info(f"Venda identificada como anúncio pago (listing_type: {listing_type_id})")
-                    break
-            
-            # Verificar contexto da venda (flows específicos)
+            # Verificar contexto da venda (flows específicos que indicam publicidade)
             context = order_data.get("context", {})
             flows = context.get("flows", [])
             
-            # Alguns flows podem indicar publicidade
-            advertising_flows = ["cbt", "subscription", "reservation"]
+            # Flows que podem indicar publicidade real
+            advertising_flows = ["cbt", "subscription", "reservation", "advertising", "promoted"]
             for flow in flows:
                 if flow in advertising_flows:
                     advertising_info["is_advertising_sale"] = True
                     logger.info(f"Venda identificada como anúncio por flow: {flow}")
                     break
             
+            # Verificar se há tags que indicam publicidade
+            tags = order_data.get("tags", [])
+            advertising_tags = ["advertising", "promoted", "sponsored", "ad", "ads"]
+            for tag in tags:
+                if tag.lower() in advertising_tags:
+                    advertising_info["is_advertising_sale"] = True
+                    logger.info(f"Venda identificada como anúncio por tag: {tag}")
+                    break
+            
+            # Verificar se há dados de publicidade nos campos específicos
+            if order_data.get("advertising_campaign_id"):
+                advertising_info["is_advertising_sale"] = True
+                advertising_info["advertising_campaign_id"] = order_data.get("advertising_campaign_id")
+                logger.info(f"Venda identificada como anúncio por campaign_id: {order_data.get('advertising_campaign_id')}")
+            
+            if order_data.get("advertising_cost", 0) > 0:
+                advertising_info["is_advertising_sale"] = True
+                advertising_info["advertising_cost"] = order_data.get("advertising_cost", 0)
+                logger.info(f"Venda identificada como anúncio por cost: {order_data.get('advertising_cost')}")
+            
+            # Verificar se há dados de publicidade nos order_items
+            order_items = order_data.get("order_items", [])
+            for item in order_items:
+                # Verificar se há dados de publicidade no item
+                if item.get("advertising_data"):
+                    advertising_info["is_advertising_sale"] = True
+                    logger.info(f"Venda identificada como anúncio por advertising_data no item")
+                    break
+                
+                # Verificar se há dados de publicidade no listing_type_id
+                listing_type_id = item.get("listing_type_id")
+                if listing_type_id in ["gold_pro", "gold_special"]:
+                    # Verificar se há dados de publicidade no context do item
+                    item_context = item.get("context", {})
+                    if item_context.get("advertising") or item_context.get("promoted"):
+                        advertising_info["is_advertising_sale"] = True
+                        logger.info(f"Venda identificada como anúncio por context do item: {listing_type_id}")
+                        break
+            
+            # Por padrão, considerar como busca orgânica
+            # A menos que haja evidência clara de publicidade
+            if not advertising_info["is_advertising_sale"]:
+                logger.info("Venda identificada como busca orgânica (sem evidência de publicidade)")
+            
             return advertising_info
             
         except Exception as e:
             logger.error(f"Erro ao verificar venda por anúncio: {e}")
+            return None
+    
+    def _check_catalog_products(self, order_data: Dict) -> Optional[Dict]:
+        """Verifica se o pedido contém produtos de catálogo"""
+        try:
+            catalog_info = {
+                "has_catalog_products": False,
+                "catalog_products_count": 0,
+                "catalog_products": []
+            }
+            
+            # Verificar itens do pedido
+            order_items = order_data.get("order_items", [])
+            for item in order_items:
+                item_data = item.get("item", {})
+                
+                # Verificar se é produto de catálogo
+                is_catalog = False
+                
+                # 1. Verificar campo catalog_listing
+                if item.get("catalog_listing") is True:
+                    is_catalog = True
+                    logger.info(f"Produto identificado como catálogo (catalog_listing: true)")
+                
+                # 2. Verificar se tem user_product_id (indica User Product/Catálogo)
+                user_product_id = item_data.get("user_product_id")
+                if user_product_id:
+                    is_catalog = True
+                    logger.info(f"Produto identificado como catálogo (user_product_id: {user_product_id})")
+                
+                # 3. Verificar listing_type_id específico para catálogo
+                listing_type_id = item.get("listing_type_id")
+                if listing_type_id in ["gold_pro", "gold_special"] and item.get("catalog_listing") is not False:
+                    # Se não foi explicitamente marcado como não-catálogo, pode ser catálogo
+                    is_catalog = True
+                    logger.info(f"Produto identificado como possível catálogo (listing_type: {listing_type_id})")
+                
+                if is_catalog:
+                    catalog_info["has_catalog_products"] = True
+                    catalog_info["catalog_products_count"] += 1
+                    catalog_info["catalog_products"].append({
+                        "item_id": item_data.get("id"),
+                        "title": item_data.get("title"),
+                        "user_product_id": user_product_id,
+                        "catalog_listing": item.get("catalog_listing"),
+                        "listing_type_id": listing_type_id
+                    })
+            
+            return catalog_info
+            
+        except Exception as e:
+            logger.error(f"Erro ao verificar produtos de catálogo: {e}")
             return None
     
     def _calculate_order_fees(self, order_data: Dict) -> Optional[Dict]:
@@ -650,6 +863,11 @@ class MLOrdersService:
                 "advertising_campaign_id": order_data.get("advertising_campaign_id"),
                 "advertising_cost": order_data.get("advertising_cost", 0),
                 "advertising_metrics": order_data.get("advertising_metrics", {}),
+                
+                # === PRODUTOS DE CATÁLOGO ===
+                "has_catalog_products": order_data.get("has_catalog_products", False),
+                "catalog_products_count": order_data.get("catalog_products_count", 0),
+                "catalog_products": order_data.get("catalog_products", []),
                 
                 # === CONTEXTO DA VENDA ===
                 "context": order_data.get("context"),

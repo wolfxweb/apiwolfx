@@ -125,8 +125,8 @@
                                     <th class="sortable" data-sort="buyer_nickname" onclick="sortTable('buyer_nickname')">
                                         Comprador <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable text-end" data-sort="total_amount" onclick="sortTable('total_amount')">
-                                        Valor do Produto <i class="bi bi-arrow-down-up ms-1"></i>
+                                    <th class="sortable text-end" data-sort="paid_amount" onclick="sortTable('paid_amount')">
+                                        Valor Pago pelo Cliente <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
                                     <th class="sortable text-end" data-sort="coupon_amount" onclick="sortTable('coupon_amount')">
                                         Desconto (Cupom) <i class="bi bi-arrow-down-up ms-1"></i>
@@ -137,9 +137,6 @@
                                     <th class="sortable text-end" data-sort="shipping_cost" onclick="sortTable('shipping_cost')">
                                         Frete <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable text-end" data-sort="paid_amount" onclick="sortTable('paid_amount')">
-                                        Valor Pago pelo Cliente <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
                                     <th class="sortable text-end" data-sort="net_profit" onclick="sortTable('net_profit')">
                                         Receita Líquida <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
@@ -148,7 +145,7 @@
                             </thead>
                             <tbody id="orders-table-body">
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">
+                                    <td colspan="8" class="text-center text-muted py-4">
                                         <i class="bi bi-info-circle"></i> Carregando pedidos...
                                     </td>
                                 </tr>
@@ -433,7 +430,7 @@ function renderOrders(orders) {
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" class="text-center text-muted py-4">
+                <td colspan="8" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -454,12 +451,13 @@ function renderOrders(orders) {
                         ${order.buyer_email ? `<br><small class="text-muted">${order.buyer_email}</small>` : ''}
                         <br><small class="text-muted">ID: ${order.ml_order_id || order.order_id}</small>
                         <br><small class="text-muted">Data: ${formatDate(order.date_created)}</small>
+                        <br><small class="text-muted">Origem da Venda: ${order.is_advertising_sale ? 'Anúncio Pago' : 'Busca Orgânica'}</small>
                     </div>
                 </div>
             </td>
             <td>
                 <div class="text-end">
-                    <strong class="small">${formatCurrency(order.total_amount || 0, order.currency_id)}</strong>
+                    <strong class="small">${formatCurrency(order.paid_amount || 0, order.currency_id)}</strong>
                 </div>
             </td>
             <td>
@@ -475,11 +473,6 @@ function renderOrders(orders) {
             <td>
                 <div class="text-end">
                     <span class="text-info small">${formatCurrency(order.shipping_cost || 0, order.currency_id)}</span>
-                </div>
-            </td>
-            <td>
-                <div class="text-end">
-                    <strong class="text-primary small">${formatCurrency(order.paid_amount || order.total_amount || 0, order.currency_id)}</strong>
                 </div>
             </td>
             <td>

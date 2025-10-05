@@ -142,7 +142,8 @@ class MLOrdersController:
                     "shipping_address": order.shipping_address,
                     "account_nickname": account.nickname if account else "N/A",
                     "account_email": account.email if account else "N/A",
-                    "account_country": account.country_id if account else "N/A"
+                    "account_country": account.country_id if account else "N/A",
+                    "is_advertising_sale": order.is_advertising_sale  # Origem da venda
                 }
                 all_orders.append(order_data)
             
@@ -329,6 +330,11 @@ class MLOrdersController:
                 "advertising_campaign_id": order.advertising_campaign_id,
                 "advertising_cost": order.advertising_cost,
                 "advertising_metrics": order.advertising_metrics,
+                
+                # Produtos de catálogo (temporariamente desabilitado)
+                "has_catalog_products": False,
+                "catalog_products_count": 0,
+                "catalog_products": [],
                 
                 # Itens e outros dados
                 "order_items": order.order_items,
