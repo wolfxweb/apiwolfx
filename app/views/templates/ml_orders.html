@@ -373,6 +373,7 @@ function renderOrders(orders) {
                         <strong>${order.buyer_nickname || 'N/A'}</strong>
                         ${order.buyer_email ? `<br><small class="text-muted">${order.buyer_email}</small>` : ''}
                         <br><small class="text-muted">ID: ${order.ml_order_id || order.order_id}</small>
+                        <br><small class="text-muted">Data: ${formatDate(order.date_created)}</small>
                     </div>
                 </div>
             </td>
