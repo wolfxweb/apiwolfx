@@ -122,30 +122,33 @@
                                     <th width="50">
                                         <input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders()">
                                     </th>
-                                    <th class="sortable" data-sort="ml_order_id" onclick="sortTable('ml_order_id')">
-                                        ID do Pedido <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
                                     <th class="sortable" data-sort="buyer_nickname" onclick="sortTable('buyer_nickname')">
                                         Comprador <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="status" onclick="sortTable('status')">
-                                        Status <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
                                     <th class="sortable" data-sort="total_amount" onclick="sortTable('total_amount')">
-                                        Valor <i class="bi bi-arrow-down-up ms-1"></i>
+                                        Valor do Produto <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="account_nickname" onclick="sortTable('account_nickname')">
-                                        Conta <i class="bi bi-arrow-down-up ms-1"></i>
+                                    <th class="sortable" data-sort="coupon_amount" onclick="sortTable('coupon_amount')">
+                                        Desconto (Cupom) <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="date_created" onclick="sortTable('date_created')">
-                                        Data <i class="bi bi-arrow-down-up ms-1"></i>
+                                    <th class="sortable" data-sort="sale_fees" onclick="sortTable('sale_fees')">
+                                        Taxa do Mercado Livre <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="shipping_cost" onclick="sortTable('shipping_cost')">
+                                        Frete <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="paid_amount" onclick="sortTable('paid_amount')">
+                                        Total Final <i class="bi bi-arrow-down-up ms-1"></i>
+                                    </th>
+                                    <th class="sortable" data-sort="net_profit" onclick="sortTable('net_profit')">
+                                        Lucro Líquido <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="orders-table-body">
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
+                                    <td colspan="9" class="text-center text-muted py-4">
                                         <i class="bi bi-info-circle"></i> Carregando pedidos...
                                     </td>
                                 </tr>
@@ -350,7 +353,7 @@ function renderOrders(orders) {
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center text-muted py-4">
+                <td colspan="9" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -365,43 +368,42 @@ function renderOrders(orders) {
             </td>
             <td>
                 <div class="d-flex align-items-center">
-                    <i class="bi bi-receipt text-primary me-2"></i>
-                    <strong>${order.ml_order_id || order.order_id}</strong>
-                </div>
-            </td>
-            <td>
-                <div class="d-flex align-items-center">
                     <i class="bi bi-person-circle text-success me-2"></i>
                     <div>
                         <strong>${order.buyer_nickname || 'N/A'}</strong>
                         ${order.buyer_email ? `<br><small class="text-muted">${order.buyer_email}</small>` : ''}
+                        <br><small class="text-muted">ID: ${order.ml_order_id || order.order_id}</small>
                     </div>
                 </div>
-            </td>
-            <td>
-                <span class="badge ${getStatusBadgeClass(order.status)}">
-                    ${getStatusLabel(order.status)}
-                </span>
             </td>
             <td>
                 <div class="text-end">
                     <strong>${formatCurrency(order.total_amount || 0, order.currency_id)}</strong>
-                    ${order.shipping_cost ? `<br><small class="text-muted">+ ${formatCurrency(order.shipping_cost, order.currency_id)} frete</small>` : ''}
                 </div>
             </td>
             <td>
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-shop-fill text-info me-2"></i>
-                    <div>
-                        <strong>${order.account_nickname || 'N/A'}</strong>
-                        ${order.account_country ? `<br><small class="text-muted">${order.account_country}</small>` : ''}
-                    </div>
+                <div class="text-end">
+                    <span class="text-danger">- ${formatCurrency(order.coupon_amount || 0, order.currency_id)}</span>
                 </div>
             </td>
             <td>
-                <div>
-                    <strong>${formatDate(order.date_created)}</strong>
-                    ${order.last_updated ? `<br><small class="text-muted">Atualizado: ${formatDate(order.last_updated)}</small>` : ''}
+                <div class="text-end">
+                    <span class="text-warning">${formatCurrency(order.sale_fees || 0, order.currency_id)}</span>
+                </div>
+            </td>
+            <td>
+                <div class="text-end">
+                    <span class="text-info">${formatCurrency(order.shipping_cost || 0, order.currency_id)}</span>
+                </div>
+            </td>
+            <td>
+                <div class="text-end">
+                    <strong class="text-success">${formatCurrency(order.paid_amount || order.total_amount || 0, order.currency_id)}</strong>
+                </div>
+            </td>
+            <td>
+                <div class="text-end">
+                    <strong class="text-success">${formatCurrency((order.total_amount || 0) - (order.sale_fees || 0), order.currency_id)}</strong>
                 </div>
             </td>
             <td>

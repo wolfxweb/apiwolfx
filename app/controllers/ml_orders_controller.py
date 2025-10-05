@@ -101,6 +101,25 @@ class MLOrdersController:
                 # Buscar informações da conta ML
                 account = next((acc for acc in accounts if acc.id == order.ml_account_id), None)
                 
+                # Extrair dados de pagamento para usar os valores corretos
+                payments_data = order.payments
+                payment_transaction_amount = 0
+                payment_coupon_amount = 0
+                payment_total_paid_amount = 0
+                
+                if payments_data:
+                    import json
+                    if isinstance(payments_data, str):
+                        payments = json.loads(payments_data)
+                    else:
+                        payments = payments_data
+                    
+                    if payments and len(payments) > 0:
+                        payment = payments[0]
+                        payment_transaction_amount = payment.get("transaction_amount", 0)
+                        payment_coupon_amount = payment.get("coupon_amount", 0)
+                        payment_total_paid_amount = payment.get("total_paid_amount", 0)
+                
                 order_data = {
                     "id": order.id,
                     "ml_order_id": order.ml_order_id,
@@ -109,11 +128,14 @@ class MLOrdersController:
                     "buyer_email": order.buyer_email,
                     "status": order.status.value if order.status else None,
                     "status_detail": order.status_detail,
-                    "total_amount": order.total_amount,
+                    "total_amount": payment_transaction_amount,  # Valor do produto
+                    "paid_amount": payment_total_paid_amount,    # Total final
                     "currency_id": order.currency_id,
                     "payment_status": order.payment_status,
                     "shipping_cost": order.shipping_cost,
                     "shipping_method": order.shipping_method,
+                    "sale_fees": order.sale_fees,
+                    "coupon_amount": payment_coupon_amount,      # Desconto do cupom
                     "date_created": order.date_created.isoformat() if order.date_created else None,
                     "last_updated": order.last_updated.isoformat() if order.last_updated else None,
                     "order_items": order.order_items,
