@@ -93,26 +93,42 @@
                         </div>
                     </div>
 
-                    <!-- Shipping Costs -->
-                    <div class="col-md-6 mb-4">
-                        <div class="card h-100">
-                            <div class="card-header bg-info text-white">
-                                <h5 class="mb-0">
-                                    <i class="bi bi-truck"></i> Custos de Envio
-                                </h5>
+        <!-- Catalog Information -->
+        <div class="col-md-12 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0" id="catalog-shipping-header">
+                        <i class="bi bi-truck"></i> Custos de Envio
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="catalog-shipping-content">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Carregando...</span>
                             </div>
-                            <div class="card-body">
-                                <div id="shipping-costs">
-                                    <div class="text-center py-3">
-                                        <div class="spinner-border spinner-border-sm" role="status">
-                                            <span class="visually-hidden">Carregando...</span>
-                                        </div>
-                                        <p class="mt-2 mb-0">Calculando envios...</p>
-                                    </div>
-                                </div>
-                            </div>
+                            <p class="mt-2 mb-0">Verificando informações...</p>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Resumo Card (placeholder) -->
+        <div class="col-md-12 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-graph-up"></i> Resumo
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center py-3">
+                        <p class="text-muted mb-0">Card de resumo será implementado aqui</p>
+                    </div>
+                </div>
+            </div>
+        </div>
                 </div>
 
                 <!-- Profitability Analysis -->
@@ -184,7 +200,7 @@ function loadProductAnalysis(productId) {
             if (data.success) {
                 renderProductInfo(data.product);
                 loadMarketplaceFees(data.product);
-                loadShippingCosts(data.product);
+                checkCatalogInfo(data.product);
                 loadProfitabilityAnalysis(data.product);
                 loadRecommendations(data.product);
                 
@@ -748,6 +764,312 @@ function getStatusBadge(status) {
         'inactive': '<span class="badge bg-secondary">Inativo</span>'
     };
     return statusMap[status] || '<span class="badge bg-secondary">Desconhecido</span>';
+}
+
+function checkCatalogInfo(product) {
+    // Verificar se o produto é de catálogo
+    if (product.catalog_listing) {
+        loadCatalogInfo(product.id);
+    } else {
+        loadShippingCosts(product);
+    }
+}
+
+function loadCatalogInfo(productId) {
+    // Atualizar header
+    document.getElementById('catalog-shipping-header').innerHTML = `
+        <i class="bi bi-collection"></i> Informações de Catálogo
+    `;
+    
+    // Buscar informações de catálogo
+    fetch(`/ml/products/api/product/${productId}/catalog`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.is_catalog) {
+                renderCatalogInfo(data);
+            } else {
+                // Se não é catálogo, mostrar custos de envio
+                loadShippingCosts();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar informações de catálogo:', error);
+            loadShippingCosts();
+        });
+}
+
+function renderCatalogInfo(data) {
+    const container = document.getElementById('catalog-shipping-content');
+    
+    if (data.catalog_products.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                Este produto é de catálogo, mas não há outros anunciantes encontrados.
+            </div>
+        `;
+        return;
+    }
+    
+    // Ordenar por preço
+    const sortedProducts = data.catalog_products.sort((a, b) => a.price - b.price);
+    
+    let html = `
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-1">Catálogo ID: ${data.catalog_product_id}</h6>
+                    <span class="badge bg-primary">${data.total_announcers} Anunciantes</span>
+                </div>
+                <a href="https://www.mercadolivre.com.br/catalogo/explorar/" 
+                   target="_blank" 
+                   class="btn btn-outline-primary btn-sm"
+                   title="Abrir catálogo do Mercado Livre">
+                    <i class="bi bi-box-arrow-up-right"></i> Ver Catálogo
+                </a>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                <th>Anunciante</th>
+                <th>Preço</th>
+                <th>Vendas</th>
+                <th>Posição</th>
+                <th>Envio</th>
+                <th>Reputação</th>
+                <th>Nível</th>
+                <th>Loja Oficial</th>
+                <th>Desconto</th>
+                <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    sortedProducts.forEach(product => {
+        const priceFormatted = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(product.price);
+        
+        // Informações de envio
+        let shippingInfo = "N/A";
+        if (product.shipping) {
+            if (product.shipping.free_shipping) {
+                shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
+            } else if (product.shipping.mode === 'me2') {
+                shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
+            } else if (product.shipping.mode === 'fulfillment') {
+                shippingInfo = '<span class="badge bg-primary">Full</span>';
+            } else if (product.shipping.mode === 'xd_drop_off') {
+                shippingInfo = '<span class="badge bg-warning">Drop-off</span>';
+            } else {
+                shippingInfo = '<span class="badge bg-secondary">Custom</span>';
+            }
+        }
+        
+        // Informações de garantia
+        let warrantyInfo = product.warranty || "";
+        if (warrantyInfo && warrantyInfo !== "N/A" && warrantyInfo.length > 30) {
+            warrantyInfo = warrantyInfo.substring(0, 30) + "...";
+        } else if (!warrantyInfo || warrantyInfo === "N/A") {
+            warrantyInfo = "";
+        }
+        
+        // Tags do produto
+        let productTags = "";
+        if (product.tags && product.tags.length > 0) {
+            const importantTags = product.tags.filter(tag => 
+                ['good_quality_picture', 'immediate_payment', 'cart_eligible'].includes(tag)
+            );
+            if (importantTags.length > 0) {
+                // Função para traduzir tags para português
+                const translateTag = (tag) => {
+                    const translations = {
+                        'good_quality_picture': 'Imagem de Qualidade',
+                        'immediate_payment': 'Pagamento Imediato',
+                        'cart_eligible': 'Elegível para Carrinho'
+                    };
+                    return translations[tag] || tag.replace(/_/g, ' ');
+                };
+                
+                productTags = `<div class="mt-1">${importantTags.map(tag => 
+                    `<span class="badge bg-light text-dark me-1">${translateTag(tag)}</span>`
+                ).join('')}</div>`;
+            }
+        }
+        
+        // Total de vendas do vendedor
+        const vendasInfo = product.seller_transactions_total > 0 ? 
+            `<span class="badge bg-primary">${product.seller_transactions_total}</span>` : 
+            '<span class="badge bg-secondary">0</span>';
+        
+        // Informações sobre posição no catálogo
+        let positionInfo = "";
+        if (product.buy_box_winner) {
+            positionInfo = '<span class="badge bg-success">🏆 Vencedor</span>';
+        } else if (product.position) {
+            if (product.position === 1) {
+                positionInfo = '<span class="badge bg-success">🥇 1º Lugar</span>';
+            } else if (product.position === 2) {
+                positionInfo = '<span class="badge bg-secondary">🥈 2º Lugar</span>';
+            } else if (product.position === 3) {
+                positionInfo = '<span class="badge bg-warning">🥉 3º Lugar</span>';
+            } else {
+                positionInfo = `<span class="badge bg-light text-dark">#${product.position}</span>`;
+            }
+        }
+        
+        // Reputação do vendedor com medalhas
+        let reputationBadge = "";
+        if (product.seller_reputation_level && product.seller_reputation_level !== "UNKNOWN") {
+            switch(product.seller_reputation_level) {
+                case "GREEN":
+                    reputationBadge = '<span class="badge bg-success">🟢 Verde</span>';
+                    break;
+                case "YELLOW":
+                    reputationBadge = '<span class="badge bg-warning">🟡 Amarelo</span>';
+                    break;
+                case "RED":
+                    reputationBadge = '<span class="badge bg-danger">🔴 Vermelho</span>';
+                    break;
+                default:
+                    reputationBadge = '<span class="badge bg-secondary">⚪ Neutro</span>';
+                    break;
+            }
+        } else {
+            reputationBadge = '<span class="badge bg-light text-dark">❓ Desconhecida</span>';
+        }
+        
+        // Nível de reputação do item (current_level)
+        let currentLevelBadge = "";
+        if (product.current_level && product.current_level !== "unknown") {
+            switch(product.current_level.toLowerCase()) {
+                case "green":
+                    currentLevelBadge = '<span class="badge bg-success">🟢 Verde</span>';
+                    break;
+                case "yellow":
+                    currentLevelBadge = '<span class="badge bg-warning">🟡 Amarelo</span>';
+                    break;
+                case "red":
+                    currentLevelBadge = '<span class="badge bg-danger">🔴 Vermelho</span>';
+                    break;
+                case "newbie":
+                    currentLevelBadge = '<span class="badge bg-info">🆕 Iniciante</span>';
+                    break;
+                default:
+                    currentLevelBadge = `<span class="badge bg-secondary">${product.current_level}</span>`;
+                    break;
+            }
+        } else {
+            currentLevelBadge = '<span class="badge bg-light text-dark">❓ Desconhecido</span>';
+        }
+        
+        // Medalhas do vendedor
+        let sellerMedals = "";
+        if (product.seller_power_seller_status) {
+            let powerSellerText = "";
+            let powerSellerClass = "";
+            if (product.seller_power_seller_status === "silver") {
+                powerSellerText = "MercadoLíder";
+                powerSellerClass = "bg-secondary"; // Cinza para Silver
+            } else if (product.seller_power_seller_status === "gold") {
+                powerSellerText = "MercadoLíder Gold";
+                powerSellerClass = "bg-warning"; // Amarelo/Dourado para Gold
+            } else if (product.seller_power_seller_status === "platinum") {
+                powerSellerText = "MercadoLíder Platinum";
+                powerSellerClass = "bg-info"; // Azul para Platinum
+            } else {
+                powerSellerText = "MercadoLíder";
+                powerSellerClass = "bg-secondary"; // Cinza padrão
+            }
+            sellerMedals += `<span class="badge ${powerSellerClass} me-1">${powerSellerText}</span>`;
+        }
+        if (product.seller_experience && product.seller_experience !== "N/A") {
+            let experienceText = product.seller_experience;
+            if (product.seller_experience === "ADVANCED") {
+                experienceText = "Avançado";
+            } else if (product.seller_experience === "INTERMEDIATE") {
+                experienceText = "Intermediário";
+            } else if (product.seller_experience === "BEGINNER") {
+                experienceText = "Iniciante";
+            }
+            sellerMedals += `<span class="badge bg-info me-1">${experienceText}</span>`;
+        }
+        
+        // Informações adicionais do vendedor
+        let sellerInfo = "";
+        if (product.accepts_mercadopago) {
+            sellerInfo += '<span class="badge bg-primary me-1">MercadoPago</span>';
+        }
+        if (product.official_store_id) {
+            sellerInfo += '<span class="badge bg-info me-1">Loja Oficial</span>';
+        }
+        if (product.original_price && product.original_price > product.price) {
+            const discount = Math.round(((product.original_price - product.price) / product.original_price) * 100);
+            sellerInfo += `<span class="badge bg-success me-1">-${discount}%</span>`;
+        }
+        
+        // Badges individuais para as colunas
+        const lojaOficialBadge = product.official_store_id ? 
+            '<span class="badge bg-info">Sim</span>' : 
+            '';
+            
+        const descontoBadge = (product.original_price && product.original_price > product.price) ? 
+            `<span class="badge bg-success">-${Math.round(((product.original_price - product.price) / product.original_price) * 100)}%</span>` : 
+            '';
+        
+        // Debug: verificar URL do produto
+        console.log(`Produto ${product.ml_item_id}: ${product.permalink}`);
+        
+        html += `
+            <tr>
+                <td>
+                    <div>
+                        <div class="fw-bold">${(product.seller_name && product.seller_name !== 'N/A') ? product.seller_name : product.seller_id}</div>
+                        ${product.seller_nickname && product.seller_nickname !== 'N/A' ? 
+                            `<small class="text-muted">${product.seller_nickname}</small>` : ''}
+                        <small class="text-muted d-block">${product.ml_item_id}</small>
+                        ${sellerMedals ? `<div class="mt-1">${sellerMedals}</div>` : ''}
+                        ${productTags}
+                    </div>
+                </td>
+                <td class="fw-bold">${priceFormatted}</td>
+                <td>${vendasInfo}</td>
+                <td>${positionInfo}</td>
+                <td>${shippingInfo}</td>
+                <td>${reputationBadge}</td>
+                <td>${currentLevelBadge}</td>
+                <td>${lojaOficialBadge}</td>
+                <td>${descontoBadge}</td>
+                <td>
+                    <a href="${product.permalink}" 
+                       target="_blank" 
+                       class="btn btn-outline-primary btn-sm" 
+                       title="Ver anúncio: ${product.permalink}"
+                       onclick="console.log('Clicando em: ${product.permalink}')">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">
+            <small class="text-muted">
+                <i class="bi bi-info-circle"></i>
+                Comparação de preços entre anunciantes do mesmo catálogo
+            </small>
+        </div>
+    `;
+    
+    container.innerHTML = html;
 }
 </script>
 {% endblock %}

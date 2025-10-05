@@ -9,7 +9,11 @@ from fastapi.responses import HTMLResponse
 
 from app.models.saas_models import MLAccount, MLProduct, User, MLAccountStatus, UserMLAccount
 from app.services.ml_product_service import MLProductService
-from app.views.template_renderer import render_template
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+
+# Configurar templates com Jinja2 nativo
+templates = Jinja2Templates(directory=Path(__file__).parent.parent / "views" / "templates")
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +25,7 @@ class MLProductController:
         self.product_service = MLProductService(db)
     
     def get_products_page(self, company_id: int, user_data: dict = None, ml_account_id: Optional[int] = None, 
-                         status: Optional[str] = None, page: int = 1, limit: int = 20) -> str:
+                         status: Optional[str] = None, page: int = 1, limit: int = 20, request=None) -> str:
         """Renderiza página de produtos ML"""
         try:
             user_id = user_data.get('id') if user_data else None
@@ -42,17 +46,18 @@ class MLProductController:
                 ).all()
             
             if not ml_accounts:
-                return render_template('ml_products.html',
-                    user=user_data,
-                    ml_accounts=[],
-                    products=[],
-                    total_products=0,
-                    current_account=None,
-                    current_status=status,
-                    page=page,
-                    limit=limit,
-                    error='Nenhuma conta ML ativa encontrada'
-                )
+                return templates.TemplateResponse('ml_products.html', {
+                    "request": request,
+                    "user": user_data,
+                    "ml_accounts": [],
+                    "products": [],
+                    "total_products": 0,
+                    "current_account": None,
+                    "current_status": status,
+                    "page": page,
+                    "limit": limit,
+                    "error": 'Nenhuma conta ML ativa encontrada'
+                })
             
             # Se não especificou conta, usar a primeira
             if not ml_account_id:
@@ -67,9 +72,10 @@ class MLProductController:
             # Buscar conta atual
             current_account = next((acc for acc in ml_accounts if acc.id == ml_account_id), None)
             
-            return render_template('ml_products.html',
-                user=user_data,
-                ml_accounts=[
+            return templates.TemplateResponse('ml_products.html', {
+                "request": request,
+                "user": user_data,
+                "ml_accounts": [
                     {
                         'id': acc.id,
                         'nickname': acc.nickname,
@@ -78,31 +84,32 @@ class MLProductController:
                     }
                     for acc in ml_accounts
                 ],
-                products=products_data['products'],
-                total_products=products_data['total'],
-                current_account={
+                "products": products_data['products'],
+                "total_products": products_data['total'],
+                "current_account": {
                     'id': current_account.id,
                     'nickname': current_account.nickname,
                     'email': current_account.email
                 } if current_account else None,
-                current_status=status,
-                page=page,
-                limit=limit,
-                has_next=(offset + limit) < products_data['total'],
-                has_prev=page > 1,
-                next_page=page + 1 if (offset + limit) < products_data['total'] else None,
-                prev_page=page - 1 if page > 1 else None
-            )
+                "current_status": status,
+                "page": page,
+                "limit": limit,
+                "has_next": (offset + limit) < products_data['total'],
+                "has_prev": page > 1,
+                "next_page": page + 1 if (offset + limit) < products_data['total'] else None,
+                "prev_page": page - 1 if page > 1 else None
+            })
             
         except Exception as e:
             logger.error(f"Erro ao renderizar página de produtos: {e}")
-            return render_template('ml_products.html',
-                user=user_data,
-                ml_accounts=[],
-                products=[],
-                total_products=0,
-                error=f'Erro ao carregar produtos: {str(e)}'
-            )
+            return templates.TemplateResponse('ml_products.html', {
+                "request": request,
+                "user": user_data,
+                "ml_accounts": [],
+                "products": [],
+                "total_products": 0,
+                "error": f'Erro ao carregar produtos: {str(e)}'
+            })
     
     def sync_products(self, company_id: int, ml_account_id: int, user_id: int) -> Dict:
         """Inicia sincronização de produtos"""
@@ -485,16 +492,22 @@ class MLProductController:
     def get_product_analysis_page(self, request, user, product_id):
         """Renderiza a página de análise do produto"""
         try:
-            from app.views.template_renderer import TemplateRenderer
+            # Buscar dados do produto
+            product = self.db.query(MLProduct).filter(
+                MLProduct.id == product_id,
+                MLProduct.company_id == user["company"]["id"]
+            ).first()
             
-            renderer = TemplateRenderer()
-            return renderer.render(
-                template_name="ml_product_analysis.html",
-                context={
-                    "user": user,
-                    "product_id": product_id
-                }
-            )
+            if not product:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404, detail="Produto não encontrado")
+            
+            return templates.TemplateResponse("ml_product_analysis.html", {
+                "request": request,
+                "user": user,
+                "product": product,
+                "product_id": product_id
+            })
         except Exception as e:
             logger.error(f"Erro ao renderizar página de análise: {e}")
             raise

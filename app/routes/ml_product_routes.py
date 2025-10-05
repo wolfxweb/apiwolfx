@@ -1,6 +1,7 @@
 """
 Rotas para produtos do Mercado Livre
 """
+import logging
 from fastapi import APIRouter, Depends, Request, Query, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -9,6 +10,8 @@ from typing import Optional
 from app.config.database import get_db
 from app.controllers.ml_product_controller import MLProductController
 from app.controllers.auth_controller import AuthController
+
+logger = logging.getLogger(__name__)
 
 ml_product_router = APIRouter(prefix="/products", tags=["ML Products"])
 
@@ -47,7 +50,8 @@ async def ml_products_page(
             ml_account_id=ml_account_id,
             status=status,
             page=page,
-            limit=limit
+            limit=limit,
+            request=request
         )
     except Exception as e:
         return JSONResponse(
@@ -607,6 +611,242 @@ async def get_product_for_analysis(
         
     except Exception as e:
         logger.error(f"Erro ao buscar produto para análise: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno do servidor: {e}"}
+        )
+
+@ml_product_router.get("/api/product/{product_id}/catalog")
+async def get_product_catalog_info(
+    product_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Busca informações de catálogo do produto usando a API do Mercado Livre"""
+    try:
+        from app.models.saas_models import MLProduct
+        import requests
+        
+        product = db.query(MLProduct).filter(
+            MLProduct.id == product_id,
+            MLProduct.company_id == user["company"]["id"]
+        ).first()
+        
+        if not product:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Produto não encontrado"}
+            )
+        
+        if not product.catalog_listing or not product.catalog_product_id:
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "is_catalog": False, "message": "Produto não é de catálogo"}
+            )
+        
+        # Buscar token ativo para fazer chamada à API
+        from app.services.ml_orders_service import MLOrdersService
+        orders_service = MLOrdersService(db)
+        access_token = orders_service._get_active_token(product.ml_account_id)
+        
+        if not access_token:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Token de acesso não encontrado"}
+            )
+        
+        # Usar a API do Mercado Livre para buscar todos os vendedores do catálogo
+        # Endpoint: /products/{catalog_product_id}/items
+        api_url = f"https://api.mercadolibre.com/products/{product.catalog_product_id}/items"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(api_url, headers=headers, timeout=30)
+        
+        if response.status_code == 404:
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "is_catalog": True, "catalog_products": [], "total_announcers": 0, "message": "Catálogo não encontrado na API"}
+            )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        catalog_products = []
+        if "results" in data:
+            for item in data["results"]:
+                # Informações de envio detalhadas
+                shipping_info = item.get("shipping", {})
+                shipping_tags = shipping_info.get("tags", [])
+                
+                # Informações de vendedor
+                seller_info = item.get("seller", {})
+                reputation_level = seller_info.get("reputation_level_id", "UNKNOWN")
+                
+                # Termos de venda
+                sale_terms = item.get("sale_terms", [])
+                warranty_info = ""
+                invoice_info = ""
+                for term in sale_terms:
+                    if term.get("id") == "WARRANTY_TIME":
+                        warranty_info = term.get("value_name", "")
+                    elif term.get("id") == "INVOICE":
+                        invoice_info = term.get("value_name", "")
+                
+                # Buscar informações detalhadas do vendedor
+                seller_id = item.get("seller_id")
+                seller_name = "N/A"
+                seller_nickname = "N/A"
+                seller_country = "N/A"
+                seller_city = "N/A"
+                seller_state = "N/A"
+                seller_registration_date = "N/A"
+                seller_experience = "N/A"
+                seller_power_seller = False
+                seller_transactions_total = 0
+                seller_ratings_positive = 0
+                seller_ratings_negative = 0
+                seller_ratings_neutral = 0
+                seller_mercadopago_accepted = False
+                seller_mercadoenvios = "N/A"
+                seller_user_type = "N/A"
+                seller_tags = []
+                
+                if seller_id:
+                    try:
+                        # Chamada para API de usuários
+                        user_api_url = f"https://api.mercadolibre.com/users/{seller_id}"
+                        user_response = requests.get(user_api_url, headers=headers, timeout=10)
+                        
+                        if user_response.status_code == 200:
+                            user_data = user_response.json()
+                            
+                            # Informações básicas
+                            seller_name = user_data.get("first_name", "N/A")
+                            seller_nickname = user_data.get("nickname", "N/A")
+                            seller_country = user_data.get("country_id", "N/A")
+                            seller_registration_date = user_data.get("registration_date", "N/A")
+                            seller_user_type = user_data.get("user_type", "N/A")
+                            seller_tags = user_data.get("tags", [])
+                            
+                            # Endereço
+                            address = user_data.get("address", {})
+                            seller_city = address.get("city", "N/A")
+                            seller_state = address.get("state", "N/A")
+                            
+                            # Experiência de vendedor
+                            seller_experience = user_data.get("seller_experience", "N/A")
+                            
+                            # Reputação de vendedor
+                            seller_reputation = user_data.get("seller_reputation", {})
+                            seller_power_seller = seller_reputation.get("power_seller_status") is not None
+                            seller_power_seller_status = seller_reputation.get("power_seller_status", None)
+                            
+                            transactions = seller_reputation.get("transactions", {})
+                            seller_transactions_total = transactions.get("total", 0)
+                            
+                            ratings = transactions.get("ratings", {})
+                            seller_ratings_positive = ratings.get("positive", 0)
+                            seller_ratings_negative = ratings.get("negative", 0)
+                            seller_ratings_neutral = ratings.get("neutral", 0)
+                            
+                            # Nível de reputação - extrair cor do level_id
+                            level_id = seller_reputation.get("level_id", None)
+                            seller_reputation_level = None
+                            if level_id:
+                                # level_id vem como "5_green", "3_yellow", "1_red", etc.
+                                if "_green" in level_id:
+                                    seller_reputation_level = "GREEN"
+                                elif "_yellow" in level_id:
+                                    seller_reputation_level = "YELLOW"
+                                elif "_red" in level_id:
+                                    seller_reputation_level = "RED"
+                                else:
+                                    # Tentar usar real_level se disponível
+                                    real_level = seller_reputation.get("real_level", None)
+                                    if real_level:
+                                        seller_reputation_level = real_level.upper()
+                            
+                            # Status e configurações
+                            status = user_data.get("status", {})
+                            seller_mercadopago_accepted = status.get("mercadopago_tc_accepted", False)
+                            seller_mercadoenvios = status.get("mercadoenvios", "N/A")
+                            
+                    except Exception as e:
+                        logger.warning(f"Erro ao buscar dados do vendedor {seller_id}: {e}")
+                
+                catalog_products.append({
+                    "ml_item_id": item.get("item_id"),
+                    "title": item.get("title", "Sem título"),
+                    "price": item.get("price", 0),
+                    "currency_id": item.get("currency_id", "BRL"),
+                    "seller_id": item.get("seller_id"),
+                    "seller_name": seller_name,
+                    "seller_nickname": seller_nickname,
+                    "seller_country": seller_country,
+                    "seller_city": seller_city,
+                    "seller_state": seller_state,
+                    "seller_registration_date": seller_registration_date,
+                    "seller_experience": seller_experience,
+                    "seller_power_seller": seller_power_seller,
+                    "seller_power_seller_status": seller_power_seller_status,
+                    "seller_reputation_level": seller_reputation_level,
+                    "seller_transactions_total": seller_transactions_total,
+                    "seller_ratings_positive": seller_ratings_positive,
+                    "seller_ratings_negative": seller_ratings_negative,
+                    "seller_ratings_neutral": seller_ratings_neutral,
+                    "seller_mercadopago_accepted": seller_mercadopago_accepted,
+                    "seller_mercadoenvios": seller_mercadoenvios,
+                    "seller_user_type": seller_user_type,
+                    "seller_tags": seller_tags,
+                    "status": "active",  # Assumir ativo se está na API
+                    "available_quantity": item.get("available_quantity", 0),
+                    "sold_quantity": 0,  # Não disponível na API
+                    "permalink": f"https://www.mercadolivre.com.br/{item.get('item_id')}",
+                    "thumbnail": item.get("thumbnail", ""),
+                    "shipping": shipping_info,
+                    "warranty": item.get("warranty", warranty_info),
+                    "condition": item.get("condition", "new"),
+                    "listing_type_id": item.get("listing_type_id", ""),
+                    "official_store_id": item.get("official_store_id"),
+                    "tags": item.get("tags", []),
+                    "accepts_mercadopago": item.get("accepts_mercadopago", False),
+                    "original_price": item.get("original_price"),
+                    "category_id": item.get("category_id"),
+                    "international_delivery_mode": item.get("international_delivery_mode"),
+                    "tier": item.get("tier", ""),
+                    "inventory_id": item.get("inventory_id", ""),
+                    "deal_ids": item.get("deal_ids", []),
+                    "sale_terms": sale_terms,
+                    "seller_address": item.get("seller_address", {}),
+                    "reputation_level": reputation_level,
+                    "shipping_tags": shipping_tags,
+                    "warranty_detailed": warranty_info,
+                    "invoice_type": invoice_info,
+                    "buy_box_winner": item.get("buy_box_winner", False),  # Vencedor do catálogo
+                    "position": len(catalog_products) + 1,  # Posição na lista
+                    "current_level": item.get("current_level", "unknown")  # Nível de reputação do item
+                })
+        
+        return JSONResponse(content={
+            "success": True,
+            "is_catalog": True,
+            "catalog_product_id": product.catalog_product_id,
+            "catalog_products": catalog_products,
+            "total_announcers": len(catalog_products),
+            "api_source": "mercadolibre"
+        })
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro na API do Mercado Livre: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro na API do Mercado Livre: {str(e)}"}
+        )
+    except Exception as e:
+        logger.error(f"Erro ao buscar informações de catálogo: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": f"Erro interno do servidor: {e}"}
