@@ -1052,9 +1052,15 @@ function renderCatalogInfo(data) {
         }
         
         // Badges individuais para as colunas
+        // Debug: verificar official_store_id
+        console.log('Debug official_store_id:', {
+            official_store_id: product.official_store_id,
+            type: typeof product.official_store_id
+        });
+        
         const lojaOficialBadge = product.official_store_id ? 
             '<span class="badge bg-info">Sim</span>' : 
-            '';
+            '<span class="badge bg-secondary">Não</span>';
             
         const descontoBadge = (product.original_price && product.original_price > product.price) ? 
             `<span class="badge bg-success">-${Math.round(((product.original_price - product.price) / product.original_price) * 100)}%</span>` : 
