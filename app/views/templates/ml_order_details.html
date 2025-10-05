@@ -181,17 +181,75 @@
                                         <td class="h5 text-success">R$ {{ "%.2f"|format(payment.total_paid_amount) }}</td>
                                     </tr>
                                     <tr>
+                                        <td><strong>Data de Aprovação:</strong></td>
+                                        <td>{{ payment.date_approved[:10] if payment.date_approved else 'N/A' }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Resumo Financeiro -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-muted mb-2">Resumo Financeiro</h6>
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td><strong>Valor do Produto:</strong></td>
+                                        <td>R$ {{ "%.2f"|format(payment.transaction_amount) }}</td>
                                         <td><strong>Desconto (Cupom):</strong></td>
                                         <td class="text-danger">- R$ {{ "%.2f"|format(payment.coupon_amount) }}</td>
                                     </tr>
                                     <tr>
-                                        <td><strong>Taxa do Marketplace:</strong></td>
-                                        <td>R$ {{ "%.2f"|format(payment.marketplace_fee) }}</td>
+                                        <td><strong>Taxa do Mercado Livre:</strong></td>
+                                        <td>R$ {{ "%.2f"|format(order.sale_fees) if order.sale_fees else '0,00' }}</td>
+                                        <td><strong>Frete:</strong></td>
+                                        <td>R$ {{ "%.2f"|format(order.shipping_cost) if order.shipping_cost else '0,00' }}</td>
+                                    </tr>
+                                    <tr class="border-top">
+                                        <td><strong>Total Final:</strong></td>
+                                        <td class="fw-bold h6">R$ {{ "%.2f"|format(payment.total_paid_amount) }}</td>
+                                        <td><strong>Lucro Líquido:</strong></td>
+                                        <td class="fw-bold text-success">R$ {{ "%.2f"|format(payment.transaction_amount - order.sale_fees) if order.sale_fees else '0,00' }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Informações de Frete -->
+                        {% if order.shipping_cost or order.shipping_method %}
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-muted mb-2">Informações de Frete</h6>
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td><strong>Custo do Frete:</strong></td>
+                                        <td>R$ {{ "%.2f"|format(order.shipping_cost) if order.shipping_cost else 'Grátis' }}</td>
+                                        <td><strong>Método de Envio:</strong></td>
+                                        <td>{{ order.shipping_method if order.shipping_method else 'N/A' }}</td>
                                     </tr>
                                     <tr>
-                                        <td><strong>Data de Aprovação:</strong></td>
-                                        <td>{{ payment.date_approved[:10] if payment.date_approved else 'N/A' }}</td>
+                                        <td><strong>Status do Envio:</strong></td>
+                                        <td>
+                                            <span class="badge bg-info">{{ order.shipping_status|title if order.shipping_status else 'N/A' }}</span>
+                                        </td>
+                                        <td><strong>Endereço:</strong></td>
+                                        <td>
+                                            {% if order.shipping_address %}
+                                                {{ order.shipping_address.receiver_name }}<br>
+                                                <small class="text-muted">
+                                                    {{ order.shipping_address.address_line }}<br>
+                                                    {{ order.shipping_address.city.name }}, {{ order.shipping_address.state.name }}<br>
+                                                    CEP: {{ order.shipping_address.zip_code }}
+                                                </small>
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </td>
                                     </tr>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
                                 </table>
                             </div>
                         </div>
@@ -215,13 +273,13 @@
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
                                 <tr>
-                                    <th>Produto</th>
-                                    <th>Quantidade</th>
-                                    <th>Preço Unitário</th>
-                                    <th>Total</th>
+                                    <th style="width: 50%;">Produto</th>
+                                    <th style="width: 15%;" class="text-center">Quantidade</th>
+                                    <th style="width: 20%;" class="text-end">Preço Unitário</th>
+                                    <th style="width: 15%;" class="text-end">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -234,9 +292,9 @@
                                             <small class="text-muted">SKU: {{ item.item.seller_sku if item.item.seller_sku else 'N/A' }}</small>
                                         </div>
                                     </td>
-                                    <td>{{ item.quantity }}</td>
-                                    <td>R$ {{ "%.2f"|format(item.unit_price) }}</td>
-                                    <td class="fw-bold">R$ {{ "%.2f"|format(item.unit_price * item.quantity) }}</td>
+                                    <td class="text-center">{{ item.quantity }}</td>
+                                    <td class="text-end">R$ {{ "%.2f"|format(item.unit_price) }}</td>
+                                    <td class="text-end fw-bold">R$ {{ "%.2f"|format(item.unit_price * item.quantity) }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
