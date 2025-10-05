@@ -565,3 +565,83 @@ class MLOrder(Base):
         Index('ix_ml_orders_shipping_id', 'shipping_id'),
     )
 
+class CatalogParticipant(Base):
+    """Modelo de Participante do Catálogo"""
+    __tablename__ = "catalog_participants"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    catalog_product_id = Column(String(50), nullable=False, index=True)
+    ml_item_id = Column(String(50), nullable=False, unique=True, index=True)
+    seller_id = Column(String(50), nullable=False, index=True)
+    
+    # Informações do produto
+    title = Column(String(500), nullable=False)
+    price = Column(Integer, nullable=False)  # Em centavos
+    currency_id = Column(String(10), default="BRL")
+    status = Column(String(20), default="active")
+    
+    # Quantidades
+    available_quantity = Column(Integer, default=0)
+    sold_quantity = Column(Integer, default=0)
+    
+    # URLs e mídia
+    permalink = Column(String(500))
+    thumbnail = Column(String(500))
+    
+    # Detalhes do produto
+    condition = Column(String(20), default="new")
+    listing_type_id = Column(String(50))
+    official_store_id = Column(String(50))
+    accepts_mercadopago = Column(Boolean, default=False)
+    original_price = Column(Integer)  # Em centavos
+    category_id = Column(String(50))
+    logistic_type = Column(String(50), default="default")
+    buy_box_winner = Column(Boolean, default=False)
+    
+    # Informações detalhadas do vendedor
+    seller_name = Column(String(255))
+    seller_nickname = Column(String(255))
+    seller_country = Column(String(10))
+    seller_city = Column(String(100))
+    seller_state = Column(String(100))
+    seller_registration_date = Column(String(50))
+    seller_experience = Column(String(50))
+    seller_power_seller = Column(Boolean, default=False)
+    seller_power_seller_status = Column(String(50))
+    seller_reputation_level = Column(String(20))
+    seller_transactions_total = Column(Integer, default=0)
+    seller_ratings_positive = Column(Integer, default=0)
+    seller_ratings_negative = Column(Integer, default=0)
+    seller_ratings_neutral = Column(Integer, default=0)
+    seller_mercadopago_accepted = Column(Boolean, default=False)
+    seller_mercadoenvios = Column(String(50))
+    seller_user_type = Column(String(50))
+    seller_tags = Column(JSON)
+    
+    # Informações detalhadas de envio
+    shipping_free = Column(Boolean, default=False)
+    shipping_method = Column(String(50))
+    shipping_tags = Column(JSON)
+    
+    # Posição no catálogo
+    position = Column(Integer, default=0)
+    
+    # Timestamps
+    last_updated = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=func.now())
+    
+    # === RELACIONAMENTOS ===
+    company = relationship("Company")
+    
+    # === ÍNDICES ===
+    __table_args__ = (
+        Index('ix_catalog_participants_company', 'company_id'),
+        Index('ix_catalog_participants_catalog_product', 'catalog_product_id'),
+        Index('ix_catalog_participants_seller', 'seller_id'),
+        Index('ix_catalog_participants_price', 'price'),
+        Index('ix_catalog_participants_status', 'status'),
+        Index('ix_catalog_participants_last_updated', 'last_updated'),
+        Index('ix_catalog_participants_company_catalog', 'company_id', 'catalog_product_id'),
+    )
+

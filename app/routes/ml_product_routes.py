@@ -2,6 +2,7 @@
 Rotas para produtos do Mercado Livre
 """
 import logging
+import requests
 from fastapi import APIRouter, Depends, Request, Query, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -937,6 +938,375 @@ async def get_product_shipping(
         
     except Exception as e:
         logger.error(f"Erro ao buscar opções de envio: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno do servidor: {e}"}
+        )
+
+@ml_product_router.post("/api/product/{product_id}/catalog/sync")
+async def sync_catalog_data(
+    product_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Sincroniza dados do catálogo e salva no banco de dados"""
+    try:
+        from app.models.saas_models import MLProduct, CatalogParticipant
+        from datetime import datetime
+        
+        # Buscar produto
+        product = db.query(MLProduct).filter(
+            MLProduct.id == product_id,
+            MLProduct.company_id == user["company"]["id"]
+        ).first()
+        
+        if not product:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Produto não encontrado"}
+            )
+        
+        if not product.catalog_listing or not product.catalog_product_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Produto não é de catálogo"}
+            )
+        
+        # Buscar token ativo
+        from app.services.ml_orders_service import MLOrdersService
+        orders_service = MLOrdersService(db)
+        access_token = orders_service._get_active_token(product.ml_account_id)
+        
+        if not access_token:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Token de acesso não encontrado"}
+            )
+        
+        # Buscar dados do catálogo da API
+        api_url = f"https://api.mercadolibre.com/products/{product.catalog_product_id}/items"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(api_url, headers=headers, timeout=30)
+        
+        if response.status_code == 404:
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "message": "Catálogo não encontrado na API", "synced": 0}
+            )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        if "results" not in data:
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "message": "Nenhum participante encontrado", "synced": 0}
+            )
+        
+        # Processar participantes
+        current_participants = []
+        for index, item in enumerate(data["results"]):
+            # Processar informações de envio
+            shipping_info = item.get("shipping", {})
+            shipping_free = shipping_info.get("free_shipping", False)
+            shipping_logistic_type = shipping_info.get("logistic_type", "default")
+            shipping_method = shipping_info.get("method", "standard")
+            shipping_tags = shipping_info.get("tags", [])
+            
+            # Usar logistic_type do item principal se shipping_method não estiver disponível
+            if shipping_method == "standard" and item.get("logistic_type"):
+                shipping_method = item.get("logistic_type")
+            
+            
+            
+            
+            # Buscar informações detalhadas do vendedor
+            seller_id = item.get("seller_id")
+            seller_name = "N/A"
+            seller_nickname = "N/A"
+            seller_country = "N/A"
+            seller_city = "N/A"
+            seller_state = "N/A"
+            seller_registration_date = "N/A"
+            seller_experience = "N/A"
+            seller_power_seller = False
+            seller_power_seller_status = None
+            seller_reputation_level = None
+            seller_transactions_total = 0
+            seller_ratings_positive = 0
+            seller_ratings_negative = 0
+            seller_ratings_neutral = 0
+            seller_mercadopago_accepted = False
+            seller_mercadoenvios = "N/A"
+            seller_user_type = "N/A"
+            seller_tags = []
+            
+            if seller_id:
+                try:
+                    # Chamada para API de usuários
+                    user_api_url = f"https://api.mercadolibre.com/users/{seller_id}"
+                    user_response = requests.get(user_api_url, headers=headers, timeout=10)
+                    
+                    if user_response.status_code == 200:
+                        user_data = user_response.json()
+                        
+                        # Informações básicas
+                        seller_name = user_data.get("first_name", "N/A")
+                        seller_nickname = user_data.get("nickname", "N/A")
+                        seller_country = user_data.get("country_id", "N/A")
+                        seller_registration_date = user_data.get("registration_date", "N/A")
+                        seller_user_type = user_data.get("user_type", "N/A")
+                        seller_tags = user_data.get("tags", [])
+                        
+                        # Endereço
+                        address = user_data.get("address", {})
+                        seller_city = address.get("city", "N/A")
+                        seller_state = address.get("state", "N/A")
+                        
+                        # Experiência de vendedor
+                        seller_experience = user_data.get("seller_experience", "N/A")
+                        
+                        # Reputação de vendedor
+                        seller_reputation = user_data.get("seller_reputation", {})
+                        seller_power_seller = seller_reputation.get("power_seller_status") is not None
+                        seller_power_seller_status = seller_reputation.get("power_seller_status", None)
+                        
+                        transactions = seller_reputation.get("transactions", {})
+                        seller_transactions_total = transactions.get("total", 0)
+                        
+                        ratings = transactions.get("ratings", {})
+                        seller_ratings_positive = ratings.get("positive", 0)
+                        seller_ratings_negative = ratings.get("negative", 0)
+                        seller_ratings_neutral = ratings.get("neutral", 0)
+                        
+                        # Nível de reputação - extrair cor do level_id
+                        level_id = seller_reputation.get("level_id", None)
+                        if level_id:
+                            if "_green" in level_id:
+                                seller_reputation_level = "GREEN"
+                            elif "_yellow" in level_id:
+                                seller_reputation_level = "YELLOW"
+                            elif "_red" in level_id:
+                                seller_reputation_level = "RED"
+                            else:
+                                real_level = seller_reputation.get("real_level", None)
+                                if real_level:
+                                    seller_reputation_level = real_level.upper()
+                        
+                        # Status e configurações
+                        status = user_data.get("status", {})
+                        seller_mercadopago_accepted = status.get("mercadopago_tc_accepted", False)
+                        seller_mercadoenvios = status.get("mercadoenvios", "N/A")
+                        
+                except Exception as e:
+                    logger.warning(f"Erro ao buscar dados do vendedor {seller_id}: {e}")
+            
+            participant_data = {
+                "company_id": user["company"]["id"],
+                "catalog_product_id": product.catalog_product_id,
+                "ml_item_id": item.get("item_id"),
+                "seller_id": item.get("seller_id"),
+                "title": item.get("title", ""),
+                "price": item.get("price", 0),
+                "currency_id": item.get("currency_id", "BRL"),
+                "status": "active",
+                "available_quantity": item.get("available_quantity", 0),
+                "sold_quantity": 0,
+                "permalink": f"https://www.mercadolivre.com.br/{item.get('item_id')}",
+                "thumbnail": item.get("thumbnail", ""),
+                "condition": item.get("condition", "new"),
+                "listing_type_id": item.get("listing_type_id", ""),
+                "official_store_id": item.get("official_store_id"),
+                "accepts_mercadopago": item.get("accepts_mercadopago", False),
+                "original_price": item.get("original_price"),
+                "category_id": item.get("category_id"),
+                "logistic_type": item.get("logistic_type", "default"),
+                "buy_box_winner": item.get("buy_box_winner", False),
+                # Informações detalhadas de envio
+                "shipping_free": shipping_free,
+                "shipping_method": shipping_method,
+                "shipping_tags": shipping_tags,
+                # Posição no catálogo
+                "position": index + 1,
+                # Informações detalhadas do vendedor
+                "seller_name": seller_name,
+                "seller_nickname": seller_nickname,
+                "seller_country": seller_country,
+                "seller_city": seller_city,
+                "seller_state": seller_state,
+                "seller_registration_date": seller_registration_date,
+                "seller_experience": seller_experience,
+                "seller_power_seller": seller_power_seller,
+                "seller_power_seller_status": seller_power_seller_status,
+                "seller_reputation_level": seller_reputation_level,
+                "seller_transactions_total": seller_transactions_total,
+                "seller_ratings_positive": seller_ratings_positive,
+                "seller_ratings_negative": seller_ratings_negative,
+                "seller_ratings_neutral": seller_ratings_neutral,
+                "seller_mercadopago_accepted": seller_mercadopago_accepted,
+                "seller_mercadoenvios": seller_mercadoenvios,
+                "seller_user_type": seller_user_type,
+                "seller_tags": seller_tags,
+                "last_updated": datetime.utcnow()
+            }
+            current_participants.append(participant_data)
+        
+        # Remover participantes que não estão mais no catálogo
+        existing_participants = db.query(CatalogParticipant).filter(
+            CatalogParticipant.catalog_product_id == product.catalog_product_id,
+            CatalogParticipant.company_id == user["company"]["id"]
+        ).all()
+        
+        current_item_ids = [p["ml_item_id"] for p in current_participants]
+        for existing in existing_participants:
+            if existing.ml_item_id not in current_item_ids:
+                db.delete(existing)
+        
+        # Adicionar/atualizar participantes
+        synced_count = 0
+        for participant_data in current_participants:
+            existing = db.query(CatalogParticipant).filter(
+                CatalogParticipant.ml_item_id == participant_data["ml_item_id"]
+            ).first()
+            
+            if existing:
+                # Atualizar existente
+                for key, value in participant_data.items():
+                    if key != "ml_item_id":
+                        setattr(existing, key, value)
+                existing.last_updated = datetime.utcnow()
+            else:
+                # Criar novo
+                new_participant = CatalogParticipant(**participant_data)
+                db.add(new_participant)
+            
+            synced_count += 1
+        
+        db.commit()
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": f"Catálogo sincronizado com sucesso",
+            "synced": synced_count,
+            "total_participants": len(current_participants)
+        })
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro na API do Mercado Livre: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro na API do Mercado Livre: {str(e)}"}
+        )
+    except Exception as e:
+        logger.error(f"Erro ao sincronizar catálogo: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno do servidor: {e}"}
+        )
+
+@ml_product_router.get("/api/product/{product_id}/catalog/database")
+async def get_catalog_from_database(
+    product_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Busca dados do catálogo salvos no banco de dados"""
+    try:
+        from app.models.saas_models import MLProduct, CatalogParticipant
+        
+        # Buscar produto
+        product = db.query(MLProduct).filter(
+            MLProduct.id == product_id,
+            MLProduct.company_id == user["company"]["id"]
+        ).first()
+        
+        if not product:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Produto não encontrado"}
+            )
+        
+        if not product.catalog_listing or not product.catalog_product_id:
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "is_catalog": False, "message": "Produto não é de catálogo"}
+            )
+        
+        # Buscar participantes do banco de dados
+        participants = db.query(CatalogParticipant).filter(
+            CatalogParticipant.catalog_product_id == product.catalog_product_id,
+            CatalogParticipant.company_id == user["company"]["id"]
+        ).order_by(CatalogParticipant.price.asc()).all()
+        
+        if not participants:
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "is_catalog": True, "catalog_products": [], "total_announcers": 0, "message": "Nenhum participante encontrado no banco de dados"}
+            )
+        
+        # Converter para formato da API
+        catalog_products = []
+        for participant in participants:
+            catalog_products.append({
+                "ml_item_id": participant.ml_item_id,
+                "title": participant.title,
+                "price": participant.price,
+                "currency_id": participant.currency_id,
+                "seller_id": participant.seller_id,
+                "seller_name": participant.seller_name,
+                "seller_nickname": participant.seller_nickname,
+                "seller_country": participant.seller_country,
+                "seller_city": participant.seller_city,
+                "seller_state": participant.seller_state,
+                "seller_registration_date": participant.seller_registration_date,
+                "seller_experience": participant.seller_experience,
+                "seller_power_seller": participant.seller_power_seller,
+                "seller_power_seller_status": participant.seller_power_seller_status,
+                "seller_reputation_level": participant.seller_reputation_level,
+                "seller_transactions_total": participant.seller_transactions_total,
+                "seller_ratings_positive": participant.seller_ratings_positive,
+                "seller_ratings_negative": participant.seller_ratings_negative,
+                "seller_ratings_neutral": participant.seller_ratings_neutral,
+                "seller_mercadopago_accepted": participant.seller_mercadopago_accepted,
+                "seller_mercadoenvios": participant.seller_mercadoenvios,
+                "seller_user_type": participant.seller_user_type,
+                "seller_tags": participant.seller_tags or [],
+                "status": participant.status,
+                "available_quantity": participant.available_quantity,
+                "sold_quantity": participant.sold_quantity,
+                "permalink": participant.permalink,
+                "thumbnail": participant.thumbnail,
+                "condition": participant.condition,
+                "listing_type_id": participant.listing_type_id,
+                "official_store_id": participant.official_store_id,
+                "accepts_mercadopago": participant.accepts_mercadopago,
+                "original_price": participant.original_price,
+                "category_id": participant.category_id,
+                "logistic_type": participant.logistic_type,
+                "buy_box_winner": participant.buy_box_winner,
+                "shipping_free": participant.shipping_free,
+                "shipping_method": participant.shipping_method,
+                "shipping_tags": participant.shipping_tags or [],
+                "position": participant.position,
+                "last_updated": participant.last_updated.isoformat() if participant.last_updated else None
+            })
+        
+        return JSONResponse(content={
+            "success": True,
+            "is_catalog": True,
+            "catalog_product_id": product.catalog_product_id,
+            "catalog_products": catalog_products,
+            "total_announcers": len(catalog_products),
+            "last_sync": participants[0].last_updated.isoformat() if participants and participants[0].last_updated else None,
+            "data_source": "database"
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar catálogo do banco: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": f"Erro interno do servidor: {e}"}

@@ -781,24 +781,48 @@ function loadCatalogInfo(productId) {
         <i class="bi bi-collection"></i> Informações de Catálogo
     `;
     
-    // Buscar informações de catálogo
-    fetch(`/ml/products/api/product/${productId}/catalog`)
+    // Primeiro tenta buscar do banco de dados
+    fetch(`/ml/products/api/product/${productId}/catalog/database`)
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.is_catalog) {
+            if (data.success && data.is_catalog && data.catalog_products.length > 0) {
+                // Mostrar dados do banco com data da última atualização
                 renderCatalogInfo(data);
             } else {
-                // Se não é catálogo, mostrar custos de envio
-                loadShippingCosts();
+                // Se não tem dados no banco, mostrar mensagem para sincronizar
+                const container = document.getElementById('catalog-shipping-content');
+                container.innerHTML = `
+                    <div class="alert alert-info text-center">
+                        <i class="bi bi-info-circle fs-1"></i>
+                        <h5 class="mt-3">Nenhum Dado Sincronizado</h5>
+                        <p>Este catálogo ainda não foi sincronizado com o banco de dados.</p>
+                        <p>Clique em "Sincronizar Catálogo" para importar os dados.</p>
+                        <button type="button" class="btn btn-success" onclick="syncCatalog()" id="sync-catalog-btn">
+                            <i class="bi bi-arrow-clockwise"></i> Sincronizar Catálogo
+                        </button>
+                    </div>
+                `;
             }
         })
         .catch(error => {
-            console.error('Erro ao buscar informações de catálogo:', error);
-            loadShippingCosts();
+            console.error('Erro ao carregar informações de catálogo do banco:', error);
+            // Mostrar mensagem de erro
+            const container = document.getElementById('catalog-shipping-content');
+            container.innerHTML = `
+                <div class="alert alert-danger text-center">
+                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                    <h5 class="mt-3">Erro ao Carregar Dados</h5>
+                    <p>Não foi possível carregar os dados do catálogo do banco de dados.</p>
+                    <p>Verifique sua conexão e tente novamente.</p>
+                    <button type="button" class="btn btn-primary" onclick="loadCatalogInfo(${productId})">
+                        <i class="bi bi-arrow-clockwise"></i> Tentar Novamente
+                    </button>
+                </div>
+            `;
         });
 }
 
-function renderCatalogInfo(data) {
+function renderCatalogInfo(data, fromDatabase = true) {
     const container = document.getElementById('catalog-shipping-content');
     
     if (data.catalog_products.length === 0) {
@@ -819,7 +843,19 @@ function renderCatalogInfo(data) {
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h6 class="text-muted mb-1">Catálogo ID: ${data.catalog_product_id}</h6>
-                    <span class="badge bg-primary">${data.total_announcers} Anunciantes</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary">${data.total_announcers} Anunciantes</span>
+                        ${fromDatabase && data.last_sync ? `
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i> Última atualização: ${new Date(data.last_sync).toLocaleString('pt-BR')}
+                            </small>
+                        ` : ''}
+                        ${fromDatabase ? `
+                            <span class="badge bg-success">Dados Locais</span>
+                        ` : `
+                            <span class="badge bg-warning">Dados da API</span>
+                        `}
+                    </div>
                 </div>
                 <a href="https://www.mercadolivre.com.br/catalogo/explorar/" 
                    target="_blank" 
@@ -856,16 +892,24 @@ function renderCatalogInfo(data) {
             currency: 'BRL'
         }).format(product.price);
         
-        // Informações de envio
-        let shippingInfo = "N/A";
+        // Informações de envio - usar novos campos do banco
+        let shippingInfo = "Não disponível";
         
-        if (product.shipping && product.shipping.free_shipping) {
+        // Debug: verificar valores
+        console.log('Debug shipping:', {
+            shipping_free: product.shipping_free,
+            shipping_method: product.shipping_method,
+            logistic_type: product.logistic_type,
+            shipping_tags: product.shipping_tags
+        });
+        
+        if (product.shipping_free) {
             shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
-        } else if (product.shipping && product.shipping.logistic_type) {
-            // Usar logistic_type do objeto shipping
-            switch(product.shipping.logistic_type) {
+        } else if (product.shipping_method && product.shipping_method !== 'standard') {
+            // Usar shipping_method específico
+            switch(product.shipping_method) {
                 case 'fulfillment':
-                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
                     break;
                 case 'xd_drop_off':
                 case 'drop_off':
@@ -876,19 +920,16 @@ function renderCatalogInfo(data) {
                     break;
                 case 'me2':
                     shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
-                    break;
-                case 'default':
-                    shippingInfo = '<span class="badge bg-secondary">Padrão</span>';
                     break;
                 default:
-                    shippingInfo = `<span class="badge bg-light text-dark">${product.shipping.logistic_type}</span>`;
+                    shippingInfo = `<span class="badge bg-light text-dark">${product.shipping_method}</span>`;
                     break;
             }
-        } else if (product.logistic_type) {
-            // Fallback para logistic_type do produto
+        } else if (product.logistic_type && product.logistic_type !== 'default') {
+            // Fallback para logistic_type
             switch(product.logistic_type) {
                 case 'fulfillment':
-                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
                     break;
                 case 'xd_drop_off':
                 case 'drop_off':
@@ -899,17 +940,14 @@ function renderCatalogInfo(data) {
                     break;
                 case 'me2':
                     shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
-                    break;
-                case 'default':
-                    shippingInfo = '<span class="badge bg-secondary">Padrão</span>';
                     break;
                 default:
                     shippingInfo = `<span class="badge bg-light text-dark">${product.logistic_type}</span>`;
                     break;
             }
         } else {
-            // Se não tem logistic_type, mostrar "N/A"
-            shippingInfo = '<span class="badge bg-light text-dark">N/A</span>';
+            // Se não tem informações específicas, mostrar "N/A"
+            shippingInfo = '<span class="badge bg-light text-dark">Não disponível</span>';
         }
         
         // Informações de garantia
@@ -1118,5 +1156,81 @@ function renderCatalogInfo(data) {
     
     container.innerHTML = html;
 }
+
+// Função para sincronizar catálogo
+function syncCatalog() {
+    console.log('syncCatalog chamada');
+    const productId = window.location.pathname.split('/').pop();
+    const syncBtn = document.getElementById('sync-catalog-btn');
+    
+    if (!syncBtn) {
+        console.error('Botão sync-catalog-btn não encontrado!');
+        return;
+    }
+    
+    const originalText = syncBtn.innerHTML;
+    
+    // Mostrar loading
+    syncBtn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Sincronizando...';
+    syncBtn.disabled = true;
+    
+    fetch(`/ml/products/api/product/${productId}/catalog/sync`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Mostrar sucesso
+            syncBtn.innerHTML = '<i class="bi bi-check-circle"></i> Sincronizado!';
+            syncBtn.classList.remove('btn-outline-success');
+            syncBtn.classList.add('btn-success');
+            
+            // Recarregar dados do catálogo do banco
+            setTimeout(() => {
+                loadCatalogInfo(productId);
+            }, 1000);
+            
+            // Restaurar botão após 3 segundos
+            setTimeout(() => {
+                syncBtn.innerHTML = originalText;
+                syncBtn.classList.remove('btn-success');
+                syncBtn.classList.add('btn-outline-success');
+                syncBtn.disabled = false;
+            }, 3000);
+        } else {
+            throw new Error(data.error || 'Erro na sincronização');
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao sincronizar catálogo:', error);
+        syncBtn.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Erro';
+        syncBtn.classList.remove('btn-outline-success');
+        syncBtn.classList.add('btn-danger');
+        
+        // Restaurar botão após 3 segundos
+        setTimeout(() => {
+            syncBtn.innerHTML = originalText;
+            syncBtn.classList.remove('btn-danger');
+            syncBtn.classList.add('btn-outline-success');
+            syncBtn.disabled = false;
+        }, 3000);
+    });
+}
+
+// CSS para animação de loading
+const style = document.createElement('style');
+style.textContent = `
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
 </script>
 {% endblock %}

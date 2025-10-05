@@ -363,6 +363,55 @@
 let mlAccounts = [];
 let currentAccount = null;
 
+// Função para verificar se a sessão expirou
+function checkSessionExpired(response) {
+    if (response.status === 401) {
+        // Sessão expirada, redirecionar para login
+        window.location.href = '/auth/login';
+        return true;
+    }
+    return false;
+}
+
+// Função para ocultar elementos quando sessão expira
+function hideUserElements() {
+    // Ocultar botões de ação
+    document.querySelectorAll('button[onclick*="showImportProductModal"], button[onclick*="syncProducts"], button[onclick*="showDeleteProductsModal"]').forEach(btn => {
+        btn.style.display = 'none';
+    });
+    
+    // Ocultar filtros
+    const filterCard = document.querySelector('.card-body form');
+    if (filterCard) {
+        filterCard.style.display = 'none';
+    }
+    
+    // Ocultar tabela de produtos
+    const productsTable = document.querySelector('#products-table');
+    if (productsTable) {
+        productsTable.style.display = 'none';
+    }
+    
+    // Mostrar mensagem de sessão expirada
+    const container = document.querySelector('.container-fluid');
+    if (container) {
+        container.innerHTML = `
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="alert alert-warning text-center">
+                        <i class="bi bi-exclamation-triangle fs-1"></i>
+                        <h4 class="mt-3">Sessão Expirada</h4>
+                        <p>Sua sessão expirou. Você será redirecionado para a tela de login.</p>
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Redirecionando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
 // Carregar dados iniciais
 document.addEventListener('DOMContentLoaded', function() {
     loadMLAccounts();
@@ -378,9 +427,15 @@ document.addEventListener('DOMContentLoaded', function() {
 function loadMLAccounts() {
     // Carregar contas ML reais via API
     fetch('/ml/products/api/accounts')
-    .then(response => response.json())
+    .then(response => {
+        if (checkSessionExpired(response)) {
+            hideUserElements();
+            return;
+        }
+        return response.json();
+    })
     .then(data => {
-        if (data.success) {
+        if (data && data.success) {
             mlAccounts = data.accounts;
             
             // Preencher selects
@@ -478,12 +533,18 @@ function loadProducts(newPage = null) {
     }
     
     fetch(apiUrl)
-    .then(response => response.json())
+    .then(response => {
+        if (checkSessionExpired(response)) {
+            hideUserElements();
+            return;
+        }
+        return response.json();
+    })
     .then(data => {
-        if (data.success) {
+        if (data && data.success) {
             renderProducts(data.products);
             updatePagination(data.page, data.limit, data.total, data.has_next, data.has_prev);
-        } else {
+        } else if (data) {
             console.error('Erro ao carregar produtos:', data.error);
             showAlert('danger', 'Erro ao carregar produtos');
             renderProducts([]);
@@ -919,14 +980,20 @@ function syncProducts() {
             'Content-Type': 'application/json'
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (checkSessionExpired(response)) {
+            hideUserElements();
+            return;
+        }
+        return response.json();
+    })
     .then(data => {
-        if (data.success) {
+        if (data && data.success) {
             showAlert('success', 'Sincronização iniciada com sucesso!');
             setTimeout(() => {
                 loadProducts();
             }, 2000);
-        } else {
+        } else if (data) {
             showAlert('danger', data.error || 'Erro na sincronização');
         }
     })
