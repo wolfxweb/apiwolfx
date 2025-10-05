@@ -827,7 +827,8 @@ async def get_product_catalog_info(
                     "invoice_type": invoice_info,
                     "buy_box_winner": item.get("buy_box_winner", False),  # Vencedor do catálogo
                     "position": len(catalog_products) + 1,  # Posição na lista
-                    "current_level": item.get("current_level", "unknown")  # Nível de reputação do item
+                    "current_level": item.get("current_level", "unknown"),  # Nível de reputação do item
+                    "logistic_type": item.get("logistic_type", "default")  # Tipo de logística
                 })
         
         return JSONResponse(content={

@@ -482,7 +482,7 @@ function loadProfitabilityAnalysis(product) {
         
         // Extrair custos totais se já estiverem calculados
         const totalCostsElement = feesContainer.querySelector('[class*="total-cost"]') || 
-                                  feesContainer.querySelector('*:contains("TOTAL DE CUSTOS")');
+                                  Array.from(feesContainer.querySelectorAll('*')).find(el => el.textContent.includes('TOTAL DE CUSTOS'));
         
         if (totalCostsElement) {
             const costText = totalCostsElement.textContent;
@@ -839,7 +839,6 @@ function renderCatalogInfo(data) {
                 <th>Posição</th>
                 <th>Envio</th>
                 <th>Reputação</th>
-                <th>Nível</th>
                 <th>Loja Oficial</th>
                 <th>Desconto</th>
                 <th>Ações</th>
@@ -856,18 +855,58 @@ function renderCatalogInfo(data) {
         
         // Informações de envio
         let shippingInfo = "N/A";
-        if (product.shipping) {
-            if (product.shipping.free_shipping) {
-                shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
-            } else if (product.shipping.mode === 'me2') {
-                shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
-            } else if (product.shipping.mode === 'fulfillment') {
-                shippingInfo = '<span class="badge bg-primary">Full</span>';
-            } else if (product.shipping.mode === 'xd_drop_off') {
-                shippingInfo = '<span class="badge bg-warning">Drop-off</span>';
-            } else {
-                shippingInfo = '<span class="badge bg-secondary">Custom</span>';
+        
+        if (product.shipping && product.shipping.free_shipping) {
+            shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
+        } else if (product.shipping && product.shipping.logistic_type) {
+            // Usar logistic_type do objeto shipping
+            switch(product.shipping.logistic_type) {
+                case 'fulfillment':
+                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                    break;
+                case 'xd_drop_off':
+                case 'drop_off':
+                    shippingInfo = '<span class="badge bg-warning">Entrega Direta</span>';
+                    break;
+                case 'cross_docking':
+                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
+                    break;
+                case 'me2':
+                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
+                    break;
+                case 'default':
+                    shippingInfo = '<span class="badge bg-secondary">Padrão</span>';
+                    break;
+                default:
+                    shippingInfo = `<span class="badge bg-light text-dark">${product.shipping.logistic_type}</span>`;
+                    break;
             }
+        } else if (product.logistic_type) {
+            // Fallback para logistic_type do produto
+            switch(product.logistic_type) {
+                case 'fulfillment':
+                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                    break;
+                case 'xd_drop_off':
+                case 'drop_off':
+                    shippingInfo = '<span class="badge bg-warning">Entrega Direta</span>';
+                    break;
+                case 'cross_docking':
+                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
+                    break;
+                case 'me2':
+                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
+                    break;
+                case 'default':
+                    shippingInfo = '<span class="badge bg-secondary">Padrão</span>';
+                    break;
+                default:
+                    shippingInfo = `<span class="badge bg-light text-dark">${product.logistic_type}</span>`;
+                    break;
+            }
+        } else {
+            // Se não tem logistic_type, mostrar "N/A"
+            shippingInfo = '<span class="badge bg-light text-dark">N/A</span>';
         }
         
         // Informações de garantia
@@ -1041,7 +1080,6 @@ function renderCatalogInfo(data) {
                 <td>${positionInfo}</td>
                 <td>${shippingInfo}</td>
                 <td>${reputationBadge}</td>
-                <td>${currentLevelBadge}</td>
                 <td>${lojaOficialBadge}</td>
                 <td>${descontoBadge}</td>
                 <td>
