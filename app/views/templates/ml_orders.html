@@ -141,7 +141,7 @@
                                         Total Final <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
                                     <th class="sortable" data-sort="net_profit" onclick="sortTable('net_profit')">
-                                        Lucro Líquido <i class="bi bi-arrow-down-up ms-1"></i>
+                                        Receita Líquida <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
                                     <th>Ações</th>
                                 </tr>
@@ -399,7 +399,7 @@ function renderOrders(orders) {
             </td>
             <td>
                 <div class="text-end">
-                    <strong class="text-success">${formatCurrency(order.paid_amount || order.total_amount || 0, order.currency_id)}</strong>
+                    <strong class="text-primary">${formatCurrency(order.paid_amount || order.total_amount || 0, order.currency_id)}</strong>
                 </div>
             </td>
             <td>
