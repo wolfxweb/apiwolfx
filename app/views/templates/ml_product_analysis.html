@@ -1783,27 +1783,6 @@ document.head.appendChild(style);
             recommendations.push(`<strong>Full é dominante (${fullPercentage}%)</strong> - Considere usar Full para competir.`);
         }
         
-        // Recomendação baseada em MercadoLíder
-        const platinumCount = mercadoLiderAnalysis.platinum || 0;
-        const goldCount = mercadoLiderAnalysis.gold || 0;
-        const silverCount = mercadoLiderAnalysis.silver || 0;
-        const semMedalhaCount = mercadoLiderAnalysis.sem_medalha || 0;
-        const totalMercadoLider = Object.values(mercadoLiderAnalysis).reduce((sum, count) => sum + count, 0);
-        
-        if (platinumCount > 0) {
-            const platinumPercentage = (platinumCount / totalMercadoLider * 100).toFixed(1);
-            recommendations.push(`<strong>🥇 ${platinumCount} MercadoLíder Platinum (${platinumPercentage}%)</strong> - Concorrência de alto nível.`);
-        }
-        
-        if (goldCount > 0) {
-            const goldPercentage = (goldCount / totalMercadoLider * 100).toFixed(1);
-            recommendations.push(`<strong>🥈 ${goldCount} MercadoLíder Gold (${goldPercentage}%)</strong> - Vendedores experientes.`);
-        }
-        
-        if (semMedalhaCount > 0) {
-            const semMedalhaPercentage = (semMedalhaCount / totalMercadoLider * 100).toFixed(1);
-            recommendations.push(`<strong>⚪ ${semMedalhaCount} Sem Medalha (${semMedalhaPercentage}%)</strong> - Oportunidade para se destacar.`);
-        }
         
         // Recomendação baseada em faixas de valor
         const ate10Count = priceRangesAnalysis.ate_10 || 0;
