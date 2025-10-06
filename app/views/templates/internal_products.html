@@ -89,8 +89,8 @@
                                     <th class="sortable" data-sort="name" onclick="sortTable('name')">
                                         Produto <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="internal_sku" onclick="sortTable('internal_sku')">
-                                        SKU Interno <i class="bi bi-arrow-down-up ms-1"></i>
+                                    <th class="sortable" data-sort="announcements_count" onclick="sortTable('announcements_count')">
+                                        Anúncios <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
                                     <th class="sortable" data-sort="cost_price" onclick="sortTable('cost_price')">
                                         Preço Custo <i class="bi bi-arrow-down-up ms-1"></i>
@@ -468,13 +468,15 @@ function renderProducts(products, total = null) {
                         <div>
                            <div class="fw-medium">${product.name.length > 50 ? product.name.substring(0, 50) + '...' : product.name}</div>
                            <small class="text-muted">
-                               ID: ${product.id}
+                               SKU: ${product.internal_sku || 'N/A'}
                            </small>
                         </div>
                     </div>
                 </td>
                 <td>
-                    <span class="badge bg-secondary">${product.internal_sku || 'N/A'}</span>
+                    <span class="badge ${product.announcements_count > 0 ? 'bg-info' : 'bg-secondary'}">
+                        ${product.announcements_count || 0} anúncio${product.announcements_count !== 1 ? 's' : ''}
+                    </span>
                 </td>
                 <td>
                     <span class="fw-medium">${product.cost_price ? `R$ ${parseFloat(product.cost_price).toFixed(2)}` : '-'}</span>

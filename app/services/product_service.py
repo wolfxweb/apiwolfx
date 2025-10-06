@@ -323,10 +323,8 @@ class ProductService:
                     skipped_count += 1
                     continue
 
-                # Usar dados já importados da tabela ml_products
-                # Não usar SKU do ML pois pode ser código do anúncio
-                # O SKU interno será definido manualmente pelo usuário
-                internal_sku = ""
+                # Usar SKU do ML se disponível, senão usar ml_item_id como fallback
+                internal_sku = ml_product.seller_sku if ml_product.seller_sku else f"ML-{ml_product.ml_item_id}"
                 
                 # Criar produto interno usando dados já importados
                 new_internal_product = InternalProduct(
@@ -338,7 +336,7 @@ class ProductService:
                     cost_price=0.0,  # Será preenchido depois
                     selling_price=float(ml_product.price or 0),
                     category=ml_product.category_id or "",
-                    brand=ml_product.brand or "",
+                    brand="",  # Marca não disponível no ML
                     supplier="Mercado Livre",
                     # Usar dados já importados
                     main_image=ml_product.thumbnail or "",
@@ -346,6 +344,26 @@ class ProductService:
                 )
 
                 self.db.add(new_internal_product)
+                self.db.flush()  # Para obter o ID do produto criado
+                
+                # Registrar no sistema de gerenciamento de SKU
+                try:
+                    from app.services.sku_management_service import SKUManagementService
+                    sku_service = SKUManagementService(self.db)
+                    
+                    # Registrar SKU no sistema de gerenciamento
+                    sku_service.register_sku(
+                        sku=internal_sku,
+                        platform="mercadolivre",
+                        platform_item_id=ml_product.ml_item_id,
+                        company_id=company_id,
+                        product_id=ml_product.id,
+                        internal_product_id=new_internal_product.id
+                    )
+                except Exception as e:
+                    logger.warning(f"Erro ao registrar SKU no sistema: {e}")
+                    # Não falha a criação do produto se o registro do SKU falhar
+                
                 imported_count += 1
 
             self.db.commit()
@@ -360,6 +378,141 @@ class ProductService:
 
         except Exception as e:
             logger.error(f"Erro ao importar produtos para internos: {e}")
+            self.db.rollback()
+            return {
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+
+    def import_selected_to_internal_products(self, company_id: int, user_id: int, product_ids: list) -> Dict[str, Any]:
+        """
+        Importa produtos selecionados do ML para a tabela internal_products
+        LÓGICA CORRIGIDA: Um SKU = Um produto interno, múltiplos anúncios associados
+        """
+        try:
+            if not product_ids:
+                return {
+                    "success": False,
+                    "error": "Nenhum produto selecionado"
+                }
+
+            # Buscar produtos do ML selecionados
+            ml_products = self.db.query(MLProduct).filter(
+                and_(
+                    MLProduct.id.in_(product_ids),
+                    MLProduct.company_id == company_id
+                )
+            ).all()
+
+            if not ml_products:
+                return {
+                    "success": False,
+                    "error": "Nenhum produto encontrado"
+                }
+
+            imported_count = 0
+            skipped_count = 0
+            errors = []
+            
+            # Agrupar produtos por SKU
+            sku_groups = {}
+            for ml_product in ml_products:
+                internal_sku = ml_product.seller_sku if ml_product.seller_sku else f"ML-{ml_product.ml_item_id}"
+                if internal_sku not in sku_groups:
+                    sku_groups[internal_sku] = []
+                sku_groups[internal_sku].append(ml_product)
+            
+            # Processar cada grupo de SKU
+            for internal_sku, ml_products_group in sku_groups.items():
+                # Verificar se já existe produto interno com este SKU
+                existing_internal = self.db.query(InternalProduct).filter(
+                    and_(
+                        InternalProduct.internal_sku == internal_sku,
+                        InternalProduct.company_id == company_id
+                    )
+                ).first()
+
+                if existing_internal:
+                    # Produto interno já existe, associar todos os anúncios do grupo
+                    for ml_product in ml_products_group:
+                        try:
+                            from app.services.sku_management_service import SKUManagementService
+                            sku_service = SKUManagementService(self.db)
+                            
+                            # Associar anúncio ao produto interno existente
+                            sku_service.register_sku(
+                                sku=internal_sku,
+                                platform="mercadolivre",
+                                platform_item_id=ml_product.ml_item_id,
+                                company_id=company_id,
+                                product_id=ml_product.id,
+                                internal_product_id=existing_internal.id
+                            )
+                            
+                            logger.info(f"Anúncio '{ml_product.ml_item_id}' associado ao produto interno existente '{internal_sku}'")
+                            
+                        except Exception as e:
+                            logger.warning(f"Erro ao associar anúncio ao produto existente: {e}")
+                    
+                    skipped_count += len(ml_products_group)
+                    continue
+                
+                # Criar novo produto interno (usar dados do primeiro produto do grupo)
+                first_product = ml_products_group[0]
+                new_internal_product = InternalProduct(
+                    company_id=company_id,
+                    base_product_id=first_product.id,  # Referência ao primeiro produto ML
+                    name=first_product.title,
+                    description=first_product.subtitle or "",
+                    internal_sku=internal_sku,
+                    cost_price=0.0,  # Será preenchido depois
+                    selling_price=float(first_product.price or 0),
+                    category=first_product.category_id or "",
+                    brand="",  # Marca não disponível no ML
+                    supplier="Mercado Livre",
+                    # Usar dados já importados
+                    main_image=first_product.thumbnail or "",
+                    current_stock=int(first_product.available_quantity or 0)
+                )
+
+                self.db.add(new_internal_product)
+                self.db.flush()  # Para obter o ID do produto criado
+                
+                # Associar todos os anúncios do grupo ao produto interno criado
+                for ml_product in ml_products_group:
+                    try:
+                        from app.services.sku_management_service import SKUManagementService
+                        sku_service = SKUManagementService(self.db)
+                        
+                        # Registrar SKU no sistema de gerenciamento
+                        sku_service.register_sku(
+                            sku=internal_sku,
+                            platform="mercadolivre",
+                            platform_item_id=ml_product.ml_item_id,
+                            company_id=company_id,
+                            product_id=ml_product.id,
+                            internal_product_id=new_internal_product.id
+                        )
+                        
+                        logger.info(f"SKU '{internal_sku}' registrado para anúncio '{ml_product.ml_item_id}'")
+                        
+                    except Exception as e:
+                        logger.warning(f"Erro ao registrar SKU no sistema: {e}")
+                
+                imported_count += 1
+
+            self.db.commit()
+
+            return {
+                "success": True,
+                "message": f"Importação concluída: {imported_count} produtos internos criados, {skipped_count} anúncios associados",
+                "imported_count": imported_count,
+                "skipped_count": skipped_count,
+                "errors": errors
+            }
+
+        except Exception as e:
+            logger.error(f"Erro ao importar produtos selecionados para internos: {e}")
             self.db.rollback()
             return {
                 "success": False,

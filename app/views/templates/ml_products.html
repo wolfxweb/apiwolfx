@@ -420,6 +420,14 @@ function hideUserElements() {
 
 // Carregar dados iniciais
 document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se o usuário está logado antes de carregar dados
+    const sessionToken = getSessionToken();
+    if (!sessionToken || sessionToken === 'null') {
+        console.log('🔒 Usuário não logado, redirecionando para login...');
+        window.location.href = '/auth/login';
+        return;
+    }
+    
     loadMLAccounts();
     loadFilterOptions();
     loadProducts();
@@ -1294,43 +1302,36 @@ function importSelectedProducts() {
     let errorCount = 0;
     const errors = [];
     
-    selectedProducts.forEach((product, index) => {
-        fetch(`/api/products/import/${product.ml_item_id}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+    // Importar todos os produtos selecionados para produtos internos
+    fetch('/api/products/import-selected-to-internal', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            product_ids: selectedProducts.map(p => p.id)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                importedCount++;
-            } else {
-                errorCount++;
-                errors.push(`${product.title}: ${data.error}`);
-            }
-            
-            // Se é o último produto, mostrar resultado
-            if (index === selectedProducts.length - 1) {
-                if (importedCount > 0) {
-                    showAlert('success', `${importedCount} produto(s) importado(s) com sucesso!`);
-                }
-                if (errorCount > 0) {
-                    showAlert('warning', `${errorCount} produto(s) não puderam ser importados. Verifique se já não estão importados.`);
-                }
-                // Recarregar produtos
-                loadProducts();
-            }
-        })
-        .catch(error => {
-            errorCount++;
-            errors.push(`${product.title}: Erro de conexão`);
-            
-            if (index === selectedProducts.length - 1) {
-                showAlert('danger', `Erro ao importar ${errorCount} produto(s)`);
-                loadProducts();
-            }
-        });
+    })
+    .then(response => {
+        if (response.status === 401) {
+            console.log('🔒 Sessão expirada, redirecionando para login');
+            window.location.href = '/auth/login';
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.success) {
+            showAlert('success', `Produtos importados para produtos internos: ${data.imported_count} importados, ${data.skipped_count} já existiam`);
+            // Recarregar produtos
+            loadProducts();
+        } else if (data) {
+            showAlert('danger', 'Erro ao importar produtos: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao importar produtos:', error);
+        showAlert('danger', 'Erro ao importar produtos');
     });
 }
 
@@ -1385,6 +1386,25 @@ function importToInternalProduct(productId, productTitle, mlItemId) {
     });
     
     window.location.href = `/api/internal-products?${params.toString()}`;
+}
+
+// Função para obter token de sessão
+function getSessionToken() {
+    // Tentar pegar do cookie primeiro
+    const cookies = document.cookie.split(';');
+    
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'session_token') {
+            return value;
+        }
+    }
+    
+    // Fallback para localStorage/sessionStorage
+    const localToken = localStorage.getItem('session_token');
+    const sessionToken = sessionStorage.getItem('session_token');
+    
+    return localToken || sessionToken;
 }
 </script>
 {% endblock %}

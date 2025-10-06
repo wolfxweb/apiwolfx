@@ -139,6 +139,18 @@ class InternalProductService:
             # Aplicar paginação
             products = query.offset(offset).limit(limit).all()
             
+            # Buscar contagem de anúncios associados para cada produto
+            from app.models.saas_models import SKUManagement
+            product_announcements = {}
+            for product in products:
+                announcements_count = self.db.query(SKUManagement).filter(
+                    and_(
+                        SKUManagement.internal_product_id == product.id,
+                        SKUManagement.status == "active"
+                    )
+                ).count()
+                product_announcements[product.id] = announcements_count
+            
             return {
                 "success": True,
                 "products": [
@@ -154,6 +166,7 @@ class InternalProductService:
                         "status": p.status,
                         "current_stock": p.current_stock,
                         "base_product_id": p.base_product_id,
+                        "announcements_count": product_announcements.get(p.id, 0),
                         "created_at": p.created_at.isoformat() if p.created_at else None,
                         "updated_at": p.updated_at.isoformat() if p.updated_at else None
                     }

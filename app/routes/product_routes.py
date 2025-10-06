@@ -3,7 +3,7 @@ Rotas para gerenciar produtos importados
 """
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Cookie
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.config.database import get_db
@@ -120,6 +120,55 @@ async def import_to_internal_products(
         
     except Exception as e:
         logger.error(f"Erro ao importar produtos para internos: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro interno do servidor"}
+        )
+
+@product_router.post("/api/products/import-selected-to-internal")
+async def import_selected_to_internal_products(
+    request_data: dict = Body(..., description="Dados da requisição"),
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """Importa produtos selecionados do ML para produtos internos"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    try:
+        # Obter usuário atual
+        current_user = get_current_user(session_token)
+        company_id = current_user["company_id"]
+        user_id = current_user["id"]
+        
+        # Extrair product_ids do request_data
+        product_ids = request_data.get("product_ids", [])
+        
+        if not product_ids:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Nenhum produto selecionado"}
+            )
+        
+        service = ProductService(db)
+        result = service.import_selected_to_internal_products(
+            company_id=company_id,
+            user_id=user_id,
+            product_ids=product_ids
+        )
+        
+        if result["success"]:
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Erro ao importar produtos selecionados para internos: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": "Erro interno do servidor"}
