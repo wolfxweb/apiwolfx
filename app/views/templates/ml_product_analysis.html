@@ -84,7 +84,7 @@
                         <div class="card h-100">
                             <div class="card-header bg-primary text-white">
                                 <h5 class="mb-0">
-                                    <i class="bi bi-percent"></i> Taxas do Mercado Livre
+                                    <i class="bi bi-calculator"></i> Análise de Preços e Taxas
                                 </h5>
                             </div>
                             <div class="card-body">
@@ -248,7 +248,7 @@ function renderProductInfo(product) {
 function loadMarketplaceFees(product) {
     const feesContainer = document.getElementById('marketplace-fees');
     
-    // Buscar taxas reais da API
+    // Buscar análise de preços da API
     fetch(`/ml/products/api/product/${product.id}/fees`)
         .then(response => response.json())
         .then(data => {
@@ -257,11 +257,11 @@ function loadMarketplaceFees(product) {
                 const fees = data.fees.data;
                 renderMarketplaceFees(fees);
             } else {
-                showFeesError(data.fees?.error || 'Erro ao carregar taxas');
+                showFeesError(data.fees?.error || 'Erro ao carregar análise de preços');
             }
         })
         .catch(error => {
-            console.error('Erro ao buscar taxas:', error);
+            console.error('Erro ao buscar análise de preços:', error);
             showFeesError('Erro de conexão');
         });
 }
@@ -294,8 +294,8 @@ function loadMarketplaceFees(product) {
                const saleFeeDetails = fee.sale_fee_details || {};
                const shippingInfo = fee.shipping_info || {};
                
-               // Buscar preço do produto
-               const productPrice = parseFloat(document.getElementById('product-price').textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+               // Buscar preço do produto (usar preço padrão se não disponível)
+               const productPrice = fee.product_price || 0;
                
                feesContainer.innerHTML = `
                    <div class="mb-3">
@@ -355,7 +355,7 @@ function loadMarketplaceFees(product) {
                        
                        <div class="d-flex justify-content-between mb-1">
                            <span class="text-muted">Tipo Logístico:</span>
-                           <span class="text-info">${shippingInfo.logistic_type || 'N/A'}</span>
+                           <span class="text-info">${getShippingTypeLabel(shippingInfo.logistic_type) || 'N/A'}</span>
                        </div>
                    </div>
                    
@@ -386,7 +386,7 @@ function loadMarketplaceFees(product) {
            
            function renderMultipleListingTypes(fees) {
                const feesContainer = document.getElementById('marketplace-fees');
-               const productPrice = parseFloat(document.getElementById('product-price').textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+               const productPrice = 0; // Preço não disponível após remoção do elemento
                
                let html = '<h6 class="text-primary mb-3"><i class="bi bi-bar-chart"></i> Comparação de Tipos de Anúncio</h6>';
                
@@ -459,7 +459,7 @@ function showFeesError(message) {
     feesContainer.innerHTML = `
         <div class="alert alert-danger">
             <i class="bi bi-exclamation-triangle"></i>
-            <strong>Erro ao carregar taxas:</strong> ${message}
+            <strong>Erro ao carregar análise de preços:</strong> ${message}
         </div>
     `;
 }
@@ -996,7 +996,7 @@ function renderCatalogInfo(data, fromDatabase = true) {
                     shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
                     break;
                 default:
-                    shippingInfo = `<span class="badge bg-light text-dark">${product.logistic_type}</span>`;
+                    shippingInfo = `<span class="badge bg-light text-dark">${getShippingTypeLabel(product.logistic_type)}</span>`;
                     break;
             }
         } else if (product.shipping_method && product.shipping_method !== 'standard') {
@@ -1016,7 +1016,7 @@ function renderCatalogInfo(data, fromDatabase = true) {
                     shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
                     break;
                 default:
-                    shippingInfo = `<span class="badge bg-light text-dark">${product.shipping_method}</span>`;
+                    shippingInfo = `<span class="badge bg-light text-dark">${getShippingTypeLabel(product.shipping_method)}</span>`;
                     break;
             }
         } else {
@@ -1558,6 +1558,20 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+    // Função para traduzir tipos logísticos
+    function getShippingTypeLabel(logisticType) {
+        const translations = {
+            'fulfillment': 'Full Mercado Livre',
+            'xd_drop_off': 'Correios',
+            'drop_off': 'Correios',
+            'cross_docking': 'Coleta ML',
+            'me2': 'Mercado Envios',
+            'standard': 'Mercado Envios',
+            'default': 'Não disponível'
+        };
+        return translations[logisticType] || logisticType;
+    }
+
     // Função global para tratar erros de sessão
     function handleSessionError(response, data) {
         if (response && response.status === 401) {
@@ -1798,17 +1812,6 @@ document.head.appendChild(style);
     }
 
     // Função para obter label do tipo de envio
-    function getShippingTypeLabel(type) {
-        const labels = {
-            'frete_gratis': 'Frete Grátis',
-            'full': 'Full Mercado Livre',
-            'coleta_ml': 'Coleta ML',
-            'mercado_envios': 'Mercado Envios',
-            'correios': 'Correios',
-            'outros': 'Outros'
-        };
-        return labels[type] || type;
-    }
 
     // Função para obter nome de exibição do vendedor
     function getSellerDisplayName(seller) {

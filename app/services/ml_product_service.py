@@ -1101,7 +1101,9 @@ class MLProductService:
                 logger.error("user_id é obrigatório")
                 return {"success": False, "error": "user_id é obrigatório"}
             
+            logger.info(f"🔑 Usando TokenManager para user_id: {user_id}")
             token = token_manager.get_valid_token(user_id)
+            logger.info(f"🔑 Token obtido: {token[:20] if token else 'None'}...")
             
             if not token:
                 logger.error(f"Token não encontrado para company_id: {company_id}")
