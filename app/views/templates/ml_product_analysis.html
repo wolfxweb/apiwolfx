@@ -53,17 +53,24 @@
                             </div>
                             <div class="col-md-9">
                                 <h4 id="product-title" class="mb-2"></h4>
-                                <p id="product-description" class="text-muted mb-3"></p>
                                 <div class="row">
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <strong>ID:</strong> <span id="product-ml-id"></span>
                                     </div>
-                                    <div class="col-md-4">
-                                        <strong>Preço:</strong> <div id="product-price"></div>
-                                    </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <strong>Status:</strong> <span id="product-status"></span>
                                     </div>
+                                </div>
+                                <div class="mt-3">
+                                    <a href="https://www.mercadolivre.com.br/catalogo/explorar/" 
+                                       target="_blank" 
+                                       class="btn btn-outline-primary btn-sm"
+                                       title="Abrir catálogo do Mercado Livre">
+                                        <i class="bi bi-box-arrow-up-right"></i> Ver Catálogo
+                                    </a>
+                                    <button type="button" class="btn btn-outline-success btn-sm ms-2" onclick="syncCatalog()" id="sync-catalog-btn">
+                                        <i class="bi bi-arrow-clockwise"></i> Sincronizar Catálogo
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -226,10 +233,16 @@ function loadProductAnalysis(productId) {
 function renderProductInfo(product) {
     document.getElementById('product-thumbnail').src = product.thumbnail || '/static/images/no-image.png';
     document.getElementById('product-title').textContent = product.title;
-    document.getElementById('product-description').textContent = product.subtitle || 'Sem descrição';
     document.getElementById('product-ml-id').textContent = product.ml_item_id;
-    document.getElementById('product-price').innerHTML = formatProductPriceForAnalysis(product);
     document.getElementById('product-status').innerHTML = getStatusBadge(product.status);
+    
+    // Mostrar/ocultar botões de catálogo baseado no tipo do produto
+    const catalogButtons = document.querySelectorAll('#sync-catalog-btn, a[href*="catalogo"]');
+    if (product.catalog_listing) {
+        catalogButtons.forEach(btn => btn.style.display = 'inline-block');
+    } else {
+        catalogButtons.forEach(btn => btn.style.display = 'none');
+    }
 }
 
 function loadMarketplaceFees(product) {
@@ -776,8 +789,14 @@ function checkCatalogInfo(product) {
     // Verificar se o produto é de catálogo
     if (product.catalog_listing) {
         loadCatalogInfo(product.id);
+        // Mostrar cards de catálogo
+        document.getElementById('competitive-analysis-card').style.display = 'block';
+        document.getElementById('catalog-info-card').style.display = 'block';
     } else {
         loadShippingCosts(product);
+        // Ocultar cards de catálogo
+        document.getElementById('competitive-analysis-card').style.display = 'none';
+        document.getElementById('catalog-info-card').style.display = 'none';
     }
 }
 
@@ -864,15 +883,6 @@ function renderCatalogInfo(data, fromDatabase = true) {
                         `}
                     </div>
                 </div>
-                <a href="https://www.mercadolivre.com.br/catalogo/explorar/" 
-                   target="_blank" 
-                   class="btn btn-outline-primary btn-sm"
-                   title="Abrir catálogo do Mercado Livre">
-                    <i class="bi bi-box-arrow-up-right"></i> Ver Catálogo
-                </a>
-                <button type="button" class="btn btn-outline-success btn-sm ms-2" onclick="syncCatalog()" id="sync-catalog-btn">
-                    <i class="bi bi-arrow-clockwise"></i> Sincronizar Catálogo
-                </button>
             </div>
         </div>
         
@@ -2111,3 +2121,4 @@ document.head.appendChild(style);
     }
 </script>
 {% endblock %}
+
