@@ -93,27 +93,27 @@
                         </div>
                     </div>
 
-        <!-- Catalog Information -->
-        <div class="col-md-12 mb-4">
-            <div class="card h-100">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0" id="catalog-shipping-header">
-                        <i class="bi bi-truck"></i> Custos de Envio
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="catalog-shipping-content">
-                        <div class="text-center py-3">
-                            <div class="spinner-border spinner-border-sm" role="status">
-                                <span class="visually-hidden">Carregando...</span>
+                    <!-- Profitability Analysis -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-graph-up"></i> Análise de Rentabilidade
+                                </h5>
                             </div>
-                            <p class="mt-2 mb-0">Verificando informações...</p>
+                            <div class="card-body">
+                                <div id="profitability-analysis">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 mb-0">Calculando rentabilidade...</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-        
+
        <!-- Análise Card -->
        <div class="col-md-12 mb-4">
            <div class="card h-100">
@@ -134,30 +134,34 @@
                </div>
            </div>
        </div>
-                </div>
 
-                <!-- Profitability Analysis -->
-                <div class="row">
-                    <div class="col-12 mb-4">
-                        <div class="card">
-                            <div class="card-header bg-success text-white">
-                                <h5 class="mb-0">
-                                    <i class="bi bi-graph-up"></i> Análise de Rentabilidade
-                                </h5>
+        <!-- MercadoLíder Cards -->
+        <div class="row" id="mercado-lider-cards" style="display: none;">
+            <!-- Cards serão inseridos aqui via JavaScript -->
+        </div>
+
+        <!-- Catalog Information -->
+        <div class="col-md-12 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0" id="catalog-shipping-header">
+                        <i class="bi bi-truck"></i> Custos de Envio
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="catalog-shipping-content">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Carregando...</span>
                             </div>
-                            <div class="card-body">
-                                <div id="profitability-analysis">
-                                    <div class="text-center py-3">
-                                        <div class="spinner-border spinner-border-sm" role="status">
-                                            <span class="visually-hidden">Carregando...</span>
-                                        </div>
-                                        <p class="mt-2 mb-0">Calculando rentabilidade...</p>
-                                    </div>
-                                </div>
-                            </div>
+                            <p class="mt-2 mb-0">Verificando informações...</p>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+                </div>
+
 
                 <!-- Recommendations -->
                 <div class="row">
@@ -1375,26 +1379,6 @@ document.head.appendChild(style);
                 </div>
             </div>
             
-            <!-- Análise de MercadoLíder -->
-            <div class="row">
-                <div class="col-md-6 mb-4">
-                    <h6 class="text-warning mb-3">
-                        <i class="bi bi-award"></i> Distribuição por MercadoLíder
-                    </h6>
-                    <div class="row">
-                        ${Object.entries(analyzeMercadoLider(products)).map(([level, count]) => `
-                            <div class="col-6 mb-2">
-                                <div class="d-flex justify-content-between">
-                                    <span class="small">${getMercadoLiderLabel(level)}</span>
-                                    <span class="badge ${getMercadoLiderBadgeClass(level)}">${count}</span>
-                                </div>
-                                <div class="progress" style="height: 4px;">
-                                    <div class="progress-bar ${getMercadoLiderProgressClass(level)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
                 
                 <!-- Análise por Faixas de Valor -->
                 <div class="col-md-6 mb-4">
@@ -1470,11 +1454,9 @@ document.head.appendChild(style);
                         </div>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Recomendações -->
-            <div class="row">
-                <div class="col-12">
+                
+                <!-- Recomendações -->
+                <div class="col-md-6 mb-4">
                     <h6 class="text-warning mb-3">
                         <i class="bi bi-lightbulb"></i> Recomendações
                     </h6>
@@ -1484,6 +1466,9 @@ document.head.appendChild(style);
                 </div>
             </div>
         `;
+        
+        // Renderizar cards de MercadoLíder separadamente
+        renderMercadoLiderCards(products);
     }
 
     // Função para analisar tipos de envio
@@ -1644,6 +1629,73 @@ document.head.appendChild(style);
             'acima_100': 'bg-dark'
         };
         return classes[range] || 'bg-secondary';
+    }
+
+    // Função para obter anunciantes por nível de MercadoLíder
+    function getAnnouncersByLevel(products, level) {
+        return products.filter(product => getMercadoLiderLevel(product) === level)
+                      .sort((a, b) => (a.position || 999) - (b.position || 999));
+    }
+
+    // Função para renderizar cards de MercadoLíder
+    function renderMercadoLiderCards(products) {
+        const container = document.getElementById('mercado-lider-cards');
+        const mercadoLiderAnalysis = analyzeMercadoLider(products);
+        
+        const levels = Object.entries(mercadoLiderAnalysis);
+        
+        // Organizar em grupos de 2 para criar linhas
+        const rows = [];
+        for (let i = 0; i < levels.length; i += 2) {
+            rows.push(levels.slice(i, i + 2));
+        }
+        
+        container.innerHTML = `
+            ${rows.map(row => `
+                <div class="row">
+                    ${row.map(([level, count]) => `
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header ${getMercadoLiderBadgeClass(level)} text-white">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-award"></i> ${getMercadoLiderLabel(level)}
+                                        <span class="badge bg-light text-dark ms-2">${count}</span>
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="small">${count} anunciantes</span>
+                                            <span class="small">${(count / products.length * 100).toFixed(1)}%</span>
+                                        </div>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar ${getMercadoLiderProgressClass(level)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="announcers-list" style="max-height: 200px; overflow-y: auto;">
+                                        ${getAnnouncersByLevel(products, level).map(announcer => `
+                                            <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+                                                <div>
+                                                    <div class="fw-bold small">${getSellerDisplayName(announcer)}</div>
+                                                    <div class="text-muted small">R$ ${(announcer.price).toFixed(2)}</div>
+                                                </div>
+                                                <div class="text-end">
+                                                    <div class="badge bg-primary">#${announcer.position || 'N/A'}</div>
+                                                    <div class="small text-muted">${getShippingTypeLabel(getShippingTypeFromProduct(announcer))}</div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('')}
+        `;
+        
+        // Mostrar os cards
+        container.style.display = 'block';
     }
 
     // Função para obter nível de MercadoLíder do produto
