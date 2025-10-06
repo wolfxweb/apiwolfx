@@ -655,6 +655,11 @@ function renderProducts(products) {
                         <a href="/ml/products/analysis/${product.id}" class="btn btn-outline-success btn-sm" title="Análise do Produto">
                             <i class="bi bi-calculator"></i>
                         </a>
+                        <button onclick="importToInternalProduct(${product.id}, '${product.title}', '${product.ml_item_id}')" 
+                                class="btn btn-outline-primary btn-sm" 
+                                title="Importar para Produto Interno">
+                            <i class="bi bi-arrow-right-circle"></i>
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -1369,5 +1374,17 @@ function getSelectedProducts() {
     });
 }
 document.head.appendChild(sortStyle);
+
+// Função para importar produto do ML para produto interno
+function importToInternalProduct(productId, productTitle, mlItemId) {
+    // Redirecionar para a página de produtos internos com o produto pré-selecionado
+    const params = new URLSearchParams({
+        base_product_id: productId,
+        title: productTitle,
+        ml_item_id: mlItemId
+    });
+    
+    window.location.href = `/api/internal-products?${params.toString()}`;
+}
 </script>
 {% endblock %}

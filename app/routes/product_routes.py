@@ -97,6 +97,34 @@ async def import_all_products(
             content={"success": False, "error": "Erro interno do servidor"}
         )
 
+@product_router.post("/api/products/import-to-internal")
+async def import_to_internal_products(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Importa produtos do ML para produtos internos"""
+    try:
+        service = ProductService(db)
+        result = service.import_to_internal_products(
+            company_id=user["company"]["id"],
+            user_id=user["id"]
+        )
+        
+        if result["success"]:
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+        
+    except Exception as e:
+        logger.error(f"Erro ao importar produtos para internos: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro interno do servidor"}
+        )
+
 @product_router.put("/api/products/{product_id}")
 async def update_product(
     product_id: int,

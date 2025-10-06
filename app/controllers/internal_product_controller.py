@@ -194,3 +194,28 @@ class InternalProductController:
         except Exception as e:
             logger.error(f"Erro no controller ao listar produtos base: {str(e)}")
             raise HTTPException(status_code=500, detail="Erro interno do servidor")
+    
+    def bulk_delete_internal_products(
+        self,
+        product_ids: list,
+        company_id: int,
+        db: Session = Depends(get_db)
+    ) -> Dict[str, Any]:
+        """Exclui múltiplos produtos internos"""
+        try:
+            service = InternalProductService(db)
+            result = service.bulk_delete_internal_products(
+                product_ids=product_ids,
+                company_id=company_id
+            )
+            
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+            
+            return result
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Erro no controller ao excluir produtos em massa: {str(e)}")
+            raise HTTPException(status_code=500, detail="Erro interno do servidor")

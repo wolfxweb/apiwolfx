@@ -1,7 +1,7 @@
 """
 Modelos SaaS Multi-tenant para API Mercado Livre
 """
-from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Enum, JSON, Index, Numeric
+from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Enum, JSON, Index, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base
@@ -710,5 +710,37 @@ class InternalProduct(Base):
         Index('ix_internal_products_status', 'status'),
         Index('ix_internal_products_category', 'category'),
         Index('ix_internal_products_created', 'created_at'),
+    )
+
+
+class SKUManagement(Base):
+    """Gerenciamento de SKUs para evitar duplicação"""
+    __tablename__ = "sku_management"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sku = Column(String(100), nullable=False, index=True)  # SKU único
+    platform = Column(String(50), nullable=False, default="mercadolivre")  # Plataforma (ML, Amazon, etc.)
+    platform_item_id = Column(String(100), nullable=False)  # ID do item na plataforma
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)  # Produto ML
+    internal_product_id = Column(Integer, ForeignKey("internal_products.id"), nullable=True)  # Produto interno
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    status = Column(String(50), default="active", index=True)  # active, inactive, archived
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    product = relationship("Product", foreign_keys=[product_id])
+    internal_product = relationship("InternalProduct", foreign_keys=[internal_product_id])
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_sku_management_sku', 'sku'),
+        Index('ix_sku_management_platform', 'platform'),
+        Index('ix_sku_management_platform_item', 'platform_item_id'),
+        Index('ix_sku_management_company', 'company_id'),
+        Index('ix_sku_management_status', 'status'),
     )
 

@@ -5,6 +5,7 @@ from app.routes.product_routes import product_router
 from app.routes.internal_product_routes import internal_product_router
 from app.routes.user_routes import user_router
 from app.routes.category_routes import category_router
+from app.routes.sku_management_routes import sku_management_router
 from app.controllers.auth_controller import get_current_user
 from app.views.template_renderer import render_template
 
@@ -17,6 +18,7 @@ main_router.include_router(product_router)
 main_router.include_router(internal_product_router)
 main_router.include_router(user_router)
 main_router.include_router(category_router)
+main_router.include_router(sku_management_router)
 
 @main_router.get("/products/imported", response_class=HTMLResponse)
 async def products_imported_page(request: Request, session_token: str = Cookie(None)):

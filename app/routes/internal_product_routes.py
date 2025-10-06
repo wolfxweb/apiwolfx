@@ -3,7 +3,7 @@ Rotas para gerenciar produtos internos/customizados
 """
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Cookie, Body
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.config.database import get_db
@@ -80,10 +80,13 @@ async def get_internal_products(
     search: Optional[str] = Query(None, description="Buscar por nome, SKU ou descrição"),
     limit: int = Query(50, description="Limite de resultados"),
     offset: int = Query(0, description="Offset para paginação"),
-    session_token: str = Query(..., description="Token de sessão"),
+    session_token: str = Cookie(None, description="Token de sessão"),
     db: Session = Depends(get_db)
 ):
     """Lista produtos internos da empresa"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
     try:
         # Obter usuário atual
         current_user = get_current_user(session_token)
@@ -220,4 +223,44 @@ async def get_base_products(
         raise e
     except Exception as e:
         logger.error(f"Erro ao listar produtos base: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+
+@internal_product_router.post("/bulk-delete")
+async def bulk_delete_internal_products(
+    request_data: dict = Body(..., description="Dados da requisição"),
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """Exclui múltiplos produtos internos"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    try:
+        # Extrair product_ids do request_data
+        product_ids = request_data.get("product_ids", [])
+        
+        if not product_ids:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Nenhum produto selecionado para exclusão"}
+            )
+        
+        # Obter usuário atual
+        current_user = get_current_user(session_token)
+        company_id = current_user["company_id"]
+        
+        controller = InternalProductController()
+        result = controller.bulk_delete_internal_products(
+            product_ids=product_ids,
+            company_id=company_id,
+            db=db
+        )
+        
+        return JSONResponse(content=result)
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Erro ao excluir produtos em massa: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")

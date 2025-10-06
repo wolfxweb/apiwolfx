@@ -613,7 +613,7 @@ function confirmImportAll() {
     // Mostrar loading
     showAlert('info', 'Iniciando importação de todos os produtos...');
     
-    fetch('/api/products/import-all', {
+    fetch('/api/products/import-to-internal', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

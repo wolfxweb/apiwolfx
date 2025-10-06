@@ -32,16 +32,11 @@ class InternalProductService:
     ) -> Dict[str, Any]:
         """Cria um novo produto interno"""
         try:
-            # Verificar se o SKU interno já existe na empresa
-            existing = self.db.query(InternalProduct).filter(
-                and_(
-                    InternalProduct.company_id == company_id,
-                    InternalProduct.internal_sku == internal_sku
-                )
-            ).first()
+            # Verificar se o SKU interno já existe na empresa usando SKU Management
+            from app.services.sku_management_service import SKUManagementService
+            sku_service = SKUManagementService(self.db)
             
-            if existing:
-                return {"error": "SKU interno já existe para esta empresa"}
+            # Não bloquear se SKU existe, apenas registrar nova associação
             
             # Se base_product_id foi fornecido, verificar se existe
             base_product = None
@@ -74,6 +69,21 @@ class InternalProductService:
             self.db.add(internal_product)
             self.db.commit()
             self.db.refresh(internal_product)
+            
+            # Registrar SKU no sistema de gerenciamento
+            try:
+                platform_item_id = base_product.ml_item_id if base_product else f"INTERNAL-{internal_product.id}"
+                sku_service.register_sku(
+                    sku=internal_sku,
+                    platform="mercadolivre" if base_product else "internal",
+                    platform_item_id=platform_item_id,
+                    company_id=company_id,
+                    product_id=base_product_id,
+                    internal_product_id=internal_product.id
+                )
+            except Exception as e:
+                logger.warning(f"Erro ao registrar SKU no sistema: {e}")
+                # Não falha a criação do produto se o registro do SKU falhar
             
             return {
                 "success": True,
@@ -144,8 +154,8 @@ class InternalProductService:
                         "status": p.status,
                         "current_stock": p.current_stock,
                         "base_product_id": p.base_product_id,
-                        "created_at": p.created_at,
-                        "updated_at": p.updated_at
+                        "created_at": p.created_at.isoformat() if p.created_at else None,
+                        "updated_at": p.updated_at.isoformat() if p.updated_at else None
                     }
                     for p in products
                 ],
@@ -328,4 +338,47 @@ class InternalProductService:
             
         except Exception as e:
             logger.error(f"Erro ao listar produtos base: {str(e)}")
+            return {"error": f"Erro interno: {str(e)}"}
+    
+    def bulk_delete_internal_products(self, product_ids: list, company_id: int) -> Dict[str, Any]:
+        """Exclui múltiplos produtos internos"""
+        try:
+            if not product_ids:
+                return {"error": "Nenhum produto selecionado para exclusão"}
+            
+            # Verificar se todos os produtos pertencem à empresa
+            products = self.db.query(InternalProduct).filter(
+                and_(
+                    InternalProduct.id.in_(product_ids),
+                    InternalProduct.company_id == company_id
+                )
+            ).all()
+            
+            if not products:
+                return {"error": "Nenhum produto encontrado para exclusão"}
+            
+            # Verificar se todos os IDs solicitados foram encontrados
+            found_ids = [p.id for p in products]
+            missing_ids = [pid for pid in product_ids if pid not in found_ids]
+            
+            if missing_ids:
+                return {"error": f"Produtos não encontrados: {missing_ids}"}
+            
+            # Excluir produtos
+            deleted_count = 0
+            for product in products:
+                self.db.delete(product)
+                deleted_count += 1
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": f"{deleted_count} produto(s) excluído(s) com sucesso",
+                "deleted_count": deleted_count
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Erro ao excluir produtos em massa: {str(e)}")
             return {"error": f"Erro interno: {str(e)}"}

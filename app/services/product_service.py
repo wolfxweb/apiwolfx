@@ -5,7 +5,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from app.models.saas_models import Product, MLProduct
+from app.models.saas_models import Product, MLProduct, InternalProduct
 from app.services.token_manager import TokenManager
 import requests
 
@@ -284,6 +284,82 @@ class ProductService:
 
         except Exception as e:
             logger.error(f"Erro ao atualizar produto {product_id}: {e}")
+            self.db.rollback()
+            return {
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+
+    def import_to_internal_products(self, company_id: int, user_id: int) -> Dict[str, Any]:
+        """
+        Importa produtos do ML para a tabela internal_products
+        """
+        try:
+            # Buscar produtos do ML da empresa
+            ml_products = self.db.query(MLProduct).filter(
+                MLProduct.company_id == company_id
+            ).all()
+
+            if not ml_products:
+                return {
+                    "success": False,
+                    "error": "Nenhum produto encontrado no Mercado Livre"
+                }
+
+            imported_count = 0
+            skipped_count = 0
+            errors = []
+
+            for ml_product in ml_products:
+                # Verificar se já existe produto interno com este ml_item_id
+                existing_internal = self.db.query(InternalProduct).filter(
+                    and_(
+                        InternalProduct.base_product_id == ml_product.id,
+                        InternalProduct.company_id == company_id
+                    )
+                ).first()
+
+                if existing_internal:
+                    skipped_count += 1
+                    continue
+
+                # Usar dados já importados da tabela ml_products
+                # Não usar SKU do ML pois pode ser código do anúncio
+                # O SKU interno será definido manualmente pelo usuário
+                internal_sku = ""
+                
+                # Criar produto interno usando dados já importados
+                new_internal_product = InternalProduct(
+                    company_id=company_id,
+                    base_product_id=ml_product.id,  # Referência ao produto ML
+                    name=ml_product.title,
+                    description=ml_product.subtitle or "",
+                    internal_sku=internal_sku,
+                    cost_price=0.0,  # Será preenchido depois
+                    selling_price=float(ml_product.price or 0),
+                    category=ml_product.category_id or "",
+                    brand=ml_product.brand or "",
+                    supplier="Mercado Livre",
+                    # Usar dados já importados
+                    main_image=ml_product.thumbnail or "",
+                    current_stock=int(ml_product.available_quantity or 0)
+                )
+
+                self.db.add(new_internal_product)
+                imported_count += 1
+
+            self.db.commit()
+
+            return {
+                "success": True,
+                "message": f"Importação para produtos internos concluída: {imported_count} importados, {skipped_count} já existiam",
+                "imported_count": imported_count,
+                "skipped_count": skipped_count,
+                "errors": errors
+            }
+
+        except Exception as e:
+            logger.error(f"Erro ao importar produtos para internos: {e}")
             self.db.rollback()
             return {
                 "success": False,
