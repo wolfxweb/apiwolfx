@@ -885,7 +885,8 @@ async def get_product_fees(
             price=product.price,
             category_id=product.category_id,
             listing_type_id=product.listing_type_id,
-            company_id=user["company"]["id"]
+            company_id=user["company"]["id"],
+            user_id=user["id"]
         )
         
         return JSONResponse(content={

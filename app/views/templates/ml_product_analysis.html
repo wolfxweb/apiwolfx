@@ -252,6 +252,7 @@ function loadMarketplaceFees(product) {
     fetch(`/ml/products/api/product/${product.id}/fees`)
         .then(response => response.json())
         .then(data => {
+            if (handleSessionError(null, data)) return;
             if (data.success && data.fees.success) {
                 const fees = data.fees.data;
                 renderMarketplaceFees(fees);

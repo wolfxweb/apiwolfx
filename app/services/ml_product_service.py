@@ -1084,7 +1084,7 @@ class MLProductService:
             logger.error(f"Erro ao buscar histórico de sincronização: {e}")
             raise Exception(f"Erro ao buscar histórico: {e}")
 
-    def get_listing_prices(self, product_id, price, category_id=None, listing_type_id=None, company_id=None):
+    def get_listing_prices(self, product_id, price, category_id=None, listing_type_id=None, company_id=None, user_id=None):
         """Busca taxas de listagem do Mercado Livre com informações de frete"""
         try:
             logger.info(f"Buscando listing prices - product_id: {product_id}, price: {price}, category_id: {category_id}, company_id: {company_id}")
@@ -1096,16 +1096,10 @@ class MLProductService:
             # Usar TokenManager para obter token válido
             from app.services.token_manager import TokenManager
             token_manager = TokenManager(self.db)
-            # TODO: Precisamos do user_id da sessão aqui também
-            # Por enquanto, buscar qualquer usuário da empresa
-            from sqlalchemy import text
-            user_query = text("SELECT id FROM users WHERE company_id = :company_id LIMIT 1")
-            user_result = self.db.execute(user_query, {"company_id": company_id}).fetchone()
-            user_id = user_result[0] if user_result else None
             
             if not user_id:
-                logger.error(f"Nenhum usuário encontrado para company_id: {company_id}")
-                return {"success": False, "error": "Usuário não encontrado"}
+                logger.error("user_id é obrigatório")
+                return {"success": False, "error": "user_id é obrigatório"}
             
             token = token_manager.get_valid_token(user_id)
             
