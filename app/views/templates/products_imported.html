@@ -158,6 +158,142 @@
     </div>
 </div>
 
+<!-- Modal de Confirmação de Importação -->
+<div class="modal fade" id="confirmImportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Confirmar Importação
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning d-flex align-items-center" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                        <strong>Atenção!</strong> Esta operação irá importar <strong>TODOS</strong> os produtos do Mercado Livre para sua base interna.
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>O que será importado:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check-circle text-success me-2"></i> Produtos já sincronizados do ML</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i> Dados básicos (nome, preço, categoria)</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i> Imagens e descrições</li>
+                    </ul>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Configurações necessárias:</h6>
+                    <ul class="list-unstyled text-muted">
+                        <li><i class="bi bi-arrow-right me-2"></i> Preço de custo (será solicitado após importação)</li>
+                        <li><i class="bi bi-arrow-right me-2"></i> Taxa de imposto (configurável)</li>
+                        <li><i class="bi bi-arrow-right me-2"></i> Custos de marketing (opcional)</li>
+                    </ul>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirmImportCheck">
+                    <label class="form-check-label" for="confirmImportCheck">
+                        <strong>Confirmo que desejo importar todos os produtos</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-warning" id="confirmImportBtn" onclick="confirmImportAll()" disabled>
+                    <i class="bi bi-download me-1"></i> Importar Todos os Produtos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Remoção -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Confirmar Remoção
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-flex align-items-center" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                        <strong>Atenção!</strong> Esta ação não pode ser desfeita.
+                    </div>
+                </div>
+                
+                <p>Deseja realmente remover <strong id="deleteCount">0</strong> produto(s) selecionado(s)?</p>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirmDeleteCheck">
+                    <label class="form-check-label" for="confirmDeleteCheck">
+                        <strong>Confirmo que desejo remover os produtos selecionados</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDeleteSelected()" disabled>
+                    <i class="bi bi-trash me-1"></i> Remover Produtos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Remoção Individual -->
+<div class="modal fade" id="confirmSingleDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Confirmar Remoção
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-flex align-items-center" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                        <strong>Atenção!</strong> Esta ação não pode ser desfeita.
+                    </div>
+                </div>
+                
+                <p>Deseja realmente remover este produto da sua base interna?</p>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirmSingleDeleteCheck">
+                    <label class="form-check-label" for="confirmSingleDeleteCheck">
+                        <strong>Confirmo que desejo remover este produto</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmSingleDeleteBtn" onclick="confirmDeleteSingle()" disabled>
+                    <i class="bi bi-trash me-1"></i> Remover Produto
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de Edição -->
 <div class="modal fade" id="editModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -241,6 +377,24 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('status-filter').addEventListener('change', loadProducts);
     document.getElementById('sort-filter').addEventListener('change', loadProducts);
     document.getElementById('limit-filter').addEventListener('change', loadProducts);
+    
+    // Event listener para checkbox de confirmação de importação
+    document.getElementById('confirmImportCheck').addEventListener('change', function() {
+        const confirmBtn = document.getElementById('confirmImportBtn');
+        confirmBtn.disabled = !this.checked;
+    });
+    
+    // Event listener para checkbox de confirmação de remoção
+    document.getElementById('confirmDeleteCheck').addEventListener('change', function() {
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        confirmBtn.disabled = !this.checked;
+    });
+    
+    // Event listener para checkbox de confirmação de remoção individual
+    document.getElementById('confirmSingleDeleteCheck').addEventListener('change', function() {
+        const confirmBtn = document.getElementById('confirmSingleDeleteBtn');
+        confirmBtn.disabled = !this.checked;
+    });
 });
 
 function loadProducts() {
@@ -447,9 +601,17 @@ function importProduct() {
 }
 
 function importAllProducts() {
-    if (!confirm('Deseja importar todos os produtos do Mercado Livre?')) {
-        return;
-    }
+    // Mostrar modal de confirmação
+    const modal = new bootstrap.Modal(document.getElementById('confirmImportModal'));
+    modal.show();
+}
+
+function confirmImportAll() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmImportModal'));
+    modal.hide();
+    
+    // Mostrar loading
+    showAlert('info', 'Iniciando importação de todos os produtos...');
     
     fetch('/api/products/import-all', {
         method: 'POST',
@@ -536,9 +698,18 @@ function saveProduct() {
 
 // Funções de remoção
 function deleteProduct(productId) {
-    if (!confirm('Deseja remover este produto?')) {
-        return;
-    }
+    // Armazenar o ID do produto para remoção
+    window.productToDelete = productId;
+    
+    // Mostrar modal de confirmação
+    const modal = new bootstrap.Modal(document.getElementById('confirmSingleDeleteModal'));
+    modal.show();
+}
+
+function confirmDeleteSingle() {
+    const productId = window.productToDelete;
+    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmSingleDeleteModal'));
+    modal.hide();
     
     fetch(`/api/products/${productId}`, {
         method: 'DELETE'
@@ -564,12 +735,23 @@ function deleteSelected() {
         return;
     }
     
-    if (!confirm(`Deseja remover ${selectedProducts.size} produto(s) selecionado(s)?`)) {
-        return;
-    }
+    // Mostrar modal de confirmação
+    const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+    document.getElementById('deleteCount').textContent = selectedProducts.size;
+    modal.show();
+}
+
+function confirmDeleteSelected() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
+    modal.hide();
     
     // Implementar remoção em lote
-    showAlert('info', 'Funcionalidade de remoção em lote será implementada em breve');
+    showAlert('info', `Removendo ${selectedProducts.size} produto(s) selecionado(s)...`);
+    
+    // TODO: Implementar remoção em lote
+    selectedProducts.clear();
+    document.getElementById('select-all').checked = false;
+    loadProducts();
 }
 
 function clearFilters() {

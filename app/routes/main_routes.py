@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Request, Query, Cookie
+from fastapi.responses import HTMLResponse, RedirectResponse
 from app.routes.auth_routes import auth_router
 from app.routes.product_routes import product_router
 from app.routes.internal_product_routes import internal_product_router
@@ -19,13 +19,28 @@ main_router.include_router(user_router)
 main_router.include_router(category_router)
 
 @main_router.get("/products/imported", response_class=HTMLResponse)
-async def products_imported_page(request: Request, session_token: str = Query(...)):
-    """Página de produtos importados"""
-    user = get_current_user(session_token)
-    return render_template("products_imported.html", user=user)
+async def products_imported_page(request: Request, session_token: str = Cookie(None)):
+    """Página de produtos importados - apenas usuários logados"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    try:
+        user = get_current_user(session_token)
+        return render_template("products_imported.html", user=user)
+    except Exception:
+        # Se token expirado ou inválido, redirecionar para login
+        return RedirectResponse(url="/auth/login", status_code=302)
 
 @main_router.get("/internal-products", response_class=HTMLResponse)
-async def internal_products_page(request: Request, session_token: str = Query(...)):
-    """Página de produtos internos"""
-    user = get_current_user(session_token)
-    return render_template("internal_products.html", user=user)
+async def internal_products_page(request: Request, session_token: str = Cookie(None)):
+    """Página de produtos internos - apenas usuários logados"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    try:
+        user = get_current_user(session_token)
+        return render_template("internal_products.html", user=user)
+    except Exception:
+        # Se token expirado ou inválido, redirecionar para login
+        return RedirectResponse(url="/auth/login", status_code=302)
+

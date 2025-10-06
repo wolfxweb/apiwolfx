@@ -47,7 +47,7 @@ async def login(
     response.set_cookie(
         key="session_token",
         value=result["session_token"],
-        httponly=True,
+        httponly=False,  # Permitir acesso via JavaScript
         secure=False,  # False para desenvolvimento (HTTP)
         samesite="lax",
         max_age=86400 if remember else 3600  # 1 dia ou 1 hora
@@ -115,8 +115,8 @@ async def register(
     response.set_cookie(
         key="session_token",
         value=result["session_token"],
-        httponly=True,
-        secure=True,
+        httponly=False,  # Permitir acesso via JavaScript
+        secure=False,  # False para desenvolvimento
         samesite="lax",
         max_age=86400  # 1 dia
     )

@@ -39,7 +39,7 @@ async def create_internal_product(
     """Cria um novo produto interno"""
     try:
         # Obter usuário atual
-        current_user = get_current_user(session_token, db)
+        current_user = get_current_user(session_token)
         company_id = current_user["company_id"]
         
         controller = InternalProductController()
@@ -73,7 +73,7 @@ async def create_internal_product(
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 
-@internal_product_router.get("/")
+@internal_product_router.get("/list")
 async def get_internal_products(
     status: Optional[str] = Query(None, description="Filtrar por status"),
     category: Optional[str] = Query(None, description="Filtrar por categoria"),
@@ -86,7 +86,7 @@ async def get_internal_products(
     """Lista produtos internos da empresa"""
     try:
         # Obter usuário atual
-        current_user = get_current_user(session_token, db)
+        current_user = get_current_user(session_token)
         company_id = current_user["company_id"]
         
         controller = InternalProductController()
@@ -118,7 +118,7 @@ async def get_internal_product(
     """Obtém um produto interno específico"""
     try:
         # Obter usuário atual
-        current_user = get_current_user(session_token, db)
+        current_user = get_current_user(session_token)
         company_id = current_user["company_id"]
         
         controller = InternalProductController()
@@ -147,7 +147,7 @@ async def update_internal_product(
     """Atualiza um produto interno"""
     try:
         # Obter usuário atual
-        current_user = get_current_user(session_token, db)
+        current_user = get_current_user(session_token)
         company_id = current_user["company_id"]
         
         controller = InternalProductController()
@@ -176,7 +176,7 @@ async def delete_internal_product(
     """Remove um produto interno"""
     try:
         # Obter usuário atual
-        current_user = get_current_user(session_token, db)
+        current_user = get_current_user(session_token)
         company_id = current_user["company_id"]
         
         controller = InternalProductController()
@@ -204,7 +204,7 @@ async def get_base_products(
     """Lista produtos do ML que podem ser usados como base"""
     try:
         # Obter usuário atual
-        current_user = get_current_user(session_token, db)
+        current_user = get_current_user(session_token)
         company_id = current_user["company_id"]
         
         controller = InternalProductController()

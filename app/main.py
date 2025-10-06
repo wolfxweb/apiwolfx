@@ -112,6 +112,7 @@ async def root():
     return RedirectResponse(url="/auth/login", status_code=302)
 
 
+
 @app.get("/login")
 async def login(state: str = None):
     """Redireciona para o login do Mercado Livre"""

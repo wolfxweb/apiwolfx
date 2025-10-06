@@ -249,19 +249,40 @@ let currentFilters = {
 
 // Carregar produtos ao inicializar a página
 document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se o usuário está logado antes de carregar dados
+    const sessionToken = getSessionToken();
+    if (!sessionToken || sessionToken === 'null') {
+        console.log('🔒 Usuário não logado, redirecionando para login...');
+        window.location.href = '/auth/login';
+        return;
+    }
+    
     loadProducts();
     loadBaseProducts();
 });
 
 // Carregar produtos
 async function loadProducts() {
+    const sessionToken = getSessionToken();
+    if (!sessionToken || sessionToken === 'null') {
+        console.log('🔒 Usuário não logado, não carregando produtos');
+        return;
+    }
+    
     try {
         const params = new URLSearchParams({
-            session_token: getSessionToken(),
+            session_token: sessionToken,
             ...currentFilters
         });
         
-        const response = await fetch(`/api/internal-products?${params}`);
+        const response = await fetch(`/api/internal-products/list?${params}`);
+        
+        if (response.status === 401 || response.status === 302) {
+            console.log('🔒 Sessão expirada, redirecionando para login');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -329,12 +350,25 @@ function applyFilters() {
 
 // Carregar produtos base do ML
 async function loadBaseProducts() {
+    const sessionToken = getSessionToken();
+    if (!sessionToken || sessionToken === 'null') {
+        console.log('🔒 Usuário não logado, não carregando produtos base');
+        return;
+    }
+    
     try {
         const params = new URLSearchParams({
-            session_token: getSessionToken()
+            session_token: sessionToken
         });
         
         const response = await fetch(`/api/internal-products/base-products/search?${params}`);
+        
+        if (response.status === 401 || response.status === 302) {
+            console.log('🔒 Sessão expirada, redirecionando para login');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -511,9 +545,21 @@ function getStatusText(status) {
 }
 
 function getSessionToken() {
-    return new URLSearchParams(window.location.search).get('session_token') || 
-           localStorage.getItem('session_token') || 
-           sessionStorage.getItem('session_token');
+    // Tentar pegar do cookie primeiro
+    const cookies = document.cookie.split(';');
+    
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'session_token') {
+            return value;
+        }
+    }
+    
+    // Fallback para localStorage/sessionStorage
+    const localToken = localStorage.getItem('session_token');
+    const sessionToken = sessionStorage.getItem('session_token');
+    
+    return localToken || sessionToken;
 }
 
 function showAlert(message, type) {
