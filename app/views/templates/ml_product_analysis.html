@@ -135,10 +135,6 @@
            </div>
        </div>
 
-        <!-- MercadoLíder Cards -->
-        <div class="row" id="mercado-lider-cards" style="display: none;">
-            <!-- Cards serão inseridos aqui via JavaScript -->
-        </div>
 
         <!-- Catalog Information -->
         <div class="col-md-12 mb-4">
@@ -1449,27 +1445,35 @@ document.head.appendChild(style);
                         </div>
                     </div>
                     <div class="row mt-2">
-                        <div class="col-4">
+                        <div class="col-3">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-success">R$ ${metrics.min_price}</h6>
+                                    <h6 class="text-success">R$ ${parseFloat(metrics.min_price).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h6>
                                     <small class="text-muted">Menor Preço</small>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-4">
+                        <div class="col-3">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-info">R$ ${metrics.avg_price}</h6>
+                                    <h6 class="text-info">R$ ${parseFloat(metrics.avg_price).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h6>
                                     <small class="text-muted">Preço Médio</small>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-4">
+                        <div class="col-3">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-danger">R$ ${metrics.max_price}</h6>
+                                    <h6 class="text-danger">R$ ${parseFloat(metrics.max_price).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h6>
                                     <small class="text-muted">Maior Preço</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <h6 class="text-white">R$ ${positioningAnalysis.your_price ? positioningAnalysis.your_price.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 'N/A'}</h6>
+                                    <small class="text-white-50">Seu Preço</small>
                                 </div>
                             </div>
                         </div>
@@ -1488,8 +1492,6 @@ document.head.appendChild(style);
             </div>
         `;
         
-        // Renderizar cards de MercadoLíder separadamente
-        renderMercadoLiderCards(products);
     }
 
     // Função para analisar tipos de envio
@@ -1559,14 +1561,27 @@ document.head.appendChild(style);
 
     // Função para analisar posicionamento
     function analyzePositioning(products) {
-        // Encontrar o produto com menor posição (melhor posicionamento)
-        const bestPosition = Math.min(...products.map(p => p.position || 999));
-        const yourProduct = products.find(p => p.position === bestPosition);
+        if (!products || products.length === 0) {
+            return {
+                your_position: null,
+                total_competitors: 0,
+                best_position: null,
+                your_price: null
+            };
+        }
+        
+        // Buscar especificamente pelo seu produto MLB5588063084
+        const yourProduct = products.find(p => p.ml_item_id === 'MLB5588063084');
+        
+        // Encontrar a melhor posição geral
+        const positions = products.map(p => parseInt(p.position) || 999);
+        const bestPosition = Math.min(...positions);
         
         return {
-            your_position: yourProduct ? yourProduct.position : null,
+            your_position: yourProduct ? (parseInt(yourProduct.position) || null) : null,
             total_competitors: products.length - 1,
-            best_position: bestPosition
+            best_position: bestPosition,
+            your_price: yourProduct ? (parseFloat(yourProduct.price) || null) : null
         };
     }
 
@@ -1577,9 +1592,9 @@ document.head.appendChild(style);
         
         return {
             total_announcers: products.length,
-            avg_price: `R$ ${avgPrice}`,
-            min_price: `R$ ${(Math.min(...products.map(p => p.price))).toFixed(2)}`,
-            max_price: `R$ ${(Math.max(...products.map(p => p.price))).toFixed(2)}`
+            avg_price: avgPrice,
+            min_price: (Math.min(...products.map(p => p.price))).toFixed(2),
+            max_price: (Math.max(...products.map(p => p.price))).toFixed(2)
         };
     }
 
@@ -1665,7 +1680,7 @@ document.head.appendChild(style);
         
         const levels = Object.entries(mercadoLiderAnalysis);
         
-        // Organizar em grupos de 2 para criar linhas
+        // Organizar em grupos de 2 para garantir 2 por linha
         const rows = [];
         for (let i = 0; i < levels.length; i += 2) {
             rows.push(levels.slice(i, i + 2));
@@ -1674,8 +1689,8 @@ document.head.appendChild(style);
         container.innerHTML = `
             ${rows.map(row => `
                 <div class="row">
-                    ${row.map(([level, count]) => `
-                        <div class="col-md-6 mb-4">
+                    ${row.map(([level, count], index) => `
+                        <div class="col-md-6 mb-4 ${row.length === 1 ? 'offset-md-6' : ''}">
                             <div class="card h-100">
                                 <div class="card-header ${getMercadoLiderBadgeClass(level)} text-white">
                                     <h6 class="mb-0">
