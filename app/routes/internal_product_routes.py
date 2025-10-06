@@ -144,10 +144,13 @@ async def get_internal_product(
 async def update_internal_product(
     product_id: int,
     update_data: dict = Body(..., description="Dados para atualização"),
-    session_token: str = Query(..., description="Token de sessão"),
+    session_token: str = Cookie(None, description="Token de sessão"),
     db: Session = Depends(get_db)
 ):
     """Atualiza um produto interno"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
     try:
         # Obter usuário atual
         current_user = get_current_user(session_token)
