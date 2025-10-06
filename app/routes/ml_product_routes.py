@@ -646,10 +646,10 @@ async def get_product_catalog_info(
                 content={"success": True, "is_catalog": False, "message": "Produto não é de catálogo"}
             )
         
-        # Buscar token ativo para fazer chamada à API
-        from app.services.ml_orders_service import MLOrdersService
-        orders_service = MLOrdersService(db)
-        access_token = orders_service._get_active_token(product.ml_account_id)
+        # Usar TokenManager para obter token válido
+        from app.services.token_manager import TokenManager
+        token_manager = TokenManager(db)
+        access_token = token_manager.get_valid_token(user["id"])
         
         if not access_token:
             return JSONResponse(
@@ -885,7 +885,7 @@ async def get_product_fees(
             price=product.price,
             category_id=product.category_id,
             listing_type_id=product.listing_type_id,
-            ml_account_id=product.ml_account_id
+            company_id=user["company"]["id"]
         )
         
         return JSONResponse(content={
@@ -973,10 +973,10 @@ async def sync_catalog_data(
                 content={"success": False, "error": "Produto não é de catálogo"}
             )
         
-        # Buscar token ativo
-        from app.services.ml_orders_service import MLOrdersService
-        orders_service = MLOrdersService(db)
-        access_token = orders_service._get_active_token(product.ml_account_id)
+        # Usar TokenManager para obter token válido
+        from app.services.token_manager import TokenManager
+        token_manager = TokenManager(db)
+        access_token = token_manager.get_valid_token(user["id"])
         
         if not access_token:
             return JSONResponse(
