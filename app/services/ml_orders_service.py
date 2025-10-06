@@ -151,6 +151,79 @@ class MLOrdersService:
                 "total": 0
             }
     
+    def sync_today_orders(self, ml_account_id: int, company_id: int, limit: int = 50) -> Dict:
+        """Sincroniza apenas pedidos do dia atual"""
+        try:
+            logger.info(f"Sincronizando pedidos do dia para ml_account_id: {ml_account_id}")
+            
+            # Verificar se a conta pertence à empresa
+            account = self.db.query(MLAccount).filter(
+                MLAccount.id == ml_account_id,
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
+            ).first()
+            
+            if not account:
+                return {
+                    "success": False,
+                    "error": "Conta não encontrada ou inativa"
+                }
+            
+            # Obter token ativo
+            access_token = self._get_active_token(ml_account_id)
+            if not access_token:
+                return {
+                    "success": False,
+                    "error": "Token não encontrado ou expirado"
+                }
+            
+            # Buscar apenas pedidos do dia atual (days_back=1)
+            logger.info("Sincronização do dia - buscando pedidos de hoje")
+            orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=1)
+            
+            if not orders_data:
+                return {
+                    "success": True,
+                    "message": "Nenhum pedido encontrado para hoje",
+                    "saved_count": 0,
+                    "updated_count": 0,
+                    "total_processed": 0
+                }
+            
+            # Salvar orders no banco
+            saved_count = 0
+            updated_count = 0
+            
+            for order_data in orders_data:
+                try:
+                    # Usar o método existente de salvar order
+                    result = self._save_order_to_database(order_data, ml_account_id, company_id)
+                    if isinstance(result, dict) and result.get("created"):
+                        saved_count += 1
+                    elif isinstance(result, dict) and not result.get("created"):
+                        updated_count += 1
+                    else:
+                        # Se result não é um dict, assumir que foi criado
+                        saved_count += 1
+                except Exception as e:
+                    logger.error(f"Erro ao salvar order {order_data.get('id', 'unknown')}: {e}")
+                    continue
+            
+            return {
+                "success": True,
+                "message": f"Sincronização do dia concluída: {saved_count} orders criadas, {updated_count} orders atualizadas",
+                "saved_count": saved_count,
+                "updated_count": updated_count,
+                "total_processed": len(orders_data)
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao sincronizar pedidos do dia: {e}")
+            return {
+                "success": False,
+                "error": f"Erro na sincronização: {str(e)}"
+            }
+
     def sync_orders_from_api(self, ml_account_id: int, company_id: int, 
                            limit: int = 50, is_full_import: bool = False) -> Dict:
         """Sincroniza orders da API do Mercado Libre para o banco"""
@@ -182,10 +255,11 @@ class MLOrdersService:
             if is_full_import:
                 # Importação completa - limitar para evitar sobrecarga
                 logger.info("Importação completa - limitando a 50 pedidos para evitar sobrecarga")
-                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit=50)
+                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit=50, days_back=30)
             else:
-                # Sincronização rápida - apenas os mais recentes
-                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit)
+                # Sincronização rápida - apenas os mais recentes (últimos 7 dias)
+                logger.info("Sincronização rápida - buscando pedidos dos últimos 7 dias")
+                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=7)
             
             if not orders_data:
                 return {
@@ -271,10 +345,15 @@ class MLOrdersService:
             logger.error(f"Erro ao buscar todos os orders da API: {e}")
             return []
 
-    def _fetch_orders_from_api(self, access_token: str, seller_id: str, limit: int = 50, offset: int = 0) -> List[Dict]:
+    def _fetch_orders_from_api(self, access_token: str, seller_id: str, limit: int = 50, offset: int = 0, days_back: int = 7) -> List[Dict]:
         """Busca orders da API do Mercado Libre"""
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
+            
+            # Calcular data de início (últimos X dias)
+            from datetime import datetime, timedelta
+            start_date = datetime.now() - timedelta(days=days_back)
+            start_date_str = start_date.strftime("%Y-%m-%dT%H:%M:%S.000-04:00")
             
             # Buscar orders recentes do vendedor
             orders_url = f"{self.base_url}/orders/search"
@@ -282,14 +361,21 @@ class MLOrdersService:
                 "seller": seller_id,
                 "limit": limit,
                 "offset": offset,
-                "sort": "date_desc"
+                "sort": "date_desc",
+                "order.date_created.from": start_date_str
             }
+            
+            logger.info(f"Buscando pedidos com filtro de data: {start_date_str}")
+            logger.info(f"Parâmetros da API: {params}")
             
             response = requests.get(orders_url, headers=headers, params=params, timeout=60)
             
             if response.status_code == 200:
                 data = response.json()
-                return data.get("results", [])
+                orders = data.get("results", [])
+                total = data.get("paging", {}).get("total", 0)
+                logger.info(f"API retornou {len(orders)} pedidos (total disponível: {total})")
+                return orders
             else:
                 logger.warning(f"Erro ao buscar orders da API: {response.status_code} - {response.text[:200]}")
                 return []

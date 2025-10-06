@@ -12,6 +12,12 @@ from app.routes.ml_orders_routes import ml_orders_router
 from app.routes.ads_analytics_routes import ads_analytics_router
 from app.routes.product_routes import product_router
 
+# Scheduler para sincronização automática
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from app.services.auto_sync_service import AutoSyncService
+import atexit
+
 # Inicializar FastAPI
 app = FastAPI(
     title="API Mercado Livre - MVC",
@@ -32,6 +38,30 @@ app.add_middleware(
 # Configurar arquivos estáticos
 app.mount("/static", StaticFiles(directory="public"), name="static")
 
+# Inicializar scheduler
+scheduler = BackgroundScheduler()
+auto_sync_service = AutoSyncService()
+
+def run_auto_sync():
+    """Executa sincronização automática"""
+    try:
+        result = auto_sync_service.sync_today_orders()
+        if result.get("success"):
+            print(f"🔄 Auto-sync: {result.get('message', 'Concluído')}")
+        else:
+            print(f"❌ Auto-sync falhou: {result.get('error', 'Erro desconhecido')}")
+    except Exception as e:
+        print(f"❌ Erro na auto-sync: {e}")
+
+# Configurar scheduler para rodar a cada 15 minutos
+scheduler.add_job(
+    func=run_auto_sync,
+    trigger=IntervalTrigger(minutes=15),
+    id='auto_sync_orders',
+    name='Sincronização automática de pedidos',
+    replace_existing=True
+)
+
 # Criar tabelas do banco de dados
 @app.on_event("startup")
 async def startup_event():
@@ -40,8 +70,29 @@ async def startup_event():
         # Criar tabelas se não existirem
         Base.metadata.create_all(bind=engine)
         print("✅ Banco de dados inicializado")
+        
+        # Iniciar scheduler
+        if not scheduler.running:
+            scheduler.start()
+            print("🔄 Scheduler de sincronização automática iniciado (a cada 15 minutos)")
+        else:
+            print("🔄 Scheduler já está rodando")
+        
     except Exception as e:
-        print(f"❌ Erro ao inicializar banco de dados: {e}")
+        print(f"❌ Erro ao inicializar: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Evento de encerramento da aplicação"""
+    try:
+        if scheduler.running:
+            scheduler.shutdown()
+            print("🛑 Scheduler de sincronização automática parado")
+    except Exception as e:
+        print(f"❌ Erro ao parar scheduler: {e}")
+
+# Garantir que o scheduler seja parado ao sair
+atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
 
 # Incluir todas as rotas com prefixo /api
 app.include_router(main_router, prefix="/api")

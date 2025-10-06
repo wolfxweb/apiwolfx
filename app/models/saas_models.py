@@ -496,6 +496,9 @@ class MLOrder(Base):
     context = Column(JSON)  # Canal, site, flows (/orders/{id})
     pack_id = Column(String(50))  # ID do pack se aplicável
     pickup_id = Column(String(50))  # ID de retirada se aplicável
+    has_catalog_products = Column(Boolean, default=False, index=True)  # Se tem produtos de catálogo
+    catalog_products_count = Column(Integer, default=0)  # Quantidade de produtos de catálogo
+    catalog_products = Column(JSON)  # Lista de produtos de catálogo
     
     # === MEDIAÇÕES E DISPUTAS ===
     mediations = Column(JSON)  # Mediações e disputas
