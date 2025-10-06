@@ -462,8 +462,13 @@ function renderProducts(products, total = null) {
                 </td>
                 <td>
                     <div class="d-flex align-items-center">
-                        <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                            <i class="bi bi-box-seam text-muted"></i>
+                        <div class="me-2" style="width: 40px; height: 40px;">
+                            ${product.main_image ? 
+                                `<img src="${product.main_image}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;" alt="Produto">` :
+                                `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <i class="bi bi-box-seam text-muted"></i>
+                                </div>`
+                            }
                         </div>
                         <div>
                            <div class="fw-medium">${product.name.length > 50 ? product.name.substring(0, 50) + '...' : product.name}</div>
