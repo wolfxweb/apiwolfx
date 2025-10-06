@@ -1,7 +1,7 @@
 """
 Modelos SaaS Multi-tenant para API Mercado Livre
 """
-from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Enum, JSON, Index
+from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Enum, JSON, Index, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base
@@ -55,6 +55,8 @@ class Company(Base):
     users = relationship("User", back_populates="company", cascade="all, delete-orphan")
     ml_accounts = relationship("MLAccount", back_populates="company", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="company", cascade="all, delete-orphan")
+    products = relationship("Product", back_populates="company", cascade="all, delete-orphan")
+    internal_products = relationship("InternalProduct", back_populates="company", cascade="all, delete-orphan")
 
 class User(Base):
     """Modelo de Usuário (atualizado para SaaS)"""
@@ -119,7 +121,6 @@ class MLAccount(Base):
     company = relationship("Company", back_populates="ml_accounts")
     user_ml_accounts = relationship("UserMLAccount", back_populates="ml_account", cascade="all, delete-orphan")
     tokens = relationship("Token", back_populates="ml_account", cascade="all, delete-orphan")
-    products = relationship("Product", back_populates="ml_account", cascade="all, delete-orphan")
     ml_products = relationship("MLProduct", back_populates="ml_account", cascade="all, delete-orphan")
 
 class UserMLAccount(Base):
@@ -171,38 +172,6 @@ class Token(Base):
     user = relationship("User", back_populates="tokens")
     ml_account = relationship("MLAccount", back_populates="tokens")
 
-class Product(Base):
-    """Modelo de Produto (atualizado)"""
-    __tablename__ = "products"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
-    ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
-    
-    # Dados do produto
-    ml_item_id = Column(String(50), unique=True, nullable=False, index=True)
-    title = Column(String(500), nullable=False)
-    price = Column(String(50))
-    currency_id = Column(String(10))
-    condition = Column(String(50))
-    permalink = Column(String(500))
-    thumbnail = Column(String(500))
-    status = Column(String(50), index=True)
-    
-    # Dados adicionais
-    category_id = Column(String(50))
-    brand = Column(String(100))
-    model = Column(String(100))
-    attributes = Column(JSON)  # Atributos específicos
-    
-    # Timestamps
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    last_sync = Column(DateTime)
-    
-    # Relacionamentos
-    company = relationship("Company")
-    ml_account = relationship("MLAccount", back_populates="products")
 
 class UserSession(Base):
     """Sessões de usuário"""
@@ -644,5 +613,99 @@ class CatalogParticipant(Base):
         Index('ix_catalog_participants_status', 'status'),
         Index('ix_catalog_participants_last_updated', 'last_updated'),
         Index('ix_catalog_participants_company_catalog', 'company_id', 'catalog_product_id'),
+    )
+
+
+class Product(Base):
+    """Produtos importados do Mercado Livre"""
+    __tablename__ = "products"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ml_item_id = Column(String(50), nullable=False, index=True)  # ID do produto no ML
+    title = Column(String(500), nullable=False)  # Nome do produto
+    thumbnail = Column(String(1000))  # URL da imagem
+    sku = Column(String(100), index=True)  # SKU do produto
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    
+    # Campos de custos e preços (para preenchimento posterior)
+    cost_price = Column(String(20))  # Preço de custo
+    tax_rate = Column(String(10))  # Taxa de imposto (%)
+    marketing_cost = Column(String(20))  # Custo de marketing
+    other_costs = Column(String(20))  # Outros custos
+    notes = Column(Text)  # Observações
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company", back_populates="products")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_products_company', 'company_id'),
+        Index('ix_products_ml_item', 'ml_item_id'),
+        Index('ix_products_sku', 'sku'),
+        Index('ix_products_company_sku', 'company_id', 'sku'),
+    )
+
+
+class InternalProduct(Base):
+    """Produtos internos/customizados criados pela empresa"""
+    __tablename__ = "internal_products"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    base_product_id = Column(Integer, ForeignKey("products.id"), nullable=True, index=True)  # Produto base do ML (opcional)
+    
+    # Dados do produto interno
+    name = Column(String(500), nullable=False)  # Nome customizado
+    description = Column(Text)  # Descrição customizada
+    internal_sku = Column(String(100), nullable=False, index=True)  # SKU interno
+    barcode = Column(String(100), index=True)  # Código de barras
+    
+    # Preços e custos
+    cost_price = Column(Numeric(10, 2))  # Preço de custo
+    selling_price = Column(Numeric(10, 2))  # Preço de venda
+    tax_rate = Column(Numeric(5, 2), default=0.0)  # Taxa de imposto (%)
+    marketing_cost = Column(Numeric(10, 2), default=0.0)  # Custo de marketing
+    other_costs = Column(Numeric(10, 2), default=0.0)  # Outros custos
+    
+    # Categorização interna
+    category = Column(String(100))  # Categoria interna
+    brand = Column(String(100))  # Marca
+    model = Column(String(100))  # Modelo
+    supplier = Column(String(200))  # Fornecedor
+    
+    # Status e controle
+    status = Column(String(50), default="active", index=True)  # active, inactive, discontinued
+    is_featured = Column(Boolean, default=False)  # Produto em destaque
+    min_stock = Column(Integer, default=0)  # Estoque mínimo
+    current_stock = Column(Integer, default=0)  # Estoque atual
+    
+    # Imagens e mídia
+    main_image = Column(String(1000))  # Imagem principal
+    additional_images = Column(JSON)  # Array de URLs de imagens adicionais
+    
+    # Observações e notas
+    notes = Column(Text)  # Observações gerais
+    internal_notes = Column(Text)  # Notas internas
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company", back_populates="internal_products")
+    base_product = relationship("Product", foreign_keys=[base_product_id])
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_internal_products_company', 'company_id'),
+        Index('ix_internal_products_base', 'base_product_id'),
+        Index('ix_internal_products_sku', 'internal_sku'),
+        Index('ix_internal_products_status', 'status'),
+        Index('ix_internal_products_category', 'category'),
+        Index('ix_internal_products_created', 'created_at'),
     )
 

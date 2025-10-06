@@ -10,6 +10,7 @@ from app.routes.ml_routes import ml_router
 from app.routes.ml_product_routes import ml_product_router
 from app.routes.ml_orders_routes import ml_orders_router
 from app.routes.ads_analytics_routes import ads_analytics_router
+from app.routes.product_routes import product_router
 
 # Inicializar FastAPI
 app = FastAPI(
@@ -50,6 +51,7 @@ app.include_router(ml_router, prefix="/ml")
 app.include_router(ml_product_router, prefix="/ml")
 app.include_router(ml_orders_router, prefix="/ml")
 app.include_router(ads_analytics_router)  # Sem prefixo para /analytics
+app.include_router(product_router)  # Sem prefixo para /api/products
 
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")

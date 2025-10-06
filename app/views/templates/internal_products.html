@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+
+{% block title %}Produtos Internos - {{ user.company_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Produtos Internos</h1>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProductModal">
+                    <i class="fas fa-plus"></i> Novo Produto
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="statusFilter" class="form-label">Status</label>
+                            <select class="form-select" id="statusFilter">
+                                <option value="">Todos</option>
+                                <option value="active">Ativo</option>
+                                <option value="inactive">Inativo</option>
+                                <option value="discontinued">Descontinuado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="categoryFilter" class="form-label">Categoria</label>
+                            <select class="form-select" id="categoryFilter">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="searchInput" class="form-label">Buscar</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Nome, SKU ou descrição...">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button class="btn btn-outline-primary w-100" onclick="applyFilters()">
+                                <i class="fas fa-search"></i> Filtrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Produtos -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>SKU Interno</th>
+                                    <th>Categoria</th>
+                                    <th>Preço Custo</th>
+                                    <th>Preço Venda</th>
+                                    <th>Estoque</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                                <tr>
+                                    <td colspan="8" class="text-center">
+                                        <div class="spinner-border" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Criar Produto -->
+<div class="modal fade" id="createProductModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Novo Produto Interno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createProductForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="productName" class="form-label">Nome do Produto *</label>
+                            <input type="text" class="form-control" id="productName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="internalSku" class="form-label">SKU Interno *</label>
+                            <input type="text" class="form-control" id="internalSku" required>
+                        </div>
+                        <div class="col-12">
+                            <label for="productDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="productDescription" rows="3"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="baseProduct" class="form-label">Produto Base (ML)</label>
+                            <select class="form-select" id="baseProduct">
+                                <option value="">Selecionar produto base (opcional)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="productCategory" class="form-label">Categoria</label>
+                            <input type="text" class="form-control" id="productCategory">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="costPrice" class="form-label">Preço de Custo</label>
+                            <input type="number" class="form-control" id="costPrice" step="0.01">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="sellingPrice" class="form-label">Preço de Venda</label>
+                            <input type="number" class="form-control" id="sellingPrice" step="0.01">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="currentStock" class="form-label">Estoque Atual</label>
+                            <input type="number" class="form-control" id="currentStock" value="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="productBrand" class="form-label">Marca</label>
+                            <input type="text" class="form-control" id="productBrand">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="productSupplier" class="form-label">Fornecedor</label>
+                            <input type="text" class="form-control" id="productSupplier">
+                        </div>
+                        <div class="col-12">
+                            <label for="productNotes" class="form-label">Observações</label>
+                            <textarea class="form-control" id="productNotes" rows="2"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="createProduct()">Criar Produto</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Produto -->
+<div class="modal fade" id="editProductModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Produto Interno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProductForm">
+                    <input type="hidden" id="editProductId">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="editProductName" class="form-label">Nome do Produto *</label>
+                            <input type="text" class="form-control" id="editProductName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editInternalSku" class="form-label">SKU Interno *</label>
+                            <input type="text" class="form-control" id="editInternalSku" required>
+                        </div>
+                        <div class="col-12">
+                            <label for="editProductDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editProductDescription" rows="3"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editBaseProduct" class="form-label">Produto Base (ML)</label>
+                            <select class="form-select" id="editBaseProduct">
+                                <option value="">Selecionar produto base (opcional)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editProductCategory" class="form-label">Categoria</label>
+                            <input type="text" class="form-control" id="editProductCategory">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editCostPrice" class="form-label">Preço de Custo</label>
+                            <input type="number" class="form-control" id="editCostPrice" step="0.01">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editSellingPrice" class="form-label">Preço de Venda</label>
+                            <input type="number" class="form-control" id="editSellingPrice" step="0.01">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editCurrentStock" class="form-label">Estoque Atual</label>
+                            <input type="number" class="form-control" id="editCurrentStock">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editProductBrand" class="form-label">Marca</label>
+                            <input type="text" class="form-control" id="editProductBrand">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editProductSupplier" class="form-label">Fornecedor</label>
+                            <input type="text" class="form-control" id="editProductSupplier">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editProductStatus" class="form-label">Status</label>
+                            <select class="form-select" id="editProductStatus">
+                                <option value="active">Ativo</option>
+                                <option value="inactive">Inativo</option>
+                                <option value="discontinued">Descontinuado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editMinStock" class="form-label">Estoque Mínimo</label>
+                            <input type="number" class="form-control" id="editMinStock" value="0">
+                        </div>
+                        <div class="col-12">
+                            <label for="editProductNotes" class="form-label">Observações</label>
+                            <textarea class="form-control" id="editProductNotes" rows="2"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="updateProduct()">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentProducts = [];
+let currentFilters = {
+    status: '',
+    category: '',
+    search: '',
+    limit: 50,
+    offset: 0
+};
+
+// Carregar produtos ao inicializar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadProducts();
+    loadBaseProducts();
+});
+
+// Carregar produtos
+async function loadProducts() {
+    try {
+        const params = new URLSearchParams({
+            session_token: getSessionToken(),
+            ...currentFilters
+        });
+        
+        const response = await fetch(`/api/internal-products?${params}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            currentProducts = data.products;
+            renderProducts(data.products);
+        } else {
+            showAlert('Erro ao carregar produtos: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar produtos:', error);
+        showAlert('Erro ao carregar produtos', 'danger');
+    }
+}
+
+// Renderizar produtos na tabela
+function renderProducts(products) {
+    const tbody = document.getElementById('productsTableBody');
+    
+    if (products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhum produto encontrado</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = products.map(product => `
+        <tr>
+            <td>
+                <div class="fw-bold">${product.name}</div>
+                ${product.description ? `<small class="text-muted">${product.description.substring(0, 50)}...</small>` : ''}
+            </td>
+            <td><code>${product.internal_sku}</code></td>
+            <td>${product.category || '-'}</td>
+            <td>${product.cost_price ? `R$ ${parseFloat(product.cost_price).toFixed(2)}` : '-'}</td>
+            <td>${product.selling_price ? `R$ ${parseFloat(product.selling_price).toFixed(2)}` : '-'}</td>
+            <td>
+                <span class="badge ${product.current_stock > 0 ? 'bg-success' : 'bg-warning'}">
+                    ${product.current_stock || 0}
+                </span>
+            </td>
+            <td>
+                <span class="badge bg-${getStatusColor(product.status)}">${getStatusText(product.status)}</span>
+            </td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="editProduct(${product.id})" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteProduct(${product.id})" title="Excluir">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Aplicar filtros
+function applyFilters() {
+    currentFilters.status = document.getElementById('statusFilter').value;
+    currentFilters.category = document.getElementById('categoryFilter').value;
+    currentFilters.search = document.getElementById('searchInput').value;
+    currentFilters.offset = 0;
+    
+    loadProducts();
+}
+
+// Carregar produtos base do ML
+async function loadBaseProducts() {
+    try {
+        const params = new URLSearchParams({
+            session_token: getSessionToken()
+        });
+        
+        const response = await fetch(`/api/internal-products/base-products/search?${params}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const baseProductSelect = document.getElementById('baseProduct');
+            const editBaseProductSelect = document.getElementById('editBaseProduct');
+            
+            const options = data.base_products.map(product => 
+                `<option value="${product.id}">${product.title} (${product.ml_item_id})</option>`
+            ).join('');
+            
+            baseProductSelect.innerHTML = '<option value="">Selecionar produto base (opcional)</option>' + options;
+            editBaseProductSelect.innerHTML = '<option value="">Selecionar produto base (opcional)</option>' + options;
+        }
+    } catch (error) {
+        console.error('Erro ao carregar produtos base:', error);
+    }
+}
+
+// Criar produto
+async function createProduct() {
+    const formData = {
+        name: document.getElementById('productName').value,
+        internal_sku: document.getElementById('internalSku').value,
+        description: document.getElementById('productDescription').value,
+        base_product_id: document.getElementById('baseProduct').value || null,
+        category: document.getElementById('productCategory').value,
+        cost_price: document.getElementById('costPrice').value || null,
+        selling_price: document.getElementById('sellingPrice').value || null,
+        current_stock: document.getElementById('currentStock').value || 0,
+        brand: document.getElementById('productBrand').value,
+        supplier: document.getElementById('productSupplier').value,
+        notes: document.getElementById('productNotes').value
+    };
+    
+    try {
+        const response = await fetch('/api/internal-products', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ...formData,
+                session_token: getSessionToken()
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Produto criado com sucesso!', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('createProductModal')).hide();
+            document.getElementById('createProductForm').reset();
+            loadProducts();
+        } else {
+            showAlert('Erro ao criar produto: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao criar produto:', error);
+        showAlert('Erro ao criar produto', 'danger');
+    }
+}
+
+// Editar produto
+async function editProduct(productId) {
+    const product = currentProducts.find(p => p.id === productId);
+    if (!product) return;
+    
+    // Preencher modal de edição
+    document.getElementById('editProductId').value = product.id;
+    document.getElementById('editProductName').value = product.name;
+    document.getElementById('editInternalSku').value = product.internal_sku;
+    document.getElementById('editProductDescription').value = product.description || '';
+    document.getElementById('editBaseProduct').value = product.base_product_id || '';
+    document.getElementById('editProductCategory').value = product.category || '';
+    document.getElementById('editCostPrice').value = product.cost_price || '';
+    document.getElementById('editSellingPrice').value = product.selling_price || '';
+    document.getElementById('editCurrentStock').value = product.current_stock || 0;
+    document.getElementById('editProductBrand').value = product.brand || '';
+    document.getElementById('editProductSupplier').value = product.supplier || '';
+    document.getElementById('editProductStatus').value = product.status;
+    document.getElementById('editMinStock').value = product.min_stock || 0;
+    document.getElementById('editProductNotes').value = product.notes || '';
+    
+    // Mostrar modal
+    new bootstrap.Modal(document.getElementById('editProductModal')).show();
+}
+
+// Atualizar produto
+async function updateProduct() {
+    const productId = document.getElementById('editProductId').value;
+    const updateData = {
+        name: document.getElementById('editProductName').value,
+        internal_sku: document.getElementById('editInternalSku').value,
+        description: document.getElementById('editProductDescription').value,
+        base_product_id: document.getElementById('editBaseProduct').value || null,
+        category: document.getElementById('editProductCategory').value,
+        cost_price: document.getElementById('editCostPrice').value || null,
+        selling_price: document.getElementById('editSellingPrice').value || null,
+        current_stock: document.getElementById('editCurrentStock').value || 0,
+        brand: document.getElementById('editProductBrand').value,
+        supplier: document.getElementById('editProductSupplier').value,
+        status: document.getElementById('editProductStatus').value,
+        min_stock: document.getElementById('editMinStock').value || 0,
+        notes: document.getElementById('editProductNotes').value
+    };
+    
+    try {
+        const response = await fetch(`/api/internal-products/${productId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ...updateData,
+                session_token: getSessionToken()
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Produto atualizado com sucesso!', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editProductModal')).hide();
+            loadProducts();
+        } else {
+            showAlert('Erro ao atualizar produto: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar produto:', error);
+        showAlert('Erro ao atualizar produto', 'danger');
+    }
+}
+
+// Excluir produto
+async function deleteProduct(productId) {
+    if (!confirm('Tem certeza que deseja excluir este produto?')) return;
+    
+    try {
+        const response = await fetch(`/api/internal-products/${productId}?session_token=${getSessionToken()}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Produto excluído com sucesso!', 'success');
+            loadProducts();
+        } else {
+            showAlert('Erro ao excluir produto: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir produto:', error);
+        showAlert('Erro ao excluir produto', 'danger');
+    }
+}
+
+// Funções auxiliares
+function getStatusColor(status) {
+    switch(status) {
+        case 'active': return 'success';
+        case 'inactive': return 'secondary';
+        case 'discontinued': return 'danger';
+        default: return 'secondary';
+    }
+}
+
+function getStatusText(status) {
+    switch(status) {
+        case 'active': return 'Ativo';
+        case 'inactive': return 'Inativo';
+        case 'discontinued': return 'Descontinuado';
+        default: return status;
+    }
+}
+
+function getSessionToken() {
+    return new URLSearchParams(window.location.search).get('session_token') || 
+           localStorage.getItem('session_token') || 
+           sessionStorage.getItem('session_token');
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.insertBefore(alertDiv, document.body.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

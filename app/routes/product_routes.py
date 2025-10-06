@@ -1,36 +1,178 @@
-from fastapi import APIRouter, Query, HTTPException
+"""
+Rotas para gerenciar produtos importados
+"""
+import logging
 from typing import Optional
-from app.services.mercadolibre_service import MercadoLivreService
-from app.models.mercadolibre_models import MLSearchResponse, MLItem
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from app.config.database import get_db
+from app.controllers.auth_controller import get_current_user
+from app.services.product_service import ProductService
 
-# Router para rotas de produtos
-product_router = APIRouter(prefix="/products", tags=["Products"])
+logger = logging.getLogger(__name__)
 
-# Instância do serviço
-ml_service = MercadoLivreService()
+product_router = APIRouter()
 
-
-@product_router.get("/search", response_model=MLSearchResponse)
-async def search_products(
-    q: str = Query(..., description="Termo de busca"),
-    site_id: str = Query("MLB", description="ID do site (MLB, MLA, etc.)"),
-    limit: int = Query(50, description="Número de resultados", ge=1, le=50),
-    access_token: Optional[str] = Query(None, description="Token de acesso (opcional)")
+@product_router.get("/api/products")
+async def get_products(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
 ):
-    """Busca produtos no Mercado Livre"""
-    results = await ml_service.search_items(q, access_token, site_id, limit)
-    if not results:
-        raise HTTPException(status_code=400, detail="Erro na busca")
-    return results
+    """Lista produtos importados da empresa"""
+    try:
+        service = ProductService(db)
+        result = service.get_products(
+            company_id=user["company"]["id"],
+            skip=skip,
+            limit=limit
+        )
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        logger.error(f"Erro ao listar produtos: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro interno do servidor"}
+        )
 
+@product_router.post("/api/products/import/{ml_item_id}")
+async def import_single_product(
+    ml_item_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Importa um produto específico do Mercado Livre"""
+    try:
+        service = ProductService(db)
+        result = service.import_product(
+            ml_item_id=ml_item_id,
+            company_id=user["company"]["id"],
+            user_id=user["id"]
+        )
+        
+        if result["success"]:
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+        
+    except Exception as e:
+        logger.error(f"Erro ao importar produto {ml_item_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro interno do servidor"}
+        )
 
-@product_router.get("/{item_id}", response_model=MLItem)
+@product_router.post("/api/products/import-all")
+async def import_all_products(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Importa todos os produtos da empresa do Mercado Livre"""
+    try:
+        service = ProductService(db)
+        result = service.import_all_products(
+            company_id=user["company"]["id"],
+            user_id=user["id"]
+        )
+        
+        if result["success"]:
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+        
+    except Exception as e:
+        logger.error(f"Erro ao importar todos os produtos: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro interno do servidor"}
+        )
+
+@product_router.put("/api/products/{product_id}")
+async def update_product(
+    product_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Atualiza dados de um produto"""
+    try:
+        service = ProductService(db)
+        result = service.update_product(
+            product_id=product_id,
+            company_id=user["company"]["id"],
+            data=data
+        )
+        
+        if result["success"]:
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+        
+    except Exception as e:
+        logger.error(f"Erro ao atualizar produto {product_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro interno do servidor"}
+        )
+
+@product_router.get("/api/products/{product_id}")
 async def get_product(
-    item_id: str,
-    access_token: Optional[str] = Query(None, description="Token de acesso (opcional)")
+    product_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
 ):
-    """Obtém detalhes de um produto específico"""
-    item = await ml_service.get_item(item_id, access_token)
-    if not item:
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
-    return item
+    """Obtém dados de um produto específico"""
+    try:
+        from app.models.saas_models import Product
+        from sqlalchemy import and_
+        
+        product = db.query(Product).filter(
+            and_(
+                Product.id == product_id,
+                Product.company_id == user["company"]["id"]
+            )
+        ).first()
+        
+        if not product:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Produto não encontrado"}
+            )
+        
+        return JSONResponse(content={
+            "success": True,
+            "product": {
+                "id": product.id,
+                "ml_item_id": product.ml_item_id,
+                "title": product.title,
+                "thumbnail": product.thumbnail,
+                "sku": product.sku,
+                "cost_price": product.cost_price,
+                "tax_rate": product.tax_rate,
+                "marketing_cost": product.marketing_cost,
+                "other_costs": product.other_costs,
+                "notes": product.notes,
+                "created_at": product.created_at.isoformat() if product.created_at else None,
+                "updated_at": product.updated_at.isoformat() if product.updated_at else None
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar produto {product_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro interno do servidor"}
+        )

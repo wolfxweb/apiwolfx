@@ -21,6 +21,12 @@
                     <button class="btn btn-primary me-2" onclick="syncProducts()">
                         <i class="bi bi-arrow-clockwise"></i> Sincronizar Produtos
                     </button>
+                    <button class="btn btn-success me-2" onclick="importSelectedProducts()">
+                        <i class="bi bi-download"></i> Importar Selecionados
+                    </button>
+                    <button class="btn btn-warning me-2" onclick="importAllProducts()">
+                        <i class="bi bi-download"></i> Importar Todos
+                    </button>
                     <button class="btn btn-danger me-2" onclick="showDeleteProductsModal()">
                         <i class="bi bi-trash"></i> Remover Produtos
                     </button>
@@ -1261,6 +1267,107 @@ sortStyle.textContent = `
         opacity: 1;
     }
 `;
+
+// Funções de importação de produtos
+function importSelectedProducts() {
+    const selectedProducts = getSelectedProducts();
+    
+    if (selectedProducts.length === 0) {
+        showAlert('warning', 'Selecione pelo menos um produto para importar');
+        return;
+    }
+    
+    if (!confirm(`Deseja importar ${selectedProducts.length} produto(s) selecionado(s)?`)) {
+        return;
+    }
+    
+    // Mostrar loading
+    showAlert('info', `Importando ${selectedProducts.length} produto(s)...`);
+    
+    // Importar cada produto
+    let importedCount = 0;
+    let errorCount = 0;
+    const errors = [];
+    
+    selectedProducts.forEach((product, index) => {
+        fetch(`/api/products/import/${product.ml_item_id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                importedCount++;
+            } else {
+                errorCount++;
+                errors.push(`${product.title}: ${data.error}`);
+            }
+            
+            // Se é o último produto, mostrar resultado
+            if (index === selectedProducts.length - 1) {
+                if (importedCount > 0) {
+                    showAlert('success', `${importedCount} produto(s) importado(s) com sucesso!`);
+                }
+                if (errorCount > 0) {
+                    showAlert('warning', `${errorCount} produto(s) não puderam ser importados. Verifique se já não estão importados.`);
+                }
+                // Recarregar produtos
+                loadProducts();
+            }
+        })
+        .catch(error => {
+            errorCount++;
+            errors.push(`${product.title}: Erro de conexão`);
+            
+            if (index === selectedProducts.length - 1) {
+                showAlert('danger', `Erro ao importar ${errorCount} produto(s)`);
+                loadProducts();
+            }
+        });
+    });
+}
+
+function importAllProducts() {
+    if (!confirm('Deseja importar TODOS os produtos do Mercado Livre? Esta operação pode demorar alguns minutos.')) {
+        return;
+    }
+    
+    showAlert('info', 'Iniciando importação de todos os produtos...');
+    
+    fetch('/api/products/import-all', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            loadProducts();
+        } else {
+            showAlert('danger', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao importar todos os produtos:', error);
+        showAlert('danger', 'Erro ao importar produtos');
+    });
+}
+
+function getSelectedProducts() {
+    const checkboxes = document.querySelectorAll('.product-checkbox:checked');
+    return Array.from(checkboxes).map(checkbox => {
+        const row = checkbox.closest('tr');
+        return {
+            id: checkbox.value,
+            ml_item_id: row.querySelector('[data-ml-item-id]')?.dataset.mlItemId,
+            title: row.querySelector('[data-title]')?.dataset.title
+        };
+    });
+}
 document.head.appendChild(sortStyle);
 </script>
 {% endblock %}

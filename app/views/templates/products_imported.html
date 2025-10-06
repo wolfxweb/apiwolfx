@@ -1,0 +1,618 @@
+{% extends "base.html" %}
+
+{% block title %}Produtos Importados{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-1">Produtos Importados</h1>
+                    <p class="text-muted mb-0">Gerencie seus produtos importados do Mercado Livre</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" onclick="importAllProducts()">
+                        <i class="bi bi-download"></i> Importar Todos
+                    </button>
+                    <button class="btn btn-primary" onclick="showImportModal()">
+                        <i class="bi bi-plus"></i> Importar Produto
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alertas -->
+            <div id="alert-container"></div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Buscar</label>
+                            <input type="text" class="form-control" id="search-input" placeholder="Nome, SKU ou ID do produto...">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="status-filter">
+                                <option value="">Todos</option>
+                                <option value="complete">Completos</option>
+                                <option value="incomplete">Incompletos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Ordenar</label>
+                            <select class="form-select" id="sort-filter">
+                                <option value="created_at">Data de Importação</option>
+                                <option value="title">Nome</option>
+                                <option value="sku">SKU</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Limite</label>
+                            <select class="form-select" id="limit-filter">
+                                <option value="20">20 por página</option>
+                                <option value="50">50 por página</option>
+                                <option value="100">100 por página</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                                <i class="bi bi-x-circle"></i> Limpar Filtros
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Produtos -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Lista de Produtos Importados</h5>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="text-muted">
+                                Mostrando <span id="showing-count">0</span> 
+                                de <span id="showing-total">0</span> produtos
+                            </span>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="selectAll()">
+                                    <i class="bi bi-check-square"></i> Selecionar Todos
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="deleteSelected()">
+                                    <i class="bi bi-trash"></i> Remover Selecionados
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="50">
+                                        <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
+                                    </th>
+                                    <th width="80">Imagem</th>
+                                    <th>Produto</th>
+                                    <th width="120">SKU</th>
+                                    <th width="100">Preço Custo</th>
+                                    <th width="100">Taxa Imposto</th>
+                                    <th width="100">Marketing</th>
+                                    <th width="100">Outros Custos</th>
+                                    <th width="100">Status</th>
+                                    <th width="120">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="products-table-body">
+                                <!-- Produtos serão carregados via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted">
+                                Página <span id="current-page">1</span> 
+                                de <span id="total-pages">1</span>
+                            </span>
+                        </div>
+                        <nav aria-label="Paginação de produtos">
+                            <ul class="pagination pagination-sm mb-0" id="pagination">
+                                <!-- Paginação será gerada via JavaScript -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Importação -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Importar Produto do Mercado Livre</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="ml-item-id" class="form-label">ID do Produto no Mercado Livre</label>
+                    <input type="text" class="form-control" id="ml-item-id" placeholder="Ex: MLB1234567890">
+                    <div class="form-text">
+                        Digite o ID do produto que aparece na URL do Mercado Livre
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="importProduct()">
+                    <i class="bi bi-download"></i> Importar Produto
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Produto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-form">
+                    <input type="hidden" id="edit-product-id">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Nome do Produto</label>
+                                <input type="text" class="form-control" id="edit-title" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">SKU</label>
+                                <input type="text" class="form-control" id="edit-sku">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Preço de Custo</label>
+                                <input type="text" class="form-control" id="edit-cost-price" placeholder="0,00">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Taxa de Imposto (%)</label>
+                                <input type="text" class="form-control" id="edit-tax-rate" placeholder="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Custo de Marketing</label>
+                                <input type="text" class="form-control" id="edit-marketing-cost" placeholder="0,00">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Outros Custos</label>
+                                <input type="text" class="form-control" id="edit-other-costs" placeholder="0,00">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observações</label>
+                        <textarea class="form-control" id="edit-notes" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveProduct()">
+                    <i class="bi bi-check"></i> Salvar Alterações
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let totalPages = 1;
+let selectedProducts = new Set();
+
+// Carregar produtos ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadProducts();
+    
+    // Event listeners para filtros
+    document.getElementById('search-input').addEventListener('input', debounce(loadProducts, 500));
+    document.getElementById('status-filter').addEventListener('change', loadProducts);
+    document.getElementById('sort-filter').addEventListener('change', loadProducts);
+    document.getElementById('limit-filter').addEventListener('change', loadProducts);
+});
+
+function loadProducts() {
+    const search = document.getElementById('search-input').value;
+    const status = document.getElementById('status-filter').value;
+    const sort = document.getElementById('sort-filter').value;
+    const limit = document.getElementById('limit-filter').value;
+    
+    const params = new URLSearchParams({
+        skip: (currentPage - 1) * parseInt(limit),
+        limit: limit,
+        search: search,
+        status: status,
+        sort: sort
+    });
+    
+    fetch(`/api/products?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderProducts(data.products);
+                updatePagination(data.total, parseInt(limit));
+            } else {
+                showAlert('danger', data.error || 'Erro ao carregar produtos');
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar produtos:', error);
+            showAlert('danger', 'Erro ao carregar produtos');
+        });
+}
+
+function renderProducts(products) {
+    const tbody = document.getElementById('products-table-body');
+    tbody.innerHTML = '';
+    
+    if (products.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" class="text-center py-4">
+                    <i class="bi bi-inbox text-muted" style="font-size: 2rem;"></i>
+                    <p class="text-muted mt-2 mb-0">Nenhum produto encontrado</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    products.forEach(product => {
+        const isComplete = product.cost_price && product.tax_rate && product.marketing_cost;
+        const statusBadge = isComplete ? 
+            '<span class="badge bg-success">Completo</span>' : 
+            '<span class="badge bg-warning">Incompleto</span>';
+        
+        tbody.innerHTML += `
+            <tr>
+                <td>
+                    <input type="checkbox" class="product-checkbox" value="${product.id}" 
+                           onchange="toggleProductSelection(${product.id})">
+                </td>
+                <td>
+                    <img src="${product.thumbnail || '/static/images/no-image.png'}" 
+                         class="img-thumbnail" style="width: 50px; height: 50px; object-fit: cover;">
+                </td>
+                <td>
+                    <div>
+                        <strong>${product.title}</strong>
+                        <br><small class="text-muted">ID: ${product.ml_item_id}</small>
+                    </div>
+                </td>
+                <td>${product.sku || '-'}</td>
+                <td>${product.cost_price || '-'}</td>
+                <td>${product.tax_rate || '-'}</td>
+                <td>${product.marketing_cost || '-'}</td>
+                <td>${product.other_costs || '-'}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="editProduct(${product.id})" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="deleteProduct(${product.id})" title="Remover">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    updateCounts(products.length);
+}
+
+function updatePagination(total, limit) {
+    totalPages = Math.ceil(total / limit);
+    document.getElementById('showing-total').textContent = total;
+    document.getElementById('current-page').textContent = currentPage;
+    document.getElementById('total-pages').textContent = totalPages;
+    
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = '';
+    
+    // Botão anterior
+    pagination.innerHTML += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+        pagination.innerHTML += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    // Botão próximo
+    pagination.innerHTML += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Próximo</a>
+        </li>
+    `;
+}
+
+function changePage(page) {
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        loadProducts();
+    }
+}
+
+function updateCounts(count) {
+    document.getElementById('showing-count').textContent = count;
+}
+
+// Funções de seleção
+function toggleSelectAll() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.product-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+        if (selectAll.checked) {
+            selectedProducts.add(parseInt(checkbox.value));
+        } else {
+            selectedProducts.delete(parseInt(checkbox.value));
+        }
+    });
+    
+    updateSelectedCount();
+}
+
+function toggleProductSelection(productId) {
+    if (selectedProducts.has(productId)) {
+        selectedProducts.delete(productId);
+    } else {
+        selectedProducts.add(productId);
+    }
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const count = selectedProducts.size;
+    document.getElementById('selected-count').textContent = count;
+}
+
+// Funções de importação
+function showImportModal() {
+    const modal = new bootstrap.Modal(document.getElementById('importModal'));
+    modal.show();
+}
+
+function importProduct() {
+    const mlItemId = document.getElementById('ml-item-id').value.trim();
+    
+    if (!mlItemId) {
+        showAlert('warning', 'Digite o ID do produto');
+        return;
+    }
+    
+    fetch(`/api/products/import/${mlItemId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+            document.getElementById('ml-item-id').value = '';
+            loadProducts();
+        } else {
+            showAlert('danger', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao importar produto:', error);
+        showAlert('danger', 'Erro ao importar produto');
+    });
+}
+
+function importAllProducts() {
+    if (!confirm('Deseja importar todos os produtos do Mercado Livre?')) {
+        return;
+    }
+    
+    fetch('/api/products/import-all', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            loadProducts();
+        } else {
+            showAlert('danger', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao importar produtos:', error);
+        showAlert('danger', 'Erro ao importar produtos');
+    });
+}
+
+// Funções de edição
+function editProduct(productId) {
+    fetch(`/api/products/${productId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const product = data.product;
+                document.getElementById('edit-product-id').value = product.id;
+                document.getElementById('edit-title').value = product.title;
+                document.getElementById('edit-sku').value = product.sku || '';
+                document.getElementById('edit-cost-price').value = product.cost_price || '';
+                document.getElementById('edit-tax-rate').value = product.tax_rate || '';
+                document.getElementById('edit-marketing-cost').value = product.marketing_cost || '';
+                document.getElementById('edit-other-costs').value = product.other_costs || '';
+                document.getElementById('edit-notes').value = product.notes || '';
+                
+                const modal = new bootstrap.Modal(document.getElementById('editModal'));
+                modal.show();
+            } else {
+                showAlert('danger', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar produto:', error);
+            showAlert('danger', 'Erro ao carregar produto');
+        });
+}
+
+function saveProduct() {
+    const productId = document.getElementById('edit-product-id').value;
+    const data = {
+        sku: document.getElementById('edit-sku').value,
+        cost_price: document.getElementById('edit-cost-price').value,
+        tax_rate: document.getElementById('edit-tax-rate').value,
+        marketing_cost: document.getElementById('edit-marketing-cost').value,
+        other_costs: document.getElementById('edit-other-costs').value,
+        notes: document.getElementById('edit-notes').value
+    };
+    
+    fetch(`/api/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+            loadProducts();
+        } else {
+            showAlert('danger', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao salvar produto:', error);
+        showAlert('danger', 'Erro ao salvar produto');
+    });
+}
+
+// Funções de remoção
+function deleteProduct(productId) {
+    if (!confirm('Deseja remover este produto?')) {
+        return;
+    }
+    
+    fetch(`/api/products/${productId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            loadProducts();
+        } else {
+            showAlert('danger', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao remover produto:', error);
+        showAlert('danger', 'Erro ao remover produto');
+    });
+}
+
+function deleteSelected() {
+    if (selectedProducts.size === 0) {
+        showAlert('warning', 'Selecione pelo menos um produto');
+        return;
+    }
+    
+    if (!confirm(`Deseja remover ${selectedProducts.size} produto(s) selecionado(s)?`)) {
+        return;
+    }
+    
+    // Implementar remoção em lote
+    showAlert('info', 'Funcionalidade de remoção em lote será implementada em breve');
+}
+
+function clearFilters() {
+    document.getElementById('search-input').value = '';
+    document.getElementById('status-filter').value = '';
+    document.getElementById('sort-filter').value = 'created_at';
+    document.getElementById('limit-filter').value = '20';
+    currentPage = 1;
+    loadProducts();
+}
+
+// Utilitários
+function showAlert(type, message) {
+    const alertContainer = document.getElementById('alert-container');
+    const alertId = 'alert-' + Date.now();
+    
+    alertContainer.innerHTML = `
+        <div id="${alertId}" class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // Auto-remover após 5 segundos
+    setTimeout(() => {
+        const alert = document.getElementById(alertId);
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+</script>
+{% endblock %}
+

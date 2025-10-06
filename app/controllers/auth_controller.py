@@ -322,3 +322,17 @@ class AuthController:
         
         # TODO: Implementar busca de informações do usuário
         return {"message": "Informações do usuário", "token": access_token}
+
+
+def get_current_user(session_token: str = None, db: Session = Depends(get_db)):
+    """Dependency para obter usuário atual pela sessão"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    
+    if "error" in result:
+        raise HTTPException(status_code=401, detail=result["error"])
+    
+    return result["user"]
