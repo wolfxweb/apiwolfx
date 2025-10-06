@@ -1014,12 +1014,41 @@ async def sync_catalog_data(
             shipping_info = item.get("shipping", {})
             shipping_free = shipping_info.get("free_shipping", False)
             shipping_logistic_type = shipping_info.get("logistic_type", "default")
-            shipping_method = shipping_info.get("method", "standard")
+            shipping_method = shipping_info.get("mode", "standard")  # Usar 'mode' em vez de 'method'
             shipping_tags = shipping_info.get("tags", [])
             
-            # Usar logistic_type do item principal se shipping_method não estiver disponível
-            if shipping_method == "standard" and item.get("logistic_type"):
-                shipping_method = item.get("logistic_type")
+            # Se não tem mode, usar logistic_type do shipping
+            if shipping_method == "standard" and shipping_logistic_type != "default":
+                shipping_method = shipping_logistic_type
+            
+            
+            # Determinar quem paga o frete baseado nos dados reais da API
+            shipping_paid_by = "Comprador"  # Padrão mais realista
+            
+            # Verificar se há informações específicas sobre pagamento
+            if shipping_free:
+                # Se é frete grátis, verificar quem está pagando
+                if shipping_method in ["fulfillment", "cross_docking"]:
+                    # Full e Coleta ML são pagos pelo Mercado Livre
+                    shipping_paid_by = "Mercado Livre"
+                elif "seller_pays" in shipping_tags or "vendedor_paga" in shipping_tags:
+                    # Tags específicas indicam que o vendedor paga
+                    shipping_paid_by = "Vendedor"
+                else:
+                    # Frete grátis sem indicação específica - geralmente vendedor
+                    shipping_paid_by = "Vendedor"
+            elif shipping_method in ["fulfillment", "cross_docking"]:
+                # Full e Coleta ML são sempre pagos pelo Mercado Livre
+                shipping_paid_by = "Mercado Livre"
+            elif shipping_method in ["me2", "mercadoenvios"]:
+                # Mercado Envios pode ser pago pelo comprador ou vendedor
+                if "seller_pays" in shipping_tags or "vendedor_paga" in shipping_tags:
+                    shipping_paid_by = "Vendedor"
+                else:
+                    shipping_paid_by = "Comprador"
+            else:
+                # Para outros métodos, usar padrão mais realista
+                shipping_paid_by = "Comprador"
             
             
             
@@ -1124,12 +1153,13 @@ async def sync_catalog_data(
                 "accepts_mercadopago": item.get("accepts_mercadopago", False),
                 "original_price": item.get("original_price"),
                 "category_id": item.get("category_id"),
-                "logistic_type": item.get("logistic_type", "default"),
+                "logistic_type": shipping_logistic_type,
                 "buy_box_winner": item.get("buy_box_winner", False),
                 # Informações detalhadas de envio
                 "shipping_free": shipping_free,
                 "shipping_method": shipping_method,
                 "shipping_tags": shipping_tags,
+                "shipping_paid_by": shipping_paid_by,
                 # Posição no catálogo
                 "position": index + 1,
                 # Informações detalhadas do vendedor
@@ -1291,6 +1321,7 @@ async def get_catalog_from_database(
                 "shipping_free": participant.shipping_free,
                 "shipping_method": participant.shipping_method,
                 "shipping_tags": participant.shipping_tags or [],
+                "shipping_paid_by": participant.shipping_paid_by,
                 "position": participant.position,
                 "last_updated": participant.last_updated.isoformat() if participant.last_updated else None
             })

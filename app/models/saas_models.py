@@ -623,6 +623,7 @@ class CatalogParticipant(Base):
     shipping_free = Column(Boolean, default=False)
     shipping_method = Column(String(50))
     shipping_tags = Column(JSON)
+    shipping_paid_by = Column(String(50), default="Comprador")
     
     # Posição no catálogo
     position = Column(Integer, default=0)

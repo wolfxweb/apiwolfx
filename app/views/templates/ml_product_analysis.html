@@ -114,21 +114,26 @@
             </div>
         </div>
         
-        <!-- Resumo Card (placeholder) -->
-        <div class="col-md-12 mb-4">
-            <div class="card h-100">
-                <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-graph-up"></i> Resumo
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="text-center py-3">
-                        <p class="text-muted mb-0">Card de resumo será implementado aqui</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+       <!-- Análise Card -->
+       <div class="col-md-12 mb-4">
+           <div class="card h-100">
+               <div class="card-header bg-primary text-white">
+                   <h5 class="mb-0">
+                       <i class="bi bi-graph-up"></i> Análise Competitiva
+                   </h5>
+               </div>
+               <div class="card-body">
+                   <div id="catalog-analysis-content">
+                       <div class="text-center py-3">
+                           <div class="spinner-border spinner-border-sm" role="status">
+                               <span class="visually-hidden">Carregando...</span>
+                           </div>
+                           <p class="mt-2 mb-0">Analisando dados...</p>
+                       </div>
+                   </div>
+               </div>
+           </div>
+       </div>
                 </div>
 
                 <!-- Profitability Analysis -->
@@ -201,6 +206,7 @@ function loadProductAnalysis(productId) {
                 renderProductInfo(data.product);
                 loadMarketplaceFees(data.product);
                 checkCatalogInfo(data.product);
+                loadCompetitiveAnalysis(data.product.id);
                 loadProfitabilityAnalysis(data.product);
                 loadRecommendations(data.product);
                 
@@ -785,6 +791,7 @@ function loadCatalogInfo(productId) {
     fetch(`/ml/products/api/product/${productId}/catalog/database`)
         .then(response => response.json())
         .then(data => {
+            if (handleSessionError(null, data)) return;
             if (data.success && data.is_catalog && data.catalog_products.length > 0) {
                 // Mostrar dados do banco com data da última atualização
                 renderCatalogInfo(data);
@@ -892,7 +899,7 @@ function renderCatalogInfo(data, fromDatabase = true) {
             currency: 'BRL'
         }).format(product.price);
         
-        // Informações de envio - usar novos campos do banco
+        // Informações de envio - usar dados reais da API
         let shippingInfo = "Não disponível";
         
         // Debug: verificar valores
@@ -905,35 +912,15 @@ function renderCatalogInfo(data, fromDatabase = true) {
         
         if (product.shipping_free) {
             shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
-        } else if (product.shipping_method && product.shipping_method !== 'standard') {
-            // Usar shipping_method específico
-            switch(product.shipping_method) {
-                case 'fulfillment':
-                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
-                    break;
-                case 'xd_drop_off':
-                case 'drop_off':
-                    shippingInfo = '<span class="badge bg-warning">Entrega Direta</span>';
-                    break;
-                case 'cross_docking':
-                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
-                    break;
-                case 'me2':
-                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
-                    break;
-                default:
-                    shippingInfo = `<span class="badge bg-light text-dark">${product.shipping_method}</span>`;
-                    break;
-            }
         } else if (product.logistic_type && product.logistic_type !== 'default') {
-            // Fallback para logistic_type
+            // Priorizar logistic_type (tipo real de envio)
             switch(product.logistic_type) {
                 case 'fulfillment':
                     shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
                     break;
                 case 'xd_drop_off':
                 case 'drop_off':
-                    shippingInfo = '<span class="badge bg-warning">Entrega Direta</span>';
+                    shippingInfo = '<span class="badge bg-warning">Correios</span>';
                     break;
                 case 'cross_docking':
                     shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
@@ -943,6 +930,26 @@ function renderCatalogInfo(data, fromDatabase = true) {
                     break;
                 default:
                     shippingInfo = `<span class="badge bg-light text-dark">${product.logistic_type}</span>`;
+                    break;
+            }
+        } else if (product.shipping_method && product.shipping_method !== 'standard') {
+            // Fallback para shipping_method (mode da API)
+            switch(product.shipping_method) {
+                case 'fulfillment':
+                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
+                    break;
+                case 'xd_drop_off':
+                case 'drop_off':
+                    shippingInfo = '<span class="badge bg-warning">Correios</span>';
+                    break;
+                case 'cross_docking':
+                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
+                    break;
+                case 'me2':
+                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
+                    break;
+                default:
+                    shippingInfo = `<span class="badge bg-light text-dark">${product.shipping_method}</span>`;
                     break;
             }
         } else {
@@ -1107,6 +1114,40 @@ function renderCatalogInfo(data, fromDatabase = true) {
             `<span class="badge bg-success">-${Math.round(((product.original_price - product.price) / product.original_price) * 100)}%</span>` : 
             '';
         
+        // Badge para quem paga o frete
+        let shippingPaidByBadge = '';
+        if (product.shipping_paid_by && product.shipping_paid_by !== 'Não disponível') {
+            let badgeClass = 'bg-secondary';
+            let icon = '👤';
+            
+            switch(product.shipping_paid_by) {
+                case 'Comprador':
+                    badgeClass = 'bg-primary';
+                    icon = '🛒';
+                    break;
+                case 'Vendedor':
+                    badgeClass = 'bg-success';
+                    icon = '🏪';
+                    break;
+                case 'Mercado Livre':
+                    badgeClass = 'bg-info';
+                    icon = '🏢';
+                    break;
+                case 'Vendedor/Mercado Livre':
+                    badgeClass = 'bg-warning';
+                    icon = '🤝';
+                    break;
+                default:
+                    badgeClass = 'bg-light text-dark';
+                    icon = '❓';
+                    break;
+            }
+            
+            shippingPaidByBadge = `<span class="badge ${badgeClass}">${icon} ${product.shipping_paid_by}</span>`;
+        } else {
+            shippingPaidByBadge = '<span class="badge bg-light text-dark">❓ Não disponível</span>';
+        }
+        
         // Debug: verificar URL do produto
         console.log(`Produto ${product.ml_item_id}: ${product.permalink}`);
         
@@ -1182,6 +1223,7 @@ function syncCatalog() {
     })
     .then(response => response.json())
     .then(data => {
+        if (handleSessionError(null, data)) return;
         if (data.success) {
             // Mostrar sucesso
             syncBtn.innerHTML = '<i class="bi bi-check-circle"></i> Sincronizado!';
@@ -1232,5 +1274,371 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+    // Função global para tratar erros de sessão
+    function handleSessionError(response, data) {
+        if (response && response.status === 401) {
+            // Sessão expirada - redirecionar para login
+            window.location.href = '/auth/login';
+            return true;
+        }
+        if (data && data.detail === "Sessão não encontrada") {
+            // Sessão inválida - redirecionar para login
+            window.location.href = '/auth/login';
+            return true;
+        }
+        return false;
+    }
+
+    // Função para carregar análise competitiva
+    function loadCompetitiveAnalysis(productId) {
+        fetch(`/ml/products/api/product/${productId}/catalog/database`)
+            .then(response => response.json())
+            .then(data => {
+                if (handleSessionError(null, data)) return;
+                
+                if (data && data.success && data.catalog_products) {
+                    renderCompetitiveAnalysis(data.catalog_products);
+                } else {
+                    document.getElementById('catalog-analysis-content').innerHTML = 
+                        '<div class="text-center py-3"><p class="text-muted mb-0">Nenhum dado de catálogo disponível</p></div>';
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar análise competitiva:', error);
+                document.getElementById('catalog-analysis-content').innerHTML = 
+                    '<div class="text-center py-3"><p class="text-danger mb-0">Erro ao carregar análise</p></div>';
+            });
+    }
+
+    // Função para renderizar análise competitiva
+    function renderCompetitiveAnalysis(products) {
+        const analysisContent = document.getElementById('catalog-analysis-content');
+        
+        // Análise por tipo de envio
+        const shippingAnalysis = analyzeShippingTypes(products);
+        
+        // Top 3 anunciantes
+        const top3 = getTop3Announcers(products);
+        
+        // Análise de posicionamento
+        const positioningAnalysis = analyzePositioning(products);
+        
+        // Análise de MercadoLíder
+        const mercadoLiderAnalysis = analyzeMercadoLider(products);
+        
+        // Métricas gerais
+        const metrics = calculateMetrics(products);
+        
+        analysisContent.innerHTML = `
+            <div class="row">
+                <!-- Análise por Tipo de Envio -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-primary mb-3">
+                        <i class="bi bi-truck"></i> Distribuição por Envio
+                    </h6>
+                    <div class="row">
+                        ${Object.entries(shippingAnalysis).map(([type, count]) => `
+                            <div class="col-6 mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <span class="small">${getShippingTypeLabel(type)}</span>
+                                    <span class="badge bg-primary">${count}</span>
+                                </div>
+                                <div class="progress" style="height: 4px;">
+                                    <div class="progress-bar" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- Top 3 Anunciantes -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-success mb-3">
+                        <i class="bi bi-trophy"></i> Top 3 Anunciantes
+                    </h6>
+                    ${top3.map((announcer, index) => `
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 ${index === 0 ? 'bg-light rounded' : ''}">
+                            <div>
+                                <span class="badge ${index === 0 ? 'bg-warning' : index === 1 ? 'bg-secondary' : 'bg-dark'}">${announcer.position || (index + 1)}º</span>
+                                <strong>${getSellerDisplayName(announcer)}</strong>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted">R$ ${(announcer.price).toFixed(2)}</div>
+                                <div class="small">${announcer.shipping_type}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <!-- Análise de MercadoLíder -->
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-warning mb-3">
+                        <i class="bi bi-award"></i> Distribuição por MercadoLíder
+                    </h6>
+                    <div class="row">
+                        ${Object.entries(analyzeMercadoLider(products)).map(([level, count]) => `
+                            <div class="col-6 mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <span class="small">${getMercadoLiderLabel(level)}</span>
+                                    <span class="badge ${getMercadoLiderBadgeClass(level)}">${count}</span>
+                                </div>
+                                <div class="progress" style="height: 4px;">
+                                    <div class="progress-bar ${getMercadoLiderProgressClass(level)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- Análise de Posicionamento -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-info mb-3">
+                        <i class="bi bi-graph-up"></i> Análise de Posicionamento
+                    </h6>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h5 class="text-primary">${metrics.total_announcers}</h5>
+                                    <small class="text-muted">Total de Anunciantes</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h5 class="text-warning">${positioningAnalysis.your_position || 'N/A'}</h5>
+                                    <small class="text-muted">Sua Posição</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h5 class="text-success">${metrics.avg_price}</h5>
+                                    <small class="text-muted">Preço Médio</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recomendações -->
+            <div class="row">
+                <div class="col-12">
+                    <h6 class="text-warning mb-3">
+                        <i class="bi bi-lightbulb"></i> Recomendações
+                    </h6>
+                    <div class="alert alert-info">
+                        ${generateRecommendations(shippingAnalysis, positioningAnalysis, metrics, mercadoLiderAnalysis)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Função para analisar tipos de envio
+    function analyzeShippingTypes(products) {
+        const shippingTypes = {};
+        products.forEach(product => {
+            const shippingType = getShippingTypeFromProduct(product);
+            shippingTypes[shippingType] = (shippingTypes[shippingType] || 0) + 1;
+        });
+        return shippingTypes;
+    }
+
+    // Função para obter tipo de envio do produto
+    function getShippingTypeFromProduct(product) {
+        if (product.shipping_free) return 'frete_gratis';
+        if (product.logistic_type === 'fulfillment') return 'full';
+        if (product.logistic_type === 'cross_docking') return 'coleta_ml';
+        if (product.shipping_method === 'me2') return 'mercado_envios';
+        if (product.shipping_method === 'drop_off' || product.shipping_method === 'xd_drop_off') return 'correios';
+        return 'outros';
+    }
+
+    // Função para obter label do tipo de envio
+    function getShippingTypeLabel(type) {
+        const labels = {
+            'frete_gratis': 'Frete Grátis',
+            'full': 'Full Mercado Livre',
+            'coleta_ml': 'Coleta ML',
+            'mercado_envios': 'Mercado Envios',
+            'correios': 'Correios',
+            'outros': 'Outros'
+        };
+        return labels[type] || type;
+    }
+
+    // Função para obter nome de exibição do vendedor
+    function getSellerDisplayName(seller) {
+        if (seller.seller_name && seller.seller_name !== 'N/A') {
+            return seller.seller_name;
+        }
+        if (seller.seller_nickname && seller.seller_nickname !== 'N/A') {
+            return seller.seller_nickname;
+        }
+        return seller.seller_id || 'N/A';
+    }
+
+    // Função para obter top 3 anunciantes baseado na posição
+    function getTop3Announcers(products) {
+        const sorted = products
+            .sort((a, b) => (a.position || 999) - (b.position || 999))  // Ordenar por posição
+            .slice(0, 3);
+        
+        // Debug: verificar dados
+        console.log('Top 3 anunciantes:', sorted.map(p => ({
+            position: p.position,
+            seller_name: p.seller_name,
+            seller_nickname: p.seller_nickname,
+            seller_id: p.seller_id,
+            price: p.price
+        })));
+        
+        return sorted.map(product => ({
+            ...product,
+            shipping_type: getShippingTypeLabel(getShippingTypeFromProduct(product))
+        }));
+    }
+
+    // Função para analisar posicionamento
+    function analyzePositioning(products) {
+        // Encontrar o produto com menor posição (melhor posicionamento)
+        const bestPosition = Math.min(...products.map(p => p.position || 999));
+        const yourProduct = products.find(p => p.position === bestPosition);
+        
+        return {
+            your_position: yourProduct ? yourProduct.position : null,
+            total_competitors: products.length - 1,
+            best_position: bestPosition
+        };
+    }
+
+    // Função para calcular métricas
+    function calculateMetrics(products) {
+        const totalPrice = products.reduce((sum, product) => sum + product.price, 0);
+        const avgPrice = (totalPrice / products.length).toFixed(2);
+        
+        return {
+            total_announcers: products.length,
+            avg_price: `R$ ${avgPrice}`,
+            min_price: `R$ ${(Math.min(...products.map(p => p.price))).toFixed(2)}`,
+            max_price: `R$ ${(Math.max(...products.map(p => p.price))).toFixed(2)}`
+        };
+    }
+
+    // Função para analisar níveis de MercadoLíder
+    function analyzeMercadoLider(products) {
+        const levels = {};
+        products.forEach(product => {
+            const level = getMercadoLiderLevel(product);
+            levels[level] = (levels[level] || 0) + 1;
+        });
+        return levels;
+    }
+
+    // Função para obter nível de MercadoLíder do produto
+    function getMercadoLiderLevel(product) {
+        const status = product.seller_power_seller_status;
+        if (!status || status === 'N/A') {
+            return 'sem_medalha';
+        }
+        
+        if (status === 'platinum') {
+            return 'platinum';
+        } else if (status === 'gold') {
+            return 'gold';
+        } else if (status === 'silver') {
+            return 'silver';
+        }
+        
+        return 'sem_medalha';
+    }
+
+    // Função para obter label do nível de MercadoLíder
+    function getMercadoLiderLabel(level) {
+        const labels = {
+            'platinum': '🥇 MercadoLíder Platinum',
+            'gold': '🥈 MercadoLíder Gold',
+            'silver': '🥉 MercadoLíder',
+            'sem_medalha': '⚪ Sem Medalha'
+        };
+        return labels[level] || level;
+    }
+
+    // Função para obter classe do badge
+    function getMercadoLiderBadgeClass(level) {
+        const classes = {
+            'platinum': 'bg-info',
+            'gold': 'bg-warning',
+            'silver': 'bg-secondary',
+            'sem_medalha': 'bg-light text-dark'
+        };
+        return classes[level] || 'bg-secondary';
+    }
+
+    // Função para obter classe da barra de progresso
+    function getMercadoLiderProgressClass(level) {
+        const classes = {
+            'platinum': 'bg-info',
+            'gold': 'bg-warning',
+            'silver': 'bg-secondary',
+            'sem_medalha': 'bg-light'
+        };
+        return classes[level] || 'bg-secondary';
+    }
+
+    // Função para gerar recomendações
+    function generateRecommendations(shippingAnalysis, positioningAnalysis, metrics, mercadoLiderAnalysis) {
+        const recommendations = [];
+        
+        // Recomendação baseada em tipo de envio
+        const fullCount = shippingAnalysis.full || 0;
+        const totalCount = Object.values(shippingAnalysis).reduce((sum, count) => sum + count, 0);
+        const fullPercentage = (fullCount / totalCount * 100).toFixed(1);
+        
+        if (fullPercentage > 50) {
+            recommendations.push(`<strong>Full é dominante (${fullPercentage}%)</strong> - Considere usar Full para competir.`);
+        }
+        
+        // Recomendação baseada em MercadoLíder
+        const platinumCount = mercadoLiderAnalysis.platinum || 0;
+        const goldCount = mercadoLiderAnalysis.gold || 0;
+        const silverCount = mercadoLiderAnalysis.silver || 0;
+        const semMedalhaCount = mercadoLiderAnalysis.sem_medalha || 0;
+        const totalMercadoLider = Object.values(mercadoLiderAnalysis).reduce((sum, count) => sum + count, 0);
+        
+        if (platinumCount > 0) {
+            const platinumPercentage = (platinumCount / totalMercadoLider * 100).toFixed(1);
+            recommendations.push(`<strong>🥇 ${platinumCount} MercadoLíder Platinum (${platinumPercentage}%)</strong> - Concorrência de alto nível.`);
+        }
+        
+        if (goldCount > 0) {
+            const goldPercentage = (goldCount / totalMercadoLider * 100).toFixed(1);
+            recommendations.push(`<strong>🥈 ${goldCount} MercadoLíder Gold (${goldPercentage}%)</strong> - Vendedores experientes.`);
+        }
+        
+        if (semMedalhaCount > 0) {
+            const semMedalhaPercentage = (semMedalhaCount / totalMercadoLider * 100).toFixed(1);
+            recommendations.push(`<strong>⚪ ${semMedalhaCount} Sem Medalha (${semMedalhaPercentage}%)</strong> - Oportunidade para se destacar.`);
+        }
+        
+        // Recomendação baseada em preço
+        recommendations.push(`<strong>Preço médio:</strong> ${metrics.avg_price} - Analise se seu preço está competitivo.`);
+        
+        // Recomendação baseada em posicionamento
+        if (positioningAnalysis.your_position && positioningAnalysis.your_position > 3) {
+            recommendations.push(`<strong>Posição:</strong> Você está em ${positioningAnalysis.your_position}º lugar - Melhore seu posicionamento.`);
+        }
+        
+        return recommendations.length > 0 ? recommendations.join('<br>') : 'Continue monitorando a concorrência.';
+    }
 </script>
 {% endblock %}
