@@ -1379,7 +1379,8 @@ document.head.appendChild(style);
                 </div>
             </div>
             
-                
+            <!-- Análise por Faixas de Valor e MercadoLíder -->
+            <div class="row">
                 <!-- Análise por Faixas de Valor -->
                 <div class="col-md-6 mb-4">
                     <h6 class="text-success mb-3">
@@ -1394,6 +1395,26 @@ document.head.appendChild(style);
                                 </div>
                                 <div class="progress" style="height: 4px;">
                                     <div class="progress-bar ${getPriceRangeProgressClass(range)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- Distribuição por MercadoLíder -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-warning mb-3">
+                        <i class="bi bi-award"></i> Distribuição por MercadoLíder
+                    </h6>
+                    <div class="row">
+                        ${Object.entries(analyzeMercadoLider(products)).map(([level, count]) => `
+                            <div class="col-6 mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <span class="small">${getMercadoLiderLabel(level)}</span>
+                                    <span class="badge ${getMercadoLiderBadgeClass(level)}">${count}</span>
+                                </div>
+                                <div class="progress" style="height: 4px;">
+                                    <div class="progress-bar ${getMercadoLiderProgressClass(level)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
                                 </div>
                             </div>
                         `).join('')}
