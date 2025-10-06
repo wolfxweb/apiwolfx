@@ -170,6 +170,7 @@ class InternalProductService:
                         "tax_rate": float(p.tax_rate) if p.tax_rate else 0.0,
                         "marketing_cost": float(p.marketing_cost) if p.marketing_cost else 0.0,
                         "other_costs": float(p.other_costs) if p.other_costs else 0.0,
+                        "expected_profit_margin": float(p.expected_profit_margin) if p.expected_profit_margin else 0.0,
                         "announcements_count": product_announcements.get(p.id, 0),
                         "created_at": p.created_at.isoformat() if p.created_at else None,
                         "updated_at": p.updated_at.isoformat() if p.updated_at else None

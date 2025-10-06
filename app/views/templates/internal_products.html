@@ -83,28 +83,28 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-primary text-white">
                                 <tr>
-                                    <th width="50">
+                                    <th width="50" class="small">
                                         <input type="checkbox" id="select-all-products" onchange="toggleSelectAll()">
                                     </th>
-                                    <th class="sortable" data-sort="name" onclick="sortTable('name')">
+                                    <th class="sortable small" data-sort="name" onclick="sortTable('name')">
                                         Produto <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="cost_price" onclick="sortTable('cost_price')">
+                                    <th class="sortable small" data-sort="cost_price" onclick="sortTable('cost_price')">
                                         Preço Custo <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="tax_rate" onclick="sortTable('tax_rate')">
+                                    <th class="sortable small" data-sort="tax_rate" onclick="sortTable('tax_rate')">
                                         Impostos % <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="marketing_cost" onclick="sortTable('marketing_cost')">
+                                    <th class="sortable small" data-sort="marketing_cost" onclick="sortTable('marketing_cost')">
                                         Marketing % <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="other_costs" onclick="sortTable('other_costs')">
+                                    <th class="sortable small" data-sort="other_costs" onclick="sortTable('other_costs')">
                                         Despesas R$ <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="selling_price" onclick="sortTable('selling_price')">
+                                    <th class="sortable small" data-sort="selling_price" onclick="sortTable('selling_price')">
                                         Preço Venda <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th>Ações</th>
+                                    <th class="small">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="productsTableBody">
@@ -200,6 +200,10 @@
                             <label for="otherCosts" class="form-label">Despesas Adicionais (R$)</label>
                             <input type="number" class="form-control" id="otherCosts" step="0.01" value="0">
                         </div>
+                        <div class="col-md-4">
+                            <label for="expectedProfitMargin" class="form-label">Margem Esperada (%)</label>
+                            <input type="number" class="form-control" id="expectedProfitMargin" step="0.1" value="0">
+                        </div>
                         <div class="col-md-6">
                             <label for="productBrand" class="form-label">Marca</label>
                             <input type="text" class="form-control" id="productBrand">
@@ -280,6 +284,10 @@
                         <div class="col-md-4">
                             <label for="editOtherCosts" class="form-label">Despesas Adicionais (R$)</label>
                             <input type="number" class="form-control" id="editOtherCosts" step="0.01">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editExpectedProfitMargin" class="form-label">Margem Esperada (%)</label>
+                            <input type="number" class="form-control" id="editExpectedProfitMargin" step="0.1">
                         </div>
                         <div class="col-md-6">
                             <label for="editProductBrand" class="form-label">Marca</label>
@@ -511,14 +519,30 @@ function renderProducts(products, total = null) {
                     <span class="fw-medium">${product.cost_price ? `R$ ${parseFloat(product.cost_price).toFixed(2).replace('.', ',')}` : '-'}</span>
                 </td>
                 <td>
-                    <span class="fw-medium text-info">
-                        ${product.tax_rate ? `${parseFloat(product.tax_rate).toFixed(1)}%` : '0,0%'}
-                    </span>
+                    <div class="d-flex flex-column">
+                        <span class="fw-medium text-info">
+                            ${product.tax_rate ? `${parseFloat(product.tax_rate).toFixed(1)}%` : '0,0%'}
+                        </span>
+                        <small class="text-muted">
+                            ${product.tax_rate && product.selling_price ? 
+                                `R$ ${(parseFloat(product.selling_price) * parseFloat(product.tax_rate) / 100).toFixed(2).replace('.', ',')}` : 
+                                'R$ 0,00'
+                            }
+                        </small>
+                    </div>
                 </td>
                 <td>
-                    <span class="fw-medium text-warning">
-                        ${product.marketing_cost ? `${parseFloat(product.marketing_cost).toFixed(1)}%` : '0,0%'}
-                    </span>
+                    <div class="d-flex flex-column">
+                        <span class="fw-medium text-warning">
+                            ${product.marketing_cost ? `${parseFloat(product.marketing_cost).toFixed(1)}%` : '0,0%'}
+                        </span>
+                        <small class="text-muted">
+                            ${product.marketing_cost && product.selling_price ? 
+                                `R$ ${(parseFloat(product.selling_price) * parseFloat(product.marketing_cost) / 100).toFixed(2).replace('.', ',')}` : 
+                                'R$ 0,00'
+                            }
+                        </small>
+                    </div>
                 </td>
                 <td>
                     <span class="fw-medium text-danger">
@@ -762,6 +786,7 @@ async function createProduct() {
         tax_rate: document.getElementById('taxRate').value || 0.0,
         marketing_cost: document.getElementById('marketingCost').value || 0.0,
         other_costs: document.getElementById('otherCosts').value || 0.0,
+        expected_profit_margin: document.getElementById('expectedProfitMargin').value || 0.0,
         brand: document.getElementById('productBrand').value,
         supplier: document.getElementById('productSupplier').value,
         notes: document.getElementById('productNotes').value
@@ -813,6 +838,7 @@ async function editProduct(productId) {
     document.getElementById('editTaxRate').value = product.tax_rate || 0;
     document.getElementById('editMarketingCost').value = product.marketing_cost || 0;
     document.getElementById('editOtherCosts').value = product.other_costs || 0;
+    document.getElementById('editExpectedProfitMargin').value = product.expected_profit_margin || 0;
     document.getElementById('editProductBrand').value = product.brand || '';
     document.getElementById('editProductSupplier').value = product.supplier || '';
     document.getElementById('editProductStatus').value = product.status;
@@ -838,6 +864,7 @@ async function updateProduct() {
         tax_rate: document.getElementById('editTaxRate').value || 0.0,
         marketing_cost: document.getElementById('editMarketingCost').value || 0.0,
         other_costs: document.getElementById('editOtherCosts').value || 0.0,
+        expected_profit_margin: document.getElementById('editExpectedProfitMargin').value || 0.0,
         brand: document.getElementById('editProductBrand').value,
         supplier: document.getElementById('editProductSupplier').value,
         status: document.getElementById('editProductStatus').value,

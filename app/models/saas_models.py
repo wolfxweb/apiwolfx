@@ -673,6 +673,7 @@ class InternalProduct(Base):
     tax_rate = Column(Numeric(5, 2), default=0.0)  # Taxa de imposto (%)
     marketing_cost = Column(Numeric(10, 2), default=0.0)  # Custo de marketing
     other_costs = Column(Numeric(10, 2), default=0.0)  # Outros custos
+    expected_profit_margin = Column(Numeric(5, 2), default=0.0)  # Margem de lucro esperada (%)
     
     # Categorização interna
     category = Column(String(100))  # Categoria interna
