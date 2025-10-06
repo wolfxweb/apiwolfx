@@ -875,6 +875,62 @@ function renderCatalogInfo(data, fromDatabase = true) {
                 </button>
             </div>
         </div>
+        
+        <!-- Filtros -->
+        <div class="row mb-3">
+            <div class="col-md-2">
+                <label class="form-label small">Posição</label>
+                <select class="form-select form-select-sm" id="filter-position" onchange="filterCatalog()">
+                    <option value="">Todas</option>
+                    <option value="1-5">1º - 5º</option>
+                    <option value="6-10">6º - 10º</option>
+                    <option value="11-20">11º - 20º</option>
+                    <option value="21+">21º+</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Preço</label>
+                <select class="form-select form-select-sm" id="filter-price" onchange="filterCatalog()">
+                    <option value="">Todos</option>
+                    <option value="0-50">Até R$ 50</option>
+                    <option value="50-100">R$ 50 - R$ 100</option>
+                    <option value="100+">Acima de R$ 100</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Envio</label>
+                <select class="form-select form-select-sm" id="filter-shipping" onchange="filterCatalog()">
+                    <option value="">Todos</option>
+                    <option value="full">Full Mercado Livre</option>
+                    <option value="correios">Correios</option>
+                    <option value="coleta">Coleta ML</option>
+                    <option value="mercado_envios">Mercado Envios</option>
+                    <option value="frete_gratis">Frete Grátis</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">MercadoLíder</label>
+                <select class="form-select form-select-sm" id="filter-mercadolider" onchange="filterCatalog()">
+                    <option value="">Todos</option>
+                    <option value="platinum">Platinum</option>
+                    <option value="gold">Gold</option>
+                    <option value="silver">Silver</option>
+                    <option value="sem_medalha">Sem Medalha</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">&nbsp;</label>
+                <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">
+                    <i class="bi bi-x-circle"></i> Limpar Filtros
+                </button>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Resultados</label>
+                <div class="form-control form-control-sm bg-light text-center" id="filter-results">
+                    <small class="text-muted">Carregando...</small>
+                </div>
+            </div>
+        </div>
         <div class="table-responsive">
             <table class="table table-sm">
                 <thead>
@@ -1196,6 +1252,222 @@ function renderCatalogInfo(data, fromDatabase = true) {
     `;
     
     container.innerHTML = html;
+    
+    // Armazenar dados originais para filtros
+    window.catalogData = data;
+    
+    // Inicializar contador de resultados
+    document.getElementById('filter-results').innerHTML = `<small class="text-muted">${data.catalog_products.length} resultados</small>`;
+}
+
+// Função para filtrar catálogo
+async function filterCatalog() {
+    const positionFilter = document.getElementById('filter-position').value;
+    const priceFilter = document.getElementById('filter-price').value;
+    const shippingFilter = document.getElementById('filter-shipping').value;
+    const mercadoliderFilter = document.getElementById('filter-mercadolider').value;
+    
+    // Construir URL com parâmetros de filtro
+    const currentPath = window.location.pathname;
+    const productId = currentPath.split('/').pop();
+    
+    let filterUrl = `/ml/products/api/product/${productId}/catalog/filter?`;
+    const params = [];
+    
+    if (positionFilter) params.push(`position=${encodeURIComponent(positionFilter)}`);
+    if (priceFilter) params.push(`price=${encodeURIComponent(priceFilter)}`);
+    if (shippingFilter) params.push(`shipping=${encodeURIComponent(shippingFilter)}`);
+    if (mercadoliderFilter) params.push(`mercadolider=${encodeURIComponent(mercadoliderFilter)}`);
+    
+    filterUrl += params.join('&');
+    
+    try {
+        // Mostrar loading
+        document.getElementById('filter-results').innerHTML = `<small class="text-muted">Carregando...</small>`;
+        
+        const response = await fetch(filterUrl);
+        const data = await response.json();
+        
+        // Verificar se houve erro de sessão
+        if (handleSessionError(response, data)) {
+            return;
+        }
+        
+        if (data.success) {
+            // Atualizar contador de resultados
+            document.getElementById('filter-results').innerHTML = `<small class="text-muted">${data.catalog_products.length} resultados</small>`;
+            
+            // Renderizar tabela filtrada
+            renderFilteredTable(data.catalog_products);
+        } else {
+            console.error('Erro ao filtrar catálogo:', data.error);
+            document.getElementById('filter-results').innerHTML = `<small class="text-danger">Erro ao filtrar</small>`;
+        }
+    } catch (error) {
+        console.error('Erro na requisição de filtro:', error);
+        document.getElementById('filter-results').innerHTML = `<small class="text-danger">Erro na requisição</small>`;
+    }
+}
+
+// Função para limpar filtros
+async function clearFilters() {
+    // Resetar todos os filtros
+    document.getElementById('filter-position').value = '';
+    document.getElementById('filter-price').value = '';
+    document.getElementById('filter-shipping').value = '';
+    document.getElementById('filter-mercadolider').value = '';
+    
+    // Buscar dados originais do backend (sem filtros)
+    const currentPath = window.location.pathname;
+    const productId = currentPath.split('/').pop();
+    
+    try {
+        // Mostrar loading
+        document.getElementById('filter-results').innerHTML = `<small class="text-muted">Carregando...</small>`;
+        
+        const response = await fetch(`/ml/products/api/product/${productId}/catalog/database`);
+        const data = await response.json();
+        
+        // Verificar se houve erro de sessão
+        if (handleSessionError(response, data)) {
+            return;
+        }
+        
+        if (data.success) {
+            // Atualizar contador de resultados
+            document.getElementById('filter-results').innerHTML = `<small class="text-muted">${data.catalog_products.length} resultados</small>`;
+            
+            // Renderizar tabela original
+            renderFilteredTable(data.catalog_products);
+        } else {
+            console.error('Erro ao limpar filtros:', data.error);
+            document.getElementById('filter-results').innerHTML = `<small class="text-danger">Erro ao carregar dados</small>`;
+        }
+    } catch (error) {
+        console.error('Erro na requisição de limpeza:', error);
+        document.getElementById('filter-results').innerHTML = `<small class="text-danger">Erro na requisição</small>`;
+    }
+}
+
+// Função para renderizar tabela filtrada
+function renderFilteredTable(products) {
+    const tbody = document.querySelector('#catalog-shipping-content tbody');
+    if (!tbody) return;
+    
+    let html = '';
+    
+    products.forEach(product => {
+        const priceFormatted = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(product.price);
+        
+        // Informações de envio - usar a mesma lógica da função original
+        let shippingInfo = "Não disponível";
+        
+        if (product.shipping_free) {
+            shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
+        } else if (product.logistic_type && product.logistic_type !== 'default') {
+            switch(product.logistic_type) {
+                case 'fulfillment':
+                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
+                    break;
+                case 'xd_drop_off':
+                case 'drop_off':
+                    shippingInfo = '<span class="badge bg-warning">Correios</span>';
+                    break;
+                case 'cross_docking':
+                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
+                    break;
+                case 'me2':
+                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
+                    break;
+                default:
+                    shippingInfo = '<span class="badge bg-secondary">Outros</span>';
+            }
+        } else if (product.shipping_method && product.shipping_method !== 'standard') {
+            switch(product.shipping_method) {
+                case 'me2':
+                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
+                    break;
+                default:
+                    shippingInfo = '<span class="badge bg-secondary">Outros</span>';
+            }
+        }
+        
+        // Informações de reputação - usar a mesma lógica da função original
+        let reputationInfo = "";
+        if (product.seller_reputation_level && product.seller_reputation_level !== "UNKNOWN") {
+            switch(product.seller_reputation_level) {
+                case "GREEN":
+                    reputationInfo = '<span class="badge bg-success">🟢 Verde</span>';
+                    break;
+                case "YELLOW":
+                    reputationInfo = '<span class="badge bg-warning">🟡 Amarelo</span>';
+                    break;
+                case "RED":
+                    reputationInfo = '<span class="badge bg-danger">🔴 Vermelho</span>';
+                    break;
+                default:
+                    reputationInfo = '<span class="badge bg-secondary">⚪ Neutro</span>';
+                    break;
+            }
+        } else {
+            reputationInfo = '<span class="badge bg-light text-dark">❓ Desconhecida</span>';
+        }
+        
+        // Loja oficial - usar a mesma lógica da função original
+        const lojaOficialBadge = product.official_store_id ? 
+            '<span class="badge bg-info">Sim</span>' : 
+            '<span class="badge bg-secondary">Não</span>';
+        
+        // Usar exatamente a mesma estrutura HTML da função original
+        html += `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <div class="fw-bold">${(product.seller_name && product.seller_name !== 'N/A') ? product.seller_name : product.seller_id}</div>
+                            ${product.seller_nickname && product.seller_nickname !== 'N/A' ? 
+                                `<small class="text-muted">${product.seller_nickname}</small>` : ''}
+                            <small class="text-muted d-block">${product.ml_item_id}</small>
+                        </div>
+                    </div>
+                </td>
+                <td><strong>${priceFormatted}</strong></td>
+                <td>${product.seller_transactions_total > 0 ? 
+                    `<span class="badge bg-primary">${product.seller_transactions_total}</span>` : 
+                    '<span class="badge bg-secondary">0</span>'}</td>
+                <td>${product.buy_box_winner ? 
+                    '<span class="badge bg-success">🏆 Vencedor</span>' : 
+                    (product.position === 1 ? 
+                        '<span class="badge bg-success">🥇 1º Lugar</span>' : 
+                        (product.position === 2 ? 
+                            '<span class="badge bg-secondary">🥈 2º Lugar</span>' : 
+                            (product.position === 3 ? 
+                                '<span class="badge bg-warning">🥉 3º Lugar</span>' : 
+                                `<span class="badge bg-light text-dark">#${product.position}</span>`)))}</td>
+                <td>${shippingInfo}</td>
+                <td>${reputationInfo}</td>
+                <td>${lojaOficialBadge}</td>
+                <td>${(product.original_price && product.original_price > product.price) ? 
+                    `<span class="badge bg-success">-${Math.round(((product.original_price - product.price) / product.original_price) * 100)}%</span>` : 
+                    ''}</td>
+                <td>
+                    <a href="${product.permalink}" 
+                       target="_blank" 
+                       class="btn btn-outline-primary btn-sm"
+                       title="Ver anúncio"
+                       onclick="console.log('Clicando em: ${product.permalink}')">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+    
+    // Apenas substituir o conteúdo do tbody, mantendo toda a estrutura da tabela
+    tbody.innerHTML = html;
 }
 
 // Função para sincronizar catálogo

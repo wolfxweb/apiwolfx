@@ -11,6 +11,7 @@ from typing import Optional
 from app.config.database import get_db
 from app.controllers.ml_product_controller import MLProductController
 from app.controllers.auth_controller import AuthController
+from app.models.saas_models import MLProduct, CatalogParticipant
 
 logger = logging.getLogger(__name__)
 
@@ -1341,4 +1342,164 @@ async def get_catalog_from_database(
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": f"Erro interno do servidor: {e}"}
+        )
+
+@ml_product_router.get("/api/product/{product_id}/catalog/filter")
+async def filter_catalog_from_database(
+    product_id: int,
+    position: Optional[str] = Query(None),
+    price: Optional[str] = Query(None),
+    shipping: Optional[str] = Query(None),
+    mercadolider: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """Filtrar catálogo diretamente do banco de dados com parâmetros específicos"""
+    try:
+        # Buscar produto
+        product = db.query(MLProduct).filter(
+            MLProduct.id == product_id,
+            MLProduct.company_id == user["company"]["id"]
+        ).first()
+        
+        if not product:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Produto não encontrado"}
+            )
+        
+        if not product.catalog_listing or not product.catalog_product_id:
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "is_catalog": False, "message": "Produto não é de catálogo"}
+            )
+        
+        # Query base
+        query = db.query(CatalogParticipant).filter(
+            CatalogParticipant.catalog_product_id == product.catalog_product_id,
+            CatalogParticipant.company_id == user["company"]["id"]
+        )
+        
+        # Aplicar filtros
+        if position:
+            if position == "1-5":
+                query = query.filter(CatalogParticipant.position.between(1, 5))
+            elif position == "6-10":
+                query = query.filter(CatalogParticipant.position.between(6, 10))
+            elif position == "11-20":
+                query = query.filter(CatalogParticipant.position.between(11, 20))
+            elif position == "21+":
+                query = query.filter(CatalogParticipant.position > 20)
+        
+        if price:
+            if price == "0-50":
+                query = query.filter(CatalogParticipant.price <= 50)
+            elif price == "50-100":
+                query = query.filter(CatalogParticipant.price.between(50, 100))
+            elif price == "100+":
+                query = query.filter(CatalogParticipant.price > 100)
+        
+        if shipping:
+            if shipping == "full":
+                query = query.filter(CatalogParticipant.logistic_type == "fulfillment")
+            elif shipping == "correios":
+                query = query.filter(CatalogParticipant.logistic_type.in_(["xd_drop_off", "drop_off"]))
+            elif shipping == "coleta":
+                query = query.filter(CatalogParticipant.logistic_type == "cross_docking")
+            elif shipping == "mercado_envios":
+                query = query.filter(CatalogParticipant.logistic_type == "me2")
+            elif shipping == "frete_gratis":
+                query = query.filter(CatalogParticipant.shipping_free == True)
+        
+        if mercadolider:
+            if mercadolider == "platinum":
+                query = query.filter(CatalogParticipant.seller_power_seller_status == "platinum")
+            elif mercadolider == "gold":
+                query = query.filter(CatalogParticipant.seller_power_seller_status == "gold")
+            elif mercadolider == "silver":
+                query = query.filter(CatalogParticipant.seller_power_seller_status == "silver")
+            elif mercadolider == "sem_medalha":
+                query = query.filter(
+                    (CatalogParticipant.seller_power_seller_status == None) |
+                    (CatalogParticipant.seller_power_seller_status == "N/A") |
+                    (CatalogParticipant.seller_power_seller_status.notin_(["platinum", "gold", "silver"]))
+                )
+        
+        # Executar query
+        participants = query.order_by(CatalogParticipant.position.asc()).all()
+        
+        if not participants:
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "is_catalog": True, "catalog_products": [], "total_announcers": 0, "message": "Nenhum resultado encontrado com os filtros aplicados"}
+            )
+        
+        # Converter para formato da API (usar a mesma estrutura do endpoint sem filtros)
+        catalog_products = []
+        for participant in participants:
+            catalog_products.append({
+                "ml_item_id": participant.ml_item_id,
+                "title": participant.title,
+                "price": participant.price,
+                "currency_id": participant.currency_id,
+                "seller_id": participant.seller_id,
+                "seller_name": participant.seller_name,
+                "seller_nickname": participant.seller_nickname,
+                "seller_country": participant.seller_country,
+                "seller_city": participant.seller_city,
+                "seller_state": participant.seller_state,
+                "seller_registration_date": participant.seller_registration_date,
+                "seller_experience": participant.seller_experience,
+                "seller_power_seller": participant.seller_power_seller,
+                "seller_power_seller_status": participant.seller_power_seller_status,
+                "seller_reputation_level": participant.seller_reputation_level,
+                "seller_transactions_total": participant.seller_transactions_total,
+                "seller_ratings_positive": participant.seller_ratings_positive,
+                "seller_ratings_negative": participant.seller_ratings_negative,
+                "seller_ratings_neutral": participant.seller_ratings_neutral,
+                "seller_mercadopago_accepted": participant.seller_mercadopago_accepted,
+                "seller_mercadoenvios": participant.seller_mercadoenvios,
+                "seller_user_type": participant.seller_user_type,
+                "seller_tags": participant.seller_tags or [],
+                "status": participant.status,
+                "available_quantity": participant.available_quantity,
+                "sold_quantity": participant.sold_quantity,
+                "permalink": participant.permalink,
+                "thumbnail": participant.thumbnail,
+                "condition": participant.condition,
+                "listing_type_id": participant.listing_type_id,
+                "official_store_id": participant.official_store_id,
+                "accepts_mercadopago": participant.accepts_mercadopago,
+                "original_price": participant.original_price,
+                "category_id": participant.category_id,
+                "logistic_type": participant.logistic_type,
+                "buy_box_winner": participant.buy_box_winner,
+                "shipping_free": participant.shipping_free,
+                "shipping_method": participant.shipping_method,
+                "shipping_tags": participant.shipping_tags or [],
+                "shipping_paid_by": participant.shipping_paid_by,
+                "position": participant.position,
+                "last_updated": participant.last_updated.isoformat() if participant.last_updated else None
+            })
+        
+        return JSONResponse(content={
+            "success": True,
+            "is_catalog": True,
+            "catalog_product_id": product.catalog_product_id,
+            "catalog_products": catalog_products,
+            "total_announcers": len(catalog_products),
+            "filters_applied": {
+                "position": position,
+                "price": price,
+                "shipping": shipping,
+                "mercadolider": mercadolider
+            },
+            "data_source": "database_filtered"
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao filtrar catálogo: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno: {str(e)}"}
         )
