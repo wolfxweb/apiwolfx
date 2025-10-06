@@ -1327,6 +1327,9 @@ document.head.appendChild(style);
         // Análise de MercadoLíder
         const mercadoLiderAnalysis = analyzeMercadoLider(products);
         
+        // Análise de faixas de valor
+        const priceRangesAnalysis = analyzePriceRanges(products);
+        
         // Métricas gerais
         const metrics = calculateMetrics(products);
         
@@ -1393,6 +1396,30 @@ document.head.appendChild(style);
                     </div>
                 </div>
                 
+                <!-- Análise por Faixas de Valor -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-success mb-3">
+                        <i class="bi bi-currency-dollar"></i> Distribuição por Faixas de Valor
+                    </h6>
+                    <div class="row">
+                        ${Object.entries(analyzePriceRanges(products)).map(([range, count]) => `
+                            <div class="col-6 mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <span class="small">${getPriceRangeLabel(range)}</span>
+                                    <span class="badge ${getPriceRangeBadgeClass(range)}">${count}</span>
+                                </div>
+                                <div class="progress" style="height: 4px;">
+                                    <div class="progress-bar ${getPriceRangeProgressClass(range)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Análise de MercadoLíder (continuação) -->
+            <div class="row">
+                
                 <!-- Análise de Posicionamento -->
                 <div class="col-md-6 mb-4">
                     <h6 class="text-info mb-3">
@@ -1417,11 +1444,27 @@ document.head.appendChild(style);
                         </div>
                     </div>
                     <div class="row mt-2">
-                        <div class="col-12">
+                        <div class="col-4">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h5 class="text-success">${metrics.avg_price}</h5>
+                                    <h6 class="text-success">R$ ${metrics.min_price}</h6>
+                                    <small class="text-muted">Menor Preço</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-info">R$ ${metrics.avg_price}</h6>
                                     <small class="text-muted">Preço Médio</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-danger">R$ ${metrics.max_price}</h6>
+                                    <small class="text-muted">Maior Preço</small>
                                 </div>
                             </div>
                         </div>
@@ -1436,7 +1479,7 @@ document.head.appendChild(style);
                         <i class="bi bi-lightbulb"></i> Recomendações
                     </h6>
                     <div class="alert alert-info">
-                        ${generateRecommendations(shippingAnalysis, positioningAnalysis, metrics, mercadoLiderAnalysis)}
+                        ${generateRecommendations(shippingAnalysis, positioningAnalysis, metrics, mercadoLiderAnalysis, priceRangesAnalysis)}
                     </div>
                 </div>
             </div>
@@ -1544,6 +1587,65 @@ document.head.appendChild(style);
         return levels;
     }
 
+    // Função para analisar faixas de valor
+    function analyzePriceRanges(products) {
+        const ranges = {};
+        products.forEach(product => {
+            const range = getPriceRange(product.price);
+            ranges[range] = (ranges[range] || 0) + 1;
+        });
+        return ranges;
+    }
+
+    // Função para obter faixa de valor do produto
+    function getPriceRange(price) {
+        if (price <= 10) return 'ate_10';
+        if (price <= 20) return '10_20';
+        if (price <= 30) return '20_30';
+        if (price <= 50) return '30_50';
+        if (price <= 100) return '50_100';
+        return 'acima_100';
+    }
+
+    // Função para obter label da faixa de valor
+    function getPriceRangeLabel(range) {
+        const labels = {
+            'ate_10': 'Até R$ 10',
+            '10_20': 'R$ 10 - R$ 20',
+            '20_30': 'R$ 20 - R$ 30',
+            '30_50': 'R$ 30 - R$ 50',
+            '50_100': 'R$ 50 - R$ 100',
+            'acima_100': 'Acima de R$ 100'
+        };
+        return labels[range] || range;
+    }
+
+    // Função para obter classe do badge da faixa de valor
+    function getPriceRangeBadgeClass(range) {
+        const classes = {
+            'ate_10': 'bg-success',
+            '10_20': 'bg-primary',
+            '20_30': 'bg-info',
+            '30_50': 'bg-warning',
+            '50_100': 'bg-danger',
+            'acima_100': 'bg-dark'
+        };
+        return classes[range] || 'bg-secondary';
+    }
+
+    // Função para obter classe da barra de progresso da faixa de valor
+    function getPriceRangeProgressClass(range) {
+        const classes = {
+            'ate_10': 'bg-success',
+            '10_20': 'bg-primary',
+            '20_30': 'bg-info',
+            '30_50': 'bg-warning',
+            '50_100': 'bg-danger',
+            'acima_100': 'bg-dark'
+        };
+        return classes[range] || 'bg-secondary';
+    }
+
     // Função para obter nível de MercadoLíder do produto
     function getMercadoLiderLevel(product) {
         const status = product.seller_power_seller_status;
@@ -1596,7 +1698,7 @@ document.head.appendChild(style);
     }
 
     // Função para gerar recomendações
-    function generateRecommendations(shippingAnalysis, positioningAnalysis, metrics, mercadoLiderAnalysis) {
+    function generateRecommendations(shippingAnalysis, positioningAnalysis, metrics, mercadoLiderAnalysis, priceRangesAnalysis) {
         const recommendations = [];
         
         // Recomendação baseada em tipo de envio
@@ -1628,6 +1730,34 @@ document.head.appendChild(style);
         if (semMedalhaCount > 0) {
             const semMedalhaPercentage = (semMedalhaCount / totalMercadoLider * 100).toFixed(1);
             recommendations.push(`<strong>⚪ ${semMedalhaCount} Sem Medalha (${semMedalhaPercentage}%)</strong> - Oportunidade para se destacar.`);
+        }
+        
+        // Recomendação baseada em faixas de valor
+        const ate10Count = priceRangesAnalysis.ate_10 || 0;
+        const faixa10_20Count = priceRangesAnalysis['10_20'] || 0;
+        const faixa20_30Count = priceRangesAnalysis['20_30'] || 0;
+        const faixa30_50Count = priceRangesAnalysis['30_50'] || 0;
+        const faixa50_100Count = priceRangesAnalysis['50_100'] || 0;
+        const acima100Count = priceRangesAnalysis.acima_100 || 0;
+        const totalPriceRanges = Object.values(priceRangesAnalysis).reduce((sum, count) => sum + count, 0);
+        
+        // Encontrar a faixa mais popular
+        const mostPopularRange = Object.entries(priceRangesAnalysis).reduce((a, b) => priceRangesAnalysis[a[0]] > priceRangesAnalysis[b[0]] ? a : b);
+        const mostPopularPercentage = (mostPopularRange[1] / totalPriceRanges * 100).toFixed(1);
+        
+        if (mostPopularRange[1] > 0) {
+            recommendations.push(`<strong>💰 Faixa mais popular: ${getPriceRangeLabel(mostPopularRange[0])} (${mostPopularPercentage}%)</strong> - Concentração de ofertas.`);
+        }
+        
+        // Alertas sobre faixas específicas
+        if (ate10Count > 0) {
+            const ate10Percentage = (ate10Count / totalPriceRanges * 100).toFixed(1);
+            recommendations.push(`<strong>🟢 ${ate10Count} anúncios até R$ 10 (${ate10Percentage}%)</strong> - Mercado de baixo valor.`);
+        }
+        
+        if (acima100Count > 0) {
+            const acima100Percentage = (acima100Count / totalPriceRanges * 100).toFixed(1);
+            recommendations.push(`<strong>🔴 ${acima100Count} anúncios acima de R$ 100 (${acima100Percentage}%)</strong> - Mercado premium.`);
         }
         
         // Recomendação baseada em preço
