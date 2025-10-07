@@ -1125,7 +1125,7 @@ function loadProfitabilityAnalysis(product) {
     console.log('✅ Análise de rentabilidade renderizada com sucesso');
 }
 
-function loadPricingAnalysis(product) {
+async function loadPricingAnalysis(product) {
     console.log('💰 Carregando análise de preços para produto:', product);
     
     // Verificar se o produto tem SKU
@@ -1146,23 +1146,45 @@ function loadPricingAnalysis(product) {
     
     console.log('🔍 Buscando dados internos para SKU:', sku);
     
-    // Buscar dados do produto interno
-    fetch(`/api/pricing/analysis/sku/${sku}`, {
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => {
-        console.log('📡 Resposta da análise de preços:', response.status);
-        return response.json();
-    })
-    .then(data => {
-        console.log('📊 Dados da análise de preços recebidos:', data);
+    try {
+        // Buscar dados do produto interno
+        const internalResponse = await fetch(`/api/pricing/analysis/sku/${sku}`, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
         
-        if (data && data.success && data.analysis && data.analysis.internal_product) {
-            console.log('✅ Dados internos encontrados, renderizando análise...');
-            renderPricingAnalysis(data, product);
+        console.log('📡 Resposta da análise de preços:', internalResponse.status);
+        const internalData = await internalResponse.json();
+        console.log('📊 Dados da análise de preços recebidos:', internalData);
+        
+        if (internalData && internalData.success && internalData.analysis && internalData.analysis.internal_product) {
+            console.log('✅ Dados internos encontrados, buscando taxas ML...');
+            
+            // Buscar taxas reais do Mercado Livre
+            const mlFeesUrl = `/api/ml-pricing/fees?price=${product.price}&category_id=${product.category_id}`;
+            console.log('🔗 URL da API ML:', mlFeesUrl);
+            
+            const mlFeesResponse = await fetch(mlFeesUrl, {
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            console.log('📡 Status da resposta ML:', mlFeesResponse.status);
+            
+            let mlFeesData = null;
+            if (mlFeesResponse.ok) {
+                mlFeesData = await mlFeesResponse.json();
+                console.log('📊 Taxas ML obtidas:', mlFeesData);
+            } else {
+                const errorText = await mlFeesResponse.text();
+                console.log('⚠️ Erro ao obter taxas ML:', mlFeesResponse.status, errorText);
+            }
+            
+            renderPricingAnalysis(internalData, product, mlFeesData);
         } else {
             console.log('⚠️ Nenhum dado interno encontrado');
             const feesContainer = document.getElementById('marketplace-fees');
@@ -1174,8 +1196,7 @@ function loadPricingAnalysis(product) {
                 </div>
             `;
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('❌ Erro ao carregar análise de preços:', error);
         const feesContainer = document.getElementById('marketplace-fees');
         feesContainer.innerHTML = `
@@ -1185,11 +1206,11 @@ function loadPricingAnalysis(product) {
                 Não foi possível carregar os dados de preços do produto.
             </div>
         `;
-    });
+    }
 }
 
-function renderPricingAnalysis(data, product) {
-    console.log('🎨 Renderizando análise de preços:', data);
+function renderPricingAnalysis(data, product, mlFeesData = null) {
+    console.log('🎨 Renderizando análise de preços:', data, 'Taxas ML:', mlFeesData);
     
     const feesContainer = document.getElementById('marketplace-fees');
     const internalProduct = data.analysis.internal_product;
@@ -1209,11 +1230,29 @@ function renderPricingAnalysis(data, product) {
     // Custos internos
     const totalInternalCosts = costPrice + taxAmount + marketingAmount + otherCosts;
     
-    // Custos do Mercado Livre
-    const mlFixedFee = 6.25; // Taxa fixa ML
-    const mlPercentageFee = productPrice * 0.13; // 13% do preço
-    const mlShipping = 0; // Frete
-    const mlAdditionalFees = 0; // Taxas adicionais
+    // Custos do Mercado Livre (usar taxas reais se disponíveis)
+    let mlFixedFee, mlPercentageFee, mlShipping, mlAdditionalFees;
+    
+    if (mlFeesData && mlFeesData.success) {
+        // Usar taxas reais da API
+        mlFixedFee = parseFloat(mlFeesData.fees.fixed_fee) || 0;
+        mlPercentageFee = parseFloat(mlFeesData.fees.percentage_amount) || 0;
+        mlShipping = 0; // Frete
+        mlAdditionalFees = parseFloat(mlFeesData.fees.listing_fee) || 0;
+        console.log('✅ Usando taxas reais da API ML:', mlFeesData.fees);
+    } else {
+        // Usar valores padrão como fallback
+        if (productPrice < 79.90) {
+            mlFixedFee = 6.25;
+            mlPercentageFee = productPrice * 0.13;
+        } else {
+            mlFixedFee = 0;
+            mlPercentageFee = productPrice * 0.12;
+        }
+        mlShipping = 0;
+        mlAdditionalFees = 0;
+        console.log('⚠️ Usando taxas padrão como fallback');
+    }
     
     // Total de todos os custos
     const totalAllCosts = totalInternalCosts + mlFixedFee + mlPercentageFee + mlShipping + mlAdditionalFees;
@@ -1270,12 +1309,12 @@ function renderPricingAnalysis(data, product) {
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>🏪 Taxa Fixa ML:</span>
-                <span>-R$ 6,25</span>
+                <span>-R$ ${mlFixedFee.toFixed(2)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
-                <span>📊 Taxa Percentual ML (13%):</span>
-                <span>-R$ ${(productPrice * 0.13).toFixed(2)}</span>
+                <span>📊 Taxa Percentual ML (${mlFeesData && mlFeesData.success ? mlFeesData.fees.percentage_fee : (productPrice < 79.90 ? 13 : 12)}%):</span>
+                <span>-R$ ${mlPercentageFee.toFixed(2)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
