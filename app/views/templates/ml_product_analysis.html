@@ -1220,9 +1220,9 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
     
     // Calcular valores
     const costPrice = parseFloat(internalProduct.cost_price) || 0;
-    const taxPercentage = parseFloat(internalProduct.tax_percentage) || 0;
+    const taxPercentage = parseFloat(internalProduct.tax_rate) || 0;
     const marketingPercentage = parseFloat(internalProduct.marketing_cost) || 0;
-    const otherCosts = parseFloat(internalProduct.other_expenses) || 0;
+    const otherCosts = parseFloat(internalProduct.other_costs) || 0;
     const expectedMargin = parseFloat(internalProduct.expected_profit_margin) || 0;
     
     // Calcular valores monetários
