@@ -251,31 +251,23 @@ function loadMarketplaceFees(product) {
     console.log('💰 Carregando análise de preços para produto:', product);
     console.log('🔖 SKU disponíveis:', { seller_sku: product.seller_sku, sku: product.sku });
     
-    // Primeiro, tentar buscar dados do produto interno pelo SKU
+    // Sempre carregar dados do ML primeiro
+    console.log('📊 Carregando custos do Mercado Livre...');
+    loadMLProductFees();
+    
+    // Se houver SKU, também carregar dados do produto interno
     if (product.seller_sku || product.sku) {
         const internalSku = product.seller_sku || product.sku;
-        console.log('✅ SKU encontrado, buscando produto interno:', internalSku);
+        console.log('✅ SKU encontrado, também buscando produto interno:', internalSku);
         loadInternalProductData(internalSku);
     } else {
-        console.log('⚠️ Nenhum SKU encontrado, buscando dados do ML');
-        // Se não há SKU, buscar análise de preços da API do ML
-        fetch(`/ml/products/api/product/${product.id}/fees`)
-            .then(response => response.json())
-            .then(data => {
-                if (handleSessionError(null, data)) return;
-                if (data.success && data.fees.success) {
-                    const fees = data.fees.data;
-                    renderMarketplaceFees(fees);
-                } else {
-                    showFeesError(data.fees?.error || 'Erro ao carregar análise de preços');
-                }
-            })
-            .catch(error => {
-                console.error('Erro ao buscar análise de preços:', error);
-                showFeesError('Erro de conexão');
-            });
+        console.log('⚠️ Nenhum SKU encontrado, apenas dados do ML serão exibidos');
     }
 }
+
+// Variáveis globais para armazenar dados
+let mlFeesData = null;
+let internalProductData = null;
 
 function loadInternalProductData(internalSku) {
     const feesContainer = document.getElementById('marketplace-fees');
@@ -291,18 +283,23 @@ function loadInternalProductData(internalSku) {
         .then(data => {
             console.log('📊 Dados recebidos:', data);
             if (data.success) {
-                console.log('✅ Renderizando dados do produto interno');
-                renderInternalProductPricing(data.analysis);
+                console.log('✅ Dados do produto interno carregados');
+                internalProductData = data.analysis;
+                
+                // Se já temos dados do ML, renderizar análise integrada
+                if (mlFeesData) {
+                    console.log('🔄 Renderizando análise integrada');
+                    renderIntegratedPricingAnalysis(mlFeesData, internalProductData);
+                } else {
+                    console.log('📊 Renderizando apenas dados internos');
+                    renderInternalProductPricing(data.analysis);
+                }
             } else {
-                console.log('⚠️ Produto interno não encontrado, buscando dados do ML');
-                // Se não encontrar produto interno, buscar dados do ML
-                loadMLProductFees();
+                console.log('⚠️ Produto interno não encontrado');
             }
         })
         .catch(error => {
             console.error('❌ Erro ao buscar produto interno:', error);
-            // Fallback para dados do ML
-            loadMLProductFees();
         });
 }
 
@@ -314,7 +311,17 @@ function loadMLProductFees() {
             if (handleSessionError(null, data)) return;
             if (data.success && data.fees.success) {
                 const fees = data.fees.data;
-                renderMarketplaceFees(fees);
+                console.log('✅ Dados do ML carregados:', fees);
+                mlFeesData = fees;
+                
+                // Se já temos dados internos, renderizar análise integrada
+                if (internalProductData) {
+                    console.log('🔄 Renderizando análise integrada');
+                    renderIntegratedPricingAnalysis(mlFeesData, internalProductData);
+                } else {
+                    console.log('📊 Renderizando apenas dados do ML');
+                    renderMarketplaceFees(fees);
+                }
             } else {
                 showFeesError(data.fees?.error || 'Erro ao carregar análise de preços');
             }
@@ -333,8 +340,9 @@ function renderInternalProductPricing(analysis) {
     console.log('📦 Produto:', product);
     console.log('📊 Análise comparativa:', comparative);
     
+    // Adicionar seção de dados internos ao conteúdo existente
     let html = `
-        <div class="mb-3">
+        <div class="mb-4">
             <h6 class="text-primary">
                 <i class="bi bi-box-seam"></i> Dados do Produto Interno
             </h6>
@@ -436,6 +444,82 @@ function renderInternalProductPricing(analysis) {
         html += `</div></div>`;
     }
     
+    // Adicionar ao conteúdo existente ao invés de substituir
+    feesContainer.insertAdjacentHTML('beforeend', html);
+}
+
+function renderIntegratedPricingAnalysis(mlFees, internalAnalysis) {
+    console.log('🔄 Renderizando análise integrada:', { mlFees, internalAnalysis });
+    const feesContainer = document.getElementById('marketplace-fees');
+    
+    const internalProduct = internalAnalysis.internal_product;
+    const comparative = internalAnalysis.comparative_analysis;
+    
+    // Calcular custos totais do ML
+    const mlCommission = mlFees.commission || 0;
+    const mlShipping = mlFees.shipping || 0;
+    const mlAdditionalFees = mlFees.additional_fees || 0;
+    const totalMLCosts = mlCommission + mlShipping + mlAdditionalFees;
+    
+    // Calcular custos totais (internos + ML)
+    const totalCosts = internalProduct.total_costs_with_tax + totalMLCosts;
+    
+    // Calcular margem final
+    const finalMargin = ((internalProduct.selling_price - totalCosts) / internalProduct.selling_price) * 100;
+    
+    let html = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-success">💰 Custos Internos</h6>
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Preço de Custo:</span>
+                        <strong>R$ ${internalProduct.cost_price.toFixed(2)}</strong>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Marketing:</span>
+                        <span>R$ ${internalProduct.marketing_cost.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Outros Custos:</span>
+                        <span>R$ ${internalProduct.other_costs.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Impostos (${internalProduct.tax_rate}%):</span>
+                        <span>R$ ${internalProduct.tax_amount.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between bg-light">
+                        <strong>Total Internos:</strong>
+                        <strong>R$ ${internalProduct.total_costs_with_tax.toFixed(2)}</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <h6 class="text-info">🏪 Custos Mercado Livre</h6>
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Comissão ML:</span>
+                        <span>R$ ${mlCommission.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Frete:</span>
+                        <span>R$ ${mlShipping.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Taxas Adicionais:</span>
+                        <span>R$ ${mlAdditionalFees.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between bg-light">
+                        <strong>Total ML:</strong>
+                        <strong>R$ ${totalMLCosts.toFixed(2)}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Substituir o conteúdo do card
     feesContainer.innerHTML = html;
 }
 
