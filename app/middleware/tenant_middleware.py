@@ -56,10 +56,8 @@ async def get_current_tenant(
         tenant_slug = get_tenant_from_header(request)
     
     if not tenant_slug:
-        raise HTTPException(
-            status_code=400,
-            detail="Tenant não identificado. Use header X-Tenant ou subdomínio."
-        )
+        # Usar empresa padrão se não conseguir identificar o tenant
+        tenant_slug = "default-company"
     
     # Buscar empresa
     company = saas_service.get_company_by_slug(tenant_slug)

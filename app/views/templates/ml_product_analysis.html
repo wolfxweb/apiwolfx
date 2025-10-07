@@ -248,8 +248,67 @@ function renderProductInfo(product) {
 function loadMarketplaceFees(product) {
     const feesContainer = document.getElementById('marketplace-fees');
     
-    // Buscar análise de preços da API
-    fetch(`/ml/products/api/product/${product.id}/fees`)
+    console.log('💰 Carregando análise de preços para produto:', product);
+    console.log('🔖 SKU disponíveis:', { seller_sku: product.seller_sku, sku: product.sku });
+    
+    // Primeiro, tentar buscar dados do produto interno pelo SKU
+    if (product.seller_sku || product.sku) {
+        const internalSku = product.seller_sku || product.sku;
+        console.log('✅ SKU encontrado, buscando produto interno:', internalSku);
+        loadInternalProductData(internalSku);
+    } else {
+        console.log('⚠️ Nenhum SKU encontrado, buscando dados do ML');
+        // Se não há SKU, buscar análise de preços da API do ML
+        fetch(`/ml/products/api/product/${product.id}/fees`)
+            .then(response => response.json())
+            .then(data => {
+                if (handleSessionError(null, data)) return;
+                if (data.success && data.fees.success) {
+                    const fees = data.fees.data;
+                    renderMarketplaceFees(fees);
+                } else {
+                    showFeesError(data.fees?.error || 'Erro ao carregar análise de preços');
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao buscar análise de preços:', error);
+                showFeesError('Erro de conexão');
+            });
+    }
+}
+
+function loadInternalProductData(internalSku) {
+    const feesContainer = document.getElementById('marketplace-fees');
+    
+    console.log('🔍 Buscando dados do produto interno com SKU:', internalSku);
+    
+    // Buscar dados do produto interno
+    fetch(`/api/pricing/analysis/sku/${internalSku}`)
+        .then(response => {
+            console.log('📡 Resposta recebida:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Dados recebidos:', data);
+            if (data.success) {
+                console.log('✅ Renderizando dados do produto interno');
+                renderInternalProductPricing(data.analysis);
+            } else {
+                console.log('⚠️ Produto interno não encontrado, buscando dados do ML');
+                // Se não encontrar produto interno, buscar dados do ML
+                loadMLProductFees();
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erro ao buscar produto interno:', error);
+            // Fallback para dados do ML
+            loadMLProductFees();
+        });
+}
+
+function loadMLProductFees() {
+    const productId = window.location.pathname.split('/').pop();
+    fetch(`/ml/products/api/product/${productId}/fees`)
         .then(response => response.json())
         .then(data => {
             if (handleSessionError(null, data)) return;
@@ -264,6 +323,120 @@ function loadMarketplaceFees(product) {
             console.error('Erro ao buscar análise de preços:', error);
             showFeesError('Erro de conexão');
         });
+}
+
+function renderInternalProductPricing(analysis) {
+    console.log('🎨 Renderizando dados do produto interno:', analysis);
+    const feesContainer = document.getElementById('marketplace-fees');
+    const product = analysis.internal_product;
+    const comparative = analysis.comparative_analysis;
+    console.log('📦 Produto:', product);
+    console.log('📊 Análise comparativa:', comparative);
+    
+    let html = `
+        <div class="mb-3">
+            <h6 class="text-primary">
+                <i class="bi bi-box-seam"></i> Dados do Produto Interno
+            </h6>
+            <p class="mb-1"><strong>SKU:</strong> ${product.internal_sku}</p>
+            <p class="mb-1"><strong>Nome:</strong> ${product.name}</p>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-success">💰 Custos</h6>
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Preço de Custo:</span>
+                        <strong>R$ ${product.cost_price.toFixed(2)}</strong>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Marketing:</span>
+                        <span>R$ ${product.marketing_cost.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Outros Custos:</span>
+                        <span>R$ ${product.other_costs.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Impostos (${product.tax_rate}%):</span>
+                        <span>R$ ${product.tax_amount.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between bg-light">
+                        <strong>Total de Custos:</strong>
+                        <strong>R$ ${product.total_costs_with_tax.toFixed(2)}</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <h6 class="text-primary">📊 Análise de Preços</h6>
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Preço de Venda:</span>
+                        <strong>R$ ${product.selling_price.toFixed(2)}</strong>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Margem de Lucro:</span>
+                        <strong class="${comparative.pricing_analysis.profit_margin >= 20 ? 'text-success' : comparative.pricing_analysis.profit_margin >= 10 ? 'text-warning' : 'text-danger'}">
+                            ${comparative.pricing_analysis.profit_margin.toFixed(1)}%
+                        </strong>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Preço de Equilíbrio:</span>
+                        <span>R$ ${comparative.margin_analysis.break_even_price.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Preço Mínimo:</span>
+                        <span>R$ ${comparative.margin_analysis.recommended_minimum_price.toFixed(2)}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Preço Ótimo:</span>
+                        <span>R$ ${comparative.margin_analysis.optimal_price.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar análise de competitividade se disponível
+    if (comparative.competitiveness.ml_price > 0) {
+        const comp = comparative.competitiveness;
+        html += `
+            <div class="mt-3">
+                <h6 class="text-info">🏆 Competitividade no Mercado</h6>
+                <div class="alert ${comp.is_competitive ? 'alert-success' : 'alert-warning'}">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Preço no ML:</strong> R$ ${comp.ml_price.toFixed(2)}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Diferença:</strong> 
+                            <span class="${comp.price_difference > 0 ? 'text-danger' : 'text-success'}">
+                                ${comp.price_difference > 0 ? '+' : ''}R$ ${comp.price_difference.toFixed(2)} 
+                                (${comp.price_difference_pct.toFixed(1)}%)
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Adicionar recomendações
+    if (analysis.recommendations && analysis.recommendations.length > 0) {
+        html += `
+            <div class="mt-3">
+                <h6 class="text-warning">💡 Recomendações</h6>
+                <div class="list-group">
+        `;
+        analysis.recommendations.forEach(rec => {
+            html += `<div class="list-group-item">${rec}</div>`;
+        });
+        html += `</div></div>`;
+    }
+    
+    feesContainer.innerHTML = html;
 }
 
            function renderMarketplaceFees(fees) {

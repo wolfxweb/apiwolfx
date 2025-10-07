@@ -400,3 +400,141 @@ class InternalProductService:
             self.db.rollback()
             logger.error(f"Erro ao excluir produtos em massa: {str(e)}")
             return {"error": f"Erro interno: {str(e)}"}
+    
+    def get_pricing_data_by_sku(self, internal_sku: str, company_id: int) -> Dict[str, Any]:
+        """Busca dados de preços e taxas por SKU interno para análise"""
+        try:
+            product = self.db.query(InternalProduct).filter(
+                and_(
+                    InternalProduct.internal_sku == internal_sku,
+                    InternalProduct.company_id == company_id,
+                    InternalProduct.status == "active"
+                )
+            ).first()
+            
+            if not product:
+                return {"error": f"Produto interno com SKU '{internal_sku}' não encontrado"}
+            
+            # Calcular dados para análise de preços
+            cost_price = float(product.cost_price) if product.cost_price else 0.0
+            tax_rate = float(product.tax_rate) if product.tax_rate else 0.0
+            marketing_cost = float(product.marketing_cost) if product.marketing_cost else 0.0
+            other_costs = float(product.other_costs) if product.other_costs else 0.0
+            selling_price = float(product.selling_price) if product.selling_price else 0.0
+            
+            # Calcular totais
+            total_costs = cost_price + marketing_cost + other_costs
+            tax_amount = (selling_price * tax_rate / 100) if selling_price and tax_rate else 0.0
+            total_costs_with_tax = total_costs + tax_amount
+            
+            # Calcular margem
+            profit_margin = 0.0
+            if selling_price > 0:
+                profit_margin = ((selling_price - total_costs_with_tax) / selling_price) * 100
+            
+            return {
+                "success": True,
+                "pricing_data": {
+                    "product_id": product.id,
+                    "name": product.name,
+                    "internal_sku": product.internal_sku,
+                    "cost_price": cost_price,
+                    "selling_price": selling_price,
+                    "tax_rate": tax_rate,
+                    "tax_amount": tax_amount,
+                    "marketing_cost": marketing_cost,
+                    "other_costs": other_costs,
+                    "total_costs": total_costs,
+                    "total_costs_with_tax": total_costs_with_tax,
+                    "profit_margin": profit_margin,
+                    "expected_profit_margin": float(product.expected_profit_margin) if product.expected_profit_margin else 0.0,
+                    "category": product.category,
+                    "brand": product.brand,
+                    "supplier": product.supplier,
+                    "status": product.status,
+                    "current_stock": product.current_stock,
+                    "base_product_id": product.base_product_id,
+                    "created_at": product.created_at.isoformat() if product.created_at else None,
+                    "updated_at": product.updated_at.isoformat() if product.updated_at else None
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados de preços por SKU: {str(e)}")
+            return {"error": f"Erro interno: {str(e)}"}
+    
+    def get_pricing_data_by_skus(self, internal_skus: list, company_id: int) -> Dict[str, Any]:
+        """Busca dados de preços e taxas para múltiplos SKUs"""
+        try:
+            if not internal_skus:
+                return {"error": "Lista de SKUs vazia"}
+            
+            products = self.db.query(InternalProduct).filter(
+                and_(
+                    InternalProduct.internal_sku.in_(internal_skus),
+                    InternalProduct.company_id == company_id,
+                    InternalProduct.status == "active"
+                )
+            ).all()
+            
+            if not products:
+                return {"error": "Nenhum produto encontrado com os SKUs fornecidos"}
+            
+            pricing_data = []
+            found_skus = []
+            
+            for product in products:
+                cost_price = float(product.cost_price) if product.cost_price else 0.0
+                tax_rate = float(product.tax_rate) if product.tax_rate else 0.0
+                marketing_cost = float(product.marketing_cost) if product.marketing_cost else 0.0
+                other_costs = float(product.other_costs) if product.other_costs else 0.0
+                selling_price = float(product.selling_price) if product.selling_price else 0.0
+                
+                # Calcular totais
+                total_costs = cost_price + marketing_cost + other_costs
+                tax_amount = (selling_price * tax_rate / 100) if selling_price and tax_rate else 0.0
+                total_costs_with_tax = total_costs + tax_amount
+                
+                # Calcular margem
+                profit_margin = 0.0
+                if selling_price > 0:
+                    profit_margin = ((selling_price - total_costs_with_tax) / selling_price) * 100
+                
+                pricing_data.append({
+                    "product_id": product.id,
+                    "name": product.name,
+                    "internal_sku": product.internal_sku,
+                    "cost_price": cost_price,
+                    "selling_price": selling_price,
+                    "tax_rate": tax_rate,
+                    "tax_amount": tax_amount,
+                    "marketing_cost": marketing_cost,
+                    "other_costs": other_costs,
+                    "total_costs": total_costs,
+                    "total_costs_with_tax": total_costs_with_tax,
+                    "profit_margin": profit_margin,
+                    "expected_profit_margin": float(product.expected_profit_margin) if product.expected_profit_margin else 0.0,
+                    "category": product.category,
+                    "brand": product.brand,
+                    "supplier": product.supplier,
+                    "status": product.status,
+                    "current_stock": product.current_stock,
+                    "base_product_id": product.base_product_id
+                })
+                
+                found_skus.append(product.internal_sku)
+            
+            # Verificar SKUs não encontrados
+            missing_skus = [sku for sku in internal_skus if sku not in found_skus]
+            
+            return {
+                "success": True,
+                "pricing_data": pricing_data,
+                "total_found": len(pricing_data),
+                "missing_skus": missing_skus,
+                "found_skus": found_skus
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados de preços por SKUs: {str(e)}")
+            return {"error": f"Erro interno: {str(e)}"}

@@ -11,6 +11,7 @@ from app.routes.ml_product_routes import ml_product_router
 from app.routes.ml_orders_routes import ml_orders_router
 from app.routes.ads_analytics_routes import ads_analytics_router
 from app.routes.product_routes import product_router
+from app.routes.pricing_analysis_routes import router as pricing_analysis_router
 
 # Scheduler para sincronização automática
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -103,6 +104,7 @@ app.include_router(ml_product_router, prefix="/ml")
 app.include_router(ml_orders_router, prefix="/ml")
 app.include_router(ads_analytics_router)  # Sem prefixo para /analytics
 app.include_router(product_router)  # Sem prefixo para /api/products
+app.include_router(pricing_analysis_router, prefix="/api/pricing")  # Para /api/pricing/analysis
 
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")
@@ -430,6 +432,27 @@ async def health_check():
         "version": "2.0.0",
         "architecture": "MVC"
     }
+
+@app.get("/pricing-analysis")
+async def pricing_analysis_page(session_token: str = Cookie(None)):
+    """Página de análise de preços e taxas"""
+    from app.controllers.auth_controller import AuthController
+    from app.config.database import get_db
+    from app.views.template_renderer import render_template
+    from fastapi.responses import RedirectResponse
+    
+    # Se não há session_token como parâmetro, redirecionar para login
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    controller = AuthController()
+    db = next(get_db())
+    result = controller.get_user_by_session(session_token, db)
+    
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    return render_template("pricing_analysis.html", user=result["user"])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,414 @@
+{% extends "base.html" %}
+
+{% block title %}Análise de Preços e Taxas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .analysis-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    .status-healthy {
+        color: #28a745;
+        font-weight: bold;
+    }
+    
+    .status-warning {
+        color: #ffc107;
+        font-weight: bold;
+    }
+    
+    .status-danger {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    
+    .recommendation {
+        background: #f8f9fa;
+        border-left: 4px solid #007bff;
+        padding: 10px 15px;
+        margin: 5px 0;
+        border-radius: 0 4px 4px 0;
+    }
+    
+    .sku-input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 16px;
+    }
+    
+    .btn-analyze {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    
+    .btn-analyze:hover {
+        background: #0056b3;
+    }
+    
+    .analysis-section {
+        margin-bottom: 30px;
+    }
+    
+    .section-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin-bottom: 15px;
+        color: #333;
+    }
+    
+    .cost-breakdown {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .cost-item {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        text-align: center;
+    }
+    
+    .cost-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #007bff;
+    }
+    
+    .cost-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 5px;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+    }
+    
+    .error {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 10px 0;
+    }
+    
+    .success {
+        background: #d4edda;
+        color: #155724;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 10px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Análise de Preços e Taxas</h1>
+            
+            <!-- Formulário de busca por SKU -->
+            <div class="analysis-card">
+                <h3>Buscar Análise por SKU</h3>
+                <div class="row">
+                    <div class="col-md-8">
+                        <input type="text" id="skuInput" class="sku-input" placeholder="Digite o SKU interno do produto..." />
+                    </div>
+                    <div class="col-md-4">
+                        <button onclick="analyzeBySKU()" class="btn-analyze">Analisar SKU</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Resumo da Empresa -->
+            <div class="analysis-card">
+                <h3>Resumo da Empresa</h3>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-value" id="totalProducts">-</div>
+                            <div class="metric-label">Total de Produtos</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-value" id="avgMargin">-</div>
+                            <div class="metric-label">Margem Média (%)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-value" id="competitiveProducts">-</div>
+                            <div class="metric-label">Produtos Competitivos</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-value" id="lowMarginProducts">-</div>
+                            <div class="metric-label">Margem Baixa</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Análise Detalhada (aparece após buscar SKU) -->
+            <div id="detailedAnalysis" style="display: none;">
+                <div class="analysis-card">
+                    <h3>Análise Detalhada</h3>
+                    <div id="analysisContent"></div>
+                </div>
+            </div>
+            
+            <!-- Status de Saúde -->
+            <div class="analysis-card">
+                <h3>Status de Saúde dos Dados</h3>
+                <div id="healthStatus">
+                    <div class="loading">Carregando status de saúde...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Carregar dados iniciais
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanySummary();
+    loadHealthStatus();
+});
+
+// Função para analisar por SKU
+async function analyzeBySKU() {
+    const sku = document.getElementById('skuInput').value.trim();
+    if (!sku) {
+        alert('Por favor, digite um SKU válido');
+        return;
+    }
+    
+    const analysisDiv = document.getElementById('detailedAnalysis');
+    const contentDiv = document.getElementById('analysisContent');
+    
+    // Mostrar loading
+    contentDiv.innerHTML = '<div class="loading">Analisando produto...</div>';
+    analysisDiv.style.display = 'block';
+    
+    try {
+        const response = await fetch(`/api/pricing/analysis/sku/${sku}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayAnalysis(data.analysis);
+        } else {
+            contentDiv.innerHTML = `<div class="error">Erro: ${data.detail || 'Produto não encontrado'}</div>`;
+        }
+    } catch (error) {
+        contentDiv.innerHTML = `<div class="error">Erro ao analisar produto: ${error.message}</div>`;
+    }
+}
+
+// Função para exibir análise detalhada
+function displayAnalysis(analysis) {
+    const contentDiv = document.getElementById('analysisContent');
+    const product = analysis.internal_product;
+    const comparative = analysis.comparative_analysis;
+    const recommendations = analysis.recommendations;
+    
+    let html = `
+        <div class="analysis-section">
+            <h4>📦 ${product.name}</h4>
+            <p><strong>SKU:</strong> ${product.internal_sku}</p>
+            <p><strong>Status:</strong> <span class="status-${product.selling_price > 0 ? 'healthy' : 'warning'}">${product.selling_price > 0 ? 'Ativo' : 'Sem preço de venda'}</span></p>
+        </div>
+        
+        <div class="analysis-section">
+            <h4 class="section-title">💰 Análise de Custos</h4>
+            <div class="cost-breakdown">
+                <div class="cost-item">
+                    <div class="cost-value">R$ ${product.cost_price.toFixed(2)}</div>
+                    <div class="cost-label">Preço de Custo</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-value">R$ ${product.marketing_cost.toFixed(2)}</div>
+                    <div class="cost-label">Marketing</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-value">R$ ${product.other_costs.toFixed(2)}</div>
+                    <div class="cost-label">Outros Custos</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-value">R$ ${product.tax_amount.toFixed(2)}</div>
+                    <div class="cost-label">Impostos</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-value">R$ ${product.total_costs_with_tax.toFixed(2)}</div>
+                    <div class="cost-label">Total de Custos</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h4 class="section-title">📊 Análise de Preços</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Preço de Venda:</strong> R$ ${product.selling_price.toFixed(2)}</p>
+                    <p><strong>Margem de Lucro:</strong> <span class="status-${comparative.pricing_analysis.profit_margin >= 20 ? 'healthy' : comparative.pricing_analysis.profit_margin >= 10 ? 'warning' : 'danger'}">${comparative.pricing_analysis.profit_margin.toFixed(1)}%</span></p>
+                    <p><strong>Margem Esperada:</strong> ${comparative.pricing_analysis.expected_margin.toFixed(1)}%</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Preço de Equilíbrio:</strong> R$ ${comparative.margin_analysis.break_even_price.toFixed(2)}</p>
+                    <p><strong>Preço Mínimo Recomendado:</strong> R$ ${comparative.margin_analysis.recommended_minimum_price.toFixed(2)}</p>
+                    <p><strong>Preço Ótimo:</strong> R$ ${comparative.margin_analysis.optimal_price.toFixed(2)}</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar análise de competitividade se disponível
+    if (comparative.competitiveness.ml_price > 0) {
+        const comp = comparative.competitiveness;
+        html += `
+            <div class="analysis-section">
+                <h4 class="section-title">🏆 Competitividade no Mercado</h4>
+                <p><strong>Preço no Mercado Livre:</strong> R$ ${comp.ml_price.toFixed(2)}</p>
+                <p><strong>Diferença de Preço:</strong> <span class="status-${comp.is_competitive ? 'healthy' : 'warning'}">${comp.price_difference > 0 ? '+' : ''}${comp.price_difference.toFixed(2)} (${comp.price_difference_pct.toFixed(1)}%)</span></p>
+                <p><strong>Nível de Competitividade:</strong> ${getCompetitivenessLabel(comp.competitiveness_level)}</p>
+            </div>
+        `;
+    }
+    
+    // Adicionar recomendações
+    if (recommendations.length > 0) {
+        html += `
+            <div class="analysis-section">
+                <h4 class="section-title">💡 Recomendações</h4>
+        `;
+        recommendations.forEach(rec => {
+            html += `<div class="recommendation">${rec}</div>`;
+        });
+        html += `</div>`;
+    }
+    
+    contentDiv.innerHTML = html;
+}
+
+// Função para carregar resumo da empresa
+async function loadCompanySummary() {
+    try {
+        const response = await fetch('/api/pricing/analysis/company/summary');
+        const data = await response.json();
+        
+        if (data.success) {
+            const summary = data.summary;
+            document.getElementById('totalProducts').textContent = summary.total_products;
+            document.getElementById('avgMargin').textContent = summary.average_profit_margin + '%';
+            document.getElementById('competitiveProducts').textContent = summary.competitive_products;
+            document.getElementById('lowMarginProducts').textContent = summary.products_with_low_margin;
+        }
+    } catch (error) {
+        console.error('Erro ao carregar resumo da empresa:', error);
+    }
+}
+
+// Função para carregar status de saúde
+async function loadHealthStatus() {
+    try {
+        const response = await fetch('/api/pricing/analysis/health-check');
+        const data = await response.json();
+        
+        if (data.success) {
+            const healthDiv = document.getElementById('healthStatus');
+            let html = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Status Geral:</strong> <span class="status-${data.health_status}">${data.message}</span></p>
+                        <p><strong>Total de Produtos:</strong> ${data.total_products}</p>
+                        <p><strong>Problemas Encontrados:</strong> ${data.issues_count}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Problemas Identificados:</h5>
+            `;
+            
+            if (data.health_issues.length > 0) {
+                data.health_issues.forEach(issue => {
+                    html += `<div class="recommendation">⚠️ ${issue}</div>`;
+                });
+            } else {
+                html += `<div class="success">✅ Nenhum problema encontrado!</div>`;
+            }
+            
+            html += `</div></div>`;
+            
+            if (data.recommendations.length > 0) {
+                html += `<h5>Recomendações:</h5>`;
+                data.recommendations.forEach(rec => {
+                    html += `<div class="recommendation">${rec}</div>`;
+                });
+            }
+            
+            healthDiv.innerHTML = html;
+        }
+    } catch (error) {
+        document.getElementById('healthStatus').innerHTML = '<div class="error">Erro ao carregar status de saúde</div>';
+    }
+}
+
+// Função auxiliar para labels de competitividade
+function getCompetitivenessLabel(level) {
+    const labels = {
+        'very_competitive': 'Muito Competitivo',
+        'competitive': 'Competitivo',
+        'neutral': 'Neutro',
+        'slightly_expensive': 'Ligeiramente Caro',
+        'expensive': 'Caro',
+        'very_expensive': 'Muito Caro',
+        'no_ml_data': 'Sem dados do ML',
+        'unknown': 'Desconhecido'
+    };
+    return labels[level] || level;
+}
+
+// Permitir busca com Enter
+document.getElementById('skuInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        analyzeBySKU();
+    }
+});
+</script>
+{% endblock %}

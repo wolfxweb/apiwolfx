@@ -607,7 +607,10 @@ async def get_product_for_analysis(
                 "sold_quantity": product.sold_quantity,
                 "shipping": product.shipping,
                 "catalog_listing": product.catalog_listing,
-                "catalog_product_id": product.catalog_product_id
+                "catalog_product_id": product.catalog_product_id,
+                "seller_custom_field": product.seller_custom_field,
+                "sku": product.seller_custom_field,  # Alias para compatibilidade
+                "seller_sku": product.seller_custom_field  # Alias para compatibilidade
             }
         })
         
