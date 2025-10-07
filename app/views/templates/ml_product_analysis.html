@@ -2373,15 +2373,14 @@ function renderOrdersPage(page) {
     const tbody = document.getElementById('orders-table-body');
     tbody.innerHTML = pageOrders.map(order => `
         <tr>
-            <td><small class="text-info">${order.ml_item_id || 'N/A'}</small></td>
+            <td><small >${order.ml_item_id || 'N/A'}</small></td>
             <td>
                 <div>
                     <strong>${order.buyer_nickname || 'N/A'}</strong>
                 </div>
                 <div>
                     <small class="text-muted">
-                        📅 ${new Date(order.date_created).toLocaleDateString('pt-BR')} | 
-                        🆔 ${order.ml_order_id}
+                       Data: ${new Date(order.date_created).toLocaleDateString('pt-BR')} - ID: ${order.ml_order_id}
                     </small>
                 </div>
             </td>
