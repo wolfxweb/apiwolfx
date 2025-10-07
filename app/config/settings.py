@@ -9,7 +9,7 @@ class Settings:
         # Mercado Livre API Configuration
         self.ml_app_id = os.getenv("ML_APP_ID", "6987936494418444")
         self.ml_client_secret = os.getenv("ML_CLIENT_SECRET", "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl")
-        self.ml_redirect_uri = "https://7b8e8fed970d.ngrok-free.app/api/callback"
+        self.ml_redirect_uri = "https://9605c93ae820.ngrok-free.app/api/callback"
         
         # API Configuration
         self.api_host = os.getenv("API_HOST", "0.0.0.0")

@@ -967,7 +967,14 @@ function showAlert(message, type) {
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    document.body.insertBefore(alertDiv, document.body.firstChild);
+    // Inserir no início do card principal, não no body
+    const mainCard = document.querySelector('.card');
+    if (mainCard) {
+        mainCard.insertBefore(alertDiv, mainCard.firstChild);
+    } else {
+        // Fallback para o body se não encontrar o card
+        document.body.insertBefore(alertDiv, document.body.firstChild);
+    }
     
     setTimeout(() => {
         alertDiv.remove();
