@@ -69,7 +69,13 @@ async def get_product_sales_analysis(
         # Preparar pedidos recentes (últimos 10)
         recent_orders = []
         for order, item in sorted(found_orders, key=lambda x: x[0].date_created, reverse=True)[:10]:
+            # Extrair ml_item_id do item
+            item_data = item.get('item', {})
+            ml_item_id = item_data.get('id', '')
+            
             recent_orders.append({
+                "ml_order_id": str(order.ml_order_id),
+                "ml_item_id": ml_item_id,
                 "date_created": order.date_created.isoformat(),
                 "buyer_nickname": order.buyer_nickname,
                 "unit_price": item.get("unit_price", 0),
@@ -137,8 +143,13 @@ async def get_sku_sales_analysis(
         # Preparar todos os pedidos ordenados por data
         all_orders = []
         for order, item in sorted(found_orders, key=lambda x: x[0].date_created, reverse=True):
+            # Extrair ml_item_id do item
+            item_data = item.get('item', {})
+            ml_item_id = item_data.get('id', '')
+            
             all_orders.append({
                 "ml_order_id": str(order.ml_order_id),
+                "ml_item_id": ml_item_id,
                 "date_created": order.date_created.isoformat(),
                 "buyer_nickname": order.buyer_nickname,
                 "unit_price": item.get("unit_price", 0),

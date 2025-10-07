@@ -329,6 +329,7 @@ function loadProductAnalysis(productId) {
                 loadProfitabilityAnalysis(data.product);
                 loadPricingAnalysis(data.product);
                 loadSalesAnalysis(data.product);
+                setupSalesAnalysisTabs(data.product);
                 
                 // Mostrar conteúdo
                 document.getElementById('loading-state').classList.add('d-none');
@@ -1908,26 +1909,20 @@ function formatPrice(price, currency = 'BRL') {
     }).format(numericPrice);
 }
 
-// Função para sincronizar catálogo
 // Sales Analysis Functions
-function loadSalesAnalysis(product) {
-    console.log('📊 Carregando análise de vendas para produto:', product);
-    
-    // Carregar análise do produto (aba ativa por padrão)
-    loadProductSalesAnalysis(product);
-    
-    // Configurar eventos das abas
-    setupSalesAnalysisTabs(product);
-}
 
 function setupSalesAnalysisTabs(product) {
+    console.log('🔧 Configurando eventos das abas de vendas');
+    
     // Event listener para aba "Vendas"
     document.getElementById('sales-tab').addEventListener('click', function() {
+        console.log('🖱️ Aba Vendas clicada');
         loadSalesAnalysis(product);
     });
     
     // Event listener para aba "Pedidos"
     document.getElementById('orders-tab').addEventListener('click', function() {
+        console.log('🖱️ Aba Pedidos clicada');
         loadOrdersAnalysis(product);
     });
 }
@@ -2205,6 +2200,8 @@ async function loadOrdersAnalysis(product) {
         const sku = product.seller_custom_field || product.sku || product.seller_sku;
         
         if (sku) {
+            console.log('🔍 Buscando pedidos para SKU:', sku);
+            
             const response = await fetch(`/api/sales/analysis/sku/${encodeURIComponent(sku)}`, {
                 credentials: 'include',
                 headers: {
@@ -2212,14 +2209,18 @@ async function loadOrdersAnalysis(product) {
                 }
             });
             
+            console.log('📡 Resposta da API de pedidos:', response.status);
+            
             if (!response.ok) {
                 throw new Error(`Erro ${response.status}: ${response.statusText}`);
             }
             
             const data = await response.json();
+            console.log('📊 Dados de pedidos recebidos:', data);
             
             if (handleSessionError(null, data)) return;
             
+            console.log('✅ Chamando renderOrdersAnalysis...');
             renderOrdersAnalysis(data, sku);
         } else {
             contentContainer.innerHTML = `
@@ -2247,8 +2248,16 @@ function renderOrdersAnalysis(data, sku) {
     console.log('🎨 Renderizando pedidos:', data);
     
     const contentContainer = document.getElementById('orders-content');
+    console.log('📋 Container encontrado:', contentContainer);
+    
     const analysis = data.analysis || {};
     const orders = analysis.orders || [];
+    console.log('📦 Pedidos para renderizar:', orders.length);
+    
+    // Armazenar dados globalmente para filtros e paginação
+    window.ordersData = orders;
+    window.currentOrdersPage = 1;
+    window.ordersPerPage = 20;
     
     contentContainer.innerHTML = `
         <div class="alert alert-info">
@@ -2256,12 +2265,38 @@ function renderOrdersAnalysis(data, sku) {
             <strong>SKU:</strong> ${sku} | <strong>Total de Pedidos:</strong> ${orders.length}
         </div>
         
+        <!-- Filtros -->
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <label for="status-filter" class="form-label">Status:</label>
+                <select class="form-select form-select-sm" id="status-filter" onchange="filterOrders()">
+                    <option value="">Todos</option>
+                    <option value="PAID">Pago</option>
+                    <option value="PENDING">Pendente</option>
+                    <option value="CANCELLED">Cancelado</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="buyer-filter" class="form-label">Comprador:</label>
+                <input type="text" class="form-control form-control-sm" id="buyer-filter" 
+                       placeholder="Nome do comprador" onkeyup="filterOrders()">
+            </div>
+            <div class="col-md-3">
+                <label for="date-from" class="form-label">Data Início:</label>
+                <input type="date" class="form-control form-control-sm" id="date-from" onchange="filterOrders()">
+            </div>
+            <div class="col-md-3">
+                <label for="date-to" class="form-label">Data Fim:</label>
+                <input type="date" class="form-control form-control-sm" id="date-to" onchange="filterOrders()">
+            </div>
+        </div>
+        
+        <!-- Tabela de Pedidos -->
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead class="table-primary text-white">
                     <tr>
-                        <th>Data</th>
-                        <th>ID do Pedido</th>
+                        <th>Código do Anúncio</th>
                         <th>Comprador</th>
                         <th>Preço Unitário</th>
                         <th>Quantidade</th>
@@ -2269,372 +2304,162 @@ function renderOrdersAnalysis(data, sku) {
                         <th>Status</th>
                     </tr>
                 </thead>
-                <tbody>
-                    ${orders.map(order => `
-                        <tr>
-                            <td>${new Date(order.date_created).toLocaleDateString('pt-BR')}</td>
-                            <td><small class="text-muted">${order.ml_order_id}</small></td>
-                            <td>${order.buyer_nickname || 'N/A'}</td>
-                            <td>${formatCurrency(order.unit_price)}</td>
-                            <td>${order.quantity}</td>
-                            <td>${formatCurrency(order.unit_price * order.quantity)}</td>
-                            <td><span class="badge ${order.status === 'PAID' ? 'bg-success' : 'bg-warning'}">${order.status}</span></td>
-                        </tr>
-                    `).join('') || '<tr><td colspan="7" class="text-center text-muted">Nenhum pedido encontrado</td></tr>'}
+                <tbody id="orders-table-body">
+                    <!-- Conteúdo será inserido via JavaScript -->
                 </tbody>
             </table>
         </div>
+        
+        <!-- Paginação -->
+        <nav aria-label="Navegação de pedidos">
+            <ul class="pagination justify-content-center" id="orders-pagination">
+                <!-- Botões de paginação serão inseridos via JavaScript -->
+            </ul>
+        </nav>
     `;
+    
+    // Renderizar primeira página
+    renderOrdersPage(1);
 }
 
-async function loadProductSalesAnalysis(product) {
-    console.log('📦 Carregando análise do produto:', product);
+function filterOrders() {
+    const statusFilter = document.getElementById('status-filter').value;
+    const buyerFilter = document.getElementById('buyer-filter').value.toLowerCase();
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
     
-    const contentContainer = document.getElementById('product-analysis-content');
-    
-    try {
-        // Mostrar loading
-        contentContainer.innerHTML = `
-            <div class="text-center py-3">
-                <div class="spinner-border spinner-border-sm" role="status">
-                    <span class="visually-hidden">Carregando...</span>
-                </div>
-                <p class="mt-2 mb-0">Carregando análise do produto...</p>
-            </div>
-        `;
-        
-        // Buscar dados de vendas por ML item ID e company_id
-        const response = await fetch(`/api/sales/analysis/product/${product.ml_item_id}`, {
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
+    let filteredOrders = window.ordersData.filter(order => {
+        // Filtro por status
+        if (statusFilter && order.status !== statusFilter) {
+            return false;
         }
         
-        const data = await response.json();
-        console.log('📊 Dados de análise do produto recebidos:', data);
-        
-        if (handleSessionError(null, data)) return;
-        
-        renderProductSalesAnalysis(data, product);
-        
-    } catch (error) {
-        console.error('❌ Erro ao carregar análise do produto:', error);
-        contentContainer.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i>
-                <strong>Erro ao carregar análise do produto:</strong><br>
-                ${error.message}
-            </div>
-        `;
-    }
-}
-
-async function loadSkuSalesAnalysis(product) {
-    console.log('📈 Carregando vendas por SKU:', product);
-    
-    const contentContainer = document.getElementById('sku-sales-content');
-    
-    // Verificar se o produto tem SKU
-    const sku = product.seller_custom_field || product.sku || product.seller_sku;
-    
-    if (!sku) {
-        contentContainer.innerHTML = `
-            <div class="alert alert-warning">
-                <i class="bi bi-exclamation-triangle"></i>
-                <strong>Produto sem SKU associado</strong><br>
-                Este produto não possui SKU configurado para análise de vendas.
-            </div>
-        `;
-        return;
-    }
-    
-    try {
-        // Mostrar loading
-        contentContainer.innerHTML = `
-            <div class="text-center py-3">
-                <div class="spinner-border spinner-border-sm" role="status">
-                    <span class="visually-hidden">Carregando...</span>
-                </div>
-                <p class="mt-2 mb-0">Carregando vendas por SKU...</p>
-            </div>
-        `;
-        
-        // Buscar dados de vendas por SKU e company_id
-        const response = await fetch(`/api/sales/analysis/sku/${encodeURIComponent(sku)}`, {
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        // Filtro por comprador
+        if (buyerFilter && !(order.buyer_nickname || '').toLowerCase().includes(buyerFilter)) {
+            return false;
         }
         
-        const data = await response.json();
-        console.log('📊 Dados de vendas por SKU recebidos:', data);
+        // Filtro por data
+        if (dateFrom || dateTo) {
+            const orderDate = new Date(order.date_created);
+            const fromDate = dateFrom ? new Date(dateFrom) : null;
+            const toDate = dateTo ? new Date(dateTo) : null;
+            
+            if (fromDate && orderDate < fromDate) {
+                return false;
+            }
+            if (toDate && orderDate > toDate) {
+                return false;
+            }
+        }
         
-        if (handleSessionError(null, data)) return;
-        
-        renderSkuSalesAnalysis(data, sku);
-        
-    } catch (error) {
-        console.error('❌ Erro ao carregar vendas por SKU:', error);
-        contentContainer.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i>
-                <strong>Erro ao carregar vendas por SKU:</strong><br>
-                ${error.message}
-            </div>
-        `;
-    }
+        return true;
+    });
+    
+    window.filteredOrders = filteredOrders;
+    window.currentOrdersPage = 1;
+    renderOrdersPage(1);
 }
 
-function renderProductSalesAnalysis(data, product) {
-    console.log('🎨 Renderizando análise do produto:', data);
+function renderOrdersPage(page) {
+    const ordersPerPage = window.ordersPerPage;
+    const filteredOrders = window.filteredOrders || window.ordersData;
+    const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+    const startIndex = (page - 1) * ordersPerPage;
+    const endIndex = startIndex + ordersPerPage;
+    const pageOrders = filteredOrders.slice(startIndex, endIndex);
     
-    const contentContainer = document.getElementById('product-analysis-content');
+    // Renderizar tabela
+    const tbody = document.getElementById('orders-table-body');
+    tbody.innerHTML = pageOrders.map(order => `
+        <tr>
+            <td><small class="text-info">${order.ml_item_id || 'N/A'}</small></td>
+            <td>
+                <div>
+                    <strong>${order.buyer_nickname || 'N/A'}</strong>
+                </div>
+                <div>
+                    <small class="text-muted">
+                        📅 ${new Date(order.date_created).toLocaleDateString('pt-BR')} | 
+                        🆔 ${order.ml_order_id}
+                    </small>
+                </div>
+            </td>
+            <td>${formatCurrency(order.unit_price)}</td>
+            <td>${order.quantity}</td>
+            <td>${formatCurrency(order.unit_price * order.quantity)}</td>
+            <td><span class="badge ${getStatusBadgeClass(order.status)}">${getStatusLabel(order.status)}</span></td>
+        </tr>
+    `).join('') || '<tr><td colspan="6" class="text-center text-muted">Nenhum pedido encontrado</td></tr>';
     
-    if (!data || !data.success) {
-        contentContainer.innerHTML = `
-            <div class="alert alert-warning">
-                <i class="bi bi-info-circle"></i>
-                <strong>Nenhum dado encontrado</strong><br>
-                Não foram encontrados dados de vendas para este produto.
-            </div>
-        `;
+    // Renderizar paginação
+    renderOrdersPagination(page, totalPages);
+}
+
+function renderOrdersPagination(currentPage, totalPages) {
+    const pagination = document.getElementById('orders-pagination');
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
         return;
     }
     
-    const analysis = data.analysis || {};
-    const stats = analysis.stats || {};
+    let paginationHTML = '';
     
-    contentContainer.innerHTML = `
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card border-primary">
-                    <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0"><i class="bi bi-graph-up"></i> Estatísticas Gerais</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <div class="border-end">
-                                    <h4 class="text-primary mb-0">${stats.total_orders || 0}</h4>
-                                    <small class="text-muted">Total de Pedidos</small>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <h4 class="text-success mb-0">${stats.total_quantity || 0}</h4>
-                                <small class="text-muted">Quantidade Vendida</small>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="row text-center">
-                            <div class="col-12">
-                                <h4 class="text-warning mb-0">R$ ${(stats.total_revenue || 0).toFixed(2)}</h4>
-                                <small class="text-muted">Receita Total</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card border-success">
-                    <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="bi bi-currency-dollar"></i> Preços</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-4">
-                                <h5 class="text-success mb-0">R$ ${(stats.avg_price || 0).toFixed(2)}</h5>
-                                <small class="text-muted">Preço Médio</small>
-                            </div>
-                            <div class="col-4">
-                                <h5 class="text-info mb-0">R$ ${(stats.min_price || 0).toFixed(2)}</h5>
-                                <small class="text-muted">Preço Mínimo</small>
-                            </div>
-                            <div class="col-4">
-                                <h5 class="text-danger mb-0">R$ ${(stats.max_price || 0).toFixed(2)}</h5>
-                                <small class="text-muted">Preço Máximo</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row mt-3">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0"><i class="bi bi-list-ul"></i> Últimos Pedidos</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Data</th>
-                                        <th>Comprador</th>
-                                        <th>Preço</th>
-                                        <th>Qtd</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${(analysis.recent_orders || []).map(order => `
-                                        <tr>
-                                            <td>${new Date(order.date_created).toLocaleDateString('pt-BR')}</td>
-                                            <td>${order.buyer_nickname || 'N/A'}</td>
-                                            <td>${formatCurrency(order.unit_price)}</td>
-                                            <td>${order.quantity}</td>
-                                            <td><span class="badge ${order.status === 'PAID' ? 'bg-success' : 'bg-warning'}">${order.status}</span></td>
-                                        </tr>
-                                    `).join('') || '<tr><td colspan="5" class="text-center text-muted">Nenhum pedido encontrado</td></tr>'}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    // Botão anterior
+    paginationHTML += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="renderOrdersPage(${currentPage - 1}); return false;">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
     `;
-}
-
-function renderSkuSalesAnalysis(data, sku) {
-    console.log('🎨 Renderizando vendas por SKU:', data);
     
-    const contentContainer = document.getElementById('sku-sales-content');
+    // Páginas
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
     
-    if (!data || !data.success) {
-        contentContainer.innerHTML = `
-            <div class="alert alert-warning">
-                <i class="bi bi-info-circle"></i>
-                <strong>Nenhum dado encontrado</strong><br>
-                Não foram encontrados dados de vendas para o SKU "${sku}".
-            </div>
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="renderOrdersPage(${i}); return false;">${i}</a>
+            </li>
         `;
-        return;
     }
     
-    const analysis = data.analysis || {};
-    const stats = analysis.stats || {};
-    
-    contentContainer.innerHTML = `
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i>
-            <strong>SKU Analisado:</strong> ${sku}
-        </div>
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card border-primary">
-                    <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0"><i class="bi bi-graph-up"></i> Estatísticas por SKU</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <div class="border-end">
-                                    <h4 class="text-primary mb-0">${stats.total_orders || 0}</h4>
-                                    <small class="text-muted">Total de Pedidos</small>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <h4 class="text-success mb-0">${stats.total_quantity || 0}</h4>
-                                <small class="text-muted">Quantidade Vendida</small>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="row text-center">
-                            <div class="col-12">
-                                <h4 class="text-warning mb-0">${formatCurrency(stats.total_revenue || 0)}</h4>
-                                <small class="text-muted">Receita Total</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card border-success">
-                    <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="bi bi-currency-dollar"></i> Análise de Preços</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-4">
-                                <h5 class="text-success mb-0">${formatCurrency(stats.avg_price || 0)}</h5>
-                                <small class="text-muted">Preço Médio</small>
-                            </div>
-                            <div class="col-4">
-                                <h5 class="text-info mb-0">${formatCurrency(stats.min_price || 0)}</h5>
-                                <small class="text-muted">Preço Mínimo</small>
-                            </div>
-                            <div class="col-4">
-                                <h5 class="text-danger mb-0">${formatCurrency(stats.max_price || 0)}</h5>
-                                <small class="text-muted">Preço Máximo</small>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="text-center">
-                            <h6 class="text-muted">Status dos Pedidos</h6>
-                            <div class="d-flex justify-content-around">
-                                <span class="badge bg-success">${stats.paid_orders || 0} PAGOS</span>
-                                <span class="badge bg-warning">${stats.cancelled_orders || 0} CANCELADOS</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row mt-3">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0"><i class="bi bi-list-ul"></i> Histórico de Vendas</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Data</th>
-                                        <th>ID do Pedido</th>
-                                        <th>Comprador</th>
-                                        <th>Preço Unit.</th>
-                                        <th>Qtd</th>
-                                        <th>Total</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${(analysis.orders || []).map(order => `
-                                        <tr>
-                                            <td>${new Date(order.date_created).toLocaleDateString('pt-BR')}</td>
-                                            <td><small class="text-muted">${order.ml_order_id}</small></td>
-                                            <td>${order.buyer_nickname || 'N/A'}</td>
-                                            <td>${formatCurrency(order.unit_price)}</td>
-                                            <td>${order.quantity}</td>
-                                            <td>${formatCurrency(order.unit_price * order.quantity)}</td>
-                                            <td><span class="badge ${order.status === 'PAID' ? 'bg-success' : 'bg-warning'}">${order.status}</span></td>
-                                        </tr>
-                                    `).join('') || '<tr><td colspan="7" class="text-center text-muted">Nenhum pedido encontrado</td></tr>'}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    // Botão próximo
+    paginationHTML += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="renderOrdersPage(${currentPage + 1}); return false;">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
     `;
+    
+    pagination.innerHTML = paginationHTML;
 }
+
+function getStatusBadgeClass(status) {
+    switch (status) {
+        case 'PAID': return 'bg-success';
+        case 'PENDING': return 'bg-warning';
+        case 'CANCELLED': return 'bg-danger';
+        default: return 'bg-secondary';
+    }
+}
+
+function getStatusLabel(status) {
+    switch (status) {
+        case 'PAID': return 'PAGO';
+        case 'PENDING': return 'PENDENTE';
+        case 'CANCELLED': return 'CANCELADO';
+        default: return status;
+    }
+}
+
+
+
+
 
 function syncCatalog() {
     console.log('syncCatalog chamada');
