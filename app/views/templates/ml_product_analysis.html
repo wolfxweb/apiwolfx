@@ -347,7 +347,7 @@ function checkCatalogInfo(product) {
         if (product.catalog_listing) {
             console.log('📋 Produto é de catálogo, carregando informações...');
             loadCatalogInfo(product.id);
-            loadCompetitiveAnalysis(product.id);
+            loadCompetitiveAnalysis(product.id, product);
             // Mostrar cards de catálogo
             const competitiveCard = document.getElementById('competitive-analysis-card');
             const catalogCard = document.getElementById('catalog-info-card');
@@ -671,7 +671,7 @@ function getShippingTypeLabel(logisticType) {
     return translations[logisticType] || logisticType;
 }
 
-function loadCompetitiveAnalysis(productId) {
+function loadCompetitiveAnalysis(productId, product) {
     console.log('📊 Carregando análise competitiva para produto:', productId);
     
     fetch(`/ml/products/api/product/${productId}/catalog/database`, {
@@ -687,7 +687,7 @@ function loadCompetitiveAnalysis(productId) {
             
             if (data && data.success && data.catalog_products) {
                 console.log('✅ Dados de análise competitiva encontrados, renderizando...');
-                renderCompetitiveAnalysis(data.catalog_products);
+                renderCompetitiveAnalysis(data.catalog_products, product);
             } else {
                 console.log('⚠️ Nenhum dado de análise competitiva encontrado');
                 document.getElementById('catalog-analysis-content').innerHTML = 
@@ -701,8 +701,8 @@ function loadCompetitiveAnalysis(productId) {
         });
 }
 
-function renderCompetitiveAnalysis(products) {
-    console.log('🎨 Renderizando análise competitiva:', products);
+function renderCompetitiveAnalysis(products, currentProduct) {
+    console.log('🎨 Renderizando análise competitiva:', products, 'Produto atual:', currentProduct);
     
     const analysisContent = document.getElementById('catalog-analysis-content');
     
@@ -722,7 +722,7 @@ function renderCompetitiveAnalysis(products) {
     const top3 = getTop3Announcers(products);
     
     // Análise de posicionamento
-    const positioningAnalysis = analyzePositioning(products);
+    const positioningAnalysis = analyzePositioning(products, currentProduct);
     
     // Análise de MercadoLíder
     const mercadoLiderAnalysis = analyzeMercadoLider(products);
@@ -905,7 +905,7 @@ function getTop3Announcers(products) {
     }));
 }
 
-function analyzePositioning(products) {
+function analyzePositioning(products, currentProduct) {
     if (!products || products.length === 0) {
         return {
             your_position: null,
@@ -915,8 +915,8 @@ function analyzePositioning(products) {
         };
     }
     
-    // Buscar especificamente pelo seu produto MLB5588063084
-    const yourProduct = products.find(p => p.ml_item_id === 'MLB5588063084');
+    // Buscar pelo produto atual usando o ml_item_id
+    const yourProduct = products.find(p => p.ml_item_id === currentProduct.ml_item_id);
     
     // Encontrar a melhor posição geral
     const positions = products.map(p => parseInt(p.position) || 999);
