@@ -246,6 +246,7 @@ function loadProductAnalysis(productId) {
                 console.log('📦 Dados do produto:', data.product);
                 renderProductInfo(data.product);
                 checkCatalogInfo(data.product);
+                loadProfitabilityAnalysis(data.product);
                 
                 // Mostrar conteúdo
                 document.getElementById('loading-state').classList.add('d-none');
@@ -988,6 +989,79 @@ function getMercadoLiderProgressClass(level) {
         'sem_medalha': 'bg-success'
     };
     return classes[level] || 'bg-secondary';
+}
+
+function loadProfitabilityAnalysis(product) {
+    console.log('💰 Carregando análise de rentabilidade para produto:', product);
+    
+    const profitabilityContainer = document.getElementById('profitability-analysis');
+    const productPrice = parseFloat(product.price) || 0;
+    
+    // Simular cálculo de rentabilidade baseado no preço
+    // Taxa média do Mercado Livre ~15%
+    const totalFees = productPrice * 0.15;
+    const netProfit = productPrice - totalFees;
+    const profitMargin = productPrice > 0 ? (netProfit / productPrice) * 100 : 0;
+    const roi = totalFees > 0 ? (netProfit / totalFees) * 100 : 0;
+    
+    console.log('💰 Cálculos de rentabilidade:', {
+        productPrice,
+        totalFees,
+        netProfit,
+        profitMargin,
+        roi
+    });
+    
+    profitabilityContainer.innerHTML = `
+        <div class="row">
+            <div class="col-md-4">
+                <div class="text-center p-3 border rounded">
+                    <h6 class="text-muted">Preço de Venda</h6>
+                    <h4 class="text-primary">${formatPrice(productPrice)}</h4>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-center p-3 border rounded">
+                    <h6 class="text-muted">Custos Totais</h6>
+                    <h4 class="text-danger">${formatPrice(totalFees)}</h4>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-center p-3 border rounded">
+                    <h6 class="text-muted">Lucro Líquido</h6>
+                    <h4 class="text-success">${formatPrice(netProfit)}</h4>
+                </div>
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="d-flex justify-content-between">
+                    <span>Margem de Lucro:</span>
+                    <strong class="${profitMargin >= 20 ? 'text-success' : profitMargin >= 10 ? 'text-warning' : 'text-danger'}">
+                        ${profitMargin.toFixed(1)}%
+                    </strong>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="d-flex justify-content-between">
+                    <span>ROI:</span>
+                    <strong class="${roi >= 50 ? 'text-success' : roi >= 25 ? 'text-warning' : 'text-danger'}">
+                        ${roi.toFixed(1)}%
+                    </strong>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Análise Estimada:</strong> Baseada em taxa média do Mercado Livre (~15%).
+                Para análise precisa, configure os custos internos do produto.
+            </div>
+        </div>
+    `;
+    
+    console.log('✅ Análise de rentabilidade renderizada com sucesso');
 }
 
 function loadShippingCosts(product) {
