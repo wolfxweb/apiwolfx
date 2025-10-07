@@ -245,7 +245,7 @@ function renderProductInfo(product) {
     }
 }
 
-function loadMarketplaceFees(product) {
+async function loadMarketplaceFees(product) {
     const feesContainer = document.getElementById('marketplace-fees');
     
     console.log('💰 Carregando análise de preços para produto:', product);
@@ -253,13 +253,13 @@ function loadMarketplaceFees(product) {
     
     // Sempre carregar dados do ML primeiro
     console.log('📊 Carregando custos do Mercado Livre...');
-    loadMLProductFees();
+    await loadMLProductFees();
     
     // Se houver SKU, também carregar dados do produto interno
     if (product.seller_sku || product.sku) {
         const internalSku = product.seller_sku || product.sku;
         console.log('✅ SKU encontrado, também buscando produto interno:', internalSku);
-        loadInternalProductData(internalSku);
+        await loadInternalProductData(internalSku);
     } else {
         console.log('⚠️ Nenhum SKU encontrado, apenas dados do ML serão exibidos');
     }
@@ -269,7 +269,111 @@ function loadMarketplaceFees(product) {
 let mlFeesData = null;
 let internalProductData = null;
 
-function loadInternalProductData(internalSku) {
+async function calculateMLCommission(price, categoryId = null) {
+    /**
+     * Calcula a comissão do Mercado Livre baseada nas regras oficiais
+     * Produtos abaixo de R$ 79,90: taxa fixa + percentual
+     * Produtos acima de R$ 79,90: apenas percentual + frete gratuito obrigatório
+     */
+    if (price <= 0) return { total: 0, details: {}, listingType: 'N/A' };
+    
+    console.log('🔍 Calculando custos baseado nas regras oficiais do ML');
+    
+    let fixedFee = 0;
+    let percentageFee = 0;
+    let percentageAmount = 0;
+    let total = 0;
+    let listingType = '';
+    
+    if (price < 79.90) {
+        // Produtos abaixo de R$ 79,90: taxa fixa + percentual
+        fixedFee = 6.25; // Taxa fixa para produtos baixos
+        percentageFee = 13; // 13% para produtos baixos
+        percentageAmount = (price * percentageFee / 100);
+        total = fixedFee + percentageAmount;
+        listingType = 'Clássico (Abaixo R$ 79,90)';
+    } else {
+        // Produtos acima de R$ 79,90: apenas percentual + frete gratuito obrigatório
+        fixedFee = 0; // Sem taxa fixa
+        percentageFee = 12; // 12% para produtos altos
+        percentageAmount = (price * percentageFee / 100);
+        total = percentageAmount;
+        listingType = 'Clássico (Acima R$ 79,90)';
+    }
+    
+    console.log('📊 Custos calculados (regras oficiais):', {
+        price,
+        fixedFee,
+        percentageFee,
+        percentageAmount,
+        total,
+        listingType
+    });
+    
+    return {
+        total: total,
+        details: {
+            fixed_fee: fixedFee,
+            percentage_fee: percentageFee,
+            percentage_amount: percentageAmount
+        },
+        listingType: listingType
+    };
+}
+
+function calculateMLCommissionFallback(price) {
+    /**
+     * Fallback para cálculo manual baseado no simulador oficial do ML
+     * Estrutura: taxa fixa + percentual (como mostrado no simulador)
+     */
+    if (price <= 0) return { total: 0, details: {}, listingType: 'N/A' };
+    
+    // Valores baseados no simulador oficial do ML para "Clássico"
+    let fixedFee = 6.25; // Taxa fixa do simulador
+    let percentageFee = 13; // 13% do simulador
+    let percentageAmount = (price * percentageFee / 100);
+    let total = fixedFee + percentageAmount;
+    
+    return { 
+        total, 
+        details: {
+            fixed_fee: fixedFee,
+            percentage_fee: percentageFee,
+            percentage_amount: percentageAmount
+        }, 
+        listingType: 'Clássico (Estimativa)' 
+    };
+}
+
+function getMLCommissionDetails(price) {
+    /**
+     * Retorna os detalhes da comissão do ML (taxa fixa + percentual)
+     */
+    if (price <= 0) return { fixedFee: 0, percentageFee: 0, percentage: 0 };
+    
+    let fixedFee = 0;
+    let percentageFee = 0;
+    let percentage = 0;
+    
+    if (price < 79) {
+        fixedFee = 1.00;
+        percentageFee = price * 0.16;
+        percentage = 16;
+    } else if (price < 200) {
+        percentageFee = price * 0.14;
+        percentage = 14;
+    } else if (price < 500) {
+        percentageFee = price * 0.12;
+        percentage = 12;
+    } else {
+        percentageFee = price * 0.10;
+        percentage = 10;
+    }
+    
+    return { fixedFee, percentageFee, percentage };
+}
+
+async function loadInternalProductData(internalSku) {
     const feesContainer = document.getElementById('marketplace-fees');
     
     console.log('🔍 Buscando dados do produto interno com SKU:', internalSku);
@@ -280,7 +384,7 @@ function loadInternalProductData(internalSku) {
             console.log('📡 Resposta recebida:', response.status);
             return response.json();
         })
-        .then(data => {
+        .then(async data => {
             console.log('📊 Dados recebidos:', data);
             if (data.success) {
                 console.log('✅ Dados do produto interno carregados');
@@ -289,7 +393,7 @@ function loadInternalProductData(internalSku) {
                 // Se já temos dados do ML, renderizar análise integrada
                 if (mlFeesData) {
                     console.log('🔄 Renderizando análise integrada');
-                    renderIntegratedPricingAnalysis(mlFeesData, internalProductData);
+                    await renderIntegratedPricingAnalysis(mlFeesData, internalProductData);
                 } else {
                     console.log('📊 Renderizando apenas dados internos');
                     renderInternalProductPricing(data.analysis);
@@ -303,11 +407,11 @@ function loadInternalProductData(internalSku) {
         });
 }
 
-function loadMLProductFees() {
+async function loadMLProductFees() {
     const productId = window.location.pathname.split('/').pop();
     fetch(`/ml/products/api/product/${productId}/fees`)
         .then(response => response.json())
-        .then(data => {
+        .then(async data => {
             if (handleSessionError(null, data)) return;
             if (data.success && data.fees.success) {
                 const fees = data.fees.data;
@@ -317,7 +421,7 @@ function loadMLProductFees() {
                 // Se já temos dados internos, renderizar análise integrada
                 if (internalProductData) {
                     console.log('🔄 Renderizando análise integrada');
-                    renderIntegratedPricingAnalysis(mlFeesData, internalProductData);
+                    await renderIntegratedPricingAnalysis(mlFeesData, internalProductData);
                 } else {
                     console.log('📊 Renderizando apenas dados do ML');
                     renderMarketplaceFees(fees);
@@ -448,15 +552,17 @@ function renderInternalProductPricing(analysis) {
     feesContainer.insertAdjacentHTML('beforeend', html);
 }
 
-function renderIntegratedPricingAnalysis(mlFees, internalAnalysis) {
+async function renderIntegratedPricingAnalysis(mlFees, internalAnalysis) {
     console.log('🔄 Renderizando análise integrada:', { mlFees, internalAnalysis });
     const feesContainer = document.getElementById('marketplace-fees');
     
     const internalProduct = internalAnalysis.internal_product;
     const comparative = internalAnalysis.comparative_analysis;
     
-    // Calcular custos totais do ML
-    const mlCommission = mlFees.commission || 0;
+    // Calcular custos totais do ML usando API oficial
+    const productPrice = internalProduct.selling_price;
+    const mlCommissionData = await calculateMLCommission(productPrice);
+    const mlCommission = mlCommissionData.total;
     const mlShipping = mlFees.shipping || 0;
     const mlAdditionalFees = mlFees.additional_fees || 0;
     const totalMLCosts = mlCommission + mlShipping + mlAdditionalFees;
@@ -468,53 +574,56 @@ function renderIntegratedPricingAnalysis(mlFees, internalAnalysis) {
     const finalMargin = ((internalProduct.selling_price - totalCosts) / internalProduct.selling_price) * 100;
     
     let html = `
-        <div class="row">
-            <div class="col-md-6">
-                <h6 class="text-success">💰 Custos Internos</h6>
-                <div class="list-group list-group-flush">
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Preço de Custo:</span>
-                        <strong>R$ ${internalProduct.cost_price.toFixed(2)}</strong>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Marketing (${internalProduct.marketing_cost.toFixed(1)}%):</span>
-                        <span>R$ ${(internalProduct.selling_price * internalProduct.marketing_cost / 100).toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Outros Custos:</span>
-                        <span>R$ ${internalProduct.other_costs.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Impostos (${internalProduct.tax_rate}%):</span>
-                        <span>R$ ${internalProduct.tax_amount.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between bg-light">
-                        <strong>Total Internos:</strong>
-                        <strong>R$ ${internalProduct.total_costs_with_tax.toFixed(2)}</strong>
-                    </div>
-                </div>
+        <div class="list-group list-group-flush">
+            <div class="list-group-item d-flex justify-content-between">
+                <span>Preço de Venda:</span>
+                <span>R$ ${internalProduct.selling_price.toFixed(2)}</span>
             </div>
-            
-            <div class="col-md-6">
-                <h6 class="text-info">🏪 Custos Mercado Livre</h6>
-                <div class="list-group list-group-flush">
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Comissão ML:</span>
-                        <span>R$ ${mlCommission.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Frete:</span>
-                        <span>R$ ${mlShipping.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Taxas Adicionais:</span>
-                        <span>R$ ${mlAdditionalFees.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between bg-light">
-                        <strong>Total ML:</strong>
-                        <strong>R$ ${totalMLCosts.toFixed(2)}</strong>
-                    </div>
-                </div>
+            <div class="list-group-item d-flex justify-content-between">
+                <span>Preço Custo Produto:</span>
+                <span>R$ ${internalProduct.cost_price.toFixed(2)}</span>
+            </div>
+            <div class="list-group-item d-flex justify-content-between">
+                <span>Marketing (${internalProduct.marketing_cost.toFixed(1)}%):</span>
+                <span>R$ ${(internalProduct.selling_price * internalProduct.marketing_cost / 100).toFixed(2)}</span>
+            </div>
+            <div class="list-group-item d-flex justify-content-between">
+                <span>Outros Custos:</span>
+                <span>R$ ${internalProduct.other_costs.toFixed(2)}</span>
+            </div>
+            <div class="list-group-item d-flex justify-content-between">
+                <span>Impostos (${internalProduct.tax_rate}%):</span>
+                <span>R$ ${internalProduct.tax_amount.toFixed(2)}</span>
+            </div>
+            <div class="list-group-item d-flex justify-content-between">
+                <span>Comissão ML (${mlCommissionData.listingType}):</span>
+                <span>R$ ${mlCommission.toFixed(2)}</span>
+            </div>
+            ${mlCommissionData.details.fixed_fee > 0 ? `
+            <div class="list-group-item d-flex justify-content-between">
+                <span>&nbsp;&nbsp;• Taxa Fixa:</span>
+                <span>R$ ${mlCommissionData.details.fixed_fee.toFixed(2)}</span>
+            </div>
+            ` : ''}
+            ${mlCommissionData.details.percentage_fee > 0 ? `
+            <div class="list-group-item d-flex justify-content-between">
+                <span>&nbsp;&nbsp;• Taxa Percentual (${mlCommissionData.details.percentage_fee}%):</span>
+                <span>R$ ${mlCommissionData.details.percentage_amount.toFixed(2)}</span>
+            </div>
+            ` : ''}
+            <div class="list-group-item d-flex justify-content-between">
+                <span>Frete:</span>
+                <span>R$ ${mlShipping.toFixed(2)}</span>
+            </div>
+            ${productPrice >= 79.90 ? `
+            <div class="list-group-item d-flex justify-content-between text-success">
+                <span>🚚 Frete Gratuito:</span>
+                <span>Obrigatório (acima R$ 79,90)</span>
+            </div>
+            ` : ''}
+            <div class="list-group-item d-flex justify-content-between">
+                <span>Taxas Adicionais:</span>
+                <span>R$ ${mlAdditionalFees.toFixed(2)}</span>
             </div>
         </div>
     `;
