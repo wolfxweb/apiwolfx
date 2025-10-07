@@ -23,7 +23,7 @@
             </div>
 
             <!-- Loading State -->
-            <div id="loading-state" class="text-center py-5">
+            <div id="loading-state" class="text-center py-5 d-none">
                 <div class="spinner-border text-success" role="status">
                     <span class="visually-hidden">Carregando...</span>
                 </div>
@@ -38,7 +38,7 @@
             </div>
 
             <!-- Analysis Content -->
-            <div id="analysis-content" class="d-none">
+            <div id="analysis-content">
                 <!-- Product Info -->
                 <div class="card mb-4">
                     <div class="card-header">
@@ -90,10 +90,7 @@
                             <div class="card-body">
                                 <div id="marketplace-fees">
                                     <div class="text-center py-3">
-                                        <div class="spinner-border spinner-border-sm" role="status">
-                                            <span class="visually-hidden">Carregando...</span>
-                                        </div>
-                                        <p class="mt-2 mb-0">Calculando taxas...</p>
+                                        <p class="text-muted">Card limpo - pronto para implementação</p>
                                     </div>
                                 </div>
                             </div>
@@ -120,624 +117,885 @@
                             </div>
                         </div>
                     </div>
-
-        <!-- Análise Card -->
-        <div class="col-md-12 mb-4" id="competitive-analysis-card">
-            <div class="card h-100">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-graph-up"></i> Análise Competitiva
-                    </h5>
                 </div>
-               <div class="card-body">
-                   <div id="catalog-analysis-content">
-                       <div class="text-center py-3">
-                           <div class="spinner-border spinner-border-sm" role="status">
-                               <span class="visually-hidden">Carregando...</span>
+
+                <!-- Análise Card -->
+                <div class="col-md-12 mb-4" id="competitive-analysis-card">
+                    <div class="card h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-graph-up"></i> Análise Competitiva
+                            </h5>
+                        </div>
+                       <div class="card-body">
+                           <div id="catalog-analysis-content">
+                               <div class="text-center py-3">
+                                   <div class="spinner-border spinner-border-sm" role="status">
+                                       <span class="visually-hidden">Carregando...</span>
+                                   </div>
+                                   <p class="mt-2 mb-0">Analisando dados...</p>
+                               </div>
                            </div>
-                           <p class="mt-2 mb-0">Analisando dados...</p>
                        </div>
                    </div>
                </div>
-           </div>
-       </div>
 
-
-        <!-- Catalog Information -->
-        <div class="col-md-12 mb-4" id="catalog-info-card">
-            <div class="card h-100">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0" id="catalog-shipping-header">
-                        <i class="bi bi-truck"></i> Custos de Envio
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="catalog-shipping-content">
-                        <div class="text-center py-3">
-                            <div class="spinner-border spinner-border-sm" role="status">
-                                <span class="visually-hidden">Carregando...</span>
+                <!-- Catalog Information -->
+                <div class="col-md-12 mb-4" id="catalog-info-card">
+                    <div class="card h-100">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0" id="catalog-shipping-header">
+                                <i class="bi bi-truck"></i> Custos de Envio
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="catalog-shipping-content">
+                                <div class="text-center py-3">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Carregando...</span>
+                                    </div>
+                                    <p class="mt-2 mb-0">Verificando informações...</p>
+                                </div>
                             </div>
-                            <p class="mt-2 mb-0">Verificando informações...</p>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-                </div>
-
-
             </div>
         </div>
     </div>
 </div>
 
 <script>
+// Função para obter token de sessão
+function getSessionToken() {
+    // Tentar pegar do cookie primeiro
+    const cookies = document.cookie.split(';');
+    
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'session_token') {
+            return value;
+        }
+    }
+    
+    // Fallback para localStorage/sessionStorage
+    const localToken = localStorage.getItem('session_token');
+    const sessionToken = sessionStorage.getItem('session_token');
+    
+    return localToken || sessionToken;
+}
+
+// Função para verificar se a sessão expirou
+function checkSessionExpired(response) {
+    if (response.status === 401) {
+        // Sessão expirada, redirecionar para login
+        window.location.href = '/auth/login';
+        return true;
+    }
+    return false;
+}
+
+// Função para ocultar elementos quando sessão expira
+function hideUserElements() {
+    // Ocultar elementos que requerem autenticação
+    const elementsToHide = document.querySelectorAll('.auth-required');
+    elementsToHide.forEach(element => {
+        element.style.display = 'none';
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const productId = window.location.pathname.split('/').pop();
+    console.log('🚀 Página carregada, ID do produto:', productId);
+    console.log('🍪 Cookies disponíveis:', document.cookie);
+    console.log('🔑 Token de sessão:', getSessionToken());
     loadProductAnalysis(productId);
 });
 
 function loadProductAnalysis(productId) {
-    // Mostrar loading
-    document.getElementById('loading-state').classList.remove('d-none');
-    document.getElementById('analysis-content').classList.add('d-none');
-    document.getElementById('error-state').classList.add('d-none');
-
+    console.log('🔍 Carregando produto ID:', productId);
+    
+    // Verificar se o usuário está logado
+    const sessionToken = getSessionToken();
+    if (!sessionToken || sessionToken === 'null') {
+        console.log('🔒 Usuário não logado, redirecionando para login...');
+        window.location.href = '/auth/login';
+        return;
+    }
+    
     // Carregar dados do produto
-    fetch(`/ml/products/api/product/${productId}`)
-        .then(response => response.json())
+    fetch(`/ml/products/api/product/${productId}`, {
+        credentials: 'include'
+    })
+        .then(response => {
+            console.log('📡 Resposta recebida:', response.status);
+            if (checkSessionExpired(response)) {
+                hideUserElements();
+                return;
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
+            console.log('📊 Dados recebidos:', data);
+            console.log('📊 Tipo dos dados:', typeof data);
+            console.log('📊 Success:', data?.success);
+            console.log('📊 Product:', data?.product);
+            
+            if (data && data.success) {
+                console.log('✅ Produto carregado com sucesso');
+                console.log('📦 Dados do produto:', data.product);
                 renderProductInfo(data.product);
-                loadMarketplaceFees(data.product);
                 checkCatalogInfo(data.product);
-                loadCompetitiveAnalysis(data.product.id);
-                loadProfitabilityAnalysis(data.product);
                 
                 // Mostrar conteúdo
                 document.getElementById('loading-state').classList.add('d-none');
                 document.getElementById('analysis-content').classList.remove('d-none');
             } else {
-                showError(data.error || 'Erro ao carregar produto');
+                console.log('❌ Erro ao carregar produto:', data?.error);
+                console.log('❌ Dados completos:', data);
+                showError(data?.error || 'Erro ao carregar produto');
             }
         })
         .catch(error => {
-            console.error('Erro:', error);
+            console.error('❌ Erro na requisição:', error);
             showError('Erro ao carregar análise do produto');
         });
 }
 
 function renderProductInfo(product) {
-    document.getElementById('product-thumbnail').src = product.thumbnail || '/static/images/no-image.png';
-    document.getElementById('product-title').textContent = product.title;
-    document.getElementById('product-ml-id').textContent = product.ml_item_id;
-    document.getElementById('product-status').innerHTML = getStatusBadge(product.status);
+    console.log('🎨 Renderizando informações do produto:', product);
     
-    // Mostrar/ocultar botões de catálogo baseado no tipo do produto
-    const catalogButtons = document.querySelectorAll('#sync-catalog-btn, a[href*="catalogo"]');
-    if (product.catalog_listing) {
-        catalogButtons.forEach(btn => btn.style.display = 'inline-block');
-    } else {
-        catalogButtons.forEach(btn => btn.style.display = 'none');
-    }
-}
-
-async function loadMarketplaceFees(product) {
-    const feesContainer = document.getElementById('marketplace-fees');
-    
-    console.log('💰 Carregando análise de preços para produto:', product);
-    console.log('🔖 SKU disponíveis:', { seller_sku: product.seller_sku, sku: product.sku });
-    
-    // Sempre carregar dados do ML primeiro
-    console.log('📊 Carregando custos do Mercado Livre...');
-    await loadMLProductFees();
-    
-    // Se houver SKU, também carregar dados do produto interno
-    if (product.seller_sku || product.sku) {
-        const internalSku = product.seller_sku || product.sku;
-        console.log('✅ SKU encontrado, também buscando produto interno:', internalSku);
-        await loadInternalProductData(internalSku);
-    } else {
-        console.log('⚠️ Nenhum SKU encontrado, apenas dados do ML serão exibidos');
-    }
-}
-
-// Variáveis globais para armazenar dados
-let mlFeesData = null;
-let internalProductData = null;
-
-async function calculateMLCommission(price, categoryId = null) {
-    /**
-     * Calcula a comissão do Mercado Livre baseada nas regras oficiais
-     * Produtos abaixo de R$ 79,90: taxa fixa + percentual
-     * Produtos acima de R$ 79,90: apenas percentual + frete gratuito obrigatório
-     */
-    if (price <= 0) return { total: 0, details: {}, listingType: 'N/A' };
-    
-    console.log('🔍 Calculando custos baseado nas regras oficiais do ML');
-    
-    let fixedFee = 0;
-    let percentageFee = 0;
-    let percentageAmount = 0;
-    let total = 0;
-    let listingType = '';
-    
-    if (price < 79.90) {
-        // Produtos abaixo de R$ 79,90: taxa fixa + percentual
-        fixedFee = 6.25; // Taxa fixa para produtos baixos
-        percentageFee = 13; // 13% para produtos baixos
-        percentageAmount = (price * percentageFee / 100);
-        total = fixedFee + percentageAmount;
-        listingType = 'Clássico (Abaixo R$ 79,90)';
-    } else {
-        // Produtos acima de R$ 79,90: apenas percentual + frete gratuito obrigatório
-        fixedFee = 0; // Sem taxa fixa
-        percentageFee = 12; // 12% para produtos altos
-        percentageAmount = (price * percentageFee / 100);
-        total = percentageAmount;
-        listingType = 'Clássico (Acima R$ 79,90)';
-    }
-    
-    console.log('📊 Custos calculados (regras oficiais):', {
-        price,
-        fixedFee,
-        percentageFee,
-        percentageAmount,
-        total,
-        listingType
-    });
-    
-    return {
-        total: total,
-        details: {
-            fixed_fee: fixedFee,
-            percentage_fee: percentageFee,
-            percentage_amount: percentageAmount
-        },
-        listingType: listingType
-    };
-}
-
-function calculateMLCommissionFallback(price) {
-    /**
-     * Fallback para cálculo manual baseado no simulador oficial do ML
-     * Estrutura: taxa fixa + percentual (como mostrado no simulador)
-     */
-    if (price <= 0) return { total: 0, details: {}, listingType: 'N/A' };
-    
-    // Valores baseados no simulador oficial do ML para "Clássico"
-    let fixedFee = 6.25; // Taxa fixa do simulador
-    let percentageFee = 13; // 13% do simulador
-    let percentageAmount = (price * percentageFee / 100);
-    let total = fixedFee + percentageAmount;
-    
-    return { 
-        total, 
-        details: {
-            fixed_fee: fixedFee,
-            percentage_fee: percentageFee,
-            percentage_amount: percentageAmount
-        }, 
-        listingType: 'Clássico (Estimativa)' 
-    };
-}
-
-function getMLCommissionDetails(price) {
-    /**
-     * Retorna os detalhes da comissão do ML (taxa fixa + percentual)
-     */
-    if (price <= 0) return { fixedFee: 0, percentageFee: 0, percentage: 0 };
-    
-    let fixedFee = 0;
-    let percentageFee = 0;
-    let percentage = 0;
-    
-    if (price < 79) {
-        fixedFee = 1.00;
-        percentageFee = price * 0.16;
-        percentage = 16;
-    } else if (price < 200) {
-        percentageFee = price * 0.14;
-        percentage = 14;
-    } else if (price < 500) {
-        percentageFee = price * 0.12;
-        percentage = 12;
-    } else {
-        percentageFee = price * 0.10;
-        percentage = 10;
-    }
-    
-    return { fixedFee, percentageFee, percentage };
-}
-
-async function loadInternalProductData(internalSku) {
-    const feesContainer = document.getElementById('marketplace-fees');
-    
-    console.log('🔍 Buscando dados do produto interno com SKU:', internalSku);
-    
-    // Buscar dados do produto interno
-    fetch(`/api/pricing/analysis/sku/${internalSku}`)
-        .then(response => {
-            console.log('📡 Resposta recebida:', response.status);
-            return response.json();
-        })
-        .then(async data => {
-            console.log('📊 Dados recebidos:', data);
-            if (data.success) {
-                console.log('✅ Dados do produto interno carregados');
-                internalProductData = data.analysis;
-                
-                // Se já temos dados do ML, renderizar análise integrada
-                if (mlFeesData) {
-                    console.log('🔄 Renderizando análise integrada');
-                    await renderIntegratedPricingAnalysis(mlFeesData, internalProductData);
-                } else {
-                    console.log('📊 Renderizando apenas dados internos');
-                    renderInternalProductPricing(data.analysis);
-                }
-            } else {
-                console.log('⚠️ Produto interno não encontrado');
-            }
-        })
-        .catch(error => {
-            console.error('❌ Erro ao buscar produto interno:', error);
+    try {
+        // Testar se os elementos existem
+        const thumbnail = document.getElementById('product-thumbnail');
+        const title = document.getElementById('product-title');
+        const mlId = document.getElementById('product-ml-id');
+        const status = document.getElementById('product-status');
+        
+        console.log('🔍 Elementos encontrados:', {
+            thumbnail: !!thumbnail,
+            title: !!title,
+            mlId: !!mlId,
+            status: !!status
         });
-}
-
-async function loadMLProductFees() {
-    const productId = window.location.pathname.split('/').pop();
-    fetch(`/ml/products/api/product/${productId}/fees`)
-        .then(response => response.json())
-        .then(async data => {
-            if (handleSessionError(null, data)) return;
-            if (data.success && data.fees.success) {
-                const fees = data.fees.data;
-                console.log('✅ Dados do ML carregados:', fees);
-                mlFeesData = fees;
-                
-                // Se já temos dados internos, renderizar análise integrada
-                if (internalProductData) {
-                    console.log('🔄 Renderizando análise integrada');
-                    await renderIntegratedPricingAnalysis(mlFeesData, internalProductData);
-                } else {
-                    console.log('📊 Renderizando apenas dados do ML');
-                    renderMarketplaceFees(fees);
-                }
-            } else {
-                showFeesError(data.fees?.error || 'Erro ao carregar análise de preços');
-            }
-        })
-        .catch(error => {
-            console.error('Erro ao buscar análise de preços:', error);
-            showFeesError('Erro de conexão');
+        
+        console.log('📝 Dados do produto para renderizar:', {
+            thumbnail: product.thumbnail,
+            title: product.title,
+            ml_item_id: product.ml_item_id,
+            status: product.status
         });
+        
+        if (thumbnail) {
+            thumbnail.src = product.thumbnail || '/static/images/no-image.png';
+            console.log('🖼️ Thumbnail definido:', thumbnail.src);
+        }
+        if (title) {
+            title.textContent = product.title || 'Sem título';
+            console.log('📝 Título definido:', title.textContent);
+        }
+        if (mlId) {
+            mlId.textContent = product.ml_item_id || 'N/A';
+            console.log('🆔 ID definido:', mlId.textContent);
+        }
+        if (status) {
+            status.innerHTML = getStatusBadge(product.status);
+            console.log('🏷️ Status definido:', status.innerHTML);
+        }
+        
+        // Mostrar/ocultar botões de catálogo baseado no tipo do produto
+        const catalogButtons = document.querySelectorAll('#sync-catalog-btn, a[href*="catalogo"]');
+        if (product.catalog_listing) {
+            catalogButtons.forEach(btn => btn.style.display = 'inline-block');
+        } else {
+            catalogButtons.forEach(btn => btn.style.display = 'none');
+        }
+        
+        console.log('✅ Informações do produto renderizadas com sucesso');
+    } catch (error) {
+        console.error('❌ Erro ao renderizar informações do produto:', error);
+    }
 }
 
-function renderInternalProductPricing(analysis) {
-    console.log('🎨 Renderizando dados do produto interno:', analysis);
-    const feesContainer = document.getElementById('marketplace-fees');
-    const product = analysis.internal_product;
-    const comparative = analysis.comparative_analysis;
-    console.log('📦 Produto:', product);
-    console.log('📊 Análise comparativa:', comparative);
+function getStatusBadge(status) {
+    console.log('🏷️ Gerando badge para status:', status);
     
-    // Adicionar seção de dados internos ao conteúdo existente
-    let html = `
+    const statusMap = {
+        'active': '<span class="badge bg-success">Ativo</span>',
+        'paused': '<span class="badge bg-warning">Pausado</span>',
+        'closed': '<span class="badge bg-danger">Fechado</span>',
+        'under_review': '<span class="badge bg-info">Em Revisão</span>',
+        'inactive': '<span class="badge bg-secondary">Inativo</span>'
+    };
     
+    const result = statusMap[status] || '<span class="badge bg-secondary">Desconhecido</span>';
+    console.log('🏷️ Badge gerado:', result);
+    
+    return result;
+}
+
+function checkCatalogInfo(product) {
+    console.log('📋 Verificando informações de catálogo:', product);
+    
+    try {
+        // Verificar se o produto é de catálogo
+        if (product.catalog_listing) {
+            console.log('📋 Produto é de catálogo, carregando informações...');
+            loadCatalogInfo(product.id);
+            loadCompetitiveAnalysis(product.id);
+            // Mostrar cards de catálogo
+            const competitiveCard = document.getElementById('competitive-analysis-card');
+            const catalogCard = document.getElementById('catalog-info-card');
+            if (competitiveCard) competitiveCard.style.display = 'block';
+            if (catalogCard) catalogCard.style.display = 'block';
+        } else {
+            console.log('📋 Produto não é de catálogo, carregando custos de envio...');
+            loadShippingCosts(product);
+            // Ocultar cards de catálogo
+            const competitiveCard = document.getElementById('competitive-analysis-card');
+            const catalogCard = document.getElementById('catalog-info-card');
+            if (competitiveCard) competitiveCard.style.display = 'none';
+            if (catalogCard) catalogCard.style.display = 'none';
+        }
+        
+        console.log('✅ Informações de catálogo verificadas com sucesso');
+    } catch (error) {
+        console.error('❌ Erro ao verificar informações de catálogo:', error);
+    }
+}
+
+function loadCatalogInfo(productId) {
+    console.log('📋 Carregando informações de catálogo para produto:', productId);
+    
+    // Atualizar header
+    document.getElementById('catalog-shipping-header').innerHTML = `
+        <i class="bi bi-collection"></i> Informações de Catálogo
     `;
     
-    // Adicionar análise de competitividade se disponível
-    if (comparative.competitiveness.ml_price > 0) {
-        const comp = comparative.competitiveness;
+    // Primeiro tenta buscar do banco de dados
+    fetch(`/ml/products/api/product/${productId}/catalog/database`, {
+        credentials: 'include'
+    })
+        .then(response => {
+            console.log('📡 Resposta do catálogo:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Dados do catálogo recebidos:', data);
+            if (handleSessionError(null, data)) return;
+            if (data.success && data.is_catalog && data.catalog_products.length > 0) {
+                console.log('✅ Dados de catálogo encontrados, renderizando...');
+                // Mostrar dados do banco com data da última atualização
+                renderCatalogInfo(data);
+            } else {
+                console.log('⚠️ Nenhum dado de catálogo encontrado');
+                // Se não tem dados no banco, mostrar mensagem para sincronizar
+                const container = document.getElementById('catalog-shipping-content');
+                container.innerHTML = `
+                    <div class="alert alert-info text-center">
+                        <i class="bi bi-info-circle fs-1"></i>
+                        <h5 class="mt-3">Nenhum Dado Sincronizado</h5>
+                        <p>Este catálogo ainda não foi sincronizado com o banco de dados.</p>
+                        <p>Clique em "Sincronizar Catálogo" para importar os dados.</p>
+                        <button type="button" class="btn btn-success" onclick="syncCatalog()" id="sync-catalog-btn">
+                            <i class="bi bi-arrow-clockwise"></i> Sincronizar Catálogo
+                        </button>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erro ao carregar informações de catálogo do banco:', error);
+            // Mostrar mensagem de erro
+            const container = document.getElementById('catalog-shipping-content');
+            container.innerHTML = `
+                <div class="alert alert-danger text-center">
+                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                    <h5 class="mt-3">Erro ao Carregar Dados</h5>
+                    <p>Não foi possível carregar os dados do catálogo do banco de dados.</p>
+                    <p>Verifique sua conexão e tente novamente.</p>
+                    <button type="button" class="btn btn-primary" onclick="loadCatalogInfo(${productId})">
+                        <i class="bi bi-arrow-clockwise"></i> Tentar Novamente
+                    </button>
+                </div>
+            `;
+        });
+}
+
+function renderCatalogInfo(data) {
+    console.log('🎨 Renderizando informações de catálogo:', data);
+    
+    const container = document.getElementById('catalog-shipping-content');
+    
+    if (!data.catalog_products || data.catalog_products.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                Este produto é de catálogo, mas não há outros anunciantes encontrados.
+            </div>
+        `;
+        return;
+    }
+    
+    // Ordenar por preço
+    const sortedProducts = data.catalog_products.sort((a, b) => a.price - b.price);
+    
+    let html = `
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Anunciantes do Catálogo (${sortedProducts.length})</h6>
+                <small class="text-muted">Última atualização: ${data.last_updated || 'N/A'}</small>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Vendedor</th>
+                        <th>Preço</th>
+                        <th>Vendas</th>
+                        <th>Posição</th>
+                        <th>Envio</th>
+                        <th>Reputação</th>
+                        <th>Loja Oficial</th>
+                        <th>Desconto</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    sortedProducts.forEach(product => {
+        const priceFormatted = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(product.price);
+        
+        // Informações de envio
+        let shippingInfo = "Não disponível";
+        
+        if (product.shipping_free) {
+            shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
+        } else if (product.logistic_type && product.logistic_type !== 'default') {
+            switch(product.logistic_type) {
+                case 'fulfillment':
+                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
+                    break;
+                case 'xd_drop_off':
+                case 'drop_off':
+                    shippingInfo = '<span class="badge bg-warning">Correios</span>';
+                    break;
+                case 'cross_docking':
+                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
+                    break;
+                case 'me2':
+                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
+                    break;
+                default:
+                    shippingInfo = `<span class="badge bg-light text-dark">${getShippingTypeLabel(product.logistic_type)}</span>`;
+                    break;
+            }
+        }
+        
+        // Informações de reputação
+        let reputationBadge = "";
+        if (product.seller_reputation_level && product.seller_reputation_level !== "UNKNOWN") {
+            switch(product.seller_reputation_level) {
+                case "GREEN":
+                    reputationBadge = '<span class="badge bg-success">🟢 Verde</span>';
+                    break;
+                case "YELLOW":
+                    reputationBadge = '<span class="badge bg-warning">🟡 Amarelo</span>';
+                    break;
+                case "RED":
+                    reputationBadge = '<span class="badge bg-danger">🔴 Vermelho</span>';
+                    break;
+                default:
+                    reputationBadge = '<span class="badge bg-secondary">⚪ Neutro</span>';
+                    break;
+            }
+        } else {
+            reputationBadge = '<span class="badge bg-light text-dark">❓ Desconhecida</span>';
+        }
+        
+        // Loja oficial
+        const lojaOficialBadge = product.official_store_id ? 
+            '<span class="badge bg-info">Sim</span>' : 
+            '<span class="badge bg-secondary">Não</span>';
+        
+        // Desconto
+        const descontoBadge = (product.original_price && product.original_price > product.price) ? 
+            `<span class="badge bg-success">-${Math.round(((product.original_price - product.price) / product.original_price) * 100)}%</span>` : 
+            '';
+        
+        // Posição
+        let positionInfo = "";
+        if (product.buy_box_winner) {
+            positionInfo = '<span class="badge bg-success">🏆 Vencedor</span>';
+        } else if (product.position) {
+            if (product.position === 1) {
+                positionInfo = '<span class="badge bg-success">🥇 1º Lugar</span>';
+            } else if (product.position === 2) {
+                positionInfo = '<span class="badge bg-secondary">🥈 2º Lugar</span>';
+            } else if (product.position === 3) {
+                positionInfo = '<span class="badge bg-warning">🥉 3º Lugar</span>';
+            } else {
+                positionInfo = `<span class="badge bg-light text-dark">#${product.position}</span>`;
+            }
+        }
+        
+        // Total de vendas
+        const vendasInfo = product.seller_transactions_total > 0 ? 
+            `<span class="badge bg-primary">${product.seller_transactions_total}</span>` : 
+            '<span class="badge bg-secondary">0</span>';
+        
         html += `
-            <div class="mt-3">
-                <h6 class="text-info">🏆 Competitividade no Mercado</h6>
-                <div class="alert ${comp.is_competitive ? 'alert-success' : 'alert-warning'}">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <strong>Preço no ML:</strong> R$ ${comp.ml_price.toFixed(2)}
+            <tr>
+                <td>
+                    <div>
+                        <div class="fw-bold">${(product.seller_name && product.seller_name !== 'N/A') ? product.seller_name : product.seller_id}</div>
+                        ${product.seller_nickname && product.seller_nickname !== 'N/A' ? 
+                            `<small class="text-muted">${product.seller_nickname}</small>` : ''}
+                        <small class="text-muted d-block">${product.ml_item_id}</small>
+                    </div>
+                </td>
+                <td class="fw-bold">${priceFormatted}</td>
+                <td>${vendasInfo}</td>
+                <td>${positionInfo}</td>
+                <td>${shippingInfo}</td>
+                <td>${reputationBadge}</td>
+                <td>${lojaOficialBadge}</td>
+                <td>${descontoBadge}</td>
+                <td>
+                    <a href="${product.permalink}" 
+                       target="_blank" 
+                       class="btn btn-outline-primary btn-sm" 
+                       title="Ver anúncio">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">
+            <small class="text-muted">
+                <i class="bi bi-info-circle"></i>
+                Comparação de preços entre anunciantes do mesmo catálogo
+            </small>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+    
+    console.log('✅ Informações de catálogo renderizadas com sucesso');
+}
+
+function getShippingTypeLabel(logisticType) {
+    const translations = {
+        'fulfillment': 'Full Mercado Livre',
+        'xd_drop_off': 'Correios',
+        'drop_off': 'Correios',
+        'cross_docking': 'Coleta ML',
+        'me2': 'Mercado Envios',
+        'standard': 'Mercado Envios',
+        'default': 'Não disponível'
+    };
+    return translations[logisticType] || logisticType;
+}
+
+function loadCompetitiveAnalysis(productId) {
+    console.log('📊 Carregando análise competitiva para produto:', productId);
+    
+    fetch(`/ml/products/api/product/${productId}/catalog/database`, {
+        credentials: 'include'
+    })
+        .then(response => {
+            console.log('📡 Resposta da análise competitiva:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Dados da análise competitiva recebidos:', data);
+            if (handleSessionError(null, data)) return;
+            
+            if (data && data.success && data.catalog_products) {
+                console.log('✅ Dados de análise competitiva encontrados, renderizando...');
+                renderCompetitiveAnalysis(data.catalog_products);
+            } else {
+                console.log('⚠️ Nenhum dado de análise competitiva encontrado');
+                document.getElementById('catalog-analysis-content').innerHTML = 
+                    '<div class="text-center py-3"><p class="text-muted mb-0">Nenhum dado de catálogo disponível</p></div>';
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erro ao carregar análise competitiva:', error);
+            document.getElementById('catalog-analysis-content').innerHTML = 
+                '<div class="text-center py-3"><p class="text-danger mb-0">Erro ao carregar análise</p></div>';
+        });
+}
+
+function renderCompetitiveAnalysis(products) {
+    console.log('🎨 Renderizando análise competitiva:', products);
+    
+    const analysisContent = document.getElementById('catalog-analysis-content');
+    
+    if (!products || products.length === 0) {
+        analysisContent.innerHTML = `
+            <div class="text-center py-3">
+                <p class="text-muted mb-0">Nenhum dado de catálogo disponível</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Análise por tipo de envio
+    const shippingAnalysis = analyzeShippingTypes(products);
+    
+    // Top 3 anunciantes
+    const top3 = getTop3Announcers(products);
+    
+    // Análise de posicionamento
+    const positioningAnalysis = analyzePositioning(products);
+    
+    // Análise de MercadoLíder
+    const mercadoLiderAnalysis = analyzeMercadoLider(products);
+    
+    // Análise de faixas de valor
+    const priceRangesAnalysis = analyzePriceRanges(products);
+    
+    // Métricas gerais
+    const metrics = calculateMetrics(products);
+    
+    analysisContent.innerHTML = `
+        <div class="row">
+            <!-- Análise por Tipo de Envio -->
+            <div class="col-md-6 mb-4">
+                <h6 class="text-primary mb-3">
+                    <i class="bi bi-truck"></i> Distribuição por Envio
+                </h6>
+                <div class="row">
+                    ${Object.entries(shippingAnalysis).map(([type, count]) => `
+                        <div class="col-6 mb-2">
+                            <div class="d-flex justify-content-between">
+                                <span class="small">${getShippingTypeLabel(type)}</span>
+                                <span class="badge bg-primary">${count}</span>
+                            </div>
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <strong>Diferença:</strong> 
-                            <span class="${comp.price_difference > 0 ? 'text-danger' : 'text-success'}">
-                                ${comp.price_difference > 0 ? '+' : ''}R$ ${comp.price_difference.toFixed(2)} 
-                                (${comp.price_difference_pct.toFixed(1)}%)
-                            </span>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <!-- Top 3 Anunciantes -->
+            <div class="col-md-6 mb-4">
+                <h6 class="text-success mb-3">
+                    <i class="bi bi-trophy"></i> Top 3 Anunciantes
+                </h6>
+                ${top3.map((announcer, index) => `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 ${index === 0 ? 'bg-light rounded' : ''}">
+                        <div>
+                            <span class="badge ${index === 0 ? 'bg-warning' : index === 1 ? 'bg-secondary' : 'bg-dark'}">${announcer.position || (index + 1)}º</span>
+                            <strong>${getSellerDisplayName(announcer)}</strong>
+                        </div>
+                        <div class="text-end">
+                            <div class="small text-muted">R$ ${(announcer.price).toFixed(2)}</div>
+                            <div class="small">${announcer.shipping_type}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        
+        <!-- Análise por Faixas de Valor e MercadoLíder -->
+        <div class="row">
+            <!-- Análise por Faixas de Valor -->
+            <div class="col-md-6 mb-4">
+                <h6 class="text-success mb-3">
+                    <i class="bi bi-currency-dollar"></i> Distribuição por Faixas de Valor
+                </h6>
+                <div class="row">
+                    ${Object.entries(analyzePriceRanges(products)).map(([range, count]) => `
+                        <div class="col-6 mb-2">
+                            <div class="d-flex justify-content-between">
+                                <span class="small">${getPriceRangeLabel(range)}</span>
+                                <span class="badge ${getPriceRangeBadgeClass(range)}">${count}</span>
+                            </div>
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar ${getPriceRangeProgressClass(range)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <!-- Distribuição por MercadoLíder -->
+            <div class="col-md-6 mb-4">
+                <h6 class="text-warning mb-3">
+                    <i class="bi bi-award"></i> Distribuição por MercadoLíder
+                </h6>
+                <div class="row">
+                    ${Object.entries(analyzeMercadoLider(products)).map(([level, count]) => `
+                        <div class="col-6 mb-2">
+                            <div class="d-flex justify-content-between">
+                                <span class="small">${getMercadoLiderLabel(level)}</span>
+                                <span class="badge ${getMercadoLiderBadgeClass(level)}">${count}</span>
+                            </div>
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar ${getMercadoLiderProgressClass(level)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Análise de Posicionamento -->
+        <div class="row">
+            <div class="col-md-12 mb-4">
+                <h6 class="text-info mb-3">
+                    <i class="bi bi-graph-up"></i> Análise de Posicionamento
+                </h6>
+                <div class="row">
+                    <div class="col-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="text-primary">${metrics.total_announcers}</h5>
+                                <small class="text-muted">Total de Anunciantes</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="text-warning">${positioningAnalysis.your_position || 'N/A'}</h5>
+                                <small class="text-muted">Sua Posição</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="text-success">R$ ${parseFloat(metrics.min_price).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h6>
+                                <small class="text-muted">Menor Preço</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="text-info">R$ ${parseFloat(metrics.avg_price).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h6>
+                                <small class="text-muted">Preço Médio</small>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        `;
+        </div>
+    `;
+    
+    console.log('✅ Análise competitiva renderizada com sucesso');
+}
+
+// Funções auxiliares para análise competitiva
+function analyzeShippingTypes(products) {
+    const shippingTypes = {};
+    products.forEach(product => {
+        const shippingType = getShippingTypeFromProduct(product);
+        shippingTypes[shippingType] = (shippingTypes[shippingType] || 0) + 1;
+    });
+    return shippingTypes;
+}
+
+function getShippingTypeFromProduct(product) {
+    if (product.shipping_free) return 'frete_gratis';
+    if (product.logistic_type === 'fulfillment') return 'full';
+    if (product.logistic_type === 'cross_docking') return 'coleta_ml';
+    if (product.shipping_method === 'me2') return 'mercado_envios';
+    if (product.shipping_method === 'drop_off' || product.shipping_method === 'xd_drop_off') return 'correios';
+    return 'outros';
+}
+
+function getSellerDisplayName(seller) {
+    if (seller.seller_name && seller.seller_name !== 'N/A') {
+        return seller.seller_name;
+    }
+    if (seller.seller_nickname && seller.seller_nickname !== 'N/A') {
+        return seller.seller_nickname;
+    }
+    return seller.seller_id || 'N/A';
+}
+
+function getTop3Announcers(products) {
+    const sorted = products
+        .sort((a, b) => (a.position || 999) - (b.position || 999))
+        .slice(0, 3);
+    
+    return sorted.map(product => ({
+        ...product,
+        shipping_type: getShippingTypeLabel(getShippingTypeFromProduct(product))
+    }));
+}
+
+function analyzePositioning(products) {
+    if (!products || products.length === 0) {
+        return {
+            your_position: null,
+            total_competitors: 0,
+            best_position: null,
+            your_price: null
+        };
     }
     
+    // Buscar especificamente pelo seu produto MLB5588063084
+    const yourProduct = products.find(p => p.ml_item_id === 'MLB5588063084');
     
-    // Adicionar ao conteúdo existente ao invés de substituir
-    feesContainer.insertAdjacentHTML('beforeend', html);
+    // Encontrar a melhor posição geral
+    const positions = products.map(p => parseInt(p.position) || 999);
+    const bestPosition = Math.min(...positions);
+    
+    return {
+        your_position: yourProduct ? (parseInt(yourProduct.position) || null) : null,
+        total_competitors: products.length - 1,
+        best_position: bestPosition,
+        your_price: yourProduct ? (parseFloat(yourProduct.price) || null) : null
+    };
 }
 
-async function renderIntegratedPricingAnalysis(mlFees, internalAnalysis) {
-    console.log('🔄 Renderizando análise integrada:', { mlFees, internalAnalysis });
-    const feesContainer = document.getElementById('marketplace-fees');
+function calculateMetrics(products) {
+    const totalPrice = products.reduce((sum, product) => sum + product.price, 0);
+    const avgPrice = (totalPrice / products.length).toFixed(2);
     
-    const internalProduct = internalAnalysis.internal_product;
-    const comparative = internalAnalysis.comparative_analysis;
-    
-    // Calcular custos totais do ML usando API oficial
-    const productPrice = internalProduct.selling_price;
-    const mlCommissionData = await calculateMLCommission(productPrice);
-    const mlCommission = mlCommissionData.total;
-    const mlShipping = mlFees.shipping || 0;
-    const mlAdditionalFees = mlFees.additional_fees || 0;
-    const totalMLCosts = mlCommission + mlShipping + mlAdditionalFees;
-    
-    // Calcular custos totais (internos + ML)
-    const totalCosts = internalProduct.total_costs_with_tax + totalMLCosts;
-    
-    // Calcular margem final
-    const finalMargin = ((internalProduct.selling_price - totalCosts) / internalProduct.selling_price) * 100;
-    
-    let html = `
-        <div class="list-group list-group-flush">
-            <div class="list-group-item d-flex justify-content-between">
-                <span>Preço de Venda:</span>
-                <span>R$ ${internalProduct.selling_price.toFixed(2)}</span>
-            </div>
-            <div class="list-group-item d-flex justify-content-between">
-                <span>Preço Custo Produto:</span>
-                <span>R$ ${internalProduct.cost_price.toFixed(2)}</span>
-            </div>
-            <div class="list-group-item d-flex justify-content-between">
-                <span>Marketing (${internalProduct.marketing_cost.toFixed(1)}%):</span>
-                <span>R$ ${(internalProduct.selling_price * internalProduct.marketing_cost / 100).toFixed(2)}</span>
-            </div>
-            <div class="list-group-item d-flex justify-content-between">
-                <span>Outros Custos:</span>
-                <span>R$ ${internalProduct.other_costs.toFixed(2)}</span>
-            </div>
-            <div class="list-group-item d-flex justify-content-between">
-                <span>Impostos (${internalProduct.tax_rate}%):</span>
-                <span>R$ ${internalProduct.tax_amount.toFixed(2)}</span>
-            </div>
-            <div class="list-group-item d-flex justify-content-between">
-                <span>Comissão ML (${mlCommissionData.listingType}):</span>
-                <span>R$ ${mlCommission.toFixed(2)}</span>
-            </div>
-            ${mlCommissionData.details.fixed_fee > 0 ? `
-            <div class="list-group-item d-flex justify-content-between">
-                <span>&nbsp;&nbsp;• Taxa Fixa:</span>
-                <span>R$ ${mlCommissionData.details.fixed_fee.toFixed(2)}</span>
-            </div>
-            ` : ''}
-            ${mlCommissionData.details.percentage_fee > 0 ? `
-            <div class="list-group-item d-flex justify-content-between">
-                <span>&nbsp;&nbsp;• Taxa Percentual (${mlCommissionData.details.percentage_fee}%):</span>
-                <span>R$ ${mlCommissionData.details.percentage_amount.toFixed(2)}</span>
-            </div>
-            ` : ''}
-            <div class="list-group-item d-flex justify-content-between">
-                <span>Frete:</span>
-                <span>R$ ${mlShipping.toFixed(2)}</span>
-            </div>
-            ${productPrice >= 79.90 ? `
-            <div class="list-group-item d-flex justify-content-between text-success">
-                <span>🚚 Frete Gratuito:</span>
-                <span>Obrigatório (acima R$ 79,90)</span>
-            </div>
-            ` : ''}
-            <div class="list-group-item d-flex justify-content-between">
-                <span>Taxas Adicionais:</span>
-                <span>R$ ${mlAdditionalFees.toFixed(2)}</span>
-            </div>
-        </div>
-    `;
-    
-    // Substituir o conteúdo do card
-    feesContainer.innerHTML = html;
+    return {
+        total_announcers: products.length,
+        avg_price: avgPrice,
+        min_price: (Math.min(...products.map(p => p.price))).toFixed(2),
+        max_price: (Math.max(...products.map(p => p.price))).toFixed(2)
+    };
 }
 
-           function renderMarketplaceFees(fees) {
-               const feesContainer = document.getElementById('marketplace-fees');
-               
-               if (!fees || (Array.isArray(fees) && fees.length === 0)) {
-                   feesContainer.innerHTML = `
-                       <div class="alert alert-warning">
-                           <i class="bi bi-exclamation-triangle"></i>
-                           Nenhuma taxa encontrada para este produto.
-                       </div>
-                   `;
-                   return;
-               }
-               
-               // Se fees é um array, mostrar comparação entre tipos de anúncio
-               // Se fees é um objeto, usar diretamente
-               if (Array.isArray(fees)) {
-                   renderMultipleListingTypes(fees);
-               } else {
-                   renderSingleListingType(fees);
-               }
-           }
-           
-           function renderSingleListingType(fee) {
-               const feesContainer = document.getElementById('marketplace-fees');
-               const calculatedFees = fee.calculated_fees || {};
-               const saleFeeDetails = fee.sale_fee_details || {};
-               const shippingInfo = fee.shipping_info || {};
-               
-               // Buscar preço do produto (usar preço padrão se não disponível)
-               const productPrice = fee.product_price || 0;
-               
-               feesContainer.innerHTML = `
-                   <div class="mb-3">
-                       <h6 class="text-primary mb-2">
-                           <i class="bi bi-tag"></i> ${fee.listing_type_name || 'Tipo de Anúncio'}
-                       </h6>
-                       <div class="d-flex justify-content-between">
-                           <span>Taxa de Publicação:</span>
-                           <strong class="${(fee.listing_fee_amount || 0) === 0 ? 'text-success' : 'text-primary'}">
-                               ${formatPrice(fee.listing_fee_amount || 0)}
-                           </strong>
-                       </div>
-                       <small class="text-muted">
-                           Exposição: ${fee.listing_exposure || 'N/A'}
-                       </small>
-                   </div>
-                   
-                   <div class="mb-3">
-                       <h6 class="text-primary mb-2">
-                           <i class="bi bi-cart-check"></i> Taxa de Venda
-                       </h6>
-                       
-                       <div class="d-flex justify-content-between mb-1">
-                           <span class="text-muted">Taxa Fixa:</span>
-                           <span class="text-primary">${formatPrice(calculatedFees.fixed_fee_amount || 0)}</span>
-                       </div>
-                       
-                       <div class="d-flex justify-content-between mb-1">
-                           <span class="text-muted">Comissão ML (${saleFeeDetails.percentage_fee || 0}%):</span>
-                           <span class="text-primary">${formatPrice(calculatedFees.percentage_fee_amount || 0)}</span>
-                       </div>
-                       
-                       ${saleFeeDetails.financing_add_on_fee > 0 ? `
-                           <div class="d-flex justify-content-between mb-1">
-                               <span class="text-muted">Taxa de Financiamento (${saleFeeDetails.financing_add_on_fee}%):</span>
-                               <span class="text-primary">${formatPrice(calculatedFees.financing_fee_amount || 0)}</span>
-                           </div>
-                       ` : ''}
-                       
-                       <hr class="my-2">
-                       <div class="d-flex justify-content-between fw-bold">
-                           <span>Subtotal Taxa de Venda:</span>
-                           <span class="text-primary">${formatPrice(calculatedFees.total_sale_fees || 0)}</span>
-                       </div>
-                   </div>
-                   
-                   <div class="mb-3">
-                       <h6 class="text-primary mb-2">
-                           <i class="bi bi-truck"></i> Frete
-                       </h6>
-                       <div class="d-flex justify-content-between mb-1">
-                           <span>Frete:</span>
-                           <strong class="${shippingInfo.free_shipping ? 'text-success' : 'text-primary'}">
-                               ${shippingInfo.free_shipping ? 'GRÁTIS (R$ 0,00)' : formatPrice(calculatedFees.shipping_cost || 0)}
-                           </strong>
-                       </div>
-                       
-                       <div class="d-flex justify-content-between mb-1">
-                           <span class="text-muted">Tipo Logístico:</span>
-                           <span class="text-info">${getShippingTypeLabel(shippingInfo.logistic_type) || 'N/A'}</span>
-                       </div>
-                   </div>
-                   
-                   <hr class="my-3">
-                   <div class="d-flex justify-content-between fw-bold fs-5">
-                       <span class="text-dark">TOTAL DE CUSTOS:</span>
-                       <span class="text-danger">${formatPrice(calculatedFees.total_cost_with_shipping || 0)}</span>
-                   </div>
-                   
-                   <div class="mt-3">
-                       <div class="row text-center">
-                           <div class="col-6">
-                               <small class="text-muted">Margem de Lucro</small>
-                               <div class="fw-bold ${(calculatedFees.profit_margin_percentage || 0) >= 20 ? 'text-success' : (calculatedFees.profit_margin_percentage || 0) >= 10 ? 'text-warning' : 'text-danger'}">
-                                   ${(calculatedFees.profit_margin_percentage || 0).toFixed(1)}%
-                               </div>
-                           </div>
-                           <div class="col-6">
-                               <small class="text-muted">Lucro Líquido</small>
-                               <div class="fw-bold ${(calculatedFees.net_profit || 0) > 0 ? 'text-success' : 'text-danger'}">
-                                   ${formatPrice(calculatedFees.net_profit || 0)}
-                               </div>
-                           </div>
-                       </div>
-                   </div>
-               `;
-           }
-           
-           function renderMultipleListingTypes(fees) {
-               const feesContainer = document.getElementById('marketplace-fees');
-               const productPrice = 0; // Preço não disponível após remoção do elemento
-               
-               let html = '<h6 class="text-primary mb-3"><i class="bi bi-bar-chart"></i> Comparação de Tipos de Anúncio</h6>';
-               
-               // Ordenar por custo total crescente
-               fees.sort((a, b) => {
-                   const costA = (a.calculated_fees?.total_cost_with_shipping || 0);
-                   const costB = (b.calculated_fees?.total_cost_with_shipping || 0);
-                   return costA - costB;
-               });
-               
-               fees.forEach((fee, index) => {
-                   const calculatedFees = fee.calculated_fees || {};
-                   const shippingInfo = fee.shipping_info || {};
-                   const isBestOption = index === 0;
-                   
-                   html += `
-                       <div class="card mb-2 ${isBestOption ? 'border-success' : ''}">
-                           <div class="card-body py-2">
-                               <div class="d-flex justify-content-between align-items-center">
-                                   <div>
-                                       <h6 class="mb-0 ${isBestOption ? 'text-success' : ''}">
-                                           ${fee.listing_type_name || 'N/A'}
-                                           ${isBestOption ? '<i class="bi bi-star-fill text-warning ms-1"></i>' : ''}
-                                       </h6>
-                                       <small class="text-muted">${fee.listing_exposure || 'N/A'} • ${fee.requires_picture ? 'Com foto' : 'Sem foto'}</small>
-                                   </div>
-                                   <div class="text-end">
-                                       <div class="fw-bold ${isBestOption ? 'text-success' : 'text-primary'}">
-                                           ${formatPrice(calculatedFees.total_cost_with_shipping || 0)}
-                                       </div>
-                                       <small class="text-muted">
-                                           Lucro: ${formatPrice(calculatedFees.net_profit || 0)}
-                                           (${(calculatedFees.profit_margin_percentage || 0).toFixed(1)}%)
-                                       </small>
-                                   </div>
-                               </div>
-                           </div>
-                       </div>
-                   `;
-               });
-               
-               // Adicionar resumo
-               const bestOption = fees[0];
-               const worstOption = fees[fees.length - 1];
-               const bestFees = bestOption.calculated_fees || {};
-               const worstFees = worstOption.calculated_fees || {};
-               
-               html += `
-                   <div class="mt-3 p-3 bg-light rounded">
-                       <h6 class="text-success mb-2">
-                           <i class="bi bi-lightbulb"></i> Recomendação
-                       </h6>
-                       <p class="mb-1">
-                           <strong>Melhor opção:</strong> ${bestOption.listing_type_name} 
-                           - Custo total: ${formatPrice(bestFees.total_cost_with_shipping || 0)}
-                           - Lucro: ${formatPrice(bestFees.net_profit || 0)}
-                       </p>
-                       <p class="mb-0">
-                           <strong>Economia:</strong> ${formatPrice((worstFees.total_cost_with_shipping || 0) - (bestFees.total_cost_with_shipping || 0))} 
-                           comparado ao ${worstOption.listing_type_name}
-                       </p>
-                   </div>
-               `;
-               
-               feesContainer.innerHTML = html;
-           }
+function analyzeMercadoLider(products) {
+    const levels = {};
+    products.forEach(product => {
+        const level = getMercadoLiderLevel(product);
+        levels[level] = (levels[level] || 0) + 1;
+    });
+    return levels;
+}
 
-function showFeesError(message) {
-    const feesContainer = document.getElementById('marketplace-fees');
-    feesContainer.innerHTML = `
-        <div class="alert alert-danger">
-            <i class="bi bi-exclamation-triangle"></i>
-            <strong>Erro ao carregar análise de preços:</strong> ${message}
-        </div>
-    `;
+function analyzePriceRanges(products) {
+    const ranges = {};
+    products.forEach(product => {
+        const range = getPriceRange(product.price);
+        ranges[range] = (ranges[range] || 0) + 1;
+    });
+    return ranges;
+}
+
+function getPriceRange(price) {
+    if (price <= 10) return 'ate_10';
+    if (price <= 20) return '10_20';
+    if (price <= 30) return '20_30';
+    if (price <= 50) return '30_50';
+    if (price <= 100) return '50_100';
+    return 'acima_100';
+}
+
+function getPriceRangeLabel(range) {
+    const labels = {
+        'ate_10': 'Até R$ 10',
+        '10_20': 'R$ 10 - R$ 20',
+        '20_30': 'R$ 20 - R$ 30',
+        '30_50': 'R$ 30 - R$ 50',
+        '50_100': 'R$ 50 - R$ 100',
+        'acima_100': 'Acima de R$ 100'
+    };
+    return labels[range] || range;
+}
+
+function getPriceRangeBadgeClass(range) {
+    const classes = {
+        'ate_10': 'bg-success',
+        '10_20': 'bg-primary',
+        '20_30': 'bg-info',
+        '30_50': 'bg-warning',
+        '50_100': 'bg-danger',
+        'acima_100': 'bg-dark'
+    };
+    return classes[range] || 'bg-secondary';
+}
+
+function getPriceRangeProgressClass(range) {
+    const classes = {
+        'ate_10': 'bg-success',
+        '10_20': 'bg-primary',
+        '20_30': 'bg-info',
+        '30_50': 'bg-warning',
+        '50_100': 'bg-danger',
+        'acima_100': 'bg-dark'
+    };
+    return classes[range] || 'bg-secondary';
+}
+
+function getMercadoLiderLevel(product) {
+    const status = product.seller_power_seller_status;
+    if (!status || status === 'N/A') {
+        return 'sem_medalha';
+    }
+    
+    if (status === 'platinum') {
+        return 'platinum';
+    } else if (status === 'gold') {
+        return 'gold';
+    } else if (status === 'silver') {
+        return 'silver';
+    }
+    
+    return 'sem_medalha';
+}
+
+function getMercadoLiderLabel(level) {
+    const labels = {
+        'platinum': '🥇 MercadoLíder Platinum',
+        'gold': '🥈 MercadoLíder Gold',
+        'silver': '🥉 MercadoLíder',
+        'sem_medalha': '⚪ Sem Medalha'
+    };
+    return labels[level] || level;
+}
+
+function getMercadoLiderBadgeClass(level) {
+    const classes = {
+        'platinum': 'bg-info',
+        'gold': 'bg-warning',
+        'silver': 'bg-secondary',
+        'sem_medalha': 'bg-success text-white'
+    };
+    return classes[level] || 'bg-secondary';
+}
+
+function getMercadoLiderProgressClass(level) {
+    const classes = {
+        'platinum': 'bg-info',
+        'gold': 'bg-warning',
+        'silver': 'bg-secondary',
+        'sem_medalha': 'bg-success'
+    };
+    return classes[level] || 'bg-secondary';
 }
 
 function loadShippingCosts(product) {
     // Simular carregamento de custos de envio
     setTimeout(() => {
-        const shippingContainer = document.getElementById('shipping-costs');
-        shippingContainer.innerHTML = `
+        const shippingContainer = document.getElementById('catalog-shipping-content');
+        if (shippingContainer) {
+            shippingContainer.innerHTML = `
             <div class="mb-3">
                 <label class="form-label">CEP de Destino:</label>
                 <div class="input-group">
@@ -754,87 +1012,9 @@ function loadShippingCosts(product) {
                 </div>
             </div>
         `;
+        }
     }, 1500);
 }
-
-function loadProfitabilityAnalysis(product) {
-    // Aguardar que as taxas sejam carregadas primeiro
-    setTimeout(() => {
-        const profitabilityContainer = document.getElementById('profitability-analysis');
-        const productPrice = parseFloat(product.price) || 0;
-        
-        // Tentar obter os custos das taxas já calculadas
-        const feesContainer = document.getElementById('marketplace-fees');
-        let totalFees = 0;
-        let profitMargin = 0;
-        let roi = 0;
-        
-        // Extrair custos totais se já estiverem calculados
-        const totalCostsElement = feesContainer.querySelector('[class*="total-cost"]') || 
-                                  Array.from(feesContainer.querySelectorAll('*')).find(el => el.textContent.includes('TOTAL DE CUSTOS'));
-        
-        if (totalCostsElement) {
-            const costText = totalCostsElement.textContent;
-            const costMatch = costText.match(/R\$\s*([0-9,]+\.?[0-9]*)/);
-            if (costMatch) {
-                totalFees = parseFloat(costMatch[1].replace(',', '.'));
-            }
-        }
-        
-        // Se não encontrou os custos, usar valor padrão baseado no produto
-        if (totalFees === 0) {
-            // Estimativa baseada no preço (taxa média do Mercado Livre ~15%)
-            totalFees = productPrice * 0.15;
-        }
-        
-        const netProfit = productPrice - totalFees;
-        profitMargin = productPrice > 0 ? (netProfit / productPrice) * 100 : 0;
-        roi = totalFees > 0 ? (netProfit / totalFees) * 100 : 0;
-        
-        profitabilityContainer.innerHTML = `
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="text-center p-3 border rounded">
-                        <h6 class="text-muted">Preço de Venda</h6>
-                        <h4 class="text-primary">${formatPrice(productPrice)}</h4>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="text-center p-3 border rounded">
-                        <h6 class="text-muted">Custos Totais</h6>
-                        <h4 class="text-danger">${formatPrice(totalFees)}</h4>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="text-center p-3 border rounded">
-                        <h6 class="text-muted">Lucro Líquido</h6>
-                        <h4 class="text-success">${formatPrice(netProfit)}</h4>
-                    </div>
-                </div>
-            </div>
-            <hr>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="d-flex justify-content-between">
-                        <span>Margem de Lucro:</span>
-                        <strong class="${profitMargin >= 20 ? 'text-success' : profitMargin >= 10 ? 'text-warning' : 'text-danger'}">
-                            ${profitMargin.toFixed(1)}%
-                        </strong>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="d-flex justify-content-between">
-                        <span>ROI:</span>
-                        <strong class="${roi >= 50 ? 'text-success' : roi >= 25 ? 'text-warning' : 'text-danger'}">
-                            ${roi.toFixed(1)}%
-                        </strong>
-                    </div>
-                </div>
-            </div>
-        `;
-    }, 3000); // Aumentar tempo para aguardar cálculo das taxas
-}
-
 
 function calculateShipping() {
     const zipCode = document.getElementById('destination-zip').value;
@@ -969,765 +1149,6 @@ function formatPrice(price, currency = 'BRL') {
     }).format(numericPrice);
 }
 
-function formatProductPriceForAnalysis(product) {
-    if (!product.price) return '<span class="text-muted">N/A</span>';
-    
-    const currentPrice = parseFloat(product.price);
-    const originalPrice = product.original_price ? parseFloat(product.original_price) : null;
-    const basePrice = product.base_price ? parseFloat(product.base_price) : null;
-    
-    // Se há preço original e é diferente do preço atual, mostrar desconto
-    if (originalPrice && originalPrice > currentPrice && originalPrice > 0) {
-        const discountPercent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
-        
-        return `
-            <div class="d-flex flex-column">
-                <div class="text-success fw-bold">
-                    ${formatPrice(currentPrice, product.currency_id)}
-                </div>
-                <div class="text-decoration-line-through text-muted small">
-                    ${formatPrice(originalPrice, product.currency_id)}
-                </div>
-                <div class="badge bg-danger small">
-                    -${discountPercent}%
-                </div>
-            </div>
-        `;
-    }
-    
-    // Se há base_price diferente do preço atual, mostrar promoção
-    if (basePrice && basePrice > currentPrice && basePrice > 0) {
-        const discountPercent = Math.round(((basePrice - currentPrice) / basePrice) * 100);
-        
-        return `
-            <div class="d-flex flex-column">
-                <div class="text-success fw-bold">
-                    ${formatPrice(currentPrice, product.currency_id)}
-                </div>
-                <div class="text-decoration-line-through text-muted small">
-                    ${formatPrice(basePrice, product.currency_id)}
-                </div>
-                <div class="badge bg-warning text-dark small">
-                    -${discountPercent}%
-                </div>
-            </div>
-        `;
-    }
-    
-    // Preço normal sem desconto
-    return `
-        <div class="text-primary fw-bold">
-            ${formatPrice(currentPrice, product.currency_id)}
-        </div>
-    `;
-}
-
-function getStatusBadge(status) {
-    const statusMap = {
-        'active': '<span class="badge bg-success">Ativo</span>',
-        'paused': '<span class="badge bg-warning">Pausado</span>',
-        'closed': '<span class="badge bg-danger">Fechado</span>',
-        'under_review': '<span class="badge bg-info">Em Revisão</span>',
-        'inactive': '<span class="badge bg-secondary">Inativo</span>'
-    };
-    return statusMap[status] || '<span class="badge bg-secondary">Desconhecido</span>';
-}
-
-function checkCatalogInfo(product) {
-    // Verificar se o produto é de catálogo
-    if (product.catalog_listing) {
-        loadCatalogInfo(product.id);
-        // Mostrar cards de catálogo
-        document.getElementById('competitive-analysis-card').style.display = 'block';
-        document.getElementById('catalog-info-card').style.display = 'block';
-    } else {
-        loadShippingCosts(product);
-        // Ocultar cards de catálogo
-        document.getElementById('competitive-analysis-card').style.display = 'none';
-        document.getElementById('catalog-info-card').style.display = 'none';
-    }
-}
-
-function loadCatalogInfo(productId) {
-    // Atualizar header
-    document.getElementById('catalog-shipping-header').innerHTML = `
-        <i class="bi bi-collection"></i> Informações de Catálogo
-    `;
-    
-    // Primeiro tenta buscar do banco de dados
-    fetch(`/ml/products/api/product/${productId}/catalog/database`)
-        .then(response => response.json())
-        .then(data => {
-            if (handleSessionError(null, data)) return;
-            if (data.success && data.is_catalog && data.catalog_products.length > 0) {
-                // Mostrar dados do banco com data da última atualização
-                renderCatalogInfo(data);
-            } else {
-                // Se não tem dados no banco, mostrar mensagem para sincronizar
-                const container = document.getElementById('catalog-shipping-content');
-                container.innerHTML = `
-                    <div class="alert alert-info text-center">
-                        <i class="bi bi-info-circle fs-1"></i>
-                        <h5 class="mt-3">Nenhum Dado Sincronizado</h5>
-                        <p>Este catálogo ainda não foi sincronizado com o banco de dados.</p>
-                        <p>Clique em "Sincronizar Catálogo" para importar os dados.</p>
-                        <button type="button" class="btn btn-success" onclick="syncCatalog()" id="sync-catalog-btn">
-                            <i class="bi bi-arrow-clockwise"></i> Sincronizar Catálogo
-                        </button>
-                    </div>
-                `;
-            }
-        })
-        .catch(error => {
-            console.error('Erro ao carregar informações de catálogo do banco:', error);
-            // Mostrar mensagem de erro
-            const container = document.getElementById('catalog-shipping-content');
-            container.innerHTML = `
-                <div class="alert alert-danger text-center">
-                    <i class="bi bi-exclamation-triangle fs-1"></i>
-                    <h5 class="mt-3">Erro ao Carregar Dados</h5>
-                    <p>Não foi possível carregar os dados do catálogo do banco de dados.</p>
-                    <p>Verifique sua conexão e tente novamente.</p>
-                    <button type="button" class="btn btn-primary" onclick="loadCatalogInfo(${productId})">
-                        <i class="bi bi-arrow-clockwise"></i> Tentar Novamente
-                    </button>
-                </div>
-            `;
-        });
-}
-
-function renderCatalogInfo(data, fromDatabase = true) {
-    const container = document.getElementById('catalog-shipping-content');
-    
-    if (data.catalog_products.length === 0) {
-        container.innerHTML = `
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i>
-                Este produto é de catálogo, mas não há outros anunciantes encontrados.
-            </div>
-        `;
-        return;
-    }
-    
-    // Ordenar por preço
-    const sortedProducts = data.catalog_products.sort((a, b) => a.price - b.price);
-    
-    let html = `
-        <div class="mb-3">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="text-muted mb-1">Catálogo ID: ${data.catalog_product_id}</h6>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-primary">${data.total_announcers} Anunciantes</span>
-                        ${fromDatabase && data.last_sync ? `
-                            <small class="text-muted">
-                                <i class="bi bi-clock"></i> Última atualização: ${new Date(data.last_sync).toLocaleString('pt-BR')}
-                            </small>
-                        ` : ''}
-                        ${fromDatabase ? `
-                            <span class="badge bg-success">Dados Locais</span>
-                        ` : `
-                            <span class="badge bg-warning">Dados da API</span>
-                        `}
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Filtros -->
-        <div class="row mb-3">
-            <div class="col-md-2">
-                <label class="form-label small">Posição</label>
-                <select class="form-select form-select-sm" id="filter-position" onchange="filterCatalog()">
-                    <option value="">Todas</option>
-                    <option value="1-5">1º - 5º</option>
-                    <option value="6-10">6º - 10º</option>
-                    <option value="11-20">11º - 20º</option>
-                    <option value="21+">21º+</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small">Preço</label>
-                <select class="form-select form-select-sm" id="filter-price" onchange="filterCatalog()">
-                    <option value="">Todos</option>
-                    <option value="0-50">Até R$ 50</option>
-                    <option value="50-100">R$ 50 - R$ 100</option>
-                    <option value="100+">Acima de R$ 100</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small">Envio</label>
-                <select class="form-select form-select-sm" id="filter-shipping" onchange="filterCatalog()">
-                    <option value="">Todos</option>
-                    <option value="full">Full Mercado Livre</option>
-                    <option value="correios">Correios</option>
-                    <option value="coleta">Coleta ML</option>
-                    <option value="mercado_envios">Mercado Envios</option>
-                    <option value="frete_gratis">Frete Grátis</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small">MercadoLíder</label>
-                <select class="form-select form-select-sm" id="filter-mercadolider" onchange="filterCatalog()">
-                    <option value="">Todos</option>
-                    <option value="platinum">Platinum</option>
-                    <option value="gold">Gold</option>
-                    <option value="silver">Silver</option>
-                    <option value="sem_medalha">Sem Medalha</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small">&nbsp;</label>
-                <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">
-                    <i class="bi bi-x-circle"></i> Limpar Filtros
-                </button>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small">Resultados</label>
-                <div class="form-control form-control-sm bg-light text-center" id="filter-results">
-                    <small class="text-muted">Carregando...</small>
-                </div>
-            </div>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                <th>Anunciante</th>
-                <th>Preço</th>
-                <th>Vendas</th>
-                <th>Posição</th>
-                <th>Envio</th>
-                <th>Reputação</th>
-                <th>Loja Oficial</th>
-                <th>Desconto</th>
-                <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-    
-    sortedProducts.forEach(product => {
-        const priceFormatted = new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-        }).format(product.price);
-        
-        // Informações de envio - usar dados reais da API
-        let shippingInfo = "Não disponível";
-        
-        // Debug: verificar valores
-        console.log('Debug shipping:', {
-            shipping_free: product.shipping_free,
-            shipping_method: product.shipping_method,
-            logistic_type: product.logistic_type,
-            shipping_tags: product.shipping_tags
-        });
-        
-        if (product.shipping_free) {
-            shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
-        } else if (product.logistic_type && product.logistic_type !== 'default') {
-            // Priorizar logistic_type (tipo real de envio)
-            switch(product.logistic_type) {
-                case 'fulfillment':
-                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
-                    break;
-                case 'xd_drop_off':
-                case 'drop_off':
-                    shippingInfo = '<span class="badge bg-warning">Correios</span>';
-                    break;
-                case 'cross_docking':
-                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
-                    break;
-                case 'me2':
-                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
-                    break;
-                default:
-                    shippingInfo = `<span class="badge bg-light text-dark">${getShippingTypeLabel(product.logistic_type)}</span>`;
-                    break;
-            }
-        } else if (product.shipping_method && product.shipping_method !== 'standard') {
-            // Fallback para shipping_method (mode da API)
-            switch(product.shipping_method) {
-                case 'fulfillment':
-                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
-                    break;
-                case 'xd_drop_off':
-                case 'drop_off':
-                    shippingInfo = '<span class="badge bg-warning">Correios</span>';
-                    break;
-                case 'cross_docking':
-                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
-                    break;
-                case 'me2':
-                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
-                    break;
-                default:
-                    shippingInfo = `<span class="badge bg-light text-dark">${getShippingTypeLabel(product.shipping_method)}</span>`;
-                    break;
-            }
-        } else {
-            // Se não tem informações específicas, mostrar "N/A"
-            shippingInfo = '<span class="badge bg-light text-dark">Não disponível</span>';
-        }
-        
-        // Informações de garantia
-        let warrantyInfo = product.warranty || "";
-        if (warrantyInfo && warrantyInfo !== "N/A" && warrantyInfo.length > 30) {
-            warrantyInfo = warrantyInfo.substring(0, 30) + "...";
-        } else if (!warrantyInfo || warrantyInfo === "N/A") {
-            warrantyInfo = "";
-        }
-        
-        // Tags do produto
-        let productTags = "";
-        if (product.tags && product.tags.length > 0) {
-            const importantTags = product.tags.filter(tag => 
-                ['good_quality_picture', 'immediate_payment', 'cart_eligible'].includes(tag)
-            );
-            if (importantTags.length > 0) {
-                // Função para traduzir tags para português
-                const translateTag = (tag) => {
-                    const translations = {
-                        'good_quality_picture': 'Imagem de Qualidade',
-                        'immediate_payment': 'Pagamento Imediato',
-                        'cart_eligible': 'Elegível para Carrinho'
-                    };
-                    return translations[tag] || tag.replace(/_/g, ' ');
-                };
-                
-                productTags = `<div class="mt-1">${importantTags.map(tag => 
-                    `<span class="badge bg-light text-dark me-1">${translateTag(tag)}</span>`
-                ).join('')}</div>`;
-            }
-        }
-        
-        // Total de vendas do vendedor
-        const vendasInfo = product.seller_transactions_total > 0 ? 
-            `<span class="badge bg-primary">${product.seller_transactions_total}</span>` : 
-            '<span class="badge bg-secondary">0</span>';
-        
-        // Informações sobre posição no catálogo
-        let positionInfo = "";
-        if (product.buy_box_winner) {
-            positionInfo = '<span class="badge bg-success">🏆 Vencedor</span>';
-        } else if (product.position) {
-            if (product.position === 1) {
-                positionInfo = '<span class="badge bg-success">🥇 1º Lugar</span>';
-            } else if (product.position === 2) {
-                positionInfo = '<span class="badge bg-secondary">🥈 2º Lugar</span>';
-            } else if (product.position === 3) {
-                positionInfo = '<span class="badge bg-warning">🥉 3º Lugar</span>';
-            } else {
-                positionInfo = `<span class="badge bg-light text-dark">#${product.position}</span>`;
-            }
-        }
-        
-        // Reputação do vendedor com medalhas
-        let reputationBadge = "";
-        if (product.seller_reputation_level && product.seller_reputation_level !== "UNKNOWN") {
-            switch(product.seller_reputation_level) {
-                case "GREEN":
-                    reputationBadge = '<span class="badge bg-success">🟢 Verde</span>';
-                    break;
-                case "YELLOW":
-                    reputationBadge = '<span class="badge bg-warning">🟡 Amarelo</span>';
-                    break;
-                case "RED":
-                    reputationBadge = '<span class="badge bg-danger">🔴 Vermelho</span>';
-                    break;
-                default:
-                    reputationBadge = '<span class="badge bg-secondary">⚪ Neutro</span>';
-                    break;
-            }
-        } else {
-            reputationBadge = '<span class="badge bg-light text-dark">❓ Desconhecida</span>';
-        }
-        
-        // Nível de reputação do item (current_level)
-        let currentLevelBadge = "";
-        if (product.current_level && product.current_level !== "unknown") {
-            switch(product.current_level.toLowerCase()) {
-                case "green":
-                    currentLevelBadge = '<span class="badge bg-success">🟢 Verde</span>';
-                    break;
-                case "yellow":
-                    currentLevelBadge = '<span class="badge bg-warning">🟡 Amarelo</span>';
-                    break;
-                case "red":
-                    currentLevelBadge = '<span class="badge bg-danger">🔴 Vermelho</span>';
-                    break;
-                case "newbie":
-                    currentLevelBadge = '<span class="badge bg-info">🆕 Iniciante</span>';
-                    break;
-                default:
-                    currentLevelBadge = `<span class="badge bg-secondary">${product.current_level}</span>`;
-                    break;
-            }
-        } else {
-            currentLevelBadge = '<span class="badge bg-light text-dark">❓ Desconhecido</span>';
-        }
-        
-        // Medalhas do vendedor
-        let sellerMedals = "";
-        if (product.seller_power_seller_status) {
-            let powerSellerText = "";
-            let powerSellerClass = "";
-            if (product.seller_power_seller_status === "silver") {
-                powerSellerText = "MercadoLíder";
-                powerSellerClass = "bg-secondary"; // Cinza para Silver
-            } else if (product.seller_power_seller_status === "gold") {
-                powerSellerText = "MercadoLíder Gold";
-                powerSellerClass = "bg-warning"; // Amarelo/Dourado para Gold
-            } else if (product.seller_power_seller_status === "platinum") {
-                powerSellerText = "MercadoLíder Platinum";
-                powerSellerClass = "bg-info"; // Azul para Platinum
-            } else {
-                powerSellerText = "MercadoLíder";
-                powerSellerClass = "bg-secondary"; // Cinza padrão
-            }
-            sellerMedals += `<span class="badge ${powerSellerClass} me-1">${powerSellerText}</span>`;
-        }
-        if (product.seller_experience && product.seller_experience !== "N/A") {
-            let experienceText = product.seller_experience;
-            if (product.seller_experience === "ADVANCED") {
-                experienceText = "Avançado";
-            } else if (product.seller_experience === "INTERMEDIATE") {
-                experienceText = "Intermediário";
-            } else if (product.seller_experience === "BEGINNER") {
-                experienceText = "Iniciante";
-            }
-            sellerMedals += `<span class="badge bg-info me-1">${experienceText}</span>`;
-        }
-        
-        // Informações adicionais do vendedor
-        let sellerInfo = "";
-        if (product.accepts_mercadopago) {
-            sellerInfo += '<span class="badge bg-primary me-1">MercadoPago</span>';
-        }
-        if (product.official_store_id) {
-            sellerInfo += '<span class="badge bg-info me-1">Loja Oficial</span>';
-        }
-        if (product.original_price && product.original_price > product.price) {
-            const discount = Math.round(((product.original_price - product.price) / product.original_price) * 100);
-            sellerInfo += `<span class="badge bg-success me-1">-${discount}%</span>`;
-        }
-        
-        // Badges individuais para as colunas
-        // Debug: verificar official_store_id
-        console.log('Debug official_store_id:', {
-            official_store_id: product.official_store_id,
-            type: typeof product.official_store_id
-        });
-        
-        const lojaOficialBadge = product.official_store_id ? 
-            '<span class="badge bg-info">Sim</span>' : 
-            '<span class="badge bg-secondary">Não</span>';
-            
-        const descontoBadge = (product.original_price && product.original_price > product.price) ? 
-            `<span class="badge bg-success">-${Math.round(((product.original_price - product.price) / product.original_price) * 100)}%</span>` : 
-            '';
-        
-        // Badge para quem paga o frete
-        let shippingPaidByBadge = '';
-        if (product.shipping_paid_by && product.shipping_paid_by !== 'Não disponível') {
-            let badgeClass = 'bg-secondary';
-            let icon = '👤';
-            
-            switch(product.shipping_paid_by) {
-                case 'Comprador':
-                    badgeClass = 'bg-primary';
-                    icon = '🛒';
-                    break;
-                case 'Vendedor':
-                    badgeClass = 'bg-success';
-                    icon = '🏪';
-                    break;
-                case 'Mercado Livre':
-                    badgeClass = 'bg-info';
-                    icon = '🏢';
-                    break;
-                case 'Vendedor/Mercado Livre':
-                    badgeClass = 'bg-warning';
-                    icon = '🤝';
-                    break;
-                default:
-                    badgeClass = 'bg-light text-dark';
-                    icon = '❓';
-                    break;
-            }
-            
-            shippingPaidByBadge = `<span class="badge ${badgeClass}">${icon} ${product.shipping_paid_by}</span>`;
-        } else {
-            shippingPaidByBadge = '<span class="badge bg-light text-dark">❓ Não disponível</span>';
-        }
-        
-        // Debug: verificar URL do produto
-        console.log(`Produto ${product.ml_item_id}: ${product.permalink}`);
-        
-        html += `
-            <tr>
-                <td>
-                    <div>
-                        <div class="fw-bold">${(product.seller_name && product.seller_name !== 'N/A') ? product.seller_name : product.seller_id}</div>
-                        ${product.seller_nickname && product.seller_nickname !== 'N/A' ? 
-                            `<small class="text-muted">${product.seller_nickname}</small>` : ''}
-                        <small class="text-muted d-block">${product.ml_item_id}</small>
-                        ${sellerMedals ? `<div class="mt-1">${sellerMedals}</div>` : ''}
-                        ${productTags}
-                    </div>
-                </td>
-                <td class="fw-bold">${priceFormatted}</td>
-                <td>${vendasInfo}</td>
-                <td>${positionInfo}</td>
-                <td>${shippingInfo}</td>
-                <td>${reputationBadge}</td>
-                <td>${lojaOficialBadge}</td>
-                <td>${descontoBadge}</td>
-                <td>
-                    <a href="${product.permalink}" 
-                       target="_blank" 
-                       class="btn btn-outline-primary btn-sm" 
-                       title="Ver anúncio: ${product.permalink}"
-                       onclick="console.log('Clicando em: ${product.permalink}')">
-                        <i class="bi bi-eye"></i>
-                    </a>
-                </td>
-            </tr>
-        `;
-    });
-    
-    html += `
-                </tbody>
-            </table>
-        </div>
-        <div class="mt-3">
-            <small class="text-muted">
-                <i class="bi bi-info-circle"></i>
-                Comparação de preços entre anunciantes do mesmo catálogo
-            </small>
-        </div>
-    `;
-    
-    container.innerHTML = html;
-    
-    // Armazenar dados originais para filtros
-    window.catalogData = data;
-    
-    // Inicializar contador de resultados
-    document.getElementById('filter-results').innerHTML = `<small class="text-muted">${data.catalog_products.length} resultados</small>`;
-}
-
-// Função para filtrar catálogo
-async function filterCatalog() {
-    const positionFilter = document.getElementById('filter-position').value;
-    const priceFilter = document.getElementById('filter-price').value;
-    const shippingFilter = document.getElementById('filter-shipping').value;
-    const mercadoliderFilter = document.getElementById('filter-mercadolider').value;
-    
-    // Construir URL com parâmetros de filtro
-    const currentPath = window.location.pathname;
-    const productId = currentPath.split('/').pop();
-    
-    let filterUrl = `/ml/products/api/product/${productId}/catalog/filter?`;
-    const params = [];
-    
-    if (positionFilter) params.push(`position=${encodeURIComponent(positionFilter)}`);
-    if (priceFilter) params.push(`price=${encodeURIComponent(priceFilter)}`);
-    if (shippingFilter) params.push(`shipping=${encodeURIComponent(shippingFilter)}`);
-    if (mercadoliderFilter) params.push(`mercadolider=${encodeURIComponent(mercadoliderFilter)}`);
-    
-    filterUrl += params.join('&');
-    
-    try {
-        // Mostrar loading
-        document.getElementById('filter-results').innerHTML = `<small class="text-muted">Carregando...</small>`;
-        
-        const response = await fetch(filterUrl);
-        const data = await response.json();
-        
-        // Verificar se houve erro de sessão
-        if (handleSessionError(response, data)) {
-            return;
-        }
-        
-        if (data.success) {
-            // Atualizar contador de resultados
-            document.getElementById('filter-results').innerHTML = `<small class="text-muted">${data.catalog_products.length} resultados</small>`;
-            
-            // Renderizar tabela filtrada
-            renderFilteredTable(data.catalog_products);
-        } else {
-            console.error('Erro ao filtrar catálogo:', data.error);
-            document.getElementById('filter-results').innerHTML = `<small class="text-danger">Erro ao filtrar</small>`;
-        }
-    } catch (error) {
-        console.error('Erro na requisição de filtro:', error);
-        document.getElementById('filter-results').innerHTML = `<small class="text-danger">Erro na requisição</small>`;
-    }
-}
-
-// Função para limpar filtros
-async function clearFilters() {
-    // Resetar todos os filtros
-    document.getElementById('filter-position').value = '';
-    document.getElementById('filter-price').value = '';
-    document.getElementById('filter-shipping').value = '';
-    document.getElementById('filter-mercadolider').value = '';
-    
-    // Buscar dados originais do backend (sem filtros)
-    const currentPath = window.location.pathname;
-    const productId = currentPath.split('/').pop();
-    
-    try {
-        // Mostrar loading
-        document.getElementById('filter-results').innerHTML = `<small class="text-muted">Carregando...</small>`;
-        
-        const response = await fetch(`/ml/products/api/product/${productId}/catalog/database`);
-        const data = await response.json();
-        
-        // Verificar se houve erro de sessão
-        if (handleSessionError(response, data)) {
-            return;
-        }
-        
-        if (data.success) {
-            // Atualizar contador de resultados
-            document.getElementById('filter-results').innerHTML = `<small class="text-muted">${data.catalog_products.length} resultados</small>`;
-            
-            // Renderizar tabela original
-            renderFilteredTable(data.catalog_products);
-        } else {
-            console.error('Erro ao limpar filtros:', data.error);
-            document.getElementById('filter-results').innerHTML = `<small class="text-danger">Erro ao carregar dados</small>`;
-        }
-    } catch (error) {
-        console.error('Erro na requisição de limpeza:', error);
-        document.getElementById('filter-results').innerHTML = `<small class="text-danger">Erro na requisição</small>`;
-    }
-}
-
-// Função para renderizar tabela filtrada
-function renderFilteredTable(products) {
-    const tbody = document.querySelector('#catalog-shipping-content tbody');
-    if (!tbody) return;
-    
-    let html = '';
-    
-    products.forEach(product => {
-        const priceFormatted = new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-        }).format(product.price);
-        
-        // Informações de envio - usar a mesma lógica da função original
-        let shippingInfo = "Não disponível";
-        
-        if (product.shipping_free) {
-            shippingInfo = '<span class="badge bg-success">Frete Grátis</span>';
-        } else if (product.logistic_type && product.logistic_type !== 'default') {
-            switch(product.logistic_type) {
-                case 'fulfillment':
-                    shippingInfo = '<span class="badge bg-primary">Full Mercado Livre</span>';
-                    break;
-                case 'xd_drop_off':
-                case 'drop_off':
-                    shippingInfo = '<span class="badge bg-warning">Correios</span>';
-                    break;
-                case 'cross_docking':
-                    shippingInfo = '<span class="badge bg-info">Coleta ML</span>';
-                    break;
-                case 'me2':
-                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
-                    break;
-                default:
-                    shippingInfo = '<span class="badge bg-secondary">Outros</span>';
-            }
-        } else if (product.shipping_method && product.shipping_method !== 'standard') {
-            switch(product.shipping_method) {
-                case 'me2':
-                    shippingInfo = '<span class="badge bg-info">Mercado Envios</span>';
-                    break;
-                default:
-                    shippingInfo = '<span class="badge bg-secondary">Outros</span>';
-            }
-        }
-        
-        // Informações de reputação - usar a mesma lógica da função original
-        let reputationInfo = "";
-        if (product.seller_reputation_level && product.seller_reputation_level !== "UNKNOWN") {
-            switch(product.seller_reputation_level) {
-                case "GREEN":
-                    reputationInfo = '<span class="badge bg-success">🟢 Verde</span>';
-                    break;
-                case "YELLOW":
-                    reputationInfo = '<span class="badge bg-warning">🟡 Amarelo</span>';
-                    break;
-                case "RED":
-                    reputationInfo = '<span class="badge bg-danger">🔴 Vermelho</span>';
-                    break;
-                default:
-                    reputationInfo = '<span class="badge bg-secondary">⚪ Neutro</span>';
-                    break;
-            }
-        } else {
-            reputationInfo = '<span class="badge bg-light text-dark">❓ Desconhecida</span>';
-        }
-        
-        // Loja oficial - usar a mesma lógica da função original
-        const lojaOficialBadge = product.official_store_id ? 
-            '<span class="badge bg-info">Sim</span>' : 
-            '<span class="badge bg-secondary">Não</span>';
-        
-        // Usar exatamente a mesma estrutura HTML da função original
-        html += `
-            <tr>
-                <td>
-                    <div class="d-flex align-items-center">
-                        <div>
-                            <div class="fw-bold">${(product.seller_name && product.seller_name !== 'N/A') ? product.seller_name : product.seller_id}</div>
-                            ${product.seller_nickname && product.seller_nickname !== 'N/A' ? 
-                                `<small class="text-muted">${product.seller_nickname}</small>` : ''}
-                            <small class="text-muted d-block">${product.ml_item_id}</small>
-                        </div>
-                    </div>
-                </td>
-                <td><strong>${priceFormatted}</strong></td>
-                <td>${product.seller_transactions_total > 0 ? 
-                    `<span class="badge bg-primary">${product.seller_transactions_total}</span>` : 
-                    '<span class="badge bg-secondary">0</span>'}</td>
-                <td>${product.buy_box_winner ? 
-                    '<span class="badge bg-success">🏆 Vencedor</span>' : 
-                    (product.position === 1 ? 
-                        '<span class="badge bg-success">🥇 1º Lugar</span>' : 
-                        (product.position === 2 ? 
-                            '<span class="badge bg-secondary">🥈 2º Lugar</span>' : 
-                            (product.position === 3 ? 
-                                '<span class="badge bg-warning">🥉 3º Lugar</span>' : 
-                                `<span class="badge bg-light text-dark">#${product.position}</span>`)))}</td>
-                <td>${shippingInfo}</td>
-                <td>${reputationInfo}</td>
-                <td>${lojaOficialBadge}</td>
-                <td>${(product.original_price && product.original_price > product.price) ? 
-                    `<span class="badge bg-success">-${Math.round(((product.original_price - product.price) / product.original_price) * 100)}%</span>` : 
-                    ''}</td>
-                <td>
-                    <a href="${product.permalink}" 
-                       target="_blank" 
-                       class="btn btn-outline-primary btn-sm"
-                       title="Ver anúncio"
-                       onclick="console.log('Clicando em: ${product.permalink}')">
-                        <i class="bi bi-eye"></i>
-                    </a>
-                </td>
-            </tr>
-        `;
-    });
-    
-    // Apenas substituir o conteúdo do tbody, mantendo toda a estrutura da tabela
-    tbody.innerHTML = html;
-}
-
 // Função para sincronizar catálogo
 function syncCatalog() {
     console.log('syncCatalog chamada');
@@ -1792,6 +1213,21 @@ function syncCatalog() {
     });
 }
 
+// Função global para tratar erros de sessão
+function handleSessionError(response, data) {
+    if (response && response.status === 401) {
+        // Sessão expirada - redirecionar para login
+        window.location.href = '/auth/login';
+        return true;
+    }
+    if (data && data.detail === "Sessão não encontrada") {
+        // Sessão inválida - redirecionar para login
+        window.location.href = '/auth/login';
+        return true;
+    }
+    return false;
+}
+
 // CSS para animação de loading
 const style = document.createElement('style');
 style.textContent = `
@@ -1805,510 +1241,5 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-    // Função para traduzir tipos logísticos
-    function getShippingTypeLabel(logisticType) {
-        const translations = {
-            'fulfillment': 'Full Mercado Livre',
-            'xd_drop_off': 'Correios',
-            'drop_off': 'Correios',
-            'cross_docking': 'Coleta ML',
-            'me2': 'Mercado Envios',
-            'standard': 'Mercado Envios',
-            'default': 'Não disponível'
-        };
-        return translations[logisticType] || logisticType;
-    }
-
-    // Função global para tratar erros de sessão
-    function handleSessionError(response, data) {
-        if (response && response.status === 401) {
-            // Sessão expirada - redirecionar para login
-            window.location.href = '/auth/login';
-            return true;
-        }
-        if (data && data.detail === "Sessão não encontrada") {
-            // Sessão inválida - redirecionar para login
-            window.location.href = '/auth/login';
-            return true;
-        }
-        return false;
-    }
-
-    // Função para carregar análise competitiva
-    function loadCompetitiveAnalysis(productId) {
-        fetch(`/ml/products/api/product/${productId}/catalog/database`)
-            .then(response => response.json())
-            .then(data => {
-                if (handleSessionError(null, data)) return;
-                
-                if (data && data.success && data.catalog_products) {
-                    renderCompetitiveAnalysis(data.catalog_products);
-                } else {
-                    document.getElementById('catalog-analysis-content').innerHTML = 
-                        '<div class="text-center py-3"><p class="text-muted mb-0">Nenhum dado de catálogo disponível</p></div>';
-                }
-            })
-            .catch(error => {
-                console.error('Erro ao carregar análise competitiva:', error);
-                document.getElementById('catalog-analysis-content').innerHTML = 
-                    '<div class="text-center py-3"><p class="text-danger mb-0">Erro ao carregar análise</p></div>';
-            });
-    }
-
-    // Função para renderizar análise competitiva
-    function renderCompetitiveAnalysis(products) {
-        const analysisContent = document.getElementById('catalog-analysis-content');
-        
-        // Análise por tipo de envio
-        const shippingAnalysis = analyzeShippingTypes(products);
-        
-        // Top 3 anunciantes
-        const top3 = getTop3Announcers(products);
-        
-        // Análise de posicionamento
-        const positioningAnalysis = analyzePositioning(products);
-        
-        // Análise de MercadoLíder
-        const mercadoLiderAnalysis = analyzeMercadoLider(products);
-        
-        // Análise de faixas de valor
-        const priceRangesAnalysis = analyzePriceRanges(products);
-        
-        // Métricas gerais
-        const metrics = calculateMetrics(products);
-        
-        analysisContent.innerHTML = `
-            <div class="row">
-                <!-- Análise por Tipo de Envio -->
-                <div class="col-md-6 mb-4">
-                    <h6 class="text-primary mb-3">
-                        <i class="bi bi-truck"></i> Distribuição por Envio
-                    </h6>
-                    <div class="row">
-                        ${Object.entries(shippingAnalysis).map(([type, count]) => `
-                            <div class="col-6 mb-2">
-                                <div class="d-flex justify-content-between">
-                                    <span class="small">${getShippingTypeLabel(type)}</span>
-                                    <span class="badge bg-primary">${count}</span>
-                                </div>
-                                <div class="progress" style="height: 4px;">
-                                    <div class="progress-bar" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <!-- Top 3 Anunciantes -->
-                <div class="col-md-6 mb-4">
-                    <h6 class="text-success mb-3">
-                        <i class="bi bi-trophy"></i> Top 3 Anunciantes
-                    </h6>
-                    ${top3.map((announcer, index) => `
-                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 ${index === 0 ? 'bg-light rounded' : ''}">
-                            <div>
-                                <span class="badge ${index === 0 ? 'bg-warning' : index === 1 ? 'bg-secondary' : 'bg-dark'}">${announcer.position || (index + 1)}º</span>
-                                <strong>${getSellerDisplayName(announcer)}</strong>
-                            </div>
-                            <div class="text-end">
-                                <div class="small text-muted">R$ ${(announcer.price).toFixed(2)}</div>
-                                <div class="small">${announcer.shipping_type}</div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <!-- Análise por Faixas de Valor e MercadoLíder -->
-            <div class="row">
-                <!-- Análise por Faixas de Valor -->
-                <div class="col-md-6 mb-4">
-                    <h6 class="text-success mb-3">
-                        <i class="bi bi-currency-dollar"></i> Distribuição por Faixas de Valor
-                    </h6>
-                    <div class="row">
-                        ${Object.entries(analyzePriceRanges(products)).map(([range, count]) => `
-                            <div class="col-6 mb-2">
-                                <div class="d-flex justify-content-between">
-                                    <span class="small">${getPriceRangeLabel(range)}</span>
-                                    <span class="badge ${getPriceRangeBadgeClass(range)}">${count}</span>
-                                </div>
-                                <div class="progress" style="height: 4px;">
-                                    <div class="progress-bar ${getPriceRangeProgressClass(range)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <!-- Distribuição por MercadoLíder -->
-                <div class="col-md-6 mb-4">
-                    <h6 class="text-warning mb-3">
-                        <i class="bi bi-award"></i> Distribuição por MercadoLíder
-                    </h6>
-                    <div class="row">
-                        ${Object.entries(analyzeMercadoLider(products)).map(([level, count]) => `
-                            <div class="col-6 mb-2">
-                                <div class="d-flex justify-content-between">
-                                    <span class="small">${getMercadoLiderLabel(level)}</span>
-                                    <span class="badge ${getMercadoLiderBadgeClass(level)}">${count}</span>
-                                </div>
-                                <div class="progress" style="height: 4px;">
-                                    <div class="progress-bar ${getMercadoLiderProgressClass(level)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Análise de MercadoLíder (continuação) -->
-            <div class="row">
-                
-                <!-- Análise de Posicionamento -->
-                <div class="col-md-6 mb-4">
-                    <h6 class="text-info mb-3">
-                        <i class="bi bi-graph-up"></i> Análise de Posicionamento
-                    </h6>
-                    <div class="row">
-                        <div class="col-6">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h5 class="text-primary">${metrics.total_announcers}</h5>
-                                    <small class="text-muted">Total de Anunciantes</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h5 class="text-warning">${positioningAnalysis.your_position || 'N/A'}</h5>
-                                    <small class="text-muted">Sua Posição</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row mt-2">
-                        <div class="col-3">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h6 class="text-success">R$ ${parseFloat(metrics.min_price).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h6>
-                                    <small class="text-muted">Menor Preço</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h6 class="text-info">R$ ${parseFloat(metrics.avg_price).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h6>
-                                    <small class="text-muted">Preço Médio</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h6 class="text-danger">R$ ${parseFloat(metrics.max_price).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h6>
-                                    <small class="text-muted">Maior Preço</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <div class="card bg-primary text-white">
-                                <div class="card-body text-center">
-                                    <h6 class="text-white">R$ ${positioningAnalysis.your_price ? positioningAnalysis.your_price.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 'N/A'}</h6>
-                                    <small class="text-white-50">Seu Preço</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-            </div>
-        `;
-        
-    }
-
-    // Função para analisar tipos de envio
-    function analyzeShippingTypes(products) {
-        const shippingTypes = {};
-        products.forEach(product => {
-            const shippingType = getShippingTypeFromProduct(product);
-            shippingTypes[shippingType] = (shippingTypes[shippingType] || 0) + 1;
-        });
-        return shippingTypes;
-    }
-
-    // Função para obter tipo de envio do produto
-    function getShippingTypeFromProduct(product) {
-        if (product.shipping_free) return 'frete_gratis';
-        if (product.logistic_type === 'fulfillment') return 'full';
-        if (product.logistic_type === 'cross_docking') return 'coleta_ml';
-        if (product.shipping_method === 'me2') return 'mercado_envios';
-        if (product.shipping_method === 'drop_off' || product.shipping_method === 'xd_drop_off') return 'correios';
-        return 'outros';
-    }
-
-    // Função para obter label do tipo de envio
-
-    // Função para obter nome de exibição do vendedor
-    function getSellerDisplayName(seller) {
-        if (seller.seller_name && seller.seller_name !== 'N/A') {
-            return seller.seller_name;
-        }
-        if (seller.seller_nickname && seller.seller_nickname !== 'N/A') {
-            return seller.seller_nickname;
-        }
-        return seller.seller_id || 'N/A';
-    }
-
-    // Função para obter top 3 anunciantes baseado na posição
-    function getTop3Announcers(products) {
-        const sorted = products
-            .sort((a, b) => (a.position || 999) - (b.position || 999))  // Ordenar por posição
-            .slice(0, 3);
-        
-        // Debug: verificar dados
-        console.log('Top 3 anunciantes:', sorted.map(p => ({
-            position: p.position,
-            seller_name: p.seller_name,
-            seller_nickname: p.seller_nickname,
-            seller_id: p.seller_id,
-            price: p.price
-        })));
-        
-        return sorted.map(product => ({
-            ...product,
-            shipping_type: getShippingTypeLabel(getShippingTypeFromProduct(product))
-        }));
-    }
-
-    // Função para analisar posicionamento
-    function analyzePositioning(products) {
-        if (!products || products.length === 0) {
-            return {
-                your_position: null,
-                total_competitors: 0,
-                best_position: null,
-                your_price: null
-            };
-        }
-        
-        // Buscar especificamente pelo seu produto MLB5588063084
-        const yourProduct = products.find(p => p.ml_item_id === 'MLB5588063084');
-        
-        // Encontrar a melhor posição geral
-        const positions = products.map(p => parseInt(p.position) || 999);
-        const bestPosition = Math.min(...positions);
-        
-        return {
-            your_position: yourProduct ? (parseInt(yourProduct.position) || null) : null,
-            total_competitors: products.length - 1,
-            best_position: bestPosition,
-            your_price: yourProduct ? (parseFloat(yourProduct.price) || null) : null
-        };
-    }
-
-    // Função para calcular métricas
-    function calculateMetrics(products) {
-        const totalPrice = products.reduce((sum, product) => sum + product.price, 0);
-        const avgPrice = (totalPrice / products.length).toFixed(2);
-        
-        return {
-            total_announcers: products.length,
-            avg_price: avgPrice,
-            min_price: (Math.min(...products.map(p => p.price))).toFixed(2),
-            max_price: (Math.max(...products.map(p => p.price))).toFixed(2)
-        };
-    }
-
-    // Função para analisar níveis de MercadoLíder
-    function analyzeMercadoLider(products) {
-        const levels = {};
-        products.forEach(product => {
-            const level = getMercadoLiderLevel(product);
-            levels[level] = (levels[level] || 0) + 1;
-        });
-        return levels;
-    }
-
-    // Função para analisar faixas de valor
-    function analyzePriceRanges(products) {
-        const ranges = {};
-        products.forEach(product => {
-            const range = getPriceRange(product.price);
-            ranges[range] = (ranges[range] || 0) + 1;
-        });
-        return ranges;
-    }
-
-    // Função para obter faixa de valor do produto
-    function getPriceRange(price) {
-        if (price <= 10) return 'ate_10';
-        if (price <= 20) return '10_20';
-        if (price <= 30) return '20_30';
-        if (price <= 50) return '30_50';
-        if (price <= 100) return '50_100';
-        return 'acima_100';
-    }
-
-    // Função para obter label da faixa de valor
-    function getPriceRangeLabel(range) {
-        const labels = {
-            'ate_10': 'Até R$ 10',
-            '10_20': 'R$ 10 - R$ 20',
-            '20_30': 'R$ 20 - R$ 30',
-            '30_50': 'R$ 30 - R$ 50',
-            '50_100': 'R$ 50 - R$ 100',
-            'acima_100': 'Acima de R$ 100'
-        };
-        return labels[range] || range;
-    }
-
-    // Função para obter classe do badge da faixa de valor
-    function getPriceRangeBadgeClass(range) {
-        const classes = {
-            'ate_10': 'bg-success',
-            '10_20': 'bg-primary',
-            '20_30': 'bg-info',
-            '30_50': 'bg-warning',
-            '50_100': 'bg-danger',
-            'acima_100': 'bg-dark'
-        };
-        return classes[range] || 'bg-secondary';
-    }
-
-    // Função para obter classe da barra de progresso da faixa de valor
-    function getPriceRangeProgressClass(range) {
-        const classes = {
-            'ate_10': 'bg-success',
-            '10_20': 'bg-primary',
-            '20_30': 'bg-info',
-            '30_50': 'bg-warning',
-            '50_100': 'bg-danger',
-            'acima_100': 'bg-dark'
-        };
-        return classes[range] || 'bg-secondary';
-    }
-
-    // Função para obter anunciantes por nível de MercadoLíder
-    function getAnnouncersByLevel(products, level) {
-        return products.filter(product => getMercadoLiderLevel(product) === level)
-                      .sort((a, b) => (a.position || 999) - (b.position || 999));
-    }
-
-    // Função para renderizar cards de MercadoLíder
-    function renderMercadoLiderCards(products) {
-        const container = document.getElementById('mercado-lider-cards');
-        const mercadoLiderAnalysis = analyzeMercadoLider(products);
-        
-        const levels = Object.entries(mercadoLiderAnalysis);
-        
-        // Organizar em grupos de 2 para garantir 2 por linha
-        const rows = [];
-        for (let i = 0; i < levels.length; i += 2) {
-            rows.push(levels.slice(i, i + 2));
-        }
-        
-        container.innerHTML = `
-            ${rows.map(row => `
-                <div class="row">
-                    ${row.map(([level, count], index) => `
-                        <div class="col-md-6 mb-4 ${row.length === 1 ? 'offset-md-6' : ''}">
-                            <div class="card h-100">
-                                <div class="card-header ${getMercadoLiderBadgeClass(level)} text-white">
-                                    <h6 class="mb-0">
-                                        <i class="bi bi-award"></i> ${getMercadoLiderLabel(level)}
-                                        <span class="badge bg-light text-dark ms-2">${count}</span>
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="mb-2">
-                                        <div class="d-flex justify-content-between">
-                                            <span class="small">${count} anunciantes</span>
-                                            <span class="small">${(count / products.length * 100).toFixed(1)}%</span>
-                                        </div>
-                                        <div class="progress" style="height: 6px;">
-                                            <div class="progress-bar ${getMercadoLiderProgressClass(level)}" style="width: ${(count / products.length * 100).toFixed(1)}%"></div>
-                                        </div>
-                                    </div>
-                                    <div class="announcers-list" style="max-height: 200px; overflow-y: auto;">
-                                        ${getAnnouncersByLevel(products, level).map(announcer => `
-                                            <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
-                                                <div>
-                                                    <div class="fw-bold small">${getSellerDisplayName(announcer)}</div>
-                                                    <div class="text-muted small">R$ ${(announcer.price).toFixed(2)}</div>
-                                                </div>
-                                                <div class="text-end">
-                                                    <div class="badge bg-primary">#${announcer.position || 'N/A'}</div>
-                                                    <div class="small text-muted">${getShippingTypeLabel(getShippingTypeFromProduct(announcer))}</div>
-                                                </div>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `).join('')}
-        `;
-        
-        // Mostrar os cards
-        container.style.display = 'block';
-    }
-
-    // Função para obter nível de MercadoLíder do produto
-    function getMercadoLiderLevel(product) {
-        const status = product.seller_power_seller_status;
-        if (!status || status === 'N/A') {
-            return 'sem_medalha';
-        }
-        
-        if (status === 'platinum') {
-            return 'platinum';
-        } else if (status === 'gold') {
-            return 'gold';
-        } else if (status === 'silver') {
-            return 'silver';
-        }
-        
-        return 'sem_medalha';
-    }
-
-    // Função para obter label do nível de MercadoLíder
-    function getMercadoLiderLabel(level) {
-        const labels = {
-            'platinum': '🥇 MercadoLíder Platinum',
-            'gold': '🥈 MercadoLíder Gold',
-            'silver': '🥉 MercadoLíder',
-            'sem_medalha': '⚪ Sem Medalha'
-        };
-        return labels[level] || level;
-    }
-
-    // Função para obter classe do badge
-    function getMercadoLiderBadgeClass(level) {
-        const classes = {
-            'platinum': 'bg-info',
-            'gold': 'bg-warning',
-            'silver': 'bg-secondary',
-            'sem_medalha': 'bg-success text-white'
-        };
-        return classes[level] || 'bg-secondary';
-    }
-
-    // Função para obter classe da barra de progresso
-    function getMercadoLiderProgressClass(level) {
-        const classes = {
-            'platinum': 'bg-info',
-            'gold': 'bg-warning',
-            'silver': 'bg-secondary',
-            'sem_medalha': 'bg-success'
-        };
-        return classes[level] || 'bg-secondary';
-    }
-
 </script>
 {% endblock %}
-
