@@ -1205,8 +1205,21 @@ function renderPricingAnalysis(data, product) {
     // Calcular valores monetários
     const taxAmount = (productPrice * taxPercentage / 100);
     const marketingAmount = (productPrice * marketingPercentage / 100);
+    
+    // Custos internos
     const totalInternalCosts = costPrice + taxAmount + marketingAmount + otherCosts;
-    const netProfit = productPrice - totalInternalCosts;
+    
+    // Custos do Mercado Livre
+    const mlFixedFee = 6.25; // Taxa fixa ML
+    const mlPercentageFee = productPrice * 0.13; // 13% do preço
+    const mlShipping = 0; // Frete
+    const mlAdditionalFees = 0; // Taxas adicionais
+    
+    // Total de todos os custos
+    const totalAllCosts = totalInternalCosts + mlFixedFee + mlPercentageFee + mlShipping + mlAdditionalFees;
+    
+    // Lucro final
+    const netProfit = productPrice - totalAllCosts;
     const actualMargin = productPrice > 0 ? (netProfit / productPrice) * 100 : 0;
     
     console.log('💰 Cálculos de preços:', {
@@ -1218,6 +1231,11 @@ function renderPricingAnalysis(data, product) {
         marketingAmount,
         otherCosts,
         totalInternalCosts,
+        mlFixedFee,
+        mlPercentageFee,
+        mlShipping,
+        mlAdditionalFees,
+        totalAllCosts,
         netProfit,
         actualMargin,
         expectedMargin
