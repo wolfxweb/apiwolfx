@@ -477,8 +477,8 @@ function renderIntegratedPricingAnalysis(mlFees, internalAnalysis) {
                         <strong>R$ ${internalProduct.cost_price.toFixed(2)}</strong>
                     </div>
                     <div class="list-group-item d-flex justify-content-between">
-                        <span>Marketing:</span>
-                        <span>R$ ${internalProduct.marketing_cost.toFixed(2)}</span>
+                        <span>Marketing (${internalProduct.marketing_cost.toFixed(1)}%):</span>
+                        <span>R$ ${(internalProduct.selling_price * internalProduct.marketing_cost / 100).toFixed(2)}</span>
                     </div>
                     <div class="list-group-item d-flex justify-content-between">
                         <span>Outros Custos:</span>
