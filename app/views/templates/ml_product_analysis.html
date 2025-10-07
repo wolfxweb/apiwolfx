@@ -1163,7 +1163,7 @@ async function loadPricingAnalysis(product) {
             console.log('✅ Dados internos encontrados, buscando taxas ML...');
             
             // Buscar taxas reais do Mercado Livre
-            const mlFeesUrl = `/api/ml-pricing/fees?price=${product.price}&category_id=${product.category_id}`;
+            const mlFeesUrl = `/api/ml-pricing/fees?price=${product.price}&category_id=${product.category_id}&item_id=${product.ml_item_id}`;
             console.log('🔗 URL da API ML:', mlFeesUrl);
             
             const mlFeesResponse = await fetch(mlFeesUrl, {
@@ -1183,6 +1183,8 @@ async function loadPricingAnalysis(product) {
                 const errorText = await mlFeesResponse.text();
                 console.log('⚠️ Erro ao obter taxas ML:', mlFeesResponse.status, errorText);
             }
+            
+            // O custo do frete já está incluído em mlFeesData.fees.shipping_cost
             
             renderPricingAnalysis(internalData, product, mlFeesData);
         } else {
@@ -1237,7 +1239,7 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
         // Usar taxas reais da API
         mlFixedFee = parseFloat(mlFeesData.fees.fixed_fee) || 0;
         mlPercentageFee = parseFloat(mlFeesData.fees.percentage_amount) || 0;
-        mlShipping = 0; // Frete
+        mlShipping = parseFloat(mlFeesData.fees.shipping_cost) || 0;
         mlAdditionalFees = parseFloat(mlFeesData.fees.listing_fee) || 0;
         console.log('✅ Usando taxas reais da API ML:', mlFeesData.fees);
     } else {
@@ -1245,11 +1247,12 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
         if (productPrice < 79.90) {
             mlFixedFee = 6.25;
             mlPercentageFee = productPrice * 0.13;
+            mlShipping = 15.0; // Frete para produtos baratos
         } else {
             mlFixedFee = 0;
             mlPercentageFee = productPrice * 0.12;
+            mlShipping = 0; // Frete gratuito para produtos >= R$ 79,90
         }
-        mlShipping = 0;
         mlAdditionalFees = 0;
         console.log('⚠️ Usando taxas padrão como fallback');
     }
@@ -1319,7 +1322,7 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>🚚 Frete:</span>
-                <span>-R$ 0,00</span>
+                <span>-R$ ${mlShipping.toFixed(2)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">

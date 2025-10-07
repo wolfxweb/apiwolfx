@@ -28,6 +28,7 @@ async def get_ml_fees(
     price: float = Query(..., description="Preço do produto"),
     category_id: str = Query(None, description="ID da categoria"),
     listing_type_id: str = Query("gold_special", description="Tipo de publicação"),
+    item_id: str = Query(None, description="ID do item no Mercado Livre"),
     db: Session = Depends(get_db),
     user = Depends(get_current_user)
 ):
@@ -49,7 +50,8 @@ async def get_ml_fees(
         fees = service.calculate_ml_fees(
             user_id=user["id"],
             price=price,
-            category_id=category_id
+            category_id=category_id,
+            item_id=item_id
         )
         
         return {
@@ -100,6 +102,47 @@ async def get_listing_prices(
                 "success": False,
                 "error": "Não foi possível obter dados da API"
             }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@router.get("/shipping")
+async def get_shipping_cost(
+    item_id: str = Query(..., description="ID do item no Mercado Livre"),
+    zip_code: str = Query("01310-100", description="CEP de destino"),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Obtém o custo real do frete via API do Mercado Livre
+    
+    Args:
+        item_id: ID do item no Mercado Livre
+        zip_code: CEP de destino
+        db: Sessão do banco de dados
+        user: Usuário logado
+    
+    Returns:
+        Opções de frete disponíveis
+    """
+    try:
+        service = MLPricingService(db)
+        shipping_data = service.get_shipping_cost(
+            user_id=user["id"],
+            item_id=item_id,
+            zip_code=zip_code
+        )
+        
+        if "error" in shipping_data:
+            return {
+                "success": False,
+                "error": shipping_data["error"]
+            }
+        
+        return {
+            "success": True,
+            "shipping_options": shipping_data
+        }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
