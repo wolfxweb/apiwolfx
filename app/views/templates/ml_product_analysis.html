@@ -87,13 +87,16 @@
                                     <i class="bi bi-calculator"></i> Análise de Preços e Taxas
                                 </h5>
                             </div>
-                            <div class="card-body">
-                                <div id="marketplace-fees">
-                                    <div class="text-center py-3">
-                                        <p class="text-muted">Card limpo - pronto para implementação</p>
-                                    </div>
-                                </div>
+                <div class="card-body">
+                    <div id="marketplace-fees">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Carregando...</span>
                             </div>
+                            <p class="mt-2 mb-0">Carregando análise de preços...</p>
+                        </div>
+                    </div>
+                </div>
                         </div>
                     </div>
 
@@ -247,6 +250,7 @@ function loadProductAnalysis(productId) {
                 renderProductInfo(data.product);
                 checkCatalogInfo(data.product);
                 loadProfitabilityAnalysis(data.product);
+                loadPricingAnalysis(data.product);
                 
                 // Mostrar conteúdo
                 document.getElementById('loading-state').classList.add('d-none');
@@ -1119,6 +1123,185 @@ function loadProfitabilityAnalysis(product) {
     `;
     
     console.log('✅ Análise de rentabilidade renderizada com sucesso');
+}
+
+function loadPricingAnalysis(product) {
+    console.log('💰 Carregando análise de preços para produto:', product);
+    
+    // Verificar se o produto tem SKU
+    const sku = product.seller_custom_field || product.sku || product.seller_sku;
+    
+    if (!sku) {
+        console.log('⚠️ Produto sem SKU - mostrando mensagem informativa');
+        const feesContainer = document.getElementById('marketplace-fees');
+        feesContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Produto sem SKU associado</strong><br>
+                Para ver a análise completa de preços, é necessário associar um SKU interno a este produto.
+            </div>
+        `;
+        return;
+    }
+    
+    console.log('🔍 Buscando dados internos para SKU:', sku);
+    
+    // Buscar dados do produto interno
+    fetch(`/api/pricing/analysis/sku/${sku}`, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log('📡 Resposta da análise de preços:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('📊 Dados da análise de preços recebidos:', data);
+        
+        if (data && data.success && data.analysis && data.analysis.internal_product) {
+            console.log('✅ Dados internos encontrados, renderizando análise...');
+            renderPricingAnalysis(data, product);
+        } else {
+            console.log('⚠️ Nenhum dado interno encontrado');
+            const feesContainer = document.getElementById('marketplace-fees');
+            feesContainer.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Produto interno não encontrado</strong><br>
+                    SKU "${sku}" não foi encontrado na base de dados interna.
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('❌ Erro ao carregar análise de preços:', error);
+        const feesContainer = document.getElementById('marketplace-fees');
+        feesContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Erro ao carregar análise</strong><br>
+                Não foi possível carregar os dados de preços do produto.
+            </div>
+        `;
+    });
+}
+
+function renderPricingAnalysis(data, product) {
+    console.log('🎨 Renderizando análise de preços:', data);
+    
+    const feesContainer = document.getElementById('marketplace-fees');
+    const internalProduct = data.analysis.internal_product;
+    const productPrice = parseFloat(product.price) || 0;
+    
+    // Calcular valores
+    const costPrice = parseFloat(internalProduct.cost_price) || 0;
+    const taxPercentage = parseFloat(internalProduct.tax_percentage) || 0;
+    const marketingPercentage = parseFloat(internalProduct.marketing_cost) || 0;
+    const otherCosts = parseFloat(internalProduct.other_expenses) || 0;
+    const expectedMargin = parseFloat(internalProduct.expected_profit_margin) || 0;
+    
+    // Calcular valores monetários
+    const taxAmount = (productPrice * taxPercentage / 100);
+    const marketingAmount = (productPrice * marketingPercentage / 100);
+    const totalInternalCosts = costPrice + taxAmount + marketingAmount + otherCosts;
+    const netProfit = productPrice - totalInternalCosts;
+    const actualMargin = productPrice > 0 ? (netProfit / productPrice) * 100 : 0;
+    
+    console.log('💰 Cálculos de preços:', {
+        productPrice,
+        costPrice,
+        taxPercentage,
+        taxAmount,
+        marketingPercentage,
+        marketingAmount,
+        otherCosts,
+        totalInternalCosts,
+        netProfit,
+        actualMargin,
+        expectedMargin
+    });
+    
+    feesContainer.innerHTML = `
+        <div class="list-group list-group-flush">
+            <div class="list-group-item d-flex justify-content-between text-success">
+                <span>💰 Preço de Venda:</span>
+                <span>+R$ ${productPrice.toFixed(2)}</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between text-danger">
+                <span>📦 Preço Custo Produto:</span>
+                <span>-R$ ${costPrice.toFixed(2)}</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between text-danger">
+                <span>📢 Marketing (${marketingPercentage.toFixed(1)}%):</span>
+                <span>-R$ ${marketingAmount.toFixed(2)}</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between text-danger">
+                <span>💼 Outros Custos:</span>
+                <span>-R$ ${otherCosts.toFixed(2)}</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between text-danger">
+                <span>🏛️ Impostos (${taxPercentage.toFixed(1)}%):</span>
+                <span>-R$ ${taxAmount.toFixed(2)}</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between text-danger">
+                <span>🏪 Taxa Fixa ML:</span>
+                <span>-R$ 6,25</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between text-danger">
+                <span>📊 Taxa Percentual ML (13%):</span>
+                <span>-R$ ${(productPrice * 0.13).toFixed(2)}</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between text-danger">
+                <span>🚚 Frete:</span>
+                <span>-R$ 0,00</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between text-danger">
+                <span>📋 Taxas Adicionais:</span>
+                <span>-R$ 0,00</span>
+            </div>
+            
+            <div class="list-group-item d-flex justify-content-between bg-primary text-white">
+                <span>💰 Lucro Final:</span>
+                <span>R$ ${netProfit.toFixed(2)}</span>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <div class="row text-center">
+                <div class="col-6">
+                    <div class="card bg-light">
+                        <div class="card-body py-2">
+                            <h6 class="text-muted mb-1">Margem Atual</h6>
+                            <h5 class="${actualMargin >= expectedMargin ? 'text-success' : 'text-danger'} mb-0">
+                                ${actualMargin.toFixed(1)}%
+                            </h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card bg-light">
+                        <div class="card-body py-2">
+                            <h6 class="text-muted mb-1">Margem Esperada</h6>
+                            <h5 class="text-info mb-0">${expectedMargin.toFixed(1)}%</h5>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    `;
+    
+    console.log('✅ Análise de preços renderizada com sucesso');
 }
 
 // Função para filtrar catálogo
