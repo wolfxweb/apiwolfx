@@ -446,69 +446,7 @@ function renderInternalProductPricing(analysis) {
     
     // Adicionar seção de dados internos ao conteúdo existente
     let html = `
-        <div class="mb-4">
-            <h6 class="text-primary">
-                <i class="bi bi-box-seam"></i> Dados do Produto Interno
-            </h6>
-            <p class="mb-1"><strong>SKU:</strong> ${product.internal_sku}</p>
-            <p class="mb-1"><strong>Nome:</strong> ${product.name}</p>
-        </div>
-        
-        <div class="row">
-            <div class="col-md-6">
-                <h6 class="text-success">💰 Custos</h6>
-                <div class="list-group list-group-flush">
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Preço de Custo:</span>
-                        <strong>R$ ${product.cost_price.toFixed(2)}</strong>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Marketing:</span>
-                        <span>R$ ${product.marketing_cost.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Outros Custos:</span>
-                        <span>R$ ${product.other_costs.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Impostos (${product.tax_rate}%):</span>
-                        <span>R$ ${product.tax_amount.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between bg-light">
-                        <strong>Total de Custos:</strong>
-                        <strong>R$ ${product.total_costs_with_tax.toFixed(2)}</strong>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <h6 class="text-primary">📊 Análise de Preços</h6>
-                <div class="list-group list-group-flush">
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Preço de Venda:</span>
-                        <strong>R$ ${product.selling_price.toFixed(2)}</strong>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Margem de Lucro:</span>
-                        <strong class="${comparative.pricing_analysis.profit_margin >= 20 ? 'text-success' : comparative.pricing_analysis.profit_margin >= 10 ? 'text-warning' : 'text-danger'}">
-                            ${comparative.pricing_analysis.profit_margin.toFixed(1)}%
-                        </strong>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Preço de Equilíbrio:</span>
-                        <span>R$ ${comparative.margin_analysis.break_even_price.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Preço Mínimo:</span>
-                        <span>R$ ${comparative.margin_analysis.recommended_minimum_price.toFixed(2)}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between">
-                        <span>Preço Ótimo:</span>
-                        <span>R$ ${comparative.margin_analysis.optimal_price.toFixed(2)}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+    
     `;
     
     // Adicionar análise de competitividade se disponível
