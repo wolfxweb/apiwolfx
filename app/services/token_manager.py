@@ -34,14 +34,18 @@ class TokenManager:
                 logger.error(f"Company ID não encontrado para user_id: {user_id}")
                 return None
             
-            # Tentar obter token ativo
-            token = self._get_active_token(user_id)
+            # Buscar qualquer token do usuário
+            token = self._get_any_token(user_id)
             if token:
-                logger.info(f"Token ativo encontrado para user_id: {user_id}")
-                return token
+                # Verificar se o token funciona na API
+                if self.test_token(token):
+                    logger.info(f"Token válido encontrado para user_id: {user_id}")
+                    return token
+                else:
+                    logger.warning(f"Token inválido na API, renovando para user_id: {user_id}")
             
-            # Se não encontrou token ativo, tentar renovar
-            logger.info(f"Token expirado, tentando renovar para user_id: {user_id}")
+            # Tentar renovar token
+            logger.info(f"Tentando renovar token para user_id: {user_id}")
             new_token = self._refresh_token(user_id)
             
             if new_token:
@@ -65,66 +69,32 @@ class TokenManager:
             logger.error(f"Erro ao buscar company_id: {e}")
             return None
     
-    def _get_active_token(self, user_id: int) -> Optional[str]:
-        """Busca token válido e o ativa automaticamente se necessário"""
+    def _get_any_token(self, user_id: int) -> Optional[str]:
+        """Busca qualquer token do usuário"""
         try:
-            # Primeiro, tentar buscar token ativo
             query = text("""
-                SELECT access_token, expires_at, id
+                SELECT access_token
                 FROM tokens 
                 WHERE user_id = :user_id 
-                AND is_active = true 
-                AND expires_at > NOW()
                 ORDER BY expires_at DESC
                 LIMIT 1
             """)
             
             result = self.db.execute(query, {"user_id": user_id}).fetchone()
-            
-            if result:
-                logger.info(f"Token ativo encontrado para user_id: {user_id}")
-                return result[0]
-            
-            # Se não encontrou token ativo, buscar qualquer token válido (não expirado)
-            query_inactive = text("""
-                SELECT access_token, expires_at, id
-                FROM tokens 
-                WHERE user_id = :user_id 
-                AND expires_at > NOW()
-                ORDER BY expires_at DESC
-                LIMIT 1
-            """)
-            
-            result_inactive = self.db.execute(query_inactive, {"user_id": user_id}).fetchone()
-            
-            if result_inactive:
-                # Ativar o token encontrado
-                token_id = result_inactive[2]
-                self.db.execute(text("""
-                    UPDATE tokens 
-                    SET is_active = true 
-                    WHERE id = :token_id
-                """), {"token_id": token_id})
-                self.db.commit()
-                
-                logger.info(f"Token ativado automaticamente para user_id: {user_id}")
-                return result_inactive[0]
-            
-            return None
+            return result[0] if result else None
             
         except Exception as e:
-            logger.error(f"Erro ao buscar token ativo: {e}")
+            logger.error(f"Erro ao buscar token: {e}")
             return None
     
     def _refresh_token(self, user_id: int) -> Optional[str]:
         """Renova token usando refresh token"""
         try:
-            # Buscar refresh token
+            # Buscar refresh token (não importa se está ativo ou não)
             refresh_query = text("""
                 SELECT refresh_token, ml_account_id
                 FROM tokens 
                 WHERE user_id = :user_id 
-                AND is_active = true 
                 AND refresh_token IS NOT NULL
                 ORDER BY expires_at DESC
                 LIMIT 1
