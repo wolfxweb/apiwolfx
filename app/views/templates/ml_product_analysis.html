@@ -251,6 +251,22 @@ function getSessionToken() {
     return localToken || sessionToken;
 }
 
+// Função para formatar valores em reais brasileiros
+function formatCurrency(value) {
+    if (value === null || value === undefined || isNaN(value)) {
+        return 'R$ 0,00';
+    }
+    
+    // Converter para número se for string
+    const numValue = parseFloat(value);
+    
+    // Formatar com separador de milhares (.) e decimais (,)
+    return numValue.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    });
+}
+
 // Função para verificar se a sessão expirou
 function checkSessionExpired(response) {
     if (response.status === 401) {
@@ -295,10 +311,6 @@ function loadProductAnalysis(productId) {
     })
         .then(response => {
             console.log('📡 Resposta recebida:', response.status);
-            if (checkSessionExpired(response)) {
-                hideUserElements();
-                return;
-            }
             return response.json();
         })
         .then(data => {
@@ -306,6 +318,8 @@ function loadProductAnalysis(productId) {
             console.log('📊 Tipo dos dados:', typeof data);
             console.log('📊 Success:', data?.success);
             console.log('📊 Product:', data?.product);
+            
+            if (handleSessionError(null, data)) return;
             
             if (data && data.success) {
                 console.log('✅ Produto carregado com sucesso');
@@ -831,7 +845,7 @@ function renderCompetitiveAnalysis(products, currentProduct) {
                             <strong>${getSellerDisplayName(announcer)}</strong>
                         </div>
                         <div class="text-end">
-                            <div class="small text-muted">R$ ${(announcer.price).toFixed(2)}</div>
+                            <div class="small text-muted">${formatCurrency(announcer.price)}</div>
                             <div class="small">${announcer.shipping_type}</div>
                         </div>
                     </div>
@@ -1243,6 +1257,8 @@ async function loadPricingAnalysis(product) {
             if (mlFeesResponse.ok) {
                 mlFeesData = await mlFeesResponse.json();
                 console.log('📊 Taxas ML obtidas:', mlFeesData);
+                
+                if (handleSessionError(null, mlFeesData)) return;
             } else {
                 const errorText = await mlFeesResponse.text();
                 console.log('⚠️ Erro ao obter taxas ML:', mlFeesResponse.status, errorText);
@@ -1351,52 +1367,52 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
         <div class="list-group list-group-flush">
             <div class="list-group-item d-flex justify-content-between text-success">
                 <span>💰 Preço de Venda:</span>
-                <span>+R$ ${productPrice.toFixed(2)}</span>
+                <span>+${formatCurrency(productPrice)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>📦 Preço Custo Produto:</span>
-                <span>-R$ ${costPrice.toFixed(2)}</span>
+                <span>-${formatCurrency(costPrice)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>📢 Marketing (${marketingPercentage.toFixed(1)}%):</span>
-                <span>-R$ ${marketingAmount.toFixed(2)}</span>
+                <span>-${formatCurrency(marketingAmount)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>💼 Outros Custos:</span>
-                <span>-R$ ${otherCosts.toFixed(2)}</span>
+                <span>-${formatCurrency(otherCosts)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>🏛️ Impostos (${taxPercentage.toFixed(1)}%):</span>
-                <span>-R$ ${taxAmount.toFixed(2)}</span>
+                <span>-${formatCurrency(taxAmount)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>🏪 Taxa Fixa ML:</span>
-                <span>-R$ ${mlFixedFee.toFixed(2)}</span>
+                <span>-${formatCurrency(mlFixedFee)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>📊 Taxa Percentual ML (${mlFeesData && mlFeesData.success ? mlFeesData.fees.percentage_fee : (productPrice < 79.90 ? 13 : 12)}%):</span>
-                <span>-R$ ${mlPercentageFee.toFixed(2)}</span>
+                <span>-${formatCurrency(mlPercentageFee)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>🚚 Frete:</span>
-                <span>-R$ ${mlShipping.toFixed(2)}</span>
+                <span>-${formatCurrency(mlShipping)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between text-danger">
                 <span>📋 Taxas Adicionais:</span>
-                <span>-R$ 0,00</span>
+                <span>-${formatCurrency(0)}</span>
             </div>
             
             <div class="list-group-item d-flex justify-content-between bg-primary text-white">
                 <span>💰 Lucro Final:</span>
-                <span>R$ ${netProfit.toFixed(2)}</span>
+                <span>${formatCurrency(netProfit)}</span>
             </div>
         </div>
         
@@ -1947,6 +1963,8 @@ async function loadProductSalesAnalysis(product) {
         const data = await response.json();
         console.log('📊 Dados de análise do produto recebidos:', data);
         
+        if (handleSessionError(null, data)) return;
+        
         renderProductSalesAnalysis(data, product);
         
     } catch (error) {
@@ -2005,6 +2023,8 @@ async function loadSkuSalesAnalysis(product) {
         
         const data = await response.json();
         console.log('📊 Dados de vendas por SKU recebidos:', data);
+        
+        if (handleSessionError(null, data)) return;
         
         renderSkuSalesAnalysis(data, sku);
         
@@ -2117,7 +2137,7 @@ function renderProductSalesAnalysis(data, product) {
                                         <tr>
                                             <td>${new Date(order.date_created).toLocaleDateString('pt-BR')}</td>
                                             <td>${order.buyer_nickname || 'N/A'}</td>
-                                            <td>R$ ${order.unit_price.toFixed(2)}</td>
+                                            <td>${formatCurrency(order.unit_price)}</td>
                                             <td>${order.quantity}</td>
                                             <td><span class="badge ${order.status === 'PAID' ? 'bg-success' : 'bg-warning'}">${order.status}</span></td>
                                         </tr>
@@ -2179,7 +2199,7 @@ function renderSkuSalesAnalysis(data, sku) {
                         <hr>
                         <div class="row text-center">
                             <div class="col-12">
-                                <h4 class="text-warning mb-0">R$ ${(stats.total_revenue || 0).toFixed(2)}</h4>
+                                <h4 class="text-warning mb-0">${formatCurrency(stats.total_revenue || 0)}</h4>
                                 <small class="text-muted">Receita Total</small>
                             </div>
                         </div>
@@ -2194,15 +2214,15 @@ function renderSkuSalesAnalysis(data, sku) {
                     <div class="card-body">
                         <div class="row text-center">
                             <div class="col-4">
-                                <h5 class="text-success mb-0">R$ ${(stats.avg_price || 0).toFixed(2)}</h5>
+                                <h5 class="text-success mb-0">${formatCurrency(stats.avg_price || 0)}</h5>
                                 <small class="text-muted">Preço Médio</small>
                             </div>
                             <div class="col-4">
-                                <h5 class="text-info mb-0">R$ ${(stats.min_price || 0).toFixed(2)}</h5>
+                                <h5 class="text-info mb-0">${formatCurrency(stats.min_price || 0)}</h5>
                                 <small class="text-muted">Preço Mínimo</small>
                             </div>
                             <div class="col-4">
-                                <h5 class="text-danger mb-0">R$ ${(stats.max_price || 0).toFixed(2)}</h5>
+                                <h5 class="text-danger mb-0">${formatCurrency(stats.max_price || 0)}</h5>
                                 <small class="text-muted">Preço Máximo</small>
                             </div>
                         </div>
@@ -2245,9 +2265,9 @@ function renderSkuSalesAnalysis(data, sku) {
                                             <td>${new Date(order.date_created).toLocaleDateString('pt-BR')}</td>
                                             <td><small class="text-muted">${order.ml_order_id}</small></td>
                                             <td>${order.buyer_nickname || 'N/A'}</td>
-                                            <td>R$ ${order.unit_price.toFixed(2)}</td>
+                                            <td>${formatCurrency(order.unit_price)}</td>
                                             <td>${order.quantity}</td>
-                                            <td>R$ ${(order.unit_price * order.quantity).toFixed(2)}</td>
+                                            <td>${formatCurrency(order.unit_price * order.quantity)}</td>
                                             <td><span class="badge ${order.status === 'PAID' ? 'bg-success' : 'bg-warning'}">${order.status}</span></td>
                                         </tr>
                                     `).join('') || '<tr><td colspan="7" class="text-center text-muted">Nenhum pedido encontrado</td></tr>'}
