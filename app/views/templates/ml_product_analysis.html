@@ -122,6 +122,69 @@
                     </div>
                 </div>
 
+                <!-- Sales Analysis Card -->
+                <div class="col-md-12 mb-4" id="sales-analysis-card">
+                    <div class="card h-100">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-graph-up-arrow"></i> Análise de Vendas
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Tabs -->
+                            <ul class="nav nav-tabs" id="salesAnalysisTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="product-analysis-tab" data-bs-toggle="tab" 
+                                            data-bs-target="#product-analysis" type="button" role="tab" 
+                                            aria-controls="product-analysis" aria-selected="true">
+                                        <i class="bi bi-box"></i> Análise do Produto
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="sku-sales-tab" data-bs-toggle="tab" 
+                                            data-bs-target="#sku-sales" type="button" role="tab" 
+                                            aria-controls="sku-sales" aria-selected="false">
+                                        <i class="bi bi-bar-chart"></i> Vendas pelo SKU
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <!-- Tab Content -->
+                            <div class="tab-content" id="salesAnalysisTabContent">
+                                <!-- Product Analysis Tab -->
+                                <div class="tab-pane fade show active" id="product-analysis" role="tabpanel" 
+                                     aria-labelledby="product-analysis-tab">
+                                    <div class="mt-3">
+                                        <div id="product-analysis-content">
+                                            <div class="text-center py-3">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                <p class="mt-2 mb-0">Carregando análise do produto...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- SKU Sales Tab -->
+                                <div class="tab-pane fade" id="sku-sales" role="tabpanel" 
+                                     aria-labelledby="sku-sales-tab">
+                                    <div class="mt-3">
+                                        <div id="sku-sales-content">
+                                            <div class="text-center py-3">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                <p class="mt-2 mb-0">Carregando vendas por SKU...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Análise Card -->
                 <div class="col-md-12 mb-4" id="competitive-analysis-card">
                     <div class="card h-100">
@@ -251,6 +314,7 @@ function loadProductAnalysis(productId) {
                 checkCatalogInfo(data.product);
                 loadProfitabilityAnalysis(data.product);
                 loadPricingAnalysis(data.product);
+                loadSalesAnalysis(data.product);
                 
                 // Mostrar conteúdo
                 document.getElementById('loading-state').classList.add('d-none');
@@ -1829,6 +1893,374 @@ function formatPrice(price, currency = 'BRL') {
 }
 
 // Função para sincronizar catálogo
+// Sales Analysis Functions
+function loadSalesAnalysis(product) {
+    console.log('📊 Carregando análise de vendas para produto:', product);
+    
+    // Carregar análise do produto (aba ativa por padrão)
+    loadProductSalesAnalysis(product);
+    
+    // Configurar eventos das abas
+    setupSalesAnalysisTabs(product);
+}
+
+function setupSalesAnalysisTabs(product) {
+    // Event listener para aba "Análise do Produto"
+    document.getElementById('product-analysis-tab').addEventListener('click', function() {
+        loadProductSalesAnalysis(product);
+    });
+    
+    // Event listener para aba "Vendas pelo SKU"
+    document.getElementById('sku-sales-tab').addEventListener('click', function() {
+        loadSkuSalesAnalysis(product);
+    });
+}
+
+async function loadProductSalesAnalysis(product) {
+    console.log('📦 Carregando análise do produto:', product);
+    
+    const contentContainer = document.getElementById('product-analysis-content');
+    
+    try {
+        // Mostrar loading
+        contentContainer.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <p class="mt-2 mb-0">Carregando análise do produto...</p>
+            </div>
+        `;
+        
+        // Buscar dados de vendas por ML item ID e company_id
+        const response = await fetch(`/api/sales/analysis/product/${product.ml_item_id}`, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('📊 Dados de análise do produto recebidos:', data);
+        
+        renderProductSalesAnalysis(data, product);
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar análise do produto:', error);
+        contentContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Erro ao carregar análise do produto:</strong><br>
+                ${error.message}
+            </div>
+        `;
+    }
+}
+
+async function loadSkuSalesAnalysis(product) {
+    console.log('📈 Carregando vendas por SKU:', product);
+    
+    const contentContainer = document.getElementById('sku-sales-content');
+    
+    // Verificar se o produto tem SKU
+    const sku = product.seller_custom_field || product.sku || product.seller_sku;
+    
+    if (!sku) {
+        contentContainer.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Produto sem SKU associado</strong><br>
+                Este produto não possui SKU configurado para análise de vendas.
+            </div>
+        `;
+        return;
+    }
+    
+    try {
+        // Mostrar loading
+        contentContainer.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <p class="mt-2 mb-0">Carregando vendas por SKU...</p>
+            </div>
+        `;
+        
+        // Buscar dados de vendas por SKU e company_id
+        const response = await fetch(`/api/sales/analysis/sku/${encodeURIComponent(sku)}`, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('📊 Dados de vendas por SKU recebidos:', data);
+        
+        renderSkuSalesAnalysis(data, sku);
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar vendas por SKU:', error);
+        contentContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Erro ao carregar vendas por SKU:</strong><br>
+                ${error.message}
+            </div>
+        `;
+    }
+}
+
+function renderProductSalesAnalysis(data, product) {
+    console.log('🎨 Renderizando análise do produto:', data);
+    
+    const contentContainer = document.getElementById('product-analysis-content');
+    
+    if (!data || !data.success) {
+        contentContainer.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-info-circle"></i>
+                <strong>Nenhum dado encontrado</strong><br>
+                Não foram encontrados dados de vendas para este produto.
+            </div>
+        `;
+        return;
+    }
+    
+    const analysis = data.analysis || {};
+    const stats = analysis.stats || {};
+    
+    contentContainer.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-graph-up"></i> Estatísticas Gerais</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <h4 class="text-primary mb-0">${stats.total_orders || 0}</h4>
+                                    <small class="text-muted">Total de Pedidos</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-success mb-0">${stats.total_quantity || 0}</h4>
+                                <small class="text-muted">Quantidade Vendida</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row text-center">
+                            <div class="col-12">
+                                <h4 class="text-warning mb-0">R$ ${(stats.total_revenue || 0).toFixed(2)}</h4>
+                                <small class="text-muted">Receita Total</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="bi bi-currency-dollar"></i> Preços</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <h5 class="text-success mb-0">R$ ${(stats.avg_price || 0).toFixed(2)}</h5>
+                                <small class="text-muted">Preço Médio</small>
+                            </div>
+                            <div class="col-4">
+                                <h5 class="text-info mb-0">R$ ${(stats.min_price || 0).toFixed(2)}</h5>
+                                <small class="text-muted">Preço Mínimo</small>
+                            </div>
+                            <div class="col-4">
+                                <h5 class="text-danger mb-0">R$ ${(stats.max_price || 0).toFixed(2)}</h5>
+                                <small class="text-muted">Preço Máximo</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-list-ul"></i> Últimos Pedidos</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Comprador</th>
+                                        <th>Preço</th>
+                                        <th>Qtd</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${(analysis.recent_orders || []).map(order => `
+                                        <tr>
+                                            <td>${new Date(order.date_created).toLocaleDateString('pt-BR')}</td>
+                                            <td>${order.buyer_nickname || 'N/A'}</td>
+                                            <td>R$ ${order.unit_price.toFixed(2)}</td>
+                                            <td>${order.quantity}</td>
+                                            <td><span class="badge ${order.status === 'PAID' ? 'bg-success' : 'bg-warning'}">${order.status}</span></td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="5" class="text-center text-muted">Nenhum pedido encontrado</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderSkuSalesAnalysis(data, sku) {
+    console.log('🎨 Renderizando vendas por SKU:', data);
+    
+    const contentContainer = document.getElementById('sku-sales-content');
+    
+    if (!data || !data.success) {
+        contentContainer.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-info-circle"></i>
+                <strong>Nenhum dado encontrado</strong><br>
+                Não foram encontrados dados de vendas para o SKU "${sku}".
+            </div>
+        `;
+        return;
+    }
+    
+    const analysis = data.analysis || {};
+    const stats = analysis.stats || {};
+    
+    contentContainer.innerHTML = `
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            <strong>SKU Analisado:</strong> ${sku}
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-graph-up"></i> Estatísticas por SKU</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <h4 class="text-primary mb-0">${stats.total_orders || 0}</h4>
+                                    <small class="text-muted">Total de Pedidos</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-success mb-0">${stats.total_quantity || 0}</h4>
+                                <small class="text-muted">Quantidade Vendida</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row text-center">
+                            <div class="col-12">
+                                <h4 class="text-warning mb-0">R$ ${(stats.total_revenue || 0).toFixed(2)}</h4>
+                                <small class="text-muted">Receita Total</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="bi bi-currency-dollar"></i> Análise de Preços</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <h5 class="text-success mb-0">R$ ${(stats.avg_price || 0).toFixed(2)}</h5>
+                                <small class="text-muted">Preço Médio</small>
+                            </div>
+                            <div class="col-4">
+                                <h5 class="text-info mb-0">R$ ${(stats.min_price || 0).toFixed(2)}</h5>
+                                <small class="text-muted">Preço Mínimo</small>
+                            </div>
+                            <div class="col-4">
+                                <h5 class="text-danger mb-0">R$ ${(stats.max_price || 0).toFixed(2)}</h5>
+                                <small class="text-muted">Preço Máximo</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="text-center">
+                            <h6 class="text-muted">Status dos Pedidos</h6>
+                            <div class="d-flex justify-content-around">
+                                <span class="badge bg-success">${stats.paid_orders || 0} PAGOS</span>
+                                <span class="badge bg-warning">${stats.cancelled_orders || 0} CANCELADOS</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-list-ul"></i> Histórico de Vendas</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>ID do Pedido</th>
+                                        <th>Comprador</th>
+                                        <th>Preço Unit.</th>
+                                        <th>Qtd</th>
+                                        <th>Total</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${(analysis.orders || []).map(order => `
+                                        <tr>
+                                            <td>${new Date(order.date_created).toLocaleDateString('pt-BR')}</td>
+                                            <td><small class="text-muted">${order.ml_order_id}</small></td>
+                                            <td>${order.buyer_nickname || 'N/A'}</td>
+                                            <td>R$ ${order.unit_price.toFixed(2)}</td>
+                                            <td>${order.quantity}</td>
+                                            <td>R$ ${(order.unit_price * order.quantity).toFixed(2)}</td>
+                                            <td><span class="badge ${order.status === 'PAID' ? 'bg-success' : 'bg-warning'}">${order.status}</span></td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="7" class="text-center text-muted">Nenhum pedido encontrado</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function syncCatalog() {
     console.log('syncCatalog chamada');
     const productId = window.location.pathname.split('/').pop();

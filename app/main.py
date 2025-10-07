@@ -13,6 +13,7 @@ from app.routes.ads_analytics_routes import ads_analytics_router
 from app.routes.product_routes import product_router
 from app.routes.pricing_analysis_routes import router as pricing_analysis_router
 from app.routes.ml_pricing_routes import router as ml_pricing_router
+from app.routes.sales_analysis_routes import router as sales_analysis_router
 
 # Scheduler para sincronização automática
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -107,6 +108,7 @@ app.include_router(ads_analytics_router)  # Sem prefixo para /analytics
 app.include_router(product_router)  # Sem prefixo para /api/products
 app.include_router(pricing_analysis_router, prefix="/api/pricing")  # Para /api/pricing/analysis
 app.include_router(ml_pricing_router, prefix="/api/ml-pricing")  # Para /api/ml-pricing/fees
+app.include_router(sales_analysis_router)  # Para /api/sales/analysis
 
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")

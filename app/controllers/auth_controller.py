@@ -9,6 +9,9 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import secrets
 import string
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.config.database import get_db
 from app.models.saas_models import User, Company, UserSession
@@ -222,9 +225,30 @@ class AuthController:
         except Exception as e:
             return {"error": f"Erro interno: {str(e)}"}
     
+    def _cleanup_expired_sessions(self, db: Session = None):
+        """Remove sessões expiradas do banco de dados"""
+        try:
+            if db is None:
+                db = next(get_db())
+            
+            # Deletar sessões expiradas
+            expired_count = db.query(UserSession).filter(
+                UserSession.expires_at < datetime.utcnow()
+            ).delete()
+            
+            if expired_count > 0:
+                db.commit()
+                logger.info(f"Removidas {expired_count} sessões expiradas")
+                
+        except Exception as e:
+            logger.error(f"Erro ao limpar sessões expiradas: {e}")
+    
     def get_user_by_session(self, session_token: str, db: Session = None) -> dict:
         """Obtém usuário pela sessão"""
         try:
+            # Limpar sessões expiradas antes de buscar
+            self._cleanup_expired_sessions(db)
+            
             session = db.query(UserSession).filter(
                 UserSession.session_token == session_token,
                 UserSession.is_active == True,
