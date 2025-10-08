@@ -353,7 +353,7 @@ async def search_products(
     sort: Optional[str] = Query(None),
     order: Optional[str] = Query("asc"),
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=10000),  # Aumentado para 10000 para "Cadastrar Todos"
     db: Session = Depends(get_db),
     user = Depends(get_current_user)
 ):

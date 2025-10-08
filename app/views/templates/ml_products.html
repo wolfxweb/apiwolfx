@@ -15,21 +15,40 @@
                     </p>
                 </div>
                 <div>
-                    <button class="btn btn-success me-2" onclick="showImportProductModal()">
-                        <i class="bi bi-plus-circle"></i> Importar Anúncio
-                    </button>
-                    <button class="btn btn-primary me-2" onclick="syncProducts()">
-                        <i class="bi bi-arrow-clockwise"></i> Sincronizar Anúncios
-                    </button>
-                    <button class="btn btn-success me-2" onclick="importSelectedProducts()">
-                        <i class="bi bi-box-arrow-in-down"></i> Cadastrar Selecionados
-                    </button>
-                    <button class="btn btn-warning me-2" onclick="importAllProducts()">
-                        <i class="bi bi-box-arrow-in-down-right"></i> Cadastrar Todos
-                    </button>
-                    <button class="btn btn-danger me-2" onclick="showDeleteProductsModal()">
-                        <i class="bi bi-trash"></i> Remover Anúncios
-                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle" type="button" id="acoesDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-gear-fill"></i> Ações
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="acoesDropdown">
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="showImportProductModal(); return false;">
+                                    <i class="bi bi-plus-circle text-success"></i> Importar Anúncio
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="syncProducts(); return false;">
+                                    <i class="bi bi-arrow-clockwise text-primary"></i> Sincronizar Anúncios
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="importSelectedProducts(); return false;">
+                                    <i class="bi bi-box-arrow-in-down text-success"></i> Cadastrar Selecionados
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="importAllProducts(); return false;">
+                                    <i class="bi bi-box-arrow-in-down-right text-warning"></i> Cadastrar Todos
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="showDeleteProductsModal(); return false;">
+                                    <i class="bi bi-trash text-danger"></i> Remover Anúncios
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -301,6 +320,40 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-success" onclick="importProduct()" id="importButton">
                     <i class="bi bi-download"></i> Importar Anúncio
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação - Cadastrar Todos -->
+<div class="modal fade" id="confirmCadastrarTodosModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Confirmar Cadastro em Massa
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning mb-3">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <strong>Atenção!</strong>
+                </div>
+                <p class="mb-3">
+                    <strong>Deseja cadastrar produtos a partir de TODOS os anúncios do Mercado Livre?</strong>
+                </p>
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-clock"></i> Esta operação pode demorar alguns minutos dependendo da quantidade de anúncios.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-warning" onclick="confirmarCadastrarTodos()">
+                    <i class="bi bi-check-circle"></i> Sim, Cadastrar Todos
                 </button>
             </div>
         </div>
@@ -1336,31 +1389,70 @@ function importSelectedProducts() {
 }
 
 function importAllProducts() {
-    if (!confirm('Deseja cadastrar produtos a partir de TODOS os anúncios do Mercado Livre? Esta operação pode demorar alguns minutos.')) {
-        return;
+    // Abrir modal de confirmação
+    const modal = new bootstrap.Modal(document.getElementById('confirmCadastrarTodosModal'));
+    modal.show();
+}
+
+async function confirmarCadastrarTodos() {
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmCadastrarTodosModal'));
+    if (modal) {
+        modal.hide();
     }
     
-    showAlert('info', 'Iniciando importação de todos os produtos...');
-    
-    fetch('/api/products/import-all', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
+    try {
+        showAlert('info', 'Buscando todos os anúncios...');
+        
+        // Buscar TODOS os produtos da empresa
+        const searchResponse = await fetch('/ml/products/api/search?page=1&limit=10000');
+        const searchData = await searchResponse.json();
+        
+        console.log('Dados da busca:', searchData);
+        console.log('Total de anúncios encontrados:', searchData.total);
+        console.log('Produtos na resposta:', searchData.products?.length);
+        
+        if (!searchData.success || !searchData.products || searchData.products.length === 0) {
+            console.error('Nenhum anúncio encontrado:', searchData);
+            showAlert('warning', `Nenhum anúncio encontrado para cadastrar. Total no banco: ${searchData.total || 0}`);
+            return;
         }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
+        
+        const allProductIds = searchData.products.map(p => p.id);
+        
+        showAlert('info', `Cadastrando ${allProductIds.length} produto(s) a partir dos anúncios...`);
+        
+        // Usar o mesmo endpoint que "Cadastrar Selecionados"
+        const importResponse = await fetch('/api/products/import-selected-to-internal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                product_ids: allProductIds
+            })
+        });
+        
+        if (importResponse.status === 401) {
+            console.log('🔒 Sessão expirada, redirecionando para login');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await importResponse.json();
+        console.log('Resposta do servidor:', data);
+        
+        if (data && data.success) {
+            showAlert('success', `Produtos cadastrados: ${data.imported_count} criados, ${data.skipped_count} já existiam`);
             loadProducts();
         } else {
-            showAlert('danger', data.error);
+            showAlert('danger', data?.error || 'Erro desconhecido ao cadastrar produtos');
         }
-    })
-    .catch(error => {
+        
+    } catch (error) {
         console.error('Erro ao cadastrar produtos:', error);
-        showAlert('danger', 'Erro ao cadastrar produtos');
-    });
+        showAlert('danger', `Erro ao cadastrar produtos: ${error.message}`);
+    }
 }
 
 function getSelectedProducts() {

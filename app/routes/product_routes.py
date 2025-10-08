@@ -71,11 +71,28 @@ async def import_single_product(
 
 @product_router.post("/api/products/import-all")
 async def import_all_products(
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
 ):
     """Importa todos os produtos da empresa do Mercado Livre"""
     try:
+        # Verificar autenticação
+        if not session_token:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Não autenticado"}
+            )
+        
+        from app.controllers.auth_controller import AuthController
+        auth_result = AuthController().get_user_by_session(session_token, db)
+        if auth_result.get("error"):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Sessão inválida"}
+            )
+        
+        user = auth_result["user"]
+        
         service = ProductService(db)
         result = service.import_all_products(
             company_id=user["company"]["id"],
@@ -91,10 +108,10 @@ async def import_all_products(
             )
         
     except Exception as e:
-        logger.error(f"Erro ao importar todos os produtos: {e}")
+        logger.error(f"Erro ao importar todos os produtos: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"success": False, "error": "Erro interno do servidor"}
+            content={"success": False, "error": f"Erro interno do servidor: {str(e)}"}
         )
 
 @product_router.post("/api/products/import-to-internal")

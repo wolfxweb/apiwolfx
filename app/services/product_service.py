@@ -125,7 +125,8 @@ class ProductService:
                     title=product_data.get("title", ml_product.title),
                     thumbnail=product_data.get("thumbnail", ""),
                     sku=product_data.get("sku", ""),
-                    company_id=company_id
+                    company_id=company_id,
+                    ml_account_id=ml_product.ml_account_id  # Adicionar ml_account_id obrigatório
                 )
 
                 self.db.add(new_product)
