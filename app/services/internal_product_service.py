@@ -107,7 +107,7 @@ class InternalProductService:
         status: Optional[str] = None,
         category: Optional[str] = None,
         search: Optional[str] = None,
-        limit: int = 50,
+        limit: int = 20,
         offset: int = 0
     ) -> Dict[str, Any]:
         """Lista produtos internos da empresa"""

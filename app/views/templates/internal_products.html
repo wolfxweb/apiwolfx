@@ -376,9 +376,7 @@ let currentProducts = [];
 let currentFilters = {
     status: '',
     category: '',
-    search: '',
-    limit: 50,
-    offset: 0
+    search: ''
 };
 
 // Carregar produtos ao inicializar a página
@@ -421,18 +419,38 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Carregar produtos
-async function loadProducts() {
+let currentPage = 1;
+let itemsPerPage = 20;
+let totalProducts = 0;
+let allProducts = []; // Armazena TODOS os produtos
+
+async function loadProducts(page = 1) {
     const sessionToken = getSessionToken();
     if (!sessionToken || sessionToken === 'null') {
         console.log('🔒 Usuário não logado, não carregando produtos');
         return;
     }
     
+    // Se não é página 1, apenas renderiza a página solicitada (client-side)
+    if (page !== 1 && allProducts.length > 0) {
+        currentPage = page;
+        renderProductsPage(page);
+        return;
+    }
+    
+    currentPage = 1; // Sempre começa da página 1 ao carregar
+    
     try {
+        // Carregar TODOS os produtos (limit muito alto)
         const params = new URLSearchParams({
             session_token: sessionToken,
+            limit: 10000, // Carregar todos
+            offset: 0,
             ...currentFilters
         });
+        
+        console.log(`🔍 Carregando TODOS os produtos (paginação client-side)`);
+        console.log(`📡 URL: /api/internal-products/list?${params.toString()}`);
         
         const response = await fetch(`/api/internal-products/list?${params}`);
         
@@ -445,8 +463,10 @@ async function loadProducts() {
         const data = await response.json();
         
         if (data.success) {
-            currentProducts = data.products;
-            renderProducts(data.products, data.total);
+            allProducts = data.products;
+            totalProducts = data.products.length;
+            console.log(`📊 Total carregado: ${totalProducts} produtos (paginação client-side)`);
+            renderProductsPage(1);
         } else {
             showAlert('Erro ao carregar produtos: ' + data.error, 'danger');
         }
@@ -456,10 +476,25 @@ async function loadProducts() {
     }
 }
 
+// Renderizar página específica (client-side)
+function renderProductsPage(page) {
+    currentPage = page;
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const productsToShow = allProducts.slice(startIndex, endIndex);
+    
+    console.log(`🎨 Mostrando página ${page}: produtos ${startIndex + 1} a ${Math.min(endIndex, totalProducts)} de ${totalProducts}`);
+    
+    renderProducts(productsToShow, totalProducts);
+    renderPagination(totalProducts, currentPage, itemsPerPage);
+}
+
 // Renderizar produtos na tabela
 function renderProducts(products, total = null) {
     const tbody = document.getElementById('productsTableBody');
     const totalProducts = document.getElementById('total-products');
+    
+    console.log(`🎨 Renderizando ${products.length} produtos na tabela`);
     
     if (products.length === 0) {
         tbody.innerHTML = `
@@ -567,6 +602,93 @@ function renderProducts(products, total = null) {
     });
     
     tbody.innerHTML = html;
+}
+
+// Renderizar paginação
+function renderPagination(total, currentPage, itemsPerPage) {
+    const totalPages = Math.ceil(total / itemsPerPage);
+    const paginationElement = document.getElementById('pagination');
+    const showingStart = document.getElementById('showing-start');
+    const showingEnd = document.getElementById('showing-end');
+    const showingTotal = document.getElementById('showing-total');
+    
+    // Atualizar contadores
+    const start = total === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
+    const end = Math.min(currentPage * itemsPerPage, total);
+    
+    showingStart.textContent = start;
+    showingEnd.textContent = end;
+    showingTotal.textContent = total;
+    
+    // Se não há produtos ou apenas 1 página, ocultar paginação
+    if (totalPages <= 1) {
+        paginationElement.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '';
+    
+    // Botão Anterior
+    paginationHTML += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadProducts(${currentPage - 1}); return false;" aria-label="Anterior">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+    `;
+    
+    // Páginas
+    const maxButtons = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+    
+    if (endPage - startPage < maxButtons - 1) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+    
+    // Primeira página
+    if (startPage > 1) {
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="loadProducts(1); return false;">1</a>
+            </li>
+        `;
+        if (startPage > 2) {
+            paginationHTML += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    
+    // Páginas numeradas
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadProducts(${i}); return false;">${i}</a>
+            </li>
+        `;
+    }
+    
+    // Última página
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHTML += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="loadProducts(${totalPages}); return false;">${totalPages}</a>
+            </li>
+        `;
+    }
+    
+    // Botão Próximo
+    paginationHTML += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadProducts(${currentPage + 1}); return false;" aria-label="Próximo">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+    `;
+    
+    paginationElement.innerHTML = paginationHTML;
 }
 
 // Funções de seleção
@@ -728,7 +850,6 @@ function applyFilters() {
     currentFilters.status = document.getElementById('statusFilter').value;
     currentFilters.category = document.getElementById('categoryFilter').value;
     currentFilters.search = document.getElementById('searchInput').value;
-    currentFilters.offset = 0;
     
     loadProducts();
 }

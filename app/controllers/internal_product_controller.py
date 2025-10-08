@@ -66,7 +66,7 @@ class InternalProductController:
         status: Optional[str] = None,
         category: Optional[str] = None,
         search: Optional[str] = None,
-        limit: int = 50,
+        limit: int = 20,
         offset: int = 0,
         db: Session = Depends(get_db)
     ) -> Dict[str, Any]:

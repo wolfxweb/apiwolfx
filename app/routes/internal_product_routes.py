@@ -78,7 +78,7 @@ async def get_internal_products(
     status: Optional[str] = Query(None, description="Filtrar por status"),
     category: Optional[str] = Query(None, description="Filtrar por categoria"),
     search: Optional[str] = Query(None, description="Buscar por nome, SKU ou descrição"),
-    limit: int = Query(50, description="Limite de resultados"),
+    limit: int = Query(20, ge=1, le=10000, description="Limite de resultados"),
     offset: int = Query(0, description="Offset para paginação"),
     session_token: str = Cookie(None, description="Token de sessão"),
     db: Session = Depends(get_db)
@@ -91,6 +91,8 @@ async def get_internal_products(
         # Obter usuário atual
         current_user = get_current_user(session_token)
         company_id = current_user["company_id"]
+        
+        logger.info(f"📊 Listando produtos: company_id={company_id}, limit={limit}, offset={offset}")
         
         controller = InternalProductController()
         result = controller.get_internal_products(
