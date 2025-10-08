@@ -129,9 +129,17 @@
                     <div class="col-md-6 mb-4">
                         <div class="card h-100">
                             <div class="card-header bg-primary text-white">
-                                <h5 class="mb-0">
-                                    <i class="bi bi-megaphone"></i> Análise de Marketing
-                                </h5>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-megaphone"></i> Análise de Marketing
+                                    </h5>
+                                    <select class="form-select form-select-sm" style="width: auto;" id="marketing-period-filter" onchange="changeMarketingPeriod()">
+                                        <option value="7">7 dias</option>
+                                        <option value="30" selected>30 dias</option>
+                                        <option value="60">60 dias</option>
+                                        <option value="90">90 dias</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="card-body">
                                 <div id="marketing-analysis">
@@ -1233,12 +1241,29 @@ function getMercadoLiderProgressClass(level) {
     return classes[level] || 'bg-secondary';
 }
 
+// Variável global para armazenar produto atual (para reload)
+let currentProductForMarketing = null;
+
+// Função para mudar período do marketing
+function changeMarketingPeriod() {
+    if (currentProductForMarketing) {
+        loadMarketingAnalysis(currentProductForMarketing);
+    }
+}
+
 // Função para carregar análise de marketing (Product Ads)
 async function loadMarketingAnalysis(product) {
     console.log('📣 Carregando análise de marketing para produto:', product);
     
+    // Salvar produto para reload
+    currentProductForMarketing = product;
+    
     const marketingContainer = document.getElementById('marketing-analysis');
     const productId = product.id;
+    
+    // Pegar período selecionado
+    const periodSelect = document.getElementById('marketing-period-filter');
+    const days = periodSelect ? periodSelect.value : 30;
     
     // Mostrar loading
     marketingContainer.innerHTML = `
@@ -1246,13 +1271,13 @@ async function loadMarketingAnalysis(product) {
             <div class="spinner-border spinner-border-sm" role="status">
                 <span class="visually-hidden">Carregando...</span>
             </div>
-            <p class="mt-2 mb-0">Buscando métricas de Product Ads...</p>
+            <p class="mt-2 mb-0">Buscando métricas de Product Ads (${days} dias)...</p>
         </div>
     `;
     
     try {
-        // Buscar métricas de publicidade (últimos 30 dias)
-        const response = await fetch(`/ml/products/api/product/${productId}/advertising-metrics?days=30`, {
+        // Buscar métricas de publicidade com período selecionado
+        const response = await fetch(`/ml/products/api/product/${productId}/advertising-metrics?days=${days}`, {
             credentials: 'include'
         });
         
@@ -1269,7 +1294,7 @@ async function loadMarketingAnalysis(product) {
                         <strong>Este produto tem investimento em Product Ads!</strong>
                     </div>
                     
-                    <h6 class="mb-3">📊 Métricas dos Últimos 30 Dias:</h6>
+                    <h6 class="mb-3">📊 Métricas dos Últimos ${days} Dias:</h6>
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -1340,7 +1365,7 @@ async function loadMarketingAnalysis(product) {
                     
                     ${metrics.campaigns_count > 0 ? `
                     <div class="alert alert-info small mb-0">
-                        <strong>${metrics.campaigns_count} campanha(s) ativa(s)</strong> nos últimos 30 dias.
+                        <strong>${metrics.campaigns_count} campanha(s) ativa(s)</strong> nos últimos ${days} dias.
                     </div>
                     ` : ''}
                 `;
@@ -1350,7 +1375,7 @@ async function loadMarketingAnalysis(product) {
                     <div class="alert alert-warning">
                         <i class="bi bi-info-circle"></i>
                         <strong>Sem investimento em Product Ads</strong><br>
-                        Este produto não tem campanhas de publicidade ativas nos últimos 30 dias.
+                        Este produto não tem campanhas de publicidade ativas nos últimos ${days} dias.
                     </div>
                     <p class="text-muted small mb-0">
                         Product Ads pode aumentar significativamente a visibilidade e as vendas do seu produto.
