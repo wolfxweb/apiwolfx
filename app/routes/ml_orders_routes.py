@@ -404,8 +404,8 @@ async def start_background_import_api(
         
         # Iniciar job em background
         from app.services.background_import_service import background_import_service
-        from app.config.database import engine
-        db_url = str(engine.url)
+        from app.config.database import DATABASE_URL
+        db_url = DATABASE_URL
         
         job_id = background_import_service.start_import_job(
             company_id=company_id,

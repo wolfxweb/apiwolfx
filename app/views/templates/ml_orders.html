@@ -18,15 +18,29 @@
                     </p>
                 </div>
                 <div>
-                    <button id="sync-btn" class="btn btn-primary me-2" onclick="syncOrders()">
-                        <i class="bi bi-arrow-clockwise"></i> Sincronizar
-                    </button>
-                    <button id="import-btn" class="btn btn-success me-2" onclick="importOrders()">
-                        <i class="bi bi-download"></i> Importar Pedidos
-                    </button>
-                    <button class="btn btn-danger" onclick="showDeleteOrdersModal()">
-                        <i class="bi bi-trash"></i> Remover Pedidos
-                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle" type="button" id="acoesDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-gear-fill"></i> Ações
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="acoesDropdown">
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="syncOrders(); return false;">
+                                    <i class="bi bi-arrow-clockwise text-primary"></i> Sincronizar Pedidos
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="importOrders(); return false;">
+                                    <i class="bi bi-download text-success"></i> Importar Pedidos
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="showDeleteOrdersModal(); return false;">
+                                    <i class="bi bi-trash text-danger"></i> Remover Pedidos
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
