@@ -152,6 +152,17 @@ class AIAnalysisService:
                     ml_account_id=product.ml_account_id,
                     days=30  # Últimos 30 dias
                 )
+                
+                # Adicionar dados de pricing às métricas de marketing
+                if marketing_metrics:
+                    # Preço do produto (prioritizar pricing_analysis se disponível)
+                    if pricing_analysis and pricing_analysis.get("preco_venda"):
+                        marketing_metrics["preco_venda"] = pricing_analysis.get("preco_venda")
+                        marketing_metrics["percentual_marketing_esperado"] = pricing_analysis.get("marketing_percentual", 5.0)
+                    else:
+                        marketing_metrics["preco_venda"] = float(product.price) if product.price else 0
+                        marketing_metrics["percentual_marketing_esperado"] = 5.0
+                
                 logger.info(f"Métricas de marketing obtidas para produto {product.ml_item_id}")
             except Exception as e:
                 logger.warning(f"Não foi possível obter métricas de marketing: {e}")
@@ -424,7 +435,23 @@ class AIAnalysisService:
         m = marketing_metrics
         percentual_esperado = marketing_metrics.get("percentual_marketing_esperado", 5.0)
         preco_venda = marketing_metrics.get("preco_venda", 0)
-        verba_esperada = (preco_venda * percentual_esperado / 100) if preco_venda > 0 else 0
+        verba_esperada_por_venda = (preco_venda * percentual_esperado / 100) if preco_venda > 0 else 0
+        
+        # Cálculos de custo por venda
+        total_investimento = m.get('total_cost', 0)
+        vendas_com_anuncio = m.get('advertising_sales_qty', 0)
+        vendas_organicas = m.get('organic_sales_qty', 0)
+        total_vendas = vendas_com_anuncio + vendas_organicas
+        
+        # Custo por venda COM anúncio (direto)
+        custo_por_venda_anuncio = (total_investimento / vendas_com_anuncio) if vendas_com_anuncio > 0 else 0
+        
+        # Custo por venda TOTAL (diluído entre todas as vendas)
+        custo_por_venda_total = (total_investimento / total_vendas) if total_vendas > 0 else 0
+        
+        # Percentuais em relação ao preço de venda
+        percentual_custo_anuncio = ((custo_por_venda_anuncio / preco_venda) * 100) if preco_venda > 0 else 0
+        percentual_custo_total = ((custo_por_venda_total / preco_venda) * 100) if preco_venda > 0 else 0
         
         return f"""<div class="card border-primary mb-3">
   <div class="card-header bg-primary text-white">
@@ -450,22 +477,59 @@ class AIAnalysisService:
     </div>
     
     <div class="alert alert-info mt-3">
-      <p><strong>💼 Verba de Marketing Estipulada:</strong> {percentual_esperado}% do preço de venda = R$ {verba_esperada:.2f} por unidade vendida</p>
-      <p><strong>📊 Análise:</strong> 
-        {"✅ Investimento DENTRO da verba" if m.get('total_cost', 0) <= verba_esperada else "⚠️ Investimento ACIMA da verba estipulada"} 
-        {f"({((m.get('total_cost', 0) / verba_esperada - 1) * 100):.1f}% {'acima' if m.get('total_cost', 0) > verba_esperada else 'abaixo'})" if verba_esperada > 0 else ""}
-      </p>
+      <p><strong>💼 Análise de Custo por Venda:</strong></p>
+      <table class="table table-sm mb-0">
+        <tr>
+          <td><strong>Preço de Venda:</strong></td>
+          <td>R$ {preco_venda:.2f}</td>
+        </tr>
+        <tr>
+          <td><strong>Verba de Marketing Esperada ({percentual_esperado}%):</strong></td>
+          <td>R$ {verba_esperada_por_venda:.2f} por venda</td>
+        </tr>
+        <tr class="table-warning">
+          <td><strong>Custo REAL por Venda COM Anúncio:</strong></td>
+          <td>R$ {custo_por_venda_anuncio:.2f} ({percentual_custo_anuncio:.2f}% do preço)</td>
+        </tr>
+        <tr class="table-info">
+          <td><strong>Custo REAL por Venda TOTAL (diluído):</strong></td>
+          <td>R$ {custo_por_venda_total:.2f} ({percentual_custo_total:.2f}% do preço)</td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <small>
+              <strong>Explicação:</strong><br>
+              • <strong>COM Anúncio:</strong> R$ {total_investimento:.2f} ÷ {vendas_com_anuncio} vendas pagas = R$ {custo_por_venda_anuncio:.2f}/venda<br>
+              • <strong>TOTAL (diluído):</strong> R$ {total_investimento:.2f} ÷ {total_vendas} vendas totais = R$ {custo_por_venda_total:.2f}/venda
+            </small>
+          </td>
+        </tr>
+      </table>
+    </div>
+    
+    <div class="alert alert-{'success' if percentual_custo_total <= percentual_esperado else 'danger'} mt-2">
+      <p><strong>📊 Diagnóstico Automático:</strong></p>
+      <ul class="mb-0">
+        <li><strong>Custo por venda COM anúncio ({percentual_custo_anuncio:.2f}%):</strong> 
+          {"✅ DENTRO da verba" if percentual_custo_anuncio <= percentual_esperado else f"⚠️ ACIMA da verba em {(percentual_custo_anuncio - percentual_esperado):.2f} pontos percentuais"}
+        </li>
+        <li><strong>Custo por venda TOTAL diluído ({percentual_custo_total:.2f}%):</strong> 
+          {"✅ DENTRO da verba" if percentual_custo_total <= percentual_esperado else f"⚠️ ACIMA da verba em {(percentual_custo_total - percentual_esperado):.2f} pontos percentuais"}
+        </li>
+        <li><strong>Proporção de vendas:</strong> {vendas_com_anuncio} com anúncio ({((vendas_com_anuncio/total_vendas)*100):.1f}%) + {vendas_organicas} orgânicas ({((vendas_organicas/total_vendas)*100):.1f}%)</li>
+      </ul>
     </div>
   </div>
 </div>
 
 <p><strong>📝 Análise Obrigatória:</strong></p>
 <ul>
-  <li>O investimento está adequado em relação à verba de marketing de {percentual_esperado}%?</li>
+  <li>O custo por venda COM anúncio (R$ {custo_por_venda_anuncio:.2f} = {percentual_custo_anuncio:.2f}%) está adequado em relação à verba de {percentual_esperado}%?</li>
+  <li>O custo por venda TOTAL diluído (R$ {custo_por_venda_total:.2f} = {percentual_custo_total:.2f}%) está adequado?</li>
   <li>O ROAS de {m.get('roas', 0):.2f}x é saudável? (ideal > 3x)</li>
   <li>O ACOS de {m.get('acos', 0):.2f}% está bom? (ideal < 30%)</li>
-  <li>As vendas COM anúncio representam que porcentagem das vendas totais?</li>
-  <li>Vale a pena continuar investindo ou pausar/ajustar?</li>
+  <li>As vendas COM anúncio ({((vendas_com_anuncio/total_vendas)*100):.1f}%) justificam o investimento?</li>
+  <li>Vale a pena continuar investindo, ajustar o valor ou pausar a campanha?</li>
 </ul>"""
     
     def _create_analysis_prompt(self, data: Dict) -> str:
