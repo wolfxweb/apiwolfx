@@ -1735,11 +1735,6 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                 <span>📋 Taxas Adicionais:</span>
                 <span>-${formatCurrency(0)}</span>
             </div>
-            
-            <div class="list-group-item d-flex justify-content-between bg-primary text-white">
-                <span>💰 Lucro Final:</span>
-                <span>${formatCurrency(netProfit)}</span>
-            </div>
         </div>
         
         <div class="mt-3">
@@ -1771,9 +1766,8 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                     <div class="col-4">
                         <div class="card bg-success bg-opacity-10 border-success">
                             <div class="card-body py-2 px-3">
-                                <small class="text-muted d-block">Margem de Lucro</small>
-                                <strong class="text-success fs-6">${actualMargin.toFixed(2)}%</strong>
-                              
+                                <small class="text-muted d-block">Lucro</small>
+                                <strong class="text-success fs-6">${formatPrice(productNetProfit)} <small class="text-muted">(${actualMargin.toFixed(2)}%)</small></strong>
                             </div>
                         </div>
                     </div>
@@ -1787,10 +1781,10 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                         </div>
                     </div>
                     <div class="col-4">
-                        <div class="card bg-success bg-opacity-10 border-success">
+                        <div class="card bg-danger bg-opacity-10 border-danger">
                             <div class="card-body py-2 px-3">
-                                <small class="text-muted d-block">Lucro </small>
-                                <strong class="text-success fs-6">${formatPrice(productNetProfit)}</strong>
+                                <small class="text-muted d-block">Total Custos</small>
+                                <strong class="text-danger fs-6">${formatPrice(totalAllCosts)}</strong>
                             </div>
                         </div>
                     </div>
