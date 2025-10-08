@@ -1026,6 +1026,7 @@ async function updateJobStatus(jobId) {
 
 async function cancelImport() {
     if (!currentJobId) {
+        closeImportModal();
         return;
     }
     
@@ -1039,6 +1040,13 @@ async function cancelImport() {
                 method: 'POST',
                 credentials: 'include'
             });
+            
+            if (response.status === 404) {
+                // Job não existe mais (container reiniciado)
+                showWarning('Job não encontrado. Fechando modal...');
+                closeImportModal();
+                return;
+            }
             
             if (response.ok) {
                 const data = await response.json();
