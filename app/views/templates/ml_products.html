@@ -146,18 +146,6 @@
                                     <th class="sortable" data-sort="price" onclick="sortTable('price')">
                                         Preço <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable" data-sort="seller_sku" onclick="sortTable('seller_sku')">
-                                        SKU <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable" data-sort="available_quantity" onclick="sortTable('available_quantity')">
-                                        Estoque <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable" data-sort="sold_quantity" onclick="sortTable('sold_quantity')">
-                                        Vendidos <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable" data-sort="status" onclick="sortTable('status')">
-                                        Status <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
@@ -680,6 +668,13 @@ function renderProducts(products) {
                                    <i class="bi bi-truck"></i> ${getShippingType(product.shipping)}
                                </small>
                            </div>
+                           ${product.seller_sku ? `
+                           <div class="mt-1">
+                               <small class="text-secondary">
+                                   <i class="bi bi-upc-scan"></i> SKU: <strong>${product.seller_sku}</strong>
+                               </small>
+                           </div>
+                           ` : ''}
                         </div>
                     </div>
                 </td>
@@ -689,24 +684,8 @@ function renderProducts(products) {
                     </div>
                 </td>
                 <td>
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-tag text-muted me-1"></i>
-                        <span class="badge bg-light text-dark">
-                            ${product.seller_sku || 'N/A'}
-                        </span>
-                    </div>
-                </td>
-                <td>
-                    <span class="badge bg-success">${product.available_quantity || 0}</span>
-                </td>
-                <td>
-                    <span class="badge bg-info">${product.sold_quantity || 0}</span>
-                </td>
-                <td>
-                    ${getStatusBadge(product.status)}
-                </td>
-                <td>
                     <div class="btn-group btn-group-sm">
+                        ${product.seller_sku ? `<button onclick="copySKU('${product.seller_sku}')" class="btn btn-outline-secondary btn-sm" title="Copiar SKU"><i class="bi bi-clipboard"></i></button>` : ''}
                         ${product.permalink ? `<a href="${product.permalink}" target="_blank" class="btn btn-outline-primary btn-sm" title="Ver no Mercado Livre"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
                         <a href="/ml/products/details/${product.id}" 
                            class="btn btn-outline-info btn-sm" 
@@ -1469,6 +1448,15 @@ function getSelectedProducts() {
 document.head.appendChild(sortStyle);
 
 // Função para importar produto do ML para produto interno
+function copySKU(sku) {
+    navigator.clipboard.writeText(sku).then(() => {
+        showAlert('success', `SKU "${sku}" copiado!`);
+    }).catch(err => {
+        console.error('Erro ao copiar SKU:', err);
+        showAlert('danger', 'Erro ao copiar SKU');
+    });
+}
+
 function importToInternalProduct(productId, productTitle, mlItemId) {
     // Redirecionar para a página de produtos internos com o produto pré-selecionado
     const params = new URLSearchParams({
