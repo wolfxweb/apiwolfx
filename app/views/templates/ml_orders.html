@@ -125,28 +125,15 @@
                                     <th class="sortable" data-sort="buyer_nickname" onclick="sortTable('buyer_nickname')">
                                         Comprador <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable text-end" data-sort="paid_amount" onclick="sortTable('paid_amount')">
-                                        Valor Pago pelo Cliente <i class="bi bi-arrow-down-up ms-1"></i>
+                                    <th class="sortable" data-sort="date_created" onclick="sortTable('date_created')">
+                                        Dados de Billing <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
-                                    <th class="sortable text-end" data-sort="coupon_amount" onclick="sortTable('coupon_amount')">
-                                        Desconto (Cupom) <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable text-end" data-sort="sale_fees" onclick="sortTable('sale_fees')">
-                                        Taxa do Mercado Livre <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable text-end" data-sort="shipping_cost" onclick="sortTable('shipping_cost')">
-                                        Frete <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable text-end" data-sort="net_profit" onclick="sortTable('net_profit')">
-                                        Receita Líquida <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th>Dados de Billing</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="orders-table-body">
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">
+                                    <td colspan="4" class="text-center text-muted py-4">
                                         <i class="bi bi-info-circle"></i> Carregando pedidos...
                                     </td>
                                 </tr>
@@ -431,7 +418,7 @@ function renderOrders(orders) {
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" class="text-center text-muted py-4">
+                <td colspan="4" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -441,60 +428,39 @@ function renderOrders(orders) {
     
     tbody.innerHTML = orders.map(order => `
         <tr class="small">
-            <td>
+            <td class="align-middle">
                 <input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateSelectedOrdersCount()">
             </td>
-            <td>
+            <td class="align-middle">
                 <div class="d-flex align-items-center">
-                    <i class="bi bi-person-circle text-success me-2"></i>
+                    <i class="bi bi-person-circle text-success me-2 fs-4"></i>
                     <div>
-                        <strong class="small">${order.buyer_nickname || 'N/A'}</strong>
-                        ${order.buyer_email ? `<br><small class="text-muted">${order.buyer_email}</small>` : ''}
-                        <br><small class="text-muted">ID: ${order.ml_order_id || order.order_id}</small>
-                        <br><small class="text-muted">Data: ${formatDate(order.date_created)}</small>
-                        <br><small class="text-muted">Origem da Venda: ${order.is_advertising_sale ? 'Anúncio Pago' : 'Busca Orgânica'}</small>
+                        <strong class="d-block">${order.buyer_nickname || 'N/A'}</strong>
+                        ${order.buyer_email ? `<small class="text-muted d-block">${order.buyer_email}</small>` : ''}
+                        <small class="text-muted d-block">
+                            <i class="bi bi-hash"></i> ${order.ml_order_id || order.order_id}
+                        </small>
+                        <small class="text-muted d-block">
+                            <i class="bi bi-calendar3"></i> ${formatDate(order.date_created)}
+                        </small>
+                        <small class="d-block">
+                            ${order.is_advertising_sale ? 
+                                '<span class="badge bg-warning text-dark"><i class="bi bi-megaphone"></i> Anúncio Pago</span>' : 
+                                '<span class="badge bg-success"><i class="bi bi-search"></i> Busca Orgânica</span>'}
+                        </small>
                     </div>
                 </div>
             </td>
-            <td>
-                <div class="text-end">
-                    <strong class="small">${formatCurrency(order.paid_amount || 0, order.currency_id)}</strong>
-                </div>
+            <td class="align-middle">
+                ${renderBillingData(order)}
             </td>
-            <td>
-                <div class="text-end">
-                    <span class="text-danger small">- ${formatCurrency(order.coupon_amount || 0, order.currency_id)}</span>
-                </div>
-            </td>
-            <td>
-                <div class="text-end">
-                    <span class="text-warning small">${formatCurrency(order.sale_fees || 0, order.currency_id)}</span>
-                </div>
-            </td>
-            <td>
-                <div class="text-end">
-                    <span class="text-info small">${formatCurrency(order.shipping_cost || 0, order.currency_id)}</span>
-                </div>
-            </td>
-            <td>
-                <div class="text-end">
-                    <strong class="text-success small">${formatCurrency((order.total_amount || 0) - (order.sale_fees || 0), order.currency_id)}</strong>
-                </div>
-            </td>
-            <td>
-                <div class="small">
-                    ${renderBillingData(order)}
-                </div>
-            </td>
-            <td>
-                <div class="btn-group" role="group">
-                    <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${order.ml_order_id}')" title="Ver detalhes">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="copyOrderId('${order.ml_order_id}')" title="Copiar ID">
-                        <i class="bi bi-clipboard"></i>
-                    </button>
-                </div>
+            <td class="align-middle text-nowrap">
+                <button class="btn btn-outline-primary btn-sm me-1" onclick="viewOrderDetails('${order.ml_order_id}')" title="Ver detalhes">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="copyOrderId('${order.ml_order_id}')" title="Copiar ID">
+                    <i class="bi bi-clipboard"></i>
+                </button>
             </td>
         </tr>
     `).join('');
@@ -516,55 +482,35 @@ function renderBillingData(order) {
     // Calcular percentual de comissão
     const feePercentage = totalAmount > 0 ? ((saleFees / totalAmount) * 100).toFixed(1) : 0;
     
-    let billingHtml = `
-        <div class="billing-details" style="min-width: 200px;">
-            <div class="mb-2">
-                <small class="text-muted d-block">💰 Valor Total:</small>
-                <strong class="text-primary">${formatCurrency(totalAmount, currency)}</strong>
-            </div>
-            
-            <div class="mb-2">
-                <small class="text-muted d-block">💸 Comissão ML:</small>
-                <strong class="text-warning">${formatCurrency(saleFees, currency)}</strong>
-                <small class="text-muted"> (${feePercentage}%)</small>
-            </div>`;
+    // Formato compacto com ícones e quebras de linha
+    let items = [];
     
-    // Mostrar frete apenas se houver
+    // Valor total (sempre aparece)
+    items.push(`💰 Valor Total: <strong class="text-primary">${formatCurrency(totalAmount, currency)}</strong>`);
+    
+    // Comissão ML (sempre aparece)
+    items.push(`💸 Comissão ML: <strong class="text-warning">${formatCurrency(saleFees, currency)}</strong> <small class="text-muted">(${feePercentage}%)</small>`);
+    
+    // Frete (aparece se > 0)
     if (shippingCost > 0) {
-        billingHtml += `
-            <div class="mb-2">
-                <small class="text-muted d-block">🚚 Frete:</small>
-                <strong class="text-info">${formatCurrency(shippingCost, currency)}</strong>
-            </div>`;
+        items.push(`🚚 Frete: <strong class="text-info">${formatCurrency(shippingCost, currency)}</strong>`);
     }
     
-    // Mostrar desconto apenas se houver
+    // Desconto (aparece se > 0)
     if (couponAmount > 0) {
-        billingHtml += `
-            <div class="mb-2">
-                <small class="text-muted d-block">🎫 Desconto:</small>
-                <strong class="text-danger">-${formatCurrency(couponAmount, currency)}</strong>
-            </div>`;
+        items.push(`🎫 Desconto: <strong class="text-danger">-${formatCurrency(couponAmount, currency)}</strong>`);
     }
     
-    // Mostrar publicidade apenas se houver
+    // Publicidade (aparece se > 0)
     if (advertisingCost > 0) {
-        billingHtml += `
-            <div class="mb-2">
-                <small class="text-muted d-block">📢 Publicidade:</small>
-                <strong class="text-danger">${formatCurrency(advertisingCost, currency)}</strong>
-            </div>`;
+        items.push(`📢 Publicidade: <strong class="text-danger">${formatCurrency(advertisingCost, currency)}</strong>`);
     }
     
-    // Líquido para o vendedor (destaque)
-    billingHtml += `
-            <div class="mt-2 pt-2 border-top">
-                <small class="text-muted d-block">💵 Líquido Vendedor:</small>
-                <strong class="text-success fs-6">${formatCurrency(netAmount, currency)}</strong>
-            </div>
-        </div>`;
+    // Líquido vendedor (sempre aparece, destacado)
+    items.push(`<hr class="my-2">💵 Líquido Vendedor: <strong class="text-success fs-6">${formatCurrency(netAmount, currency)}</strong>`);
     
-    return billingHtml;
+    // Juntar com quebras de linha
+    return '<div class="small" style="line-height: 1.8;">' + items.join('<br>') + '</div>';
 }
 
 function renderPagination(total, limit, currentPage) {
