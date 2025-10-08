@@ -1343,6 +1343,11 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
     
     // Lucro final
     const netProfit = productPrice - totalAllCosts;
+    const productNetProfit = netProfit; // Alias para uso no template
+    
+    // Calcular indicadores financeiros
+    const markup = totalAllCosts > 0 ? ((productPrice / totalAllCosts - 1) * 100) : 0;
+    const roi = totalAllCosts > 0 ? ((netProfit / totalAllCosts) * 100) : 0;
     const actualMargin = productPrice > 0 ? (netProfit / productPrice) * 100 : 0;
     
     console.log('💰 Cálculos de preços:', {
@@ -1434,6 +1439,40 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                         <div class="card-body py-2">
                             <h6 class="text-muted mb-1">Margem Esperada</h6>
                             <h5 class="text-info mb-0">${expectedMargin.toFixed(1)}%</h5>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Análise de Lucro -->
+            <div class="mt-3">
+                <h6 class="mb-3"><i class="bi bi-graph-up"></i> Análise de Lucro</h6>
+                <div class="row g-2">
+                    <div class="col-4">
+                        <div class="card bg-success bg-opacity-10 border-success">
+                            <div class="card-body py-2 px-3">
+                                <small class="text-muted d-block">Margem de Lucro</small>
+                                <strong class="text-success fs-6">${actualMargin.toFixed(2)}%</strong>
+                                <small class="text-muted d-block">${productNetProfit >= 0 ? 'Lucro' : 'Prejuízo'}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card bg-primary bg-opacity-10 border-primary">
+                            <div class="card-body py-2 px-3">
+                                <small class="text-muted d-block">Markup</small>
+                                <strong class="text-primary fs-6">${markup.toFixed(2)}%</strong>
+                                <small class="text-muted d-block">Sobre o custo</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card bg-warning bg-opacity-10 border-warning">
+                            <div class="card-body py-2 px-3">
+                                <small class="text-muted d-block">ROI</small>
+                                <strong class="text-warning fs-6">${roi.toFixed(2)}%</strong>
+                                <small class="text-muted d-block">Retorno investimento</small>
+                            </div>
                         </div>
                     </div>
                 </div>
