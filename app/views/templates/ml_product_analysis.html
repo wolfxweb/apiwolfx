@@ -1289,11 +1289,6 @@ async function loadMarketingAnalysis(product) {
             if (metrics.has_advertising && metrics.total_cost > 0) {
                 // Produto tem investimento em Product Ads
                 marketingContainer.innerHTML = `
-                    <div class="alert alert-success mb-3">
-                        <i class="bi bi-megaphone-fill"></i>
-                        <strong>Este produto tem investimento em Product Ads!</strong>
-                    </div>
-                    
                     <h6 class="mb-3">📊 Métricas dos Últimos ${days} Dias:</h6>
                     
                     <div class="row mb-3">
@@ -1362,12 +1357,6 @@ async function loadMarketingAnalysis(product) {
                             </div>
                         </div>
                     </div>
-                    
-                    ${metrics.campaigns_count > 0 ? `
-                    <div class="alert alert-info small mb-0">
-                        <strong>${metrics.campaigns_count} campanha(s) ativa(s)</strong> nos últimos ${days} dias.
-                    </div>
-                    ` : ''}
                 `;
             } else {
                 // Produto sem investimento em Product Ads
