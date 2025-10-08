@@ -1539,13 +1539,14 @@ async def ai_analyze_product(
         
         logger.info(f"Iniciando análise IA para produto {product_id}")
         
-        # Pegar dados de catálogo se fornecidos
+        # Pegar dados enviados do frontend
         catalog_data = request_body.get("catalog_data", None)
+        pricing_analysis = request_body.get("pricing_analysis", None)
         
         # Chamar serviço de IA
         from app.services.ai_analysis_service import AIAnalysisService
         ai_service = AIAnalysisService(db)
-        analysis_result = ai_service.analyze_product(product_id, company_id, catalog_data)
+        analysis_result = ai_service.analyze_product(product_id, company_id, catalog_data, pricing_analysis)
         
         return JSONResponse(content=analysis_result)
         

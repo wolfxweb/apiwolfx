@@ -246,6 +246,7 @@ class MLProduct(Base):
     # Dados básicos
     title = Column(String(500), nullable=False)
     subtitle = Column(String(500))
+    description = Column(Text)  # Descrição do anúncio
     price = Column(String(50))
     base_price = Column(String(50))
     original_price = Column(String(50))
@@ -290,6 +291,17 @@ class MLProduct(Base):
     variations = Column(JSON)  # Variações do produto
     tags = Column(JSON)        # Tags do produto
     
+    # Garantia e termos de venda
+    sale_terms = Column(JSON)   # Termos de venda (garantia, etc)
+    warranty = Column(Text)     # Informações de garantia detalhadas
+    
+    # Mídia
+    video_id = Column(String(100))  # ID do vídeo do YouTube
+    
+    # Qualidade e saúde do anúncio
+    health = Column(JSON)       # Status de saúde do anúncio (exposição, qualidade)
+    domain_id = Column(String(100), index=True)  # Domínio do produto
+    
     # Envio
     shipping = Column(JSON)    # Configurações de envio
     free_shipping = Column(Boolean, default=False)
@@ -321,7 +333,7 @@ class MLProductSync(Base):
     __tablename__ = "ml_product_sync"
     
     id = Column(Integer, primary_key=True, index=True)
-    ml_product_id = Column(Integer, ForeignKey("ml_products.id"), nullable=False, index=True)
+    ml_product_id = Column(Integer, ForeignKey("ml_products.id"), nullable=True, index=True)  # Nullable para logs gerais de sincronização
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
     

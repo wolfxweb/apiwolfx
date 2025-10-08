@@ -19,7 +19,8 @@ class AIAnalysisService:
         self.api_key = "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"
         self.api_url = "https://api.openai.com/v1/chat/completions"
     
-    def analyze_product(self, product_id: int, company_id: int, catalog_data: Optional[List] = None) -> Dict:
+    def analyze_product(self, product_id: int, company_id: int, catalog_data: Optional[List] = None, 
+                       pricing_analysis: Optional[Dict] = None) -> Dict:
         """Analisa um produto usando ChatGPT"""
         try:
             logger.info(f"Iniciando análise IA para produto {product_id}")
@@ -57,7 +58,7 @@ class AIAnalysisService:
             logger.info(f"Encontrados {len(orders)} pedidos para o produto {product.ml_item_id}")
             
             # 3. Preparar dados estruturados
-            analysis_data = self._prepare_analysis_data(product, orders, catalog_data)
+            analysis_data = self._prepare_analysis_data(product, orders, catalog_data, pricing_analysis)
             
             # 4. Criar prompt para ChatGPT
             prompt = self._create_analysis_prompt(analysis_data)
@@ -69,7 +70,11 @@ class AIAnalysisService:
                 return {
                     "success": True,
                     "analysis": response["analysis"],
-                    "tokens_used": response.get("tokens_used", 0)
+                    "tokens_used": response.get("tokens_used", 0),
+                    "debug_info": {
+                        "data_sent": analysis_data,
+                        "prompt_sent": prompt
+                    }
                 }
             else:
                 return {"success": False, "error": response.get("error")}
@@ -79,24 +84,37 @@ class AIAnalysisService:
             return {"success": False, "error": f"Erro ao processar análise: {str(e)}"}
     
     def _prepare_analysis_data(self, product: MLProduct, orders: List[MLOrder], 
-                               catalog_data: Optional[List] = None) -> Dict:
+                               catalog_data: Optional[List] = None, pricing_analysis: Optional[Dict] = None) -> Dict:
         """Prepara dados estruturados para análise"""
         
         # Dados do produto
         product_data = {
             "id_ml": product.ml_item_id,
             "titulo": product.title,
+            "descricao": product.description if product.description else "Sem descrição disponível",
             "sku": product.seller_sku,
             "preco_atual": float(product.price) if product.price else 0,
             "preco_base": float(product.base_price) if product.base_price else None,
             "preco_original": float(product.original_price) if product.original_price else None,
             "status": product.status.value if hasattr(product.status, 'value') else str(product.status),
             "categoria": product.category_name,
+            "domain_id": product.domain_id,
             "estoque_disponivel": product.available_quantity,
             "quantidade_vendida": product.sold_quantity,
             "condicao": product.condition,
-            "tipo_envio": product.shipping
+            "tipo_envio": product.shipping,
+            "tem_video": bool(product.video_id),
+            "sale_terms": product.sale_terms,
+            "warranty": product.warranty,
+            "health": product.health,
+            "attributes": product.attributes,
+            "variations": product.variations,
+            "tags": product.tags
         }
+        
+        # Adicionar análise de custos e preços se fornecida
+        if pricing_analysis:
+            product_data["analise_custos"] = pricing_analysis
         
         # Histórico de pedidos
         orders_data = []
@@ -166,21 +184,33 @@ class AIAnalysisService:
             "liquido_total": total_revenue - total_ml_fees
         }
         
-        # Dados do catálogo (concorrentes)
+        # Dados do catálogo (concorrentes) com posicionamento
         competitors_data = []
+        your_position = None
+        
         if catalog_data:
-            for comp in catalog_data[:50]:  # Limitar a 50 concorrentes principais
-                competitors_data.append({
+            for idx, comp in enumerate(catalog_data, 1):  # Enviar todos os concorrentes
+                comp_data = {
+                    "posicao": idx,
                     "vendedor": comp.get("seller_nickname", "N/A"),
                     "preco": comp.get("price", 0),
                     "envio": comp.get("shipping_type", "N/A"),
                     "envio_gratis": comp.get("free_shipping", False),
                     "mercado_lider": comp.get("mercado_lider_level", "none"),
                     "vendas": comp.get("sold_quantity", 0)
-                })
+                }
+                competitors_data.append(comp_data)
+                
+                # Identificar posição do produto atual
+                if comp.get("ml_item_id") == product.ml_item_id:
+                    your_position = idx
         
         return {
             "produto": product_data,
+            "posicionamento": {
+                "sua_posicao": your_position,
+                "total_concorrentes": len(competitors_data)
+            } if your_position else None,
             "historico_pedidos": orders_data,
             "metricas_vendas": sales_metrics,
             "concorrentes": competitors_data,
@@ -194,6 +224,8 @@ class AIAnalysisService:
         metricas = data["metricas_vendas"]
         total_pedidos = len(data["historico_pedidos"])
         total_concorrentes = data.get("total_concorrentes", 0)
+        posicionamento = data.get("posicionamento")
+        custos = produto.get("analise_custos", {})
         
         prompt = f"""Você é um especialista em análise de dados de e-commerce do Mercado Livre.
 
@@ -201,12 +233,16 @@ Analise os seguintes dados de um produto e forneça insights acionáveis:
 
 📦 PRODUTO ANALISADO:
 - Título: {produto['titulo']}
+- Descrição Completa: {produto.get('descricao', 'N/A')}
 - SKU: {produto['sku']}
 - Preço Atual: R$ {produto['preco_atual']:.2f}
 - Status: {produto['status']}
 - Categoria: {produto['categoria']}
 - Estoque: {produto['estoque_disponivel']} unidades
 - Vendidos (ML): {produto['quantidade_vendida']} unidades
+
+💰 ANÁLISE DETALHADA DE CUSTOS E LUCRO:
+{json.dumps(custos, indent=2, ensure_ascii=False) if custos else 'Dados de custos não disponíveis'}
 
 📊 MÉTRICAS DE VENDAS ({total_pedidos} pedidos analisados):
 - Total de Pedidos: {metricas['total_pedidos']}
@@ -216,21 +252,42 @@ Analise os seguintes dados de um produto e forneça insights acionáveis:
 - Comissões ML: R$ {metricas['comissoes_ml_total']:.2f}
 - Líquido Total: R$ {metricas['liquido_total']:.2f}
 
+{f"🏆 POSICIONAMENTO NO CATÁLOGO: {posicionamento['sua_posicao']}º de {posicionamento['total_concorrentes']} anunciantes" if posicionamento and posicionamento.get('sua_posicao') else ""}
 {f"🏆 CONCORRÊNCIA: {total_concorrentes} concorrentes no catálogo" if total_concorrentes > 0 else ""}
 
 DADOS COMPLETOS (JSON):
 {json.dumps(data, indent=2, ensure_ascii=False)}
 
-Por favor, forneça uma análise estruturada em formato HTML contendo:
+Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem blocos de código markdown):
 
-1. **RESUMO EXECUTIVO** (3-4 pontos principais)
-2. **ANÁLISE DE PERFORMANCE** (vendas, conversão, tendências)
-3. **ANÁLISE FINANCEIRA** (lucratividade, custos, oportunidades)
-4. **RECOMENDAÇÕES ESTRATÉGICAS** (ações concretas prioritárias)
-{f"5. **POSICIONAMENTO COMPETITIVO** (vs concorrentes)" if total_concorrentes > 0 else ""}
+<h2>1. RESUMO EXECUTIVO</h2>
+<ul>
+  <li>Performance geral e situação atual</li>
+  <li>Principais oportunidades</li>
+  <li>Principais riscos/alertas</li>
+</ul>
 
-Use HTML para formatação: <strong>, <ul>, <li>, <em>, etc.
-Seja específico, prático e focado em ações."""
+<h2>2. ANÁLISE DE PERFORMANCE DE VENDAS</h2>
+<p>Análise detalhada de vendas, conversão e tendências...</p>
+
+<h2>3. ANÁLISE FINANCEIRA</h2>
+<p>Lucratividade, custos, margens e oportunidades de otimização...</p>
+
+<h2>4. RECOMENDAÇÕES ESTRATÉGICAS</h2>
+<ul>
+  <li><strong>Ação 1:</strong> Descrição...</li>
+  <li><strong>Ação 2:</strong> Descrição...</li>
+</ul>
+
+{f"<h2>5. POSICIONAMENTO COMPETITIVO</h2><p>Análise vs {total_concorrentes} concorrentes...</p>" if total_concorrentes > 0 else ""}
+
+IMPORTANTE:
+- Retorne APENAS HTML puro, sem blocos ```html ou ```
+- Use <h2> para seções principais
+- Use <ul> e <li> para listas
+- Use <strong> para destaques
+- Use <p> para parágrafos
+- Seja específico e prático"""
 
         return prompt
     

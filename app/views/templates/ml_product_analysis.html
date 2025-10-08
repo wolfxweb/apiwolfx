@@ -77,6 +77,31 @@
                     </div>
                 </div>
 
+                <!-- Tabs de Análise -->
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="analysisTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="traditional-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#traditional-analysis" type="button" role="tab" 
+                                        aria-controls="traditional-analysis" aria-selected="true">
+                                    <i class="bi bi-graph-up"></i> Análises Detalhadas
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="ai-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#ai-analysis" type="button" role="tab" 
+                                        aria-controls="ai-analysis" aria-selected="false">
+                                    <i class="bi bi-robot"></i> Análise com IA
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="analysisTabContent">
+                            <!-- Tab: Análises Tradicionais -->
+                            <div class="tab-pane fade show active" id="traditional-analysis" role="tabpanel" aria-labelledby="traditional-tab">
+
                 <!-- Cost Analysis -->
                 <div class="row">
                     <!-- Marketplace Fees -->
@@ -115,23 +140,6 @@
                                             <span class="visually-hidden">Carregando...</span>
                                         </div>
                                         <p class="mt-2 mb-0">Calculando rentabilidade...</p>
-                                    </div>
-                                </div>
-                                
-                                <!-- Botão Analisar com IA -->
-                                <div class="mt-3 text-center border-top pt-3">
-                                    <button class="btn btn-primary" onclick="analyzeWithAI()" id="ai-analysis-btn">
-                                        <i class="bi bi-robot"></i> Analisar com IA
-                                    </button>
-                                </div>
-                                
-                                <!-- Resultado da Análise IA -->
-                                <div id="ai-analysis-result" class="mt-3" style="display: none;">
-                                    <div class="alert alert-info mb-0">
-                                        <h6 class="mb-3">
-                                            <i class="bi bi-lightbulb-fill"></i> Análise da Inteligência Artificial
-                                        </h6>
-                                        <div id="ai-analysis-content" style="line-height: 1.6;"></div>
                                     </div>
                                 </div>
                             </div>
@@ -243,6 +251,82 @@
                         </div>
                     </div>
                 </div>
+                
+                            </div>
+                            <!-- Fim Tab: Análises Tradicionais -->
+                            
+                            <!-- Tab: Análise com IA -->
+                            <div class="tab-pane fade" id="ai-analysis" role="tabpanel" aria-labelledby="ai-tab">
+                                <div class="text-center py-4">
+                                    <i class="bi bi-robot" style="font-size: 3rem; color: #0d6efd;"></i>
+                                    <h4 class="mt-3">Análise Inteligente com IA</h4>
+                                    <p class="text-muted mb-4">
+                                        Clique no botão abaixo para gerar uma análise completa usando Inteligência Artificial.<br>
+                                        A IA vai analisar seus dados de vendas, custos, concorrentes e sugerir estratégias personalizadas.
+                                    </p>
+                                    
+                                    <button class="btn btn-primary btn-lg" onclick="analyzeWithAI()" id="ai-analysis-btn">
+                                        <i class="bi bi-robot"></i> Analisar com IA
+                                    </button>
+                                </div>
+                                
+                                <!-- Resultado da Análise IA -->
+                                <div id="ai-analysis-result" class="mt-4" style="display: none;">
+                                    <!-- Card com Análise -->
+                                    <div class="card border-primary">
+                                        <div class="card-header bg-primary text-white">
+                                            <h5 class="mb-0">
+                                                <i class="bi bi-lightbulb-fill"></i> Insights da Inteligência Artificial
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="ai-analysis-content" class="ai-analysis-formatted"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Card com Logs de Debug -->
+                                    <div class="card border-secondary mt-3">
+                                        <div class="card-header bg-secondary text-white">
+                                            <h6 class="mb-0">
+                                                <i class="bi bi-code-square"></i> Dados Enviados para ChatGPT
+                                                <button class="btn btn-sm btn-outline-light float-end" onclick="toggleDebugInfo()">
+                                                    <i class="bi bi-chevron-down" id="debug-toggle-icon"></i>
+                                                </button>
+                                            </h6>
+                                        </div>
+                                        <div class="card-body" id="debug-info" style="display: none;">
+                                            <ul class="nav nav-tabs mb-3" id="debugTabs" role="tablist">
+                                                <li class="nav-item" role="presentation">
+                                                    <button class="nav-link active" id="json-tab" data-bs-toggle="tab" 
+                                                            data-bs-target="#json-data" type="button">
+                                                        📊 JSON Enviado
+                                                    </button>
+                                                </li>
+                                                <li class="nav-item" role="presentation">
+                                                    <button class="nav-link" id="prompt-tab" data-bs-toggle="tab" 
+                                                            data-bs-target="#prompt-data" type="button">
+                                                        💬 Prompt Usado
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                            <div class="tab-content">
+                                                <div class="tab-pane fade show active" id="json-data">
+                                                    <pre id="debug-json" class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto; font-size: 0.85rem;"></pre>
+                                                </div>
+                                                <div class="tab-pane fade" id="prompt-data">
+                                                    <pre id="debug-prompt" class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem;"></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Fim Tab: Análise com IA -->
+                            
+                        </div>
+                    </div>
+                </div>
+                
             </div>
         </div>
     </div>
@@ -1498,7 +1582,32 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
         
     `;
     
-    console.log('✅ Análise de preços renderizada com sucesso');
+    // Armazenar dados de pricing globalmente para análise da IA
+    window.currentPricingData = {
+        "preco_venda": productPrice,
+        "custo_produto": costPrice,
+        "impostos": {
+            "percentual": taxPercentage,
+            "valor": taxAmount
+        },
+        "marketing": {
+            "percentual": marketingPercentage,
+            "valor": marketingAmount
+        },
+        "outros_custos": otherCosts,
+        "taxa_fixa_ml": mlFixedFee,
+        "taxa_percentual_ml": mlPercentageFee,
+        "frete": mlShipping,
+        "taxas_adicionais": mlAdditionalFees,
+        "custo_total": totalAllCosts,
+        "lucro_liquido": netProfit,
+        "margem_atual_percentual": actualMargin,
+        "margem_esperada_percentual": expectedMargin,
+        "markup_percentual": markup,
+        "roi_percentual": roi
+    };
+    
+    console.log('✅ Análise de preços renderizada e salva para IA');
 }
 
 // Função para filtrar catálogo
@@ -2604,6 +2713,46 @@ style.textContent = `
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
     }
+    
+    /* Estilos para análise da IA */
+    .ai-analysis-formatted {
+        font-size: 0.95rem;
+        line-height: 1.8;
+    }
+    .ai-analysis-formatted h1,
+    .ai-analysis-formatted h2,
+    .ai-analysis-formatted h3,
+    .ai-analysis-formatted h4 {
+        color: #0d6efd;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+    .ai-analysis-formatted h1 { font-size: 1.5rem; border-bottom: 2px solid #0d6efd; padding-bottom: 0.5rem; }
+    .ai-analysis-formatted h2 { font-size: 1.3rem; }
+    .ai-analysis-formatted h3 { font-size: 1.1rem; }
+    .ai-analysis-formatted ul,
+    .ai-analysis-formatted ol {
+        margin-left: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .ai-analysis-formatted li {
+        margin-bottom: 0.5rem;
+    }
+    .ai-analysis-formatted strong {
+        color: #212529;
+        font-weight: 600;
+    }
+    .ai-analysis-formatted p {
+        margin-bottom: 1rem;
+    }
+    .ai-analysis-formatted code,
+    .ai-analysis-formatted pre {
+        background-color: #f8f9fa;
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        font-size: 0.9rem;
+    }
 `;
 document.head.appendChild(style);
 
@@ -2636,6 +2785,19 @@ async function analyzeWithAI() {
             console.warn('Não foi possível carregar dados de catálogo:', e);
         }
         
+        // Coletar dados de custos da análise de preços (se disponível)
+        let pricingAnalysis = null;
+        try {
+            // Tentar capturar os dados da análise de preços já carregada
+            const feesContainer = document.getElementById('marketplace-fees');
+            if (feesContainer && window.currentPricingData) {
+                pricingAnalysis = window.currentPricingData;
+                console.log('📊 Incluindo análise de custos detalhada');
+            }
+        } catch (e) {
+            console.warn('Não foi possível incluir análise de custos:', e);
+        }
+        
         // Chamar endpoint de análise IA
         const response = await fetch(`/ml/products/api/product/${productId}/ai-analysis`, {
             method: 'POST',
@@ -2644,15 +2806,79 @@ async function analyzeWithAI() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                catalog_data: catalogData
+                catalog_data: catalogData,
+                pricing_analysis: pricingAnalysis
             })
         });
         
         const data = await response.json();
         
         if (data.success) {
-            // Mostrar resultado
-            contentDiv.innerHTML = data.analysis;
+            // Mostrar debug info se disponível
+            if (data.debug_info) {
+                document.getElementById('debug-json').textContent = JSON.stringify(data.debug_info.data_sent, null, 2);
+                document.getElementById('debug-prompt').textContent = data.debug_info.prompt_sent;
+            }
+            
+            // Processar e formatar o texto da IA
+            let formattedAnalysis = data.analysis;
+            
+            // Remover todos os blocos de código markdown
+            formattedAnalysis = formattedAnalysis.replace(/```html\s*/gi, '');
+            formattedAnalysis = formattedAnalysis.replace(/```\s*/g, '');
+            
+            // Se a IA retornou markdown ao invés de HTML, converter
+            if (!formattedAnalysis.includes('<h2>') && !formattedAnalysis.includes('<p>')) {
+                console.log('⚠️ Convertendo markdown para HTML...');
+                
+                // Converter headers markdown
+                formattedAnalysis = formattedAnalysis.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+                formattedAnalysis = formattedAnalysis.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+                formattedAnalysis = formattedAnalysis.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+                formattedAnalysis = formattedAnalysis.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+                
+                // Converter bold markdown para HTML
+                formattedAnalysis = formattedAnalysis.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                
+                // Converter listas markdown
+                formattedAnalysis = formattedAnalysis.replace(/^\* (.+)$/gm, '<li>$1</li>');
+                formattedAnalysis = formattedAnalysis.replace(/^- (.+)$/gm, '<li>$1</li>');
+                formattedAnalysis = formattedAnalysis.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+                
+                // Envolver sequências de <li> em <ul>
+                formattedAnalysis = formattedAnalysis.replace(/(<li>.*?<\/li>\s*)+/gs, '<ul>$&</ul>');
+                
+                // Converter quebras de linha em parágrafos
+                const lines = formattedAnalysis.split('\n');
+                const paragraphs = [];
+                let currentParagraph = '';
+                
+                for (const line of lines) {
+                    if (line.trim() === '') {
+                        if (currentParagraph.trim()) {
+                            paragraphs.push(`<p>${currentParagraph.trim()}</p>`);
+                            currentParagraph = '';
+                        }
+                    } else if (!line.startsWith('<')) {
+                        currentParagraph += line + ' ';
+                    } else {
+                        if (currentParagraph.trim()) {
+                            paragraphs.push(`<p>${currentParagraph.trim()}</p>`);
+                            currentParagraph = '';
+                        }
+                        paragraphs.push(line);
+                    }
+                }
+                
+                if (currentParagraph.trim()) {
+                    paragraphs.push(`<p>${currentParagraph.trim()}</p>`);
+                }
+                
+                formattedAnalysis = paragraphs.join('\n');
+            }
+            
+            // Mostrar resultado formatado
+            contentDiv.innerHTML = formattedAnalysis;
             resultDiv.style.display = 'block';
             
             // Rolar até o resultado
@@ -2676,6 +2902,20 @@ async function analyzeWithAI() {
         if (btn.innerHTML.includes('Analisando')) {
             btn.innerHTML = '<i class="bi bi-robot"></i> Analisar com IA';
         }
+    }
+}
+
+// Função para toggle do debug info
+function toggleDebugInfo() {
+    const debugDiv = document.getElementById('debug-info');
+    const icon = document.getElementById('debug-toggle-icon');
+    
+    if (debugDiv.style.display === 'none') {
+        debugDiv.style.display = 'block';
+        icon.className = 'bi bi-chevron-up';
+    } else {
+        debugDiv.style.display = 'none';
+        icon.className = 'bi bi-chevron-down';
     }
 }
 

@@ -469,6 +469,13 @@ class MLProductService:
             # Processar atributos completos
             processed_attributes = self._process_attributes(api_data.get("attributes", []))
             
+            # Extrair descrição (pode vir em descriptions array)
+            description_text = None
+            descriptions = api_data.get("descriptions", [])
+            if descriptions and len(descriptions) > 0:
+                # Pegar a primeira descrição (geralmente é a principal)
+                description_text = descriptions[0].get("plain_text") or descriptions[0].get("text")
+            
             # Mapear dados da API para o modelo
             product = MLProduct(
                 company_id=company_id,
@@ -479,10 +486,16 @@ class MLProductService:
                 family_name=api_data.get("family_name"),
                 title=api_data.get("title"),
                 subtitle=api_data.get("subtitle"),
+                description=description_text,
                 price=str(api_data.get("price", 0)),
                 base_price=str(api_data.get("base_price", 0)),
                 original_price=str(api_data.get("original_price", 0)) if api_data.get("original_price") else None,
                 currency_id=api_data.get("currency_id"),
+                sale_terms=api_data.get("sale_terms"),
+                warranty=api_data.get("warranty"),
+                video_id=api_data.get("video_id"),
+                health=api_data.get("health"),
+                domain_id=api_data.get("domain_id"),
                 available_quantity=api_data.get("available_quantity", 0),
                 sold_quantity=api_data.get("sold_quantity", 0),
                 initial_quantity=api_data.get("initial_quantity", 0),
@@ -540,12 +553,25 @@ class MLProductService:
             # Processar atributos completos
             processed_attributes = self._process_attributes(api_data.get("attributes", []))
             
+            # Extrair descrição (pode vir em descriptions array)
+            description_text = None
+            descriptions = api_data.get("descriptions", [])
+            if descriptions and len(descriptions) > 0:
+                description_text = descriptions[0].get("plain_text") or descriptions[0].get("text")
+            
             # Atualizar campos que podem mudar
             product.title = api_data.get("title", product.title)
+            product.subtitle = api_data.get("subtitle", product.subtitle)
+            product.description = description_text if description_text else product.description
             product.price = str(api_data.get("price", product.price))
             product.available_quantity = api_data.get("available_quantity", product.available_quantity)
             product.sold_quantity = api_data.get("sold_quantity", product.sold_quantity)
             product.status = self._map_status(api_data.get("status"), product.status)
+            product.sale_terms = api_data.get("sale_terms", product.sale_terms)
+            product.warranty = api_data.get("warranty", product.warranty)
+            product.video_id = api_data.get("video_id", product.video_id)
+            product.health = api_data.get("health", product.health)
+            product.domain_id = api_data.get("domain_id", product.domain_id)
             
             # Atualizar categoria se mudou
             if api_data.get("category_id") != product.category_id:
@@ -851,23 +877,25 @@ class MLProductService:
             logger.warning(f"Erro ao verificar período de promoção: {e}")
             return True  # Em caso de erro, assume que está ativa
     
-    def _get_product_descriptions(self, product_id: str, headers: Dict) -> List[Dict]:
-        """Busca descrições do produto"""
+    def _get_product_descriptions(self, product_id: str, headers: Dict) -> Dict:
+        """Busca descrição do produto"""
         try:
             response = requests.get(
-                f"https://api.mercadolibre.com/items/{product_id}/descriptions",
+                f"https://api.mercadolibre.com/items/{product_id}/description",  # SEM 'S' no final
                 headers=headers,
                 timeout=30
             )
             
             if response.status_code == 200:
-                return response.json()
+                desc_data = response.json()
+                # Retornar como array para manter compatibilidade com código existente
+                return [desc_data] if desc_data else []
             else:
-                logger.warning(f"Não foi possível buscar descriptions para {product_id}: {response.status_code}")
+                logger.warning(f"Não foi possível buscar description para {product_id}: {response.status_code}")
                 return []
                 
         except Exception as e:
-            logger.error(f"Erro ao buscar descriptions do produto {product_id}: {e}")
+            logger.error(f"Erro ao buscar description do produto {product_id}: {e}")
             return []
     
     def _get_product_warranty(self, product_id: str, headers: Dict) -> Dict:

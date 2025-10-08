@@ -253,6 +253,7 @@ class MLProductController:
                     'ml_item_id': product.ml_item_id,
                     'title': product.title,
                     'subtitle': product.subtitle,
+                    'description': product.description,  # Campo de descrição adicionado
                     'price': product.price,
                     'base_price': product.base_price,
                     'original_price': product.original_price,
@@ -288,6 +289,13 @@ class MLProductController:
                     'user_product_id': product.user_product_id,
                     'family_id': product.family_id,
                     'family_name': product.family_name,
+                    # Campos críticos adicionais
+                    'sale_terms': product.sale_terms or [],
+                    'warranty': product.warranty,
+                    'video_id': product.video_id,
+                    'health': product.health,
+                    'domain_id': product.domain_id,
+                    # Timestamps
                     'last_sync': product.last_sync.isoformat() if product.last_sync else None,
                     'last_ml_update': product.last_ml_update.isoformat() if product.last_ml_update else None,
                     'created_at': product.created_at.isoformat() if product.created_at else None,
@@ -405,10 +413,9 @@ class MLProductController:
             product = product_result['product']
             
             # Renderizar template
-            from app.views.template_renderer import TemplateRenderer
-            renderer = TemplateRenderer()
+            from app.views.template_renderer import templates
             
-            return renderer.render(
+            return templates.TemplateResponse(
                 "ml_product_details_simple.html",
                 {
                     "product": product,
