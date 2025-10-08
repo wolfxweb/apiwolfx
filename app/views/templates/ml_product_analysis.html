@@ -1355,27 +1355,38 @@ async function loadMarketingAnalysis(product) {
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <div class="d-flex justify-content-between">
-                                <span>Vendas Diretas:</span>
-                                <strong class="text-success">${formatPrice(metrics.direct_sales)}</strong>
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">Vendas Diretas</h6>
+                                    <h5 class="text-success mb-0">${formatPrice(metrics.direct_sales)}</h5>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="d-flex justify-content-between">
-                                <span>Vendas Indiretas:</span>
-                                <strong class="text-info">${formatPrice(metrics.indirect_sales)}</strong>
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">Vendas Indiretas</h6>
+                                    <h5 class="text-info mb-0">${formatPrice(metrics.indirect_sales)}</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">CPC (Custo por Clique)</h6>
+                                    <h5 class="mb-0">${formatPrice(metrics.cpc)}</h5>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="d-flex justify-content-between">
-                                <span>CPC (Custo por Clique):</span>
-                                <strong>${formatPrice(metrics.cpc)}</strong>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="d-flex justify-content-between">
-                                <span>ACOS:</span>
-                                <strong>${metrics.acos.toFixed(2)}%</strong>
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">ACOS</h6>
+                                    <h5 class="mb-0">${metrics.acos.toFixed(2)}%</h5>
+                                </div>
                             </div>
                         </div>
                     </div>
