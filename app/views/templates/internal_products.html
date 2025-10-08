@@ -15,36 +15,26 @@
         </div>
     </div>
 
-    <!-- Filtros -->
+    <!-- Busca -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-3">
-                            <label for="statusFilter" class="form-label">Status</label>
-                            <select class="form-select" id="statusFilter">
-                                <option value="">Todos</option>
-                                <option value="active">Ativo</option>
-                                <option value="inactive">Inativo</option>
-                                <option value="discontinued">Descontinuado</option>
-                            </select>
+                        <div class="col-md-9">
+                            <label for="searchInput" class="form-label">Buscar Produto</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Digite o nome ou SKU do produto..." onkeyup="handleSearchKeyup(event)">
                         </div>
                         <div class="col-md-3">
-                            <label for="categoryFilter" class="form-label">Categoria</label>
-                            <select class="form-select" id="categoryFilter">
-                                <option value="">Todas</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="searchInput" class="form-label">Buscar</label>
-                            <input type="text" class="form-control" id="searchInput" placeholder="Nome, SKU ou descrição...">
-                        </div>
-                        <div class="col-md-2">
                             <label class="form-label">&nbsp;</label>
-                            <button class="btn btn-outline-primary w-100" onclick="applyFilters()">
-                                <i class="fas fa-search"></i> Filtrar
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary flex-fill" onclick="applyFilters()">
+                                    <i class="bi bi-search"></i> Buscar
+                                </button>
+                                <button class="btn btn-outline-secondary flex-fill" onclick="clearFilters()">
+                                    <i class="bi bi-x-circle"></i> Limpar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -374,8 +364,6 @@
 <script>
 let currentProducts = [];
 let currentFilters = {
-    status: '',
-    category: '',
     search: ''
 };
 
@@ -847,10 +835,21 @@ function sortTable(field) {
 
 // Aplicar filtros
 function applyFilters() {
-    currentFilters.status = document.getElementById('statusFilter').value;
-    currentFilters.category = document.getElementById('categoryFilter').value;
-    currentFilters.search = document.getElementById('searchInput').value;
-    
+    currentFilters.search = document.getElementById('searchInput').value.trim();
+    loadProducts();
+}
+
+// Buscar ao pressionar Enter
+function handleSearchKeyup(event) {
+    if (event.key === 'Enter') {
+        applyFilters();
+    }
+}
+
+// Limpar filtros
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    currentFilters.search = '';
     loadProducts();
 }
 
