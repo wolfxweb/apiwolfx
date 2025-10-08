@@ -396,7 +396,13 @@ async def search_products(
         
         # Filtro por SKU
         if sku_filter and sku_filter.strip():
-            query = query.filter(MLProduct.seller_sku.ilike(f'%{sku_filter.strip()}%'))
+            search_term = f'%{sku_filter.strip()}%'
+            query = query.filter(
+                or_(
+                    MLProduct.seller_sku.ilike(search_term),
+                    MLProduct.title.ilike(search_term)
+                )
+            )
         
         if q:
             query = query.filter(

@@ -60,30 +60,7 @@
             <div class="card">
                 <div class="card-body">
                     <form method="GET" class="row g-3">
-                        <div class="col-md-2">
-                            <label for="ml_account_id" class="form-label">Conta ML</label>
-                            <select name="ml_account_id" id="ml_account_id" class="form-select">
-                                <option value="">Todas as contas</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="status" class="form-label">Status</label>
-                            <select name="status" id="status" class="form-select">
-                                <option value="">Todos os status</option>
-                                <option value="active">Ativo</option>
-                                <option value="paused">Pausado</option>
-                                <option value="closed">Fechado</option>
-                                <option value="under_review">Em Revisão</option>
-                                <option value="inactive">Inativo</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="category_id" class="form-label">Categoria</label>
-                            <select name="category_id" id="category_id" class="form-select">
-                                <option value="">Todas as categorias</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <label for="shipping_type" class="form-label">Tipo de Envio</label>
                             <select name="shipping_type" id="shipping_type" class="form-select">
                                 <option value="">Todos os tipos</option>
@@ -101,15 +78,15 @@
                                 <option value="false">Apenas não catálogo</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <label for="sku_filter" class="form-label">SKU</label>
-                            <input type="text" name="sku_filter" id="sku_filter" class="form-control" placeholder="Buscar por SKU...">
+                        <div class="col-md-4">
+                            <label for="sku_filter" class="form-label">Produto ou SKU</label>
+                            <input type="text" name="sku_filter" id="sku_filter" class="form-control" placeholder="Buscar por nome ou SKU do produto...">
                         </div>
-                        <div class="col-md-6 d-flex align-items-end">
-                            <button type="submit" class="btn btn-outline-primary me-2">
-                                <i class="bi bi-funnel"></i> Filtrar
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary me-2 flex-fill">
+                                <i class="bi bi-search"></i> Buscar
                             </button>
-                            <a href="/ml/products" class="btn btn-outline-secondary">
+                            <a href="/ml/products" class="btn btn-outline-secondary flex-fill">
                                 <i class="bi bi-x-circle"></i> Limpar
                             </a>
                         </div>
