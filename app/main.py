@@ -170,20 +170,30 @@ async def api_callback(code: str = None, error: str = None, state: str = None):
         user_response.raise_for_status()
         user_info = user_response.json()
         
-        # Para este callback, vamos assumir que é para a empresa padrão
-        # Em um sistema real, você precisaria identificar o usuário/empresa
+        # Buscar usuário pelo state (que contém o user_id)
+        from app.models.saas_models import Company, User
         db = next(get_db())
         
-        # Buscar empresa padrão (primeira empresa)
-        from app.models.saas_models import Company
-        company = db.query(Company).first()
-        if not company:
-            return RedirectResponse(url="/ml/accounts?error=Empresa não encontrada", status_code=302)
+        if not state:
+            return RedirectResponse(url="/ml/accounts?error=State não fornecido", status_code=302)
+        
+        try:
+            user_id_from_state = int(state)  # State contém o user_id
+            user = db.query(User).filter(User.id == user_id_from_state, User.is_active == True).first()
+            if not user:
+                return RedirectResponse(url="/ml/accounts?error=Usuário não encontrado", status_code=302)
+        except (ValueError, TypeError):
+            return RedirectResponse(url="/ml/accounts?error=State inválido", status_code=302)
+        
+        company_id = user.company_id
+        user_id = user.id
+        
+  
         
         # Verificar se a conta ML já existe
         existing_account = db.query(MLAccount).filter(
             MLAccount.ml_user_id == str(user_info["id"]),
-            MLAccount.company_id == company.id
+            MLAccount.company_id == company_id
         ).first()
         
         if existing_account:
@@ -206,7 +216,7 @@ async def api_callback(code: str = None, error: str = None, state: str = None):
             
             # Salvar novos tokens
             access_token = Token(
-                user_id=company.users[0].id if company.users else 1,  # Usar primeiro usuário da empresa
+                user_id=user_id,  # Usar usuário logado
                 ml_account_id=existing_account.id,
                 access_token=token_data["access_token"],
                 refresh_token=token_data.get("refresh_token"),
@@ -222,7 +232,7 @@ async def api_callback(code: str = None, error: str = None, state: str = None):
         else:
             # CRIAR nova conta ML
             ml_account = MLAccount(
-                company_id=company.id,
+                company_id=company_id,
                 ml_user_id=user_info["id"],
                 nickname=user_info["nickname"],
                 email=user_info.get("email", ""),
@@ -240,7 +250,7 @@ async def api_callback(code: str = None, error: str = None, state: str = None):
             
             # Salvar tokens
             access_token = Token(
-                user_id=company.users[0].id if company.users else 1,  # Usar primeiro usuário da empresa
+                user_id=user_id,  # Usar usuário logado
                 ml_account_id=ml_account.id,
                 access_token=token_data["access_token"],
                 refresh_token=token_data.get("refresh_token"),
@@ -308,16 +318,26 @@ async def callback(code: str = None, error: str = None, state: str = None):
         # Em um sistema real, você precisaria identificar o usuário/empresa
         db = next(get_db())
         
-        # Buscar empresa padrão (primeira empresa)
-        from app.models.saas_models import Company
-        company = db.query(Company).first()
-        if not company:
-            return RedirectResponse(url="/ml/accounts?error=Empresa não encontrada", status_code=302)
+        # Buscar usuário pelo state (que contém o user_id)
+        from app.models.saas_models import Company, User
+        if not state:
+            return RedirectResponse(url="/ml/accounts?error=State não fornecido", status_code=302)
+        
+        try:
+            user_id_from_state = int(state)  # State contém o user_id
+            user = db.query(User).filter(User.id == user_id_from_state, User.is_active == True).first()
+            if not user:
+                return RedirectResponse(url="/ml/accounts?error=Usuário não encontrado", status_code=302)
+        except (ValueError, TypeError):
+            return RedirectResponse(url="/ml/accounts?error=State inválido", status_code=302)
+        
+        company_id = user.company_id
+        user_id = user.id
         
         # Verificar se a conta ML já existe
         existing_account = db.query(MLAccount).filter(
             MLAccount.ml_user_id == str(user_info["id"]),
-            MLAccount.company_id == company.id
+            MLAccount.company_id == company_id
         ).first()
         
         if existing_account:
@@ -340,7 +360,7 @@ async def callback(code: str = None, error: str = None, state: str = None):
             
             # Salvar novos tokens
             access_token = Token(
-                user_id=company.users[0].id if company.users else 1,  # Usar primeiro usuário da empresa
+                user_id=user_id,  # Usar usuário logado
                 ml_account_id=existing_account.id,
                 access_token=token_data["access_token"],
                 refresh_token=token_data.get("refresh_token"),
@@ -356,7 +376,7 @@ async def callback(code: str = None, error: str = None, state: str = None):
         else:
             # CRIAR nova conta ML
             ml_account = MLAccount(
-                company_id=company.id,
+                company_id=company_id,
                 ml_user_id=user_info["id"],
                 nickname=user_info["nickname"],
                 email=user_info.get("email", ""),
@@ -374,7 +394,7 @@ async def callback(code: str = None, error: str = None, state: str = None):
             
             # Salvar tokens
             access_token = Token(
-                user_id=company.users[0].id if company.users else 1,  # Usar primeiro usuário da empresa
+                user_id=user_id,  # Usar usuário logado
                 ml_account_id=ml_account.id,
                 access_token=token_data["access_token"],
                 refresh_token=token_data.get("refresh_token"),

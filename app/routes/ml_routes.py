@@ -66,13 +66,14 @@ async def ml_connect(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
-    # Usar a mesma lógica que funcionava antes
-    from app.config.settings import settings
-    import secrets
-    import string
+    user_data = result["user"]
+    user_id = user_data["id"]
     
-    # Gerar state para segurança
-    state = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
+    # Usar user_id como state para identificar o usuário no callback
+    from app.config.settings import settings
+    
+    # Usar user_id como state (será usado no callback para identificar o usuário)
+    state = str(user_id)
     
     # URL de autorização do ML
     auth_url = (
