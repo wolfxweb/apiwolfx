@@ -966,6 +966,18 @@ async function updateJobStatus(jobId) {
             credentials: 'include'
         });
         
+        if (response.status === 404) {
+            // Job não existe mais (container reiniciado ou job perdido)
+            clearInterval(statusInterval);
+            document.getElementById('import-status').innerHTML = 
+                '<i class="bi bi-exclamation-triangle me-2 text-warning"></i>' +
+                'Job não encontrado. O servidor pode ter sido reiniciado.<br>' +
+                '<button class="btn btn-sm btn-primary mt-2" onclick="closeImportModal()">Fechar e Verificar Pedidos</button>';
+            document.getElementById('cancel-import-btn').style.display = 'none';
+            showWarning('Job de importação não encontrado. Verifique se os pedidos foram importados.');
+            return;
+        }
+        
         if (!response.ok) {
             throw new Error(`Erro HTTP: ${response.status}`);
         }
@@ -1022,6 +1034,26 @@ async function updateJobStatus(jobId) {
     } catch (error) {
         console.error('Erro ao verificar status do job:', error);
     }
+}
+
+function closeImportModal() {
+    // Parar monitoramento se estiver ativo
+    if (statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+    }
+    
+    // Resetar estado
+    currentJobId = null;
+    
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('importModal'));
+    if (modal) {
+        modal.hide();
+    }
+    
+    // Recarregar pedidos para ver se algum foi importado
+    loadOrders(1);
 }
 
 async function cancelImport() {

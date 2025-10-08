@@ -21,8 +21,16 @@
                         <p class="text-muted mb-3">{{ product.subtitle }}</p>
                         <div class="d-flex gap-2 mb-3">
                             <span class="badge bg-success">{{ product.status }}</span>
-                            <span class="badge bg-info">Catálogo</span>
-                            <span class="badge bg-secondary">Frete Grátis</span>
+                            {% if product.catalog_product_id %}
+                            <span class="badge bg-info">
+                                <i class="bi bi-book me-1"></i>Catálogo
+                            </span>
+                            {% endif %}
+                            {% if product.free_shipping %}
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-truck me-1"></i>Frete Grátis
+                            </span>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="d-flex gap-2">
@@ -196,6 +204,7 @@
                 </div>
 
                 <!-- Informações de Catálogo -->
+                {% if product.catalog_product_id %}
                 <div class="card mb-4">
                     <div class="card-header bg-warning text-dark">
                         <h6 class="mb-0"><i class="bi bi-book"></i> Informações de Catálogo</h6>
@@ -204,14 +213,16 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <strong>É de Catálogo:</strong> 
-                                <span class="badge bg-info">Sim</span>
+                                <span class="badge bg-success">Sim</span>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <strong>ID do Catálogo:</strong> {{ product.catalog_product_id }}
+                                <strong>ID do Catálogo:</strong> 
+                                <code>{{ product.catalog_product_id }}</code>
                             </div>
                         </div>
                     </div>
                 </div>
+                {% endif %}
 
                 <!-- Garantia e Termos de Venda -->
                 {% if product.sale_terms or product.warranty or product.video_id %}
