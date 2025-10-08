@@ -20,10 +20,26 @@
     'classified': 'Classificado'
 } %}
 
+{% set listing_type_help = {
+    'gold_special': 'Anúncio Premium com maior destaque nas buscas, aparece em posições privilegiadas e tem recursos especiais de exposição.',
+    'gold_pro': 'Anúncio Gold Pro com boa visibilidade nas buscas e recursos de destaque.',
+    'gold': 'Anúncio Gold com destaque nas buscas e melhor posicionamento.',
+    'silver': 'Anúncio Prata com exposição padrão nas buscas.',
+    'bronze': 'Anúncio Bronze com exposição básica.',
+    'free': 'Anúncio gratuito com exposição padrão, sem custos de publicação.',
+    'classified': 'Anúncio classificado, geralmente usado para imóveis e veículos.'
+} %}
+
 {% set buying_mode_map = {
     'buy_it_now': 'Comprar Agora',
     'auction': 'Leilão',
     'classified': 'Classificado'
+} %}
+
+{% set buying_mode_help = {
+    'buy_it_now': 'Compra direta pelo preço anunciado, sem necessidade de lances ou negociação.',
+    'auction': 'Venda por leilão onde compradores fazem lances e o maior lance vence.',
+    'classified': 'Anúncio classificado onde o preço pode ser negociado diretamente com o vendedor.'
 } %}
 
 <div class="container-fluid">
@@ -149,24 +165,23 @@
                                 <strong>Preço:</strong> 
                                 {% if product.original_price and product.original_price != product.price %}
                                     <div class="d-flex flex-column">
-                                        <span class="h5 text-success fw-bold">R$ {{ product.price }}</span>
-                                        <span class="text-decoration-line-through text-muted small">R$ {{ product.original_price }}</span>
+                                        <span class="h5 text-success fw-bold">R$ {{ "%.2f"|format(product.price|float)|replace('.', ',') }}</span>
+                                        <span class="text-decoration-line-through text-muted small">R$ {{ "%.2f"|format(product.original_price|float)|replace('.', ',') }}</span>
                                         <span class="badge bg-danger small">
                                             -{{ (((product.original_price|float - product.price|float) / product.original_price|float) * 100)|round }}%
                                         </span>
                                     </div>
                                 {% elif product.base_price and product.base_price != product.price %}
                                     <div class="d-flex flex-column">
-                                        <span class="h5 text-success fw-bold">R$ {{ product.price }}</span>
-                                        <span class="text-decoration-line-through text-muted small">R$ {{ product.base_price }}</span>
+                                        <span class="h5 text-success fw-bold">R$ {{ "%.2f"|format(product.price|float)|replace('.', ',') }}</span>
+                                        <span class="text-decoration-line-through text-muted small">R$ {{ "%.2f"|format(product.base_price|float)|replace('.', ',') }}</span>
                                         <span class="badge bg-warning text-dark small">
                                             -{{ (((product.base_price|float - product.price|float) / product.base_price|float) * 100)|round }}%
                                         </span>
                                     </div>
                                 {% else %}
-                                    <span class="h5 text-primary">R$ {{ product.price }}</span>
+                                    <span class="h5 text-primary">R$ {{ "%.2f"|format(product.price|float)|replace('.', ',') }}</span>
                                 {% endif %}
-                                <small class="text-muted">{{ product.currency_id }}</small>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <strong>Estoque:</strong> 
@@ -184,13 +199,27 @@
                                 </span>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <strong>Tipo de Listagem:</strong> 
+                                <strong>Tipo de Listagem:</strong>
+                                <i class="bi bi-question-circle text-info ms-1" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="{{ listing_type_help.get(product.listing_type_id, 'Tipo de anúncio no Mercado Livre') }}"
+                                   style="cursor: help;"></i>
+                                <br>
                                 <span class="badge bg-warning text-dark">
                                     {{ listing_type_map.get(product.listing_type_id, product.listing_type_id) }}
                                 </span>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <strong>Modo de Compra:</strong> 
+                                <strong>Modo de Compra:</strong>
+                                <i class="bi bi-question-circle text-info ms-1" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-html="true"
+                                   title="{{ buying_mode_help.get(product.buying_mode, 'Modo de venda do produto') }}"
+                                   style="cursor: help;"></i>
+                                <br>
                                 <span class="badge bg-info">
                                     {{ buying_mode_map.get(product.buying_mode, product.buying_mode) }}
                                 </span>
@@ -331,17 +360,28 @@
                             <table class="table table-sm table-hover">
                                 <tbody>
                                 {% for attr in product.attributes %}
+                                    {% set value_to_show = '' %}
+                                    {% if attr.value_name %}
+                                        {% if attr.value_name == '-1' %}
+                                            {% set value_to_show = '<span class="text-muted">-</span>' %}
+                                        {% else %}
+                                            {% set value_to_show = attr.value_name %}
+                                        {% endif %}
+                                    {% elif attr.value_struct %}
+                                        {% set value_to_show = attr.value_struct.number ~ ' ' ~ attr.value_struct.unit %}
+                                    {% elif attr.value_id %}
+                                        {% if attr.value_id == '-1' or attr.value_id == -1 %}
+                                            {% set value_to_show = '<span class="text-muted">-</span>' %}
+                                        {% else %}
+                                            {% set value_to_show = attr.value_id %}
+                                        {% endif %}
+                                    {% else %}
+                                        {% set value_to_show = '<span class="text-muted">-</span>' %}
+                                    {% endif %}
+                                    
                                     <tr>
                                         <td width="40%"><strong>{{ attr.name }}</strong></td>
-                                        <td>
-                                            {% if attr.value_name %}
-                                                {{ attr.value_name }}
-                                            {% elif attr.value_struct %}
-                                                {{ attr.value_struct.number }} {{ attr.value_struct.unit }}
-                                            {% else %}
-                                                {{ attr.value_id }}
-                                            {% endif %}
-                                        </td>
+                                        <td>{{ value_to_show|safe }}</td>
                                     </tr>
                                 {% endfor %}
                                 </tbody>
@@ -440,4 +480,13 @@
         </div>
     </div>
 
+    <script>
+    // Inicializar tooltips do Bootstrap
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    });
+    </script>
 {% endblock %}
