@@ -1291,12 +1291,39 @@ async function loadMarketingAnalysis(product) {
                 marketingContainer.innerHTML = `
                     <h6 class="mb-3">📊 Métricas dos Últimos ${days} Dias:</h6>
                     
+                    <!-- Total de Vendas -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="card bg-primary bg-opacity-10 border-primary">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">
+                                        Total de Vendas
+                                        <i class="bi bi-question-circle text-primary ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Soma de todas as vendas (com anúncio + sem anúncio) no período selecionado"
+                                           style="cursor: help;"></i>
+                                    </h6>
+                                    <h3 class="text-primary mb-0">${(metrics.advertising_sales_qty || 0) + (metrics.organic_sales_qty || 0)}</h3>
+                                    <small class="text-muted">${formatPrice((metrics.direct_sales + metrics.indirect_sales) + (metrics.organic_sales_amount || 0))}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Vendas com e sem anúncio -->
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <div class="card bg-success bg-opacity-10 border-success">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small mb-1">Vendas COM Anúncio</h6>
+                                    <h6 class="text-muted small mb-1">
+                                        Vendas COM Anúncio
+                                        <i class="bi bi-question-circle text-success ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Vendas realizadas através de cliques nos anúncios patrocinados (Product Ads)"
+                                           style="cursor: help;"></i>
+                                    </h6>
                                     <h4 class="text-success mb-0">${metrics.advertising_sales_qty || 0}</h4>
                                     <small class="text-muted">${formatPrice(metrics.direct_sales + metrics.indirect_sales)}</small>
                                 </div>
@@ -1305,7 +1332,14 @@ async function loadMarketingAnalysis(product) {
                         <div class="col-md-6">
                             <div class="card bg-info bg-opacity-10 border-info">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small mb-1">Vendas SEM Anúncio</h6>
+                                    <h6 class="text-muted small mb-1">
+                                        Vendas SEM Anúncio
+                                        <i class="bi bi-question-circle text-info ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Vendas orgânicas - clientes que encontraram o produto naturalmente, sem clicar em anúncios"
+                                           style="cursor: help;"></i>
+                                    </h6>
                                     <h4 class="text-info mb-0">${metrics.organic_sales_qty || 0}</h4>
                                     <small class="text-muted">${formatPrice(metrics.organic_sales_amount || 0)}</small>
                                 </div>
@@ -1317,7 +1351,14 @@ async function loadMarketingAnalysis(product) {
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small mb-1">Investimento Total</h6>
+                                    <h6 class="text-muted small mb-1">
+                                        Investimento Total
+                                        <i class="bi bi-question-circle text-danger ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Valor total investido em Product Ads (anúncios patrocinados) no período"
+                                           style="cursor: help;"></i>
+                                    </h6>
                                     <h4 class="text-danger mb-0">${formatPrice(metrics.total_cost)}</h4>
                                 </div>
                             </div>
@@ -1325,7 +1366,14 @@ async function loadMarketingAnalysis(product) {
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small mb-1">Retorno (ROAS)</h6>
+                                    <h6 class="text-muted small mb-1">
+                                        Retorno (ROAS)
+                                        <i class="bi bi-question-circle text-success ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Return on Ad Spend - Quantas vezes o investimento retornou em vendas. Ex: 24x = para cada R$ 1 investido, retornou R$ 24 em vendas"
+                                           style="cursor: help;"></i>
+                                    </h6>
                                     <h4 class="text-success mb-0">${metrics.roas.toFixed(2)}x</h4>
                                 </div>
                             </div>
@@ -1335,19 +1383,40 @@ async function loadMarketingAnalysis(product) {
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <div class="text-center p-2 border rounded">
-                                <small class="text-muted">Cliques</small>
+                                <small class="text-muted">
+                                    Cliques
+                                    <i class="bi bi-question-circle text-muted ms-1" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top" 
+                                       title="Número de vezes que clientes clicaram nos anúncios deste produto"
+                                       style="cursor: help; font-size: 0.8rem;"></i>
+                                </small>
                                 <h5 class="mb-0">${metrics.total_clicks.toLocaleString('pt-BR')}</h5>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="text-center p-2 border rounded">
-                                <small class="text-muted">Impressões</small>
+                                <small class="text-muted">
+                                    Impressões
+                                    <i class="bi bi-question-circle text-muted ms-1" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top" 
+                                       title="Número de vezes que o anúncio foi exibido para clientes nas buscas"
+                                       style="cursor: help; font-size: 0.8rem;"></i>
+                                </small>
                                 <h5 class="mb-0">${metrics.total_impressions.toLocaleString('pt-BR')}</h5>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="text-center p-2 border rounded">
-                                <small class="text-muted">CTR</small>
+                                <small class="text-muted">
+                                    CTR
+                                    <i class="bi bi-question-circle text-muted ms-1" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top" 
+                                       title="Click-Through Rate - Porcentagem de pessoas que clicaram após ver o anúncio (cliques / impressões)"
+                                       style="cursor: help; font-size: 0.8rem;"></i>
+                                </small>
                                 <h5 class="mb-0">${metrics.ctr.toFixed(2)}%</h5>
                             </div>
                         </div>
@@ -1357,7 +1426,14 @@ async function loadMarketingAnalysis(product) {
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small mb-1">Vendas Diretas</h6>
+                                    <h6 class="text-muted small mb-1">
+                                        Vendas Diretas
+                                        <i class="bi bi-question-circle text-success ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Vendas realizadas imediatamente após clicar no anúncio (mesma sessão)"
+                                           style="cursor: help;"></i>
+                                    </h6>
                                     <h5 class="text-success mb-0">${formatPrice(metrics.direct_sales)}</h5>
                                 </div>
                             </div>
@@ -1365,7 +1441,14 @@ async function loadMarketingAnalysis(product) {
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small mb-1">Vendas Indiretas</h6>
+                                    <h6 class="text-muted small mb-1">
+                                        Vendas Indiretas
+                                        <i class="bi bi-question-circle text-info ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Vendas realizadas depois (até 7 dias) de ter clicado no anúncio"
+                                           style="cursor: help;"></i>
+                                    </h6>
                                     <h5 class="text-info mb-0">${formatPrice(metrics.indirect_sales)}</h5>
                                 </div>
                             </div>
@@ -1376,7 +1459,14 @@ async function loadMarketingAnalysis(product) {
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small mb-1">CPC (Custo por Clique)</h6>
+                                    <h6 class="text-muted small mb-1">
+                                        CPC (Custo por Clique)
+                                        <i class="bi bi-question-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Custo médio pago por cada clique no anúncio (investimento total / cliques)"
+                                           style="cursor: help;"></i>
+                                    </h6>
                                     <h5 class="mb-0">${formatPrice(metrics.cpc)}</h5>
                                 </div>
                             </div>
@@ -1384,7 +1474,14 @@ async function loadMarketingAnalysis(product) {
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small mb-1">ACOS</h6>
+                                    <h6 class="text-muted small mb-1">
+                                        ACOS
+                                        <i class="bi bi-question-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Advertising Cost of Sales - Porcentagem do investimento em relação às vendas. Quanto menor, melhor (ideal < 30%)"
+                                           style="cursor: help;"></i>
+                                    </h6>
                                     <h5 class="mb-0">${metrics.acos.toFixed(2)}%</h5>
                                 </div>
                             </div>
@@ -1405,7 +1502,11 @@ async function loadMarketingAnalysis(product) {
                 `;
             }
             
-            console.log('✅ Análise de marketing renderizada');
+            // Inicializar tooltips Bootstrap
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+            
+            console.log('✅ Análise de marketing renderizada com tooltips inicializados');
             
         } else {
             throw new Error(data.error || 'Erro ao carregar métricas');
