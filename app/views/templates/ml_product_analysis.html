@@ -2814,14 +2814,26 @@ async function analyzeWithAI() {
         const data = await response.json();
         
         if (data.success) {
+            console.log('✅ Resposta recebida com sucesso');
+            console.log('📝 Tamanho da análise:', data.analysis ? data.analysis.length : 0, 'caracteres');
+            
             // Mostrar debug info se disponível
             if (data.debug_info) {
                 document.getElementById('debug-json').textContent = JSON.stringify(data.debug_info.data_sent, null, 2);
                 document.getElementById('debug-prompt').textContent = data.debug_info.prompt_sent;
+                console.log('📋 Debug info salvo');
+            }
+            
+            // Verificar se a análise não está vazia
+            if (!data.analysis || data.analysis.trim() === '') {
+                console.error('❌ Análise vazia recebida da API');
+                alert('Erro: A IA retornou uma análise vazia. Tente novamente.');
+                return;
             }
             
             // Processar e formatar o texto da IA
             let formattedAnalysis = data.analysis;
+            console.log('🔄 Iniciando processamento da análise...');
             
             // Remover todos os blocos de código markdown
             formattedAnalysis = formattedAnalysis.replace(/```html\s*/gi, '');
@@ -2875,11 +2887,17 @@ async function analyzeWithAI() {
                 }
                 
                 formattedAnalysis = paragraphs.join('\n');
+            } else {
+                console.log('✅ HTML detectado, usando diretamente');
             }
+            
+            console.log('📊 Tamanho após formatação:', formattedAnalysis.length, 'caracteres');
             
             // Mostrar resultado formatado
             contentDiv.innerHTML = formattedAnalysis;
             resultDiv.style.display = 'block';
+            
+            console.log('✅ Resultado exibido na tela');
             
             // Rolar até o resultado
             resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

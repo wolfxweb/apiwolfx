@@ -11,6 +11,76 @@ from app.models.saas_models import MLProduct, MLOrder
 
 logger = logging.getLogger(__name__)
 
+# System Prompt - Define o comportamento geral da IA
+SYSTEM_PROMPT = """Você é um especialista em análise de produtos para marketplaces como Mercado Livre, capaz de avaliar anúncios de forma detalhada, identificando pontos fortes, fracos e oportunidades de melhoria.
+
+A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo com base nos seguintes critérios:
+
+1️⃣ **Dados Gerais do Produto**
+- Confirme o título, descrição, categoria, SKU, preço, condição, estoque, envio, garantia, status e se é Mercado Líder.
+- Identifique a posição do produto no marketplace (se disponível).
+
+2️⃣ **Análise Financeira e Margem**
+- Calcule a margem de lucro real: `(preço de venda - custo total) / preço de venda * 100`.
+- Compare com a margem esperada e destaque diferenças.
+- Sugira ações para melhorar a margem, se necessário (ex: reduzir custos, ajustar preço, negociar fornecedor).
+
+3️⃣ **Análise de Concorrência**
+- Liste TODOS os concorrentes do mesmo produto (informados no JSON) em uma tabela incluindo:
+  - Posição no catálogo
+  - Nome do vendedor (campo "vendedor")
+  - Preço (formate em R$ XX,XX com vírgula para decimais)
+  - Tipo de envio + se tem frete grátis
+  - Status Mercado Líder (campo "mercado_lider")
+  - Quantidade de vendas
+- Calcule a média de preços e avalie se meu produto está competitivo/caro/barato.
+- Gere sugestão de preço competitivo formatado em R$ XX,XX, se aplicável.
+
+4️⃣ **SEO – Título e Descrição**
+- Verifique se o título é claro, relevante e otimizado para SEO (marca, modelo, característica, tipo de produto, menos de 60 caracteres).
+- Avalie se a descrição é completa, organizada, com palavras-chave relevantes, benefícios, diferenciais e coerente com título e atributos.
+- Sugira melhorias de SEO para título e descrição.
+
+5️⃣ **Atributos do Produto**
+- Confira se todos os atributos obrigatórios e recomendados estão preenchidos.
+- Liste atributos faltantes ou incoerentes.
+- Sugira valores prováveis para preenchimento.
+- Avalie a completude e pontue de 0 a 10.
+
+6️⃣ **Mídia**
+- Verifique quantidade e qualidade das imagens e vídeos.
+- Avalie coerência das imagens com o produto.
+- Sugira melhorias (ex: adicionar imagens, reorganizar ordem, incluir vídeo).
+
+7️⃣ **Reputação e Feedback** (se disponível)
+- Analise nota média, quantidade de avaliações, elogios e reclamações.
+- Gere diagnóstico da reputação e sugestões de ações.
+
+8️⃣ **Recomendações Estratégicas**
+- Gere pelo menos 5 recomendações práticas para melhorar:
+  1. Margem de lucro
+  2. Competitividade de preço
+  3. SEO e visibilidade
+  4. Conversão de vendas
+  5. Reputação e avaliação geral
+
+9️⃣ **Conclusão Geral**
+- Resuma diagnóstico final:
+  - 💚 Forte/Bom: rentável e competitivo
+  - 🟡 Médio: precisa melhorar
+  - 🔴 Fraco: requer ação imediata
+- Destaque pontos fortes, fracos e oportunidades
+- Priorize ações (Alta / Média / Baixa)
+
+🔟 **Score Geral do Anúncio**
+- Gere pontuação de 0 a 100 considerando todos os critérios acima.
+- Classifique nível (Excelente, Bom, Médio, Fraco, Péssimo) e explique o resultado em 2–3 frases.
+
+⚠️ **IMPORTANTE - FORMATAÇÃO:**
+- TODOS os valores monetários devem ser formatados em reais brasileiros: R$ XX,XX (com vírgula para decimais)
+- Use tabelas HTML completas com todos os dados disponíveis no JSON
+- Seja específico e use os dados reais fornecidos, não invente informações"""
+
 class AIAnalysisService:
     """Serviço para análise de produtos com IA"""
     
@@ -288,9 +358,7 @@ class AIAnalysisService:
         posicionamento = data.get("posicionamento")
         custos = produto.get("analise_custos", {})
         
-        prompt = f"""Você é um especialista em análise de dados de e-commerce do Mercado Livre.
-
-Analise os seguintes dados COMPLETOS de um produto e forneça insights acionáveis:
+        prompt = f"""Analise o seguinte produto do Mercado Livre e gere um relatório estruturado em HTML seguindo EXATAMENTE os critérios definidos.
 
 📦 INFORMAÇÕES DO ANÚNCIO:
 - ID ML: {produto['id_ml']}
@@ -362,67 +430,188 @@ Analise os seguintes dados COMPLETOS de um produto e forneça insights acionáve
 DADOS COMPLETOS (JSON):
 {json.dumps(data, indent=2, ensure_ascii=False)}
 
-Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem blocos de código markdown):
+Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem blocos de código markdown) seguindo EXATAMENTE esta estrutura:
 
-<h2>1. RESUMO EXECUTIVO</h2>
+<h2>1️⃣ Dados Gerais do Produto</h2>
+<table class="table table-sm">
+  <tr><td><strong>Título:</strong></td><td>[título]</td></tr>
+  <tr><td><strong>Descrição:</strong></td><td>[resumo breve da descrição]</td></tr>
+  <tr><td><strong>Categoria:</strong></td><td>[categoria]</td></tr>
+  <tr><td><strong>SKU:</strong></td><td>[SKU]</td></tr>
+  <tr><td><strong>Preço:</strong></td><td>R$ [valor]</td></tr>
+  <tr><td><strong>Condição:</strong></td><td>[nova/usada]</td></tr>
+  <tr><td><strong>Estoque:</strong></td><td>[quantidade]</td></tr>
+  <tr><td><strong>Envio:</strong></td><td>[tipo de envio]</td></tr>
+  <tr><td><strong>Garantia:</strong></td><td>[sim/não + detalhes]</td></tr>
+  <tr><td><strong>Status:</strong></td><td>[ativo/pausado]</td></tr>
+  <tr><td><strong>Tipo de Anúncio:</strong></td><td>[gold_special/free/etc]</td></tr>
+  {f"<tr><td><strong>Posição no Catálogo:</strong></td><td>{posicionamento['sua_posicao']}º de {posicionamento['total_concorrentes']}</td></tr>" if posicionamento and posicionamento.get('sua_posicao') else ""}
+</table>
+
+<h2>2️⃣ Análise Financeira e Margem</h2>
+<div class="alert alert-info">
+  <p><strong>Cálculo da Margem Real:</strong></p>
+  <ul>
+    <li>Preço de Venda: R$ {produto['preco_atual']:.2f}</li>
+    <li>Custos Totais: R$ [calcular da analise_custos]</li>
+    <li>Margem Real: [calcular] %</li>
+    <li>Margem Esperada: [se disponível] %</li>
+  </ul>
+  <p><strong>Diagnóstico:</strong> [análise se margem está boa/média/ruim]</p>
+  <p><strong>Ações para melhorar margem:</strong></p>
+  <ul>
+    <li>[sugestão 1]</li>
+    <li>[sugestão 2]</li>
+  </ul>
+</div>
+
+<h2>3️⃣ Análise de Concorrência</h2>
+{f"<p>Comparando com <strong>{total_concorrentes} concorrentes</strong> no mesmo catálogo:</p>" if total_concorrentes > 0 else "<p>Sem dados de concorrência disponíveis.</p>"}
+{f'''<table class="table table-sm table-striped">
+  <thead class="table-light">
+    <tr>
+      <th>Posição</th>
+      <th>Vendedor</th>
+      <th>Preço</th>
+      <th>Envio</th>
+      <th>Status ML</th>
+      <th>Vendas</th>
+    </tr>
+  </thead>
+  <tbody>
+    [Liste os concorrentes do JSON usando EXATAMENTE estes campos:
+     - posicao: número da posição
+     - vendedor: nome do vendedor
+     - preco: formate em reais brasileiros (R$ XX,XX) com vírgula para decimais
+     - envio: tipo de envio + se tem frete grátis
+     - mercado_lider: status de Mercado Líder
+     - vendas: quantidade vendida
+    
+    Exemplo de linha:
+    <tr>
+      <td>1</td>
+      <td>Nome do Vendedor</td>
+      <td>R$ 58,00</td>
+      <td>Full + Frete Grátis</td>
+      <td>Platinum</td>
+      <td>150</td>
+    </tr>
+    
+    Liste TODOS os concorrentes do JSON "concorrentes" com estes dados.]
+  </tbody>
+</table>''' if total_concorrentes > 0 else ''}
+<p><strong>Avaliação:</strong> Meu produto está [competitivo/caro/barato] em relação à média (R$ [média formatada em XX,XX]).</p>
+<p><strong>Sugestão de Preço Competitivo:</strong> R$ [valor sugerido em XX,XX] (justificativa detalhada)</p>
+
+<h2>4️⃣ SEO – Título e Descrição</h2>
+<div class="mb-3">
+  <h5>📝 Análise do Título:</h5>
+  <p>Título atual: <em>"{produto['titulo']}"</em></p>
+  <ul>
+    <li>✅/❌ Claro e relevante</li>
+    <li>✅/❌ Otimizado para SEO (marca, modelo, características)</li>
+    <li>✅/❌ Tamanho adequado (ideal: menos de 60 caracteres, atual: [X] caracteres)</li>
+  </ul>
+  <p><strong>Sugestão de melhoria:</strong> [título otimizado]</p>
+</div>
+<div class="mb-3">
+  <h5>📄 Análise da Descrição:</h5>
+  <ul>
+    <li>✅/❌ Completa e organizada</li>
+    <li>✅/❌ Com palavras-chave relevantes</li>
+    <li>✅/❌ Destaca benefícios e diferenciais</li>
+    <li>✅/❌ Coerente com título e atributos</li>
+  </ul>
+  <p><strong>Sugestões de melhoria:</strong></p>
+  <ul>
+    <li>[sugestão 1]</li>
+    <li>[sugestão 2]</li>
+  </ul>
+</div>
+
+<h2>5️⃣ Atributos do Produto</h2>
+<p>Total de atributos preenchidos: <strong>{produto.get('total_atributos', 0)}</strong></p>
+<div class="alert alert-warning">
+  <p><strong>Atributos faltantes ou incoerentes:</strong></p>
+  <ul>
+    <li>[listar atributos faltantes]</li>
+  </ul>
+  <p><strong>Sugestões de valores:</strong></p>
+  <ul>
+    <li>[sugestão de preenchimento]</li>
+  </ul>
+</div>
+<p><strong>Pontuação de Completude:</strong> [X]/10</p>
+
+<h2>6️⃣ Análise de Mídia</h2>
+<div class="row">
+  <div class="col-md-6">
+    <h5>📸 Imagens ({produto.get('total_imagens', 0)} fotos)</h5>
+    <ul>
+      <li>Quantidade: {"✅ Adequada" if produto.get('total_imagens', 0) >= 5 else "⚠️ Adicionar mais imagens"}</li>
+      <li>Qualidade: [analisar baseado nas imagens]</li>
+      <li>Coerência: [avaliar se imagens correspondem ao produto]</li>
+    </ul>
+    <p><strong>Sugestões:</strong></p>
+    <ul>
+      <li>[sugestão de melhoria de imagens]</li>
+    </ul>
+  </div>
+  <div class="col-md-6">
+    <h5>🎥 Vídeo</h5>
+    <p>{"✅ Tem vídeo" if produto.get('tem_video') else "❌ Sem vídeo"}</p>
+    {f'<p>Vídeo pode aumentar conversão em até 80%. <strong>Recomendação: Adicionar vídeo demonstrativo.</strong></p>' if not produto.get('tem_video') else '<p>Excelente! Vídeo ajuda muito na conversão.</p>'}
+  </div>
+</div>
+
+<h2>7️⃣ Reputação e Performance</h2>
+<p><strong>Histórico de Vendas:</strong></p>
 <ul>
-  <li>Performance geral e situação atual do anúncio</li>
-  <li>Principais oportunidades identificadas</li>
-  <li>Principais riscos e alertas críticos</li>
+  <li>Total de pedidos: {metricas['total_pedidos']}</li>
+  <li>Pedidos pagos: {metricas['pedidos_pagos']}</li>
+  <li>Taxa de conversão: {(produto['quantidade_vendida'] / produto.get('quantidade_inicial', 1) * 100) if produto.get('quantidade_inicial') and produto.get('quantidade_inicial') > 0 else 0:.1f}%</li>
+  <li>Ticket médio: R$ {metricas['ticket_medio']:.2f}</li>
 </ul>
 
-<h2>2. ANÁLISE DO ANÚNCIO (Qualidade e Otimização)</h2>
-<p>Avalie:</p>
-<ul>
-  <li><strong>Título e Descrição:</strong> Qualidade, keywords, apelo comercial</li>
-  <li><strong>Imagens:</strong> Quantidade, qualidade (ideal: 1200x1200px), necessidade de melhorias</li>
-  <li><strong>Vídeo:</strong> Presença ou ausência, impacto potencial</li>
-  <li><strong>Atributos Técnicos:</strong> Completude, relevância</li>
-  <li><strong>Tipo de Anúncio:</strong> Se o investimento em {produto.get('tipo_anuncio')} está trazendo retorno</li>
-  <li><strong>Health/Saúde:</strong> Status de exposição e qualidade do anúncio</li>
-</ul>
+<h2>8️⃣ Recomendações Estratégicas</h2>
+<div class="alert alert-success">
+  <p><strong>TOP 5 AÇÕES PRIORITÁRIAS:</strong></p>
+  <ol>
+    <li><strong>Margem de Lucro:</strong> [ação específica]</li>
+    <li><strong>Competitividade de Preço:</strong> [ação específica]</li>
+    <li><strong>SEO e Visibilidade:</strong> [ação específica]</li>
+    <li><strong>Conversão de Vendas:</strong> [ação específica]</li>
+    <li><strong>Reputação:</strong> [ação específica]</li>
+  </ol>
+</div>
 
-<h2>3. ANÁLISE DE PERFORMANCE DE VENDAS</h2>
-<p>Análise detalhada considerando:</p>
-<ul>
-  <li>Taxa de conversão (vendidos vs estoque inicial)</li>
-  <li>Tendências de vendas ao longo do tempo</li>
-  <li>Impacto de promoções e descontos</li>
-  <li>Variações mais vendidas (se houver)</li>
-</ul>
+<h2>9️⃣ Conclusão Geral</h2>
+<div class="card border-[cor]">
+  <div class="card-body">
+    <h5>[💚 Forte/Bom | 🟡 Médio | 🔴 Fraco]</h5>
+    <p><strong>Resumo:</strong> [2-3 frases sobre diagnóstico geral]</p>
+    <p><strong>✅ Pontos Fortes:</strong></p>
+    <ul><li>[ponto 1]</li><li>[ponto 2]</li></ul>
+    <p><strong>⚠️ Pontos Fracos:</strong></p>
+    <ul><li>[ponto 1]</li><li>[ponto 2]</li></ul>
+    <p><strong>🎯 Oportunidades:</strong></p>
+    <ul><li>[oportunidade 1]</li><li>[oportunidade 2]</li></ul>
+    
+    <p><strong>Priorização de Ações:</strong></p>
+    <ul>
+      <li>🔴 <strong>Alta Prioridade:</strong> [ação]</li>
+      <li>🟡 <strong>Média Prioridade:</strong> [ação]</li>
+      <li>🟢 <strong>Baixa Prioridade:</strong> [ação]</li>
+    </ul>
+  </div>
+</div>
 
-<h2>4. ANÁLISE FINANCEIRA E RENTABILIDADE</h2>
-<ul>
-  <li>Lucratividade atual e margens</li>
-  <li>Custos ML (comissões, tipo de anúncio)</li>
-  <li>Impacto do frete grátis (se aplicável)</li>
-  <li>Oportunidades de otimização de preço</li>
-</ul>
-
-<h2>5. ANÁLISE COMPETITIVA E POSICIONAMENTO</h2>
-{f"<p>Comparativo com {total_concorrentes} concorrentes no catálogo:</p>" if total_concorrentes > 0 else "<p>Análise de posicionamento:</p>"}
-<ul>
-  <li>Posicionamento de preço</li>
-  <li>Diferenciais competitivos</li>
-  <li>Gaps e oportunidades vs concorrência</li>
-</ul>
-
-<h2>6. RECOMENDAÇÕES PRÁTICAS (Priorizadas)</h2>
-<p><strong>AÇÕES IMEDIATAS (Impacto Alto):</strong></p>
-<ul>
-  <li><strong>Ação 1:</strong> Descrição específica e passo a passo</li>
-  <li><strong>Ação 2:</strong> Descrição específica e passo a passo</li>
-</ul>
-<p><strong>AÇÕES DE MÉDIO PRAZO:</strong></p>
-<ul>
-  <li>...</li>
-</ul>
-
-<h2>7. ALERTAS E RISCOS</h2>
-<ul>
-  <li>Pontos críticos que precisam atenção urgente</li>
-  <li>Riscos identificados (estoque, competição, custos)</li>
-</ul>
+<h2>🔟 Score Geral do Anúncio</h2>
+<div class="text-center p-4 bg-light rounded">
+  <h1 class="display-4">[X]/100</h1>
+  <h5>[Excelente/Bom/Médio/Fraco/Péssimo]</h5>
+  <p class="lead">[Explicação do score em 2-3 frases, justificando a pontuação]</p>
+</div>
 
 IMPORTANTE:
 - Retorne APENAS HTML puro, sem blocos ```html ou ```
@@ -482,11 +671,11 @@ IMPORTANTE:
             }
             
             payload = {
-                "model": "gpt-4o-mini",  # Modelo mais econômico
+                "model": "gpt-4.1-nano",  # Modelo que funcionava antes
                 "messages": [
                     {
                         "role": "system",
-                        "content": "Você é um analista experiente de e-commerce e marketplace do Mercado Livre, especializado em pricing, estratégia competitiva e otimização de vendas. Forneça análises práticas e acionáveis em português do Brasil."
+                        "content": SYSTEM_PROMPT
                     },
                     {
                         "role": "user",
@@ -494,24 +683,34 @@ IMPORTANTE:
                     }
                 ],
                 "temperature": 0.7,
-                "max_tokens": 2000
+                "max_tokens": 4000,  # Parâmetro padrão para gpt-4.1-nano
+                "stream": False  # Desabilitar streaming para evitar timeouts
             }
             
-            logger.info("Chamando API ChatGPT...")
+            logger.info("Chamando API ChatGPT com gpt-4.1-nano...")
+            logger.info(f"Payload keys: {list(payload.keys())}")
+            logger.info(f"Max tokens: {payload.get('max_tokens')}")
+            logger.info(f"Temperature: {payload.get('temperature')}")
             
             response = requests.post(
                 self.api_url,
                 headers=headers,
                 json=payload,
-                timeout=60
+                timeout=180  # Aumentado para 3 minutos devido ao volume de dados
             )
+            
+            logger.info(f"Response status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
+                logger.info(f"Response JSON keys: {list(result.keys())}")
+                
                 analysis = result['choices'][0]['message']['content']
                 tokens_used = result['usage']['total_tokens']
                 
-                logger.info(f"Análise concluída. Tokens usados: {tokens_used}")
+                logger.info(f"✅ Análise concluída. Tokens usados: {tokens_used}")
+                logger.info(f"📝 Tamanho da análise: {len(analysis)} caracteres")
+                logger.info(f"Preview: {analysis[:200]}...")
                 
                 return {
                     "success": True,
@@ -519,13 +718,26 @@ IMPORTANTE:
                     "tokens_used": tokens_used
                 }
             else:
-                logger.error(f"Erro na API ChatGPT: {response.status_code} - {response.text}")
+                error_detail = response.text
+                try:
+                    error_json = response.json()
+                    error_message = error_json.get('error', {}).get('message', error_detail)
+                except:
+                    error_message = error_detail
+                
+                logger.error(f"Erro na API ChatGPT: {response.status_code} - {error_detail}")
                 return {
                     "success": False,
-                    "error": f"Erro na API ChatGPT: {response.status_code}"
+                    "error": f"Erro na API ChatGPT ({response.status_code}): {error_message}"
                 }
                 
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Timeout ao chamar ChatGPT (esperou 180s): {e}", exc_info=True)
+            return {"success": False, "error": "A análise está demorando mais que o esperado. Tente novamente em alguns instantes ou reduza a quantidade de dados."}
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erro de conexão ao chamar ChatGPT: {e}", exc_info=True)
+            return {"success": False, "error": f"Erro de comunicação com a API: {str(e)}"}
         except Exception as e:
-            logger.error(f"Erro ao chamar ChatGPT: {e}", exc_info=True)
-            return {"success": False, "error": f"Erro de comunicação: {str(e)}"}
+            logger.error(f"Erro inesperado ao chamar ChatGPT: {e}", exc_info=True)
+            return {"success": False, "error": f"Erro inesperado: {str(e)}"}
 
