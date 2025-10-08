@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Produtos Mercado Livre{% endblock %}
+{% block title %}Anúncios Mercado Livre{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -9,26 +9,26 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h1 class="h3 mb-1">Produtos Mercado Livre</h1>
+                    <h1 class="h3 mb-1">Anúncios no Mercado Livre</h1>
                     <p class="text-muted mb-0">
-                            Gerencie seus produtos do Mercado Livre
+                            Gerencie seus anúncios do Mercado Livre
                     </p>
                 </div>
                 <div>
                     <button class="btn btn-success me-2" onclick="showImportProductModal()">
-                        <i class="bi bi-plus-circle"></i> Importar Produto
+                        <i class="bi bi-plus-circle"></i> Importar Anúncio
                     </button>
                     <button class="btn btn-primary me-2" onclick="syncProducts()">
-                        <i class="bi bi-arrow-clockwise"></i> Sincronizar Produtos
+                        <i class="bi bi-arrow-clockwise"></i> Sincronizar Anúncios
                     </button>
                     <button class="btn btn-success me-2" onclick="importSelectedProducts()">
-                        <i class="bi bi-download"></i> Importar Selecionados
+                        <i class="bi bi-box-arrow-in-down"></i> Cadastrar Selecionados
                     </button>
                     <button class="btn btn-warning me-2" onclick="importAllProducts()">
-                        <i class="bi bi-download"></i> Importar Todos
+                        <i class="bi bi-box-arrow-in-down-right"></i> Cadastrar Todos
                     </button>
                     <button class="btn btn-danger me-2" onclick="showDeleteProductsModal()">
-                        <i class="bi bi-trash"></i> Remover Produtos
+                        <i class="bi bi-trash"></i> Remover Anúncios
                     </button>
                 </div>
             </div>
@@ -110,8 +110,8 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Lista de Produtos</h5>
-                    <span class="badge bg-primary" id="total-products">0 produto(s)</span>
+                    <h5 class="mb-0">Lista de Anúncios</h5>
+                    <span class="badge bg-primary" id="total-products">0 anúncio(s)</span>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -172,12 +172,12 @@
     </div>
 </div>
 
-<!-- Modal de Importar Produto -->
+<!-- Modal de Importar Anúncio -->
 <div class="modal fade" id="importProductModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Importar Produtos do Mercado Livre</h5>
+                <h5 class="modal-title">Importar Anúncios do Mercado Livre</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -208,8 +208,8 @@
                                     <input class="form-check-input" type="radio" name="import_type" 
                                            id="import_bulk" value="bulk">
                                     <label class="form-check-label" for="import_bulk">
-                                        <strong>Todos os Produtos</strong>
-                                        <br><small class="text-muted">Importar todos os produtos da conta</small>
+                                        <strong>Todos os Anúncios</strong>
+                                        <br><small class="text-muted">Importar todos os anúncios da conta</small>
                                     </label>
                                 </div>
                             </div>
@@ -285,7 +285,7 @@
                                 <option value="1000">1000 produtos</option>
                             </select>
                             <div class="form-text">
-                                Número máximo de produtos a serem importados por vez.
+                                Número máximo de anúncios a serem importados por vez.
                             </div>
                         </div>
                         
@@ -300,7 +300,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-success" onclick="importProduct()" id="importButton">
-                    <i class="bi bi-download"></i> Importar Produto
+                    <i class="bi bi-download"></i> Importar Anúncio
                 </button>
             </div>
         </div>
@@ -313,7 +313,7 @@
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle"></i> Remover Produtos
+                    <i class="bi bi-exclamation-triangle"></i> Remover Anúncios
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -356,7 +356,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-danger" onclick="deleteProducts()" id="deleteButton" disabled>
-                    <i class="bi bi-trash"></i> Remover Produtos
+                    <i class="bi bi-trash"></i> Remover Anúncios
                 </button>
             </div>
         </div>
@@ -585,13 +585,13 @@ function renderProducts(products) {
                         Nenhum produto foi encontrado com os filtros aplicados.
                         <br>
                         <button class="btn btn-primary mt-2" onclick="showImportProductModal()">
-                            <i class="bi bi-plus-circle"></i> Importar Produto
+                            <i class="bi bi-plus-circle"></i> Importar Anúncio
                         </button>
                     </p>
                 </td>
             </tr>
         `;
-        totalProducts.textContent = '0 produto(s)';
+        totalProducts.textContent = '0 anúncio(s)';
         return;
     }
     
@@ -675,13 +675,13 @@ function renderProducts(products) {
     });
     
     tbody.innerHTML = html;
-    totalProducts.textContent = `${products.length} produto(s)`;
+    totalProducts.textContent = `${products.length} anúncio(s)`;
 }
 
 function updatePagination(page, limit, total, hasNext, hasPrev) {
     // Atualizar contador total
     const totalProducts = document.getElementById('total-products');
-    totalProducts.textContent = `${total} produto(s)`;
+    totalProducts.textContent = `${total} anúncio(s)`;
     
     // Atualizar informações de exibição
     const start = ((page - 1) * limit) + 1;
@@ -891,11 +891,11 @@ function toggleImportType() {
     if (importType === 'single') {
         singleFields.style.display = 'block';
         bulkFields.style.display = 'none';
-        importButton.innerHTML = '<i class="bi bi-download"></i> Importar Produto';
+        importButton.innerHTML = '<i class="bi bi-download"></i> Importar Anúncio';
     } else {
         singleFields.style.display = 'none';
         bulkFields.style.display = 'block';
-        importButton.innerHTML = '<i class="bi bi-download"></i> Importar Todos';
+        importButton.innerHTML = '<i class="bi bi-download"></i> Importar Anúncios';
     }
 }
 
@@ -1110,7 +1110,7 @@ function updateSelectedCount() {
     const selectedText = document.getElementById('selected-text');
     const deleteSelectedRadio = document.getElementById('deleteSelected');
     
-    selectedText.textContent = `${count} produto(s) selecionado(s)`;
+    selectedText.textContent = `${count} anúncio(s) selecionado(s)`;
     
     if (count > 0) {
         selectedCountDiv.style.display = 'block';
@@ -1286,16 +1286,16 @@ function importSelectedProducts() {
     const selectedProducts = getSelectedProducts();
     
     if (selectedProducts.length === 0) {
-        showAlert('warning', 'Selecione pelo menos um produto para importar');
+        showAlert('warning', 'Selecione pelo menos um anúncio para cadastrar');
         return;
     }
     
-    if (!confirm(`Deseja importar ${selectedProducts.length} produto(s) selecionado(s)?`)) {
+    if (!confirm(`Deseja cadastrar produtos a partir de ${selectedProducts.length} anúncio(s) selecionado(s)?`)) {
         return;
     }
     
     // Mostrar loading
-    showAlert('info', `Importando ${selectedProducts.length} produto(s)...`);
+    showAlert('info', `Cadastrando ${selectedProducts.length} produto(s) a partir dos anúncios...`);
     
     // Importar cada produto
     let importedCount = 0;
@@ -1322,7 +1322,7 @@ function importSelectedProducts() {
     })
     .then(data => {
         if (data && data.success) {
-            showAlert('success', `Produtos importados para produtos internos: ${data.imported_count} importados, ${data.skipped_count} já existiam`);
+            showAlert('success', `Produtos cadastrados: ${data.imported_count} criados, ${data.skipped_count} já existiam`);
             // Recarregar produtos
             loadProducts();
         } else if (data) {
@@ -1336,7 +1336,7 @@ function importSelectedProducts() {
 }
 
 function importAllProducts() {
-    if (!confirm('Deseja importar TODOS os produtos do Mercado Livre? Esta operação pode demorar alguns minutos.')) {
+    if (!confirm('Deseja cadastrar produtos a partir de TODOS os anúncios do Mercado Livre? Esta operação pode demorar alguns minutos.')) {
         return;
     }
     
@@ -1358,8 +1358,8 @@ function importAllProducts() {
         }
     })
     .catch(error => {
-        console.error('Erro ao importar todos os produtos:', error);
-        showAlert('danger', 'Erro ao importar produtos');
+        console.error('Erro ao cadastrar produtos:', error);
+        showAlert('danger', 'Erro ao cadastrar produtos');
     });
 }
 
