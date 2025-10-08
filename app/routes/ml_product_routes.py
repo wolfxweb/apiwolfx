@@ -1516,3 +1516,42 @@ async def filter_catalog_from_database(
             status_code=500,
             content={"success": False, "error": f"Erro interno: {str(e)}"}
         )
+
+@ml_product_router.post("/api/product/{product_id}/ai-analysis")
+async def ai_analyze_product(
+    product_id: int,
+    request_body: dict = {},
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Analisa produto usando ChatGPT"""
+    try:
+        # Verificar autenticação
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        logger.info(f"Iniciando análise IA para produto {product_id}")
+        
+        # Pegar dados de catálogo se fornecidos
+        catalog_data = request_body.get("catalog_data", None)
+        
+        # Chamar serviço de IA
+        from app.services.ai_analysis_service import AIAnalysisService
+        ai_service = AIAnalysisService(db)
+        analysis_result = ai_service.analyze_product(product_id, company_id, catalog_data)
+        
+        return JSONResponse(content=analysis_result)
+        
+    except Exception as e:
+        logger.error(f"Erro no endpoint de análise IA: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno: {str(e)}"}
+        )

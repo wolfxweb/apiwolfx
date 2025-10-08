@@ -117,6 +117,23 @@
                                         <p class="mt-2 mb-0">Calculando rentabilidade...</p>
                                     </div>
                                 </div>
+                                
+                                <!-- Botão Analisar com IA -->
+                                <div class="mt-3 text-center border-top pt-3">
+                                    <button class="btn btn-primary" onclick="analyzeWithAI()" id="ai-analysis-btn">
+                                        <i class="bi bi-robot"></i> Analisar com IA
+                                    </button>
+                                </div>
+                                
+                                <!-- Resultado da Análise IA -->
+                                <div id="ai-analysis-result" class="mt-3" style="display: none;">
+                                    <div class="alert alert-info mb-0">
+                                        <h6 class="mb-3">
+                                            <i class="bi bi-lightbulb-fill"></i> Análise da Inteligência Artificial
+                                        </h6>
+                                        <div id="ai-analysis-content" style="line-height: 1.6;"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2589,6 +2606,78 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Função para análise com IA
+async function analyzeWithAI() {
+    const btn = document.getElementById('ai-analysis-btn');
+    const resultDiv = document.getElementById('ai-analysis-result');
+    const contentDiv = document.getElementById('ai-analysis-content');
+    const productId = window.location.pathname.split('/').pop();
+    
+    // Desabilitar botão e mostrar loading
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Analisando com IA...';
+    
+    try {
+        // Buscar dados do catálogo se disponíveis
+        let catalogData = null;
+        try {
+            const catalogResponse = await fetch(`/ml/products/api/product/${productId}/catalog/database`, {
+                credentials: 'include'
+            });
+            if (catalogResponse.ok) {
+                const catalogResult = await catalogResponse.json();
+                if (catalogResult.success && catalogResult.catalog_products) {
+                    catalogData = catalogResult.catalog_products;
+                    console.log(`📊 Enviando ${catalogData.length} concorrentes para análise IA`);
+                }
+            }
+        } catch (e) {
+            console.warn('Não foi possível carregar dados de catálogo:', e);
+        }
+        
+        // Chamar endpoint de análise IA
+        const response = await fetch(`/ml/products/api/product/${productId}/ai-analysis`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                catalog_data: catalogData
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Mostrar resultado
+            contentDiv.innerHTML = data.analysis;
+            resultDiv.style.display = 'block';
+            
+            // Rolar até o resultado
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            // Mudar botão
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Reanalizar com IA';
+            
+            console.log(`✅ Análise IA concluída. Tokens usados: ${data.tokens_used}`);
+            
+        } else {
+            alert(`Erro na análise: ${data.error}`);
+            console.error('Erro na análise IA:', data.error);
+        }
+        
+    } catch (error) {
+        console.error('Erro ao chamar análise IA:', error);
+        alert('Erro ao processar análise com IA. Verifique o console.');
+    } finally {
+        btn.disabled = false;
+        if (btn.innerHTML.includes('Analisando')) {
+            btn.innerHTML = '<i class="bi bi-robot"></i> Analisar com IA';
+        }
+    }
+}
 
 </script>
 {% endblock %}
