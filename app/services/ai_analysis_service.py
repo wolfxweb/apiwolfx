@@ -140,6 +140,32 @@ class AIAnalysisService:
             response = self._call_chatgpt(prompt)
             
             if response["success"]:
+                # 6. Salvar análise no banco de dados
+                try:
+                    from app.models.saas_models import AIProductAnalysis
+                    from datetime import datetime
+                    
+                    ai_analysis = AIProductAnalysis(
+                        ml_product_id=product_id,
+                        company_id=company_id,
+                        analysis_content=response["analysis"],
+                        model_used=response.get("model_used", "gpt-4.1-nano"),
+                        prompt_tokens=response.get("prompt_tokens", 0),
+                        completion_tokens=response.get("completion_tokens", 0),
+                        total_tokens=response.get("tokens_used", 0),
+                        request_data=analysis_data,
+                        created_at=datetime.utcnow()
+                    )
+                    
+                    self.db.add(ai_analysis)
+                    self.db.commit()
+                    
+                    logger.info(f"✅ Análise salva no banco. ID: {ai_analysis.id}")
+                    
+                except Exception as e:
+                    logger.error(f"Erro ao salvar análise no banco: {e}", exc_info=True)
+                    # Não falhar a requisição se salvar falhar
+                
                 return {
                     "success": True,
                     "analysis": response["analysis"],
@@ -703,16 +729,23 @@ IMPORTANTE:
                 logger.info(f"Response JSON keys: {list(result.keys())}")
                 
                 analysis = result['choices'][0]['message']['content']
-                tokens_used = result['usage']['total_tokens']
+                usage = result.get('usage', {})
                 
-                logger.info(f"✅ Análise concluída. Tokens usados: {tokens_used}")
+                prompt_tokens = usage.get('prompt_tokens', 0)
+                completion_tokens = usage.get('completion_tokens', 0)
+                total_tokens = usage.get('total_tokens', 0)
+                
+                logger.info(f"✅ Análise concluída. Tokens: {prompt_tokens} input + {completion_tokens} output = {total_tokens} total")
                 logger.info(f"📝 Tamanho da análise: {len(analysis)} caracteres")
                 logger.info(f"Preview: {analysis[:200]}...")
                 
                 return {
                     "success": True,
                     "analysis": analysis,
-                    "tokens_used": tokens_used
+                    "model_used": payload.get("model", "unknown"),
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "tokens_used": total_tokens
                 }
             else:
                 error_detail = response.text

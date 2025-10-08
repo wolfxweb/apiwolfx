@@ -361,6 +361,39 @@ class MLProductSync(Base):
     company = relationship("Company")
     ml_account = relationship("MLAccount")
 
+class AIProductAnalysis(Base):
+    """Análises de produtos feitas com IA"""
+    __tablename__ = "ai_product_analysis"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ml_product_id = Column(Integer, ForeignKey("ml_products.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    
+    # Conteúdo da análise
+    analysis_content = Column(Text, nullable=False)  # HTML da análise
+    
+    # Dados da solicitação
+    model_used = Column(String(50), nullable=False)  # gpt-4.1-nano, gpt-5-nano, etc
+    prompt_tokens = Column(Integer)  # Tokens usados no prompt/input
+    completion_tokens = Column(Integer)  # Tokens usados na resposta/output
+    total_tokens = Column(Integer)  # Total de tokens
+    
+    # Dados enviados para análise (para auditoria)
+    request_data = Column(JSON)  # Dados que foram enviados
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now(), index=True)
+    
+    # Relacionamentos
+    ml_product = relationship("MLProduct")
+    company = relationship("Company")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ai_analysis_product_company', 'ml_product_id', 'company_id'),
+        Index('ix_ai_analysis_created', 'created_at'),
+    )
+
 class MLProductAttribute(Base):
     """Atributos específicos de produtos ML"""
     __tablename__ = "ml_product_attributes"
