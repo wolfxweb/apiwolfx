@@ -26,14 +26,12 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 - Sugira ações para melhorar a margem, se necessário (ex: reduzir custos, ajustar preço, negociar fornecedor).
 
 3️⃣ **Análise de Concorrência**
-- Liste TODOS os concorrentes do mesmo produto (informados no JSON) em uma tabela incluindo:
+- Liste TODOS os concorrentes do mesmo produto (informados no JSON) em uma tabela com APENAS 3 colunas:
   - Posição no catálogo
   - Nome do vendedor (campo "vendedor")
   - Preço (formate em R$ XX,XX com vírgula para decimais)
-  - Tipo de envio + se tem frete grátis
-  - Status Mercado Líder (campo "mercado_lider")
-  - Quantidade de vendas
-- Calcule a média de preços e avalie se meu produto está competitivo/caro/barato.
+- NÃO inclua colunas de Envio, Status ML ou Vendas na tabela (mantenha apenas Posição, Vendedor e Preço)
+- Calcule a média de preços dos concorrentes e avalie se meu produto está competitivo/caro/barato.
 - Gere sugestão de preço competitivo formatado em R$ XX,XX, se aplicável.
 
 4️⃣ **SEO – Título e Descrição**
@@ -78,8 +76,10 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 
 ⚠️ **IMPORTANTE - FORMATAÇÃO:**
 - TODOS os valores monetários devem ser formatados em reais brasileiros: R$ XX,XX (com vírgula para decimais)
+- Valores já estão em REAIS no JSON (não divida por 100 novamente)
 - Use tabelas HTML completas com todos os dados disponíveis no JSON
-- Seja específico e use os dados reais fornecidos, não invente informações"""
+- Seja específico e use os dados reais fornecidos, não invente informações
+- Na tabela de concorrentes, use APENAS 3 colunas: Posição, Vendedor, Preço"""
 
 class AIAnalysisService:
     """Serviço para análise de produtos com IA"""
@@ -272,12 +272,13 @@ class AIAnalysisService:
             sale_fees = float(order.sale_fees / 100) if order.sale_fees else 0
             shipping_cost = float(order.shipping_cost / 100) if order.shipping_cost else 0
             coupon_amount = float(order.coupon_amount / 100) if order.coupon_amount else 0
+            unit_price_reais = float(unit_price / 100) if unit_price else 0  # Converter unit_price também
             
             order_data = {
                 "id_pedido": str(order.ml_order_id),
                 "data": order.date_created.isoformat() if order.date_created else None,
                 "quantidade": quantity,
-                "preco_unitario": float(unit_price),
+                "preco_unitario": unit_price_reais,  # Já em reais
                 "total_pago": total_amount,
                 "comissao_ml": sale_fees,
                 "frete": shipping_cost,
@@ -473,31 +474,22 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
       <th>Posição</th>
       <th>Vendedor</th>
       <th>Preço</th>
-      <th>Envio</th>
-      <th>Status ML</th>
-      <th>Vendas</th>
     </tr>
   </thead>
   <tbody>
-    [Liste os concorrentes do JSON usando EXATAMENTE estes campos:
+    [Liste TODOS os concorrentes do JSON "concorrentes" usando EXATAMENTE estes campos:
      - posicao: número da posição
-     - vendedor: nome do vendedor
+     - vendedor: nome do vendedor (campo "vendedor")
      - preco: formate em reais brasileiros (R$ XX,XX) com vírgula para decimais
-     - envio: tipo de envio + se tem frete grátis
-     - mercado_lider: status de Mercado Líder
-     - vendas: quantidade vendida
     
     Exemplo de linha:
     <tr>
       <td>1</td>
       <td>Nome do Vendedor</td>
       <td>R$ 58,00</td>
-      <td>Full + Frete Grátis</td>
-      <td>Platinum</td>
-      <td>150</td>
     </tr>
     
-    Liste TODOS os concorrentes do JSON "concorrentes" com estes dados.]
+    Crie UMA linha para CADA concorrente do array "concorrentes".]
   </tbody>
 </table>''' if total_concorrentes > 0 else ''}
 <p><strong>Avaliação:</strong> Meu produto está [competitivo/caro/barato] em relação à média (R$ [média formatada em XX,XX]).</p>
