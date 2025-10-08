@@ -75,11 +75,12 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 - Classifique nível (Excelente, Bom, Médio, Fraco, Péssimo) e explique o resultado em 2–3 frases.
 
 ⚠️ **IMPORTANTE - FORMATAÇÃO:**
-- TODOS os valores monetários devem ser formatados em reais brasileiros: R$ XX,XX (com vírgula para decimais)
-- Valores já estão em REAIS no JSON (não divida por 100 novamente)
+- TODOS os valores monetários JÁ ESTÃO EM REAIS no JSON (não multiplique nem divida)
+- Apenas formate para o padrão brasileiro: R$ XX,XX (com vírgula para decimais)
 - Use tabelas HTML completas com todos os dados disponíveis no JSON
 - Seja específico e use os dados reais fornecidos, não invente informações
-- Na tabela de concorrentes, use APENAS 3 colunas: Posição, Vendedor, Preço"""
+- Na tabela de concorrentes, use APENAS 3 colunas: Posição, Vendedor, Preço
+- A taxa de conversão é baseada em (vendidos / estoque inicial), que pode incluir cancelamentos"""
 
 class AIAnalysisService:
     """Serviço para análise de produtos com IA"""
@@ -267,12 +268,12 @@ class AIAnalysisService:
                         unit_price = item.get('unit_price', 0)
                         break
             
-            # Converter valores de centavos para reais
-            total_amount = float(order.total_amount / 100) if order.total_amount else 0
-            sale_fees = float(order.sale_fees / 100) if order.sale_fees else 0
-            shipping_cost = float(order.shipping_cost / 100) if order.shipping_cost else 0
-            coupon_amount = float(order.coupon_amount / 100) if order.coupon_amount else 0
-            unit_price_reais = float(unit_price / 100) if unit_price else 0  # Converter unit_price também
+            # Valores já estão em reais (não dividir por 100)
+            total_amount = float(order.total_amount) if order.total_amount else 0
+            sale_fees = float(order.sale_fees) if order.sale_fees else 0
+            shipping_cost = float(order.shipping_cost) if order.shipping_cost else 0
+            coupon_amount = float(order.coupon_amount) if order.coupon_amount else 0
+            unit_price_reais = float(unit_price) if unit_price else 0  # Já em reais
             
             order_data = {
                 "id_pedido": str(order.ml_order_id),
@@ -559,9 +560,10 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
 <h2>7️⃣ Reputação e Performance</h2>
 <p><strong>Histórico de Vendas:</strong></p>
 <ul>
-  <li>Total de pedidos: {metricas['total_pedidos']}</li>
-  <li>Pedidos pagos: {metricas['pedidos_pagos']}</li>
-  <li>Taxa de conversão: {(produto['quantidade_vendida'] / produto.get('quantidade_inicial', 1) * 100) if produto.get('quantidade_inicial') and produto.get('quantidade_inicial') > 0 else 0:.1f}%</li>
+  <li>Total de pedidos: {metricas['total_pedidos']} (baseado em pedidos sincronizados)</li>
+  <li>Pedidos pagos/entregues: {metricas['pedidos_pagos']} (baseado em pedidos sincronizados)</li>
+  <li>Quantidade vendida (ML): {produto['quantidade_vendida']} unidades</li>
+  <li>Receita média estimada: R$ {(produto['quantidade_vendida'] * metricas['ticket_medio']):.2f} (quantidade vendida × ticket médio)</li>
   <li>Ticket médio: R$ {metricas['ticket_medio']:.2f}</li>
 </ul>
 
