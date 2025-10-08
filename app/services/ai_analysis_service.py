@@ -50,9 +50,10 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 - Avalie coerência das imagens com o produto.
 - Sugira melhorias (ex: adicionar imagens, reorganizar ordem, incluir vídeo).
 
-7️⃣ **Reputação e Feedback** (se disponível)
-- Analise nota média, quantidade de avaliações, elogios e reclamações.
-- Gere diagnóstico da reputação e sugestões de ações.
+7️⃣ **Histórico de Vendas**
+- Apresente os dados de vendas sincronizados e as vendas totais do ML
+- Destaque a receita média estimada (quantidade vendida × ticket médio)
+- Analise o ticket médio e tendências de vendas
 
 8️⃣ **Recomendações Estratégicas**
 - Gere pelo menos 5 recomendações práticas para melhorar:
@@ -72,6 +73,7 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 
 🔟 **Score Geral do Anúncio**
 - Gere pontuação de 0 a 100 considerando todos os critérios acima.
+- IMPORTANTE: Use NÚMERO (ex: 75), NÃO escreva por extenso (seventy-five)
 - Classifique nível (Excelente, Bom, Médio, Fraco, Péssimo) e explique o resultado em 2–3 frases.
 
 ⚠️ **IMPORTANTE - FORMATAÇÃO:**
@@ -557,8 +559,7 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
   </div>
 </div>
 
-<h2>7️⃣ Reputação e Performance</h2>
-<p><strong>Histórico de Vendas:</strong></p>
+<h2>7️⃣ Histórico de Vendas</h2>
 <ul>
   <li>Total de pedidos: {metricas['total_pedidos']} (baseado em pedidos sincronizados)</li>
   <li>Pedidos pagos/entregues: {metricas['pedidos_pagos']} (baseado em pedidos sincronizados)</li>
@@ -602,10 +603,12 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
 
 <h2>🔟 Score Geral do Anúncio</h2>
 <div class="text-center p-4 bg-light rounded">
-  <h1 class="display-4">[X]/100</h1>
+  <h1 class="display-4">[coloque APENAS O NÚMERO, ex: 75]/100</h1>
   <h5>[Excelente/Bom/Médio/Fraco/Péssimo]</h5>
   <p class="lead">[Explicação do score em 2-3 frases, justificando a pontuação]</p>
 </div>
+
+<p><strong>IMPORTANTE:</strong> No score, use APENAS números (75, 82, 90, etc), NUNCA escreva por extenso (seventy-five).</p>
 
 IMPORTANTE:
 - Retorne APENAS HTML puro, sem blocos ```html ou ```
