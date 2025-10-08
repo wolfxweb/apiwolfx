@@ -1571,6 +1571,59 @@ async def get_ai_analysis_history(
             content={"success": False, "error": f"Erro interno: {str(e)}"}
         )
 
+@ml_product_router.get("/api/product/{product_id}/advertising-metrics")
+async def get_product_advertising_metrics(
+    product_id: int,
+    days: int = 30,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Busca métricas de Product Ads (publicidade) para um produto específico"""
+    try:
+        # Verificar autenticação
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        from app.models.saas_models import MLProduct
+        
+        # Buscar produto
+        product = db.query(MLProduct).filter(
+            MLProduct.id == product_id,
+            MLProduct.company_id == company_id
+        ).first()
+        
+        if not product:
+            return JSONResponse(content={"error": "Produto não encontrado"}, status_code=404)
+        
+        # Buscar métricas de Product Ads
+        from app.services.ml_product_ads_service import MLProductAdsService
+        ads_service = MLProductAdsService(db)
+        
+        metrics = ads_service.get_product_advertising_metrics(
+            ml_item_id=product.ml_item_id,
+            ml_account_id=product.ml_account_id,
+            days=days
+        )
+        
+        return JSONResponse(content={
+            "success": True,
+            "metrics": metrics
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar métricas de publicidade: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno: {str(e)}"}
+        )
+
 @ml_product_router.post("/api/product/{product_id}/ai-analysis")
 async def ai_analyze_product(
     product_id: int,

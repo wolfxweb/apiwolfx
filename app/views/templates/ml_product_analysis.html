@@ -125,22 +125,17 @@
                         </div>
                     </div>
 
-                    <!-- Profitability Analysis -->
+                    <!-- Marketing Analysis -->
                     <div class="col-md-6 mb-4">
                         <div class="card h-100">
-                            <div class="card-header bg-success text-white">
+                            <div class="card-header bg-primary text-white">
                                 <h5 class="mb-0">
-                                    <i class="bi bi-graph-up"></i> Análise de Rentabilidade
+                                    <i class="bi bi-megaphone"></i> Análise de Marketing
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <div id="profitability-analysis">
-                                    <div class="text-center py-3">
-                                        <div class="spinner-border spinner-border-sm" role="status">
-                                            <span class="visually-hidden">Carregando...</span>
-                                        </div>
-                                        <p class="mt-2 mb-0">Calculando rentabilidade...</p>
-                                    </div>
+                                <div id="marketing-analysis">
+                                    <!-- Conteúdo será adicionado aqui -->
                                 </div>
                             </div>
                         </div>
@@ -433,7 +428,7 @@ function loadProductAnalysis(productId) {
                 console.log('📦 Dados do produto:', data.product);
                 renderProductInfo(data.product);
                 checkCatalogInfo(data.product);
-                loadProfitabilityAnalysis(data.product);
+                loadMarketingAnalysis(data.product); // Card de Marketing com métricas de Product Ads
                 loadPricingAnalysis(data.product);
                 loadSalesAnalysis(data.product);
                 setupSalesAnalysisTabs(data.product);
@@ -1238,77 +1233,147 @@ function getMercadoLiderProgressClass(level) {
     return classes[level] || 'bg-secondary';
 }
 
-function loadProfitabilityAnalysis(product) {
-    console.log('💰 Carregando análise de rentabilidade para produto:', product);
+// Função para carregar análise de marketing (Product Ads)
+async function loadMarketingAnalysis(product) {
+    console.log('📣 Carregando análise de marketing para produto:', product);
     
-    const profitabilityContainer = document.getElementById('profitability-analysis');
-    const productPrice = parseFloat(product.price) || 0;
+    const marketingContainer = document.getElementById('marketing-analysis');
+    const productId = product.id;
     
-    // Simular cálculo de rentabilidade baseado no preço
-    // Taxa média do Mercado Livre ~15%
-    const totalFees = productPrice * 0.15;
-    const netProfit = productPrice - totalFees;
-    const profitMargin = productPrice > 0 ? (netProfit / productPrice) * 100 : 0;
-    const roi = totalFees > 0 ? (netProfit / totalFees) * 100 : 0;
-    
-    console.log('💰 Cálculos de rentabilidade:', {
-        productPrice,
-        totalFees,
-        netProfit,
-        profitMargin,
-        roi
-    });
-    
-    profitabilityContainer.innerHTML = `
-        <div class="row">
-            <div class="col-md-4">
-                <div class="text-center p-3 border rounded">
-                    <h6 class="text-muted">Preço de Venda</h6>
-                    <h4 class="text-primary">${formatPrice(productPrice)}</h4>
-                </div>
+    // Mostrar loading
+    marketingContainer.innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Carregando...</span>
             </div>
-            <div class="col-md-4">
-                <div class="text-center p-3 border rounded">
-                    <h6 class="text-muted">Custos Totais</h6>
-                    <h4 class="text-danger">${formatPrice(totalFees)}</h4>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="text-center p-3 border rounded">
-                    <h6 class="text-muted">Lucro Líquido</h6>
-                    <h4 class="text-success">${formatPrice(netProfit)}</h4>
-                </div>
-            </div>
-        </div>
-        <hr>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="d-flex justify-content-between">
-                    <span>Margem de Lucro:</span>
-                    <strong class="${profitMargin >= 20 ? 'text-success' : profitMargin >= 10 ? 'text-warning' : 'text-danger'}">
-                        ${profitMargin.toFixed(1)}%
-                    </strong>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="d-flex justify-content-between">
-                    <span>ROI:</span>
-                    <strong class="${roi >= 50 ? 'text-success' : roi >= 25 ? 'text-warning' : 'text-danger'}">
-                        ${roi.toFixed(1)}%
-                    </strong>
-                </div>
-            </div>
-        </div>
-        <div class="mt-3">
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i>
-                <strong>Análise Estimada:</strong> Baseada em taxa média do Mercado Livre (~15%).
-                Para análise precisa, configure os custos internos do produto.
-            </div>
+            <p class="mt-2 mb-0">Buscando métricas de Product Ads...</p>
         </div>
     `;
     
-    console.log('✅ Análise de rentabilidade renderizada com sucesso');
+    try {
+        // Buscar métricas de publicidade (últimos 30 dias)
+        const response = await fetch(`/ml/products/api/product/${productId}/advertising-metrics?days=30`, {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.metrics) {
+            const metrics = data.metrics;
+            
+            if (metrics.has_advertising && metrics.total_cost > 0) {
+                // Produto tem investimento em Product Ads
+                marketingContainer.innerHTML = `
+                    <div class="alert alert-success mb-3">
+                        <i class="bi bi-megaphone-fill"></i>
+                        <strong>Este produto tem investimento em Product Ads!</strong>
+                    </div>
+                    
+                    <h6 class="mb-3">📊 Métricas dos Últimos 30 Dias:</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">Investimento Total</h6>
+                                    <h4 class="text-danger mb-0">${formatPrice(metrics.total_cost)}</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">Retorno (ROAS)</h6>
+                                    <h4 class="text-success mb-0">${metrics.roas.toFixed(2)}x</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="text-center p-2 border rounded">
+                                <small class="text-muted">Cliques</small>
+                                <h5 class="mb-0">${metrics.total_clicks.toLocaleString('pt-BR')}</h5>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center p-2 border rounded">
+                                <small class="text-muted">Impressões</small>
+                                <h5 class="mb-0">${metrics.total_impressions.toLocaleString('pt-BR')}</h5>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center p-2 border rounded">
+                                <small class="text-muted">CTR</small>
+                                <h5 class="mb-0">${metrics.ctr.toFixed(2)}%</h5>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between">
+                                <span>Vendas Diretas:</span>
+                                <strong class="text-success">${formatPrice(metrics.direct_sales)}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between">
+                                <span>Vendas Indiretas:</span>
+                                <strong class="text-info">${formatPrice(metrics.indirect_sales)}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between">
+                                <span>CPC (Custo por Clique):</span>
+                                <strong>${formatPrice(metrics.cpc)}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between">
+                                <span>ACOS:</span>
+                                <strong>${metrics.acos.toFixed(2)}%</strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${metrics.campaigns_count > 0 ? `
+                    <div class="alert alert-info small mb-0">
+                        <strong>${metrics.campaigns_count} campanha(s) ativa(s)</strong> nos últimos 30 dias.
+                    </div>
+                    ` : ''}
+                `;
+            } else {
+                // Produto sem investimento em Product Ads
+                marketingContainer.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Sem investimento em Product Ads</strong><br>
+                        Este produto não tem campanhas de publicidade ativas nos últimos 30 dias.
+                    </div>
+                    <p class="text-muted small mb-0">
+                        Product Ads pode aumentar significativamente a visibilidade e as vendas do seu produto.
+                    </p>
+                `;
+            }
+            
+            console.log('✅ Análise de marketing renderizada');
+            
+        } else {
+            throw new Error(data.error || 'Erro ao carregar métricas');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar análise de marketing:', error);
+        marketingContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Erro ao carregar métricas de publicidade</strong><br>
+                ${error.message || 'Erro desconhecido'}
+            </div>
+        `;
+    }
 }
 
 async function loadPricingAnalysis(product) {
