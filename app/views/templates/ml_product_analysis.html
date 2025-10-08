@@ -1773,7 +1773,7 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                             <div class="card-body py-2 px-3">
                                 <small class="text-muted d-block">Margem de Lucro</small>
                                 <strong class="text-success fs-6">${actualMargin.toFixed(2)}%</strong>
-                                <small class="text-muted d-block">${productNetProfit >= 0 ? 'Lucro' : 'Prejuízo'}</small>
+                              
                             </div>
                         </div>
                     </div>
@@ -1782,16 +1782,15 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                             <div class="card-body py-2 px-3">
                                 <small class="text-muted d-block">Markup</small>
                                 <strong class="text-primary fs-6">${markup.toFixed(2)}%</strong>
-                                <small class="text-muted d-block">Sobre o custo</small>
+                         
                             </div>
                         </div>
                     </div>
                     <div class="col-4">
-                        <div class="card bg-warning bg-opacity-10 border-warning">
+                        <div class="card bg-success bg-opacity-10 border-success">
                             <div class="card-body py-2 px-3">
-                                <small class="text-muted d-block">ROI</small>
-                                <strong class="text-warning fs-6">${roi.toFixed(2)}%</strong>
-                                <small class="text-muted d-block">Retorno investimento</small>
+                                <small class="text-muted d-block">Lucro </small>
+                                <strong class="text-success fs-6">${formatPrice(productNetProfit)}</strong>
                             </div>
                         </div>
                     </div>
