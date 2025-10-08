@@ -483,3 +483,181 @@ class MLOrdersController:
                 "success": False,
                 "error": f"Erro interno: {str(e)}"
             }
+    
+    def count_available_orders(self, company_id: int) -> Dict:
+        """Verifica total de pedidos disponíveis no ML vs importados"""
+        try:
+            import requests
+            from app.models.saas_models import MLOrder
+            
+            logger.info(f"Verificando total de pedidos disponíveis para company_id: {company_id}")
+            
+            # Buscar conta ML ativa
+            accounts = self.db.query(MLAccount).filter(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
+            ).all()
+            
+            if not accounts:
+                return {
+                    "success": False,
+                    "error": "Nenhuma conta ML ativa encontrada"
+                }
+            
+            # Contar pedidos já importados
+            account_ids = [acc.id for acc in accounts]
+            total_imported = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id,
+                MLOrder.ml_account_id.in_(account_ids)
+            ).count()
+            
+            # Buscar total disponível no ML (primeira conta ativa)
+            account = accounts[0]
+            access_token = self.orders_service._get_active_token(account.id)
+            
+            if not access_token:
+                return {
+                    "success": False,
+                    "error": "Token não encontrado ou expirado"
+                }
+            
+            # Consultar API do ML
+            headers = {"Authorization": f"Bearer {access_token}"}
+            url = "https://api.mercadolibre.com/orders/search"
+            params = {
+                "seller": account.ml_user_id,
+                "limit": 1  # Só queremos o total
+            }
+            
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                total_available = data.get("paging", {}).get("total", 0)
+                
+                return {
+                    "success": True,
+                    "total_available": total_available,
+                    "total_imported": total_imported,
+                    "remaining": total_available - total_imported
+                }
+            else:
+                logger.error(f"Erro ao consultar ML API: {response.status_code}")
+                return {
+                    "success": False,
+                    "error": "Erro ao consultar Mercado Livre"
+                }
+                
+        except Exception as e:
+            logger.error(f"Erro ao contar pedidos disponíveis: {e}")
+            return {
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+    
+    def import_orders_batch(self, company_id: int, offset: int = 0, limit: int = 50) -> Dict:
+        """Importa um lote específico de pedidos"""
+        try:
+            logger.info(f"Importando lote - company_id: {company_id}, offset: {offset}, limit: {limit}")
+            
+            # Buscar conta ML ativa
+            accounts = self.db.query(MLAccount).filter(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
+            ).all()
+            
+            if not accounts:
+                return {
+                    "success": False,
+                    "error": "Nenhuma conta ML ativa encontrada"
+                }
+            
+            # Importar pedidos da primeira conta ativa
+            account = accounts[0]
+            
+            # Obter token ativo
+            access_token = self.orders_service._get_active_token(account.id)
+            if not access_token:
+                return {
+                    "success": False,
+                    "error": "Token não encontrado ou expirado"
+                }
+            
+            # Buscar pedidos da API com offset e limit específicos
+            import requests
+            headers = {"Authorization": f"Bearer {access_token}"}
+            url = "https://api.mercadolibre.com/orders/search"
+            params = {
+                "seller": account.ml_user_id,
+                "limit": limit,
+                "offset": offset,
+                "sort": "date_desc"
+            }
+            
+            response = requests.get(url, headers=headers, params=params, timeout=60)
+            
+            if response.status_code != 200:
+                logger.error(f"Erro ao buscar pedidos do ML: {response.status_code}")
+                return {
+                    "success": False,
+                    "error": f"Erro ao buscar pedidos: {response.status_code}"
+                }
+            
+            data = response.json()
+            orders_data = data.get("results", [])
+            
+            if not orders_data:
+                return {
+                    "success": True,
+                    "message": "Nenhum pedido encontrado neste lote",
+                    "saved_count": 0,
+                    "updated_count": 0
+                }
+            
+            # Salvar pedidos no banco com pausas entre cada pedido
+            saved_count = 0
+            updated_count = 0
+            
+            import time
+            
+            for idx, order_data in enumerate(orders_data):
+                try:
+                    # Pausa de 5 segundos entre cada pedido (exceto o primeiro)
+                    if idx > 0:
+                        logger.info(f"Aguardando 5 segundos antes de processar pedido {idx + 1}/{len(orders_data)}")
+                        time.sleep(5)
+                    
+                    # Buscar informações completas
+                    complete_data = self.orders_service._fetch_complete_order_data(order_data, access_token)
+                    
+                    # Salvar no banco
+                    result = self.orders_service._save_order_to_database(complete_data, account.id, company_id)
+                    
+                    if result["action"] == "created":
+                        saved_count += 1
+                    elif result["action"] == "updated":
+                        updated_count += 1
+                    
+                    logger.info(f"Pedido {idx + 1}/{len(orders_data)} processado: {order_data.get('id')}")
+                        
+                except Exception as e:
+                    logger.error(f"Erro ao processar pedido {order_data.get('id')}: {e}")
+                    continue
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": f"Lote importado: {saved_count} criados, {updated_count} atualizados",
+                "saved_count": saved_count,
+                "updated_count": updated_count,
+                "processed": len(orders_data)
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao importar lote: {e}")
+            self.db.rollback()
+            return {
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }

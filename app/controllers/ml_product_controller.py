@@ -126,17 +126,17 @@ class MLProductController:
                     'error': 'Conta ML não encontrada ou não pertence à empresa'
                 }
             
-            # Verificar permissões do usuário para esta conta ML
-            user_account = self.db.query(UserMLAccount).filter(
-                UserMLAccount.user_id == user_id,
-                UserMLAccount.ml_account_id == ml_account_id,
-                UserMLAccount.can_write == True
+            # Verificar se a conta ML pertence à empresa do usuário
+            ml_account = self.db.query(MLAccount).filter(
+                MLAccount.id == ml_account_id,
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
             ).first()
             
-            if not user_account:
+            if not ml_account:
                 return {
                     'success': False,
-                    'error': 'Usuário não tem permissão para sincronizar esta conta ML'
+                    'error': 'Conta ML não encontrada ou não pertence à sua empresa'
                 }
             
             # Iniciar sincronização
@@ -172,17 +172,17 @@ class MLProductController:
                     'error': 'Conta ML não encontrada ou não pertence à empresa'
                 }
             
-            # Verificar permissões do usuário para esta conta ML
-            user_account = self.db.query(UserMLAccount).filter(
-                UserMLAccount.user_id == user_id,
-                UserMLAccount.ml_account_id == ml_account_id,
-                UserMLAccount.can_write == True
+            # Verificar se a conta ML pertence à empresa do usuário
+            ml_account = self.db.query(MLAccount).filter(
+                MLAccount.id == ml_account_id,
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
             ).first()
             
-            if not user_account:
+            if not ml_account:
                 return {
                     'success': False,
-                    'error': 'Usuário não tem permissão para importar produtos desta conta ML'
+                    'error': 'Conta ML não encontrada ou não pertence à sua empresa'
                 }
             
             if import_type == 'single':

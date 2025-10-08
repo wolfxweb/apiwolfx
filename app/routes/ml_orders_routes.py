@@ -189,36 +189,6 @@ async def import_orders_api(
             "error": f"Erro interno: {str(e)}"
         }, status_code=500)
 
-@ml_orders_router.get("/api/orders/{order_id}")
-async def get_order_details_api(
-    order_id: int,
-    session_token: Optional[str] = Cookie(None),
-    db: Session = Depends(get_db)
-):
-    """API para buscar detalhes de uma order específica"""
-    try:
-        if not session_token:
-            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
-        
-        result = AuthController().get_user_by_session(session_token, db)
-        if result.get("error"):
-            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
-        
-        user_data = result["user"]
-        company_id = user_data["company"]["id"]
-        
-        controller = MLOrdersController(db)
-        result = controller.get_order_details(company_id=company_id, order_id=order_id)
-        
-        return JSONResponse(content=result)
-        
-    except Exception as e:
-        logging.error(f"Erro no endpoint order details: {e}")
-        return JSONResponse(content={
-            "success": False,
-            "error": f"Erro interno: {str(e)}"
-        }, status_code=500)
-
 @ml_orders_router.get("/api/orders/summary")
 async def get_orders_summary_api(
     session_token: Optional[str] = Cookie(None),
@@ -318,6 +288,245 @@ async def delete_all_orders_api(
         
     except Exception as e:
         logging.error(f"Erro no endpoint delete all orders: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.get("/api/orders/count")
+async def count_orders_api(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para verificar total de pedidos disponíveis no ML"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        controller = MLOrdersController(db)
+        result = controller.count_available_orders(company_id=company_id)
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        logging.error(f"Erro no endpoint count orders: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.post("/api/orders/import-batch")
+async def import_batch_orders_api(
+    offset: int = Query(0),
+    limit: int = Query(50),
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para importar um lote específico de pedidos"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        controller = MLOrdersController(db)
+        result = controller.import_orders_batch(
+            company_id=company_id,
+            offset=offset,
+            limit=limit
+        )
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        logging.error(f"Erro no endpoint import batch: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.post("/api/orders/import-background")
+async def start_background_import_api(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Inicia importação de todos os pedidos em background"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Buscar conta ML ativa
+        from app.models.saas_models import MLAccount, MLAccountStatus
+        account = db.query(MLAccount).filter(
+            MLAccount.company_id == company_id,
+            MLAccount.status == MLAccountStatus.ACTIVE
+        ).first()
+        
+        if not account:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Nenhuma conta ML ativa encontrada"
+            }, status_code=400)
+        
+        # Contar pedidos a importar
+        controller = MLOrdersController(db)
+        count_result = controller.count_available_orders(company_id)
+        
+        if not count_result.get("success"):
+            return JSONResponse(content=count_result, status_code=400)
+        
+        total_orders = count_result.get("remaining", 0)
+        
+        if total_orders == 0:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Nenhum pedido novo para importar"
+            }, status_code=400)
+        
+        # Iniciar job em background
+        from app.services.background_import_service import background_import_service
+        from app.config.database import engine
+        db_url = str(engine.url)
+        
+        job_id = background_import_service.start_import_job(
+            company_id=company_id,
+            ml_account_id=account.id,
+            total_orders=total_orders,
+            db_url=db_url
+        )
+        
+        return JSONResponse(content={
+            "success": True,
+            "job_id": job_id,
+            "message": f"Importação iniciada em background. Total: {total_orders} pedidos"
+        })
+        
+    except Exception as e:
+        logging.error(f"Erro ao iniciar importação em background: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.get("/api/orders/import-status/{job_id}")
+async def get_import_status_api(
+    job_id: str,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Verifica status de um job de importação"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        # Buscar status do job
+        from app.services.background_import_service import background_import_service
+        job_status = background_import_service.get_job_status(job_id)
+        
+        if not job_status:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Job não encontrado"
+            }, status_code=404)
+        
+        return JSONResponse(content={
+            "success": True,
+            "job": job_status
+        })
+        
+    except Exception as e:
+        logging.error(f"Erro ao verificar status do job: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.post("/api/orders/import-cancel/{job_id}")
+async def cancel_import_api(
+    job_id: str,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Cancela um job de importação em execução"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        # Cancelar job
+        from app.services.background_import_service import background_import_service
+        cancelled = background_import_service.cancel_job(job_id)
+        
+        if cancelled:
+            return JSONResponse(content={
+                "success": True,
+                "message": "Job cancelado com sucesso"
+            })
+        else:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Job não encontrado"
+            }, status_code=404)
+        
+    except Exception as e:
+        logging.error(f"Erro ao cancelar job: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+# IMPORTANTE: Esta rota deve ficar por ÚLTIMO pois usa parâmetro dinâmico {order_id}
+@ml_orders_router.get("/api/orders/{order_id}")
+async def get_order_details_api(
+    order_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para buscar detalhes de uma order específica"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        controller = MLOrdersController(db)
+        result = controller.get_order_details(company_id=company_id, order_id=order_id)
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        logging.error(f"Erro no endpoint order details: {e}")
         return JSONResponse(content={
             "success": False,
             "error": f"Erro interno: {str(e)}"

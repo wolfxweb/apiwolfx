@@ -3,7 +3,7 @@ Rotas para produtos do Mercado Livre
 """
 import logging
 import requests
-from fastapi import APIRouter, Depends, Request, Query, HTTPException
+from fastapi import APIRouter, Depends, Request, Query, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -239,20 +239,28 @@ async def get_products_stats(
 
 @ml_product_router.get("/api/accounts")
 async def get_ml_accounts(
-    request: Request,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
 ):
-    """API para buscar contas ML do usuário"""
+    """API para buscar contas ML do usuário (filtra por company_id)"""
     try:
-        from app.models.saas_models import MLAccount, UserMLAccount, MLAccountStatus
+        from app.models.saas_models import MLAccount, MLAccountStatus
         
-        # Buscar contas ML que o usuário tem permissão de acessar
-        accounts = db.query(MLAccount).join(UserMLAccount).filter(
-            MLAccount.company_id == user["company"]["id"],
-            MLAccount.status == MLAccountStatus.ACTIVE,
-            UserMLAccount.user_id == user["id"],
-            UserMLAccount.can_read == True
+        # Verificar autenticação
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Buscar todas as contas ML da empresa do usuário logado
+        accounts = db.query(MLAccount).filter(
+            MLAccount.company_id == company_id,
+            MLAccount.status == MLAccountStatus.ACTIVE
         ).all()
         
         return JSONResponse(content={
@@ -275,6 +283,7 @@ async def get_ml_accounts(
         })
         
     except Exception as e:
+        logger.error(f"Erro ao buscar contas ML: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": f"Erro ao buscar contas: {str(e)}"}

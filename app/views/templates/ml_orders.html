@@ -172,40 +172,158 @@
 </div>
 
 <!-- Modal de Confirmação para Importação -->
-<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="importModalLabel">
-                    <i class="bi bi-download text-success me-2"></i>Importar Pedidos
+                    <i class="bi bi-download text-success me-2"></i>Importação Inteligente de Pedidos
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closeImportModal"></button>
             </div>
             <div class="modal-body">
-                <div class="text-center mb-3">
-                    <i class="bi bi-cloud-download text-primary" style="font-size: 3rem;"></i>
+                <!-- Tela 1: Configuração -->
+                <div id="import-config" style="display: block;">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-cloud-download text-primary" style="font-size: 3rem;"></i>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Pedidos disponíveis:</strong> <span id="total-orders-available">Verificando...</span>
+                    </div>
+                    
+                    <h6 class="mb-3">Estratégia de Importação:</h6>
+                    
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-gear text-primary me-2"></i>Importação em Lotes Inteligentes
+                            </h6>
+                            <p class="card-text small">
+                                Para importar todos os pedidos sem sobrecarregar o sistema, 
+                                faremos a importação em lotes de <strong>50 pedidos</strong> com pausas automáticas entre cada lote.
+                            </p>
+                            <ul class="small mb-0">
+                                <li>Lote: 50 pedidos por vez</li>
+                                <li>Pausa entre pedidos: 5 segundos</li>
+                                <li>Pausa entre lotes: 10 segundos</li>
+                                <li>Tempo estimado: <span id="estimated-time">Calculando...</span></li>
+                                <li>Você pode cancelar a qualquer momento</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-success">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Importação em Background:</strong> A importação rodará no servidor. Você pode fechar esta janela e até mesmo o navegador! O processo continuará executando.
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-laptop me-2"></i>
+                        <strong>Dica:</strong> Após iniciar, você pode continuar usando o sistema normalmente. A lista de pedidos será atualizada automaticamente conforme novos pedidos forem importados.
+                    </div>
                 </div>
-                <h6 class="text-center mb-3">Deseja importar pedidos da conta?</h6>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle me-2"></i>
-                    <strong>Importação limitada:</strong> Para evitar sobrecarga, serão importados até 50 pedidos por vez.
+                
+                <!-- Tela 2: Progresso -->
+                <div id="import-progress" style="display: none;">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-hourglass-split text-primary" style="font-size: 3rem;"></i>
+                    </div>
+                    
+                    <h6 class="text-center mb-4">Importando pedidos...</h6>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="small">Progresso Geral</span>
+                            <span class="small"><strong id="progress-text">0 / 0 (0%)</strong></span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                 role="progressbar" style="width: 0%">
+                                <span id="progress-percentage">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row text-center mb-3">
+                        <div class="col-4">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <h4 class="mb-0 text-success" id="imported-count">0</h4>
+                                    <small class="text-muted">Importados</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <h4 class="mb-0 text-warning" id="updated-count">0</h4>
+                                    <small class="text-muted">Atualizados</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <h4 class="mb-0 text-primary" id="current-batch">1</h4>
+                                    <small class="text-muted">Lote Atual</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info small">
+                        <div id="import-status">Preparando importação...</div>
+                        <div id="import-eta" class="mt-2 text-muted"></div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger btn-sm" onclick="cancelImport()" id="cancel-import-btn">
+                            <i class="bi bi-x-circle me-1"></i>Cancelar Importação
+                        </button>
+                    </div>
                 </div>
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    <strong>Atenção:</strong> Esta operação pode demorar alguns minutos. O sistema fará pausas automáticas.
+                
+                <!-- Tela 3: Conclusão -->
+                <div id="import-complete" style="display: none;">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                    </div>
+                    
+                    <h5 class="text-center mb-4 text-success">Importação Concluída!</h5>
+                    
+                    <div class="row text-center mb-3">
+                        <div class="col-6">
+                            <div class="card bg-success text-white">
+                                <div class="card-body py-3">
+                                    <h3 class="mb-0" id="final-imported">0</h3>
+                                    <small>Pedidos Importados</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body py-3">
+                                    <h3 class="mb-0" id="final-updated">0</h3>
+                                    <small>Pedidos Atualizados</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle me-2"></i>
+                        <div id="final-message">Todos os pedidos foram importados com sucesso!</div>
+                    </div>
                 </div>
-                <ul class="list-unstyled">
-                    <li><i class="bi bi-check-circle text-success me-2"></i>Serão importados todos os pedidos históricos</li>
-                    <li><i class="bi bi-check-circle text-success me-2"></i>Pedidos já existentes serão atualizados</li>
-                    <li><i class="bi bi-check-circle text-success me-2"></i>Novos pedidos serão adicionados ao banco</li>
-                </ul>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle me-1"></i>Cancelar
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="close-modal-btn">
+                    <i class="bi bi-x-circle me-1"></i>Fechar
                 </button>
-                <button type="button" class="btn btn-success" onclick="confirmImport()">
-                    <i class="bi bi-download me-1"></i>Confirmar Importação
+                <button type="button" class="btn btn-success" onclick="startBatchImport()" id="start-import-btn">
+                    <i class="bi bi-download me-1"></i>Iniciar Importação
                 </button>
             </div>
         </div>
@@ -442,11 +560,6 @@ function renderOrders(orders) {
                         </small>
                         <small class="text-muted d-block">
                             <i class="bi bi-calendar3"></i> ${formatDate(order.date_created)}
-                        </small>
-                        <small class="d-block">
-                            ${order.is_advertising_sale ? 
-                                '<span class="badge bg-warning text-dark"><i class="bi bi-megaphone"></i> Anúncio Pago</span>' : 
-                                '<span class="badge bg-success"><i class="bi bi-search"></i> Busca Orgânica</span>'}
                         </small>
                     </div>
                 </div>
@@ -695,71 +808,297 @@ function refreshOrders() {
     loadOrders(currentPage);
 }
 
+// Variáveis de controle de importação
+let importCancelled = false;
+let totalOrdersToImport = 0;
+let currentJobId = null;
+let statusInterval = null;
+
 function importOrders() {
-    // Mostrar modal de confirmação
+    // Resetar variáveis
+    importCancelled = false;
+    
+    // Mostrar modal de configuração
     const modal = new bootstrap.Modal(document.getElementById('importModal'));
     modal.show();
+    
+    // Resetar telas
+    document.getElementById('import-config').style.display = 'block';
+    document.getElementById('import-progress').style.display = 'none';
+    document.getElementById('import-complete').style.display = 'none';
+    document.getElementById('start-import-btn').style.display = 'inline-block';
+    
+    // Verificar total de pedidos disponíveis
+    checkAvailableOrders();
 }
 
-function confirmImport() {
-    // Fechar o modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('importModal'));
-    modal.hide();
+function checkAvailableOrders() {
+    document.getElementById('total-orders-available').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verificando...';
     
-    const syncBtn = document.getElementById('sync-btn');
-    const importBtn = document.getElementById('import-btn');
-    
-    // Desabilitar botões e mostrar loading
-    syncBtn.disabled = true;
-    importBtn.disabled = true;
-    importBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Importando...';
-    
-    showLoading(true);
-    
-    fetch('/ml/api/orders/import', {
+    fetch('/ml/api/orders/count', {
         method: 'GET',
         credentials: 'include'
     })
-    .then(response => {
-        console.log('Status da resposta:', response.status);
-        if (checkSessionExpired(response)) {
-            return;
-        }
-        
-        // Verificar se a resposta é JSON
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            return response.json();
-        } else {
-            // Se não for JSON, tentar ler como texto para debug
-            return response.text().then(text => {
-                console.error('Status da resposta:', response.status);
-                console.error('Content-Type:', contentType);
-                console.error('Resposta completa:', text);
-                throw new Error('Resposta não é JSON válido. Status: ' + response.status);
-            });
-        }
-    })
+    .then(response => response.json())
     .then(data => {
-        console.log('Resposta da importação:', data);
         if (data && data.success) {
-            showSuccess(`Importação concluída: ${data.total_saved || 0} pedidos criados, ${data.total_updated || 0} pedidos atualizados. Importação limitada a 50 pedidos para evitar sobrecarga.`);
-            loadOrders(currentPage);
+            const total = data.total_available || 0;
+            const imported = data.total_imported || 0;
+            const remaining = total - imported;
+            
+            totalOrdersToImport = remaining;
+            
+            document.getElementById('total-orders-available').innerHTML = 
+                `<strong>${total}</strong> pedidos no ML | 
+                 <strong>${imported}</strong> já importados | 
+                 <strong class="text-primary">${remaining}</strong> restantes`;
+            
+            // Calcular tempo estimado 
+            // (50 pedidos * 5seg cada) + 10seg pausa entre lotes = ~260 segundos por lote
+            const totalBatches = Math.ceil(remaining / 50);
+            const estimatedSeconds = (totalBatches * 260); // 260 segundos por lote
+            const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+            document.getElementById('estimated-time').textContent = 
+                estimatedMinutes > 0 ? `~${estimatedMinutes} minuto(s)` : 'Menos de 1 minuto';
         } else {
-            showError('Erro ao importar pedidos: ' + (data?.error || 'Erro desconhecido'));
+            document.getElementById('total-orders-available').textContent = 'Erro ao verificar';
         }
     })
     .catch(error => {
-        console.error('Erro:', error);
-        showError('Erro ao importar pedidos: ' + error.message);
-    })
-    .finally(() => {
-        // Reabilitar botões e restaurar texto
-        syncBtn.disabled = false;
-        importBtn.disabled = false;
-        importBtn.innerHTML = '<i class="bi bi-download"></i> Importar Pedidos';
-        showLoading(false);
+        console.error('Erro ao verificar pedidos:', error);
+        document.getElementById('total-orders-available').textContent = 'Erro ao verificar';
     });
+}
+
+async function startBatchImport() {
+    // Esconder botão de iniciar
+    document.getElementById('start-import-btn').style.display = 'none';
+    
+    // Mostrar tela de progresso
+    document.getElementById('import-config').style.display = 'none';
+    document.getElementById('import-progress').style.display = 'block';
+    
+    // Permitir fechar modal (job roda em background)
+    document.getElementById('closeImportModal').disabled = false;
+    document.getElementById('close-modal-btn').disabled = false;
+    document.getElementById('close-modal-btn').innerHTML = 
+        '<i class="bi bi-x-circle me-1"></i>Fechar (continua em background)';
+    
+    // Iniciar importação em background
+    document.getElementById('import-status').innerHTML = 
+        '<i class="bi bi-rocket me-2"></i>Iniciando importação em background...';
+    
+    try {
+        const response = await fetch('/ml/api/orders/import-background', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentJobId = data.job_id;
+            
+            // Mostrar mensagem de sucesso
+            showSuccess(`Importação iniciada em background! Job ID: ${currentJobId}`);
+            
+            // Iniciar monitoramento do status
+            startJobMonitoring(currentJobId);
+            
+        } else {
+            showError('Erro ao iniciar importação: ' + (data.error || 'Erro desconhecido'));
+            // Voltar para tela de configuração
+            document.getElementById('import-progress').style.display = 'none';
+            document.getElementById('import-config').style.display = 'block';
+            document.getElementById('start-import-btn').style.display = 'inline-block';
+        }
+        
+    } catch (error) {
+        console.error('Erro ao iniciar importação:', error);
+        showError('Erro ao iniciar importação: ' + error.message);
+        // Voltar para tela de configuração
+        document.getElementById('import-progress').style.display = 'none';
+        document.getElementById('import-config').style.display = 'block';
+        document.getElementById('start-import-btn').style.display = 'inline-block';
+    }
+}
+
+function startJobMonitoring(jobId) {
+    // Limpar intervalo anterior se existir
+    if (statusInterval) {
+        clearInterval(statusInterval);
+    }
+    
+    // Atualizar status a cada 3 segundos
+    statusInterval = setInterval(() => {
+        updateJobStatus(jobId);
+    }, 3000);
+    
+    // Primeira atualização imediata
+    updateJobStatus(jobId);
+}
+
+async function updateJobStatus(jobId) {
+    try {
+        const response = await fetch(`/ml/api/orders/import-status/${jobId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.job) {
+            const job = data.job;
+            
+            // Atualizar contadores
+            document.getElementById('imported-count').textContent = job.imported || 0;
+            document.getElementById('updated-count').textContent = job.updated || 0;
+            document.getElementById('current-batch').textContent = 
+                `${job.current_batch || 0}/${job.total_batches || 0}`;
+            
+            // Atualizar barra de progresso
+            const percentage = job.total_orders > 0 
+                ? Math.round((job.processed / job.total_orders) * 100) 
+                : 0;
+            
+            document.getElementById('progress-bar').style.width = percentage + '%';
+            document.getElementById('progress-percentage').textContent = percentage + '%';
+            document.getElementById('progress-text').textContent = 
+                `${job.processed || 0} / ${job.total_orders || 0} (${percentage}%)`;
+            
+            // Atualizar status
+            const statusMessages = {
+                'running': '<i class="bi bi-hourglass-split me-2"></i>Importação em andamento...',
+                'completed': '<i class="bi bi-check-circle me-2 text-success"></i>Importação concluída!',
+                'cancelled': '<i class="bi bi-x-circle me-2 text-warning"></i>Importação cancelada',
+                'error': '<i class="bi bi-exclamation-triangle me-2 text-danger"></i>Erro na importação'
+            };
+            
+            document.getElementById('import-status').innerHTML = 
+                statusMessages[job.status] || 'Processando...';
+            
+            // Se completou, cancelou ou erro, parar monitoramento
+            if (['completed', 'cancelled', 'error'].includes(job.status)) {
+                clearInterval(statusInterval);
+                
+                if (job.status === 'completed') {
+                    showImportComplete(job.imported, job.updated);
+                } else if (job.status === 'cancelled') {
+                    showImportCancelled(job.imported, job.updated);
+                } else {
+                    showImportError(job.error_message || 'Erro desconhecido');
+                }
+                
+                // Recarregar pedidos
+                loadOrders(1);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Erro ao verificar status do job:', error);
+    }
+}
+
+async function cancelImport() {
+    if (!currentJobId) {
+        return;
+    }
+    
+    if (confirm('Deseja realmente cancelar a importação em background?')) {
+        document.getElementById('cancel-import-btn').disabled = true;
+        document.getElementById('import-status').innerHTML = 
+            '<i class="bi bi-x-circle me-2 text-danger"></i>Cancelando importação...';
+        
+        try {
+            const response = await fetch(`/ml/api/orders/import-cancel/${currentJobId}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    showSuccess('Importação cancelada com sucesso');
+                }
+            }
+        } catch (error) {
+            console.error('Erro ao cancelar importação:', error);
+        }
+    }
+}
+
+function showImportError(errorMessage) {
+    // Esconder progresso
+    document.getElementById('import-progress').style.display = 'none';
+    
+    // Mostrar conclusão com erro
+    document.getElementById('import-complete').style.display = 'block';
+    document.getElementById('final-message').innerHTML = 
+        `<i class="bi bi-exclamation-triangle me-2"></i>Erro na importação: ${errorMessage}`;
+    
+    // Mudar cor do alerta
+    const alertDiv = document.querySelector('#import-complete .alert');
+    alertDiv.classList.remove('alert-success');
+    alertDiv.classList.add('alert-danger');
+    
+    // Habilitar botão de fechar
+    document.getElementById('closeImportModal').disabled = false;
+    document.getElementById('close-modal-btn').disabled = false;
+    document.getElementById('close-modal-btn').innerHTML = '<i class="bi bi-x-circle me-1"></i>Fechar';
+}
+
+function showImportComplete(imported, updated) {
+    // Esconder progresso
+    document.getElementById('import-progress').style.display = 'none';
+    
+    // Mostrar conclusão
+    document.getElementById('import-complete').style.display = 'block';
+    document.getElementById('final-imported').textContent = imported;
+    document.getElementById('final-updated').textContent = updated;
+    document.getElementById('final-message').textContent = 
+        `${imported} pedidos foram importados e ${updated} foram atualizados com sucesso!`;
+    
+    // Habilitar botão de fechar
+    document.getElementById('closeImportModal').disabled = false;
+    document.getElementById('close-modal-btn').disabled = false;
+    
+    // Esconder botão de iniciar
+    document.getElementById('start-import-btn').style.display = 'none';
+}
+
+function showImportCancelled(imported, updated) {
+    // Esconder progresso
+    document.getElementById('import-progress').style.display = 'none';
+    
+    // Mostrar conclusão com aviso de cancelamento
+    document.getElementById('import-complete').style.display = 'block';
+    document.getElementById('final-imported').textContent = imported;
+    document.getElementById('final-updated').textContent = updated;
+    document.getElementById('final-message').innerHTML = 
+        `<i class="bi bi-exclamation-triangle me-2"></i>Importação cancelada pelo usuário. ${imported} pedidos foram importados antes do cancelamento.`;
+    
+    // Mudar cor do alerta
+    const alertDiv = document.querySelector('#import-complete .alert');
+    alertDiv.classList.remove('alert-success');
+    alertDiv.classList.add('alert-warning');
+    
+    // Habilitar botão de fechar
+    document.getElementById('closeImportModal').disabled = false;
+    document.getElementById('close-modal-btn').disabled = false;
+    
+    // Esconder botão de iniciar
+    document.getElementById('start-import-btn').style.display = 'none';
 }
 
 function viewOrderDetails(orderId) {
