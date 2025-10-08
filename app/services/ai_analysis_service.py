@@ -84,7 +84,7 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 - Destaque pontos fortes, fracos e oportunidades
 - Priorize ações (Alta / Média / Baixa)
 
-1️⃣1️⃣ **Score Geral do Anúncio**
+📊 **Score Geral do Anúncio (0-100)**
 - Gere pontuação de 0 a 100 considerando todos os critérios acima.
 - IMPORTANTE: Use NÚMERO (ex: 75), NÃO escreva por extenso (seventy-five)
 - Classifique nível (Excelente, Bom, Médio, Fraco, Péssimo) e explique o resultado em 2–3 frases.
@@ -723,7 +723,7 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
   </div>
 </div>
 
-<h2>1️⃣1️⃣ Score Geral do Anúncio</h2>
+<h2>📊 Score Geral do Anúncio (0-100)</h2>
 <div class="text-center p-4 bg-light rounded">
   <h1 class="display-4">[coloque APENAS O NÚMERO, ex: 75]/100</h1>
   <h5>[Excelente/Bom/Médio/Fraco/Péssimo]</h5>
