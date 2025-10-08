@@ -144,6 +144,11 @@ class AIAnalysisService:
                 try:
                     from app.models.saas_models import AIProductAnalysis
                     from datetime import datetime
+                    from zoneinfo import ZoneInfo
+                    
+                    # Usar horário de Brasília
+                    brasilia_tz = ZoneInfo("America/Sao_Paulo")
+                    now_brasilia = datetime.now(brasilia_tz)
                     
                     ai_analysis = AIProductAnalysis(
                         ml_product_id=product_id,
@@ -154,7 +159,7 @@ class AIAnalysisService:
                         completion_tokens=response.get("completion_tokens", 0),
                         total_tokens=response.get("tokens_used", 0),
                         request_data=analysis_data,
-                        created_at=datetime.utcnow()
+                        created_at=now_brasilia
                     )
                     
                     self.db.add(ai_analysis)

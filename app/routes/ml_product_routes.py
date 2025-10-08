@@ -1517,6 +1517,60 @@ async def filter_catalog_from_database(
             content={"success": False, "error": f"Erro interno: {str(e)}"}
         )
 
+@ml_product_router.get("/api/product/{product_id}/ai-analysis/history")
+async def get_ai_analysis_history(
+    product_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Busca histórico de análises de IA de um produto"""
+    try:
+        # Verificar autenticação
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        from app.models.saas_models import AIProductAnalysis
+        from sqlalchemy import desc
+        
+        # Buscar análises deste produto
+        analyses = db.query(AIProductAnalysis).filter(
+            AIProductAnalysis.ml_product_id == product_id,
+            AIProductAnalysis.company_id == company_id
+        ).order_by(desc(AIProductAnalysis.created_at)).all()
+        
+        analyses_list = []
+        for analysis in analyses:
+            analyses_list.append({
+                "id": analysis.id,
+                "ml_product_id": analysis.ml_product_id,
+                "analysis_content": analysis.analysis_content,
+                "model_used": analysis.model_used,
+                "prompt_tokens": analysis.prompt_tokens,
+                "completion_tokens": analysis.completion_tokens,
+                "total_tokens": analysis.total_tokens,
+                "created_at": analysis.created_at.isoformat() if analysis.created_at else None
+            })
+        
+        return JSONResponse(content={
+            "success": True,
+            "analyses": analyses_list,
+            "total": len(analyses_list)
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar histórico de análises: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno: {str(e)}"}
+        )
+
 @ml_product_router.post("/api/product/{product_id}/ai-analysis")
 async def ai_analyze_product(
     product_id: int,
