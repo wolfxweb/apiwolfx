@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models.saas_models import MLProduct, MLOrder
+from app.services.ml_product_ads_service import MLProductAdsService
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +56,27 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 - Destaque a receita média estimada (quantidade vendida × ticket médio)
 - Analise o ticket médio e tendências de vendas
 
-8️⃣ **Recomendações Estratégicas**
+8️⃣ **Análise de Marketing (Product Ads)**
+- Avalie o investimento em publicidade (Product Ads) em relação ao percentual de marketing estipulado
+- Compare o valor investido com a verba de marketing configurada (percentual sobre o preço de venda)
+- Analise o ROAS (Return on Ad Spend): quanto está retornando em vendas para cada R$ investido
+- Avalie o ACOS (Advertising Cost of Sales): qual o percentual do investimento em relação às vendas
+- Compare vendas COM anúncio vs vendas SEM anúncio (orgânicas)
+- Analise o CPC (Custo por Clique) e CTR (Taxa de Cliques)
+- Avalie se o investimento está trazendo retorno positivo ou se está acima/abaixo do ideal
+- Recomende ações: aumentar/reduzir investimento, pausar campanha, otimizar anúncios
+- **IMPORTANTE**: Se não houver dados de marketing (has_advertising = false), informe que o produto não tem campanhas ativas
+
+9️⃣ **Recomendações Estratégicas**
 - Gere pelo menos 5 recomendações práticas para melhorar:
   1. Margem de lucro
   2. Competitividade de preço
   3. SEO e visibilidade
   4. Conversão de vendas
   5. Reputação e avaliação geral
+  6. Investimento em marketing (se aplicável)
 
-9️⃣ **Conclusão Geral**
+🔟 **Conclusão Geral**
 - Resuma diagnóstico final:
   - 💚 Forte/Bom: rentável e competitivo
   - 🟡 Médio: precisa melhorar
@@ -71,7 +84,7 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 - Destaque pontos fortes, fracos e oportunidades
 - Priorize ações (Alta / Média / Baixa)
 
-🔟 **Score Geral do Anúncio**
+1️⃣1️⃣ **Score Geral do Anúncio**
 - Gere pontuação de 0 a 100 considerando todos os critérios acima.
 - IMPORTANTE: Use NÚMERO (ex: 75), NÃO escreva por extenso (seventy-five)
 - Classifique nível (Excelente, Bom, Médio, Fraco, Péssimo) e explique o resultado em 2–3 frases.
@@ -130,8 +143,22 @@ class AIAnalysisService:
             
             logger.info(f"Encontrados {len(orders)} pedidos para o produto {product.ml_item_id}")
             
-            # 3. Preparar dados estruturados
-            analysis_data = self._prepare_analysis_data(product, orders, catalog_data, pricing_analysis)
+            # 3. Buscar métricas de marketing (Product Ads)
+            marketing_metrics = None
+            try:
+                ads_service = MLProductAdsService(self.db)
+                marketing_metrics = ads_service.get_product_advertising_metrics(
+                    ml_item_id=product.ml_item_id,
+                    ml_account_id=product.ml_account_id,
+                    days=30  # Últimos 30 dias
+                )
+                logger.info(f"Métricas de marketing obtidas para produto {product.ml_item_id}")
+            except Exception as e:
+                logger.warning(f"Não foi possível obter métricas de marketing: {e}")
+                marketing_metrics = {"has_advertising": False}
+            
+            # 4. Preparar dados estruturados
+            analysis_data = self._prepare_analysis_data(product, orders, catalog_data, pricing_analysis, marketing_metrics)
             
             # 4. Criar prompt para ChatGPT
             prompt = self._create_analysis_prompt(analysis_data)
@@ -188,7 +215,8 @@ class AIAnalysisService:
             return {"success": False, "error": f"Erro ao processar análise: {str(e)}"}
     
     def _prepare_analysis_data(self, product: MLProduct, orders: List[MLOrder], 
-                               catalog_data: Optional[List] = None, pricing_analysis: Optional[Dict] = None) -> Dict:
+                               catalog_data: Optional[List] = None, pricing_analysis: Optional[Dict] = None,
+                               marketing_metrics: Optional[Dict] = None) -> Dict:
         """Prepara dados estruturados para análise"""
         
         # Dados do produto - COMPLETO
@@ -380,8 +408,65 @@ class AIAnalysisService:
             "historico_pedidos": orders_data,
             "metricas_vendas": sales_metrics,
             "concorrentes": competitors_data,
-            "total_concorrentes": len(competitors_data)
+            "total_concorrentes": len(competitors_data),
+            "metricas_marketing": marketing_metrics if marketing_metrics else {"has_advertising": False}
         }
+    
+    def _format_marketing_section(self, marketing_metrics: Dict) -> str:
+        """Formata a seção de marketing do prompt"""
+        if not marketing_metrics or not marketing_metrics.get("has_advertising"):
+            return """<div class="alert alert-warning">
+  <p><strong>⚠️ Produto sem investimento em Product Ads</strong></p>
+  <p>Este produto não possui campanhas ativas de Product Ads nos últimos 30 dias.</p>
+  <p><strong>Recomendação:</strong> Considere investir em publicidade para aumentar visibilidade e vendas.</p>
+</div>"""
+        
+        m = marketing_metrics
+        percentual_esperado = marketing_metrics.get("percentual_marketing_esperado", 5.0)
+        preco_venda = marketing_metrics.get("preco_venda", 0)
+        verba_esperada = (preco_venda * percentual_esperado / 100) if preco_venda > 0 else 0
+        
+        return f"""<div class="card border-primary mb-3">
+  <div class="card-header bg-primary text-white">
+    <strong>📊 Métricas de Publicidade (Últimos {m.get('period_days', 30)} dias)</strong>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6">
+        <p><strong>💰 Investimento Total:</strong> R$ {m.get('total_cost', 0):.2f}</p>
+        <p><strong>📈 Vendas COM Anúncio:</strong> {m.get('advertising_sales_qty', 0)} unidades (R$ {(m.get('direct_sales', 0) + m.get('indirect_sales', 0)):.2f})</p>
+        <p><strong>🌿 Vendas SEM Anúncio (Orgânicas):</strong> {m.get('organic_sales_qty', 0)} unidades (R$ {m.get('organic_sales_amount', 0):.2f})</p>
+        <p><strong>💚 Vendas Diretas:</strong> R$ {m.get('direct_sales', 0):.2f} (após clicar no anúncio)</p>
+        <p><strong>💙 Vendas Indiretas:</strong> R$ {m.get('indirect_sales', 0):.2f} (até 7 dias depois)</p>
+      </div>
+      <div class="col-md-6">
+        <p><strong>🎯 ROAS (Retorno):</strong> {m.get('roas', 0):.2f}x (Para cada R$ 1 investido, retornou R$ {m.get('roas', 0):.2f})</p>
+        <p><strong>📊 ACOS:</strong> {m.get('acos', 0):.2f}% (Custo de publicidade / Vendas)</p>
+        <p><strong>👆 Cliques:</strong> {m.get('total_clicks', 0):,}</p>
+        <p><strong>👀 Impressões:</strong> {m.get('total_impressions', 0):,}</p>
+        <p><strong>📈 CTR:</strong> {m.get('ctr', 0):.2f}% (Taxa de cliques)</p>
+        <p><strong>💵 CPC:</strong> R$ {m.get('cpc', 0):.2f} (Custo por clique)</p>
+      </div>
+    </div>
+    
+    <div class="alert alert-info mt-3">
+      <p><strong>💼 Verba de Marketing Estipulada:</strong> {percentual_esperado}% do preço de venda = R$ {verba_esperada:.2f} por unidade vendida</p>
+      <p><strong>📊 Análise:</strong> 
+        {"✅ Investimento DENTRO da verba" if m.get('total_cost', 0) <= verba_esperada else "⚠️ Investimento ACIMA da verba estipulada"} 
+        {f"({((m.get('total_cost', 0) / verba_esperada - 1) * 100):.1f}% {'acima' if m.get('total_cost', 0) > verba_esperada else 'abaixo'})" if verba_esperada > 0 else ""}
+      </p>
+    </div>
+  </div>
+</div>
+
+<p><strong>📝 Análise Obrigatória:</strong></p>
+<ul>
+  <li>O investimento está adequado em relação à verba de marketing de {percentual_esperado}%?</li>
+  <li>O ROAS de {m.get('roas', 0):.2f}x é saudável? (ideal > 3x)</li>
+  <li>O ACOS de {m.get('acos', 0):.2f}% está bom? (ideal < 30%)</li>
+  <li>As vendas COM anúncio representam que porcentagem das vendas totais?</li>
+  <li>Vale a pena continuar investindo ou pausar/ajustar?</li>
+</ul>"""
     
     def _create_analysis_prompt(self, data: Dict) -> str:
         """Cria prompt estruturado para ChatGPT"""
@@ -461,6 +546,9 @@ class AIAnalysisService:
 
 {f"🏆 POSICIONAMENTO NO CATÁLOGO: {posicionamento['sua_posicao']}º de {posicionamento['total_concorrentes']} anunciantes" if posicionamento and posicionamento.get('sua_posicao') else ""}
 {f"🏆 CONCORRÊNCIA: {total_concorrentes} concorrentes no catálogo" if total_concorrentes > 0 else ""}
+
+📣 MÉTRICAS DE MARKETING (Product Ads):
+{json.dumps(data.get('metricas_marketing', {}), indent=2, ensure_ascii=False)}
 
 DADOS COMPLETOS (JSON):
 {json.dumps(data, indent=2, ensure_ascii=False)}
@@ -599,7 +687,10 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
   <li>Ticket médio: R$ {metricas['ticket_medio']:.2f}</li>
 </ul>
 
-<h2>8️⃣ Recomendações Estratégicas</h2>
+<h2>8️⃣ Análise de Marketing (Product Ads)</h2>
+{self._format_marketing_section(data.get('metricas_marketing', {}))}
+
+<h2>9️⃣ Recomendações Estratégicas</h2>
 <div class="alert alert-success">
   <p><strong>TOP 5 AÇÕES PRIORITÁRIAS:</strong></p>
   <ol>
@@ -611,7 +702,7 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
   </ol>
 </div>
 
-<h2>9️⃣ Conclusão Geral</h2>
+<h2>🔟 Conclusão Geral</h2>
 <div class="card border-[cor]">
   <div class="card-body">
     <h5>[💚 Forte/Bom | 🟡 Médio | 🔴 Fraco]</h5>
@@ -632,7 +723,7 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
   </div>
 </div>
 
-<h2>🔟 Score Geral do Anúncio</h2>
+<h2>1️⃣1️⃣ Score Geral do Anúncio</h2>
 <div class="text-center p-4 bg-light rounded">
   <h1 class="display-4">[coloque APENAS O NÚMERO, ex: 75]/100</h1>
   <h5>[Excelente/Bom/Médio/Fraco/Péssimo]</h5>
