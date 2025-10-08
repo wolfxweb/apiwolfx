@@ -51,19 +51,64 @@
                 <!-- Imagens -->
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0"><i class="bi bi-images"></i> Imagens do Produto</h6>
+                        <h6 class="mb-0">
+                            <i class="bi bi-images"></i> Imagens do Produto
+                            {% if product.pictures and product.pictures|length > 0 %}
+                            <span class="badge bg-light text-dark ms-2">{{ product.pictures|length }}</span>
+                            {% endif %}
+                        </h6>
                     </div>
                     <div class="card-body">
-                        <div class="mb-3">
-                            <img src="{{ product.thumbnail }}" class="img-fluid rounded" alt="{{ product.title }}">
+                        {% if product.pictures and product.pictures|length > 0 %}
+                        <div class="row g-2">
+                            {% for picture in product.pictures %}
+                            <div class="col-6">
+                                <div class="position-relative">
+                                    <img src="{{ picture.secure_url }}" 
+                                         class="img-fluid rounded border" 
+                                         alt="Imagem {{ loop.index }}"
+                                         style="cursor: pointer;"
+                                         onclick="window.open('{{ picture.secure_url }}', '_blank')">
+                                    
+                                    {% set max_width = picture.max_size.split('x')[0]|int if picture.max_size and 'x' in picture.max_size else 0 %}
+                                    {% set max_height = picture.max_size.split('x')[1]|int if picture.max_size and 'x' in picture.max_size else 0 %}
+                                    
+                                    <div class="mt-1 small text-center">
+                                        {% if max_width >= 1200 and max_height >= 1200 %}
+                                        <span class="badge bg-success w-100">
+                                            <i class="bi bi-check-circle"></i> Ideal
+                                        </span>
+                                        {% elif max_width >= 800 or max_height >= 800 %}
+                                        <span class="badge bg-warning w-100">
+                                            <i class="bi bi-exclamation-triangle"></i> OK
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-danger w-100">
+                                            <i class="bi bi-x-circle"></i> Pequena
+                                        </span>
+                                        {% endif %}
+                                        <small class="d-block text-muted mt-1">{{ picture.max_size }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
                         </div>
                         
-                        {% if product.pictures and product.pictures|length > 0 %}
-                        <p class="text-muted small">{{ product.pictures|length }} imagem(ns) disponível(is)</p>
+                        <div class="alert alert-info small mt-3 mb-0">
+                            <strong>Tamanhos recomendados pelo ML:</strong><br>
+                            <span class="badge bg-success">Ideal</span> 1200x1200px ou maior<br>
+                            <span class="badge bg-warning">OK</span> 800px ou maior (ativa zoom)<br>
+                            <span class="badge bg-danger">Pequena</span> Menos que 800px
+                        </div>
+                        {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-image" style="font-size: 3rem;"></i>
+                            <p class="mt-2 mb-0">Nenhuma imagem disponível</p>
+                        </div>
                         {% endif %}
                         
-                        <a href="{{ product.permalink }}" target="_blank" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-box-arrow-up-right"></i> Ver todas as imagens
+                        <a href="{{ product.permalink }}" target="_blank" class="btn btn-outline-primary btn-sm w-100 mt-3">
+                            <i class="bi bi-box-arrow-up-right"></i> Ver no Mercado Livre
                         </a>
                     </div>
                 </div>
