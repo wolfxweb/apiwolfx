@@ -3,6 +3,29 @@
 {% block title %}Detalhes do Produto - {{ product.title }}{% endblock %}
 
 {% block content %}
+{% set condition_map = {
+    'new': 'Novo',
+    'used': 'Usado',
+    'refurbished': 'Recondicionado',
+    'not_specified': 'Não especificado'
+} %}
+
+{% set listing_type_map = {
+    'gold_special': 'Premium (Gold Special)',
+    'gold_pro': 'Gold Pro',
+    'gold': 'Gold',
+    'silver': 'Prata',
+    'bronze': 'Bronze',
+    'free': 'Gratuito',
+    'classified': 'Classificado'
+} %}
+
+{% set buying_mode_map = {
+    'buy_it_now': 'Comprar Agora',
+    'auction': 'Leilão',
+    'classified': 'Classificado'
+} %}
+
 <div class="container-fluid">
         <!-- Breadcrumb -->
         <nav aria-label="breadcrumb" class="mb-4">
@@ -155,19 +178,22 @@
                                 <strong>Vendidos:</strong> {{ product.sold_quantity }}
                             </div>
                             <div class="col-md-6 mb-3">
-                                <strong>Condição:</strong> {{ product.condition }}
+                                <strong>Condição:</strong> 
+                                <span class="badge bg-secondary">
+                                    {{ condition_map.get(product.condition, product.condition) }}
+                                </span>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <strong>Tipo de Listagem:</strong> 
-                                <span class="badge bg-warning">{{ product.listing_type_id }}</span>
-                                <small class="text-muted d-block">
-                                    <span id="listing-description">{{ product.listing_type_id }}</span>
-                                </small>
+                                <span class="badge bg-warning text-dark">
+                                    {{ listing_type_map.get(product.listing_type_id, product.listing_type_id) }}
+                                </span>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <strong>Modo de Compra:</strong> 
-                                <span class="badge bg-info">{{ product.buying_mode }}</span>
-                                <small class="text-muted d-block">Comprar Agora (sem leilão)</small>
+                                <span class="badge bg-info">
+                                    {{ buying_mode_map.get(product.buying_mode, product.buying_mode) }}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -414,28 +440,4 @@
         </div>
     </div>
 
-    <script>
-    // Função para definir descrição dinâmica do tipo de listagem
-    function setListingDescription() {
-        const listingType = '{{ product.listing_type_id }}';
-        const descriptionElement = document.getElementById('listing-description');
-        
-        const descriptions = {
-            'gold_special': 'Anúncio Premium (Gold Special)',
-            'gold_pro': 'Anúncio Gold Pro',
-            'gold': 'Anúncio Gold',
-            'silver': 'Anúncio Silver',
-            'bronze': 'Anúncio Bronze',
-            'free': 'Anúncio Gratuito',
-            'classified': 'Classificado',
-            'auction': 'Leilão'
-        };
-        
-        const description = descriptions[listingType] || listingType;
-        descriptionElement.textContent = description;
-    }
-    
-    // Executar quando a página carregar
-    document.addEventListener('DOMContentLoaded', setListingDescription);
-    </script>
 {% endblock %}
