@@ -481,6 +481,13 @@ class MLOrder(Base):
     sale_fees = Column(Integer)       # Taxas de venda em centavos
     shipping_fees = Column(Integer)   # Taxas de envio em centavos
     
+    # === BREAKDOWN DE COMISSÕES (Billing) ===
+    financing_fee = Column(Integer)           # Taxa de parcelamento em centavos
+    financing_transfer_total = Column(Integer) # Valor total pago pelo cliente em centavos
+    sale_fee_breakdown = Column(JSON)         # Breakdown detalhado da taxa de venda
+    billing_details = Column(JSON)            # Detalhes completos de billing
+    marketplace_fee_breakdown = Column(JSON)  # Breakdown das taxas do marketplace
+    
     # === DESCONTOS E PROMOÇÕES ===
     discounts_applied = Column(JSON)  # Descontos aplicados (/orders/{id}/discounts)
     coupon_amount = Column(Integer)   # Valor do cupom em centavos

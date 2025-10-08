@@ -140,12 +140,13 @@
                                     <th class="sortable text-end" data-sort="net_profit" onclick="sortTable('net_profit')">
                                         Receita Líquida <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
+                                    <th>Dados de Billing</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="orders-table-body">
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">
+                                    <td colspan="9" class="text-center text-muted py-4">
                                         <i class="bi bi-info-circle"></i> Carregando pedidos...
                                     </td>
                                 </tr>
@@ -430,7 +431,7 @@ function renderOrders(orders) {
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center text-muted py-4">
+                <td colspan="9" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -481,6 +482,11 @@ function renderOrders(orders) {
                 </div>
             </td>
             <td>
+                <div class="small">
+                    ${renderBillingData(order)}
+                </div>
+            </td>
+            <td>
                 <div class="btn-group" role="group">
                     <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${order.ml_order_id}')" title="Ver detalhes">
                         <i class="bi bi-eye"></i>
@@ -492,6 +498,73 @@ function renderOrders(orders) {
             </td>
         </tr>
     `).join('');
+}
+
+function renderBillingData(order) {
+    if (!order) return '<span class="text-muted">N/A</span>';
+    
+    const totalAmount = order.total_amount || 0;
+    const saleFees = order.sale_fees || 0;
+    const shippingCost = order.shipping_cost || 0;
+    const couponAmount = order.coupon_amount || 0;
+    const advertisingCost = order.advertising_cost || 0;
+    const currency = order.currency_id || 'BRL';
+    
+    // Calcular líquido para o vendedor
+    const netAmount = totalAmount - saleFees;
+    
+    // Calcular percentual de comissão
+    const feePercentage = totalAmount > 0 ? ((saleFees / totalAmount) * 100).toFixed(1) : 0;
+    
+    let billingHtml = `
+        <div class="billing-details" style="min-width: 200px;">
+            <div class="mb-2">
+                <small class="text-muted d-block">💰 Valor Total:</small>
+                <strong class="text-primary">${formatCurrency(totalAmount, currency)}</strong>
+            </div>
+            
+            <div class="mb-2">
+                <small class="text-muted d-block">💸 Comissão ML:</small>
+                <strong class="text-warning">${formatCurrency(saleFees, currency)}</strong>
+                <small class="text-muted"> (${feePercentage}%)</small>
+            </div>`;
+    
+    // Mostrar frete apenas se houver
+    if (shippingCost > 0) {
+        billingHtml += `
+            <div class="mb-2">
+                <small class="text-muted d-block">🚚 Frete:</small>
+                <strong class="text-info">${formatCurrency(shippingCost, currency)}</strong>
+            </div>`;
+    }
+    
+    // Mostrar desconto apenas se houver
+    if (couponAmount > 0) {
+        billingHtml += `
+            <div class="mb-2">
+                <small class="text-muted d-block">🎫 Desconto:</small>
+                <strong class="text-danger">-${formatCurrency(couponAmount, currency)}</strong>
+            </div>`;
+    }
+    
+    // Mostrar publicidade apenas se houver
+    if (advertisingCost > 0) {
+        billingHtml += `
+            <div class="mb-2">
+                <small class="text-muted d-block">📢 Publicidade:</small>
+                <strong class="text-danger">${formatCurrency(advertisingCost, currency)}</strong>
+            </div>`;
+    }
+    
+    // Líquido para o vendedor (destaque)
+    billingHtml += `
+            <div class="mt-2 pt-2 border-top">
+                <small class="text-muted d-block">💵 Líquido Vendedor:</small>
+                <strong class="text-success fs-6">${formatCurrency(netAmount, currency)}</strong>
+            </div>
+        </div>`;
+    
+    return billingHtml;
 }
 
 function renderPagination(total, limit, currentPage) {

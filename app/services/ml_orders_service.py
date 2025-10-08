@@ -12,6 +12,7 @@ class MLOrdersService:
     def __init__(self, db: Session):
         self.db = db
         self.base_url = "https://api.mercadolibre.com"
+        self.billing_service = None
     
     def get_orders_by_account(self, ml_account_id: int, company_id: int, 
                              limit: int = 50, offset: int = 0,
@@ -437,6 +438,21 @@ class MLOrdersService:
             logger.error(f"Erro ao buscar dados completos da order {ml_order_id}: {e}")
             return order_data
     
+    def _get_user_id_by_ml_account(self, ml_account_id: int) -> Optional[int]:
+        """Obtém user_id a partir do ml_account_id"""
+        try:
+            from app.models.saas_models import Token
+            token = self.db.query(Token).filter(
+                Token.ml_account_id == ml_account_id,
+                Token.is_active == True
+            ).first()
+            
+            return token.user_id if token else None
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter user_id para ml_account_id {ml_account_id}: {e}")
+            return None
+    
     def _fetch_order_details(self, ml_order_id: int, access_token: str) -> Optional[Dict]:
         """Busca detalhes completos de uma order específica"""
         try:
@@ -747,7 +763,7 @@ class MLOrdersService:
             return None
     
     def _calculate_order_fees(self, order_data: Dict) -> Optional[Dict]:
-        """Calcula taxas e comissões da order"""
+        """Calcula taxas e comissões da order a partir dos order_items"""
         try:
             order_items = order_data.get("order_items", [])
             
@@ -756,25 +772,25 @@ class MLOrdersService:
             sale_fees = 0
             shipping_fees = 0
             
-            # Calcular taxas dos itens
+            # Extrair sale_fee de cada item (este é o dado oficial do ML)
             for item in order_items:
                 sale_fee = item.get("sale_fee", 0)
                 if sale_fee:
+                    # sale_fee já vem em centavos ou valor decimal dependendo da moeda
                     sale_fees += sale_fee
-                    total_fees += sale_fee
+                    logger.debug(f"Sale fee encontrada no item: {sale_fee}")
             
-            # Calcular taxas de envio
-            shipping = order_data.get("shipping", {})
-            shipping_cost = shipping.get("cost", 0)
-            if shipping_cost:
-                shipping_fees = shipping_cost
-                total_fees += shipping_cost
+            # O total_fees é a soma de sale_fees (não incluir shipping_cost aqui)
+            # pois shipping_cost é custo do envio, não taxa do ML
+            total_fees = sale_fees
+            
+            logger.info(f"Taxas calculadas - Total: {total_fees}, Sale: {sale_fees}")
             
             return {
                 "total_fees": total_fees,
-                "listing_fees": listing_fees,
+                "listing_fees": listing_fees,  # Sempre 0 no Brasil (apenas venda)
                 "sale_fees": sale_fees,
-                "shipping_fees": shipping_fees
+                "shipping_fees": shipping_fees  # Mantido para referência, mas não é taxa do ML
             }
             
         except Exception as e:
@@ -796,6 +812,10 @@ class MLOrdersService:
             
             # Buscar informações completas da order
             complete_order_data = self._fetch_complete_order_data(order_data, access_token)
+            
+            # Nota: Dados de billing detalhados não estão disponíveis por pedido individual
+            # Eles são fornecidos pelo ML apenas em relatórios mensais consolidados
+            # O sale_fee de cada item já é extraído e salvo corretamente
             
             # Converter dados da API para o modelo
             order_dict = self._convert_api_order_to_model(complete_order_data, ml_account_id, company_id)
@@ -976,7 +996,17 @@ class MLOrdersService:
                 "taxes": order_data.get("taxes"),
                 
                 # === DETALHES DE CANCELAMENTO ===
-                "cancel_detail": order_data.get("cancel_detail")
+                "cancel_detail": order_data.get("cancel_detail"),
+                
+                # === DADOS DE BILLING ===
+                # Nota: Dados detalhados de billing (financing_fee, breakdowns) só estão disponíveis
+                # em relatórios mensais do endpoint /billing/integration/periods/
+                # Aqui salvamos apenas o sale_fee básico extraído dos order_items
+                "financing_fee": None,  # Disponível apenas em relatórios mensais
+                "financing_transfer_total": None,  # Disponível apenas em relatórios mensais
+                "sale_fee_breakdown": None,  # Disponível apenas em relatórios mensais
+                "billing_details": None,  # Disponível apenas em relatórios mensais
+                "marketplace_fee_breakdown": None  # Disponível apenas em relatórios mensais
             }
             
         except Exception as e:

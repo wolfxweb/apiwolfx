@@ -143,7 +143,8 @@ class MLOrdersController:
                     "account_nickname": account.nickname if account else "N/A",
                     "account_email": account.email if account else "N/A",
                     "account_country": account.country_id if account else "N/A",
-                    "is_advertising_sale": order.is_advertising_sale  # Origem da venda
+                    "is_advertising_sale": order.is_advertising_sale,  # Origem da venda
+                    "advertising_cost": order.advertising_cost or 0,  # Custo de publicidade
                 }
                 all_orders.append(order_data)
             
