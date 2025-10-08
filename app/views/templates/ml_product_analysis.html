@@ -1291,6 +1291,28 @@ async function loadMarketingAnalysis(product) {
                 marketingContainer.innerHTML = `
                     <h6 class="mb-3">📊 Métricas dos Últimos ${days} Dias:</h6>
                     
+                    <!-- Vendas com e sem anúncio -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="card bg-success bg-opacity-10 border-success">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">Vendas COM Anúncio</h6>
+                                    <h4 class="text-success mb-0">${metrics.advertising_sales_qty || 0}</h4>
+                                    <small class="text-muted">${formatPrice(metrics.direct_sales + metrics.indirect_sales)}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-info bg-opacity-10 border-info">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">Vendas SEM Anúncio</h6>
+                                    <h4 class="text-info mb-0">${metrics.organic_sales_qty || 0}</h4>
+                                    <small class="text-muted">${formatPrice(metrics.organic_sales_amount || 0)}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <div class="card bg-light">

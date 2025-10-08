@@ -68,7 +68,13 @@ class MLProductAdsService:
                     "period_days": days,
                     "item_status": metrics_data.get("status", "unknown"),
                     "campaign_id": metrics_data.get("campaign_id"),
-                    "recommended": metrics_data.get("recommended", False)
+                    "recommended": metrics_data.get("recommended", False),
+                    # Quantidades de vendas
+                    "organic_sales_qty": metrics.get("organic_items_quantity", 0),  # Vendas sem anúncio
+                    "organic_sales_amount": metrics.get("organic_units_amount", 0),  # Valor vendas orgânicas
+                    "advertising_sales_qty": metrics.get("advertising_items_quantity", 0),  # Vendas com anúncio
+                    "direct_sales_qty": metrics.get("direct_items_quantity", 0),  # Vendas diretas
+                    "indirect_sales_qty": metrics.get("indirect_items_quantity", 0)  # Vendas indiretas
                 }
                 
                 logger.info(f"✅ Métricas de Product Ads para {ml_item_id}: Custo R$ {result['total_cost']:.2f}")
