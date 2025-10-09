@@ -603,11 +603,14 @@ function renderBillingData(order) {
     const advertisingCost = order.advertising_cost || 0;
     const currency = order.currency_id || 'BRL';
     
-    // Calcular líquido para o vendedor
-    const netAmount = totalAmount - saleFees;
+    // Calcular líquido para o vendedor (considerando TODOS os custos do ML)
+    const netAmount = totalAmount - saleFees - shippingCost - couponAmount;
     
     // Calcular percentual de comissão
     const feePercentage = totalAmount > 0 ? ((saleFees / totalAmount) * 100).toFixed(1) : 0;
+    
+    // Calcular percentual do frete
+    const shippingPercentage = totalAmount > 0 ? ((shippingCost / totalAmount) * 100).toFixed(1) : 0;
     
     // Formato compacto com ícones e quebras de linha
     let items = [];
@@ -618,9 +621,11 @@ function renderBillingData(order) {
     // Comissão ML (sempre aparece)
     items.push(`💸 Comissão ML: <strong class="text-warning">${formatCurrency(saleFees, currency)}</strong> <small class="text-muted">(${feePercentage}%)</small>`);
     
-    // Frete (aparece se > 0)
+    // Frete (sempre aparece para mostrar transparência)
     if (shippingCost > 0) {
-        items.push(`🚚 Frete: <strong class="text-info">${formatCurrency(shippingCost, currency)}</strong>`);
+        items.push(`🚚 Frete Vendedor: <strong class="text-info">${formatCurrency(shippingCost, currency)}</strong> <small class="text-muted">(${shippingPercentage}%)</small>`);
+    } else {
+        items.push(`🚚 Frete Vendedor: <strong class="text-success">R$ 0,00</strong>`);
     }
     
     // Desconto (aparece se > 0)
@@ -776,44 +781,39 @@ function applyFilters() {
 }
 
 function syncOrders() {
-    const syncBtn = document.getElementById('sync-btn');
-    const importBtn = document.getElementById('import-btn');
+    console.log('🔄 Iniciando sincronização de pedidos...');
     
-    // Desabilitar botões e mostrar loading
-    syncBtn.disabled = true;
-    importBtn.disabled = true;
-    syncBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Sincronizando...';
-    
+    // Mostrar loading
     showLoading(true);
+    
+    // Mostrar alerta de início
+    showSuccess('Iniciando sincronização de pedidos...');
     
     fetch('/ml/api/orders/sync', {
         method: 'GET',
         credentials: 'include'
     })
     .then(response => {
+        console.log('📡 Resposta recebida:', response.status);
         if (checkSessionExpired(response)) {
+            showLoading(false);
             return;
         }
         return response.json();
     })
     .then(data => {
-        console.log('Resposta da sincronização:', data);
+        console.log('📊 Dados da sincronização:', data);
         if (data && data.success) {
-            showSuccess(`Sincronização concluída: ${data.total_saved || 0} pedidos criados, ${data.total_updated || 0} pedidos atualizados`);
+            showSuccess(`✅ Sincronização concluída: ${data.total_saved || 0} pedidos novos, ${data.total_updated || 0} atualizados`);
             loadOrders(currentPage);
         } else {
-            showError('Erro ao sincronizar pedidos: ' + (data?.error || 'Erro desconhecido'));
+            showError('❌ Erro ao sincronizar pedidos: ' + (data?.error || 'Erro desconhecido'));
         }
+        showLoading(false);
     })
     .catch(error => {
-        console.error('Erro:', error);
-        showError('Erro ao sincronizar pedidos');
-    })
-    .finally(() => {
-        // Reabilitar botões e restaurar texto
-        syncBtn.disabled = false;
-        importBtn.disabled = false;
-        syncBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Sincronizar';
+        console.error('❌ Erro na sincronização:', error);
+        showError('Erro ao sincronizar pedidos: ' + error.message);
         showLoading(false);
     });
 }

@@ -838,6 +838,53 @@ class MLOrdersService:
             logger.error(f"Erro ao salvar order no banco: {e}")
             raise e
     
+    def _extract_shipping_cost(self, order_data: Dict) -> float:
+        """Extrai o custo de frete do vendedor de múltiplas fontes possíveis"""
+        try:
+            # 1. Tentar buscar do shipping_details.shipping_option.list_cost (custo real para vendedor)
+            shipping_details = order_data.get("shipping_details", {})
+            if shipping_details:
+                shipping_option = shipping_details.get("shipping_option", {})
+                if shipping_option and shipping_option.get("list_cost"):
+                    list_cost = float(shipping_option.get("list_cost", 0))
+                    if list_cost > 0:
+                        logger.info(f"Frete encontrado em shipping_details.shipping_option.list_cost: R$ {list_cost}")
+                        return list_cost
+                
+                # 1b. Tentar shipping_option.cost
+                if shipping_option and shipping_option.get("cost"):
+                    cost = float(shipping_option.get("cost", 0))
+                    if cost > 0:
+                        logger.info(f"Frete encontrado em shipping_details.shipping_option.cost: R$ {cost}")
+                        return cost
+                
+                # 1c. Tentar shipping_details.cost direto
+                if shipping_details.get("cost"):
+                    cost = float(shipping_details.get("cost", 0))
+                    if cost > 0:
+                        return cost
+            
+            # 2. Tentar buscar do shipping direto
+            shipping = order_data.get("shipping", {})
+            if shipping and shipping.get("cost"):
+                cost = float(shipping.get("cost", 0))
+                if cost > 0:
+                    return cost
+            
+            # 3. Buscar do payment (alguns casos)
+            payments = order_data.get("payments", [])
+            if payments and len(payments) > 0:
+                payment_shipping = payments[0].get("shipping_cost", 0)
+                if payment_shipping and payment_shipping > 0:
+                    return float(payment_shipping)
+            
+            # Se não encontrou frete, retornar 0
+            return 0.0
+            
+        except Exception as e:
+            logger.warning(f"Erro ao extrair shipping_cost: {e}")
+            return 0.0
+    
     def _convert_api_order_to_model(self, order_data: Dict, ml_account_id: int, company_id: int) -> Dict:
         """Converte dados da API para formato do modelo - Versão Completa"""
         try:
@@ -944,7 +991,7 @@ class MLOrdersService:
                 
                 # === ENVIO E LOGÍSTICA ===
                 "shipping_id": shipping.get("id"),
-                "shipping_cost": shipping.get("cost") or shipping_details.get("cost"),
+                "shipping_cost": self._extract_shipping_cost(order_data),
                 "shipping_method": shipping.get("method") or shipping_details.get("shipping_method"),
                 "shipping_status": shipping.get("status") or shipping_details.get("status"),
                 "shipping_address": shipping.get("receiver_address") or shipping_details.get("receiver_address"),
