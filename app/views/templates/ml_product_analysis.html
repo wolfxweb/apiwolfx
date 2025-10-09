@@ -1347,6 +1347,42 @@ async function loadMarketingAnalysis(product) {
                         </div>
                     </div>
                     
+                    <!-- Custo por Venda -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="card bg-warning bg-opacity-10 border-warning">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">
+                                        Custo por Venda COM Anúncio
+                                        <i class="bi bi-question-circle text-warning ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Investimento total ÷ Vendas com anúncio (quanto você gastou para cada venda via Product Ads)"
+                                           style="cursor: help;"></i>
+                                    </h6>
+                                    <h4 class="text-warning mb-0">${formatPrice((metrics.advertising_sales_qty || 0) > 0 ? metrics.total_cost / metrics.advertising_sales_qty : 0)}</h4>
+                                    <small class="text-muted">por venda</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-secondary bg-opacity-10 border-secondary">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small mb-1">
+                                        Custo por Venda TOTAL (diluído)
+                                        <i class="bi bi-question-circle text-secondary ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top" 
+                                           title="Investimento total ÷ Todas as vendas (custo de marketing distribuído entre todas as vendas, incluindo orgânicas)"
+                                           style="cursor: help;"></i>
+                                    </h6>
+                                    <h4 class="text-secondary mb-0">${formatPrice(((metrics.advertising_sales_qty || 0) + (metrics.organic_sales_qty || 0)) > 0 ? metrics.total_cost / ((metrics.advertising_sales_qty || 0) + (metrics.organic_sales_qty || 0)) : 0)}</h4>
+                                    <small class="text-muted">por venda</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <div class="card bg-light">
@@ -2412,13 +2448,15 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
     const productAnalysis = productData?.analysis || {};
     const productStats = productAnalysis.stats || {};
     
-    // Pegar dados de pricing (custo, impostos e marketing estimados)
+    // Pegar dados de pricing (custo e impostos)
     const pricingData = window.currentPricingData || {};
     const precoCustoUnitario = pricingData.custo_produto || 0;
     const impostosData = pricingData.impostos || {};
     const percentualImpostos = impostosData.percentual || 0;
-    const marketingData2 = pricingData.marketing || {};
-    const percentualMarketing = marketingData2.percentual || 0;
+    
+    // Calcular custo de marketing por venda (diluído) usando dados reais de Product Ads
+    const totalVendasProductAds = (marketingData?.advertising_sales_qty || 0) + (marketingData?.organic_sales_qty || 0);
+    const custoMarketingPorVenda = totalVendasProductAds > 0 ? (marketingData?.total_cost || 0) / totalVendasProductAds : 0;
     
     // Calcular totais de Billing (usando dados do SKU que tem todos os pedidos)
     let totalBruto = 0;
@@ -2445,8 +2483,8 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
         // Impostos (usando percentual da análise de pricing)
         const impostos = bruto * (percentualImpostos / 100);
         
-        // Marketing (usando percentual estimado da análise de pricing)
-        const marketing = bruto * (percentualMarketing / 100);
+        // Marketing (usando custo por venda TOTAL diluído dos Product Ads)
+        const marketing = custoMarketingPorVenda;
         
         // Outros custos (pode vir dos dados do pedido ou ser calculado)
         const outrosCustos = order.other_costs || 0;
@@ -2474,7 +2512,7 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
                 <h6 class="mb-0">
                     <i class="bi bi-cash-stack"></i> Resumo Financeiro - Todos os Pedidos (${pedidosCount} pedidos)
                     <small class="ms-2 text-muted">
-                        | Custo: R$ ${precoCustoUnitario.toFixed(2)}/un | Impostos: ${percentualImpostos.toFixed(1)}% | Marketing: ${percentualMarketing.toFixed(1)}%
+                        | Custo: R$ ${precoCustoUnitario.toFixed(2)}/un | Impostos: ${percentualImpostos.toFixed(1)}% | Marketing: ${formatCurrency(custoMarketingPorVenda)}/venda
                     </small>
                 </h6>
             </div>
@@ -2536,9 +2574,9 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
                     </div>
                     <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-primary d-block">(-) Marketing (${percentualMarketing.toFixed(1)}% estimado) <i class="bi bi-question-circle-fill text-primary ms-1" data-bs-toggle="tooltip" title="Custo estimado de marketing/publicidade (${percentualMarketing.toFixed(1)}% do valor bruto de cada venda)"></i></small>
+                            <small class="text-primary d-block">(-) Marketing (diluído) <i class="bi bi-question-circle-fill text-primary ms-1" data-bs-toggle="tooltip" title="Custo real de Product Ads dividido por todas as vendas do período (${formatCurrency(custoMarketingPorVenda)} por venda × ${pedidosCount} pedidos)"></i></small>
                             <h6 class="mb-0 text-primary">${formatCurrency(totalMarketing)}</h6>
-                            <small class="text-muted">${totalBruto > 0 ? ((totalMarketing/totalBruto)*100).toFixed(1) : 0}% do total</small>
+                            <small class="text-muted">${formatCurrency(custoMarketingPorVenda)}/venda (${totalBruto > 0 ? ((totalMarketing/totalBruto)*100).toFixed(1) : 0}%)</small>
                         </div>
                     </div>
                 </div>
