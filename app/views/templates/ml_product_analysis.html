@@ -2606,29 +2606,24 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
         </div>
         
         <div class="row">
-            <!-- Estatísticas por SKU -->
-            <div class="col-md-3 mb-4">
+            <!-- Card Unificado de Estatísticas -->
+            <div class="col-md-6 mb-4">
                 <div class="card border-primary">
                     <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0"><i class="bi bi-tag"></i> Estatísticas por SKU</h6>
+                        <h6 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Estatísticas de Vendas</h6>
                     </div>
                     <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <div class="border-end">
-                                    <h4 class="text-primary mb-0">${skuStats.total_orders || 0}</h4>
-                                    <small class="text-muted">Total Pedidos</small>
-                                </div>
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <h4 class="text-primary mb-0">${skuStats.total_orders || 0}</h4>
+                                <small class="text-muted">Total Pedidos</small>
                             </div>
-                            <div class="col-6">
+                            <div class="col-4">
                                 <h4 class="text-success mb-0">${skuStats.total_quantity || 0}</h4>
                                 <small class="text-muted">Quantidade</small>
                             </div>
-                        </div>
-                        <hr>
-                        <div class="row text-center">
-                            <div class="col-12">
-                                <h5 class="text-warning mb-0">${formatCurrency(skuStats.total_revenue || 0)}</h5>
+                            <div class="col-4">
+                                <h4 class="text-warning mb-0">${formatCurrency(skuStats.total_revenue || 0)}</h4>
                                 <small class="text-muted">Receita Total</small>
                             </div>
                         </div>
@@ -2639,7 +2634,7 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
                                 <small class="text-muted">Pagos</small>
                             </div>
                             <div class="col-4">
-                                <h6 class="text-warning mb-0">${skuStats.pending_orders || 0}</h6>
+                                <h6 class="text-warning mb-0">${(skuStats.pending_orders || 0)}</h6>
                                 <small class="text-muted">Pendentes</small>
                             </div>
                             <div class="col-4">
@@ -2649,120 +2644,47 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
                         </div>
                         <hr>
                         <div class="text-center">
-                            <small class="text-muted">SKU: ${sku || 'N/A'}</small>
+                            <small class="text-muted"><strong>SKU:</strong> ${sku || 'N/A'} | <strong>ML ID:</strong> ${mlItemId || 'N/A'}</small>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Estatísticas do Anúncio -->
-            <div class="col-md-3 mb-4">
-                <div class="card border-info">
-                    <div class="card-header bg-info text-white">
-                        <h6 class="mb-0"><i class="bi bi-megaphone"></i> Estatísticas do Anúncio</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <div class="border-end">
-                                    <h4 class="text-info mb-0">${productStats.total_orders || 0}</h4>
-                                    <small class="text-muted">Total Pedidos</small>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <h4 class="text-success mb-0">${productStats.total_quantity || 0}</h4>
-                                <small class="text-muted">Quantidade</small>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="row text-center">
-                            <div class="col-12">
-                                <h5 class="text-warning mb-0">${formatCurrency(productStats.total_revenue || 0)}</h5>
-                                <small class="text-muted">Receita Total</small>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="row text-center">
-                            <div class="col-4">
-                                <h6 class="text-success mb-0">${productStats.paid_orders || 0}</h6>
-                                <small class="text-muted">Pagos</small>
-                            </div>
-                            <div class="col-4">
-                                <h6 class="text-warning mb-0">${productStats.pending_orders || 0}</h6>
-                                <small class="text-muted">Pendentes</small>
-                            </div>
-                            <div class="col-4">
-                                <h6 class="text-danger mb-0">${productStats.cancelled_orders || 0}</h6>
-                                <small class="text-muted">Cancelados</small>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="text-center">
-                            <small class="text-muted">ML: ${mlItemId || 'N/A'}</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Preços por SKU -->
-            <div class="col-md-3 mb-4">
+            <!-- Card Unificado de Preços -->
+            <div class="col-md-6 mb-4">
                 <div class="card border-success">
                     <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="bi bi-currency-dollar"></i> Preços por SKU</h6>
+                        <h6 class="mb-0"><i class="bi bi-currency-dollar"></i> Análise de Preços</h6>
                     </div>
                     <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <h5 class="text-success mb-0">${formatCurrency(skuStats.avg_price || 0)}</h5>
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <h4 class="text-success mb-0">${formatCurrency(skuStats.avg_price || 0)}</h4>
                                 <small class="text-muted">Preço Médio</small>
                             </div>
-                            <div class="col-6">
-                                <h5 class="text-info mb-0">${formatCurrency(skuStats.min_price || 0)}</h5>
+                            <div class="col-4">
+                                <h4 class="text-info mb-0">${formatCurrency(skuStats.min_price || 0)}</h4>
                                 <small class="text-muted">Preço Mínimo</small>
                             </div>
-                        </div>
-                        <hr>
-                        <div class="row text-center">
-                            <div class="col-12">
-                                <h5 class="text-danger mb-0">${formatCurrency(skuStats.max_price || 0)}</h5>
+                            <div class="col-4">
+                                <h4 class="text-danger mb-0">${formatCurrency(skuStats.max_price || 0)}</h4>
                                 <small class="text-muted">Preço Máximo</small>
                             </div>
                         </div>
                         <hr>
-                        <div class="text-center">
-                            <small class="text-muted">SKU: ${sku || 'N/A'}</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Preços do Anúncio -->
-            <div class="col-md-3 mb-4">
-                <div class="card border-warning">
-                    <div class="card-header bg-warning text-white">
-                        <h6 class="mb-0"><i class="bi bi-currency-dollar"></i> Preços do Anúncio</h6>
-                    </div>
-                    <div class="card-body">
                         <div class="row text-center">
                             <div class="col-6">
-                                <h5 class="text-success mb-0">${formatCurrency(productStats.avg_price || 0)}</h5>
-                                <small class="text-muted">Preço Médio</small>
+                                <h6 class="text-primary mb-0">${formatCurrency((skuStats.max_price || 0) - (skuStats.min_price || 0))}</h6>
+                                <small class="text-muted">Variação de Preço</small>
                             </div>
                             <div class="col-6">
-                                <h5 class="text-info mb-0">${formatCurrency(productStats.min_price || 0)}</h5>
-                                <small class="text-muted">Preço Mínimo</small>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="row text-center">
-                            <div class="col-12">
-                                <h5 class="text-danger mb-0">${formatCurrency(productStats.max_price || 0)}</h5>
-                                <small class="text-muted">Preço Máximo</small>
+                                <h6 class="text-info mb-0">${formatCurrency(skuStats.total_revenue && skuStats.total_quantity ? skuStats.total_revenue / skuStats.total_quantity : 0)}</h6>
+                                <small class="text-muted">Valor Médio/Unidade</small>
                             </div>
                         </div>
                         <hr>
                         <div class="text-center">
-                            <small class="text-muted">ML: ${mlItemId || 'N/A'}</small>
+                            <small class="text-muted"><strong>SKU:</strong> ${sku || 'N/A'} | <strong>ML ID:</strong> ${mlItemId || 'N/A'}</small>
                         </div>
                     </div>
                 </div>
