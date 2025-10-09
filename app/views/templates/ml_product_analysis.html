@@ -2485,6 +2485,7 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
                         <div class="p-2 border rounded bg-primary text-white">
                             <small class="d-block">Total Pago pelos Clientes <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor total que os clientes pagaram pelos produtos (preço × quantidade de todos os pedidos)"></i></small>
                             <h5 class="mb-0">${formatCurrency(totalBruto)}</h5>
+                            <small class="text-white-50">Média: ${formatCurrency(pedidosCount > 0 ? totalBruto / pedidosCount : 0)}</small>
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -2856,6 +2857,7 @@ function renderOrdersAnalysis(data, sku) {
                         <div class="p-2 border rounded bg-primary text-white">
                             <small class="d-block">Total Pago pelos Clientes <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor total que os clientes pagaram pelos produtos (preço × quantidade de todos os pedidos)"></i></small>
                             <h5 class="mb-0">${formatCurrency(totalBruto)}</h5>
+                            <small class="text-white-50">Média: ${formatCurrency(orders.length > 0 ? totalBruto / orders.length : 0)}</small>
                         </div>
                     </div>
                     <div class="col-md-3">
