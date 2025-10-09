@@ -2479,109 +2479,86 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
                 </h6>
             </div>
             <div class="card-body">
-                <!-- Primeira Linha -->
+                <!-- Primeira Linha - 4 caixas -->
                 <div class="row text-center mb-3">
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-primary text-white">
-                            <small class="d-block">
-                                Total Pago pelos Clientes
-                                <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor total que os clientes pagaram pelos produtos (preço × quantidade de todos os pedidos)"></i>
-                            </small>
+                            <small class="d-block">Total Pago pelos Clientes <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor total que os clientes pagaram pelos produtos (preço × quantidade de todos os pedidos)"></i></small>
                             <h5 class="mb-0">${formatCurrency(totalBruto)}</h5>
                         </div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-danger d-block">
-                                (-) Comissões ML
-                                <i class="bi bi-question-circle-fill text-danger ms-1" data-bs-toggle="tooltip" title="Taxa cobrada pelo Mercado Livre por cada venda (varia conforme o tipo de anúncio e categoria)"></i>
-                            </small>
+                            <small class="text-danger d-block">(-) Comissões ML <i class="bi bi-question-circle-fill text-danger ms-1" data-bs-toggle="tooltip" title="Taxa cobrada pelo Mercado Livre por cada venda (varia conforme o tipo de anúncio e categoria)"></i></small>
                             <h6 class="mb-0 text-danger">${formatCurrency(totalComissao)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalComissao/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-info d-block">
-                                (-) Fretes
-                                <i class="bi bi-question-circle-fill text-info ms-1" data-bs-toggle="tooltip" title="Custo de frete pago pelo vendedor (quando não é frete grátis para o comprador)"></i>
-                            </small>
+                            <small class="text-info d-block">(-) Fretes <i class="bi bi-question-circle-fill text-info ms-1" data-bs-toggle="tooltip" title="Custo de frete pago pelo vendedor (quando não é frete grátis para o comprador)"></i></small>
                             <h6 class="mb-0 text-info">${formatCurrency(totalFrete)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalFrete/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-warning d-block">
-                                (-) Descontos
-                                <i class="bi bi-question-circle-fill text-warning ms-1" data-bs-toggle="tooltip" title="Cupons e promoções aplicadas nas vendas (redução direta no valor recebido)"></i>
-                            </small>
+                            <small class="text-warning d-block">(-) Descontos <i class="bi bi-question-circle-fill text-warning ms-1" data-bs-toggle="tooltip" title="Cupons e promoções aplicadas nas vendas (redução direta no valor recebido)"></i></small>
                             <h6 class="mb-0 text-warning">${formatCurrency(totalDesconto)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalDesconto/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
-                    <div class="col-md-2">
+                </div>
+                
+                <!-- Segunda Linha - 4 caixas -->
+                <div class="row text-center mb-3">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-primary d-block">
-                                (-) Custo dos Produtos
-                                <i class="bi bi-question-circle-fill text-primary ms-1" data-bs-toggle="tooltip" title="Custo de aquisição/produção dos produtos vendidos (R$ ${precoCustoUnitario.toFixed(2)} por unidade × quantidade)"></i>
-                            </small>
+                            <small class="text-primary d-block">(-) Custo dos Produtos <i class="bi bi-question-circle-fill text-primary ms-1" data-bs-toggle="tooltip" title="Custo de aquisição/produção dos produtos vendidos (R$ ${precoCustoUnitario.toFixed(2)} por unidade × quantidade)"></i></small>
                             <h6 class="mb-0 text-primary">${formatCurrency(totalCustoProdutos)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalCustoProdutos/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-secondary d-block">
-                                (-) Impostos
-                                <i class="bi bi-question-circle-fill text-secondary ms-1" data-bs-toggle="tooltip" title="Impostos sobre vendas (${percentualImpostos.toFixed(1)}% do valor bruto - ICMS, PIS, COFINS, etc)"></i>
-                            </small>
+                            <small class="text-secondary d-block">(-) Impostos <i class="bi bi-question-circle-fill text-secondary ms-1" data-bs-toggle="tooltip" title="Impostos sobre vendas (${percentualImpostos.toFixed(1)}% do valor bruto - ICMS, PIS, COFINS, etc)"></i></small>
                             <h6 class="mb-0 text-secondary">${formatCurrency(totalImpostos)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalImpostos/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Segunda Linha - Custos Finais e Resultado -->
-                <div class="row text-center">
                     <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-dark d-block">
-                                (-) Outros Custos
-                                <i class="bi bi-question-circle-fill text-dark ms-1" data-bs-toggle="tooltip" title="Outros custos operacionais (embalagem, etiquetas, taxas adicionais, etc)"></i>
-                            </small>
+                            <small class="text-dark d-block">(-) Outros Custos <i class="bi bi-question-circle-fill text-dark ms-1" data-bs-toggle="tooltip" title="Outros custos operacionais (embalagem, etiquetas, taxas adicionais, etc)"></i></small>
                             <h6 class="mb-0 text-dark">${formatCurrency(totalOutrosCustos)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalOutrosCustos/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-primary d-block">
-                                (-) Marketing (${percentualMarketing.toFixed(1)}% estimado)
-                                <i class="bi bi-question-circle-fill text-primary ms-1" data-bs-toggle="tooltip" title="Custo estimado de marketing/publicidade (${percentualMarketing.toFixed(1)}% do valor bruto de cada venda)"></i>
-                            </small>
+                            <small class="text-primary d-block">(-) Marketing (${percentualMarketing.toFixed(1)}% estimado) <i class="bi bi-question-circle-fill text-primary ms-1" data-bs-toggle="tooltip" title="Custo estimado de marketing/publicidade (${percentualMarketing.toFixed(1)}% do valor bruto de cada venda)"></i></small>
                             <h6 class="mb-0 text-primary">${formatCurrency(totalMarketing)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalMarketing/totalBruto)*100).toFixed(1) : 0}% do total</small>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                </div>
+                
+                <!-- Terceira Linha - Lucro Final (12 colunas) -->
+                <div class="row text-center">
+                    <div class="col-md-12">
                         <div class="p-3 border rounded ${totalLiquido >= 0 ? 'bg-success' : 'bg-danger'} text-white">
-                            <small class="d-block">
-                                <strong>(=) Lucro Líquido Final</strong>
-                                <i class="bi bi-question-circle-fill ms-1" data-bs-toggle="tooltip" title="Lucro real após deduzir TODOS os custos: comissões, fretes, descontos, custo dos produtos, impostos, outros custos e marketing"></i>
-                            </small>
-                            <h4 class="mb-0"><strong>${formatCurrency(totalLiquido)}</strong></h4>
-                            <small>${margemLiquida.toFixed(1)}% margem líquida</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="p-2 border rounded">
-                            <small class="text-muted d-block">
-                                Lucro Médio por Pedido
-                                <i class="bi bi-question-circle-fill text-muted ms-1" data-bs-toggle="tooltip" title="Lucro líquido médio de cada venda (lucro total ÷ número de pedidos)"></i>
-                            </small>
-                            <h6 class="mb-0">${formatCurrency(pedidosCount > 0 ? totalLiquido / pedidosCount : 0)}</h6>
-                            <small class="text-muted">(${pedidosCount} pedidos)</small>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="text-start">
+                                    <small class="d-block"><strong>(=) Lucro Líquido Final</strong> <i class="bi bi-question-circle-fill ms-1" data-bs-toggle="tooltip" title="Lucro real após deduzir TODOS os custos: comissões, fretes, descontos, custo dos produtos, impostos, outros custos e marketing"></i></small>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="mb-0"><strong>${formatCurrency(totalLiquido)}</strong></h3>
+                                    <small>${margemLiquida.toFixed(1)}% margem líquida</small>
+                                </div>
+                                <div class="text-end">
+                                    <small class="d-block">Lucro Médio por Pedido <i class="bi bi-question-circle-fill ms-1" data-bs-toggle="tooltip" title="Lucro líquido médio de cada venda (lucro total ÷ número de pedidos)"></i></small>
+                                    <h6 class="mb-0">${formatCurrency(pedidosCount > 0 ? totalLiquido / pedidosCount : 0)} <small class="text-white-50">(${pedidosCount} pedidos)</small></h6>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2873,64 +2850,54 @@ function renderOrdersAnalysis(data, sku) {
                 <h6 class="mb-0"><i class="bi bi-cash-stack"></i> Resumo Financeiro - Taxas Mercado Livre (${orders.length} pedidos)</h6>
             </div>
             <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-2">
+                <!-- Primeira Linha - 4 caixas -->
+                <div class="row text-center mb-3">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-primary text-white">
-                            <small class="d-block">
-                                Total Pago pelos Clientes
-                                <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor total que os clientes pagaram pelos produtos (preço × quantidade de todos os pedidos)"></i>
-                            </small>
+                            <small class="d-block">Total Pago pelos Clientes <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor total que os clientes pagaram pelos produtos (preço × quantidade de todos os pedidos)"></i></small>
                             <h5 class="mb-0">${formatCurrency(totalBruto)}</h5>
                         </div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-danger d-block">
-                                (-) Comissões ML
-                                <i class="bi bi-question-circle-fill text-danger ms-1" data-bs-toggle="tooltip" title="Taxa cobrada pelo Mercado Livre por cada venda (varia conforme o tipo de anúncio e categoria)"></i>
-                            </small>
+                            <small class="text-danger d-block">(-) Comissões ML <i class="bi bi-question-circle-fill text-danger ms-1" data-bs-toggle="tooltip" title="Taxa cobrada pelo Mercado Livre por cada venda (varia conforme o tipo de anúncio e categoria)"></i></small>
                             <h6 class="mb-0 text-danger">${formatCurrency(totalComissao)}</h6>
                             <small class="text-muted">${((totalComissao/totalBruto)*100).toFixed(1)}%</small>
                         </div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-info d-block">
-                                (-) Fretes
-                                <i class="bi bi-question-circle-fill text-info ms-1" data-bs-toggle="tooltip" title="Custo de frete pago pelo vendedor (quando não é frete grátis para o comprador)"></i>
-                            </small>
+                            <small class="text-info d-block">(-) Fretes <i class="bi bi-question-circle-fill text-info ms-1" data-bs-toggle="tooltip" title="Custo de frete pago pelo vendedor (quando não é frete grátis para o comprador)"></i></small>
                             <h6 class="mb-0 text-info">${formatCurrency(totalFrete)}</h6>
                             <small class="text-muted">${((totalFrete/totalBruto)*100).toFixed(1)}%</small>
                         </div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-warning d-block">
-                                (-) Descontos
-                                <i class="bi bi-question-circle-fill text-warning ms-1" data-bs-toggle="tooltip" title="Cupons e promoções aplicadas nas vendas (redução direta no valor recebido)"></i>
-                            </small>
+                            <small class="text-warning d-block">(-) Descontos <i class="bi bi-question-circle-fill text-warning ms-1" data-bs-toggle="tooltip" title="Cupons e promoções aplicadas nas vendas (redução direta no valor recebido)"></i></small>
                             <h6 class="mb-0 text-warning">${formatCurrency(totalDesconto)}</h6>
                             <small class="text-muted">${((totalDesconto/totalBruto)*100).toFixed(1)}%</small>
                         </div>
                     </div>
-                    <div class="col-md-2">
-                        <div class="p-2 border rounded bg-success text-white">
-                            <small class="d-block">
-                                (=) A Receber do ML
-                                <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor líquido que o Mercado Livre vai repassar (após deduzir comissões, fretes e descontos)"></i>
-                            </small>
-                            <h5 class="mb-0">${formatCurrency(totalLiquido)}</h5>
-                            <small>${margemLiquida.toFixed(1)}% margem</small>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="p-2 border rounded">
-                            <small class="text-muted d-block">
-                                Valor Médio a Receber
-                                <i class="bi bi-question-circle-fill text-muted ms-1" data-bs-toggle="tooltip" title="Valor médio que você recebe por pedido (valor líquido ÷ número de pedidos)"></i>
-                            </small>
-                            <h6 class="mb-0">${formatCurrency(totalLiquido / orders.length)}</h6>
-                            <small class="text-muted">por pedido</small>
+                </div>
+                
+                <!-- Segunda Linha - A Receber (12 colunas) -->
+                <div class="row text-center">
+                    <div class="col-md-12">
+                        <div class="p-3 border rounded bg-success text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="text-start">
+                                    <small class="d-block"><strong>(=) A Receber do ML</strong> <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor líquido que o Mercado Livre vai repassar (após deduzir comissões, fretes e descontos)"></i></small>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="mb-0"><strong>${formatCurrency(totalLiquido)}</strong></h3>
+                                    <small>${margemLiquida.toFixed(1)}% margem</small>
+                                </div>
+                                <div class="text-end">
+                                    <small class="d-block">Valor Médio a Receber <i class="bi bi-question-circle-fill ms-1" data-bs-toggle="tooltip" title="Valor médio que você recebe por pedido (valor líquido ÷ número de pedidos)"></i></small>
+                                    <h6 class="mb-0">${formatCurrency(totalLiquido / orders.length)} <small class="text-white-50">(${orders.length} pedidos)</small></h6>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
