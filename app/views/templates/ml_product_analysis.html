@@ -2385,12 +2385,89 @@ function renderSalesAnalysis(skuData, productData, product) {
     // Dados do SKU
     const skuAnalysis = skuData?.analysis || {};
     const skuStats = skuAnalysis.stats || {};
+    const skuOrders = skuAnalysis.orders || [];
     
     // Dados do Anúncio (ML Item ID)
     const productAnalysis = productData?.analysis || {};
     const productStats = productAnalysis.stats || {};
     
+    // Calcular totais de Billing (usando dados do SKU que tem todos os pedidos)
+    let totalBruto = 0;
+    let totalComissao = 0;
+    let totalFrete = 0;
+    let totalDesconto = 0;
+    let totalLiquido = 0;
+    let pedidosCount = 0;
+    
+    skuOrders.forEach(order => {
+        const bruto = order.unit_price * order.quantity;
+        const comissao = order.sale_fee || 0;
+        const frete = order.shipping_cost || 0;
+        const desconto = order.discount || 0;
+        
+        totalBruto += bruto;
+        totalComissao += comissao;
+        totalFrete += frete;
+        totalDesconto += desconto;
+        totalLiquido += (bruto - comissao - frete - desconto);
+        pedidosCount++;
+    });
+    
+    const margemLiquida = totalBruto > 0 ? ((totalLiquido / totalBruto) * 100) : 0;
+    
     contentContainer.innerHTML = `
+        <!-- Card de Resumo Financeiro -->
+        <div class="card border-warning mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="bi bi-cash-stack"></i> Resumo Financeiro - Todos os Pedidos</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded">
+                            <small class="text-muted d-block">Total Pago pelos Clientes</small>
+                            <h5 class="mb-0">${formatCurrency(totalBruto)}</h5>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-danger d-block">(-) Comissões ML</small>
+                            <h6 class="mb-0 text-danger">${formatCurrency(totalComissao)}</h6>
+                            <small class="text-muted">${totalBruto > 0 ? ((totalComissao/totalBruto)*100).toFixed(1) : 0}%</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-info d-block">(-) Fretes</small>
+                            <h6 class="mb-0 text-info">${formatCurrency(totalFrete)}</h6>
+                            <small class="text-muted">${totalBruto > 0 ? ((totalFrete/totalBruto)*100).toFixed(1) : 0}%</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-warning d-block">(-) Descontos</small>
+                            <h6 class="mb-0 text-warning">${formatCurrency(totalDesconto)}</h6>
+                            <small class="text-muted">${totalBruto > 0 ? ((totalDesconto/totalBruto)*100).toFixed(1) : 0}%</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded bg-success text-white">
+                            <small class="d-block">(=) A Receber do ML</small>
+                            <h5 class="mb-0">${formatCurrency(totalLiquido)}</h5>
+                            <small>${margemLiquida.toFixed(1)}% margem</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded">
+                            <small class="text-muted d-block">Valor Médio a Receber</small>
+                            <h6 class="mb-0">${formatCurrency(pedidosCount > 0 ? totalLiquido / pedidosCount : 0)}</h6>
+                            <small class="text-muted">por pedido</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <div class="row">
             <!-- Estatísticas por SKU -->
             <div class="col-md-3 mb-4">
