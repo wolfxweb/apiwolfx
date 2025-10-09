@@ -51,12 +51,25 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 - Avalie coerência das imagens com o produto.
 - Sugira melhorias (ex: adicionar imagens, reorganizar ordem, incluir vídeo).
 
-7️⃣ **Histórico de Vendas**
-- Apresente os dados de vendas sincronizados e as vendas totais do ML
-- Destaque a receita média estimada (quantidade vendida × ticket médio)
-- Analise o ticket médio e tendências de vendas
+7️⃣ **Histórico de Vendas (Últimos 30 Dias)**
+- Apresente os dados de vendas sincronizados dos últimos 30 dias
+- Diferencie claramente:
+  - **Ticket Médio por Pedido**: valor médio de cada VENDA (receita total ÷ número de pedidos)
+  - **Preço Médio por Unidade**: valor médio de cada PRODUTO vendido (receita total ÷ quantidade de unidades)
+- Analise ambas as métricas e suas implicações
+- Identifique se há vendas múltiplas (pedidos com mais de 1 unidade)
+- Analise tendências de vendas no período
 
-8️⃣ **Análise de Marketing (Product Ads)**
+8️⃣ **Dados de Billing (Faturamento - Últimos 30 Dias)**
+- Apresente o faturamento total dos últimos 30 dias
+- Detalhe os custos: comissões do ML, fretes, descontos aplicados
+- Calcule o faturamento líquido (receita total - comissões - descontos)
+- Analise a rentabilidade real do produto no período
+- Compare o faturamento com a meta/expectativa
+- Identifique padrões de faturamento (picos, quedas, sazonalidade)
+- **IMPORTANTE**: Todos os valores já estão em reais (R$), apenas formate para padrão brasileiro
+
+9️⃣ **Análise de Marketing (Product Ads)**
 - Avalie o investimento em publicidade (Product Ads) em relação ao percentual de marketing estipulado
 - Compare o valor investido com a verba de marketing configurada (percentual sobre o preço de venda)
 - Analise o ROAS (Return on Ad Spend): quanto está retornando em vendas para cada R$ investido
@@ -67,16 +80,17 @@ A tarefa é analisar o JSON do produto fornecido e gerar um relatório completo 
 - Recomende ações: aumentar/reduzir investimento, pausar campanha, otimizar anúncios
 - **IMPORTANTE**: Se não houver dados de marketing (has_advertising = false), informe que o produto não tem campanhas ativas
 
-9️⃣ **Recomendações Estratégicas**
+🔟 **Recomendações Estratégicas**
 - Gere pelo menos 5 recomendações práticas para melhorar:
   1. Margem de lucro
   2. Competitividade de preço
   3. SEO e visibilidade
   4. Conversão de vendas
   5. Reputação e avaliação geral
-  6. Investimento em marketing (se aplicável)
+  6. Faturamento e rentabilidade
+  7. Investimento em marketing (se aplicável)
 
-🔟 **Conclusão Geral**
+1️⃣1️⃣ **Conclusão Geral**
 - Resuma diagnóstico final:
   - 💚 Forte/Bom: rentável e competitivo
   - 🟡 Médio: precisa melhorar
@@ -120,13 +134,19 @@ class AIAnalysisService:
             if not product:
                 return {"success": False, "error": "Produto não encontrado"}
             
-            # 2. Buscar histórico de pedidos deste produto (últimos 100)
+            # 2. Buscar histórico de pedidos deste produto (ÚLTIMOS 30 DIAS)
             # Como ml_item_id está dentro do JSON order_items, precisamos buscar todos
             # os pedidos da empresa e filtrar no Python
+            from datetime import datetime, timedelta
+            
+            # Data limite: 30 dias atrás
+            thirty_days_ago = datetime.now() - timedelta(days=30)
+            
             all_orders = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
-                MLOrder.order_items.isnot(None)
-            ).order_by(desc(MLOrder.date_created)).limit(500).all()
+                MLOrder.order_items.isnot(None),
+                MLOrder.date_created >= thirty_days_ago  # Filtrar últimos 30 dias
+            ).order_by(desc(MLOrder.date_created)).all()
             
             # Filtrar pedidos que contêm este produto
             orders = []
@@ -137,11 +157,8 @@ class AIAnalysisService:
                         if item.get('item', {}).get('id') == product.ml_item_id:
                             orders.append(order)
                             break  # Já encontrou o produto neste pedido
-                
-                if len(orders) >= 100:  # Limitar a 100 pedidos
-                    break
             
-            logger.info(f"Encontrados {len(orders)} pedidos para o produto {product.ml_item_id}")
+            logger.info(f"Encontrados {len(orders)} pedidos nos últimos 30 dias para o produto {product.ml_item_id}")
             
             # 3. Buscar métricas de marketing (Product Ads)
             marketing_metrics = None
@@ -376,16 +393,22 @@ class AIAnalysisService:
             if status_str in ['paid', 'delivered']:
                 paid_orders.append(o)
         
-        avg_price = total_revenue / len(paid_orders) if paid_orders else 0
+        # Ticket médio por PEDIDO (valor médio de cada venda)
+        ticket_medio_pedido = total_revenue / len(paid_orders) if paid_orders else 0
+        
+        # Preço médio por UNIDADE vendida
+        preco_medio_unidade = total_revenue / total_quantity if total_quantity > 0 else 0
         
         sales_metrics = {
             "total_pedidos": len(orders),
             "pedidos_pagos": len(paid_orders),
+            "quantidade_vendida": total_quantity,  # Total de unidades vendidas
             "receita_total": total_revenue,
             "comissoes_ml_total": total_ml_fees,
             "frete_total": total_shipping,
             "descontos_total": total_discounts,
-            "ticket_medio": avg_price,
+            "ticket_medio_pedido": ticket_medio_pedido,  # Valor médio por venda/pedido
+            "preco_medio_unidade": preco_medio_unidade,  # Valor médio por produto vendido
             "liquido_total": total_revenue - total_ml_fees
         }
         
@@ -600,13 +623,18 @@ class AIAnalysisService:
 💰 ANÁLISE DETALHADA DE CUSTOS E LUCRO:
 {json.dumps(custos, indent=2, ensure_ascii=False) if custos else 'Dados de custos não disponíveis'}
 
-📊 MÉTRICAS DE VENDAS ({total_pedidos} pedidos analisados):
-- Total de Pedidos: {metricas['total_pedidos']}
-- Pedidos Pagos: {metricas['pedidos_pagos']}
-- Receita Total: R$ {metricas['receita_total']:.2f}
-- Ticket Médio: R$ {metricas['ticket_medio']:.2f}
-- Comissões ML: R$ {metricas['comissoes_ml_total']:.2f}
-- Líquido Total: R$ {metricas['liquido_total']:.2f}
+📊 MÉTRICAS DE VENDAS (ÚLTIMOS 30 DIAS - {total_pedidos} pedidos analisados):
+- Total de Pedidos (30 dias): {metricas['total_pedidos']}
+- Pedidos Pagos/Entregues (30 dias): {metricas['pedidos_pagos']}
+- Quantidade Total Vendida (30 dias): {metricas.get('quantidade_vendida', 0)} unidades
+- Receita Bruta Total (30 dias): R$ {metricas['receita_total']:.2f}
+- Ticket Médio por Pedido (30 dias): R$ {metricas.get('ticket_medio_pedido', 0):.2f} (valor médio de cada venda)
+- Preço Médio por Unidade (30 dias): R$ {metricas.get('preco_medio_unidade', 0):.2f} (valor médio de cada produto vendido)
+- Comissões ML (30 dias): R$ {metricas['comissoes_ml_total']:.2f}
+- Custos de Frete (30 dias): R$ {metricas['frete_total']:.2f}
+- Descontos/Cupons (30 dias): R$ {metricas['descontos_total']:.2f}
+- Faturamento Líquido (30 dias): R$ {metricas['liquido_total']:.2f}
+- Margem Líquida (30 dias): {((metricas['liquido_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}%
 
 {f"🏆 POSICIONAMENTO NO CATÁLOGO: {posicionamento['sua_posicao']}º de {posicionamento['total_concorrentes']} anunciantes" if posicionamento and posicionamento.get('sua_posicao') else ""}
 {f"🏆 CONCORRÊNCIA: {total_concorrentes} concorrentes no catálogo" if total_concorrentes > 0 else ""}
@@ -742,31 +770,85 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
   </div>
 </div>
 
-<h2>7️⃣ Histórico de Vendas</h2>
+<h2>7️⃣ Histórico de Vendas (Últimos 30 Dias)</h2>
 <ul>
-  <li>Total de pedidos: {metricas['total_pedidos']} (baseado em pedidos sincronizados)</li>
-  <li>Pedidos pagos/entregues: {metricas['pedidos_pagos']} (baseado em pedidos sincronizados)</li>
-  <li>Quantidade vendida (ML): {produto['quantidade_vendida']} unidades</li>
-  <li>Receita média estimada: R$ {(produto['quantidade_vendida'] * metricas['ticket_medio']):.2f} (quantidade vendida × ticket médio)</li>
-  <li>Ticket médio: R$ {metricas['ticket_medio']:.2f}</li>
+  <li>Total de pedidos (30 dias): {metricas['total_pedidos']} (baseado em pedidos sincronizados)</li>
+  <li>Pedidos pagos/entregues (30 dias): {metricas['pedidos_pagos']} (baseado em pedidos sincronizados)</li>
+  <li>Quantidade vendida (30 dias): {metricas.get('quantidade_vendida', 0)} unidades</li>
+  <li>Quantidade vendida total (ML histórico): {produto['quantidade_vendida']} unidades</li>
+  <li>Receita total (30 dias): R$ {metricas['receita_total']:.2f}</li>
+  <li>Ticket médio por pedido (30 dias): R$ {metricas.get('ticket_medio_pedido', 0):.2f} (valor médio de cada venda)</li>
+  <li>Preço médio por unidade (30 dias): R$ {metricas.get('preco_medio_unidade', 0):.2f} (valor médio de cada produto vendido)</li>
+</ul>
+<p><strong>💡 Análise:</strong></p>
+<ul>
+  <li>O ticket médio por pedido considera o valor total de cada venda/pedido</li>
+  <li>O preço médio por unidade considera cada produto vendido individualmente</li>
+  <li>Se um pedido tem múltiplas unidades, isso é refletido no cálculo do preço médio por unidade</li>
 </ul>
 
-<h2>8️⃣ Análise de Marketing (Product Ads)</h2>
+<h2>8️⃣ Dados de Billing (Faturamento - Últimos 30 Dias)</h2>
+<div class="alert alert-info">
+  <p><strong>💰 Faturamento Detalhado dos Últimos 30 Dias:</strong></p>
+  <table class="table table-sm">
+    <tr>
+      <td><strong>Receita Bruta Total:</strong></td>
+      <td>R$ {metricas['receita_total']:.2f}</td>
+    </tr>
+    <tr class="table-warning">
+      <td><strong>(-) Comissões do Mercado Livre:</strong></td>
+      <td>R$ {metricas['comissoes_ml_total']:.2f}</td>
+    </tr>
+    <tr class="table-info">
+      <td><strong>(-) Custos de Frete:</strong></td>
+      <td>R$ {metricas['frete_total']:.2f}</td>
+    </tr>
+    <tr class="table-warning">
+      <td><strong>(-) Descontos/Cupons:</strong></td>
+      <td>R$ {metricas['descontos_total']:.2f}</td>
+    </tr>
+    <tr class="table-success">
+      <td><strong>(=) Faturamento Líquido:</strong></td>
+      <td><strong>R$ {metricas['liquido_total']:.2f}</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Margem Líquida (%):</strong></td>
+      <td>{((metricas['liquido_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}%</td>
+    </tr>
+    <tr>
+      <td><strong>Ticket Médio Líquido:</strong></td>
+      <td>R$ {(metricas['liquido_total'] / metricas['pedidos_pagos']) if metricas['pedidos_pagos'] > 0 else 0:.2f}</td>
+    </tr>
+  </table>
+  <p><strong>📊 Análise Obrigatória de Billing:</strong></p>
+  <ul>
+    <li>O faturamento líquido de R$ {metricas['liquido_total']:.2f} nos últimos 30 dias está adequado?</li>
+    <li>A margem líquida de {((metricas['liquido_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}% está saudável?</li>
+    <li>As comissões do ML ({((metricas['comissoes_ml_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}% da receita) estão dentro do esperado?</li>
+    <li>Os descontos aplicados ({((metricas['descontos_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}% da receita) estão impactando muito a rentabilidade?</li>
+    <li>Há oportunidades de otimização de custos (comissões, fretes, descontos)?</li>
+    <li>O faturamento está crescendo, estável ou caindo? (analise tendências se houver dados históricos)</li>
+  </ul>
+</div>
+
+<h2>9️⃣ Análise de Marketing (Product Ads)</h2>
 {self._format_marketing_section(data.get('metricas_marketing', {}))}
 
-<h2>9️⃣ Recomendações Estratégicas</h2>
+<h2>🔟 Recomendações Estratégicas</h2>
 <div class="alert alert-success">
-  <p><strong>TOP 5 AÇÕES PRIORITÁRIAS:</strong></p>
+  <p><strong>TOP 7 AÇÕES PRIORITÁRIAS:</strong></p>
   <ol>
     <li><strong>Margem de Lucro:</strong> [ação específica]</li>
     <li><strong>Competitividade de Preço:</strong> [ação específica]</li>
     <li><strong>SEO e Visibilidade:</strong> [ação específica]</li>
     <li><strong>Conversão de Vendas:</strong> [ação específica]</li>
     <li><strong>Reputação:</strong> [ação específica]</li>
+    <li><strong>Faturamento e Rentabilidade:</strong> [ação específica]</li>
+    <li><strong>Marketing e Publicidade:</strong> [ação específica, se aplicável]</li>
   </ol>
 </div>
 
-<h2>🔟 Conclusão Geral</h2>
+<h2>1️⃣1️⃣ Conclusão Geral</h2>
 <div class="card border-[cor]">
   <div class="card-body">
     <h5>[💚 Forte/Bom | 🟡 Médio | 🔴 Fraco]</h5>
