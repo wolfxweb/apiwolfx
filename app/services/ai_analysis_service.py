@@ -399,17 +399,61 @@ class AIAnalysisService:
         # Preço médio por UNIDADE vendida
         preco_medio_unidade = total_revenue / total_quantity if total_quantity > 0 else 0
         
+        # Calcular custos adicionais baseados em pricing_analysis
+        custo_produtos_total = 0
+        impostos_total = 0
+        outros_custos_total = 0
+        marketing_total = 0
+        
+        if pricing_analysis:
+            custo_unitario = pricing_analysis.get("custo_produto", 0)
+            percentual_impostos = pricing_analysis.get("impostos", {}).get("percentual", 0)
+            outros_custos_unitario = pricing_analysis.get("outros_custos", 0)
+            
+            # Calcular totais
+            custo_produtos_total = custo_unitario * total_quantity
+            impostos_total = total_revenue * (percentual_impostos / 100)
+            outros_custos_total = outros_custos_unitario * total_quantity
+        
+        # Marketing: usar custo por venda diluído se disponível
+        if marketing_metrics and marketing_metrics.get("has_advertising"):
+            total_vendas = marketing_metrics.get("advertising_sales_qty", 0) + marketing_metrics.get("organic_sales_qty", 0)
+            custo_marketing_por_venda = (marketing_metrics.get("total_cost", 0) / total_vendas) if total_vendas > 0 else 0
+            marketing_total = custo_marketing_por_venda * len(paid_orders)
+        
+        # Lucro líquido final = receita - todos os custos
+        lucro_liquido_final = total_revenue - total_ml_fees - total_shipping - total_discounts - custo_produtos_total - impostos_total - outros_custos_total - marketing_total
+        margem_liquida = (lucro_liquido_final / total_revenue * 100) if total_revenue > 0 else 0
+        
         sales_metrics = {
             "total_pedidos": len(orders),
             "pedidos_pagos": len(paid_orders),
             "quantidade_vendida": total_quantity,  # Total de unidades vendidas
             "receita_total": total_revenue,
-            "comissoes_ml_total": total_ml_fees,
-            "frete_total": total_shipping,
-            "descontos_total": total_discounts,
             "ticket_medio_pedido": ticket_medio_pedido,  # Valor médio por venda/pedido
             "preco_medio_unidade": preco_medio_unidade,  # Valor médio por produto vendido
-            "liquido_total": total_revenue - total_ml_fees
+            
+            # Custos e deduções
+            "comissoes_ml_total": total_ml_fees,
+            "percentual_comissoes": (total_ml_fees / total_revenue * 100) if total_revenue > 0 else 0,
+            "frete_total": total_shipping,
+            "percentual_frete": (total_shipping / total_revenue * 100) if total_revenue > 0 else 0,
+            "descontos_total": total_discounts,
+            "percentual_descontos": (total_discounts / total_revenue * 100) if total_revenue > 0 else 0,
+            "custo_produtos_total": custo_produtos_total,
+            "percentual_custo_produtos": (custo_produtos_total / total_revenue * 100) if total_revenue > 0 else 0,
+            "impostos_total": impostos_total,
+            "percentual_impostos": (impostos_total / total_revenue * 100) if total_revenue > 0 else 0,
+            "outros_custos_total": outros_custos_total,
+            "percentual_outros_custos": (outros_custos_total / total_revenue * 100) if total_revenue > 0 else 0,
+            "marketing_total": marketing_total,
+            "percentual_marketing": (marketing_total / total_revenue * 100) if total_revenue > 0 else 0,
+            
+            # Resultado final
+            "lucro_liquido_final": lucro_liquido_final,
+            "margem_liquida_percentual": margem_liquida,
+            "lucro_medio_por_pedido": lucro_liquido_final / len(paid_orders) if paid_orders else 0,
+            "liquido_total": total_revenue - total_ml_fees  # Mantido para compatibilidade
         }
         
         # Dados do catálogo (concorrentes) com posicionamento
@@ -623,18 +667,28 @@ class AIAnalysisService:
 💰 ANÁLISE DETALHADA DE CUSTOS E LUCRO:
 {json.dumps(custos, indent=2, ensure_ascii=False) if custos else 'Dados de custos não disponíveis'}
 
-📊 MÉTRICAS DE VENDAS (ÚLTIMOS 30 DIAS - {total_pedidos} pedidos analisados):
-- Total de Pedidos (30 dias): {metricas['total_pedidos']}
-- Pedidos Pagos/Entregues (30 dias): {metricas['pedidos_pagos']}
-- Quantidade Total Vendida (30 dias): {metricas.get('quantidade_vendida', 0)} unidades
-- Receita Bruta Total (30 dias): R$ {metricas['receita_total']:.2f}
-- Ticket Médio por Pedido (30 dias): R$ {metricas.get('ticket_medio_pedido', 0):.2f} (valor médio de cada venda)
-- Preço Médio por Unidade (30 dias): R$ {metricas.get('preco_medio_unidade', 0):.2f} (valor médio de cada produto vendido)
-- Comissões ML (30 dias): R$ {metricas['comissoes_ml_total']:.2f}
-- Custos de Frete (30 dias): R$ {metricas['frete_total']:.2f}
-- Descontos/Cupons (30 dias): R$ {metricas['descontos_total']:.2f}
-- Faturamento Líquido (30 dias): R$ {metricas['liquido_total']:.2f}
-- Margem Líquida (30 dias): {((metricas['liquido_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}%
+📊 MÉTRICAS DE VENDAS E ANÁLISE FINANCEIRA COMPLETA (ÚLTIMOS 30 DIAS):
+
+💰 RECEITA E VOLUME:
+- Total de Pedidos: {metricas['total_pedidos']} ({metricas['pedidos_pagos']} pagos/entregues)
+- Quantidade Vendida: {metricas.get('quantidade_vendida', 0)} unidades
+- Receita Bruta Total: R$ {metricas['receita_total']:.2f}
+- Ticket Médio por Pedido: R$ {metricas.get('ticket_medio_pedido', 0):.2f}
+- Preço Médio por Unidade: R$ {metricas.get('preco_medio_unidade', 0):.2f}
+
+💸 CUSTOS E DEDUÇÕES DETALHADAS:
+- (-) Comissões ML: R$ {metricas.get('comissoes_ml_total', 0):.2f} ({metricas.get('percentual_comissoes', 0):.1f}% da receita)
+- (-) Fretes: R$ {metricas.get('frete_total', 0):.2f} ({metricas.get('percentual_frete', 0):.1f}% da receita)
+- (-) Descontos/Cupons: R$ {metricas.get('descontos_total', 0):.2f} ({metricas.get('percentual_descontos', 0):.1f}% da receita)
+- (-) Custo dos Produtos: R$ {metricas.get('custo_produtos_total', 0):.2f} ({metricas.get('percentual_custo_produtos', 0):.1f}% da receita)
+- (-) Impostos: R$ {metricas.get('impostos_total', 0):.2f} ({metricas.get('percentual_impostos', 0):.1f}% da receita)
+- (-) Outros Custos: R$ {metricas.get('outros_custos_total', 0):.2f} ({metricas.get('percentual_outros_custos', 0):.1f}% da receita)
+- (-) Marketing (diluído): R$ {metricas.get('marketing_total', 0):.2f} ({metricas.get('percentual_marketing', 0):.1f}% da receita)
+
+💚 RESULTADO FINAL:
+- Lucro Líquido Final: R$ {metricas.get('lucro_liquido_final', 0):.2f}
+- Margem Líquida: {metricas.get('margem_liquida_percentual', 0):.1f}%
+- Lucro Médio por Pedido: R$ {metricas.get('lucro_medio_por_pedido', 0):.2f}
 
 {f"🏆 POSICIONAMENTO NO CATÁLOGO: {posicionamento['sua_posicao']}º de {posicionamento['total_concorrentes']} anunciantes" if posicionamento and posicionamento.get('sua_posicao') else ""}
 {f"🏆 CONCORRÊNCIA: {total_concorrentes} concorrentes no catálogo" if total_concorrentes > 0 else ""}
@@ -789,45 +843,70 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
 
 <h2>8️⃣ Dados de Billing (Faturamento - Últimos 30 Dias)</h2>
 <div class="alert alert-info">
-  <p><strong>💰 Faturamento Detalhado dos Últimos 30 Dias:</strong></p>
+  <p><strong>💰 Resumo Financeiro Completo dos Últimos 30 Dias:</strong></p>
   <table class="table table-sm">
+    <tr class="table-primary">
+      <td><strong>Total Pago pelos Clientes:</strong></td>
+      <td><strong>R$ {metricas['receita_total']:.2f}</strong></td>
+      <td><small class="text-muted">Média: R$ {metricas.get('ticket_medio_pedido', 0):.2f}/pedido</small></td>
+    </tr>
     <tr>
-      <td><strong>Receita Bruta Total:</strong></td>
-      <td>R$ {metricas['receita_total']:.2f}</td>
+      <td><strong>(-) Comissões ML:</strong></td>
+      <td>R$ {metricas.get('comissoes_ml_total', 0):.2f}</td>
+      <td><small class="text-muted">{metricas.get('percentual_comissoes', 0):.1f}%</small></td>
     </tr>
-    <tr class="table-warning">
-      <td><strong>(-) Comissões do Mercado Livre:</strong></td>
-      <td>R$ {metricas['comissoes_ml_total']:.2f}</td>
+    <tr>
+      <td><strong>(-) Fretes:</strong></td>
+      <td>R$ {metricas.get('frete_total', 0):.2f}</td>
+      <td><small class="text-muted">{metricas.get('percentual_frete', 0):.1f}%</small></td>
     </tr>
-    <tr class="table-info">
-      <td><strong>(-) Custos de Frete:</strong></td>
-      <td>R$ {metricas['frete_total']:.2f}</td>
-    </tr>
-    <tr class="table-warning">
+    <tr>
       <td><strong>(-) Descontos/Cupons:</strong></td>
-      <td>R$ {metricas['descontos_total']:.2f}</td>
+      <td>R$ {metricas.get('descontos_total', 0):.2f}</td>
+      <td><small class="text-muted">{metricas.get('percentual_descontos', 0):.1f}%</small></td>
+    </tr>
+    <tr>
+      <td><strong>(-) Custo dos Produtos:</strong></td>
+      <td>R$ {metricas.get('custo_produtos_total', 0):.2f}</td>
+      <td><small class="text-muted">{metricas.get('percentual_custo_produtos', 0):.1f}%</small></td>
+    </tr>
+    <tr>
+      <td><strong>(-) Impostos:</strong></td>
+      <td>R$ {metricas.get('impostos_total', 0):.2f}</td>
+      <td><small class="text-muted">{metricas.get('percentual_impostos', 0):.1f}%</small></td>
+    </tr>
+    <tr>
+      <td><strong>(-) Outros Custos:</strong></td>
+      <td>R$ {metricas.get('outros_custos_total', 0):.2f}</td>
+      <td><small class="text-muted">{metricas.get('percentual_outros_custos', 0):.1f}%</small></td>
+    </tr>
+    <tr>
+      <td><strong>(-) Marketing (diluído):</strong></td>
+      <td>R$ {metricas.get('marketing_total', 0):.2f}</td>
+      <td><small class="text-muted">{metricas.get('percentual_marketing', 0):.1f}%</small></td>
     </tr>
     <tr class="table-success">
-      <td><strong>(=) Faturamento Líquido:</strong></td>
-      <td><strong>R$ {metricas['liquido_total']:.2f}</strong></td>
+      <td><strong>(=) Lucro Líquido Final:</strong></td>
+      <td><strong>R$ {metricas.get('lucro_liquido_final', 0):.2f}</strong></td>
+      <td><strong>{metricas.get('margem_liquida_percentual', 0):.1f}% margem</strong></td>
     </tr>
     <tr>
-      <td><strong>Margem Líquida (%):</strong></td>
-      <td>{((metricas['liquido_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}%</td>
-    </tr>
-    <tr>
-      <td><strong>Ticket Médio Líquido:</strong></td>
-      <td>R$ {(metricas['liquido_total'] / metricas['pedidos_pagos']) if metricas['pedidos_pagos'] > 0 else 0:.2f}</td>
+      <td><strong>Lucro Médio por Pedido:</strong></td>
+      <td>R$ {metricas.get('lucro_medio_por_pedido', 0):.2f}</td>
+      <td><small class="text-muted">{metricas['pedidos_pagos']} pedidos</small></td>
     </tr>
   </table>
   <p><strong>📊 Análise Obrigatória de Billing:</strong></p>
   <ul>
-    <li>O faturamento líquido de R$ {metricas['liquido_total']:.2f} nos últimos 30 dias está adequado?</li>
-    <li>A margem líquida de {((metricas['liquido_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}% está saudável?</li>
-    <li>As comissões do ML ({((metricas['comissoes_ml_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}% da receita) estão dentro do esperado?</li>
-    <li>Os descontos aplicados ({((metricas['descontos_total'] / metricas['receita_total']) * 100) if metricas['receita_total'] > 0 else 0:.2f}% da receita) estão impactando muito a rentabilidade?</li>
-    <li>Há oportunidades de otimização de custos (comissões, fretes, descontos)?</li>
-    <li>O faturamento está crescendo, estável ou caindo? (analise tendências se houver dados históricos)</li>
+    <li>O lucro líquido final de R$ {metricas.get('lucro_liquido_final', 0):.2f} ({metricas.get('margem_liquida_percentual', 0):.1f}% de margem) está saudável?</li>
+    <li>O custo dos produtos ({metricas.get('percentual_custo_produtos', 0):.1f}%) está dentro do planejado?</li>
+    <li>As comissões do ML ({metricas.get('percentual_comissoes', 0):.1f}%) estão dentro do esperado para a categoria?</li>
+    <li>Os fretes ({metricas.get('percentual_frete', 0):.1f}%) estão otimizados? Há oportunidade de negociar?</li>
+    <li>Os descontos ({metricas.get('percentual_descontos', 0):.1f}%) estão impactando demais a rentabilidade?</li>
+    <li>Os impostos ({metricas.get('percentual_impostos', 0):.1f}%) estão corretos?</li>
+    <li>O marketing ({metricas.get('percentual_marketing', 0):.1f}%) está trazendo retorno adequado?</li>
+    <li>Quais custos podem ser otimizados para aumentar a margem líquida?</li>
+    <li>O produto é rentável ou está dando prejuízo? Por quê?</li>
   </ul>
 </div>
 
