@@ -2360,8 +2360,29 @@ async function loadSalesAnalysis(product) {
             }
         }
         
+        // Buscar dados de marketing (Product Ads)
+        let marketingData = null;
+        if (product.id) {
+            console.log('📣 Buscando dados de marketing para produto:', product.id);
+            try {
+                const marketingResponse = await fetch(`/ml/products/api/product/${product.id}/advertising-metrics?days=30`, {
+                    credentials: 'include'
+                });
+                
+                if (marketingResponse.ok) {
+                    const marketingJson = await marketingResponse.json();
+                    if (marketingJson.success && marketingJson.metrics) {
+                        marketingData = marketingJson.metrics;
+                        console.log('✅ Dados de marketing carregados:', marketingData);
+                    }
+                }
+            } catch (e) {
+                console.warn('⚠️ Não foi possível carregar dados de marketing:', e);
+            }
+        }
+        
         // Renderizar os 4 cards com os dados obtidos
-        renderSalesAnalysis(skuData, productData, product);
+        renderSalesAnalysis(skuData, productData, product, marketingData);
         
     } catch (error) {
         console.error('❌ Erro ao carregar análise de vendas:', error);
@@ -2375,8 +2396,8 @@ async function loadSalesAnalysis(product) {
     }
 }
 
-function renderSalesAnalysis(skuData, productData, product) {
-    console.log('🎨 Renderizando análise de vendas:', { skuData, productData, product });
+function renderSalesAnalysis(skuData, productData, product, marketingData) {
+    console.log('🎨 Renderizando análise de vendas:', { skuData, productData, product, marketingData });
     
     const contentContainer = document.getElementById('sales-content');
     const sku = product.seller_custom_field || product.sku || product.seller_sku;
@@ -2391,27 +2412,58 @@ function renderSalesAnalysis(skuData, productData, product) {
     const productAnalysis = productData?.analysis || {};
     const productStats = productAnalysis.stats || {};
     
+    // Pegar dados de pricing (custo, impostos e marketing estimados)
+    const pricingData = window.currentPricingData || {};
+    const precoCustoUnitario = pricingData.custo_produto || 0;
+    const impostosData = pricingData.impostos || {};
+    const percentualImpostos = impostosData.percentual || 0;
+    const marketingData2 = pricingData.marketing || {};
+    const percentualMarketing = marketingData2.percentual || 0;
+    
     // Calcular totais de Billing (usando dados do SKU que tem todos os pedidos)
     let totalBruto = 0;
     let totalComissao = 0;
     let totalFrete = 0;
     let totalDesconto = 0;
+    let totalCustoProdutos = 0;
+    let totalImpostos = 0;
+    let totalOutrosCustos = 0;
+    let totalMarketing = 0;
     let totalLiquido = 0;
     let pedidosCount = 0;
     
     skuOrders.forEach(order => {
         const bruto = order.unit_price * order.quantity;
+        const quantidade = order.quantity;
         const comissao = order.sale_fee || 0;
         const frete = order.shipping_cost || 0;
         const desconto = order.discount || 0;
+        
+        // Custo dos produtos (usando preço de custo da análise de pricing)
+        const custoProdutos = precoCustoUnitario * quantidade;
+        
+        // Impostos (usando percentual da análise de pricing)
+        const impostos = bruto * (percentualImpostos / 100);
+        
+        // Marketing (usando percentual estimado da análise de pricing)
+        const marketing = bruto * (percentualMarketing / 100);
+        
+        // Outros custos (pode vir dos dados do pedido ou ser calculado)
+        const outrosCustos = order.other_costs || 0;
         
         totalBruto += bruto;
         totalComissao += comissao;
         totalFrete += frete;
         totalDesconto += desconto;
-        totalLiquido += (bruto - comissao - frete - desconto);
+        totalCustoProdutos += custoProdutos;
+        totalImpostos += impostos;
+        totalMarketing += marketing;
+        totalOutrosCustos += outrosCustos;
         pedidosCount++;
     });
+    
+    // Calcular líquido final (considerando TODOS os custos)
+    totalLiquido = totalBruto - totalComissao - totalFrete - totalDesconto - totalCustoProdutos - totalImpostos - totalOutrosCustos - totalMarketing;
     
     const margemLiquida = totalBruto > 0 ? ((totalLiquido / totalBruto) * 100) : 0;
     
@@ -2419,49 +2471,117 @@ function renderSalesAnalysis(skuData, productData, product) {
         <!-- Card de Resumo Financeiro -->
         <div class="card border-warning mb-4">
             <div class="card-header bg-warning text-dark">
-                <h6 class="mb-0"><i class="bi bi-cash-stack"></i> Resumo Financeiro - Todos os Pedidos</h6>
+                <h6 class="mb-0">
+                    <i class="bi bi-cash-stack"></i> Resumo Financeiro - Todos os Pedidos (${pedidosCount} pedidos)
+                    <small class="ms-2 text-muted">
+                        | Custo: R$ ${precoCustoUnitario.toFixed(2)}/un | Impostos: ${percentualImpostos.toFixed(1)}% | Marketing: ${percentualMarketing.toFixed(1)}%
+                    </small>
+                </h6>
             </div>
             <div class="card-body">
-                <div class="row text-center">
+                <!-- Primeira Linha -->
+                <div class="row text-center mb-3">
                     <div class="col-md-2">
-                        <div class="p-2 border rounded">
-                            <small class="text-muted d-block">Total Pago pelos Clientes</small>
+                        <div class="p-2 border rounded bg-primary text-white">
+                            <small class="d-block">
+                                Total Pago pelos Clientes
+                                <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor total que os clientes pagaram pelos produtos (preço × quantidade de todos os pedidos)"></i>
+                            </small>
                             <h5 class="mb-0">${formatCurrency(totalBruto)}</h5>
                         </div>
                     </div>
                     <div class="col-md-2">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-danger d-block">(-) Comissões ML</small>
+                            <small class="text-danger d-block">
+                                (-) Comissões ML
+                                <i class="bi bi-question-circle-fill text-danger ms-1" data-bs-toggle="tooltip" title="Taxa cobrada pelo Mercado Livre por cada venda (varia conforme o tipo de anúncio e categoria)"></i>
+                            </small>
                             <h6 class="mb-0 text-danger">${formatCurrency(totalComissao)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalComissao/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
                     <div class="col-md-2">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-info d-block">(-) Fretes</small>
+                            <small class="text-info d-block">
+                                (-) Fretes
+                                <i class="bi bi-question-circle-fill text-info ms-1" data-bs-toggle="tooltip" title="Custo de frete pago pelo vendedor (quando não é frete grátis para o comprador)"></i>
+                            </small>
                             <h6 class="mb-0 text-info">${formatCurrency(totalFrete)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalFrete/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
                     <div class="col-md-2">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-warning d-block">(-) Descontos</small>
+                            <small class="text-warning d-block">
+                                (-) Descontos
+                                <i class="bi bi-question-circle-fill text-warning ms-1" data-bs-toggle="tooltip" title="Cupons e promoções aplicadas nas vendas (redução direta no valor recebido)"></i>
+                            </small>
                             <h6 class="mb-0 text-warning">${formatCurrency(totalDesconto)}</h6>
                             <small class="text-muted">${totalBruto > 0 ? ((totalDesconto/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
                     <div class="col-md-2">
-                        <div class="p-2 border rounded bg-success text-white">
-                            <small class="d-block">(=) A Receber do ML</small>
-                            <h5 class="mb-0">${formatCurrency(totalLiquido)}</h5>
-                            <small>${margemLiquida.toFixed(1)}% margem</small>
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-primary d-block">
+                                (-) Custo dos Produtos
+                                <i class="bi bi-question-circle-fill text-primary ms-1" data-bs-toggle="tooltip" title="Custo de aquisição/produção dos produtos vendidos (R$ ${precoCustoUnitario.toFixed(2)} por unidade × quantidade)"></i>
+                            </small>
+                            <h6 class="mb-0 text-primary">${formatCurrency(totalCustoProdutos)}</h6>
+                            <small class="text-muted">${totalBruto > 0 ? ((totalCustoProdutos/totalBruto)*100).toFixed(1) : 0}%</small>
                         </div>
                     </div>
                     <div class="col-md-2">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-secondary d-block">
+                                (-) Impostos
+                                <i class="bi bi-question-circle-fill text-secondary ms-1" data-bs-toggle="tooltip" title="Impostos sobre vendas (${percentualImpostos.toFixed(1)}% do valor bruto - ICMS, PIS, COFINS, etc)"></i>
+                            </small>
+                            <h6 class="mb-0 text-secondary">${formatCurrency(totalImpostos)}</h6>
+                            <small class="text-muted">${totalBruto > 0 ? ((totalImpostos/totalBruto)*100).toFixed(1) : 0}%</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Segunda Linha - Custos Finais e Resultado -->
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-dark d-block">
+                                (-) Outros Custos
+                                <i class="bi bi-question-circle-fill text-dark ms-1" data-bs-toggle="tooltip" title="Outros custos operacionais (embalagem, etiquetas, taxas adicionais, etc)"></i>
+                            </small>
+                            <h6 class="mb-0 text-dark">${formatCurrency(totalOutrosCustos)}</h6>
+                            <small class="text-muted">${totalBruto > 0 ? ((totalOutrosCustos/totalBruto)*100).toFixed(1) : 0}%</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-primary d-block">
+                                (-) Marketing (${percentualMarketing.toFixed(1)}% estimado)
+                                <i class="bi bi-question-circle-fill text-primary ms-1" data-bs-toggle="tooltip" title="Custo estimado de marketing/publicidade (${percentualMarketing.toFixed(1)}% do valor bruto de cada venda)"></i>
+                            </small>
+                            <h6 class="mb-0 text-primary">${formatCurrency(totalMarketing)}</h6>
+                            <small class="text-muted">${totalBruto > 0 ? ((totalMarketing/totalBruto)*100).toFixed(1) : 0}% do total</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 border rounded ${totalLiquido >= 0 ? 'bg-success' : 'bg-danger'} text-white">
+                            <small class="d-block">
+                                <strong>(=) Lucro Líquido Final</strong>
+                                <i class="bi bi-question-circle-fill ms-1" data-bs-toggle="tooltip" title="Lucro real após deduzir TODOS os custos: comissões, fretes, descontos, custo dos produtos, impostos, outros custos e marketing"></i>
+                            </small>
+                            <h4 class="mb-0"><strong>${formatCurrency(totalLiquido)}</strong></h4>
+                            <small>${margemLiquida.toFixed(1)}% margem líquida</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
                         <div class="p-2 border rounded">
-                            <small class="text-muted d-block">Valor Médio a Receber</small>
+                            <small class="text-muted d-block">
+                                Lucro Médio por Pedido
+                                <i class="bi bi-question-circle-fill text-muted ms-1" data-bs-toggle="tooltip" title="Lucro líquido médio de cada venda (lucro total ÷ número de pedidos)"></i>
+                            </small>
                             <h6 class="mb-0">${formatCurrency(pedidosCount > 0 ? totalLiquido / pedidosCount : 0)}</h6>
-                            <small class="text-muted">por pedido</small>
+                            <small class="text-muted">(${pedidosCount} pedidos)</small>
                         </div>
                     </div>
                 </div>
@@ -2632,6 +2752,12 @@ function renderSalesAnalysis(skuData, productData, product) {
             </div>
         </div>
     `;
+    
+    // Inicializar tooltips do Bootstrap
+    const tooltipTriggerList = [].slice.call(contentContainer.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 }
 
 async function loadOrdersAnalysis(product) {
@@ -2744,47 +2870,65 @@ function renderOrdersAnalysis(data, sku) {
         <!-- Card de Resumo de Billing -->
         <div class="card border-warning mb-3">
             <div class="card-header bg-warning text-dark">
-                <h6 class="mb-0"><i class="bi bi-cash-stack"></i> Resumo Financeiro - Todos os Pedidos</h6>
+                <h6 class="mb-0"><i class="bi bi-cash-stack"></i> Resumo Financeiro - Taxas Mercado Livre (${orders.length} pedidos)</h6>
             </div>
             <div class="card-body">
                 <div class="row text-center">
                     <div class="col-md-2">
-                        <div class="p-2 border rounded">
-                            <small class="text-muted d-block">Total Pago pelos Clientes</small>
+                        <div class="p-2 border rounded bg-primary text-white">
+                            <small class="d-block">
+                                Total Pago pelos Clientes
+                                <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor total que os clientes pagaram pelos produtos (preço × quantidade de todos os pedidos)"></i>
+                            </small>
                             <h5 class="mb-0">${formatCurrency(totalBruto)}</h5>
                         </div>
                     </div>
                     <div class="col-md-2">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-danger d-block">(-) Comissões ML</small>
+                            <small class="text-danger d-block">
+                                (-) Comissões ML
+                                <i class="bi bi-question-circle-fill text-danger ms-1" data-bs-toggle="tooltip" title="Taxa cobrada pelo Mercado Livre por cada venda (varia conforme o tipo de anúncio e categoria)"></i>
+                            </small>
                             <h6 class="mb-0 text-danger">${formatCurrency(totalComissao)}</h6>
                             <small class="text-muted">${((totalComissao/totalBruto)*100).toFixed(1)}%</small>
                         </div>
                     </div>
                     <div class="col-md-2">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-info d-block">(-) Fretes</small>
+                            <small class="text-info d-block">
+                                (-) Fretes
+                                <i class="bi bi-question-circle-fill text-info ms-1" data-bs-toggle="tooltip" title="Custo de frete pago pelo vendedor (quando não é frete grátis para o comprador)"></i>
+                            </small>
                             <h6 class="mb-0 text-info">${formatCurrency(totalFrete)}</h6>
                             <small class="text-muted">${((totalFrete/totalBruto)*100).toFixed(1)}%</small>
                         </div>
                     </div>
                     <div class="col-md-2">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-warning d-block">(-) Descontos</small>
+                            <small class="text-warning d-block">
+                                (-) Descontos
+                                <i class="bi bi-question-circle-fill text-warning ms-1" data-bs-toggle="tooltip" title="Cupons e promoções aplicadas nas vendas (redução direta no valor recebido)"></i>
+                            </small>
                             <h6 class="mb-0 text-warning">${formatCurrency(totalDesconto)}</h6>
                             <small class="text-muted">${((totalDesconto/totalBruto)*100).toFixed(1)}%</small>
                         </div>
                     </div>
                     <div class="col-md-2">
                         <div class="p-2 border rounded bg-success text-white">
-                            <small class="d-block">(=) A Receber do ML</small>
+                            <small class="d-block">
+                                (=) A Receber do ML
+                                <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip" title="Valor líquido que o Mercado Livre vai repassar (após deduzir comissões, fretes e descontos)"></i>
+                            </small>
                             <h5 class="mb-0">${formatCurrency(totalLiquido)}</h5>
                             <small>${margemLiquida.toFixed(1)}% margem</small>
                         </div>
                     </div>
                     <div class="col-md-2">
                         <div class="p-2 border rounded">
-                            <small class="text-muted d-block">Valor Médio a Receber</small>
+                            <small class="text-muted d-block">
+                                Valor Médio a Receber
+                                <i class="bi bi-question-circle-fill text-muted ms-1" data-bs-toggle="tooltip" title="Valor médio que você recebe por pedido (valor líquido ÷ número de pedidos)"></i>
+                            </small>
                             <h6 class="mb-0">${formatCurrency(totalLiquido / orders.length)}</h6>
                             <small class="text-muted">por pedido</small>
                         </div>
@@ -2858,6 +3002,12 @@ function renderOrdersAnalysis(data, sku) {
     
     // Renderizar primeira página
     renderOrdersPage(1);
+    
+    // Inicializar tooltips do Bootstrap
+    const tooltipTriggerList = [].slice.call(contentContainer.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 }
 
 function filterOrders() {
