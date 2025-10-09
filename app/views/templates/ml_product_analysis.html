@@ -2448,11 +2448,12 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
     const productAnalysis = productData?.analysis || {};
     const productStats = productAnalysis.stats || {};
     
-    // Pegar dados de pricing (custo e impostos)
+    // Pegar dados de pricing (custo, impostos e outros custos)
     const pricingData = window.currentPricingData || {};
     const precoCustoUnitario = pricingData.custo_produto || 0;
     const impostosData = pricingData.impostos || {};
     const percentualImpostos = impostosData.percentual || 0;
+    const outrosCustosPorUnidade = pricingData.outros_custos || 0;
     
     // Calcular custo de marketing por venda (diluído) usando dados reais de Product Ads
     const totalVendasProductAds = (marketingData?.advertising_sales_qty || 0) + (marketingData?.organic_sales_qty || 0);
@@ -2486,8 +2487,8 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
         // Marketing (usando custo por venda TOTAL diluído dos Product Ads)
         const marketing = custoMarketingPorVenda;
         
-        // Outros custos (pode vir dos dados do pedido ou ser calculado)
-        const outrosCustos = order.other_costs || 0;
+        // Outros custos (usando valor da análise de pricing por unidade)
+        const outrosCustos = outrosCustosPorUnidade * quantidade;
         
         totalBruto += bruto;
         totalComissao += comissao;
@@ -2512,7 +2513,7 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
                 <h6 class="mb-0">
                     <i class="bi bi-cash-stack"></i> Resumo Financeiro - Todos os Pedidos (${pedidosCount} pedidos)
                     <small class="ms-2 text-muted">
-                        | Custo: R$ ${precoCustoUnitario.toFixed(2)}/un | Impostos: ${percentualImpostos.toFixed(1)}% | Marketing: ${formatCurrency(custoMarketingPorVenda)}/venda
+                        | Custo: R$ ${precoCustoUnitario.toFixed(2)}/un | Impostos: ${percentualImpostos.toFixed(1)}% | Outros: R$ ${outrosCustosPorUnidade.toFixed(2)}/un | Marketing: ${formatCurrency(custoMarketingPorVenda)}/venda
                     </small>
                 </h6>
             </div>
@@ -2567,9 +2568,9 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
                     </div>
                     <div class="col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="text-dark d-block">(-) Outros Custos <i class="bi bi-question-circle-fill text-dark ms-1" data-bs-toggle="tooltip" title="Outros custos operacionais (embalagem, etiquetas, taxas adicionais, etc)"></i></small>
+                            <small class="text-dark d-block">(-) Outros Custos <i class="bi bi-question-circle-fill text-dark ms-1" data-bs-toggle="tooltip" title="Outros custos operacionais: embalagem, etiquetas, taxas adicionais (R$ ${outrosCustosPorUnidade.toFixed(2)} por unidade × quantidade)"></i></small>
                             <h6 class="mb-0 text-dark">${formatCurrency(totalOutrosCustos)}</h6>
-                            <small class="text-muted">${totalBruto > 0 ? ((totalOutrosCustos/totalBruto)*100).toFixed(1) : 0}%</small>
+                            <small class="text-muted">R$ ${outrosCustosPorUnidade.toFixed(2)}/un (${totalBruto > 0 ? ((totalOutrosCustos/totalBruto)*100).toFixed(1) : 0}%)</small>
                         </div>
                     </div>
                     <div class="col-md-3">
