@@ -80,7 +80,11 @@ async def get_product_sales_analysis(
                 "buyer_nickname": order.buyer_nickname,
                 "unit_price": item.get("unit_price", 0),
                 "quantity": item.get("quantity", 0),
-                "status": order.status.name if order.status else "UNKNOWN"
+                "status": order.status.name if order.status else "UNKNOWN",
+                # Dados de Billing
+                "sale_fee": float(item.get("sale_fee", 0)) if item.get("sale_fee") else 0,
+                "shipping_cost": float(order.shipping_cost) if order.shipping_cost else 0,
+                "discount": float(order.coupon_amount) if order.coupon_amount else 0
             })
         
         analysis = {
@@ -154,7 +158,11 @@ async def get_sku_sales_analysis(
                 "buyer_nickname": order.buyer_nickname,
                 "unit_price": item.get("unit_price", 0),
                 "quantity": item.get("quantity", 0),
-                "status": order.status.name if order.status else "UNKNOWN"
+                "status": order.status.name if order.status else "UNKNOWN",
+                # Dados de Billing
+                "sale_fee": float(item.get("sale_fee", 0)) if item.get("sale_fee") else 0,
+                "shipping_cost": float(order.shipping_cost) if order.shipping_cost else 0,
+                "discount": float(order.coupon_amount) if order.coupon_amount else 0
             })
         
         analysis = {

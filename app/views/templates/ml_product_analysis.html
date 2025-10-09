@@ -2636,10 +2636,84 @@ function renderOrdersAnalysis(data, sku) {
     window.currentOrdersPage = 1;
     window.ordersPerPage = 20;
     
+    // Calcular totais de Billing
+    let totalBruto = 0;
+    let totalComissao = 0;
+    let totalFrete = 0;
+    let totalDesconto = 0;
+    let totalLiquido = 0;
+    
+    orders.forEach(order => {
+        const bruto = order.unit_price * order.quantity;
+        const comissao = order.sale_fee || 0;
+        const frete = order.shipping_cost || 0;
+        const desconto = order.discount || 0;
+        
+        totalBruto += bruto;
+        totalComissao += comissao;
+        totalFrete += frete;
+        totalDesconto += desconto;
+        totalLiquido += (bruto - comissao - frete - desconto);
+    });
+    
+    const margemLiquida = totalBruto > 0 ? ((totalLiquido / totalBruto) * 100) : 0;
+    
     contentContainer.innerHTML = `
         <div class="alert alert-info">
             <i class="bi bi-info-circle"></i>
             <strong>SKU:</strong> ${sku} | <strong>Total de Pedidos:</strong> ${orders.length}
+        </div>
+        
+        <!-- Card de Resumo de Billing -->
+        <div class="card border-warning mb-3">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="bi bi-cash-stack"></i> Resumo Financeiro - Todos os Pedidos</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded">
+                            <small class="text-muted d-block">Total Pago pelos Clientes</small>
+                            <h5 class="mb-0">${formatCurrency(totalBruto)}</h5>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-danger d-block">(-) Comissões ML</small>
+                            <h6 class="mb-0 text-danger">${formatCurrency(totalComissao)}</h6>
+                            <small class="text-muted">${((totalComissao/totalBruto)*100).toFixed(1)}%</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-info d-block">(-) Fretes</small>
+                            <h6 class="mb-0 text-info">${formatCurrency(totalFrete)}</h6>
+                            <small class="text-muted">${((totalFrete/totalBruto)*100).toFixed(1)}%</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-warning d-block">(-) Descontos</small>
+                            <h6 class="mb-0 text-warning">${formatCurrency(totalDesconto)}</h6>
+                            <small class="text-muted">${((totalDesconto/totalBruto)*100).toFixed(1)}%</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded bg-success text-white">
+                            <small class="d-block">(=) A Receber do ML</small>
+                            <h5 class="mb-0">${formatCurrency(totalLiquido)}</h5>
+                            <small>${margemLiquida.toFixed(1)}% margem</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 border rounded">
+                            <small class="text-muted d-block">Valor Médio a Receber</small>
+                            <h6 class="mb-0">${formatCurrency(totalLiquido / orders.length)}</h6>
+                            <small class="text-muted">por pedido</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Filtros -->
@@ -2670,15 +2744,25 @@ function renderOrdersAnalysis(data, sku) {
         
         <!-- Tabela de Pedidos -->
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover table-sm">
                 <thead class="table-primary text-white">
                     <tr>
                         <th>Código do Anúncio</th>
                         <th>Comprador</th>
-                        <th>Preço Unitário</th>
-                        <th>Quantidade</th>
-                        <th>Total</th>
-                        <th>Status</th>
+                        <th>Qtd</th>
+                        <th>Valor Pago</th>
+                        <th colspan="3" class="text-center bg-warning">Taxas Mercado Livre</th>
+                        <th>A Receber</th>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th><small class="text-muted">(por unidade)</small></th>
+                        <th class="bg-warning"><small>Comissão</small></th>
+                        <th class="bg-warning"><small>Frete</small></th>
+                        <th class="bg-warning"><small>Desconto</small></th>
+                        <th><small class="text-muted">(repasse ML)</small></th>
                     </tr>
                 </thead>
                 <tbody id="orders-table-body">
@@ -2748,9 +2832,16 @@ function renderOrdersPage(page) {
     
     // Renderizar tabela
     const tbody = document.getElementById('orders-table-body');
-    tbody.innerHTML = pageOrders.map(order => `
+    tbody.innerHTML = pageOrders.map(order => {
+        const totalBruto = order.unit_price * order.quantity;
+        const comissaoML = order.sale_fee || 0;
+        const frete = order.shipping_cost || 0;
+        const desconto = order.discount || 0;
+        const liquido = totalBruto - comissaoML - frete - desconto;
+        
+        return `
         <tr>
-            <td><small >${order.ml_item_id || 'N/A'}</small></td>
+            <td><small>${order.ml_item_id || 'N/A'}</small></td>
             <td>
                 <div>
                     <strong>${order.buyer_nickname || 'N/A'}</strong>
@@ -2761,12 +2852,15 @@ function renderOrdersPage(page) {
                     </small>
                 </div>
             </td>
+            <td class="text-center">${order.quantity}</td>
             <td>${formatCurrency(order.unit_price)}</td>
-            <td>${order.quantity}</td>
-            <td>${formatCurrency(order.unit_price * order.quantity)}</td>
-            <td><span class="badge ${getStatusBadgeClass(order.status)}">${getStatusLabel(order.status)}</span></td>
+            <td class="text-danger"><small>${formatCurrency(comissaoML)}</small></td>
+            <td class="text-info"><small>${formatCurrency(frete)}</small></td>
+            <td class="text-warning"><small>${formatCurrency(desconto)}</small></td>
+            <td class="fw-bold text-success">${formatCurrency(liquido)}</td>
         </tr>
-    `).join('') || '<tr><td colspan="6" class="text-center text-muted">Nenhum pedido encontrado</td></tr>';
+        `;
+    }).join('') || '<tr><td colspan="8" class="text-center text-muted">Nenhum pedido encontrado</td></tr>';
     
     // Renderizar paginação
     renderOrdersPagination(page, totalPages);
