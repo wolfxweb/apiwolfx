@@ -3,6 +3,7 @@
 {% block title %}Detalhes do Pedido #{{ order.ml_order_id }}{% endblock %}
 
 {% block content %}
+{% set payment = order.payments[0] if order.payments and order.payments|length > 0 else {} %}
 <div class="container-fluid">
     <!-- Header -->
     <div class="row mb-4">
@@ -39,13 +40,9 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <table class="table table-borderless">
+                            <table class="table table-borderless table-sm">
                                 <tr>
-                                    <td><strong>ID do Pedido:</strong></td>
-                                    <td>{{ order.ml_order_id }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>ID Mercado Libre:</strong></td>
+                                    <td width="40%"><strong>ID do Pedido:</strong></td>
                                     <td>{{ order.ml_order_id }}</td>
                                 </tr>
                                 <tr>
@@ -71,25 +68,7 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Origem da Venda:</strong></td>
-                                    <td>
-                                        {% if order.is_advertising_sale %}
-                                            <span class="badge bg-warning">
-                                                <i class="bi bi-megaphone me-1"></i>Anúncio Pago
-                                            </span>
-                                        {% else %}
-                                            <span class="badge bg-success">
-                                                <i class="bi bi-search me-1"></i>Busca Orgânica
-                                            </span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Data de Criação:</strong></td>
+                                    <td><strong>Data Criação:</strong></td>
                                     <td>
                                         {% if order.date_created %}
                                             {% set date_parts = order.date_created[:10].split('-') %}
@@ -100,13 +79,61 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Data de Fechamento:</strong></td>
+                                    <td><strong>Data Fechamento:</strong></td>
                                     <td>
                                         {% if order.date_closed %}
                                             {% set date_parts = order.date_closed[:10].split('-') %}
                                             {{ date_parts[2] }}/{{ date_parts[1] }}/{{ date_parts[0] }}
                                         {% else %}
                                             N/A
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless table-sm">
+                                <tr>
+                                    <td width="40%"><strong>Método de Envio:</strong></td>
+                                    <td>
+                                        {% if order.shipping_details and order.shipping_details.logistic_type %}
+                                            {% if order.shipping_details.logistic_type == 'fulfillment' %}
+                                                <span class="badge bg-primary">Full Mercado Livre</span>
+                                            {% elif order.shipping_details.logistic_type == 'cross_docking' %}
+                                                <span class="badge bg-info">Mercado Envios</span>
+                                            {% elif order.shipping_details.logistic_type == 'xd_drop_off' %}
+                                                <span class="badge bg-warning">Agência</span>
+                                            {% elif order.shipping_details.logistic_type == 'drop_off' %}
+                                                <span class="badge bg-secondary">Correios</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark">{{ order.shipping_details.logistic_type|title }}</span>
+                                            {% endif %}
+                                        {% elif order.shipping_method %}
+                                            {{ order.shipping_method }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status Envio:</strong></td>
+                                    <td>
+                                        {% if order.shipping_status %}
+                                            {% if order.shipping_status == 'ready_to_ship' %}
+                                                <span class="badge bg-warning">Em Progresso</span>
+                                            {% elif order.shipping_status == 'shipped' %}
+                                                <span class="badge bg-info">Enviado</span>
+                                            {% elif order.shipping_status == 'delivered' %}
+                                                <span class="badge bg-success">Entregue</span>
+                                            {% elif order.shipping_status == 'cancelled' %}
+                                                <span class="badge bg-danger">Cancelado</span>
+                                            {% elif order.shipping_status == 'returned' %}
+                                                <span class="badge bg-secondary">Devolvido</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark">{{ order.shipping_status|title }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -150,6 +177,30 @@
                             <td><strong>ID Comprador:</strong></td>
                             <td>{{ order.buyer_id if order.buyer_id else 'N/A' }}</td>
                         </tr>
+                        {% if order.shipping_address %}
+                        <tr>
+                            <td colspan="2" class="border-top pt-3">
+                                <strong class="d-block mb-2"><i class="bi bi-geo-alt-fill text-primary me-1"></i>Endereço:</strong>
+                                <div class="text-muted small">
+                                    {% if order.shipping_address.receiver_name %}
+                                    <div><strong>{{ order.shipping_address.receiver_name }}</strong></div>
+                                    {% endif %}
+                                    {% if order.shipping_address.street_name or order.shipping_address.address_line %}
+                                    <div>{{ order.shipping_address.address_line or (order.shipping_address.street_name + ' ' + (order.shipping_address.street_number or '')) }}</div>
+                                    {% endif %}
+                                    {% if order.shipping_address.comment %}
+                                    <div>{{ order.shipping_address.comment }}</div>
+                                    {% endif %}
+                                    {% if order.shipping_address.city %}
+                                    <div>{{ order.shipping_address.city.name if order.shipping_address.city.name else order.shipping_address.city }}, {{ order.shipping_address.state.name if order.shipping_address.state and order.shipping_address.state.name else (order.shipping_address.state if order.shipping_address.state else '') }}</div>
+                                    {% endif %}
+                                    {% if order.shipping_address.zip_code %}
+                                    <div>CEP: {{ order.shipping_address.zip_code }}</div>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
                     </table>
                 </div>
             </div>
@@ -283,89 +334,12 @@
                                         <td><strong>Valor Pago pelo Cliente:</strong></td>
                                         <td class="fw-bold h6">R$ {{ "%.2f"|format(payment.total_paid_amount) }}</td>
                                         <td><strong>Receita Líquida:</strong></td>
-                                        <td class="fw-bold text-success">R$ {{ "%.2f"|format(payment.transaction_amount - order.sale_fees) if order.sale_fees else '0,00' }}</td>
+                                        <td class="fw-bold text-success">R$ {{ "%.2f"|format(payment.transaction_amount - (order.sale_fees or 0) - (order.shipping_cost or 0)) }}</td>
                                     </tr>
                                 </table>
                             </div>
                         </div>
                         
-       <!-- Informações de Frete -->
-       <div class="row mb-3">
-           <div class="col-12">
-               <h6 class="text-muted mb-2">Informações de Frete</h6>
-               <table class="table table-sm table-borderless">
-                   <tr>
-                       <td><strong>Custo do Frete:</strong></td>
-                       <td>R$ {{ "%.2f"|format(order.shipping_cost) if order.shipping_cost else 'Grátis' }}</td>
-                       <td><strong>Método de Envio:</strong></td>
-                       <td>
-                           {% if order.shipping_details and order.shipping_details.logistic_type %}
-                               {% if order.shipping_details.logistic_type == 'fulfillment' %}
-                                   <span class="badge bg-primary">Full Mercado Livre</span>
-                               {% elif order.shipping_details.logistic_type == 'cross_docking' %}
-                                   <span class="badge bg-info">Mercado Envios</span>
-                               {% elif order.shipping_details.logistic_type == 'xd_drop_off' %}
-                                   <span class="badge bg-warning">Agência</span>
-                               {% elif order.shipping_details.logistic_type == 'drop_off' %}
-                                   <span class="badge bg-secondary">Correios</span>
-                               {% else %}
-                                   <span class="badge bg-light text-dark">{{ order.shipping_details.logistic_type|title }}</span>
-                               {% endif %}
-                           {% elif order.shipping_method %}
-                               {{ order.shipping_method }}
-                           {% else %}
-                               N/A
-                           {% endif %}
-                       </td>
-                   </tr>
-                   <tr>
-                       <td><strong>Frete Pago Por:</strong></td>
-                       <td>
-                           {% if payment.shipping_cost and payment.shipping_cost > 0 %}
-                               <span class="badge bg-primary">Cliente</span>
-                           {% elif order.shipping_fees and order.shipping_fees > 0 %}
-                               <span class="badge bg-warning">Vendedor (Taxa de Envio)</span>
-                           {% else %}
-                               <span class="badge bg-success">Mercado Livre (Frete Grátis)</span>
-                           {% endif %}
-                       </td>
-                       <td><strong>Status do Envio:</strong></td>
-                       <td>
-                           {% if order.shipping_status %}
-                               {% if order.shipping_status == 'ready_to_ship' %}
-                                   <span class="badge bg-warning">Em Progresso</span>
-                               {% elif order.shipping_status == 'shipped' %}
-                                   <span class="badge bg-info">Enviado</span>
-                               {% elif order.shipping_status == 'delivered' %}
-                                   <span class="badge bg-success">Entregue</span>
-                               {% elif order.shipping_status == 'cancelled' %}
-                                   <span class="badge bg-danger">Cancelado</span>
-                               {% elif order.shipping_status == 'returned' %}
-                                   <span class="badge bg-secondary">Devolvido</span>
-                               {% else %}
-                                   <span class="badge bg-light text-dark">{{ order.shipping_status|title }}</span>
-                               {% endif %}
-                           {% else %}
-                               <span class="text-muted">N/A</span>
-                           {% endif %}
-                       </td>
-                   </tr>
-                   {% if order.shipping_address %}
-                   <tr>
-                       <td><strong>Endereço:</strong></td>
-                       <td colspan="3">
-                           {{ order.shipping_address.receiver_name }}<br>
-                           <small class="text-muted">
-                               {{ order.shipping_address.address_line }}<br>
-                               {{ order.shipping_address.city.name }}, {{ order.shipping_address.state.name }}<br>
-                               CEP: {{ order.shipping_address.zip_code }}
-                           </small>
-                       </td>
-                   </tr>
-                   {% endif %}
-               </table>
-           </div>
-       </div>
                         {% endfor %}
                     {% else %}
                         <p class="text-muted">Nenhuma informação de pagamento disponível</p>
