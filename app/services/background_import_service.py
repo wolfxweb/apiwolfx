@@ -108,13 +108,23 @@ class BackgroundImportService:
                 db.close()
                 return
             
-            # Importar em lotes
-            offset = 0
+            # Contar pedidos já importados para começar do offset correto
+            from app.models.saas_models import MLOrder
+            total_already_imported = db.query(MLOrder).filter(
+                MLOrder.company_id == company_id,
+                MLOrder.ml_account_id == ml_account_id
+            ).count()
+            
+            logger.info(f"Job {job_id}: {total_already_imported} pedidos já importados, começando do offset {total_already_imported}")
+            
+            # Importar em lotes começando do offset correto
+            offset = total_already_imported  # Começar de onde parou
             batch_size = 50
-            total_to_import = self.jobs[job_id]["total_orders"]
+            total_to_import = self.jobs[job_id]["total_orders"]  # Quantidade de novos pedidos a importar
+            total_final = offset + total_to_import  # Offset final
             current_batch = 1
             
-            while offset < total_to_import and self.jobs[job_id]["status"] == "running":
+            while offset < total_final and self.jobs[job_id]["status"] == "running":
                 try:
                     logger.info(f"Job {job_id}: Processando lote {current_batch}")
                     
