@@ -8,6 +8,8 @@ from sqlalchemy import func, desc, and_
 from datetime import datetime, timedelta
 
 from app.models.saas_models import MLProduct, MLOrder, MLAccount, MLProductStatus, OrderStatus
+from app.services.ml_claims_service import MLClaimsService
+from app.services.ml_visits_service import MLVisitsService
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,55 @@ class AnalyticsController:
                 logger.info(f"🔍 Filtrando por conta ML: {ml_account_id}")
                 orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
             
-            # Buscar pedidos
+            # Buscar pedidos confirmados/pagos
             orders = orders_query.all()
             logger.info(f"📦 Total de pedidos encontrados: {len(orders)}")
+            
+            # Buscar pedidos cancelados no período
+            cancelled_query = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id,
+                MLOrder.date_created >= date_from,
+                MLOrder.status == OrderStatus.CANCELLED
+            )
+            
+            if ml_account_id:
+                cancelled_query = cancelled_query.filter(MLOrder.ml_account_id == ml_account_id)
+            
+            cancelled_orders = cancelled_query.all()
+            cancelled_count = len(cancelled_orders)
+            cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
+            
+            logger.info(f"❌ Pedidos cancelados: {cancelled_count} (R$ {cancelled_value:.2f})")
+            
+            # Buscar dados de devoluções e visitas de todas as contas da empresa
+            returns_count = 0
+            returns_value = 0
+            total_visits = 0
+            
+            try:
+                # Buscar todas as contas ML da empresa
+                accounts_query = self.db.query(MLAccount).filter(MLAccount.company_id == company_id)
+                if ml_account_id:
+                    accounts_query = accounts_query.filter(MLAccount.id == ml_account_id)
+                
+                ml_accounts = accounts_query.all()
+                
+                for ml_account in ml_accounts:
+                    if ml_account.tokens:
+                        token = sorted(ml_account.tokens, key=lambda t: t.created_at, reverse=True)[0]
+                        if token and token.access_token:
+                            # Buscar devoluções
+                            claims_service = MLClaimsService()
+                            returns_data = claims_service.get_returns_metrics(token.access_token, date_from, datetime.utcnow())
+                            returns_count += returns_data.get('returns_count', 0)
+                            returns_value += returns_data.get('returns_value', 0)
+                            
+                            # Buscar visitas
+                            visits_service = MLVisitsService()
+                            visits_data = visits_service.get_user_visits(ml_account.ml_user_id, token.access_token, date_from, datetime.utcnow())
+                            total_visits += visits_data.get('total_visits', 0)
+            except Exception as e:
+                logger.warning(f"⚠️  Erro ao buscar dados adicionais (não crítico): {e}")
             
             # Processar pedidos e itens
             total_revenue = 0  # Receita real dos pedidos
@@ -179,7 +227,12 @@ class AnalyticsController:
                     'total_revenue': total_revenue,
                     'total_sold': total_items_sold,
                     'total_orders': total_orders,
-                    'avg_ticket': avg_ticket
+                    'avg_ticket': avg_ticket,
+                    'cancelled_orders': cancelled_count,
+                    'cancelled_value': cancelled_value,
+                    'returns_count': returns_count,
+                    'returns_value': returns_value,
+                    'total_visits': total_visits
                 },
                 'costs': {
                     'ml_fees': ml_fees_total,

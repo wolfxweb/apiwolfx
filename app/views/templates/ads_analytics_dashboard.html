@@ -37,15 +37,10 @@
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-3">
-                            <label for="ml_account_filter" class="form-label">Conta ML</label>
-                            <select id="ml_account_filter" class="form-select">
-                                <option value="">Todas as contas</option>
-                            </select>
-                        </div>
                         <div class="col-md-2">
                             <label for="period_filter" class="form-label">Período</label>
                             <select id="period_filter" class="form-select" onchange="handlePeriodChange()">
+                                <option value="1">Hoje</option>
                                 <option value="7">Últimos 7 dias</option>
                                 <option value="15">Últimos 15 dias</option>
                                 <option value="30" selected>Últimos 30 dias</option>
@@ -127,6 +122,58 @@
                     <h6 class="text-muted mb-1">Ticket Médio</h6>
                     <h3 class="mb-0" id="kpi-avg-ticket">R$ 0,00</h3>
                     <small class="text-muted" id="kpi-avg-info">por pedido</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs Adicionais -->
+    <div class="row mb-4" id="additional-kpis-section">
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <i class="bi bi-x-circle text-warning display-6"></i>
+                    <h6 class="text-muted mt-2 mb-1">Vendas Canceladas</h6>
+                    <h3 class="mb-0 text-warning" id="kpi-cancelled-value">R$ 0,00</h3>
+                    <p class="text-muted mb-0">
+                        <span id="kpi-cancelled-count">0</span> pedidos
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-danger">
+                <div class="card-body text-center">
+                    <i class="bi bi-arrow-return-left text-danger display-6"></i>
+                    <h6 class="text-muted mt-2 mb-1">Devoluções</h6>
+                    <h3 class="mb-0 text-danger" id="kpi-returns-value">R$ 0,00</h3>
+                    <p class="text-muted mb-0">
+                        <span id="kpi-returns-count">0</span> devoluções
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <i class="bi bi-eye text-info display-6"></i>
+                    <h6 class="text-muted mt-2 mb-1">Visitas</h6>
+                    <h3 class="mb-0 text-info" id="kpi-visits">0</h3>
+                    <p class="text-muted mb-0">
+                        visualizações
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <i class="bi bi-graph-up text-success display-6"></i>
+                    <h6 class="text-muted mt-2 mb-1">Taxa de Conversão</h6>
+                    <h3 class="mb-0 text-success" id="kpi-conversion">0%</h3>
+                    <p class="text-muted mb-0">
+                        vendas / visitas
+                    </p>
                 </div>
             </div>
         </div>
@@ -559,32 +606,7 @@ function showAlert(type, message) {
 }
 
 // Carregar contas ML
-function loadMLAccounts() {
-    fetch('/ml/products/api/accounts', {
-        credentials: 'include'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            mlAccounts = data.accounts;
-            
-            const select = document.getElementById('ml_account_filter');
-            select.innerHTML = '<option value="">Todas as contas</option>';
-            
-            data.accounts.forEach(account => {
-                const option = document.createElement('option');
-                option.value = account.id;
-                option.textContent = `${account.nickname} (${account.email})`;
-                select.appendChild(option);
-            });
-            
-            console.log('✅ Contas ML carregadas:', data.accounts.length);
-        }
-    })
-    .catch(error => {
-        console.error('Erro ao carregar contas ML:', error);
-    });
-}
+// Função loadMLAccounts removida - não é mais necessária
 
 // Lidar com mudança de período
 function handlePeriodChange() {
@@ -608,7 +630,6 @@ function loadDashboardData(page = 1) {
     const urlParams = new URLSearchParams(window.location.search);
     
     const filters = {
-        ml_account_id: urlParams.get('ml_account_id') || '',
         period: urlParams.get('period') || '30',
         search: urlParams.get('search') || ''
     };
@@ -617,7 +638,6 @@ function loadDashboardData(page = 1) {
     
     // Construir URL da API de analytics
     let apiUrl = `/api/analytics/sales-dashboard?period=${filters.period}`;
-    if (filters.ml_account_id) apiUrl += `&ml_account_id=${filters.ml_account_id}`;
     if (filters.search) apiUrl += `&search=${encodeURIComponent(filters.search)}`;
     
     console.log('📊 Carregando dados do dashboard:', apiUrl);
@@ -635,6 +655,19 @@ function loadDashboardData(page = 1) {
             document.getElementById('kpi-quantity').textContent = formatNumber(data.kpis.total_sold);
             document.getElementById('kpi-orders').textContent = formatNumber(data.kpis.total_orders);
             document.getElementById('kpi-avg-ticket').textContent = formatBRL(data.kpis.avg_ticket);
+            
+            // Atualizar KPIs adicionais
+            document.getElementById('kpi-cancelled-value').textContent = formatBRL(data.kpis.cancelled_value || 0);
+            document.getElementById('kpi-cancelled-count').textContent = formatNumber(data.kpis.cancelled_orders || 0);
+            document.getElementById('kpi-returns-value').textContent = formatBRL(data.kpis.returns_value || 0);
+            document.getElementById('kpi-returns-count').textContent = formatNumber(data.kpis.returns_count || 0);
+            document.getElementById('kpi-visits').textContent = formatNumber(data.kpis.total_visits || 0);
+            
+            // Calcular e exibir taxa de conversão
+            const conversionRate = data.kpis.total_visits > 0 
+                ? ((data.kpis.total_sold / data.kpis.total_visits) * 100).toFixed(2)
+                : 0;
+            document.getElementById('kpi-conversion').textContent = conversionRate + '%';
             
             // Atualizar custos e margens
             updateCostsAndMargins(data.costs, data.profit, data.kpis);
@@ -674,12 +707,10 @@ function loadDashboardData(page = 1) {
 // Carregar top produtos com filtros
 function loadTopProducts() {
     const urlParams = new URLSearchParams(window.location.search);
-    const ml_account_id = urlParams.get('ml_account_id') || '';
     const period = urlParams.get('period') || '30';
     const search = urlParams.get('search') || '';
     
     let apiUrl = '/api/analytics/top-products?limit=10';
-    if (ml_account_id) apiUrl += `&ml_account_id=${ml_account_id}`;
     if (period) apiUrl += `&period=${period}`;
     if (search) apiUrl += `&search=${encodeURIComponent(search)}`;
     
@@ -1850,11 +1881,6 @@ function updatePagination(page, limit, total, hasNext, hasPrev) {
 function restoreFiltersFromURL() {
     const urlParams = new URLSearchParams(window.location.search);
     
-    const mlAccountId = urlParams.get('ml_account_id');
-    if (mlAccountId) {
-        document.getElementById('ml_account_filter').value = mlAccountId;
-    }
-    
     const period = urlParams.get('period');
     if (period) {
         document.getElementById('period_filter').value = period;
@@ -1870,7 +1896,6 @@ function restoreFiltersFromURL() {
 // Aplicar filtros
 function applyFilters() {
     const filters = {
-        ml_account_id: document.getElementById('ml_account_filter').value,
         period: document.getElementById('period_filter').value,
         search: document.getElementById('search_filter').value
     };
@@ -1897,7 +1922,6 @@ function applyFilters() {
 
 // Limpar filtros
 function clearFilters() {
-    document.getElementById('ml_account_filter').value = '';
     document.getElementById('period_filter').value = '30';
     document.getElementById('search_filter').value = '';
     handlePeriodChange();
@@ -1920,7 +1944,6 @@ function refreshData() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Dashboard de Vendas carregado');
     restoreFiltersFromURL();
-    loadMLAccounts();
     loadDashboardData(1);
 });
 </script>
