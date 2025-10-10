@@ -44,10 +44,11 @@ class AnalyticsController:
             orders = orders_query.all()
             logger.info(f"📦 Total de pedidos encontrados: {len(orders)}")
             
-            # Buscar pedidos cancelados no período
+            # Buscar pedidos cancelados no período (pela DATA DO CANCELAMENTO, não criação)
+            # ML conta cancelamentos pela data em que foram cancelados (last_updated)
             cancelled_query = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
-                MLOrder.date_created >= date_from,
+                MLOrder.last_updated >= date_from,  # Data do cancelamento
                 MLOrder.status == OrderStatus.CANCELLED
             )
             
@@ -58,12 +59,13 @@ class AnalyticsController:
             cancelled_count = len(cancelled_orders)
             cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
             
-            logger.info(f"❌ Pedidos cancelados: {cancelled_count} (R$ {cancelled_value:.2f})")
+            logger.info(f"❌ Pedidos cancelados (cancelados no período): {cancelled_count} (R$ {cancelled_value:.2f})")
             
-            # Buscar pedidos reembolsados (devoluções) no período
+            # Buscar pedidos reembolsados (devoluções) no período (pela DATA DO REEMBOLSO, não criação)
+            # ML conta devoluções pela data em que foram reembolsados (last_updated)
             refunded_query = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
-                MLOrder.date_created >= date_from,
+                MLOrder.last_updated >= date_from,  # Data do reembolso
                 MLOrder.status == OrderStatus.REFUNDED
             )
             
@@ -74,7 +76,7 @@ class AnalyticsController:
             refunded_count_db = len(refunded_orders)
             refunded_value_db = sum(float(order.total_amount or 0) for order in refunded_orders)
             
-            logger.info(f"💸 Pedidos reembolsados (DB): {refunded_count_db} (R$ {refunded_value_db:.2f})")
+            logger.info(f"💸 Pedidos reembolsados (reembolsados no período): {refunded_count_db} (R$ {refunded_value_db:.2f})")
             
             # Buscar dados de devoluções via API e visitas de todas as contas da empresa
             returns_count_api = 0

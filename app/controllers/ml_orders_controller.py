@@ -128,14 +128,14 @@ class MLOrdersController:
                     "buyer_email": order.buyer_email,
                     "status": order.status.value if order.status else None,
                     "status_detail": order.status_detail,
-                    "total_amount": payment_transaction_amount,  # Valor do produto
-                    "paid_amount": payment_total_paid_amount,    # Total final
+                    "total_amount": float(payment_transaction_amount) if payment_transaction_amount else 0.0,
+                    "paid_amount": float(payment_total_paid_amount) if payment_total_paid_amount else 0.0,
                     "currency_id": order.currency_id,
                     "payment_status": order.payment_status,
-                    "shipping_cost": order.shipping_cost,
+                    "shipping_cost": float(order.shipping_cost) if order.shipping_cost else 0.0,
                     "shipping_method": order.shipping_method,
-                    "sale_fees": order.sale_fees,
-                    "coupon_amount": payment_coupon_amount,      # Desconto do cupom
+                    "sale_fees": float(order.sale_fees) if order.sale_fees else 0.0,
+                    "coupon_amount": float(payment_coupon_amount) if payment_coupon_amount else 0.0,
                     "date_created": order.date_created.isoformat() if order.date_created else None,
                     "last_updated": order.last_updated.isoformat() if order.last_updated else None,
                     "order_items": order.order_items,
@@ -143,8 +143,8 @@ class MLOrdersController:
                     "account_nickname": account.nickname if account else "N/A",
                     "account_email": account.email if account else "N/A",
                     "account_country": account.country_id if account else "N/A",
-                    "is_advertising_sale": order.is_advertising_sale,  # Origem da venda
-                    "advertising_cost": order.advertising_cost or 0,  # Custo de publicidade
+                    "is_advertising_sale": order.is_advertising_sale,
+                    "advertising_cost": float(order.advertising_cost) if order.advertising_cost else 0.0,
                 }
                 all_orders.append(order_data)
             
@@ -300,8 +300,8 @@ class MLOrdersController:
                 # Status e valores
                 "status": order.status.value if order.status else None,
                 "status_detail": order.status_detail,
-                "total_amount": order.total_amount,
-                "paid_amount": order.paid_amount,
+                "total_amount": float(order.total_amount) if order.total_amount else 0.0,
+                "paid_amount": float(order.paid_amount) if order.paid_amount else 0.0,
                 "currency_id": order.currency_id,
                 
                 # Pagamento
@@ -311,25 +311,25 @@ class MLOrdersController:
                 "payments": order.payments,
                 
                 # Envio
-                "shipping_cost": order.shipping_cost,
+                "shipping_cost": float(order.shipping_cost) if order.shipping_cost else 0.0,
                 "shipping_method": order.shipping_method,
                 "shipping_status": order.shipping_status,
                 "shipping_address": order.shipping_address,
                 "shipping_details": order.shipping_details,
                 
                 # Taxas
-                "total_fees": order.total_fees,
-                "sale_fees": order.sale_fees,
-                "shipping_fees": order.shipping_fees,
+                "total_fees": float(order.total_fees) if order.total_fees else 0.0,
+                "sale_fees": float(order.sale_fees) if order.sale_fees else 0.0,
+                "shipping_fees": float(order.shipping_fees) if order.shipping_fees else 0.0,
                 
                 # Descontos
-                "coupon_amount": order.coupon_amount,
+                "coupon_amount": float(order.coupon_amount) if order.coupon_amount else 0.0,
                 "discounts_applied": order.discounts_applied,
                 
                 # Publicidade e anúncios
                 "is_advertising_sale": order.is_advertising_sale,
                 "advertising_campaign_id": order.advertising_campaign_id,
-                "advertising_cost": order.advertising_cost,
+                "advertising_cost": float(order.advertising_cost) if order.advertising_cost else 0.0,
                 "advertising_metrics": order.advertising_metrics,
                 
                 # Produtos de catálogo (temporariamente desabilitado)

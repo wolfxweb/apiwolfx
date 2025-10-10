@@ -484,6 +484,12 @@ function hideUserElements() {
 
 // Inicializar quando a página carregar
 document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar tooltips do Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
     loadOrders();
 });
 
@@ -635,7 +641,7 @@ function renderBillingData(order) {
     
     // Publicidade (aparece se > 0)
     if (advertisingCost > 0) {
-        items.push(`📢 Publicidade: <strong class="text-danger">${formatCurrency(advertisingCost, currency)}</strong>`);
+        items.push(`📢 Publicidade: <strong class="text-danger">${formatCurrency(advertisingCost, currency)}</strong> <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Custo estimado de Product Ads distribuído proporcionalmente entre os pedidos do período" style="cursor: help; font-size: 0.85em;"></i>`);
     }
     
     // Líquido vendedor (sempre aparece, destacado)
