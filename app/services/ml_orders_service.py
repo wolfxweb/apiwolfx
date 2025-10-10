@@ -210,12 +210,29 @@ class MLOrdersService:
                     logger.error(f"Erro ao salvar order {order_data.get('id', 'unknown')}: {e}")
                     continue
             
+            self.db.commit()
+            
+            # Sincronizar custos de publicidade do período atual
+            advertising_result = None
+            try:
+                logger.info("🎯 Sincronizando custos de Product Ads (período atual)...")
+                advertising_result = self._sync_advertising_costs_for_account(
+                    account_id=ml_account_id,
+                    access_token=access_token,
+                    periods=1  # Somente o período atual
+                )
+                if advertising_result and advertising_result.get('total_cost', 0) > 0:
+                    logger.info(f"✅ Product Ads sincronizado: R$ {advertising_result.get('total_cost', 0):.2f} em {advertising_result.get('orders_updated', 0)} pedidos")
+            except Exception as e:
+                logger.warning(f"⚠️  Erro ao sincronizar Product Ads (não crítico): {e}")
+            
             return {
                 "success": True,
                 "message": f"Sincronização do dia concluída: {saved_count} orders criadas, {updated_count} orders atualizadas",
                 "saved_count": saved_count,
                 "updated_count": updated_count,
-                "total_processed": len(orders_data)
+                "total_processed": len(orders_data),
+                "advertising_sync": advertising_result
             }
             
         except Exception as e:
@@ -292,12 +309,30 @@ class MLOrdersService:
             
             self.db.commit()
             
+            # Sincronizar custos de publicidade após salvar os pedidos
+            # Na sincronização normal: apenas 1 período
+            # Na importação completa: últimos 3 períodos
+            advertising_result = None
+            try:
+                periods_to_sync = 3 if is_full_import else 1
+                logger.info(f"🎯 Sincronizando custos de Product Ads ({periods_to_sync} período{'s' if periods_to_sync > 1 else ''})...")
+                advertising_result = self._sync_advertising_costs_for_account(
+                    account_id=ml_account_id,
+                    access_token=access_token,
+                    periods=periods_to_sync
+                )
+                if advertising_result and advertising_result.get('total_cost', 0) > 0:
+                    logger.info(f"✅ Product Ads sincronizado: R$ {advertising_result.get('total_cost', 0):.2f} em {advertising_result.get('orders_updated', 0)} pedidos")
+            except Exception as e:
+                logger.warning(f"⚠️  Erro ao sincronizar Product Ads (não crítico): {e}")
+            
             return {
                 "success": True,
                 "message": f"Sincronização concluída: {saved_count} orders criadas, {updated_count} orders atualizadas",
                 "saved_count": saved_count,
                 "updated_count": updated_count,
-                "total_processed": len(orders_data)
+                "total_processed": len(orders_data),
+                "advertising_sync": advertising_result
             }
             
         except Exception as e:
@@ -1265,3 +1300,110 @@ class MLOrdersService:
                 "success": False,
                 "error": f"Erro ao remover todos os pedidos: {str(e)}"
             }
+    
+    def _sync_advertising_costs_for_account(self, account_id: int, access_token: str, periods: int = 1) -> Dict:
+        """
+        Sincroniza custos de Product Ads do Billing API para uma conta
+        
+        Args:
+            account_id: ID da conta ML
+            access_token: Token de acesso
+            periods: Número de períodos para sincronizar (padrão: 1 = mês atual)
+        """
+        try:
+            base_url = "https://api.mercadolibre.com"
+            
+            # Buscar períodos de billing
+            periods_url = f"{base_url}/billing/integration/monthly/periods"
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            params = {
+                "group": "ML",
+                "document_type": "BILL",
+                "limit": periods
+            }
+            
+            response = requests.get(periods_url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code != 200:
+                logger.error(f"Erro ao buscar períodos de billing: {response.status_code}")
+                return None
+            
+            periods_data = response.json()
+            results = periods_data.get("results", [])
+            
+            if not results:
+                logger.warning("Nenhum período de billing encontrado")
+                return None
+            
+            total_cost = 0
+            total_orders_updated = 0
+            
+            # Processar cada período
+            for period in results:
+                period_key = period.get("key")
+                period_from = period.get("period", {}).get("date_from")
+                period_to = period.get("period", {}).get("date_to")
+                
+                # Buscar summary/details do período
+                summary_url = f"{base_url}/billing/integration/periods/key/{period_key}/summary/details"
+                summary_params = {
+                    "group": "ML",
+                    "document_type": "BILL"
+                }
+                
+                summary_response = requests.get(summary_url, headers=headers, params=summary_params, timeout=30)
+                
+                if summary_response.status_code != 200:
+                    logger.error(f"Erro ao buscar summary do período {period_key}: {summary_response.status_code}")
+                    continue
+                
+                summary_data = summary_response.json()
+                
+                # Procurar custos de Product Ads (tipo PADS)
+                period_pads_cost = 0
+                charges = summary_data.get("bill_includes", {}).get("charges", [])
+                
+                for charge in charges:
+                    if charge.get("type") == "PADS":  # Product Ads
+                        period_pads_cost += float(charge.get("amount", 0))
+                
+                if period_pads_cost > 0:
+                    # Converter datas do período
+                    from datetime import datetime
+                    date_from = datetime.strptime(period_from, "%Y-%m-%d")
+                    date_to = datetime.strptime(period_to, "%Y-%m-%d")
+                    
+                    # Buscar pedidos do período
+                    orders = self.db.query(MLOrder).filter(
+                        MLOrder.ml_account_id == account_id,
+                        MLOrder.date_created >= date_from,
+                        MLOrder.date_created <= date_to
+                    ).all()
+                    
+                    if len(orders) > 0:
+                        # Distribuir custo proporcionalmente entre os pedidos
+                        cost_per_order = period_pads_cost / len(orders)
+                        
+                        for order in orders:
+                            order.advertising_cost = cost_per_order
+                            order.is_advertising_sale = True
+                        
+                        self.db.commit()
+                        
+                        total_cost += period_pads_cost
+                        total_orders_updated += len(orders)
+                        
+                        logger.info(f"  📅 Período {period_from} a {period_to}: R$ {period_pads_cost:.2f} / {len(orders)} pedidos = R$ {cost_per_order:.2f}/pedido")
+            
+            return {
+                "total_cost": total_cost,
+                "orders_updated": total_orders_updated,
+                "periods_processed": len(results)
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao sincronizar custos de publicidade: {e}")
+            return None

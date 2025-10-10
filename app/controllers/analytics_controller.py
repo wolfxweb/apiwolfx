@@ -4,10 +4,10 @@ Controller para Analytics & Performance
 import logging
 from typing import Dict, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, and_
 from datetime import datetime, timedelta
 
-from app.models.saas_models import MLProduct, MLOrder, MLAccount, MLProductStatus
+from app.models.saas_models import MLProduct, MLOrder, MLAccount, MLProductStatus, OrderStatus
 
 logger = logging.getLogger(__name__)
 
@@ -19,85 +19,131 @@ class AnalyticsController:
     
     def get_sales_dashboard(self, company_id: int, ml_account_id: Optional[int] = None, 
                            period_days: int = 30, search: Optional[str] = None) -> Dict:
-        """Busca dados do dashboard de vendas"""
+        """Busca dados do dashboard de vendas baseado em pedidos reais"""
         try:
-            # Query base de produtos
-            query = self.db.query(MLProduct).filter(
-                MLProduct.company_id == company_id
+            logger.info(f"📊 Dashboard Analytics - Filtros: company_id={company_id}, ml_account_id={ml_account_id}, period_days={period_days}, search={search}")
+            
+            # Calcular data de corte
+            date_from = datetime.utcnow() - timedelta(days=period_days)
+            logger.info(f"📅 Buscando pedidos desde: {date_from}")
+            
+            # Query base de pedidos
+            orders_query = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id,
+                MLOrder.date_created >= date_from
             )
             
             # Filtrar por conta ML
             if ml_account_id:
-                query = query.filter(MLProduct.ml_account_id == ml_account_id)
+                logger.info(f"🔍 Filtrando por conta ML: {ml_account_id}")
+                orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
             
-            # Filtrar por busca
-            if search:
-                search_term = f'%{search}%'
-                query = query.filter(
-                    (MLProduct.title.ilike(search_term)) |
-                    (MLProduct.seller_sku.ilike(search_term)) |
-                    (MLProduct.ml_item_id.ilike(search_term))
-                )
+            # Buscar pedidos
+            orders = orders_query.all()
+            logger.info(f"📦 Total de pedidos encontrados: {len(orders)}")
             
-            # Buscar produtos
-            products = query.all()
+            # Processar pedidos e itens
+            total_revenue = 0  # Receita real dos pedidos
+            total_items_sold = 0  # Total de itens vendidos
+            total_orders = len(orders)  # Total de pedidos
             
-            # Calcular KPIs
-            total_revenue = 0
-            total_sold = 0
-            products_with_sales = 0
+            ml_fees_total = 0  # Taxas ML reais
+            shipping_fees_total = 0  # Custos de frete reais
+            discounts_total = 0  # Descontos reais
+            marketing_cost_total = 0  # Custos de marketing (do banco)
             
+            products_sales = {}  # Vendas por produto
+            
+            logger.info(f"🔄 Processando {total_orders} pedidos...")
+            
+            for order in orders:
+                # Receita do pedido (já está em reais)
+                order_revenue = float(order.total_amount or 0)
+                total_revenue += order_revenue
+                
+                # Taxas reais do pedido (já estão em reais)
+                ml_fees_total += float(order.sale_fees or 0)
+                shipping_fees_total += float(order.shipping_cost or 0)
+                
+                # Custo de marketing salvo no banco (advertising_cost já em reais)
+                if order.advertising_cost:
+                    ads_cost = float(order.advertising_cost or 0)
+                    marketing_cost_total += ads_cost
+                
+                # Processar itens do pedido
+                if order.order_items:
+                    for item in order.order_items:
+                        item_id = item.get('item', {}).get('id')
+                        quantity = item.get('quantity', 0)
+                        unit_price = float(item.get('unit_price', 0))  # Já está em reais
+                        
+                        total_items_sold += quantity
+                        
+                        # Agrupar vendas por produto
+                        if item_id:
+                            if item_id not in products_sales:
+                                products_sales[item_id] = {
+                                    'ml_item_id': item_id,
+                                    'title': item.get('item', {}).get('title', 'Produto sem título'),
+                                    'quantity_sold': 0,
+                                    'revenue': 0,
+                                    'unit_price': unit_price
+                                }
+                            products_sales[item_id]['quantity_sold'] += quantity
+                            products_sales[item_id]['revenue'] += unit_price * quantity
+                
+                # Processar descontos
+                if order.coupon_amount:
+                    discounts_total += float(order.coupon_amount or 0)
+            
+            # Buscar produtos para enriquecer dados e aplicar filtro de busca
             products_data = []
-            for product in products:
-                price = float(product.price) if product.price else 0
-                sold_qty = product.sold_quantity or 0
-                revenue = price * sold_qty
+            for ml_item_id, sales_data in products_sales.items():
+                product = self.db.query(MLProduct).filter(
+                    MLProduct.ml_item_id == ml_item_id,
+                    MLProduct.company_id == company_id
+                ).first()
                 
-                total_revenue += revenue
-                total_sold += sold_qty
-                if sold_qty > 0:
-                    products_with_sales += 1
-                
-                products_data.append({
-                    'id': product.id,
-                    'ml_item_id': product.ml_item_id,
-                    'title': product.title,
-                    'price': price,
-                    'available_quantity': product.available_quantity or 0,
-                    'sold_quantity': sold_qty,
-                    'status': product.status.value if product.status else 'unknown',
-                    'thumbnail': product.thumbnail,
-                    'revenue': revenue,
-                    'seller_sku': product.seller_sku,
-                    'category_name': product.category_name
-                })
+                if product:
+                    # Aplicar filtro de busca se fornecido
+                    if search:
+                        search_term = search.lower()
+                        title_match = search_term in product.title.lower()
+                        sku_match = product.seller_sku and search_term in product.seller_sku.lower()
+                        id_match = search_term in ml_item_id.lower()
+                        
+                        if not (title_match or sku_match or id_match):
+                            continue  # Pular este produto
+                    
+                    products_data.append({
+                        'id': product.id,
+                        'ml_item_id': ml_item_id,
+                        'title': product.title,
+                        'price': sales_data['unit_price'],
+                        'available_quantity': product.available_quantity or 0,
+                        'sold_quantity': sales_data['quantity_sold'],
+                        'status': product.status.value if product.status else 'unknown',
+                        'thumbnail': product.thumbnail,
+                        'revenue': sales_data['revenue'],
+                        'seller_sku': product.seller_sku,
+                        'category_name': product.category_name
+                    })
             
-            avg_ticket = total_revenue / products_with_sales if products_with_sales > 0 else 0
+            # Ticket médio (receita por pedido)
+            avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
             
-            # Calcular custos e margens
-            # Comissões ML (aproximadamente 10-16% dependendo da categoria - vamos usar 13% como média)
-            ml_fees = total_revenue * 0.13
-            
-            # Fretes (assumir 0 por enquanto - pode ser configurado)
-            shipping_fees = 0
-            
-            # Descontos (assumir 0 por enquanto)
-            discounts = 0
-            
-            # Custo dos produtos (assumir 40% da receita - pode ser configurado)
+            # Calcular custos estimados
+            # Custo dos produtos (40% da receita - configurável)
             product_cost = total_revenue * 0.40
             
-            # Impostos (aproximadamente 5% - pode ser configurado)
+            # Impostos (5% da receita - configurável)
             taxes = total_revenue * 0.05
             
-            # Outros custos (assumir R$ 0.30 por unidade)
-            other_costs = total_sold * 0.30
+            # Outros custos (R$ 0.30 por unidade vendida)
+            other_costs = total_items_sold * 0.30
             
-            # Marketing (pode ser buscado da tabela ml_orders)
-            marketing_cost = 0
-            
-            # Total de custos
-            total_costs = ml_fees + shipping_fees + discounts + product_cost + taxes + other_costs + marketing_cost
+            # Total de custos (usando marketing_cost_total do banco)
+            total_costs = ml_fees_total + shipping_fees_total + discounts_total + product_cost + taxes + other_costs + marketing_cost_total
             
             # Lucro líquido
             net_profit = total_revenue - total_costs
@@ -106,35 +152,41 @@ class AnalyticsController:
             net_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
             
             # Lucro médio por pedido
-            avg_profit_per_order = net_profit / products_with_sales if products_with_sales > 0 else 0
+            avg_profit_per_order = net_profit / total_orders if total_orders > 0 else 0
             
             # Calcular percentuais
-            ml_fees_percent = (ml_fees / total_revenue * 100) if total_revenue > 0 else 0
-            shipping_fees_percent = (shipping_fees / total_revenue * 100) if total_revenue > 0 else 0
-            discounts_percent = (discounts / total_revenue * 100) if total_revenue > 0 else 0
+            ml_fees_percent = (ml_fees_total / total_revenue * 100) if total_revenue > 0 else 0
+            shipping_fees_percent = (shipping_fees_total / total_revenue * 100) if total_revenue > 0 else 0
+            discounts_percent = (discounts_total / total_revenue * 100) if total_revenue > 0 else 0
             product_cost_percent = (product_cost / total_revenue * 100) if total_revenue > 0 else 0
             taxes_percent = (taxes / total_revenue * 100) if total_revenue > 0 else 0
             other_costs_percent = (other_costs / total_revenue * 100) if total_revenue > 0 else 0
-            marketing_percent = (marketing_cost / total_revenue * 100) if total_revenue > 0 else 0
+            marketing_percent = (marketing_cost_total / total_revenue * 100) if total_revenue > 0 else 0
             total_costs_percent = (total_costs / total_revenue * 100) if total_revenue > 0 else 0
             
             # Custo por unidade para "outros custos"
-            other_costs_per_unit = other_costs / total_sold if total_sold > 0 else 0
+            other_costs_per_unit = other_costs / total_items_sold if total_items_sold > 0 else 0
+            
+            # Marketing diluído (custo total / produtos vendidos)
+            marketing_per_unit = marketing_cost_total / total_items_sold if total_items_sold > 0 else 0
+            
+            logger.info(f"✅ Dashboard processado: {len(products_data)} produtos, {total_orders} pedidos, {total_items_sold} itens, R$ {total_revenue:.2f} receita")
+            logger.info(f"💰 Custos - ML: R$ {ml_fees_total:.2f}, Frete: R$ {shipping_fees_total:.2f}, Marketing: R$ {marketing_cost_total:.2f}")
             
             return {
                 'success': True,
                 'kpis': {
                     'total_revenue': total_revenue,
-                    'total_sold': total_sold,
-                    'total_orders': products_with_sales,
+                    'total_sold': total_items_sold,
+                    'total_orders': total_orders,
                     'avg_ticket': avg_ticket
                 },
                 'costs': {
-                    'ml_fees': ml_fees,
+                    'ml_fees': ml_fees_total,
                     'ml_fees_percent': ml_fees_percent,
-                    'shipping_fees': shipping_fees,
+                    'shipping_fees': shipping_fees_total,
                     'shipping_fees_percent': shipping_fees_percent,
-                    'discounts': discounts,
+                    'discounts': discounts_total,
                     'discounts_percent': discounts_percent,
                     'product_cost': product_cost,
                     'product_cost_percent': product_cost_percent,
@@ -143,8 +195,9 @@ class AnalyticsController:
                     'other_costs': other_costs,
                     'other_costs_percent': other_costs_percent,
                     'other_costs_per_unit': other_costs_per_unit,
-                    'marketing_cost': marketing_cost,
+                    'marketing_cost': marketing_cost_total,
                     'marketing_percent': marketing_percent,
+                    'marketing_per_unit': marketing_per_unit,
                     'total_costs': total_costs,
                     'total_costs_percent': total_costs_percent
                 },
@@ -166,55 +219,67 @@ class AnalyticsController:
     
     def get_top_products(self, company_id: int, ml_account_id: Optional[int] = None, 
                         limit: int = 10) -> Dict:
-        """Busca top produtos mais vendidos e com maior receita"""
+        """Busca top produtos mais vendidos e com maior receita baseado em pedidos reais"""
         try:
-            # Query base
-            query = self.db.query(MLProduct).filter(
-                MLProduct.company_id == company_id,
-                MLProduct.sold_quantity > 0
+            # Buscar pedidos
+            orders_query = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id
             )
             
             if ml_account_id:
-                query = query.filter(MLProduct.ml_account_id == ml_account_id)
+                orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
             
-            # Top mais vendidos
-            top_sold = query.order_by(desc(MLProduct.sold_quantity)).limit(limit).all()
+            orders = orders_query.all()
             
-            # Top maior receita (calculado)
-            all_products = query.all()
-            products_with_revenue = []
+            # Processar itens dos pedidos
+            products_sales = {}
             
-            for product in all_products:
-                price = float(product.price) if product.price else 0
-                sold_qty = product.sold_quantity or 0
-                revenue = price * sold_qty
+            for order in orders:
+                if order.order_items:
+                    for item in order.order_items:
+                        item_id = item.get('item', {}).get('id')
+                        quantity = item.get('quantity', 0)
+                        unit_price = float(item.get('unit_price', 0))  # Já está em reais
+                        
+                        if item_id:
+                            if item_id not in products_sales:
+                                products_sales[item_id] = {
+                                    'ml_item_id': item_id,
+                                    'title': item.get('item', {}).get('title', ''),
+                                    'quantity_sold': 0,
+                                    'revenue': 0,
+                                    'unit_price': unit_price
+                                }
+                            products_sales[item_id]['quantity_sold'] += quantity
+                            products_sales[item_id]['revenue'] += unit_price * quantity
+            
+            # Enriquecer com dados dos produtos
+            enriched_products = []
+            for ml_item_id, sales_data in products_sales.items():
+                product = self.db.query(MLProduct).filter(
+                    MLProduct.ml_item_id == ml_item_id,
+                    MLProduct.company_id == company_id
+                ).first()
                 
-                products_with_revenue.append({
-                    'id': product.id,
-                    'ml_item_id': product.ml_item_id,
-                    'title': product.title,
-                    'price': price,
-                    'sold_quantity': sold_qty,
-                    'revenue': revenue,
-                    'thumbnail': product.thumbnail
+                enriched_products.append({
+                    'id': product.id if product else 0,
+                    'ml_item_id': ml_item_id,
+                    'title': product.title if product else sales_data['title'],
+                    'price': sales_data['unit_price'],
+                    'sold_quantity': sales_data['quantity_sold'],
+                    'revenue': sales_data['revenue'],
+                    'thumbnail': product.thumbnail if product else None
                 })
             
-            # Ordenar por receita
-            top_revenue = sorted(products_with_revenue, key=lambda x: x['revenue'], reverse=True)[:limit]
+            # Top mais vendidos (por quantidade)
+            top_sold = sorted(enriched_products, key=lambda x: x['sold_quantity'], reverse=True)[:limit]
+            
+            # Top maior receita
+            top_revenue = sorted(enriched_products, key=lambda x: x['revenue'], reverse=True)[:limit]
             
             return {
                 'success': True,
-                'top_sold': [
-                    {
-                        'id': p.id,
-                        'ml_item_id': p.ml_item_id,
-                        'title': p.title,
-                        'price': float(p.price) if p.price else 0,
-                        'sold_quantity': p.sold_quantity,
-                        'thumbnail': p.thumbnail
-                    }
-                    for p in top_sold
-                ],
+                'top_sold': top_sold,
                 'top_revenue': top_revenue
             }
             
@@ -226,7 +291,7 @@ class AnalyticsController:
             }
     
     def get_accounts_summary(self, company_id: int) -> Dict:
-        """Busca resumo de vendas por conta ML"""
+        """Busca resumo de vendas por conta ML baseado em pedidos reais"""
         try:
             # Buscar todas as contas da empresa
             accounts = self.db.query(MLAccount).filter(
@@ -236,39 +301,46 @@ class AnalyticsController:
             accounts_data = []
             
             for account in accounts:
-                # Buscar produtos da conta
-                products = self.db.query(MLProduct).filter(
-                    MLProduct.ml_account_id == account.id,
-                    MLProduct.company_id == company_id
+                # Buscar pedidos da conta
+                orders = self.db.query(MLOrder).filter(
+                    MLOrder.ml_account_id == account.id,
+                    MLOrder.company_id == company_id
                 ).all()
                 
-                # Calcular métricas
-                total_products = len(products)
-                active_products = len([p for p in products if p.status == MLProductStatus.ACTIVE])
-                total_sold = sum(p.sold_quantity or 0 for p in products)
-                
+                # Calcular métricas reais dos pedidos
                 total_revenue = 0
-                products_with_sales = 0
+                total_items_sold = 0
+                total_orders = len(orders)
                 
-                for product in products:
-                    price = float(product.price) if product.price else 0
-                    sold_qty = product.sold_quantity or 0
-                    total_revenue += price * sold_qty
-                    if sold_qty > 0:
-                        products_with_sales += 1
+                for order in orders:
+                    # Receita do pedido (já está em reais)
+                    total_revenue += float(order.total_amount or 0)
+                    
+                    # Contar itens vendidos
+                    if order.order_items:
+                        for item in order.order_items:
+                            total_items_sold += item.get('quantity', 0)
                 
-                avg_ticket = total_revenue / products_with_sales if products_with_sales > 0 else 0
+                # Ticket médio (receita por pedido)
+                avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
+                
+                # Produtos ativos da conta
+                active_products = self.db.query(MLProduct).filter(
+                    MLProduct.ml_account_id == account.id,
+                    MLProduct.company_id == company_id,
+                    MLProduct.status == MLProductStatus.ACTIVE
+                ).count()
                 
                 accounts_data.append({
                     'id': account.id,
                     'nickname': account.nickname,
                     'email': account.email,
-                    'total_products': total_products,
+                    'total_products': active_products,
                     'active_products': active_products,
-                    'total_sold': total_sold,
+                    'total_sold': total_items_sold,
                     'total_revenue': total_revenue,
                     'avg_ticket': avg_ticket,
-                    'products_with_sales': products_with_sales
+                    'products_with_sales': total_orders
                 })
             
             return {
@@ -282,4 +354,3 @@ class AnalyticsController:
                 'success': False,
                 'error': str(e)
             }
-
