@@ -219,3 +219,34 @@ class InternalProductController:
         except Exception as e:
             logger.error(f"Erro no controller ao excluir produtos em massa: {str(e)}")
             raise HTTPException(status_code=500, detail="Erro interno do servidor")
+    
+    def bulk_update_internal_products(
+        self,
+        company_id: int,
+        cost_price: Optional[float] = None,
+        tax_rate: Optional[float] = None,
+        marketing_cost: Optional[float] = None,
+        other_costs: Optional[float] = None,
+        db: Session = Depends(get_db)
+    ) -> Dict[str, Any]:
+        """Atualiza valores em massa em todos os produtos internos"""
+        try:
+            service = InternalProductService(db)
+            result = service.bulk_update_internal_products(
+                company_id=company_id,
+                cost_price=cost_price,
+                tax_rate=tax_rate,
+                marketing_cost=marketing_cost,
+                other_costs=other_costs
+            )
+            
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+            
+            return result
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Erro no controller ao atualizar produtos em massa: {str(e)}")
+            raise HTTPException(status_code=500, detail="Erro interno do servidor")

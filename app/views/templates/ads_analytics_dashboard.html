@@ -9,11 +9,13 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h1 class="h3 mb-1">Analytics & Performance</h1>
-                    <p class="text-muted mb-0">Dashboard de métricas de publicidade do Mercado Livre</p>
+                    <h1 class="h3 mb-1">📊 Dashboard de Vendas</h1>
+                    <p class="text-muted mb-0">
+                        Análise completa de performance de todos os produtos
+                    </p>
                 </div>
                 <div>
-                    <button class="btn btn-primary" onclick="refreshDashboard()">
+                    <button class="btn btn-primary" onclick="refreshData()">
                         <i class="bi bi-arrow-clockwise"></i> Atualizar
                     </button>
                 </div>
@@ -26,31 +28,50 @@
         <!-- Alerts serão inseridos aqui dinamicamente -->
     </div>
 
-    <!-- Filtros de Data -->
+    <!-- Filtros -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">Filtros de Data</h5>
+                    <h5 class="mb-0">Filtros</h5>
                 </div>
                 <div class="card-body">
-                    <div class="row">
+                    <div class="row g-3">
                         <div class="col-md-3">
+                            <label for="ml_account_filter" class="form-label">Conta ML</label>
+                            <select id="ml_account_filter" class="form-select">
+                                <option value="">Todas as contas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="period_filter" class="form-label">Período</label>
+                            <select id="period_filter" class="form-select" onchange="handlePeriodChange()">
+                                <option value="7">Últimos 7 dias</option>
+                                <option value="15">Últimos 15 dias</option>
+                                <option value="30" selected>Últimos 30 dias</option>
+                                <option value="60">Últimos 60 dias</option>
+                                <option value="90">Últimos 90 dias</option>
+                                <option value="custom">Personalizado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2" id="date_from_container" style="display: none;">
                             <label for="date_from" class="form-label">Data Inicial</label>
-                            <input type="date" id="date_from" class="form-control" value="">
+                            <input type="date" id="date_from" class="form-control">
+                        </div>
+                        <div class="col-md-2" id="date_to_container" style="display: none;">
+                            <label for="date_to" class="form-label">Data Final</label>
+                            <input type="date" id="date_to" class="form-control">
                         </div>
                         <div class="col-md-3">
-                            <label for="date_to" class="form-label">Data Final</label>
-                            <input type="date" id="date_to" class="form-control" value="">
+                            <label for="search_filter" class="form-label">Buscar Produto</label>
+                            <input type="text" id="search_filter" class="form-control" placeholder="Nome ou SKU...">
                         </div>
-                        <div class="col-md-6 d-flex align-items-end">
-                            <div class="btn-group me-2" role="group">
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setQuickPeriod('7d')">7 dias</button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setQuickPeriod('30d')">30 dias</button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setQuickPeriod('90d')">90 dias</button>
-                            </div>
-                            <button type="button" class="btn btn-primary" onclick="loadDashboardData()">
-                                <i class="bi bi-search"></i> Aplicar Filtros
+                        <div class="col-md-2 d-flex align-items-end gap-2">
+                            <button type="button" class="btn btn-primary flex-fill" onclick="applyFilters()">
+                                <i class="bi bi-search"></i> Aplicar
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary flex-fill" onclick="clearFilters()">
+                                <i class="bi bi-x-circle"></i> Limpar
                             </button>
                         </div>
                     </div>
@@ -59,108 +80,230 @@
         </div>
     </div>
 
-    <!-- Loading -->
-    <div class="row mb-4" id="loading-container" style="display: none;">
-        <div class="col-12">
-            <div class="text-center">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Carregando...</span>
-                </div>
-                <p class="mt-2 text-muted">Carregando dados de analytics...</p>
-            </div>
-        </div>
-    </div>
-
     <!-- KPIs -->
-    <div class="row mb-4" id="kpis-container">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-primary">Total Investido</h5>
-                    <h2 class="mb-0" id="total-spend">R$ 0,00</h2>
-                    <small class="text-muted">Investimento total</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-success">Total Vendido</h5>
-                    <h2 class="mb-0" id="total-revenue">R$ 0,00</h2>
-                    <small class="text-muted">Receita total</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-info">ROAS Médio</h5>
-                    <h2 class="mb-0" id="average-roas">0,00</h2>
-                    <small class="text-muted">Retorno sobre investimento</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-warning">Contas Ativas</h5>
-                    <h2 class="mb-0" id="active-accounts">0</h2>
-                    <small class="text-muted">Contas com campanhas</small>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Gráficos -->
     <div class="row mb-4">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Performance Diária</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="dailyPerformanceChart" height="300"></canvas>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-currency-dollar text-success fs-1"></i>
+                    </div>
+                    <h6 class="text-muted mb-1">Receita Total</h6>
+                    <h3 class="mb-0" id="kpi-revenue">R$ 0,00</h3>
+                    <small class="text-success" id="kpi-revenue-growth">+0%</small>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Distribuição de Gastos</h5>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-box-seam text-primary fs-1"></i>
+                    </div>
+                    <h6 class="text-muted mb-1">Produtos Vendidos</h6>
+                    <h3 class="mb-0" id="kpi-quantity">0</h3>
+                    <small class="text-muted" id="kpi-quantity-info">unidades</small>
                 </div>
-                <div class="card-body">
-                    <canvas id="spendDistributionChart" height="300"></canvas>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-cart-check text-info fs-1"></i>
+                    </div>
+                    <h6 class="text-muted mb-1">Total de Pedidos</h6>
+                    <h3 class="mb-0" id="kpi-orders">0</h3>
+                    <small class="text-muted" id="kpi-orders-info">pedidos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-graph-up text-warning fs-1"></i>
+                    </div>
+                    <h6 class="text-muted mb-1">Ticket Médio</h6>
+                    <h3 class="mb-0" id="kpi-avg-ticket">R$ 0,00</h3>
+                    <small class="text-muted" id="kpi-avg-info">por pedido</small>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Performance por Conta -->
+    <!-- Custos e Margens -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">💰 Análise de Custos e Margens</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Coluna Esquerda - Custos -->
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Deduções</h6>
+                            
+                            <!-- Comissões ML -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <div>
+                                    <div class="text-danger">(-) Comissões ML</div>
+                                    <small class="text-muted" id="ml-fees-percent">0.0%</small>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="text-danger" id="ml-fees-value">R$ 0,00</strong>
+                                </div>
+                            </div>
+                            
+                            <!-- Fretes -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <div>
+                                    <div class="text-danger">(-) Fretes</div>
+                                    <small class="text-muted" id="shipping-fees-percent">0.0%</small>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="text-danger" id="shipping-fees-value">R$ 0,00</strong>
+                                </div>
+                            </div>
+                            
+                            <!-- Descontos -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <div>
+                                    <div class="text-danger">(-) Descontos</div>
+                                    <small class="text-muted" id="discounts-percent">0.0%</small>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="text-danger" id="discounts-value">R$ 0,00</strong>
+                                </div>
+                            </div>
+                            
+                            <!-- Custo dos Produtos -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <div>
+                                    <div class="text-danger">(-) Custo dos Produtos</div>
+                                    <small class="text-muted" id="product-cost-percent">0.0%</small>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="text-danger" id="product-cost-value">R$ 0,00</strong>
+                                </div>
+                            </div>
+                            
+                            <!-- Impostos -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <div>
+                                    <div class="text-danger">(-) Impostos</div>
+                                    <small class="text-muted" id="taxes-percent">0.0%</small>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="text-danger" id="taxes-value">R$ 0,00</strong>
+                                </div>
+                            </div>
+                            
+                            <!-- Outros Custos -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <div>
+                                    <div class="text-danger">(-) Outros Custos</div>
+                                    <small class="text-muted" id="other-costs-detail">R$ 0,00/un (0.0%)</small>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="text-danger" id="other-costs-value">R$ 0,00</strong>
+                                </div>
+                            </div>
+                            
+                            <!-- Marketing -->
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <div class="text-danger">(-) Marketing (diluído)</div>
+                                    <small class="text-muted" id="marketing-percent">0.0%</small>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="text-danger" id="marketing-value">R$ 0,00</strong>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Coluna Direita - Resultado -->
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Resultado Final</h6>
+                            
+                            <!-- Receita Bruta -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <div>
+                                    <div class="fw-bold">Receita Bruta</div>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="fs-5" id="gross-revenue">R$ 0,00</strong>
+                                </div>
+                            </div>
+                            
+                            <!-- Total de Custos -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <div>
+                                    <div class="text-danger">Total de Custos</div>
+                                    <small class="text-muted" id="total-costs-percent">0.0%</small>
+                                </div>
+                                <div class="text-end">
+                                    <strong class="text-danger" id="total-costs-value">R$ 0,00</strong>
+                                </div>
+                            </div>
+                            
+                            <!-- Lucro Líquido -->
+                            <div class="bg-success bg-opacity-10 p-3 rounded mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <div class="fw-bold text-success fs-5">(=) Lucro Líquido Final</div>
+                                        <small class="text-success" id="net-profit-margin">0.0% margem líquida</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <h3 class="mb-0 text-success" id="net-profit-value">R$ 0,00</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Lucro Médio por Pedido -->
+                            <div class="bg-info bg-opacity-10 p-3 rounded">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-bold">Lucro Médio por Pedido</div>
+                                        <small class="text-muted" id="avg-profit-detail">0 pedidos</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <h4 class="mb-0 text-info" id="avg-profit-value">R$ 0,00</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo por Conta -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Performance por Conta</h5>
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">📈 Resumo por Conta ML</h5>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
-                            <thead class="table-primary text-white">
+                            <thead class="table-light">
                                 <tr>
                                     <th>Conta</th>
-                                    <th>País</th>
-                                    <th>Investido</th>
-                                    <th>Vendido</th>
-                                    <th>ROAS</th>
-                                    <th>Cliques</th>
-                                    <th>Impressões</th>
-                                    <th>Vendas</th>
+                                    <th class="text-end">Produtos Ativos</th>
+                                    <th class="text-end">Produtos Vendidos</th>
+                                    <th class="text-end">Receita Total</th>
+                                    <th class="text-end">Ticket Médio</th>
                                 </tr>
                             </thead>
-                            <tbody id="accounts-table-body">
+                            <tbody id="accounts-summary-body">
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">
-                                        <i class="bi bi-info-circle"></i> Carregando dados...
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox display-4"></i>
+                                        <p class="mt-2">Carregando dados...</p>
                                     </td>
                                 </tr>
                             </tbody>
@@ -173,172 +316,457 @@
 
     <!-- Top Produtos -->
     <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Top Produtos por Performance</h5>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">🏆 Top 10 Mais Vendidos</h5>
                 </div>
                 <div class="card-body">
+                    <div class="list-group list-group-flush" id="top-sold-products">
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-trophy display-4"></i>
+                            <p class="mt-2">Carregando ranking...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">💰 Top 10 Maior Receita</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush" id="top-revenue-products">
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-cash-stack display-4"></i>
+                            <p class="mt-2">Carregando ranking...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Produtos -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">📦 Todos os Produtos</h5>
+                    <span class="badge bg-primary" id="total-products-count">0 produtos</span>
+                </div>
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead class="table-primary text-white">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
                                 <tr>
                                     <th>Produto</th>
-                                    <th>Conta</th>
-                                    <th>Investido</th>
-                                    <th>Vendido</th>
-                                    <th>ROAS</th>
-                                    <th>Cliques</th>
-                                    <th>CTR</th>
+                                    <th class="text-end">Preço</th>
+                                    <th class="text-end">Disponível</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-end">Vendidos</th>
+                                    <th class="text-end">Receita Est.</th>
+                                    <th class="text-center">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody id="top-products-table-body">
+                            <tbody id="products-table-body">
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        <i class="bi bi-info-circle"></i> Nenhum produto com dados de publicidade encontrado
+                                    <td colspan="7" class="text-center text-muted py-5">
+                                        <i class="bi bi-box-seam display-4"></i>
+                                        <p class="mt-2">Carregando produtos...</p>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Insights -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Insights e Recomendações</h5>
-                </div>
-                <div class="card-body" id="insights-container">
-                    <div class="text-center text-muted">
-                        <i class="bi bi-lightbulb"></i> Analisando dados para gerar insights...
-                    </div>
+                <div class="card-footer bg-white">
+                    <nav>
+                        <ul class="pagination justify-content-center mb-0" id="pagination-container">
+                            <li class="page-item disabled">
+                                <span class="page-link">Carregando...</span>
+                            </li>
+                        </ul>
+                    </nav>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
-let dailyChart = null;
-let spendChart = null;
+// Variáveis globais
+let mlAccounts = [];
+let currentPage = 1;
+let currentFilters = {};
 
-// Inicializar datas padrão (últimos 30 dias)
-document.addEventListener('DOMContentLoaded', function() {
-    const today = new Date();
-    const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
-    
-    document.getElementById('date_from').value = thirtyDaysAgo.toISOString().split('T')[0];
-    document.getElementById('date_to').value = today.toISOString().split('T')[0];
-    
-    // Carregar dados iniciais
-    loadDashboardData();
-});
+// Função para formatar valores em reais (padrão brasileiro)
+function formatBRL(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value);
+}
 
-function loadDashboardData() {
-    showLoading(true);
+// Função para formatar números (sem símbolo de moeda)
+function formatNumber(value) {
+    return new Intl.NumberFormat('pt-BR').format(value);
+}
+
+// Função para mostrar alertas
+function showAlert(type, message) {
+    const alertsContainer = document.getElementById('alerts-container');
+    const alertId = 'alert-' + Date.now();
     
-    const dateFrom = document.getElementById('date_from').value;
-    const dateTo = document.getElementById('date_to').value;
+    const alertHTML = `
+        <div class="col-12">
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert" id="${alertId}">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
     
-    const url = `/api/analytics/dashboard?date_from=${dateFrom}&date_to=${dateTo}`;
+    alertsContainer.innerHTML = alertHTML;
     
-    fetch(url, {
-        credentials: 'include'  // Incluir cookies de sessão
+    // Auto-remover após 5 segundos
+    setTimeout(() => {
+        const alert = document.getElementById(alertId);
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+// Carregar contas ML
+function loadMLAccounts() {
+    fetch('/ml/products/api/accounts', {
+        credentials: 'include'
     })
-        .then(response => {
-            console.log('Response status:', response.status);
-            console.log('Response headers:', response.headers);
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mlAccounts = data.accounts;
             
-            if (response.status === 401) {
-                // Não autenticado - redirecionar para login
-                console.log('Não autenticado, redirecionando...');
-                window.location.href = '/auth/login';
-                return;
-            }
+            const select = document.getElementById('ml_account_filter');
+            select.innerHTML = '<option value="">Todas as contas</option>';
             
-            if (!response.ok) {
-                console.error('Response not ok:', response.status, response.statusText);
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
+            data.accounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account.id;
+                option.textContent = `${account.nickname} (${account.email})`;
+                select.appendChild(option);
+            });
             
-            return response.json();
-        })
-        .then(data => {
-            console.log('Data received:', data);
-            
-            if (data && data.success) {
-                console.log('Success, rendering dashboard...');
-                renderDashboard(data.data);
-            } else {
-                const errorMsg = data?.error || 'Erro desconhecido';
-                console.error('API Error:', errorMsg);
-                
-                if (errorMsg.includes('Não autenticado') || errorMsg.includes('Sessão inválida')) {
-                    console.log('Sessão inválida, redirecionando...');
-                    window.location.href = '/auth/login';
-                } else {
-                    showError('Erro ao carregar dados: ' + errorMsg);
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Fetch Error:', error);
-            showError('Erro ao carregar dados do dashboard: ' + error.message);
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+            console.log('✅ Contas ML carregadas:', data.accounts.length);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao carregar contas ML:', error);
+    });
 }
 
-function renderDashboard(data) {
-    console.log('Dados recebidos:', data);
+// Lidar com mudança de período
+function handlePeriodChange() {
+    const period = document.getElementById('period_filter').value;
+    const dateFromContainer = document.getElementById('date_from_container');
+    const dateToContainer = document.getElementById('date_to_container');
     
-    if (data.kpis) {
-        renderKPIs(data.kpis);
-    }
-    
-    if (data.accounts) {
-        renderAccounts(data.accounts);
-    }
-    
-    if (data.daily_metrics && data.daily_metrics.length > 0) {
-        renderCharts(data);
+    if (period === 'custom') {
+        dateFromContainer.style.display = 'block';
+        dateToContainer.style.display = 'block';
     } else {
-        renderEmptyCharts();
+        dateFromContainer.style.display = 'none';
+        dateToContainer.style.display = 'none';
     }
-    
-    if (data.top_products && data.top_products.length > 0) {
-        renderTopProducts(data.top_products);
-    } else {
-        renderEmptyTopProducts();
-    }
-    
-    renderInsights(data);
 }
 
-function renderKPIs(kpis) {
-    document.getElementById('total-spend').textContent = formatCurrency(kpis.total_spend);
-    document.getElementById('total-revenue').textContent = formatCurrency(kpis.total_revenue);
-    document.getElementById('average-roas').textContent = kpis.average_roas.toFixed(2);
-    document.getElementById('active-accounts').textContent = kpis.active_accounts;
+// Carregar dados do dashboard
+function loadDashboardData(page = 1) {
+    currentPage = page;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    const filters = {
+        ml_account_id: urlParams.get('ml_account_id') || '',
+        period: urlParams.get('period') || '30',
+        search: urlParams.get('search') || ''
+    };
+    
+    currentFilters = filters;
+    
+    // Construir URL da API de analytics
+    let apiUrl = `/api/analytics/sales-dashboard?period=${filters.period}`;
+    if (filters.ml_account_id) apiUrl += `&ml_account_id=${filters.ml_account_id}`;
+    if (filters.search) apiUrl += `&search=${encodeURIComponent(filters.search)}`;
+    
+    console.log('📊 Carregando dados do dashboard:', apiUrl);
+    
+    fetch(apiUrl, {
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Dados carregados:', data);
+            
+            // Atualizar KPIs com dados reais
+            document.getElementById('kpi-revenue').textContent = formatBRL(data.kpis.total_revenue);
+            document.getElementById('kpi-quantity').textContent = formatNumber(data.kpis.total_sold);
+            document.getElementById('kpi-orders').textContent = formatNumber(data.kpis.total_orders);
+            document.getElementById('kpi-avg-ticket').textContent = formatBRL(data.kpis.avg_ticket);
+            
+            // Atualizar custos e margens
+            updateCostsAndMargins(data.costs, data.profit, data.kpis);
+            
+            // Renderizar produtos
+            renderProducts(data.products);
+            
+            // Renderizar top produtos com dados reais
+            loadTopProducts();
+            
+            // Renderizar resumo de contas
+            loadAccountsSummary();
+            
+        } else {
+            console.error('Erro ao carregar dados:', data.error);
+            showAlert('danger', 'Erro ao carregar dados do dashboard');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showAlert('danger', 'Erro ao carregar dados');
+    });
 }
 
-function renderAccounts(accounts) {
-    const tbody = document.getElementById('accounts-table-body');
+// Carregar top produtos
+function loadTopProducts() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ml_account_id = urlParams.get('ml_account_id') || '';
     
-    if (!accounts || accounts.length === 0) {
+    let apiUrl = '/api/analytics/top-products?limit=10';
+    if (ml_account_id) apiUrl += `&ml_account_id=${ml_account_id}`;
+    
+    fetch(apiUrl, {
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderTopProductsReal(data.top_sold, data.top_revenue);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao carregar top produtos:', error);
+    });
+}
+
+// Carregar resumo de contas
+function loadAccountsSummary() {
+    fetch('/api/analytics/accounts-summary', {
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderAccountsSummaryReal(data.accounts);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao carregar resumo de contas:', error);
+    });
+}
+
+// Renderizar produtos na tabela
+function renderProducts(products) {
+    const tbody = document.getElementById('products-table-body');
+    const totalCount = document.getElementById('total-products-count');
+    
+    totalCount.textContent = `${products.length} produtos`;
+    
+    if (products.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center text-muted py-4">
-                    <i class="bi bi-info-circle"></i> Nenhuma conta com dados de publicidade encontrada
+                <td colspan="7" class="text-center text-muted py-5">
+                    <i class="bi bi-inbox display-4"></i>
+                    <p class="mt-2">Nenhum produto encontrado</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = products.map(product => {
+        const price = parseFloat(product.price) || 0;
+        const soldQty = product.sold_quantity || 0;
+        const revenue = price * soldQty;
+        
+        const statusClass = product.status === 'active' ? 'success' : 
+                           product.status === 'paused' ? 'warning' : 'secondary';
+        const statusText = product.status === 'active' ? 'Ativo' :
+                          product.status === 'paused' ? 'Pausado' : 'Inativo';
+        
+        return `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        ${product.thumbnail ? 
+                            `<img src="${product.thumbnail}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">` :
+                            `<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                <i class="bi bi-image text-muted"></i>
+                            </div>`
+                        }
+                        <div>
+                            <div class="fw-medium">${product.title.substring(0, 60)}${product.title.length > 60 ? '...' : ''}</div>
+                            <small class="text-muted">ID: ${product.ml_item_id}</small>
+                        </div>
+                    </div>
+                </td>
+                <td class="text-end">
+                    <strong>${formatBRL(price)}</strong>
+                </td>
+                <td class="text-end">
+                    <span class="badge bg-info">${formatNumber(product.available_quantity || 0)}</span>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-${statusClass}">${statusText}</span>
+                </td>
+                <td class="text-end">
+                    <strong class="text-primary">${formatNumber(soldQty)}</strong>
+                </td>
+                <td class="text-end">
+                    <strong class="text-success">${formatBRL(revenue)}</strong>
+                </td>
+                <td class="text-center">
+                    <a href="/ml/products/analysis/${product.id}" class="btn btn-sm btn-outline-primary" title="Ver Análise">
+                        <i class="bi bi-graph-up"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Atualizar custos e margens
+function updateCostsAndMargins(costs, profit, kpis) {
+    // Receita Bruta
+    document.getElementById('gross-revenue').textContent = formatBRL(kpis.total_revenue);
+    
+    // Custos individuais
+    document.getElementById('ml-fees-value').textContent = formatBRL(costs.ml_fees);
+    document.getElementById('ml-fees-percent').textContent = `${costs.ml_fees_percent.toFixed(1)}%`;
+    
+    document.getElementById('shipping-fees-value').textContent = formatBRL(costs.shipping_fees);
+    document.getElementById('shipping-fees-percent').textContent = `${costs.shipping_fees_percent.toFixed(1)}%`;
+    
+    document.getElementById('discounts-value').textContent = formatBRL(costs.discounts);
+    document.getElementById('discounts-percent').textContent = `${costs.discounts_percent.toFixed(1)}%`;
+    
+    document.getElementById('product-cost-value').textContent = formatBRL(costs.product_cost);
+    document.getElementById('product-cost-percent').textContent = `${costs.product_cost_percent.toFixed(1)}%`;
+    
+    document.getElementById('taxes-value').textContent = formatBRL(costs.taxes);
+    document.getElementById('taxes-percent').textContent = `${costs.taxes_percent.toFixed(1)}%`;
+    
+    document.getElementById('other-costs-value').textContent = formatBRL(costs.other_costs);
+    document.getElementById('other-costs-detail').textContent = `${formatBRL(costs.other_costs_per_unit)}/un (${costs.other_costs_percent.toFixed(1)}%)`;
+    
+    document.getElementById('marketing-value').textContent = formatBRL(costs.marketing_cost);
+    document.getElementById('marketing-percent').textContent = `${costs.marketing_percent.toFixed(1)}%`;
+    
+    // Total de custos
+    document.getElementById('total-costs-value').textContent = formatBRL(costs.total_costs);
+    document.getElementById('total-costs-percent').textContent = `${costs.total_costs_percent.toFixed(1)}%`;
+    
+    // Lucro Líquido
+    document.getElementById('net-profit-value').textContent = formatBRL(profit.net_profit);
+    document.getElementById('net-profit-margin').textContent = `${profit.net_margin.toFixed(1)}% margem líquida`;
+    
+    // Lucro Médio por Pedido
+    document.getElementById('avg-profit-value').textContent = formatBRL(profit.avg_profit_per_order);
+    document.getElementById('avg-profit-detail').textContent = `${formatNumber(kpis.total_orders)} pedidos`;
+}
+
+// Atualizar KPIs
+function updateKPIs(products) {
+    let totalRevenue = 0;
+    let totalSold = 0;
+    let productsWithSales = 0;
+    
+    products.forEach(product => {
+        const price = parseFloat(product.price) || 0;
+        const soldQty = product.sold_quantity || 0;
+        
+        totalRevenue += price * soldQty;
+        totalSold += soldQty;
+        if (soldQty > 0) productsWithSales++;
+    });
+    
+    const avgTicket = productsWithSales > 0 ? totalRevenue / productsWithSales : 0;
+    
+    document.getElementById('kpi-revenue').textContent = formatBRL(totalRevenue);
+    document.getElementById('kpi-quantity').textContent = formatNumber(totalSold);
+    document.getElementById('kpi-orders').textContent = formatNumber(productsWithSales);
+    document.getElementById('kpi-avg-ticket').textContent = formatBRL(avgTicket);
+}
+
+// Renderizar top produtos com dados reais da API
+function renderTopProductsReal(topSold, topRevenue) {
+    // Top vendidos
+    const topSoldContainer = document.getElementById('top-sold-products');
+    topSoldContainer.innerHTML = topSold.length > 0 ? topSold.map((product, index) => `
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-primary rounded-circle me-2" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+                        ${index + 1}
+                    </span>
+                    <div>
+                        <div class="fw-medium">${product.title.substring(0, 40)}...</div>
+                        <small class="text-muted">${product.ml_item_id}</small>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold text-primary">${formatNumber(product.sold_quantity)} un</div>
+                    <small class="text-muted">${formatBRL(product.price)}</small>
+                </div>
+            </div>
+        </div>
+    `).join('') : '<div class="text-center text-muted py-3">Nenhum produto vendido</div>';
+    
+    // Top receita
+    const topRevenueContainer = document.getElementById('top-revenue-products');
+    topRevenueContainer.innerHTML = topRevenue.length > 0 ? topRevenue.map((product, index) => `
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success rounded-circle me-2" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+                        ${index + 1}
+                    </span>
+                    <div>
+                        <div class="fw-medium">${product.title.substring(0, 40)}...</div>
+                        <small class="text-muted">${product.sold_quantity} vendidos</small>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold text-success">${formatBRL(product.revenue)}</div>
+                    <small class="text-muted">@ ${formatBRL(product.price)}</small>
+                </div>
+            </div>
+        </div>
+    `).join('') : '<div class="text-center text-muted py-3">Nenhuma receita gerada</div>';
+}
+
+// Renderizar resumo de contas com dados reais
+function renderAccountsSummaryReal(accounts) {
+    const tbody = document.getElementById('accounts-summary-body');
+    
+    if (accounts.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted py-3">
+                    Nenhuma conta ML disponível
                 </td>
             </tr>
         `;
@@ -348,316 +776,168 @@ function renderAccounts(accounts) {
     tbody.innerHTML = accounts.map(account => `
         <tr>
             <td>
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-shop-fill text-success me-2"></i>
-                    <strong>${account.nickname}</strong>
+                <div>
+                    <div class="fw-medium">${account.nickname}</div>
+                    <small class="text-muted">${account.email}</small>
                 </div>
             </td>
-            <td>
-                <span class="badge bg-info">${account.country_id}</span>
-            </td>
-            <td>${formatCurrency(account.total_spend)}</td>
-            <td>${formatCurrency(account.total_revenue)}</td>
-            <td>
-                <span class="badge ${getROASBadgeClass(account.roas)}">
-                    ${account.roas.toFixed(2)}
-                </span>
-            </td>
-            <td>${formatNumber(account.total_clicks)}</td>
-            <td>${formatNumber(account.total_impressions)}</td>
-            <td>${formatNumber(account.total_sales)}</td>
+            <td class="text-end"><span class="badge bg-info">${formatNumber(account.active_products)}</span></td>
+            <td class="text-end"><span class="badge bg-primary">${formatNumber(account.total_sold)}</span></td>
+            <td class="text-end"><strong class="text-success">${formatBRL(account.total_revenue)}</strong></td>
+            <td class="text-end"><strong>${formatBRL(account.avg_ticket)}</strong></td>
         </tr>
     `).join('');
 }
 
-function renderCharts(data) {
-    // Performance Diária
-    const dailyCtx = document.getElementById('dailyPerformanceChart').getContext('2d');
-    if (dailyChart) {
-        dailyChart.destroy();
-    }
-    
-    dailyChart = new Chart(dailyCtx, {
-        type: 'line',
-        data: {
-            labels: data.daily_metrics.map(d => d.date),
-            datasets: [
-                {
-                    label: 'Investido',
-                    data: data.daily_metrics.map(d => d.spend),
-                    borderColor: 'rgb(75, 192, 192)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    tension: 0.1
-                },
-                {
-                    label: 'Vendido',
-                    data: data.daily_metrics.map(d => d.revenue),
-                    borderColor: 'rgb(54, 162, 235)',
-                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                    tension: 0.1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-    
-    // Distribuição de Gastos
-    const spendCtx = document.getElementById('spendDistributionChart').getContext('2d');
-    if (spendChart) {
-        spendChart.destroy();
-    }
-    
-    spendChart = new Chart(spendCtx, {
-        type: 'doughnut',
-        data: {
-            labels: data.accounts.map(acc => acc.nickname),
-            datasets: [{
-                data: data.accounts.map(acc => acc.total_spend),
-                backgroundColor: [
-                    'rgba(255, 99, 132, 0.8)',
-                    'rgba(54, 162, 235, 0.8)',
-                    'rgba(255, 205, 86, 0.8)',
-                    'rgba(75, 192, 192, 0.8)',
-                    'rgba(153, 102, 255, 0.8)'
-                ],
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
-    });
-}
-
-function renderEmptyCharts() {
-    // Performance Diária vazio
-    const dailyCtx = document.getElementById('dailyPerformanceChart').getContext('2d');
-    if (dailyChart) {
-        dailyChart.destroy();
-    }
-    
-    dailyChart = new Chart(dailyCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: []
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'top' }
-            },
-            scales: { y: { beginAtZero: true } }
-        }
-    });
-    
-    // Distribuição de Gastos vazio
-    const spendCtx = document.getElementById('spendDistributionChart').getContext('2d');
-    if (spendChart) {
-        spendChart.destroy();
-    }
-    
-    spendChart = new Chart(spendCtx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Sem dados disponíveis'],
-            datasets: [{
-                data: [100],
-                backgroundColor: ['rgba(200, 200, 200, 0.5)'],
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' }
-            }
-        }
-    });
-}
-
+// Renderizar top produtos (função antiga - manter para compatibilidade)
 function renderTopProducts(products) {
-    const tbody = document.getElementById('top-products-table-body');
+    // Top vendidos
+    const topSold = [...products]
+        .filter(p => p.sold_quantity > 0)
+        .sort((a, b) => b.sold_quantity - a.sold_quantity)
+        .slice(0, 10);
     
-    tbody.innerHTML = products.map(product => `
-        <tr>
-            <td>
+    const topSoldContainer = document.getElementById('top-sold-products');
+    topSoldContainer.innerHTML = topSold.length > 0 ? topSold.map((product, index) => `
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
-                    <img src="${product.thumbnail || '/static/images/no-image.png'}" 
-                         alt="${product.title}" 
-                         class="me-2" 
-                         style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">
+                    <span class="badge bg-primary rounded-circle me-2" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+                        ${index + 1}
+                    </span>
                     <div>
-                        <strong>${product.title.substring(0, 50)}${product.title.length > 50 ? '...' : ''}</strong>
+                        <div class="fw-medium">${product.title.substring(0, 40)}...</div>
+                        <small class="text-muted">${product.ml_item_id}</small>
                     </div>
                 </div>
-            </td>
-            <td>
-                <span class="badge bg-info">${product.account_nickname}</span>
-            </td>
-            <td>${formatCurrency(product.spend)}</td>
-            <td>${formatCurrency(product.revenue)}</td>
-            <td>
-                <span class="badge ${getROASBadgeClass(product.roas)}">
-                    ${product.roas.toFixed(2)}
-                </span>
-            </td>
-            <td>${formatNumber(product.clicks)}</td>
-            <td>${((product.clicks / product.impressions) * 100).toFixed(2)}%</td>
-        </tr>
-    `).join('');
-}
-
-function renderEmptyTopProducts() {
-    const tbody = document.getElementById('top-products-table-body');
-    tbody.innerHTML = `
-        <tr>
-            <td colspan="7" class="text-center text-muted py-4">
-                <i class="bi bi-info-circle"></i> Nenhum produto com dados de publicidade encontrado
-            </td>
-        </tr>
-    `;
-}
-
-function renderInsights(data) {
-    const container = document.getElementById('insights-container');
-    const insights = [];
+                <div class="text-end">
+                    <div class="fw-bold text-primary">${product.sold_quantity} un</div>
+                    <small class="text-muted">R$ ${parseFloat(product.price).toFixed(2)}</small>
+                </div>
+            </div>
+        </div>
+    `).join('') : '<div class="text-center text-muted py-3">Nenhum produto vendido</div>';
     
-    if (data.kpis && data.kpis.total_spend > 0) {
-        const roas = data.kpis.average_roas;
-        
-        if (roas >= 4.0) {
-            insights.push({
-                type: 'success',
-                icon: 'bi-check-circle',
-                title: 'Excelente Performance',
-                message: `ROAS de ${roas.toFixed(2)} está acima da média do mercado. Continue investindo!`
-            });
-        } else if (roas >= 2.0) {
-            insights.push({
-                type: 'info',
-                icon: 'bi-info-circle',
-                title: 'Performance Boa',
-                message: `ROAS de ${roas.toFixed(2)} está na média. Considere otimizar campanhas.`
-            });
+    // Top receita
+    const topRevenue = [...products]
+        .map(p => ({
+            ...p,
+            revenue: (parseFloat(p.price) || 0) * (p.sold_quantity || 0)
+        }))
+        .filter(p => p.revenue > 0)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+    
+    const topRevenueContainer = document.getElementById('top-revenue-products');
+    topRevenueContainer.innerHTML = topRevenue.length > 0 ? topRevenue.map((product, index) => `
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success rounded-circle me-2" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+                        ${index + 1}
+                    </span>
+                    <div>
+                        <div class="fw-medium">${product.title.substring(0, 40)}...</div>
+                        <small class="text-muted">${product.sold_quantity} vendidos</small>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold text-success">R$ ${product.revenue.toFixed(2)}</div>
+                    <small class="text-muted">@ R$ ${parseFloat(product.price).toFixed(2)}</small>
+                </div>
+            </div>
+        </div>
+    `).join('') : '<div class="text-center text-muted py-3">Nenhuma receita gerada</div>';
+}
+
+// Função antiga de renderizar resumo por conta (mantida para compatibilidade)
+function renderAccountsSummary() {
+    // Removida - agora usa renderAccountsSummaryReal
+    console.log('✅ Usando renderAccountsSummaryReal ao invés desta função');
+}
+
+// Atualizar paginação (removida - dashboard mostra todos os produtos filtrados)
+function updatePagination(page, limit, total, hasNext, hasPrev) {
+    const container = document.getElementById('pagination-container');
+    // Ocultar paginação pois mostramos todos os produtos
+    container.innerHTML = '';
+}
+
+// Restaurar filtros da URL
+function restoreFiltersFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    const mlAccountId = urlParams.get('ml_account_id');
+    if (mlAccountId) {
+        document.getElementById('ml_account_filter').value = mlAccountId;
+    }
+    
+    const period = urlParams.get('period');
+    if (period) {
+        document.getElementById('period_filter').value = period;
+        handlePeriodChange();
+    }
+    
+    const search = urlParams.get('search');
+    if (search) {
+        document.getElementById('search_filter').value = search;
+    }
+}
+
+// Aplicar filtros
+function applyFilters() {
+    const filters = {
+        ml_account_id: document.getElementById('ml_account_filter').value,
+        period: document.getElementById('period_filter').value,
+        search: document.getElementById('search_filter').value
+    };
+    
+    if (filters.period === 'custom') {
+        filters.date_from = document.getElementById('date_from').value;
+        filters.date_to = document.getElementById('date_to').value;
+    }
+    
+    // Atualizar URL sem recarregar
+    const url = new URL(window.location);
+    Object.keys(filters).forEach(key => {
+        if (filters[key]) {
+            url.searchParams.set(key, filters[key]);
         } else {
-            insights.push({
-                type: 'warning',
-                icon: 'bi-exclamation-triangle',
-                title: 'Performance Baixa',
-                message: `ROAS de ${roas.toFixed(2)} está abaixo da média. Revise estratégias de campanha.`
-            });
+            url.searchParams.delete(key);
         }
-        
-        if (data.kpis.total_accounts > 1) {
-            insights.push({
-                type: 'info',
-                icon: 'bi-graph-up',
-                title: 'Multi-Conta',
-                message: `Gerenciando ${data.kpis.total_accounts} contas ativas. Considere diversificar investimentos.`
-            });
-        }
-    } else {
-        insights.push({
-            type: 'secondary',
-            icon: 'bi-info-circle',
-            title: 'Sem Dados',
-            message: 'Nenhuma campanha ativa encontrada. Configure suas primeiras campanhas para ver insights.'
-        });
-    }
+    });
     
-    container.innerHTML = insights.map(insight => `
-        <div class="alert alert-${insight.type} d-flex align-items-center" role="alert">
-            <i class="bi ${insight.icon} me-2"></i>
-            <div>
-                <strong>${insight.title}:</strong> ${insight.message}
-            </div>
-        </div>
-    `).join('');
+    window.history.pushState({}, '', url);
+    loadDashboardData(1);
 }
 
-function showLoading(show) {
-    document.getElementById('loading-container').style.display = show ? 'block' : 'none';
-}
-
-function showError(message) {
-    const alertContainer = document.getElementById('alerts-container');
-    alertContainer.innerHTML = `
-        <div class="col-12">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-    `;
-}
-
-function formatCurrency(value) {
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(value || 0);
-}
-
-function formatNumber(value) {
-    return new Intl.NumberFormat('pt-BR').format(value || 0);
-}
-
-function getROASBadgeClass(roas) {
-    if (roas >= 4.0) return 'bg-success';
-    if (roas >= 2.0) return 'bg-primary';
-    if (roas >= 1.0) return 'bg-warning';
-    return 'bg-danger';
-}
-
-function setQuickPeriod(period) {
-    const today = new Date();
-    const dateTo = document.getElementById('date_to');
-    const dateFrom = document.getElementById('date_from');
+// Limpar filtros
+function clearFilters() {
+    document.getElementById('ml_account_filter').value = '';
+    document.getElementById('period_filter').value = '30';
+    document.getElementById('search_filter').value = '';
+    handlePeriodChange();
     
-    dateTo.value = today.toISOString().split('T')[0];
+    const url = new URL(window.location);
+    url.search = '';
+    window.history.pushState({}, '', url);
     
-    let days;
-    switch(period) {
-        case '7d': days = 7; break;
-        case '30d': days = 30; break;
-        case '90d': days = 90; break;
-        default: days = 30;
-    }
-    
-    const fromDate = new Date(today.getTime() - (days * 24 * 60 * 60 * 1000));
-    dateFrom.value = fromDate.toISOString().split('T')[0];
+    loadDashboardData(1);
 }
 
-function refreshDashboard() {
-    loadDashboardData();
+// Atualizar dados
+function refreshData() {
+    showAlert('info', '🔄 Atualizando dados...');
+    loadDashboardData(currentPage);
 }
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✅ Dashboard de Vendas carregado');
+    restoreFiltersFromURL();
+    loadMLAccounts();
+    loadDashboardData(1);
+});
 </script>
 
 {% endblock %}

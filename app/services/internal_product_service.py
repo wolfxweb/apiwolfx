@@ -401,6 +401,74 @@ class InternalProductService:
             logger.error(f"Erro ao excluir produtos em massa: {str(e)}")
             return {"error": f"Erro interno: {str(e)}"}
     
+    def bulk_update_internal_products(
+        self,
+        company_id: int,
+        cost_price: Optional[float] = None,
+        tax_rate: Optional[float] = None,
+        marketing_cost: Optional[float] = None,
+        other_costs: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """Atualiza valores em massa em todos os produtos internos da empresa"""
+        try:
+            # Buscar todos os produtos da empresa
+            products = self.db.query(InternalProduct).filter(
+                InternalProduct.company_id == company_id
+            ).all()
+            
+            if not products:
+                return {"error": "Nenhum produto encontrado para atualizar"}
+            
+            # Atualizar produtos
+            updated_count = 0
+            update_fields = []
+            
+            for product in products:
+                updated = False
+                
+                if cost_price is not None:
+                    product.cost_price = str(cost_price)
+                    updated = True
+                    if 'Preço de Custo' not in update_fields:
+                        update_fields.append('Preço de Custo')
+                
+                if tax_rate is not None:
+                    product.tax_rate = str(tax_rate)
+                    updated = True
+                    if 'Impostos' not in update_fields:
+                        update_fields.append('Impostos')
+                
+                if marketing_cost is not None:
+                    product.marketing_cost = str(marketing_cost)
+                    updated = True
+                    if 'Marketing' not in update_fields:
+                        update_fields.append('Marketing')
+                
+                if other_costs is not None:
+                    product.other_costs = str(other_costs)
+                    updated = True
+                    if 'Outros Custos' not in update_fields:
+                        update_fields.append('Outros Custos')
+                
+                if updated:
+                    updated_count += 1
+            
+            self.db.commit()
+            
+            fields_str = ', '.join(update_fields)
+            
+            return {
+                "success": True,
+                "message": f"{updated_count} produto(s) atualizado(s) com sucesso",
+                "updated_count": updated_count,
+                "fields_updated": update_fields
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Erro ao atualizar produtos em massa: {str(e)}")
+            return {"error": f"Erro interno: {str(e)}"}
+    
     def get_pricing_data_by_sku(self, internal_sku: str, company_id: int) -> Dict[str, Any]:
         """Busca dados de preços e taxas por SKU interno para análise"""
         try:

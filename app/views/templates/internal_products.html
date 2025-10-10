@@ -8,9 +8,23 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="h3 mb-0">Produtos Cadastrados</h1>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProductModal">
-                    <i class="fas fa-plus"></i> Novo Produto
-                </button>
+                <div class="dropdown">
+                    <button class="btn btn-primary dropdown-toggle" type="button" id="acoesDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-gear-fill"></i> Ações
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="acoesDropdown">
+                        <li>
+                            <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createProductModal">
+                                <i class="bi bi-plus-circle text-success"></i> Cadastrar Produto
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#bulkUpdateModal">
+                                <i class="bi bi-sliders text-primary"></i> Aplicar Valores em Massa
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -314,6 +328,123 @@
     </div>
 </div>
 
+<!-- Modal Aplicar Valores em Massa -->
+<div class="modal fade" id="bulkUpdateModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-sliders me-2"></i>
+                    Aplicar Valores em Massa
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info d-flex align-items-center" role="alert">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <div>
+                        Os valores preenchidos abaixo serão aplicados a <strong>TODOS</strong> os produtos cadastrados.
+                    </div>
+                </div>
+                
+                <form id="bulkUpdateForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="bulkCostPrice" class="form-label">
+                                <i class="bi bi-currency-dollar text-warning"></i> Preço de Custo (R$)
+                            </label>
+                            <input type="number" class="form-control" id="bulkCostPrice" step="0.01" placeholder="Ex: 50.00">
+                            <small class="text-muted">Deixe vazio para não alterar</small>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="bulkTaxRate" class="form-label">
+                                <i class="bi bi-receipt text-danger"></i> Impostos (%)
+                            </label>
+                            <input type="number" class="form-control" id="bulkTaxRate" step="0.1" placeholder="Ex: 5.0">
+                            <small class="text-muted">Deixe vazio para não alterar</small>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="bulkMarketingCost" class="form-label">
+                                <i class="bi bi-megaphone text-info"></i> Marketing (%)
+                            </label>
+                            <input type="number" class="form-control" id="bulkMarketingCost" step="0.1" placeholder="Ex: 3.0">
+                            <small class="text-muted">Deixe vazio para não alterar</small>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="bulkOtherCosts" class="form-label">
+                                <i class="bi bi-cash-stack text-secondary"></i> Despesas Adicionais (R$)
+                            </label>
+                            <input type="number" class="form-control" id="bulkOtherCosts" step="0.01" placeholder="Ex: 2.10">
+                            <small class="text-muted">Deixe vazio para não alterar</small>
+                        </div>
+                        
+                        <div class="col-12">
+                            <div class="alert alert-warning mb-0">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <strong>Atenção:</strong> Esta operação irá atualizar <strong>todos os produtos</strong> com os valores informados.
+                                Produtos com valores já preenchidos serão sobrescritos.
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="showBulkUpdateConfirmation()">
+                    <i class="bi bi-check-circle"></i> Aplicar a Todos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Atualização em Massa -->
+<div class="modal fade" id="bulkUpdateConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Confirmar Atualização em Massa
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning d-flex align-items-center" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                        <strong>Atenção!</strong> Esta ação irá sobrescrever os valores existentes.
+                    </div>
+                </div>
+                
+                <p>Você está prestes a atualizar <strong id="bulk-update-count">0</strong> produto(s) com os seguintes valores:</p>
+                
+                <div class="mb-3">
+                    <div id="bulk-update-summary" class="border rounded p-3 bg-light">
+                        <!-- Resumo será preenchido via JavaScript -->
+                    </div>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirmBulkUpdateCheck">
+                    <label class="form-check-label" for="confirmBulkUpdateCheck">
+                        <strong>Confirmo que desejo aplicar estes valores a todos os produtos</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="confirmBulkUpdateBtn" onclick="executeBulkUpdate()" disabled>
+                    <i class="bi bi-check-circle"></i> Confirmar Atualização
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de Confirmação de Exclusão em Massa -->
 <div class="modal fade" id="bulkDeleteModal" tabindex="-1">
     <div class="modal-dialog">
@@ -379,6 +510,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     loadProducts();
     loadBaseProducts();
+    
+    // Event listener para checkbox de confirmação de atualização em massa
+    const confirmBulkUpdateCheck = document.getElementById('confirmBulkUpdateCheck');
+    if (confirmBulkUpdateCheck) {
+        confirmBulkUpdateCheck.addEventListener('change', function() {
+            document.getElementById('confirmBulkUpdateBtn').disabled = !this.checked;
+        });
+    }
     
     // Verificar se veio de um produto do ML para pré-preencher
     const urlParams = new URLSearchParams(window.location.search);
@@ -942,31 +1081,63 @@ async function createProduct() {
 
 // Editar produto
 async function editProduct(productId) {
-    const product = currentProducts.find(p => p.id === productId);
-    if (!product) return;
+    console.log('🔧 Editando produto:', productId);
+    console.log('📦 Produtos disponíveis:', allProducts.length);
     
-    // Preencher modal de edição
-    document.getElementById('editProductId').value = product.id;
-    document.getElementById('editProductName').value = product.name;
-    document.getElementById('editInternalSku').value = product.internal_sku;
-    document.getElementById('editProductDescription').value = product.description || '';
-    document.getElementById('editBaseProduct').value = product.base_product_id || '';
-    document.getElementById('editProductCategory').value = product.category || '';
-    document.getElementById('editCostPrice').value = product.cost_price || '';
-    document.getElementById('editSellingPrice').value = product.selling_price || '';
-    document.getElementById('editCurrentStock').value = product.current_stock || 0;
-    document.getElementById('editTaxRate').value = product.tax_rate || 0;
-    document.getElementById('editMarketingCost').value = product.marketing_cost || 0;
-    document.getElementById('editOtherCosts').value = product.other_costs || 0;
-    document.getElementById('editExpectedProfitMargin').value = product.expected_profit_margin || 0;
-    document.getElementById('editProductBrand').value = product.brand || '';
-    document.getElementById('editProductSupplier').value = product.supplier || '';
-    document.getElementById('editProductStatus').value = product.status;
-    document.getElementById('editMinStock').value = product.min_stock || 0;
-    document.getElementById('editProductNotes').value = product.notes || '';
+    const product = allProducts.find(p => p.id === productId);
+    if (!product) {
+        console.error('❌ Produto não encontrado:', productId);
+        showAlert('Produto não encontrado', 'danger');
+        return;
+    }
     
-    // Mostrar modal
-    new bootstrap.Modal(document.getElementById('editProductModal')).show();
+    console.log('✅ Produto encontrado:', product);
+    
+    try {
+        // Preencher modal de edição
+        document.getElementById('editProductId').value = product.id;
+        document.getElementById('editProductName').value = product.name;
+        document.getElementById('editInternalSku').value = product.internal_sku;
+        document.getElementById('editProductDescription').value = product.description || '';
+        document.getElementById('editBaseProduct').value = product.base_product_id || '';
+        document.getElementById('editProductCategory').value = product.category || '';
+        document.getElementById('editCostPrice').value = product.cost_price || '';
+        document.getElementById('editSellingPrice').value = product.selling_price || '';
+        document.getElementById('editCurrentStock').value = product.current_stock || 0;
+        document.getElementById('editTaxRate').value = product.tax_rate || 0;
+        document.getElementById('editMarketingCost').value = product.marketing_cost || 0;
+        document.getElementById('editOtherCosts').value = product.other_costs || 0;
+        document.getElementById('editExpectedProfitMargin').value = product.expected_profit_margin || 0;
+        document.getElementById('editProductBrand').value = product.brand || '';
+        document.getElementById('editProductSupplier').value = product.supplier || '';
+        document.getElementById('editProductStatus').value = product.status;
+        document.getElementById('editMinStock').value = product.min_stock || 0;
+        document.getElementById('editProductNotes').value = product.notes || '';
+        
+        console.log('✅ Campos preenchidos');
+        
+        // Mostrar modal - usando método compatível
+        const modalElement = document.getElementById('editProductModal');
+        if (!modalElement) {
+            console.error('❌ Modal editProductModal não encontrada no DOM');
+            showAlert('Erro: Modal não encontrada', 'danger');
+            return;
+        }
+        
+        // Verificar se bootstrap está disponível
+        if (typeof bootstrap === 'undefined') {
+            console.error('❌ Bootstrap não está carregado');
+            showAlert('Erro: Bootstrap não carregado', 'danger');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+        console.log('✅ Modal exibida');
+    } catch (error) {
+        console.error('❌ Erro ao abrir modal:', error);
+        showAlert('Erro ao abrir modal de edição: ' + error.message, 'danger');
+    }
 }
 
 // Atualizar produto
@@ -1016,6 +1187,99 @@ async function updateProduct() {
     } catch (error) {
         console.error('Erro ao atualizar produto:', error);
         showAlert('Erro ao atualizar produto', 'danger');
+    }
+}
+
+// Mostrar confirmação de atualização em massa
+function showBulkUpdateConfirmation() {
+    const bulkData = {
+        cost_price: document.getElementById('bulkCostPrice').value || null,
+        tax_rate: document.getElementById('bulkTaxRate').value || null,
+        marketing_cost: document.getElementById('bulkMarketingCost').value || null,
+        other_costs: document.getElementById('bulkOtherCosts').value || null
+    };
+    
+    // Verificar se pelo menos um campo foi preenchido
+    const hasValues = Object.values(bulkData).some(v => v !== null && v !== '');
+    if (!hasValues) {
+        showAlert('Preencha pelo menos um campo para atualizar', 'warning');
+        return;
+    }
+    
+    // Montar resumo dos campos que serão atualizados
+    const fieldsToUpdate = [];
+    if (bulkData.cost_price) fieldsToUpdate.push(`<li><strong>Preço de Custo:</strong> R$ ${parseFloat(bulkData.cost_price).toFixed(2)}</li>`);
+    if (bulkData.tax_rate) fieldsToUpdate.push(`<li><strong>Impostos:</strong> ${parseFloat(bulkData.tax_rate).toFixed(1)}%</li>`);
+    if (bulkData.marketing_cost) fieldsToUpdate.push(`<li><strong>Marketing:</strong> ${parseFloat(bulkData.marketing_cost).toFixed(1)}%</li>`);
+    if (bulkData.other_costs) fieldsToUpdate.push(`<li><strong>Despesas Adicionais:</strong> R$ ${parseFloat(bulkData.other_costs).toFixed(2)}</li>`);
+    
+    // Atualizar modal de confirmação
+    document.getElementById('bulk-update-count').textContent = totalProducts;
+    document.getElementById('bulk-update-summary').innerHTML = `<ul class="mb-0">${fieldsToUpdate.join('')}</ul>`;
+    
+    // Resetar checkbox de confirmação
+    document.getElementById('confirmBulkUpdateCheck').checked = false;
+    document.getElementById('confirmBulkUpdateBtn').disabled = true;
+    
+    // Fechar modal de formulário e abrir modal de confirmação
+    bootstrap.Modal.getInstance(document.getElementById('bulkUpdateModal')).hide();
+    
+    setTimeout(() => {
+        new bootstrap.Modal(document.getElementById('bulkUpdateConfirmModal')).show();
+    }, 300);
+}
+
+// Executar atualização em massa
+async function executeBulkUpdate() {
+    const bulkData = {
+        cost_price: document.getElementById('bulkCostPrice').value || null,
+        tax_rate: document.getElementById('bulkTaxRate').value || null,
+        marketing_cost: document.getElementById('bulkMarketingCost').value || null,
+        other_costs: document.getElementById('bulkOtherCosts').value || null
+    };
+    
+    const button = document.getElementById('confirmBulkUpdateBtn');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Atualizando...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/api/internal-products/bulk-update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ...bulkData,
+                session_token: getSessionToken()
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert(`✅ ${data.updated_count} produtos atualizados com sucesso!`, 'success');
+            
+            // Fechar modal de confirmação
+            bootstrap.Modal.getInstance(document.getElementById('bulkUpdateConfirmModal')).hide();
+            
+            // Limpar formulário
+            document.getElementById('bulkUpdateForm').reset();
+            
+            // Recarregar produtos após um pequeno delay
+            setTimeout(() => {
+                loadProducts();
+            }, 500);
+        } else {
+            showAlert('Erro ao atualizar produtos: ' + data.error, 'danger');
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    } catch (error) {
+        console.error('Erro ao aplicar valores em massa:', error);
+        showAlert('Erro ao atualizar produtos', 'danger');
+        button.innerHTML = originalText;
+        button.disabled = false;
     }
 }
 

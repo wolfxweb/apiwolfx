@@ -269,3 +269,50 @@ async def bulk_delete_internal_products(
     except Exception as e:
         logger.error(f"Erro ao excluir produtos em massa: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+
+@internal_product_router.post("/bulk-update")
+async def bulk_update_internal_products(
+    request_data: dict = Body(..., description="Dados da requisição"),
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """Atualiza valores em massa em todos os produtos internos"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    try:
+        # Obter usuário atual
+        current_user = get_current_user(session_token)
+        company_id = current_user["company_id"]
+        
+        # Extrair valores a serem aplicados
+        cost_price = request_data.get("cost_price")
+        tax_rate = request_data.get("tax_rate")
+        marketing_cost = request_data.get("marketing_cost")
+        other_costs = request_data.get("other_costs")
+        
+        # Verificar se pelo menos um valor foi fornecido
+        if not any([cost_price, tax_rate, marketing_cost, other_costs]):
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Nenhum valor fornecido para atualização"}
+            )
+        
+        controller = InternalProductController()
+        result = controller.bulk_update_internal_products(
+            company_id=company_id,
+            cost_price=cost_price,
+            tax_rate=tax_rate,
+            marketing_cost=marketing_cost,
+            other_costs=other_costs,
+            db=db
+        )
+        
+        return JSONResponse(content=result)
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Erro ao atualizar produtos em massa: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
