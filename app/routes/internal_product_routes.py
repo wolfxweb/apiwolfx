@@ -271,6 +271,52 @@ async def bulk_delete_internal_products(
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 
+@internal_product_router.patch("/{product_id}/cost")
+async def update_product_cost(
+    product_id: int,
+    request_data: dict = Body(..., description="Dados da requisição"),
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """Atualiza apenas o preço de custo de um produto"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    try:
+        # Obter usuário atual
+        current_user = get_current_user(session_token)
+        company_id = current_user["company_id"]
+        
+        # Extrair valor do custo
+        cost_price = request_data.get("cost_price")
+        
+        if cost_price is None:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Preço de custo não fornecido"}
+            )
+        
+        controller = InternalProductController()
+        
+        # Atualizar apenas o campo cost_price
+        update_data = {"cost_price": cost_price}
+        
+        result = controller.update_internal_product(
+            product_id=product_id,
+            company_id=company_id,
+            update_data=update_data,
+            db=db
+        )
+        
+        return JSONResponse(content=result)
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Erro ao atualizar custo do produto: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+
 @internal_product_router.post("/bulk-update")
 async def bulk_update_internal_products(
     request_data: dict = Body(..., description="Dados da requisição"),

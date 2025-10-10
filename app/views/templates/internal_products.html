@@ -678,7 +678,14 @@ function renderProducts(products, total = null) {
                     </div>
                 </td>
                 <td>
-                    <span class="fw-medium">${product.cost_price ? `R$ ${parseFloat(product.cost_price).toFixed(2).replace('.', ',')}` : '-'}</span>
+                    <div class="d-flex align-items-center justify-content-between" id="cost-cell-${product.id}">
+                        <span class="fw-medium cost-value" id="cost-value-${product.id}">
+                            ${product.cost_price ? `R$ ${parseFloat(product.cost_price).toFixed(2).replace('.', ',')}` : '-'}
+                        </span>
+                        <button class="btn btn-sm btn-link p-0 ms-2" onclick="editCostInline(${product.id}, ${product.cost_price || 0})" title="Editar Preço de Custo">
+                            <i class="bi bi-pencil text-primary"></i>
+                        </button>
+                    </div>
                 </td>
                 <td>
                     <div class="d-flex flex-column">
@@ -1227,6 +1234,106 @@ function showBulkUpdateConfirmation() {
     setTimeout(() => {
         new bootstrap.Modal(document.getElementById('bulkUpdateConfirmModal')).show();
     }, 300);
+}
+
+// Edição inline do preço de custo
+function editCostInline(productId, currentValue) {
+    const cell = document.getElementById(`cost-cell-${productId}`);
+    
+    // Criar input de edição
+    cell.innerHTML = `
+        <div class="d-flex align-items-center gap-1">
+            <input type="number" 
+                   class="form-control form-control-sm" 
+                   id="cost-input-${productId}" 
+                   value="${currentValue}" 
+                   step="0.01" 
+                   style="width: 100px;"
+                   onkeypress="if(event.key === 'Enter') saveCostInline(${productId})">
+            <button class="btn btn-sm btn-success" onclick="saveCostInline(${productId})" title="Salvar">
+                <i class="bi bi-check"></i>
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="cancelCostInline(${productId}, ${currentValue})" title="Cancelar">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    `;
+    
+    // Focar no input
+    document.getElementById(`cost-input-${productId}`).focus();
+}
+
+// Salvar preço de custo inline
+async function saveCostInline(productId) {
+    const input = document.getElementById(`cost-input-${productId}`);
+    const newValue = parseFloat(input.value);
+    
+    if (isNaN(newValue) || newValue < 0) {
+        showAlert('Valor inválido', 'danger');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/internal-products/${productId}/cost`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                cost_price: newValue,
+                session_token: getSessionToken()
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Atualizar display
+            const cell = document.getElementById(`cost-cell-${productId}`);
+            cell.innerHTML = `
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="fw-medium cost-value" id="cost-value-${productId}">
+                        R$ ${newValue.toFixed(2).replace('.', ',')}
+                    </span>
+                    <button class="btn btn-sm btn-link p-0 ms-2" onclick="editCostInline(${productId}, ${newValue})" title="Editar Preço de Custo">
+                        <i class="bi bi-pencil text-primary"></i>
+                    </button>
+                </div>
+            `;
+            
+            // Atualizar produto no array
+            const product = allProducts.find(p => p.id === productId);
+            if (product) {
+                product.cost_price = newValue.toString();
+            }
+            
+            showAlert('Preço de custo atualizado com sucesso!', 'success');
+        } else {
+            showAlert('Erro ao atualizar: ' + data.error, 'danger');
+            cancelCostInline(productId, input.value);
+        }
+    } catch (error) {
+        console.error('Erro ao salvar custo:', error);
+        showAlert('Erro ao salvar preço de custo', 'danger');
+        cancelCostInline(productId, input.value);
+    }
+}
+
+// Cancelar edição inline
+function cancelCostInline(productId, originalValue) {
+    const cell = document.getElementById(`cost-cell-${productId}`);
+    const displayValue = originalValue > 0 ? `R$ ${parseFloat(originalValue).toFixed(2).replace('.', ',')}` : '-';
+    
+    cell.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between">
+            <span class="fw-medium cost-value" id="cost-value-${productId}">
+                ${displayValue}
+            </span>
+            <button class="btn btn-sm btn-link p-0 ms-2" onclick="editCostInline(${productId}, ${originalValue})" title="Editar Preço de Custo">
+                <i class="bi bi-pencil text-primary"></i>
+            </button>
+        </div>
+    `;
 }
 
 // Executar atualização em massa
