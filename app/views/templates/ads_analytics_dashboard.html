@@ -1493,62 +1493,55 @@ function renderLowProfitAnalysis(products, kpis, costs) {
         };
     });
     
-    // Ordenar por lucro (MENOR para MAIOR - produtos problemáticos primeiro)
-    const sortedProducts = productsWithProfit.sort((a, b) => a.profit - b.profit);
+    // Filtrar apenas produtos com margem BAIXA (< 30%) ou prejuízo
+    const lowMarginProducts = productsWithProfit.filter(p => p.margin < 30);
     
-    // Calcular total de "perdas" (produtos com menor lucro/prejuízo)
-    // Inverter os lucros para calcular o impacto negativo
-    const totalNegativeImpact = sortedProducts.reduce((sum, p) => {
-        // Para produtos com prejuízo, usar valor absoluto
-        // Para produtos com lucro baixo, usar a diferença de um lucro "ideal"
-        const idealProfit = p.revenue * 0.30; // 30% seria uma margem ideal
-        const impact = Math.max(0, idealProfit - p.profit);
-        return sum + impact;
+    if (lowMarginProducts.length === 0) {
+        document.getElementById('low-profit-table-body').innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-success py-4">
+                    <i class="bi bi-check-circle display-4"></i>
+                    <p class="mt-2">✅ Ótimo! Nenhum produto com margem abaixo de 30%</p>
+                </td>
+            </tr>
+        `;
+        document.getElementById('low-profit-count').textContent = '0 produtos problemáticos';
+        return;
+    }
+    
+    // Ordenar por lucro (MENOR para MAIOR - produtos problemáticos primeiro)
+    const sortedProducts = lowMarginProducts.sort((a, b) => a.profit - b.profit);
+    
+    // MESMA LÓGICA da análise de lucro positivo:
+    // Calcular "impacto negativo" somando o quanto cada produto está abaixo da margem ideal
+    const totalNegativeProfit = sortedProducts.reduce((sum, p) => {
+        // Quanto de lucro está "faltando" para atingir 30% de margem
+        const idealProfit = p.revenue * 0.30;
+        const lostProfit = idealProfit - p.profit;
+        return sum + lostProfit; // Pode ser negativo (prejuízo) ou positivo (falta)
     }, 0);
     
     // Aplicar Pareto: pegar produtos que representam 80% do impacto negativo
-    let accumulatedImpact = 0;
+    let accumulatedPercentage = 0;
     const lowProfitProducts = [];
     
     for (const product of sortedProducts) {
         const idealProfit = product.revenue * 0.30;
-        const impact = Math.max(0, idealProfit - product.profit);
-        const impactPercentage = (impact / totalNegativeImpact) * 100;
-        accumulatedImpact += impactPercentage;
+        const lostProfit = idealProfit - product.profit;
+        const productPercentage = (lostProfit / totalNegativeProfit) * 100;
+        accumulatedPercentage += productPercentage;
         
         lowProfitProducts.push({
             ...product,
-            impact: impact,
-            impactPercentage: impactPercentage,
-            accumulatedImpact: accumulatedImpact
+            lostProfit: lostProfit,
+            percentage: productPercentage,
+            accumulatedPercentage: accumulatedPercentage
         });
         
-        // Parar quando atingir 80% do impacto negativo ou no mínimo 10 produtos
-        if (accumulatedImpact >= 80 && lowProfitProducts.length >= 10) {
+        // Parar quando atingir 80% (MESMA LÓGICA das outras análises)
+        if (accumulatedPercentage >= 80) {
             break;
         }
-    }
-    
-    // Garantir no mínimo 10 produtos mesmo que não atinja 80%
-    if (lowProfitProducts.length < 10 && sortedProducts.length >= 10) {
-        lowProfitProducts.length = 0;
-        lowProfitProducts.push(...sortedProducts.slice(0, 10).map((p, idx) => {
-            const idealProfit = p.revenue * 0.30;
-            const impact = Math.max(0, idealProfit - p.profit);
-            const impactPercentage = (impact / totalNegativeImpact) * 100;
-            return {
-                ...p,
-                impact: impact,
-                impactPercentage: impactPercentage,
-                accumulatedImpact: 0 // Será calculado depois
-            };
-        }));
-        // Recalcular acumulado
-        let acc = 0;
-        lowProfitProducts.forEach(p => {
-            acc += p.impactPercentage;
-            p.accumulatedImpact = acc;
-        });
     }
     
     // Renderizar tabela
@@ -1573,7 +1566,7 @@ function renderLowProfitAnalysis(products, kpis, costs) {
         }
         
         return `
-        <tr class="${product.profit < 0 ? 'table-danger' : product.accumulatedImpact <= 80 ? 'table-warning' : ''}">
+        <tr class="${product.profit < 0 ? 'table-danger' : product.accumulatedPercentage <= 80 ? 'table-warning' : ''}">
             <td><span class="badge ${statusBadge}">${index + 1}</span></td>
             <td>
                 <div class="text-truncate" style="max-width: 150px;" title="${product.title}">
@@ -1595,7 +1588,7 @@ function renderLowProfitAnalysis(products, kpis, costs) {
                 <span class="badge ${statusBadge}">
                     ${statusText}
                 </span>
-                <br><small class="text-muted">${product.accumulatedImpact.toFixed(0)}% acum.</small>
+                <br><small class="text-muted">${product.accumulatedPercentage.toFixed(1)}% acum.</small>
             </td>
         </tr>
         `;
