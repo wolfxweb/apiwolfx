@@ -485,9 +485,9 @@ class MLOrder(Base):
     date_closed = Column(DateTime, index=True)
     last_updated = Column(DateTime, index=True)
     
-    # Valores monetários
-    total_amount = Column(Integer)  # Em centavos
-    paid_amount = Column(Integer)   # Em centavos
+    # Valores monetários (valores diretos da API em reais, SEM conversão)
+    total_amount = Column(Numeric(10, 2))  # Valor em reais (ex: 95.50)
+    paid_amount = Column(Numeric(10, 2))   # Valor em reais (ex: 95.50)
     currency_id = Column(String(10))
     
     # === DADOS DO COMPRADOR ===
@@ -511,7 +511,7 @@ class MLOrder(Base):
     
     # === ENVIO E LOGÍSTICA ===
     shipping_id = Column(String(50), index=True)  # ID do envio para buscar detalhes
-    shipping_cost = Column(Integer)  # Em centavos
+    shipping_cost = Column(Numeric(10, 2))  # Valor em reais (direto da API)
     shipping_method = Column(String(100))
     shipping_status = Column(String(50))
     shipping_address = Column(JSON)  # Endereço de entrega
@@ -520,28 +520,28 @@ class MLOrder(Base):
     # === ITENS DO PEDIDO ===
     order_items = Column(JSON)  # Lista completa de itens com detalhes
     
-    # === TAXAS E COMISSÕES ===
-    total_fees = Column(Integer)      # Total de taxas em centavos
-    listing_fees = Column(Integer)    # Taxas de publicação em centavos
-    sale_fees = Column(Integer)       # Taxas de venda em centavos
-    shipping_fees = Column(Integer)   # Taxas de envio em centavos
+    # === TAXAS E COMISSÕES (valores em reais, direto da API - SEM conversão) ===
+    total_fees = Column(Numeric(10, 2))      # Total de taxas em reais
+    listing_fees = Column(Numeric(10, 2))    # Taxas de publicação em reais
+    sale_fees = Column(Numeric(10, 2))       # Taxas de venda em reais
+    shipping_fees = Column(Numeric(10, 2))   # Taxas de envio em reais
     
     # === BREAKDOWN DE COMISSÕES (Billing) ===
-    financing_fee = Column(Integer)           # Taxa de parcelamento em centavos
-    financing_transfer_total = Column(Integer) # Valor total pago pelo cliente em centavos
+    financing_fee = Column(Numeric(10, 2))           # Taxa de parcelamento em reais
+    financing_transfer_total = Column(Numeric(10, 2)) # Valor total pago pelo cliente em reais
     sale_fee_breakdown = Column(JSON)         # Breakdown detalhado da taxa de venda
     billing_details = Column(JSON)            # Detalhes completos de billing
     marketplace_fee_breakdown = Column(JSON)  # Breakdown das taxas do marketplace
     
     # === DESCONTOS E PROMOÇÕES ===
     discounts_applied = Column(JSON)  # Descontos aplicados (/orders/{id}/discounts)
-    coupon_amount = Column(Integer)   # Valor do cupom em centavos
+    coupon_amount = Column(Numeric(10, 2))   # Valor do cupom em reais (direto da API)
     coupon_id = Column(String(50))    # ID do cupom
     
     # === PUBLICIDADE E ANÚNCIOS ===
     is_advertising_sale = Column(Boolean, default=False, index=True)  # Venda por anúncio
     advertising_campaign_id = Column(String(50))  # ID da campanha
-    advertising_cost = Column(Integer)  # Custo publicitário em centavos
+    advertising_cost = Column(Numeric(10, 2))  # Custo publicitário em reais (direto da API)
     advertising_metrics = Column(JSON)  # Métricas de publicidade
     
     # === CONTEXTO DA VENDA ===

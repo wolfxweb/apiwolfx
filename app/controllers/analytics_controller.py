@@ -60,9 +60,25 @@ class AnalyticsController:
             
             logger.info(f"❌ Pedidos cancelados: {cancelled_count} (R$ {cancelled_value:.2f})")
             
-            # Buscar dados de devoluções e visitas de todas as contas da empresa
-            returns_count = 0
-            returns_value = 0
+            # Buscar pedidos reembolsados (devoluções) no período
+            refunded_query = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id,
+                MLOrder.date_created >= date_from,
+                MLOrder.status == OrderStatus.REFUNDED
+            )
+            
+            if ml_account_id:
+                refunded_query = refunded_query.filter(MLOrder.ml_account_id == ml_account_id)
+            
+            refunded_orders = refunded_query.all()
+            refunded_count_db = len(refunded_orders)
+            refunded_value_db = sum(float(order.total_amount or 0) for order in refunded_orders)
+            
+            logger.info(f"💸 Pedidos reembolsados (DB): {refunded_count_db} (R$ {refunded_value_db:.2f})")
+            
+            # Buscar dados de devoluções via API e visitas de todas as contas da empresa
+            returns_count_api = 0
+            returns_value_api = 0
             total_visits = 0
             
             try:
@@ -77,11 +93,11 @@ class AnalyticsController:
                     if ml_account.tokens:
                         token = sorted(ml_account.tokens, key=lambda t: t.created_at, reverse=True)[0]
                         if token and token.access_token:
-                            # Buscar devoluções
+                            # Buscar devoluções via API (Claims)
                             claims_service = MLClaimsService()
                             returns_data = claims_service.get_returns_metrics(token.access_token, date_from, datetime.utcnow())
-                            returns_count += returns_data.get('returns_count', 0)
-                            returns_value += returns_data.get('returns_value', 0)
+                            returns_count_api += returns_data.get('returns_count', 0)
+                            returns_value_api += returns_data.get('returns_value', 0)
                             
                             # Buscar visitas
                             visits_service = MLVisitsService()
@@ -89,6 +105,15 @@ class AnalyticsController:
                             total_visits += visits_data.get('total_visits', 0)
             except Exception as e:
                 logger.warning(f"⚠️  Erro ao buscar dados adicionais (não crítico): {e}")
+            
+            # Combinar devoluções do DB e da API (usar o maior valor para evitar duplicatas)
+            # A API pode ter mais info, mas o DB tem dados mais confiáveis se sincronizado
+            returns_count = max(refunded_count_db, returns_count_api)
+            returns_value = max(refunded_value_db, returns_value_api)
+            
+            logger.info(f"📊 Devoluções finais: {returns_count} devoluções (R$ {returns_value:.2f})")
+            logger.info(f"   - Do DB (REFUNDED): {refunded_count_db} (R$ {refunded_value_db:.2f})")
+            logger.info(f"   - Da API (Claims): {returns_count_api} (R$ {returns_value_api:.2f})")
             
             # Processar pedidos e itens
             total_revenue = 0  # Receita real dos pedidos
