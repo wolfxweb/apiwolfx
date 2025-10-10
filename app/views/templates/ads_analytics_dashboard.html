@@ -428,10 +428,10 @@
             <div class="card border-danger">
                 <div class="card-header bg-danger text-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">⚠️ Análise de Pareto - Produtos Responsáveis por 80% das Perdas/Baixo Lucro</h5>
+                        <h5 class="mb-0">⚠️ Cauda Longa - Produtos com Menor Faturamento (20%)</h5>
                         <span class="badge bg-light text-danger" id="low-profit-count">0 produtos</span>
                     </div>
-                    <small>Princípio 80/20 inverso: produtos que mais impactam negativamente a rentabilidade (margem abaixo de 30%)</small>
+                    <small>Produtos que MENOS faturam: representam apenas 20% do faturamento total (podem precisar revisão)</small>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -1447,7 +1447,7 @@ function renderParetoProfitChart(paretoProducts) {
     });
 }
 
-// Renderizar análise de produtos com MENOR lucro (problemáticos)
+// Renderizar análise dos produtos com MENOR faturamento (cauda longa)
 function renderLowProfitAnalysis(products, kpis, costs) {
     // Filtrar apenas produtos com vendas
     const productsWithSales = products.filter(p => p.revenue > 0);
@@ -1467,7 +1467,7 @@ function renderLowProfitAnalysis(products, kpis, costs) {
     
     const totalRevenue = kpis.total_revenue;
     
-    // Calcular lucro para cada produto (mesmo cálculo da análise de lucro)
+    // Calcular lucro para cada produto
     const productsWithProfit = productsWithSales.map(product => {
         const productRevenue = product.revenue;
         const productQuantity = product.sold_quantity;
@@ -1493,60 +1493,33 @@ function renderLowProfitAnalysis(products, kpis, costs) {
         };
     });
     
-    // Filtrar apenas produtos com margem BAIXA (< 30%) ou prejuízo
-    const lowMarginProducts = productsWithProfit.filter(p => p.margin < 30);
+    // Ordenar por RECEITA (MENOR para MAIOR - produtos com menor faturamento primeiro)
+    const sortedProducts = productsWithProfit.sort((a, b) => a.revenue - b.revenue);
     
-    if (lowMarginProducts.length === 0) {
-        document.getElementById('low-profit-table-body').innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center text-success py-4">
-                    <i class="bi bi-check-circle display-4"></i>
-                    <p class="mt-2">✅ Ótimo! Nenhum produto com margem abaixo de 30%</p>
-                </td>
-            </tr>
-        `;
-        document.getElementById('low-profit-count').textContent = '0 produtos problemáticos';
-        return;
-    }
-    
-    // Ordenar por lucro (MENOR para MAIOR - produtos problemáticos primeiro)
-    const sortedProducts = lowMarginProducts.sort((a, b) => a.profit - b.profit);
-    
-    // MESMA LÓGICA da análise de lucro positivo:
-    // Calcular "impacto negativo" somando o quanto cada produto está abaixo da margem ideal
-    const totalNegativeProfit = sortedProducts.reduce((sum, p) => {
-        // Quanto de lucro está "faltando" para atingir 30% de margem
-        const idealProfit = p.revenue * 0.30;
-        const lostProfit = idealProfit - p.profit;
-        return sum + lostProfit; // Pode ser negativo (prejuízo) ou positivo (falta)
-    }, 0);
-    
-    // Aplicar Pareto: pegar produtos que representam 80% do impacto negativo
+    // MESMA LÓGICA das outras análises de Pareto:
+    // Somar receitas até atingir 20% do faturamento total (cauda longa)
     let accumulatedPercentage = 0;
-    const lowProfitProducts = [];
+    const lowRevenueProducts = [];
     
     for (const product of sortedProducts) {
-        const idealProfit = product.revenue * 0.30;
-        const lostProfit = idealProfit - product.profit;
-        const productPercentage = (lostProfit / totalNegativeProfit) * 100;
+        const productPercentage = (product.revenue / totalRevenue) * 100;
         accumulatedPercentage += productPercentage;
         
-        lowProfitProducts.push({
+        lowRevenueProducts.push({
             ...product,
-            lostProfit: lostProfit,
             percentage: productPercentage,
             accumulatedPercentage: accumulatedPercentage
         });
         
-        // Parar quando atingir 80% (MESMA LÓGICA das outras análises)
-        if (accumulatedPercentage >= 80) {
+        // Parar quando atingir 20% do faturamento total
+        if (accumulatedPercentage >= 20) {
             break;
         }
     }
     
     // Renderizar tabela
     const tbody = document.getElementById('low-profit-table-body');
-    tbody.innerHTML = lowProfitProducts.map((product, index) => {
+    tbody.innerHTML = lowRevenueProducts.map((product, index) => {
         const profitClass = product.profit >= 0 ? 'text-warning' : 'text-danger';
         let statusBadge = '';
         let statusText = '';
@@ -1595,25 +1568,22 @@ function renderLowProfitAnalysis(products, kpis, costs) {
     }).join('');
     
     // Contar produtos com prejuízo
-    const productsWithLoss = lowProfitProducts.filter(p => p.profit < 0).length;
-    const criticalProducts = lowProfitProducts.filter(p => p.margin < 10 && p.profit >= 0).length;
+    const productsWithLoss = lowRevenueProducts.filter(p => p.profit < 0).length;
+    const lowMarginProducts = lowRevenueProducts.filter(p => p.margin < 20).length;
     
     // Calcular percentual do total
-    const percentOfTotal = (lowProfitProducts.length / sortedProducts.length * 100).toFixed(0);
+    const percentOfTotal = (lowRevenueProducts.length / sortedProducts.length * 100).toFixed(0);
     
     // Atualizar contador
-    let countText = `${lowProfitProducts.length} produtos (${percentOfTotal}% do total)`;
-    if (productsWithLoss > 0) {
-        countText += ` - ${productsWithLoss} com prejuízo`;
-    }
+    let countText = `${lowRevenueProducts.length} produtos (${percentOfTotal}% do total - representam 20% do faturamento)`;
     document.getElementById('low-profit-count').textContent = countText;
     
     // Renderizar gráfico
-    renderLowProfitChart(lowProfitProducts);
+    renderLowProfitChart(lowRevenueProducts);
 }
 
-// Renderizar gráfico de produtos com menor lucro
-function renderLowProfitChart(lowProfitProducts) {
+// Renderizar gráfico de produtos com menor faturamento
+function renderLowProfitChart(lowRevenueProducts) {
     const ctx = document.getElementById('lowProfitChart');
     
     // Destruir gráfico anterior se existir
@@ -1622,9 +1592,9 @@ function renderLowProfitChart(lowProfitProducts) {
     }
     
     // Dados para o gráfico
-    const labels = lowProfitProducts.map((p, i) => `#${i + 1}`);
-    const profits = lowProfitProducts.map(p => p.profit);
-    const margins = lowProfitProducts.map(p => p.margin);
+    const labels = lowRevenueProducts.map((p, i) => `#${i + 1}`);
+    const revenues = lowRevenueProducts.map(p => p.revenue);
+    const margins = lowRevenueProducts.map(p => p.margin);
     
     lowProfitChart = new Chart(ctx, {
         type: 'bar',
@@ -1633,18 +1603,10 @@ function renderLowProfitChart(lowProfitProducts) {
             datasets: [
                 {
                     type: 'bar',
-                    label: 'Lucro (R$)',
-                    data: profits,
-                    backgroundColor: profits.map(p => {
-                        if (p < 0) return 'rgba(220, 53, 69, 0.7)'; // Vermelho - prejuízo
-                        if (p < 100) return 'rgba(255, 193, 7, 0.7)'; // Amarelo - lucro muito baixo
-                        return 'rgba(13, 202, 240, 0.7)'; // Azul - lucro baixo
-                    }),
-                    borderColor: profits.map(p => {
-                        if (p < 0) return 'rgba(220, 53, 69, 1)';
-                        if (p < 100) return 'rgba(255, 193, 7, 1)';
-                        return 'rgba(13, 202, 240, 1)';
-                    }),
+                    label: 'Receita (R$)',
+                    data: revenues,
+                    backgroundColor: 'rgba(220, 53, 69, 0.5)',
+                    borderColor: 'rgba(220, 53, 69, 1)',
                     borderWidth: 1,
                     yAxisID: 'y'
                 },
@@ -1666,7 +1628,7 @@ function renderLowProfitChart(lowProfitProducts) {
             plugins: {
                 title: {
                     display: true,
-                    text: 'Produtos com Menor Lucro - Necessitam Atenção',
+                    text: 'Cauda Longa - Produtos com Menor Faturamento (20%)',
                     font: {
                         size: 14,
                         weight: 'bold'
@@ -1702,7 +1664,7 @@ function renderLowProfitChart(lowProfitProducts) {
                     position: 'left',
                     title: {
                         display: true,
-                        text: 'Lucro (R$)'
+                        text: 'Receita (R$)'
                     },
                     ticks: {
                         callback: function(value) {
@@ -1718,6 +1680,7 @@ function renderLowProfitChart(lowProfitProducts) {
                         display: true,
                         text: 'Margem (%)'
                     },
+                    beginAtZero: true,
                     ticks: {
                         callback: function(value) {
                             return value.toFixed(0) + '%';
