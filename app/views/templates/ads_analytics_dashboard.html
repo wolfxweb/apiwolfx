@@ -374,6 +374,54 @@
         </div>
     </div>
 
+    <!-- Análise de Pareto por Lucro -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">💰 Análise de Pareto - Produtos que Mais Geraram Lucro (80%)</h5>
+                        <span class="badge bg-light text-success" id="pareto-profit-count">0 produtos</span>
+                    </div>
+                    <small>Produtos ordenados por lucro líquido (receita - custos)</small>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Tabela -->
+                        <div class="col-md-6">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Produto</th>
+                                            <th class="text-end">Lucro</th>
+                                            <th class="text-end">Margem</th>
+                                            <th class="text-end">% Acum.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pareto-profit-table-body">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">
+                                                <i class="bi bi-currency-dollar display-4"></i>
+                                                <p class="mt-2">Carregando análise...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Gráfico -->
+                        <div class="col-md-6">
+                            <canvas id="paretoProfitChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Top Produtos -->
     <div class="row mb-4">
         <div class="col-md-6">
@@ -420,6 +468,8 @@ let currentPage = 1;
 let currentFilters = {};
 let paretoChart = null;
 let paretoQuantityChart = null;
+let paretoProfitChart = null;
+let dashboardCosts = {}; // Armazenar custos do dashboard
 
 // Função para formatar valores em reais (padrão brasileiro)
 function formatBRL(value) {
@@ -540,11 +590,17 @@ function loadDashboardData(page = 1) {
             // Atualizar custos e margens
             updateCostsAndMargins(data.costs, data.profit, data.kpis);
             
+            // Armazenar custos para cálculo de lucro por produto
+            dashboardCosts = data.costs;
+            
             // Renderizar análise de Pareto por receita (80/20)
             renderParetoAnalysis(data.products);
             
             // Renderizar análise de Pareto por quantidade (80/20)
             renderParetoQuantityAnalysis(data.products);
+            
+            // Renderizar análise de Pareto por lucro (80/20)
+            renderParetoProfitAnalysis(data.products, data.kpis, data.costs);
             
             // Renderizar top produtos com dados reais
             loadTopProducts();
@@ -1086,6 +1142,232 @@ function renderParetoQuantityChart(paretoProducts) {
                     ticks: {
                         callback: function(value) {
                             return formatNumber(value) + ' un';
+                        }
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '% Acumulado'
+                    },
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Renderizar análise de Pareto por lucro (80/20)
+function renderParetoProfitAnalysis(products, kpis, costs) {
+    // Filtrar apenas produtos com vendas
+    const productsWithSales = products.filter(p => p.revenue > 0);
+    
+    if (productsWithSales.length === 0) {
+        document.getElementById('pareto-profit-table-body').innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                    <i class="bi bi-currency-dollar display-4"></i>
+                    <p class="mt-2">Nenhum produto com vendas no período</p>
+                </td>
+            </tr>
+        `;
+        document.getElementById('pareto-profit-count').textContent = '0 produtos';
+        return;
+    }
+    
+    const totalRevenue = kpis.total_revenue;
+    
+    // Calcular lucro para cada produto
+    const productsWithProfit = productsWithSales.map(product => {
+        const productRevenue = product.revenue;
+        const productQuantity = product.sold_quantity;
+        
+        // Calcular custos proporcionais
+        const mlFees = (costs.ml_fees / totalRevenue) * productRevenue;
+        const shippingFees = (costs.shipping_fees / totalRevenue) * productRevenue;
+        const discounts = (costs.discounts / totalRevenue) * productRevenue;
+        const productCost = (costs.product_cost / totalRevenue) * productRevenue;
+        const taxes = (costs.taxes / totalRevenue) * productRevenue;
+        const otherCosts = costs.other_costs_per_unit * productQuantity;
+        const marketingCost = (costs.marketing_cost / totalRevenue) * productRevenue;
+        
+        const totalCosts = mlFees + shippingFees + discounts + productCost + taxes + otherCosts + marketingCost;
+        const profit = productRevenue - totalCosts;
+        const margin = (profit / productRevenue) * 100;
+        
+        return {
+            ...product,
+            profit: profit,
+            margin: margin,
+            costs: totalCosts
+        };
+    });
+    
+    // Ordenar por lucro (maior para menor)
+    const sortedProducts = productsWithProfit.sort((a, b) => b.profit - a.profit);
+    
+    // Calcular lucro total
+    const totalProfit = sortedProducts.reduce((sum, p) => sum + p.profit, 0);
+    
+    // Calcular percentual acumulado e encontrar produtos que representam 80%
+    let accumulatedPercentage = 0;
+    const paretoProducts = [];
+    
+    for (const product of sortedProducts) {
+        const productPercentage = (product.profit / totalProfit) * 100;
+        accumulatedPercentage += productPercentage;
+        
+        paretoProducts.push({
+            ...product,
+            percentage: productPercentage,
+            accumulatedPercentage: accumulatedPercentage
+        });
+        
+        // Parar quando atingir 80%
+        if (accumulatedPercentage >= 80) {
+            break;
+        }
+    }
+    
+    // Renderizar tabela
+    const tbody = document.getElementById('pareto-profit-table-body');
+    tbody.innerHTML = paretoProducts.map((product, index) => {
+        const profitClass = product.profit >= 0 ? 'text-success' : 'text-danger';
+        const marginClass = product.margin >= 0 ? 'text-success' : 'text-danger';
+        
+        return `
+        <tr class="${product.accumulatedPercentage <= 80 ? 'table-success' : ''}">
+            <td><span class="badge bg-success">${index + 1}</span></td>
+            <td>
+                <div class="text-truncate" style="max-width: 150px;" title="${product.title}">
+                    ${product.title}
+                </div>
+                <small class="text-muted">${product.ml_item_id}</small>
+            </td>
+            <td class="text-end">
+                <strong class="${profitClass}">${formatBRL(product.profit)}</strong>
+                <br><small class="text-muted">${formatBRL(product.revenue)} receita</small>
+            </td>
+            <td class="text-end">
+                <span class="badge ${product.margin >= 30 ? 'bg-success' : product.margin >= 15 ? 'bg-warning' : 'bg-danger'}">
+                    ${product.margin.toFixed(1)}%
+                </span>
+            </td>
+            <td class="text-end">
+                <span class="badge ${product.accumulatedPercentage >= 80 ? 'bg-success' : 'bg-info'}">
+                    ${product.accumulatedPercentage.toFixed(1)}%
+                </span>
+            </td>
+        </tr>
+        `;
+    }).join('');
+    
+    // Atualizar contador
+    document.getElementById('pareto-profit-count').textContent = `${paretoProducts.length} produtos (${(paretoProducts.length / sortedProducts.length * 100).toFixed(0)}% do total)`;
+    
+    // Renderizar gráfico
+    renderParetoProfitChart(paretoProducts);
+}
+
+// Renderizar gráfico de Pareto por lucro
+function renderParetoProfitChart(paretoProducts) {
+    const ctx = document.getElementById('paretoProfitChart');
+    
+    // Destruir gráfico anterior se existir
+    if (paretoProfitChart) {
+        paretoProfitChart.destroy();
+    }
+    
+    // Dados para o gráfico
+    const labels = paretoProducts.map((p, i) => `#${i + 1}`);
+    const profits = paretoProducts.map(p => p.profit);
+    const accumulatedPercentages = paretoProducts.map(p => p.accumulatedPercentage);
+    
+    paretoProfitChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Lucro (R$)',
+                    data: profits,
+                    backgroundColor: profits.map(p => p >= 0 ? 'rgba(40, 167, 69, 0.5)' : 'rgba(220, 53, 69, 0.5)'),
+                    borderColor: profits.map(p => p >= 0 ? 'rgba(40, 167, 69, 1)' : 'rgba(220, 53, 69, 1)'),
+                    borderWidth: 1,
+                    yAxisID: 'y'
+                },
+                {
+                    type: 'line',
+                    label: '% Acumulado',
+                    data: accumulatedPercentages,
+                    borderColor: 'rgba(255, 193, 7, 1)',
+                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    borderWidth: 2,
+                    yAxisID: 'y1',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Análise de Pareto - Lucro (Princípio 80/20)',
+                    font: {
+                        size: 14,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                if (context.datasetIndex === 0) {
+                                    label += formatBRL(context.parsed.y);
+                                } else {
+                                    label += context.parsed.y.toFixed(1) + '%';
+                                }
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Lucro (R$)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR');
                         }
                     }
                 },
