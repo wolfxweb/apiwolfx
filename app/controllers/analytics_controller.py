@@ -218,12 +218,17 @@ class AnalyticsController:
             }
     
     def get_top_products(self, company_id: int, ml_account_id: Optional[int] = None, 
-                        limit: int = 10) -> Dict:
+                        limit: int = 10, period_days: int = 30, search: Optional[str] = None) -> Dict:
         """Busca top produtos mais vendidos e com maior receita baseado em pedidos reais"""
         try:
+            # Calcular data de corte
+            from datetime import datetime, timedelta
+            date_from = datetime.utcnow() - timedelta(days=period_days)
+            
             # Buscar pedidos
             orders_query = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id
+                MLOrder.company_id == company_id,
+                MLOrder.date_created >= date_from
             )
             
             if ml_account_id:
@@ -253,13 +258,26 @@ class AnalyticsController:
                             products_sales[item_id]['quantity_sold'] += quantity
                             products_sales[item_id]['revenue'] += unit_price * quantity
             
-            # Enriquecer com dados dos produtos
+            # Enriquecer com dados dos produtos e aplicar filtro de busca
             enriched_products = []
             for ml_item_id, sales_data in products_sales.items():
                 product = self.db.query(MLProduct).filter(
                     MLProduct.ml_item_id == ml_item_id,
                     MLProduct.company_id == company_id
                 ).first()
+                
+                # Aplicar filtro de busca se fornecido
+                if search:
+                    search_term = search.lower()
+                    title = product.title if product else sales_data['title']
+                    sku = product.seller_sku if product else ''
+                    
+                    title_match = search_term in title.lower()
+                    sku_match = sku and search_term in sku.lower()
+                    id_match = search_term in ml_item_id.lower()
+                    
+                    if not (title_match or sku_match or id_match):
+                        continue  # Pular este produto
                 
                 enriched_products.append({
                     'id': product.id if product else 0,

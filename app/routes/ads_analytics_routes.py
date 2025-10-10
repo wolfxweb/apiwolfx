@@ -71,6 +71,8 @@ async def get_sales_dashboard_data(
 async def get_top_products_data(
     ml_account_id: Optional[int] = Query(None),
     limit: Optional[int] = Query(10),
+    period: Optional[int] = Query(30),
+    search: Optional[str] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -90,7 +92,9 @@ async def get_top_products_data(
         data = controller.get_top_products(
             company_id=company_id,
             ml_account_id=ml_account_id,
-            limit=limit
+            limit=limit,
+            period_days=period,
+            search=search
         )
         
         return JSONResponse(content=data)

@@ -280,6 +280,100 @@
         </div>
     </div>
 
+    <!-- Análise de Pareto (80/20) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">📊 Análise de Pareto - Produtos que Representam 80% do Faturamento</h5>
+                        <span class="badge bg-info" id="pareto-products-count">0 produtos</span>
+                    </div>
+                    <small class="text-muted">Princípio 80/20: poucos produtos geralmente representam a maior parte da receita</small>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Tabela -->
+                        <div class="col-md-6">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Produto</th>
+                                            <th class="text-end">Receita</th>
+                                            <th class="text-end">% Acum.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pareto-table-body">
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <i class="bi bi-graph-up display-4"></i>
+                                                <p class="mt-2">Carregando análise...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Gráfico -->
+                        <div class="col-md-6">
+                            <canvas id="paretoChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Análise de Pareto por Quantidade -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">📦 Análise de Pareto - Produtos que Representam 80% da Quantidade Vendida</h5>
+                        <span class="badge bg-success" id="pareto-quantity-count">0 produtos</span>
+                    </div>
+                    <small class="text-muted">Princípio 80/20: poucos produtos geralmente representam a maior parte das vendas em quantidade</small>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Tabela -->
+                        <div class="col-md-6">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Produto</th>
+                                            <th class="text-end">Quantidade</th>
+                                            <th class="text-end">% Acum.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pareto-quantity-table-body">
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <i class="bi bi-box-seam display-4"></i>
+                                                <p class="mt-2">Carregando análise...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Gráfico -->
+                        <div class="col-md-6">
+                            <canvas id="paretoQuantityChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Top Produtos -->
     <div class="row mb-4">
         <div class="col-md-6">
@@ -314,58 +408,18 @@
         </div>
     </div>
 
-    <!-- Tabela de Produtos -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">📦 Todos os Produtos</h5>
-                    <span class="badge bg-primary" id="total-products-count">0 produtos</span>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Produto</th>
-                                    <th class="text-end">Preço</th>
-                                    <th class="text-end">Disponível</th>
-                                    <th class="text-center">Status</th>
-                                    <th class="text-end">Vendidos</th>
-                                    <th class="text-end">Receita Est.</th>
-                                    <th class="text-center">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="products-table-body">
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-5">
-                                        <i class="bi bi-box-seam display-4"></i>
-                                        <p class="mt-2">Carregando produtos...</p>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer bg-white">
-                    <nav>
-                        <ul class="pagination justify-content-center mb-0" id="pagination-container">
-                            <li class="page-item disabled">
-                                <span class="page-link">Carregando...</span>
-                            </li>
-                        </ul>
-                    </nav>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
 // Variáveis globais
 let mlAccounts = [];
 let currentPage = 1;
 let currentFilters = {};
+let paretoChart = null;
+let paretoQuantityChart = null;
 
 // Função para formatar valores em reais (padrão brasileiro)
 function formatBRL(value) {
@@ -486,8 +540,11 @@ function loadDashboardData(page = 1) {
             // Atualizar custos e margens
             updateCostsAndMargins(data.costs, data.profit, data.kpis);
             
-            // Renderizar produtos
-            renderProducts(data.products);
+            // Renderizar análise de Pareto por receita (80/20)
+            renderParetoAnalysis(data.products);
+            
+            // Renderizar análise de Pareto por quantidade (80/20)
+            renderParetoQuantityAnalysis(data.products);
             
             // Renderizar top produtos com dados reais
             loadTopProducts();
@@ -506,13 +563,17 @@ function loadDashboardData(page = 1) {
     });
 }
 
-// Carregar top produtos
+// Carregar top produtos com filtros
 function loadTopProducts() {
     const urlParams = new URLSearchParams(window.location.search);
     const ml_account_id = urlParams.get('ml_account_id') || '';
+    const period = urlParams.get('period') || '30';
+    const search = urlParams.get('search') || '';
     
     let apiUrl = '/api/analytics/top-products?limit=10';
     if (ml_account_id) apiUrl += `&ml_account_id=${ml_account_id}`;
+    if (period) apiUrl += `&period=${period}`;
+    if (search) apiUrl += `&search=${encodeURIComponent(search)}`;
     
     fetch(apiUrl, {
         credentials: 'include'
@@ -544,12 +605,10 @@ function loadAccountsSummary() {
     });
 }
 
-// Renderizar produtos na tabela
+// Renderizar produtos na tabela (REMOVIDO - card de produtos foi removido)
 function renderProducts(products) {
-    const tbody = document.getElementById('products-table-body');
-    const totalCount = document.getElementById('total-products-count');
-    
-    totalCount.textContent = `${products.length} produtos`;
+    // Card removido - função não utilizada
+    return;
     
     if (products.length === 0) {
         tbody.innerHTML = `
@@ -678,6 +737,382 @@ function updateKPIs(products) {
 }
 
 // Renderizar top produtos com dados reais da API
+// Renderizar análise de Pareto (80/20)
+function renderParetoAnalysis(products) {
+    // Filtrar apenas produtos com vendas
+    const productsWithSales = products.filter(p => p.revenue > 0);
+    
+    if (productsWithSales.length === 0) {
+        document.getElementById('pareto-table-body').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted py-4">
+                    <i class="bi bi-graph-up display-4"></i>
+                    <p class="mt-2">Nenhum produto com vendas no período</p>
+                </td>
+            </tr>
+        `;
+        document.getElementById('pareto-products-count').textContent = '0 produtos';
+        return;
+    }
+    
+    // Ordenar por receita (maior para menor)
+    const sortedProducts = [...productsWithSales].sort((a, b) => b.revenue - a.revenue);
+    
+    // Calcular receita total
+    const totalRevenue = sortedProducts.reduce((sum, p) => sum + p.revenue, 0);
+    
+    // Calcular percentual acumulado e encontrar produtos que representam 80%
+    let accumulatedPercentage = 0;
+    const paretoProducts = [];
+    
+    for (const product of sortedProducts) {
+        const productPercentage = (product.revenue / totalRevenue) * 100;
+        accumulatedPercentage += productPercentage;
+        
+        paretoProducts.push({
+            ...product,
+            percentage: productPercentage,
+            accumulatedPercentage: accumulatedPercentage
+        });
+        
+        // Parar quando atingir 80%
+        if (accumulatedPercentage >= 80) {
+            break;
+        }
+    }
+    
+    // Renderizar tabela
+    const tbody = document.getElementById('pareto-table-body');
+    tbody.innerHTML = paretoProducts.map((product, index) => `
+        <tr class="${product.accumulatedPercentage <= 80 ? 'table-warning' : ''}">
+            <td><span class="badge bg-primary">${index + 1}</span></td>
+            <td>
+                <div class="text-truncate" style="max-width: 200px;" title="${product.title}">
+                    ${product.title}
+                </div>
+                <small class="text-muted">${product.ml_item_id}</small>
+            </td>
+            <td class="text-end">
+                <strong>${formatBRL(product.revenue)}</strong>
+                <br><small class="text-muted">${product.percentage.toFixed(1)}%</small>
+            </td>
+            <td class="text-end">
+                <span class="badge ${product.accumulatedPercentage >= 80 ? 'bg-success' : 'bg-info'}">
+                    ${product.accumulatedPercentage.toFixed(1)}%
+                </span>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Atualizar contador
+    document.getElementById('pareto-products-count').textContent = `${paretoProducts.length} produtos (${(paretoProducts.length / sortedProducts.length * 100).toFixed(0)}% do total)`;
+    
+    // Renderizar gráfico
+    renderParetoChart(paretoProducts);
+}
+
+// Renderizar gráfico de Pareto
+function renderParetoChart(paretoProducts) {
+    const ctx = document.getElementById('paretoChart');
+    
+    // Destruir gráfico anterior se existir
+    if (paretoChart) {
+        paretoChart.destroy();
+    }
+    
+    // Dados para o gráfico
+    const labels = paretoProducts.map((p, i) => `#${i + 1}`);
+    const revenues = paretoProducts.map(p => p.revenue);
+    const accumulatedPercentages = paretoProducts.map(p => p.accumulatedPercentage);
+    
+    paretoChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Receita (R$)',
+                    data: revenues,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    yAxisID: 'y'
+                },
+                {
+                    type: 'line',
+                    label: '% Acumulado',
+                    data: accumulatedPercentages,
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    borderWidth: 2,
+                    yAxisID: 'y1',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Análise de Pareto (Princípio 80/20)',
+                    font: {
+                        size: 14,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                if (context.datasetIndex === 0) {
+                                    label += formatBRL(context.parsed.y);
+                                } else {
+                                    label += context.parsed.y.toFixed(1) + '%';
+                                }
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Receita (R$)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR');
+                        }
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '% Acumulado'
+                    },
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Renderizar análise de Pareto por quantidade (80/20)
+function renderParetoQuantityAnalysis(products) {
+    // Filtrar apenas produtos com vendas
+    const productsWithSales = products.filter(p => p.sold_quantity > 0);
+    
+    if (productsWithSales.length === 0) {
+        document.getElementById('pareto-quantity-table-body').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted py-4">
+                    <i class="bi bi-box-seam display-4"></i>
+                    <p class="mt-2">Nenhum produto com vendas no período</p>
+                </td>
+            </tr>
+        `;
+        document.getElementById('pareto-quantity-count').textContent = '0 produtos';
+        return;
+    }
+    
+    // Ordenar por quantidade vendida (maior para menor)
+    const sortedProducts = [...productsWithSales].sort((a, b) => b.sold_quantity - a.sold_quantity);
+    
+    // Calcular quantidade total
+    const totalQuantity = sortedProducts.reduce((sum, p) => sum + p.sold_quantity, 0);
+    
+    // Calcular percentual acumulado e encontrar produtos que representam 80%
+    let accumulatedPercentage = 0;
+    const paretoProducts = [];
+    
+    for (const product of sortedProducts) {
+        const productPercentage = (product.sold_quantity / totalQuantity) * 100;
+        accumulatedPercentage += productPercentage;
+        
+        paretoProducts.push({
+            ...product,
+            percentage: productPercentage,
+            accumulatedPercentage: accumulatedPercentage
+        });
+        
+        // Parar quando atingir 80%
+        if (accumulatedPercentage >= 80) {
+            break;
+        }
+    }
+    
+    // Renderizar tabela
+    const tbody = document.getElementById('pareto-quantity-table-body');
+    tbody.innerHTML = paretoProducts.map((product, index) => `
+        <tr class="${product.accumulatedPercentage <= 80 ? 'table-success' : ''}">
+            <td><span class="badge bg-success">${index + 1}</span></td>
+            <td>
+                <div class="text-truncate" style="max-width: 200px;" title="${product.title}">
+                    ${product.title}
+                </div>
+                <small class="text-muted">${product.ml_item_id}</small>
+            </td>
+            <td class="text-end">
+                <strong>${formatNumber(product.sold_quantity)} un</strong>
+                <br><small class="text-muted">${product.percentage.toFixed(1)}%</small>
+            </td>
+            <td class="text-end">
+                <span class="badge ${product.accumulatedPercentage >= 80 ? 'bg-success' : 'bg-info'}">
+                    ${product.accumulatedPercentage.toFixed(1)}%
+                </span>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Atualizar contador
+    document.getElementById('pareto-quantity-count').textContent = `${paretoProducts.length} produtos (${(paretoProducts.length / sortedProducts.length * 100).toFixed(0)}% do total)`;
+    
+    // Renderizar gráfico
+    renderParetoQuantityChart(paretoProducts);
+}
+
+// Renderizar gráfico de Pareto por quantidade
+function renderParetoQuantityChart(paretoProducts) {
+    const ctx = document.getElementById('paretoQuantityChart');
+    
+    // Destruir gráfico anterior se existir
+    if (paretoQuantityChart) {
+        paretoQuantityChart.destroy();
+    }
+    
+    // Dados para o gráfico
+    const labels = paretoProducts.map((p, i) => `#${i + 1}`);
+    const quantities = paretoProducts.map(p => p.sold_quantity);
+    const accumulatedPercentages = paretoProducts.map(p => p.accumulatedPercentage);
+    
+    paretoQuantityChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Quantidade',
+                    data: quantities,
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    yAxisID: 'y'
+                },
+                {
+                    type: 'line',
+                    label: '% Acumulado',
+                    data: accumulatedPercentages,
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                    borderWidth: 2,
+                    yAxisID: 'y1',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Análise de Pareto - Quantidade (Princípio 80/20)',
+                    font: {
+                        size: 14,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                if (context.datasetIndex === 0) {
+                                    label += formatNumber(context.parsed.y) + ' un';
+                                } else {
+                                    label += context.parsed.y.toFixed(1) + '%';
+                                }
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Quantidade (unidades)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return formatNumber(value) + ' un';
+                        }
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '% Acumulado'
+                    },
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                }
+            }
+        }
+    });
+}
+
 function renderTopProductsReal(topSold, topRevenue) {
     // Top vendidos
     const topSoldContainer = document.getElementById('top-sold-products');
@@ -875,6 +1310,7 @@ function applyFilters() {
     
     window.history.pushState({}, '', url);
     loadDashboardData(1);
+    loadTopProducts(); // Atualizar Top 10 com os novos filtros
 }
 
 // Limpar filtros
@@ -889,6 +1325,7 @@ function clearFilters() {
     window.history.pushState({}, '', url);
     
     loadDashboardData(1);
+    loadTopProducts(); // Atualizar Top 10 sem filtros
 }
 
 // Atualizar dados
