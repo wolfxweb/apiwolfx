@@ -353,11 +353,12 @@ async def search_products(
     sort: Optional[str] = Query(None),
     order: Optional[str] = Query("asc"),
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=10000),  # Aumentado para 10000 para "Cadastrar Todos"
+    limit: int = Query(20, ge=1, le=999999),  # Sem limite máximo - permite buscar todos
+    get_all: Optional[bool] = Query(False),  # Novo parâmetro para buscar todos
     db: Session = Depends(get_db),
     user = Depends(get_current_user)
 ):
-    """API para buscar produtos com filtros"""
+    """API para buscar produtos com filtros - retorna todos os produtos quando get_all=true"""
     try:
         from sqlalchemy import and_, or_
         from app.models.saas_models import MLProduct
@@ -437,8 +438,15 @@ async def search_products(
             query = query.order_by(MLProduct.id.desc())
         
         total = query.count()
-        offset = (page - 1) * limit
-        products = query.offset(offset).limit(limit).all()
+        
+        # Se get_all=true, retornar todos os produtos sem paginação
+        if get_all:
+            products = query.all()
+            offset = 0
+            limit = total
+        else:
+            offset = (page - 1) * limit
+            products = query.offset(offset).limit(limit).all()
         
         # Não precisamos mais buscar nomes das categorias da API
         # pois agora estão salvos no banco de dados

@@ -59,7 +59,7 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    <form method="GET" class="row g-3">
+                    <div class="row g-3">
                         <div class="col-md-3">
                             <label for="shipping_type" class="form-label">Tipo de Envio</label>
                             <select name="shipping_type" id="shipping_type" class="form-select">
@@ -70,7 +70,7 @@
                                 <option value="agency">Agência</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <label for="catalog_listing" class="form-label">Catálogo</label>
                             <select name="catalog_listing" id="catalog_listing" class="form-select">
                                 <option value="">Todos</option>
@@ -80,17 +80,17 @@
                         </div>
                         <div class="col-md-4">
                             <label for="sku_filter" class="form-label">Produto ou SKU</label>
-                            <input type="text" name="sku_filter" id="sku_filter" class="form-control" placeholder="Buscar por nome ou SKU do produto...">
+                            <input type="text" name="sku_filter" id="sku_filter" class="form-control" placeholder="Buscar por nome ou SKU..." onkeypress="if(event.key === 'Enter') applyFilters()">
                         </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary me-2 flex-fill">
-                                <i class="bi bi-search"></i> Buscar
+                        <div class="col-md-2 d-flex align-items-end gap-2">
+                            <button type="button" class="btn btn-primary flex-fill" onclick="applyFilters()">
+                                <i class="bi bi-search"></i> Aplicar
                             </button>
-                            <a href="/ml/products" class="btn btn-outline-secondary flex-fill">
+                            <button type="button" class="btn btn-outline-secondary flex-fill" onclick="clearFilters()">
                                 <i class="bi bi-x-circle"></i> Limpar
-                            </a>
+                            </button>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -446,6 +446,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
+    // Restaurar filtros da URL
+    restoreFiltersFromURL();
+    
     loadMLAccounts();
     loadFilterOptions();
     loadProducts();
@@ -539,32 +542,36 @@ function loadFilterOptions() {
     });
 }
 
-function loadProducts(newPage = null) {
-    // Carregar produtos reais do banco de dados
+// Função para carregar produtos
+function loadProducts(page = 1) {
     const urlParams = new URLSearchParams(window.location.search);
-    const mlAccountId = urlParams.get('ml_account_id');
-    const status = urlParams.get('status');
-    const categoryId = urlParams.get('category_id');
-    const shippingType = urlParams.get('shipping_type');
-    const catalogListing = urlParams.get('catalog_listing');
-    const skuFilter = urlParams.get('sku_filter');
-    const page = newPage || urlParams.get('page') || 1;
-    const limit = 20; // Valor fixo, sem filtro
     
-    let apiUrl = `/ml/products/api/search?page=${page}&limit=${limit}`;
-    if (mlAccountId) apiUrl += `&ml_account_id=${mlAccountId}`;
-    if (status) apiUrl += `&status=${status}`;
-    if (categoryId) apiUrl += `&category_id=${categoryId}`;
-    if (shippingType) apiUrl += `&shipping_type=${shippingType}`;
-    if (catalogListing) apiUrl += `&catalog_listing=${catalogListing}`;
-    if (skuFilter) apiUrl += `&sku_filter=${encodeURIComponent(skuFilter)}`;
+    // Coletar filtros
+    const filters = {
+        ml_account_id: urlParams.get('ml_account_id') || '',
+        shipping_type: urlParams.get('shipping_type') || '',
+        catalog_listing: urlParams.get('catalog_listing') || '',
+        sku_filter: urlParams.get('sku_filter') || '',
+        limit: 50,  // Limite fixo de 50 itens por página
+        page: page
+    };
+    
+    // Construir URL da API
+    let apiUrl = `/ml/products/api/search?page=${filters.page}&limit=${filters.limit}`;
+    
+    if (filters.ml_account_id) apiUrl += `&ml_account_id=${encodeURIComponent(filters.ml_account_id)}`;
+    if (filters.shipping_type) apiUrl += `&shipping_type=${encodeURIComponent(filters.shipping_type)}`;
+    if (filters.catalog_listing) apiUrl += `&catalog_listing=${encodeURIComponent(filters.catalog_listing)}`;
+    if (filters.sku_filter) apiUrl += `&sku_filter=${encodeURIComponent(filters.sku_filter)}`;
     
     // Adicionar parâmetros de ordenação
     if (currentSort) {
         apiUrl += `&sort=${currentSort}&order=${currentOrder}`;
     }
     
-    fetch(apiUrl)
+    fetch(apiUrl, {
+        credentials: 'include'
+    })
     .then(response => {
         if (checkSessionExpired(response)) {
             hideUserElements();
@@ -587,6 +594,64 @@ function loadProducts(newPage = null) {
         showAlert('danger', 'Erro ao carregar produtos');
         renderProducts([]);
     });
+}
+
+// Função para restaurar filtros da URL nos campos do formulário
+function restoreFiltersFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Restaurar cada filtro
+    const shippingType = urlParams.get('shipping_type');
+    if (shippingType) {
+        document.getElementById('shipping_type').value = shippingType;
+    }
+    
+    const catalogListing = urlParams.get('catalog_listing');
+    if (catalogListing) {
+        document.getElementById('catalog_listing').value = catalogListing;
+    }
+    
+    const skuFilter = urlParams.get('sku_filter');
+    if (skuFilter) {
+        document.getElementById('sku_filter').value = skuFilter;
+    }
+}
+
+// Função para aplicar filtros
+function applyFilters() {
+    const filters = {
+        shipping_type: document.getElementById('shipping_type').value,
+        catalog_listing: document.getElementById('catalog_listing').value,
+        sku_filter: document.getElementById('sku_filter').value
+    };
+    
+    // Atualizar URL com pushState (sem recarregar a página)
+    const url = new URL(window.location);
+    Object.keys(filters).forEach(key => {
+        if (filters[key]) {
+            url.searchParams.set(key, filters[key]);
+        } else {
+            url.searchParams.delete(key);
+        }
+    });
+    
+    window.history.pushState({}, '', url);
+    loadProducts(1); // Buscar produtos com os novos filtros
+}
+
+// Função para limpar filtros
+function clearFilters() {
+    // Limpar campos do formulário
+    document.getElementById('shipping_type').value = '';
+    document.getElementById('catalog_listing').value = '';
+    document.getElementById('sku_filter').value = '';
+    
+    // Limpar URL e recarregar produtos
+    const url = new URL(window.location);
+    url.search = ''; // Limpar todos os parâmetros
+    window.history.pushState({}, '', url);
+    
+    loadProducts(1); // Recarregar produtos sem filtros
 }
 
 function renderProducts(products) {
