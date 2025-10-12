@@ -225,6 +225,109 @@
         </div>
     </div>
 
+    <!-- Cards de Custos -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h5 class="mb-3">
+                <i class="bi bi-calculator text-warning"></i> Análise de Custos
+            </h5>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-warning stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-currency-dollar text-warning fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Taxas ML</h6>
+                    <h4 class="mb-0 text-warning" id="kpi-ml-fees">R$ 0,00</h4>
+                    <small class="text-muted"><span id="kpi-ml-fees-percent">0%</span> da receita</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-info stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-truck text-info fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Frete</h6>
+                    <h4 class="mb-0 text-info" id="kpi-shipping">R$ 0,00</h4>
+                    <small class="text-muted"><span id="kpi-shipping-percent">0%</span> da receita</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-primary stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-bullseye text-primary fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Marketing</h6>
+                    <h4 class="mb-0 text-primary" id="kpi-marketing">R$ 0,00</h4>
+                    <small class="text-muted"><span id="kpi-marketing-percent">0%</span> da receita</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-secondary stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-box-seam text-secondary fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Custo Produtos</h6>
+                    <h4 class="mb-0 text-secondary" id="kpi-product-cost">R$ 0,00</h4>
+                    <small class="text-muted"><span id="kpi-product-cost-percent">0%</span> da receita</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-dark stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-receipt text-dark fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Impostos</h6>
+                    <h4 class="mb-0 text-dark" id="kpi-taxes">R$ 0,00</h4>
+                    <small class="text-muted"><span id="kpi-taxes-percent">0%</span> da receita</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-danger stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-calculator text-danger fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Outros Custos</h6>
+                    <h4 class="mb-0 text-danger" id="kpi-other-costs">R$ 0,00</h4>
+                    <small class="text-muted"><span id="kpi-other-costs-percent">0%</span> da receita</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo Financeiro -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <i class="bi bi-graph-up-arrow text-success fs-1"></i>
+                    <h6 class="text-muted mt-2 mb-1">Receita Bruta</h6>
+                    <h3 class="mb-0 text-success" id="kpi-gross-revenue">R$ 0,00</h3>
+                    <small class="text-muted">antes dos custos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <i class="bi bi-calculator text-warning fs-1"></i>
+                    <h6 class="text-muted mt-2 mb-1">Total de Custos</h6>
+                    <h3 class="mb-0 text-warning" id="kpi-total-costs">R$ 0,00</h3>
+                    <small class="text-muted"><span id="kpi-total-costs-percent">0%</span> da receita</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <i class="bi bi-trophy text-primary fs-1"></i>
+                    <h6 class="text-muted mt-2 mb-1">Lucro Líquido</h6>
+                    <h3 class="mb-0 text-primary" id="kpi-net-profit">R$ 0,00</h3>
+                    <small class="text-muted"><span id="kpi-net-margin">0%</span> de margem</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Gráficos -->
     <div class="row mb-4">
         <!-- Gráfico de Vendas ao Longo do Tempo -->
@@ -254,6 +357,38 @@
                 <div class="card-body">
                     <div class="chart-container">
                         <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico de Distribuição de Custos -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-pie-chart-fill"></i> Distribuição de Custos
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="costsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart"></i> Custos por Categoria
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="costsBarChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -358,6 +493,8 @@ let salesChart = null;
 let statusChart = null;
 let topProductsChart = null;
 let topUnitsChart = null;
+let costsChart = null;
+let costsBarChart = null;
 
 // Formatar moeda
 function formatBRL(value) {
@@ -465,10 +602,41 @@ function loadDashboard() {
                 : 0;
             document.getElementById('kpi-conversion').textContent = conversionRate + '%';
             
+            // Atualizar cards de custos
+            if (data.costs) {
+                document.getElementById('kpi-ml-fees').textContent = formatBRL(data.costs.ml_fees || 0);
+                document.getElementById('kpi-ml-fees-percent').textContent = (data.costs.ml_fees_percent || 0).toFixed(1) + '%';
+                
+                document.getElementById('kpi-shipping').textContent = formatBRL(data.costs.shipping_fees || 0);
+                document.getElementById('kpi-shipping-percent').textContent = (data.costs.shipping_fees_percent || 0).toFixed(1) + '%';
+                
+                document.getElementById('kpi-marketing').textContent = formatBRL(data.costs.marketing_cost || 0);
+                document.getElementById('kpi-marketing-percent').textContent = (data.costs.marketing_percent || 0).toFixed(1) + '%';
+                
+                document.getElementById('kpi-product-cost').textContent = formatBRL(data.costs.product_cost || 0);
+                document.getElementById('kpi-product-cost-percent').textContent = (data.costs.product_cost_percent || 0).toFixed(1) + '%';
+                
+                document.getElementById('kpi-taxes').textContent = formatBRL(data.costs.taxes || 0);
+                document.getElementById('kpi-taxes-percent').textContent = (data.costs.taxes_percent || 0).toFixed(1) + '%';
+                
+                document.getElementById('kpi-other-costs').textContent = formatBRL(data.costs.other_costs || 0);
+                document.getElementById('kpi-other-costs-percent').textContent = (data.costs.other_costs_percent || 0).toFixed(1) + '%';
+            }
+            
+            // Atualizar resumo financeiro
+            if (data.profit) {
+                document.getElementById('kpi-gross-revenue').textContent = formatBRL(data.kpis.total_revenue || 0);
+                document.getElementById('kpi-total-costs').textContent = formatBRL(data.costs.total_costs || 0);
+                document.getElementById('kpi-total-costs-percent').textContent = (data.costs.total_costs_percent || 0).toFixed(1) + '%';
+                document.getElementById('kpi-net-profit').textContent = formatBRL(data.profit.net_profit || 0);
+                document.getElementById('kpi-net-margin').textContent = (data.profit.net_margin || 0).toFixed(1) + '%';
+            }
+            
             // Renderizar gráficos
             renderSalesChart(data.timeline || []);
             renderStatusChart(data.kpis);
             renderTopProductsCharts(data.products || []);
+            renderCostsCharts(data.costs);
         } else {
             console.error('Erro:', data.error);
             alert('Erro ao carregar dados: ' + (data.error || 'Erro desconhecido'));
@@ -683,6 +851,135 @@ function renderTopProductsCharts(products) {
             plugins: {
                 legend: {
                     display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Renderizar gráficos de custos
+function renderCostsCharts(costs) {
+    if (!costs) return;
+    
+    // Gráfico de pizza - Distribuição de Custos
+    const ctxPie = document.getElementById('costsChart');
+    if (costsChart) {
+        costsChart.destroy();
+    }
+    
+    const costLabels = ['Taxas ML', 'Frete', 'Marketing', 'Custo Produtos', 'Impostos', 'Outros'];
+    const costValues = [
+        costs.ml_fees || 0,
+        costs.shipping_fees || 0,
+        costs.marketing_cost || 0,
+        costs.product_cost || 0,
+        costs.taxes || 0,
+        costs.other_costs || 0
+    ];
+    
+    // Filtrar apenas custos > 0
+    const filteredLabels = [];
+    const filteredValues = [];
+    const filteredColors = [
+        'rgba(255, 193, 7, 0.8)',   // Taxas ML - amarelo
+        'rgba(13, 202, 240, 0.8)',  // Frete - azul
+        'rgba(13, 110, 253, 0.8)',  // Marketing - azul escuro
+        'rgba(108, 117, 125, 0.8)', // Custo Produtos - cinza
+        'rgba(33, 37, 41, 0.8)',    // Impostos - preto
+        'rgba(220, 53, 69, 0.8)'    // Outros - vermelho
+    ];
+    
+    costValues.forEach((value, index) => {
+        if (value > 0) {
+            filteredLabels.push(costLabels[index]);
+            filteredValues.push(value);
+        }
+    });
+    
+    costsChart = new Chart(ctxPie, {
+        type: 'doughnut',
+        data: {
+            labels: filteredLabels,
+            datasets: [{
+                data: filteredValues,
+                backgroundColor: filteredColors.slice(0, filteredValues.length),
+                borderColor: filteredColors.slice(0, filteredValues.length).map(color => color.replace('0.8', '1')),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${context.label}: ${formatBRL(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Gráfico de barras - Custos por Categoria
+    const ctxBar = document.getElementById('costsBarChart');
+    if (costsBarChart) {
+        costsBarChart.destroy();
+    }
+    
+    costsBarChart = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: costLabels,
+            datasets: [{
+                label: 'Valor (R$)',
+                data: costValues,
+                backgroundColor: [
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(13, 202, 240, 0.8)',
+                    'rgba(13, 110, 253, 0.8)',
+                    'rgba(108, 117, 125, 0.8)',
+                    'rgba(33, 37, 41, 0.8)',
+                    'rgba(220, 53, 69, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(255, 193, 7)',
+                    'rgb(13, 202, 240)',
+                    'rgb(13, 110, 253)',
+                    'rgb(108, 117, 125)',
+                    'rgb(33, 37, 41)',
+                    'rgb(220, 53, 69)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.label}: ${formatBRL(context.parsed.x)}`;
+                        }
+                    }
                 }
             },
             scales: {
