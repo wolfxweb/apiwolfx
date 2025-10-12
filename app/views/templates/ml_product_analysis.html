@@ -238,19 +238,28 @@
                 <div class="col-md-12 mb-4" id="catalog-info-card">
                     <div class="card h-100">
                         <div class="card-header bg-info text-white">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0" id="catalog-shipping-header">
-                                    <i class="bi bi-truck"></i> Custos de Envio
-                                </h5>
-                                <!-- Botão de ativação do monitoramento -->
-                                <div id="monitoring-toggle" style="display:none;">
-                                    <button class="btn btn-sm btn-warning" onclick="toggleMonitoring()" id="monitoring-btn">
-                                        <i class="bi bi-eye"></i> Ativar Monitoramento
-                                    </button>
-                                </div>
-                            </div>
+                            <h5 class="mb-0" id="catalog-shipping-header">
+                                <i class="bi bi-truck"></i> Custos de Envio
+                            </h5>
                         </div>
                         <div class="card-body">
+                            <!-- Switch de Monitoramento -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded" id="monitoring-toggle" style="display:none;">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-graph-up-arrow text-primary me-2 fs-5"></i>
+                                    <div>
+                                        <strong>Monitoramento de Catálogo</strong>
+                                        <small class="d-block text-muted">Coleta automática a cada 12 horas</small>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="monitoring-switch" onchange="toggleMonitoring()" style="width: 3em; height: 1.5em; cursor: pointer;">
+                                    <label class="form-check-label ms-2" for="monitoring-switch" id="monitoring-status">
+                                        <span class="badge bg-secondary">Inativo</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
                             <!-- Tabs Navigation -->
                             <ul class="nav nav-tabs mb-3" id="catalog-tabs" style="display:none;" role="tablist">
                                 <li class="nav-item" role="presentation">
@@ -3552,17 +3561,20 @@ async function checkMonitoringStatus(catalogProductId) {
         
         monitoringActive = data.is_active || false;
         
-        // Mostrar botão de toggle
-        document.getElementById('monitoring-toggle').style.display = 'block';
+        // Mostrar switch de monitoramento
+        const toggleDiv = document.getElementById('monitoring-toggle');
+        toggleDiv.style.display = 'flex';
         
-        // Atualizar botão
-        const btn = document.getElementById('monitoring-btn');
+        // Atualizar switch e badge
+        const switchInput = document.getElementById('monitoring-switch');
+        const statusBadge = document.getElementById('monitoring-status');
+        
+        switchInput.checked = monitoringActive;
+        
         if (monitoringActive) {
-            btn.className = 'btn btn-sm btn-success';
-            btn.innerHTML = '<i class="bi bi-eye-fill"></i> Monitoramento Ativo';
+            statusBadge.innerHTML = '<span class="badge bg-success">Ativo</span>';
         } else {
-            btn.className = 'btn btn-sm btn-warning';
-            btn.innerHTML = '<i class="bi bi-eye"></i> Ativar Monitoramento';
+            statusBadge.innerHTML = '<span class="badge bg-secondary">Inativo</span>';
         }
         
         // Se estiver ativo, carregar histórico
@@ -3578,8 +3590,11 @@ async function checkMonitoringStatus(catalogProductId) {
 async function toggleMonitoring() {
     if (!currentCatalogProductId) return;
     
-    const btn = document.getElementById('monitoring-btn');
-    btn.disabled = true;
+    const switchInput = document.getElementById('monitoring-switch');
+    const statusBadge = document.getElementById('monitoring-status');
+    
+    // Desabilitar switch temporariamente
+    switchInput.disabled = true;
     
     try {
         const endpoint = monitoringActive ? 'deactivate' : 'activate';
@@ -3593,27 +3608,31 @@ async function toggleMonitoring() {
         if (data.success) {
             monitoringActive = !monitoringActive;
             
-            // Atualizar botão
+            // Atualizar switch e badge
+            switchInput.checked = monitoringActive;
+            
             if (monitoringActive) {
-                btn.className = 'btn btn-sm btn-success';
-                btn.innerHTML = '<i class="bi bi-eye-fill"></i> Monitoramento Ativo';
+                statusBadge.innerHTML = '<span class="badge bg-success">Ativo</span>';
                 showToast('Monitoramento ativado! Primeira coleta em andamento...', 'success');
                 
                 // Carregar histórico após ativação
                 setTimeout(() => loadCatalogHistory(currentCatalogProductId), 2000);
             } else {
-                btn.className = 'btn btn-sm btn-warning';
-                btn.innerHTML = '<i class="bi bi-eye"></i> Ativar Monitoramento';
+                statusBadge.innerHTML = '<span class="badge bg-secondary">Inativo</span>';
                 showToast('Monitoramento desativado', 'info');
             }
         } else {
+            // Reverter o switch se houver erro
+            switchInput.checked = monitoringActive;
             showToast(data.message || 'Erro ao alterar monitoramento', 'error');
         }
     } catch (error) {
+        // Reverter o switch se houver erro
+        switchInput.checked = monitoringActive;
         console.error('Erro ao toggle monitoramento:', error);
         showToast('Erro ao processar solicitação', 'error');
     } finally {
-        btn.disabled = false;
+        switchInput.disabled = false;
     }
 }
 
@@ -3799,7 +3818,7 @@ const originalLoadCatalogInfo = loadCatalogInfo;
 loadCatalogInfo = function(productId) {
     originalLoadCatalogInfo(productId);
     
-    // Após carregar dados do catálogo, verificar se tem catalog_product_id
+    // Após carregar dados do catálogo, verificar se é um produto de catálogo
     setTimeout(() => {
         // Buscar catalog_product_id dos dados carregados
         fetch(`/ml/products/api/product/${productId}/catalog/database`, {
@@ -3807,11 +3826,24 @@ loadCatalogInfo = function(productId) {
         })
         .then(r => r.json())
         .then(data => {
-            if (data.success && data.catalog_product_id) {
-                // Mostrar tabs
+            if (data.success && data.is_catalog) {
+                // Mostrar tabs e switch para qualquer produto de catálogo
                 document.getElementById('catalog-tabs').style.display = 'flex';
-                // Verificar status do monitoramento
-                checkMonitoringStatus(data.catalog_product_id);
+                
+                // Mostrar switch de monitoramento
+                const toggleDiv = document.getElementById('monitoring-toggle');
+                toggleDiv.style.display = 'flex';
+                
+                // Se tem catalog_product_id, verificar status do monitoramento
+                if (data.catalog_product_id) {
+                    checkMonitoringStatus(data.catalog_product_id);
+                } else {
+                    // Se não tem catalog_product_id, mostrar como inativo
+                    const switchInput = document.getElementById('monitoring-switch');
+                    const statusBadge = document.getElementById('monitoring-status');
+                    switchInput.checked = false;
+                    statusBadge.innerHTML = '<span class="badge bg-secondary">Inativo</span>';
+                }
             }
         })
         .catch(err => console.error('Erro ao buscar catalog_product_id:', err));
