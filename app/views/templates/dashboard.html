@@ -57,14 +57,37 @@
                             <label class="form-label mb-0 fw-bold">Período:</label>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select form-select-sm" id="period-selector" onchange="loadDashboard()">
-                                <option value="1">Hoje</option>
-                                <option value="7">Últimos 7 dias</option>
-                                <option value="15">Últimos 15 dias</option>
-                                <option value="30" selected>Últimos 30 dias</option>
-                                <option value="60">Últimos 60 dias</option>
-                                <option value="90">Últimos 90 dias</option>
+                            <select class="form-select form-select-sm" id="period-selector" onchange="handlePeriodChange()">
+                                <optgroup label="📅 Períodos Específicos">
+                                    <option value="1">Hoje</option>
+                                    <option value="current_month">Mês Atual</option>
+                                    <option value="last_month">Mês Anterior</option>
+                                    <option value="current_year">Ano Atual</option>
+                                </optgroup>
+                                <optgroup label="📊 Últimos Dias">
+                                    <option value="7">Últimos 7 dias</option>
+                                    <option value="15">Últimos 15 dias</option>
+                                    <option value="30" selected>Últimos 30 dias</option>
+                                    <option value="60">Últimos 60 dias</option>
+                                    <option value="90">Últimos 90 dias</option>
+                                </optgroup>
+                                <optgroup label="🎯 Personalizado">
+                                    <option value="custom">Período Personalizado</option>
+                                </optgroup>
                             </select>
+                        </div>
+                        <!-- Campos de data personalizada (inicialmente ocultos) -->
+                        <div class="col-auto" id="custom-date-fields" style="display: none;">
+                            <div class="row g-2">
+                                <div class="col-auto">
+                                    <label class="form-label mb-0 small">De:</label>
+                                    <input type="date" class="form-control form-control-sm" id="date-from" onchange="loadDashboard()">
+                                </div>
+                                <div class="col-auto">
+                                    <label class="form-label mb-0 small">Até:</label>
+                                    <input type="date" class="form-control form-control-sm" id="date-to" onchange="loadDashboard()">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -359,6 +382,25 @@ function hideLoading() {
     document.getElementById('loading-overlay').style.display = 'none';
 }
 
+// Manipular mudança de período
+function handlePeriodChange() {
+    const period = document.getElementById('period-selector').value;
+    const customFields = document.getElementById('custom-date-fields');
+    
+    if (period === 'custom') {
+        customFields.style.display = 'block';
+        // Definir datas padrão (últimos 30 dias)
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+        
+        document.getElementById('date-from').value = thirtyDaysAgo.toISOString().split('T')[0];
+        document.getElementById('date-to').value = today.toISOString().split('T')[0];
+    } else {
+        customFields.style.display = 'none';
+        loadDashboard();
+    }
+}
+
 // Carregar dados do dashboard
 function loadDashboard() {
     const period = document.getElementById('period-selector').value;
@@ -366,7 +408,29 @@ function loadDashboard() {
     console.log('📊 Carregando dashboard para período:', period);
     showLoading();
     
-    fetch(`/api/analytics/sales-dashboard?period=${period}`, {
+    // Tratar períodos especiais - enviar como parâmetros especiais
+    let url = `/api/analytics/sales-dashboard?period=${period}`;
+    
+    if (period === 'current_month') {
+        url += '&current_month=true';
+    } else if (period === 'last_month') {
+        url += '&last_month=true';
+    } else if (period === 'current_year') {
+        url += '&current_year=true';
+    } else if (period === 'custom') {
+        const dateFrom = document.getElementById('date-from').value;
+        const dateTo = document.getElementById('date-to').value;
+        
+        if (!dateFrom || !dateTo) {
+            hideLoading();
+            alert('Por favor, selecione as datas de início e fim.');
+            return;
+        }
+        
+        url += `&date_from=${dateFrom}&date_to=${dateTo}`;
+    }
+    
+    fetch(url, {
         credentials: 'include'
     })
     .then(response => {

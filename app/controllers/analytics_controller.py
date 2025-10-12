@@ -20,18 +20,60 @@ class AnalyticsController:
         self.db = db
     
     def get_sales_dashboard(self, company_id: int, ml_account_id: Optional[int] = None, 
-                           period_days: int = 30, search: Optional[str] = None) -> Dict:
+                           period_days: int = 30, search: Optional[str] = None, 
+                           current_month: bool = False, last_month: bool = False,
+                           current_year: bool = False, date_from: Optional[str] = None,
+                           date_to: Optional[str] = None) -> Dict:
         """Busca dados do dashboard de vendas baseado em pedidos reais"""
         try:
-            logger.info(f"📊 Dashboard Analytics - Filtros: company_id={company_id}, ml_account_id={ml_account_id}, period_days={period_days}, search={search}")
+            logger.info(f"📊 Dashboard Analytics - Filtros: company_id={company_id}, ml_account_id={ml_account_id}, period_days={period_days}, search={search}, current_month={current_month}, last_month={last_month}, current_year={current_year}, date_from={date_from}, date_to={date_to}")
             
             # Calcular data de corte
-            # IMPORTANTE: ML filtra por date_closed (vendas confirmadas), não date_created
-            # ML usa período completo: da meia-noite do dia -N até agora
-            # Exemplo: 7 dias = de 05/10 00:00:00 até 12/10 23:59:59
-            date_from = (datetime.utcnow().date() - timedelta(days=period_days))
-            date_from = datetime.combine(date_from, datetime.min.time())  # Meia-noite do dia -N
-            logger.info(f"📅 Buscando VENDAS CONFIRMADAS desde: {date_from} (meia-noite do dia -{period_days})")
+            if date_from and date_to:
+                # Período personalizado
+                try:
+                    date_from = datetime.strptime(date_from, '%Y-%m-%d')
+                    date_to = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1) - timedelta(seconds=1)
+                    logger.info(f"📅 Buscando VENDAS CONFIRMADAS PERÍODO PERSONALIZADO: {date_from} até {date_to}")
+                except ValueError as e:
+                    logger.error(f"Erro ao parsear datas personalizadas: {e}")
+                    return {'success': False, 'error': 'Formato de data inválido'}
+            elif current_month:
+                # Mês atual: do dia 1 do mês atual até agora
+                now = datetime.utcnow()
+                date_from = datetime(now.year, now.month, 1)  # Primeiro dia do mês atual
+                logger.info(f"📅 Buscando VENDAS CONFIRMADAS do MÊS ATUAL desde: {date_from} (1º dia do mês)")
+            elif last_month:
+                # Mês anterior: do dia 1 ao último dia do mês anterior
+                now = datetime.utcnow()
+                # Primeiro dia do mês anterior
+                if now.month == 1:
+                    last_month_date = datetime(now.year - 1, 12, 1)
+                else:
+                    last_month_date = datetime(now.year, now.month - 1, 1)
+                # Último dia do mês anterior
+                if now.month == 1:
+                    date_to = datetime(now.year - 1, 12, 31, 23, 59, 59)
+                else:
+                    # Calcular último dia do mês anterior
+                    from calendar import monthrange
+                    last_day = monthrange(now.year, now.month - 1)[1]
+                    date_to = datetime(now.year, now.month - 1, last_day, 23, 59, 59)
+                
+                date_from = last_month_date
+                logger.info(f"📅 Buscando VENDAS CONFIRMADAS do MÊS ANTERIOR: {date_from} até {date_to}")
+            elif current_year:
+                # Ano atual: do dia 1 de janeiro até agora
+                now = datetime.utcnow()
+                date_from = datetime(now.year, 1, 1)  # Primeiro dia do ano atual
+                logger.info(f"📅 Buscando VENDAS CONFIRMADAS do ANO ATUAL desde: {date_from} (1º de janeiro)")
+            else:
+                # IMPORTANTE: ML filtra por date_closed (vendas confirmadas), não date_created
+                # ML usa período completo: da meia-noite do dia -N até agora
+                # Exemplo: 7 dias = de 05/10 00:00:00 até 12/10 23:59:59
+                date_from = (datetime.utcnow().date() - timedelta(days=period_days))
+                date_from = datetime.combine(date_from, datetime.min.time())  # Meia-noite do dia -N
+                logger.info(f"📅 Buscando VENDAS CONFIRMADAS desde: {date_from} (meia-noite do dia -{period_days})")
             
             # Query base de pedidos CONFIRMADOS (com date_closed preenchido)
             orders_query = self.db.query(MLOrder).filter(
@@ -39,6 +81,10 @@ class AnalyticsController:
                 MLOrder.date_closed >= date_from,  # ✅ Filtro por confirmação, não criação
                 MLOrder.date_closed.isnot(None)  # Apenas vendas confirmadas
             )
+            
+            # Para períodos com data final definida, adicionar filtro
+            if 'date_to' in locals() and date_to:
+                orders_query = orders_query.filter(MLOrder.date_closed <= date_to)
             
             # Filtrar por conta ML
             if ml_account_id:

@@ -33,8 +33,13 @@ async def analytics_dashboard(
 @ads_analytics_router.get("/api/analytics/sales-dashboard")
 async def get_sales_dashboard_data(
     ml_account_id: Optional[int] = Query(None),
-    period: Optional[int] = Query(30),
+    period: Optional[str] = Query("30"),
     search: Optional[str] = Query(None),
+    current_month: Optional[bool] = Query(False),
+    last_month: Optional[bool] = Query(False),
+    current_year: Optional[bool] = Query(False),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -50,12 +55,22 @@ async def get_sales_dashboard_data(
         user_data = result["user"]
         company_id = user_data["company"]["id"]
         
+        # Converter period para int se não for um período especial
+        period_days = 30  # padrão
+        if period.isdigit():
+            period_days = int(period)
+        
         controller = AnalyticsController(db)
         data = controller.get_sales_dashboard(
             company_id=company_id,
             ml_account_id=ml_account_id,
-            period_days=period,
-            search=search
+            period_days=period_days,
+            search=search,
+            current_month=current_month,
+            last_month=last_month,
+            current_year=current_year,
+            date_from=date_from,
+            date_to=date_to
         )
         
         return JSONResponse(content=data)
