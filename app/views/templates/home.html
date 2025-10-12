@@ -1,145 +1,829 @@
 {% extends "base.html" %}
 
-{% block title %}Home - API Mercado Livre{% endblock %}
-
-{% block header_title %}🏠 Home - API Mercado Livre{% endblock %}
-{% block header_subtitle %}Bem-vindo à sua API de integração com o Mercado Livre{% endblock %}
+{% block title %}GVMIA - Gestor Vendas Marketplace Inteligente Analytics{% endblock %}
 
 {% block content %}
-<!-- Header -->
-<div class="text-center mb-5">
-    <h1 class="display-4 fw-bold text-primary mb-3">
-        <i class="bi bi-shield-lock-fill"></i> API Mercado Livre
-    </h1>
-    <p class="lead text-muted">Integração profissional com Mercado Livre</p>
-</div>
+<style>
+/* Custom styles for landing page */
+.hero-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 80px 0;
+    margin-bottom: 0;
+}
 
-<!-- Instruções -->
-<div class="alert alert-info">
-    <h4 class="alert-heading">
-        <i class="bi bi-lightbulb-fill"></i> Para começar:
-    </h4>
-    <ol class="mb-0">
-        <li>Configure suas credenciais no arquivo <code>app/config/settings.py</code></li>
-        <li>Clique no botão abaixo para fazer login</li>
-        <li>Autorize a aplicação no Mercado Livre</li>
-        <li>Você receberá seu token de acesso!</li>
-    </ol>
-</div>
+.hero-section h1 {
+    font-size: 3.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
 
-<!-- Botões de Ação -->
-<div class="text-center my-5">
-    <a href="/login" class="btn btn-primary btn-lg me-3">
-        <i class="bi bi-shield-lock-fill"></i> Fazer Login no Mercado Livre
-    </a>
-    <a href="/docs" class="btn btn-outline-primary btn-lg">
-        <i class="bi bi-book-fill"></i> Ver Documentação
-    </a>
-</div>
+.hero-section .lead {
+    font-size: 1.25rem;
+    margin-bottom: 2rem;
+    opacity: 0.9;
+}
 
-<!-- Cards de Funcionalidades -->
-<div class="row g-4 mb-5">
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body text-center">
-                <div class="mb-3">
-                    <i class="bi bi-shield-lock-fill text-success fs-1"></i>
+.feature-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    height: 100%;
+}
+
+.feature-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.feature-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2rem;
+}
+
+.benefits-section {
+    background-color: #f8f9fa;
+    padding: 80px 0;
+}
+
+.stats-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 60px 0;
+}
+
+.stat-item {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.stat-number {
+    font-size: 3rem;
+    font-weight: 700;
+    display: block;
+}
+
+.stat-label {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.cta-section {
+    background-color: #343a40;
+    color: white;
+    padding: 80px 0;
+}
+
+.btn-primary-custom {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 50px;
+    transition: all 0.3s ease;
+}
+
+.btn-primary-custom:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+}
+
+.btn-outline-custom {
+    border: 2px solid white;
+    color: white;
+    padding: 15px 30px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 50px;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-custom:hover {
+    background-color: white;
+    color: #343a40;
+    transform: translateY(-2px);
+}
+
+.gvmia-logo {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.gvmia-subtitle {
+    font-size: 1.2rem;
+    color: #6c757d;
+    margin-top: 0.5rem;
+}
+
+.screenshot-placeholder {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 2px dashed #dee2e6;
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    color: #6c757d;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold mb-4">
+                    <span class="gvmia-logo text-white">GVMIA</span>
+                </h1>
+                <p class="gvmia-subtitle text-white-50">Gestor Vendas Marketplace Inteligente Analytics</p>
+                <p class="lead">
+                    A plataforma completa para gerenciar suas vendas no Mercado Livre com 
+                    <strong>Inteligência Artificial (ChatGPT)</strong> analisando seus anúncios. 
+                    Dashboard atualizado, análise de produtos, gestão de pedidos e muito mais.
+                </p>
+                <div class="d-flex gap-3 flex-wrap">
+                    <a href="/auth/register" class="btn btn-light btn-lg px-4 py-3">
+                        <i class="bi bi-rocket-takeoff me-2"></i>Começar Gratuitamente
+                    </a>
+                    <a href="#funcionalidades" class="btn btn-outline-light btn-lg px-4 py-3">
+                        <i class="bi bi-play-circle me-2"></i>Ver Funcionalidades
+                    </a>
                 </div>
-                <h5 class="card-title text-primary">Autenticação</h5>
-                <p class="card-text">Faça login com sua conta do Mercado Livre e obtenha seu token de acesso para usar a API.</p>
-                <a href="/login" class="btn btn-primary">
-                    <i class="bi bi-box-arrow-in-right"></i> Fazer Login
-                </a>
+            </div>
+            <div class="col-lg-6">
+                <div class="screenshot-placeholder">
+                    <div>
+                        <i class="bi bi-laptop text-white" style="font-size: 4rem; opacity: 0.8;"></i>
+                        <p class="mt-3 mb-0">Dashboard GVMIA</p>
+                        <small>Interface moderna e intuitiva</small>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body text-center">
-                <div class="mb-3">
-                    <i class="bi bi-bag-fill text-info fs-1"></i>
-                </div>
-                <h5 class="card-title text-primary">Produtos</h5>
-                <p class="card-text">Busque produtos, obtenha detalhes e gerencie itens do Mercado Livre.</p>
-                <a href="/products/search?q=exemplo" class="btn btn-outline-primary">
-                    <i class="bi bi-search"></i> Buscar Produtos
-                </a>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body text-center">
-                <div class="mb-3">
-                    <i class="bi bi-person-fill text-success fs-1"></i>
-                </div>
-                <h5 class="card-title text-primary">Usuário</h5>
-                <p class="card-text">Visualize suas informações pessoais e gerencie seus itens.</p>
-                <a href="/user" class="btn btn-outline-primary">
-                    <i class="bi bi-person-lines-fill"></i> Meus Dados
-                </a>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body text-center">
-                <div class="mb-3">
-                    <i class="bi bi-folder-fill text-info fs-1"></i>
-                </div>
-                <h5 class="card-title text-primary">Categorias</h5>
-                <p class="card-text">Explore as categorias disponíveis no Mercado Livre.</p>
-                <a href="/categories/" class="btn btn-outline-primary">
-                    <i class="bi bi-grid-3x3-gap-fill"></i> Ver Categorias
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
+</section>
 
-<!-- Informações de Configuração -->
-<div class="row g-4">
-    <div class="col-md-6">
-        <div class="alert alert-warning">
-            <h4 class="alert-heading">
-                <i class="bi bi-tools"></i> Configuração necessária:
-            </h4>
-            <p>No arquivo <code>app/config/settings.py</code>, configure:</p>
-            <pre class="bg-dark text-light p-3 rounded"><code>self.ml_app_id = "SEU_APP_ID_AQUI"
-self.ml_client_secret = "SEU_CLIENT_SECRET_AQUI"
-self.ml_redirect_uri = "https://sua-url.ngrok.io/callback"</code></pre>
+<!-- Stats Section -->
+<section class="stats-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <span class="stat-number">🤖 IA</span>
+                    <span class="stat-label">Análise Inteligente</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <span class="stat-number">Automática</span>
+                    <span class="stat-label">Sincronização de Dados</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">Integração ML</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <span class="stat-number">Grátis</span>
+                    <span class="stat-label">Para Começar</span>
+                </div>
+            </div>
         </div>
     </div>
-    
-    <div class="col-md-6">
-        <div class="alert alert-info">
-            <h4 class="alert-heading">
-                <i class="bi bi-globe"></i> URLs da API:
-            </h4>
-            <ul class="mb-0">
-                <li><strong>API Principal:</strong> <a href="/" class="text-decoration-none">/</a></li>
-                <li><strong>Login:</strong> <a href="/login" class="text-decoration-none">/login</a></li>
-                <li><strong>Callback:</strong> <a href="/callback" class="text-decoration-none">/callback</a></li>
-                <li><strong>Documentação:</strong> <a href="/docs" class="text-decoration-none">/docs</a></li>
-                <li><strong>Status:</strong> <a href="/health" class="text-decoration-none">/health</a></li>
-            </ul>
-        </div>
-    </div>
-</div>
+</section>
 
-<div class="alert alert-success">
-    <h4 class="alert-heading">
-        <i class="bi bi-phone"></i> Como usar:
-    </h4>
-    <ol class="mb-0">
-        <li>Acesse o painel do desenvolvedor do Mercado Livre</li>
-        <li>Configure a URL de redirecionamento: <code>https://sua-url.ngrok.io/callback</code></li>
-        <li>Copie o App ID e Client Secret</li>
-        <li>Configure no arquivo de configuração</li>
-        <li>Faça login e receba seu token!</li>
-    </ol>
-</div>
+<!-- AI Highlight Section -->
+<section class="py-5" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 text-white">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-robot" style="font-size: 3rem; margin-right: 1rem;"></i>
+                    <h2 class="display-6 fw-bold mb-0">Análise com Inteligência Artificial</h2>
+                </div>
+                <p class="lead mb-4">
+                    <strong>ChatGPT analisa seus anúncios automaticamente!</strong> 
+                    Receba insights profundos sobre performance, margem de lucro, 
+                    SEO, concorrência e marketing.
+                </p>
+                <ul class="list-unstyled">
+                    <li class="mb-2"><i class="bi bi-check-circle-fill me-2"></i><strong>Score de 0-100</strong> para cada anúncio</li>
+                    <li class="mb-2"><i class="bi bi-check-circle-fill me-2"></i><strong>Análise de ROAS, ACOS e CPC</strong> dos seus anúncios pagos</li>
+                    <li class="mb-2"><i class="bi bi-check-circle-fill me-2"></i><strong>Recomendações práticas</strong> para otimizar vendas</li>
+                    <li class="mb-2"><i class="bi bi-check-circle-fill me-2"></i><strong>Comparação com concorrentes</strong> do catálogo ML</li>
+                    <li class="mb-2"><i class="bi bi-check-circle-fill me-2"></i><strong>Sugestões de preço</strong> competitivo baseado no mercado</li>
+                </ul>
+            </div>
+            <div class="col-lg-6">
+                <div class="card shadow-lg">
+                    <div class="card-body p-4">
+                        <h5 class="fw-bold text-warning mb-3">
+                            <i class="bi bi-stars"></i> O que a IA analisa:
+                        </h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded">
+                                    <i class="bi bi-cash-stack text-success fs-4"></i>
+                                    <p class="mb-0 mt-2"><strong>Margem de Lucro</strong></p>
+                                    <small class="text-muted">Análise financeira completa</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded">
+                                    <i class="bi bi-search text-primary fs-4"></i>
+                                    <p class="mb-0 mt-2"><strong>SEO e Visibilidade</strong></p>
+                                    <small class="text-muted">Otimização de título e descrição</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded">
+                                    <i class="bi bi-people text-info fs-4"></i>
+                                    <p class="mb-0 mt-2"><strong>Concorrência</strong></p>
+                                    <small class="text-muted">Comparação de preços e posição</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded">
+                                    <i class="bi bi-megaphone text-warning fs-4"></i>
+                                    <p class="mb-0 mt-2"><strong>Marketing (Ads)</strong></p>
+                                    <small class="text-muted">ROAS, ACOS, CPC e ROI</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section id="funcionalidades" class="py-5">
+    <div class="container">
+        <div class="row mb-5">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="display-5 fw-bold mb-4">Funcionalidades Completas</h2>
+                <p class="lead text-muted">
+                    O GVMIA oferece tudo que você precisa para gerenciar suas vendas no Mercado Livre 
+                    de forma profissional e eficiente
+                </p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Dashboard de Vendas -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card feature-card h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon">
+                            <i class="bi bi-speedometer2"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Dashboard de Vendas</h5>
+                        <p class="card-text">
+                            Visualize suas vendas atualizadas com gráficos interativos, KPIs detalhados 
+                            e análise de performance por período.
+                        </p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Receita atualizada</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Gráficos de evolução</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Análise de custos</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Margem de lucro</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gestão de Pedidos -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card feature-card h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon">
+                            <i class="bi bi-cart-check"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Gestão de Pedidos</h5>
+                        <p class="card-text">
+                            Acompanhe todos os seus pedidos do Mercado Livre com detalhes completos, 
+                            status atualizado e histórico completo.
+                        </p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Lista completa de pedidos</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Detalhes de cada pedido</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Status atualizado</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Sincronização automática</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Análise de Produtos -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card feature-card h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon">
+                            <i class="bi bi-box-seam"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Análise de Produtos</h5>
+                        <p class="card-text">
+                            Analise o desempenho dos seus produtos com dados detalhados de vendas, 
+                            preços e performance no Mercado Livre.
+                        </p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Top produtos por receita</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Análise de preços</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Performance por produto</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Gráficos comparativos</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gestão de Anúncios com IA -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card feature-card h-100 border-warning">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                            <i class="bi bi-robot"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Gestão de Anúncios com IA 🤖</h5>
+                        <p class="card-text">
+                            <strong>Inteligência Artificial analisa seus anúncios!</strong> 
+                            Insights automáticos sobre ROAS, ACOS, CPC, CTR e recomendações 
+                            de otimização geradas por IA.
+                        </p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="bi bi-check-circle-fill text-warning me-2"></i><strong>Análise com IA (ChatGPT)</strong></li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>ROAS e ACOS automáticos</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Otimização de campanhas</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Recomendações inteligentes</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Avançado -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card feature-card h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon">
+                            <i class="bi bi-graph-up-arrow"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Analytics Avançado</h5>
+                        <p class="card-text">
+                            Dashboard completo com análise de vendas, devoluções, cancelamentos 
+                            e métricas financeiras detalhadas.
+                        </p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Dashboard completo</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Análise de devoluções</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Controle de cancelamentos</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Métricas financeiras</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integração Mercado Livre -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card feature-card h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon">
+                            <i class="bi bi-shop"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Integração Mercado Livre</h5>
+                        <p class="card-text">
+                            Conecte-se diretamente com sua conta do Mercado Livre para sincronização 
+                            automática de dados e atualizações constantes.
+                        </p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>API oficial ML</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Sincronização automática</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Dados atualizados</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Múltiplas contas</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Benefits Section -->
+<section class="benefits-section">
+    <div class="container">
+        <div class="row mb-5">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="display-5 fw-bold mb-4">Por que escolher o GVMIA?</h2>
+                <p class="lead text-muted">
+                    A plataforma mais completa para gerenciar suas vendas no Mercado Livre 
+                    com dados precisos e insights valiosos
+                </p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="d-flex">
+                    <div class="flex-shrink-0">
+                        <div class="feature-icon" style="width: 60px; height: 60px; font-size: 1.5rem;">
+                            <i class="bi bi-lightning-charge"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="fw-bold">Setup em Minutos</h5>
+                        <p class="text-muted mb-0">Conecte sua conta do Mercado Livre e comece a visualizar seus dados atualizados imediatamente.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="d-flex">
+                    <div class="flex-shrink-0">
+                        <div class="feature-icon" style="width: 60px; height: 60px; font-size: 1.5rem;">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="fw-bold">API Oficial ML</h5>
+                        <p class="text-muted mb-0">Integração oficial com o Mercado Livre garantindo dados precisos e atualizações constantes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="d-flex">
+                    <div class="flex-shrink-0">
+                        <div class="feature-icon" style="width: 60px; height: 60px; font-size: 1.5rem;">
+                            <i class="bi bi-headset"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="fw-bold">Analytics Detalhado</h5>
+                        <p class="text-muted mb-0">Dashboard completo com análise de vendas, custos, margem de lucro e performance de produtos.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pricing Section -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row mb-5">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="display-5 fw-bold mb-4">Planos e Preços</h2>
+                <p class="lead text-muted">
+                    Escolha o plano ideal para o seu negócio. <strong>Pague apenas pelas análises com IA que você usar!</strong>
+                </p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Plano Trial -->
+            <div class="col-lg-4">
+                <div class="card h-100 shadow-sm border-primary" style="border-width: 2px;">
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <h3 class="fw-bold">Trial</h3>
+                            <div class="display-4 fw-bold text-primary my-3">R$ 49,90</div>
+                            <p class="text-muted">
+                                <small class="text-decoration-line-through">R$ 66,53</small><br>
+                                <strong>Acesso completo + 1 análise/mês</strong>
+                            </p>
+                        </div>
+                        
+                        <ul class="list-unstyled mb-4">
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Dashboard completo</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Gestão de pedidos</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Análise de produtos</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Relatórios de vendas</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Análise de custos</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-primary me-2"></i>
+                                <strong>🤖 1 análise IA por mês</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Renovação mensal automática</strong>
+                            </li>
+                        </ul>
+                        
+                        <div class="alert alert-primary mb-3">
+                            <small><i class="bi bi-star-fill me-1"></i> <strong>25% OFF!</strong> Ideal para começar.</small>
+                        </div>
+                        
+                        <a href="/auth/register" class="btn btn-primary w-100 btn-lg">
+                            Começar Agora
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plano Profissional -->
+            <div class="col-lg-4">
+                <div class="card h-100 shadow-lg border-warning" style="border-width: 3px;">
+                    <div class="card-header bg-warning text-dark text-center py-3">
+                        <span class="badge bg-dark mb-2">MAIS POPULAR</span>
+                        <h3 class="fw-bold mb-0">Starter</h3>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <div class="display-4 fw-bold text-warning my-3">R$ 99,90</div>
+                            <p class="text-muted">
+                                <small class="text-decoration-line-through">R$ 124,88</small><br>
+                                <strong>10 análises com IA</strong>
+                            </p>
+                        </div>
+                        
+                        <ul class="list-unstyled mb-4">
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Tudo do plano Trial</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-warning me-2"></i>
+                                <strong>🤖 10 análises com IA</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Score 0-100 do anúncio</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Análise de ROAS e ACOS</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Comparação catálogo ML</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Sugestões de otimização</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Análise de margem de lucro</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Créditos não expiram</strong>
+                            </li>
+                        </ul>
+                        
+                        <div class="alert alert-warning mb-3">
+                            <small><i class="bi bi-star-fill me-1"></i> <strong>20% de desconto!</strong> Ideal para começar.</small>
+                        </div>
+                        
+                        <a href="/auth/register" class="btn btn-warning w-100 btn-lg text-dark fw-bold">
+                            Começar Agora
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plano Pro -->
+            <div class="col-lg-4">
+                <div class="card h-100 shadow-sm border-success" style="border-width: 2px;">
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <h3 class="fw-bold">Pro</h3>
+                            <div class="display-4 fw-bold text-success my-3">R$ 199,90</div>
+                            <p class="text-muted">
+                                <small class="text-decoration-line-through">R$ 249,88</small><br>
+                                <strong>30 análises com IA</strong>
+                            </p>
+                        </div>
+                        
+                        <ul class="list-unstyled mb-4">
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Tudo do plano Starter</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>🤖 30 análises com IA</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Score 0-100 do anúncio</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Análise de ROAS e ACOS</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Comparação catálogo ML</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Sugestões de otimização</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Análise de margem de lucro</strong>
+                            </li>
+                            <li class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                <strong>Créditos não expiram</strong>
+                            </li>
+                        </ul>
+                        
+                        <div class="alert alert-success mb-3">
+                            <small><i class="bi bi-trophy-fill me-1"></i> <strong>20% OFF!</strong> 3x mais análises com melhor custo-benefício.</small>
+                        </div>
+                        
+                        <a href="/auth/register" class="btn btn-success w-100 btn-lg">
+                            Comprar Pacote Pro
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compra Por Demanda -->
+        <div class="row mt-5">
+            <div class="col-lg-10 mx-auto">
+                <div class="card border-info" style="border-width: 2px;">
+                    <div class="card-body p-4">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h4 class="fw-bold mb-3">
+                                    <i class="bi bi-cart-plus text-info"></i> Compre Créditos Por Demanda
+                                </h4>
+                                <p class="mb-3">
+                                    Já tem um plano mas precisa de mais análises? Compre pacotes adicionais de créditos quando precisar!
+                                </p>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded text-center">
+                                            <h5 class="fw-bold text-info mb-2">5 Análises</h5>
+                                            <p class="mb-0"><strong>R$ 59,90</strong></p>
+                                            <small class="text-muted">R$ 11,98/análise</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded text-center border border-info">
+                                            <span class="badge bg-info mb-2">POPULAR</span>
+                                            <h5 class="fw-bold text-info mb-2">10 Análises</h5>
+                                            <p class="mb-0"><strong>R$ 99,90</strong></p>
+                                            <small class="text-muted">R$ 9,99/análise</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3 bg-light rounded text-center">
+                                            <span class="badge bg-success mb-2">MELHOR VALOR</span>
+                                            <h5 class="fw-bold text-success mb-2">30 Análises</h5>
+                                            <p class="mb-0"><strong>R$ 199,90</strong></p>
+                                            <small class="text-muted">R$ 6,66/análise</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <i class="bi bi-lightning-charge-fill text-info" style="font-size: 4rem;"></i>
+                                <p class="mt-3 mb-3"><strong>Flexibilidade Total</strong></p>
+                                <a href="/auth/login" class="btn btn-info btn-lg">
+                                    <i class="bi bi-plus-circle me-2"></i>Comprar Créditos
+                                </a>
+                                <p class="mt-2 mb-0"><small class="text-muted">Disponível dentro da plataforma</small></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FAQ Pricing -->
+        <div class="row mt-5">
+            <div class="col-lg-8 mx-auto">
+                <div class="card">
+                    <div class="card-body p-4">
+                        <h5 class="fw-bold mb-4 text-center">
+                            <i class="bi bi-question-circle text-primary"></i> Perguntas Frequentes
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <p class="mb-1"><strong>Como funciona a cobrança?</strong></p>
+                                <small class="text-muted">Você compra pacotes de créditos para análises com IA. Sem mensalidade!</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <p class="mb-1"><strong>O que está incluído em todos os planos?</strong></p>
+                                <small class="text-muted">Dashboard completo, gestão de pedidos, análise de produtos, relatórios de vendas e análise de custos.</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <p class="mb-1"><strong>Posso comprar mais créditos depois?</strong></p>
+                                <small class="text-muted">Sim! Você pode comprar pacotes adicionais por demanda a qualquer momento dentro da plataforma.</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <p class="mb-1"><strong>Os créditos expiram?</strong></p>
+                                <small class="text-muted">Não! Todos os créditos de análise não têm prazo de validade.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="display-5 fw-bold mb-4">Pronto para gerenciar suas vendas?</h2>
+                <p class="lead mb-4">
+                    Comece hoje mesmo e tenha controle total das suas vendas no Mercado Livre com dados precisos e insights valiosos.
+                </p>
+                <div class="d-flex gap-3 justify-content-center flex-wrap">
+                    <a href="/auth/register" class="btn btn-primary-custom btn-lg">
+                        <i class="bi bi-rocket-takeoff me-2"></i>Começar Gratuitamente
+                    </a>
+                    <a href="/auth/login" class="btn btn-outline-custom btn-lg">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Já tenho conta
+                    </a>
+                </div>
+                <p class="mt-3 mb-0 text-white-50">
+                    <i class="bi bi-shield-check me-1"></i>
+                    Sem compromisso • Teste grátis • Suporte completo
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Smooth scrolling for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    });
+});
+
+// Add animation on scroll
+const observerOptions = {
+    threshold: 0.1,
+    rootMargin: '0px 0px -50px 0px'
+};
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.style.opacity = '1';
+            entry.target.style.transform = 'translateY(0)';
+        }
+    });
+}, observerOptions);
+
+// Observe feature cards
+document.querySelectorAll('.feature-card').forEach(card => {
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px)';
+    card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+    observer.observe(card);
+});
+</script>
 {% endblock %}

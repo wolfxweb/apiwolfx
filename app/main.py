@@ -25,8 +25,8 @@ import atexit
 
 # Inicializar FastAPI
 app = FastAPI(
-    title="API Mercado Livre - MVC",
-    description="API para integração com o Mercado Livre usando arquitetura MVC",
+    title="GVMIA - Gestor Vendas Marketplace Inteligente Analytics",
+    description="Plataforma de gestão inteligente para marketplaces com Inteligência Artificial",
     version="2.0.0",
     docs_url="/docs"
 )
@@ -138,9 +138,9 @@ app.include_router(sales_analysis_router)  # Para /api/sales/analysis
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")
 async def root():
-    """Página inicial - redireciona para login"""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/auth/login", status_code=302)
+    """Página inicial - Landing page do GVMIA"""
+    from app.views.template_renderer import render_template
+    return render_template("home.html")
 
 
 
