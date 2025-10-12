@@ -52,13 +52,19 @@ class MLClaimsService:
             
             claims_response = requests.get(claims_url, headers=headers, params=claims_params, timeout=30)
             
+            print(f"📡 Claims API Response: {claims_response.status_code}")
+            
             if claims_response.status_code != 200:
-                logger.error(f"Erro ao buscar claims: {claims_response.status_code}")
+                error_text = claims_response.text[:200] if claims_response.text else "No response"
+                logger.error(f"Erro ao buscar claims: {claims_response.status_code} - {error_text}")
+                print(f"❌ Erro ao buscar claims: {claims_response.status_code}")
+                print(f"   Response: {error_text}")
                 return {"returns_count": 0, "returns_value": 0}
             
             claims_data = claims_response.json()
             claims = claims_data.get("data", [])
             
+            print(f"📦 Total de claims retornados da API: {len(claims)}")
             logger.info(f"📦 Total de claims encontrados: {len(claims)}")
             
             returns_count = 0

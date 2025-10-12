@@ -51,31 +51,50 @@ class AnalyticsController:
             
             # Buscar VENDAS canceladas
             # ML: "Vendas do período selecionado que DEPOIS foram canceladas"
-            # "do período selecionado" = vendas CONFIRMADAS no período (date_closed no período)
-            # "que depois foram canceladas" = status atual é CANCELLED
-            # IMPORTANTE: ML só conta vendas que ficaram ativas por um tempo (não cancelamentos imediatos por fraude)
-            # Filtrar apenas vendas canceladas com mais de 24h entre confirmação e cancelamento
-            from sqlalchemy import func, cast, Float
-            cancelled_query = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id,
-                MLOrder.date_closed >= date_from,  # ✅ Vendas CONFIRMADAS no período
-                MLOrder.status == OrderStatus.CANCELLED,
-                # Apenas vendas que ficaram ativas por mais de 24 horas antes de cancelar
-                func.extract('epoch', MLOrder.last_updated - MLOrder.date_closed) > 86400  # 24 horas em segundos
-            )
+            # Critérios: confirmadas no período + CANCELLED + pagas (não "not_paid")
+            from sqlalchemy import func, cast, Float, text
+            
+            # Usar query SQL pura para trabalhar com JSONB
+            cancelled_sql = text("""
+                SELECT *
+                FROM ml_orders
+                WHERE company_id = :company_id
+                  AND date_closed >= :date_from
+                  AND status = 'CANCELLED'
+                  AND tags::jsonb @> '["paid"]'::jsonb
+                  AND NOT (tags::jsonb @> '["not_paid"]'::jsonb)
+                  AND NOT (tags::jsonb @> '["test_order"]'::jsonb)
+            """)
+            
+            params = {
+                "company_id": company_id,
+                "date_from": date_from
+            }
             
             if ml_account_id:
-                cancelled_query = cancelled_query.filter(MLOrder.ml_account_id == ml_account_id)
+                cancelled_sql = text("""
+                    SELECT *
+                    FROM ml_orders
+                    WHERE company_id = :company_id
+                      AND ml_account_id = :ml_account_id
+                      AND date_closed >= :date_from
+                      AND status = 'CANCELLED'
+                      AND tags::jsonb @> '["paid"]'::jsonb
+                      AND NOT (tags::jsonb @> '["not_paid"]'::jsonb)
+                      AND NOT (tags::jsonb @> '["test_order"]'::jsonb)
+                """)
+                params["ml_account_id"] = ml_account_id
             
-            cancelled_orders = cancelled_query.all()
+            cancelled_result = self.db.execute(cancelled_sql, params).fetchall()
+            cancelled_orders = [dict(row._mapping) for row in cancelled_result]
             cancelled_count = len(cancelled_orders)
-            cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
+            cancelled_value = sum(float(order.get('total_amount', 0) or 0) for order in cancelled_orders)
             
             # DEBUG: Mostrar detalhes dos pedidos cancelados
             if cancelled_orders:
                 logger.info(f"🔍 DEBUG - Pedidos cancelados encontrados:")
                 for order in cancelled_orders:
-                    logger.info(f"   Order ID: {order.ml_order_id}, Created: {order.date_created}, Closed: {order.date_closed}, Status: {order.status}, Value: R$ {order.total_amount}")
+                    logger.info(f"   Order ID: {order.get('ml_order_id')}, Value: R$ {order.get('total_amount')}, Tags: {order.get('tags')}")
             
             logger.info(f"❌ VENDAS canceladas (confirmadas no período e depois canceladas): {cancelled_count} (R$ {cancelled_value:.2f})")
             
@@ -118,25 +137,50 @@ class AnalyticsController:
                 
                 ml_accounts = accounts_query.all()
                 
+                # Importar TokenManager para renovação automática
+                from app.services.token_manager import TokenManager
+                from app.models.saas_models import User
+                
                 for ml_account in ml_accounts:
-                    if ml_account.tokens:
-                        token = sorted(ml_account.tokens, key=lambda t: t.created_at, reverse=True)[0]
-                        if token and token.access_token:
-                            # Buscar devoluções via API (Claims) - precisa passar ml_user_id como seller
-                            claims_service = MLClaimsService()
-                            returns_data = claims_service.get_returns_metrics(
-                                token.access_token, 
-                                date_from, 
-                                datetime.utcnow(),
-                                ml_account.ml_user_id  # Passar seller ID
-                            )
-                            returns_count_api += returns_data.get('returns_count', 0)
-                            returns_value_api += returns_data.get('returns_value', 0)
-                            
-                            # Buscar visitas
-                            visits_service = MLVisitsService()
-                            visits_data = visits_service.get_user_visits(ml_account.ml_user_id, token.access_token, date_from, datetime.utcnow())
-                            total_visits += visits_data.get('total_visits', 0)
+                    # Buscar usuário da empresa para usar TokenManager
+                    user = self.db.query(User).filter(
+                        User.company_id == company_id,
+                        User.is_active == True
+                    ).first()
+                    
+                    if not user:
+                        logger.warning(f"⚠️ Usuário não encontrado para company_id={company_id}")
+                        continue
+                    
+                    # Usar TokenManager para obter token válido (renova automaticamente se expirado)
+                    token_manager = TokenManager(self.db)
+                    valid_token = token_manager.get_valid_token(user.id)
+                    
+                    if not valid_token:
+                        logger.warning(f"⚠️ Token inválido/expirado para conta {ml_account.nickname}")
+                        continue
+                    
+                    # Buscar devoluções via API (Claims) com token válido
+                    claims_service = MLClaimsService()
+                    returns_data = claims_service.get_returns_metrics(
+                        valid_token,  # ✅ Token renovado automaticamente
+                        date_from, 
+                        datetime.utcnow(),
+                        ml_account.ml_user_id
+                    )
+                    returns_count_api += returns_data.get('returns_count', 0)
+                    returns_value_api += returns_data.get('returns_value', 0)
+                    
+                    # Buscar visitas com token válido
+                    visits_service = MLVisitsService()
+                    visits_data = visits_service.get_user_visits(
+                        ml_account.ml_user_id, 
+                        valid_token,  # ✅ Token renovado automaticamente
+                        date_from, 
+                        datetime.utcnow()
+                    )
+                    total_visits += visits_data.get('total_visits', 0)
+                    
             except Exception as e:
                 logger.warning(f"⚠️  Erro ao buscar dados adicionais (não crítico): {e}")
             
