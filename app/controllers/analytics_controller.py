@@ -374,8 +374,10 @@ class AnalyticsController:
             logger.info(f"✅ Dashboard processado: {len(products_data)} produtos, {total_orders} pedidos, {total_items_sold} itens, R$ {total_revenue:.2f} receita")
             logger.info(f"💰 Custos - ML: R$ {ml_fees_total:.2f}, Frete: R$ {shipping_fees_total:.2f}, Marketing: R$ {marketing_cost_total:.2f}")
             
-            # Gerar timeline de vendas por dia
+            # Gerar timeline de vendas por dia - COMPLETA para todo o período
             timeline_data = {}
+            
+            # Primeiro, coletar dados dos pedidos
             for order in orders:
                 if order.date_closed:
                     # Agrupar por data (dia)
@@ -397,8 +399,52 @@ class AnalyticsController:
                         for item in order.order_items:
                             timeline_data[date_key]['units'] += item.get('quantity', 0)
             
-            # Converter para lista ordenada por data
-            timeline = sorted(timeline_data.values(), key=lambda x: x['date'])
+            # Criar timeline completa com todos os dias do período
+            # Determinar data final
+            if 'date_to' in locals() and date_to:
+                end_date = date_to.date()
+            else:
+                end_date = datetime.utcnow().date()
+            
+            # Criar entradas para todos os dias do período
+            current_date = date_from.date()
+            while current_date <= end_date:
+                date_key = current_date.strftime('%d/%m')
+                
+                # Se não existe entrada para este dia, criar com zeros
+                if date_key not in timeline_data:
+                    timeline_data[date_key] = {
+                        'date': date_key,
+                        'revenue': 0,
+                        'orders': 0,
+                        'units': 0
+                    }
+                
+                current_date += timedelta(days=1)
+            
+            # Converter para lista ordenada por data (usando data real para ordenação)
+            def sort_key(item):
+                # Converter dd/mm de volta para datetime para ordenação correta
+                try:
+                    day_month = item['date']
+                    day, month = day_month.split('/')
+                    
+                    # Determinar o ano correto baseado no período
+                    current_year = datetime.utcnow().year
+                    
+                    # Se o mês for maior que o mês atual, provavelmente é do ano anterior
+                    if int(month) > datetime.utcnow().month:
+                        year = current_year - 1
+                    else:
+                        year = current_year
+                    
+                    return datetime.strptime(f"{day}/{month}/{year}", '%d/%m/%Y')
+                except Exception as e:
+                    logger.warning(f"Erro ao ordenar data {item['date']}: {e}")
+                    # Fallback para ordenação alfabética
+                    return item['date']
+            
+            timeline = sorted(timeline_data.values(), key=sort_key)
             
             # Total de produtos únicos anunciados
             from app.models.saas_models import MLProductStatus
