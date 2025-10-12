@@ -1,128 +1,232 @@
 """
-Serviço de sincronização automática
-Sincroniza pedidos do Mercado Livre automaticamente
+Serviço de sincronização automática em background
+- Job 1: A cada 15 minutos - sincroniza pedidos novos (últimas horas)
+- Job 2: À meia-noite - sincroniza pedidos dos últimos 7 dias completos
 """
 import logging
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-from app.config.database import get_db
-from app.models.saas_models import MLAccount, MLAccountStatus
+from app.config.database import SessionLocal
 from app.services.ml_orders_service import MLOrdersService
+from app.models.saas_models import MLAccount, MLAccountStatus, Company, User
 from app.services.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)
 
 class AutoSyncService:
-    """Serviço de sincronização automática"""
+    """Serviço para sincronização automática de pedidos"""
     
     def __init__(self):
-        self.sync_interval_minutes = 15  # Sincronizar a cada 15 minutos
+        self.sync_interval_minutes = 15
     
     def sync_today_orders(self) -> dict:
         """
-        Sincroniza pedidos do dia atual para todas as contas ativas
+        JOB 1: Sincroniza pedidos RECENTES (do dia atual) - Roda a cada 15 minutos
+        Alias para sync_recent_orders (compatibilidade com código existente)
         """
+        return self.sync_recent_orders()
+    
+    def sync_recent_orders(self) -> dict:
+        """
+        JOB 1: Sincroniza pedidos RECENTES (últimas horas) a cada 15 minutos
+        Processa apenas pedidos novos do dia para todas as empresas ativas
+        Roda SEM precisar de usuário logado
+        """
+        db = SessionLocal()
         try:
-            logger.info("🔄 Iniciando sincronização automática - pedidos do dia")
+            logger.info("🔄 [AUTO-SYNC 15min] Iniciando sincronização de pedidos recentes...")
             
-            # Obter sessão do banco
-            db = next(get_db())
+            # Buscar todas as empresas ativas
+            companies = db.query(Company).filter(Company.is_active == True).all()
             
-            # Buscar todas as contas ML ativas
-            active_accounts = db.query(MLAccount).filter(
-                MLAccount.status == MLAccountStatus.ACTIVE
-            ).all()
+            if not companies:
+                logger.info("Nenhuma empresa ativa para sincronizar")
+                return {"success": True, "message": "Nenhuma empresa ativa"}
             
-            if not active_accounts:
-                logger.info("ℹ️ Nenhuma conta ML ativa encontrada")
-                return {
-                    "success": True,
-                    "message": "Nenhuma conta ativa para sincronizar",
-                    "accounts_processed": 0,
-                    "total_orders": 0
-                }
+            total_companies = len(companies)
+            total_accounts = 0
+            total_processed = 0
             
-            logger.info(f"📋 Encontradas {len(active_accounts)} contas ativas")
-            
-            # Processar cada conta
-            total_orders = 0
-            accounts_processed = 0
-            
-            for account in active_accounts:
+            # Para cada empresa
+            for company in companies:
                 try:
-                    logger.info(f"🔄 Sincronizando conta: {account.nickname} (ID: {account.id})")
+                    # Buscar contas ML ativas da empresa
+                    accounts = db.query(MLAccount).filter(
+                        MLAccount.company_id == company.id,
+                        MLAccount.status == MLAccountStatus.ACTIVE
+                    ).all()
                     
-                    # Obter user_id da conta (primeiro usuário da empresa)
-                    user_id = self._get_user_id_for_account(account, db)
-                    if not user_id:
-                        logger.warning(f"⚠️ Nenhum usuário encontrado para a conta {account.nickname}")
+                    if not accounts:
                         continue
                     
-                    # Verificar/renovar token usando TokenManager
-                    token_manager = TokenManager(db)
-                    valid_token = token_manager.get_valid_token(user_id)
+                    total_accounts += len(accounts)
                     
-                    if not valid_token:
-                        logger.warning(f"⚠️ Não foi possível obter token válido para {account.nickname}")
-                        continue
+                    # Sincronizar pedidos de cada conta (apenas do dia)
+                    for account in accounts:
+                        try:
+                            # Buscar primeiro usuário da empresa para validação de token
+                            user = db.query(User).filter(
+                                User.company_id == company.id,
+                                User.is_active == True
+                            ).first()
+                            
+                            if not user:
+                                logger.warning(f"⚠️ Nenhum usuário ativo para empresa {company.name}")
+                                continue
+                            
+                            # Verificar/renovar token
+                            token_manager = TokenManager(db)
+                            valid_token = token_manager.get_valid_token(user.id)
+                            
+                            if not valid_token:
+                                logger.warning(f"⚠️ Token inválido para {account.nickname}")
+                                continue
+                            
+                            # Sincronizar pedidos do dia
+                            orders_service = MLOrdersService(db)
+                            result = orders_service.sync_today_orders(
+                                ml_account_id=account.id,
+                                company_id=company.id,
+                                limit=50
+                            )
+                            
+                            if result.get("success"):
+                                processed = result.get("orders_processed", 0)
+                                total_processed += processed
+                                if processed > 0:
+                                    logger.info(f"   ✅ {company.name}/{account.nickname}: {processed} pedidos")
+                            
+                        except Exception as e:
+                            logger.error(f"   ❌ Erro conta {account.nickname}: {e}")
+                            continue
                     
-                    # Criar serviço de orders
-                    orders_service = MLOrdersService(db)
-                    
-                    # Sincronizar apenas pedidos do dia atual
-                    result = orders_service.sync_today_orders(
-                        ml_account_id=account.id,
-                        company_id=account.company_id,
-                        limit=50  # Limite razoável para pedidos do dia
-                    )
-                    
-                    if result.get("success"):
-                        orders_count = result.get("saved_count", 0) + result.get("updated_count", 0)
-                        total_orders += orders_count
-                        accounts_processed += 1
-                        
-                        logger.info(f"✅ Conta {account.nickname}: {orders_count} pedidos processados")
-                    else:
-                        logger.warning(f"⚠️ Erro na conta {account.nickname}: {result.get('error', 'Erro desconhecido')}")
-                        
                 except Exception as e:
-                    logger.error(f"❌ Erro ao sincronizar conta {account.nickname}: {e}")
+                    logger.error(f"❌ Erro empresa {company.name}: {e}")
                     continue
             
-            # Fechar sessão
-            db.close()
-            
-            logger.info(f"🎉 Sincronização automática concluída: {total_orders} pedidos em {accounts_processed} contas")
+            logger.info(f"✅ [AUTO-SYNC 15min] Concluído: {total_processed} pedidos em {total_accounts} contas")
             
             return {
                 "success": True,
-                "message": f"Sincronização automática concluída: {total_orders} pedidos processados",
-                "accounts_processed": accounts_processed,
-                "total_orders": total_orders,
-                "timestamp": datetime.now().isoformat()
+                "message": f"{total_processed} pedidos processados",
+                "total_processed": total_processed,
+                "companies": total_companies,
+                "accounts": total_accounts
             }
             
         except Exception as e:
-            logger.error(f"❌ Erro na sincronização automática: {e}")
+            logger.error(f"❌ [AUTO-SYNC 15min] Erro: {e}")
             return {
                 "success": False,
-                "error": f"Erro na sincronização automática: {str(e)}",
-                "timestamp": datetime.now().isoformat()
+                "error": str(e)
             }
+        finally:
+            db.close()
     
-    def _get_user_id_for_account(self, account, db: Session) -> int:
-        """Obtém o user_id para uma conta ML"""
+    def sync_last_7_days_orders(self) -> dict:
+        """
+        JOB 2: Sincroniza TODOS os pedidos dos últimos 7 dias - Roda à meia-noite
+        Garante dados completos e atualizados
+        Roda SEM precisar de usuário logado
+        """
+        db = SessionLocal()
         try:
-            # Buscar primeiro usuário da empresa
-            from app.models.saas_models import User
-            user = db.query(User).filter(User.company_id == account.company_id).first()
-            return user.id if user else None
+            logger.info("🌙 [AUTO-SYNC MEIA-NOITE] Iniciando sincronização dos últimos 7 dias...")
+            
+            # Buscar todas as empresas ativas
+            companies = db.query(Company).filter(Company.is_active == True).all()
+            
+            if not companies:
+                logger.info("Nenhuma empresa ativa para sincronizar")
+                return {"success": True, "message": "Nenhuma empresa ativa"}
+            
+            total_companies = len(companies)
+            total_accounts = 0
+            total_new = 0
+            total_updated = 0
+            
+            # Para cada empresa
+            for company in companies:
+                try:
+                    # Buscar contas ML ativas da empresa
+                    accounts = db.query(MLAccount).filter(
+                        MLAccount.company_id == company.id,
+                        MLAccount.status == MLAccountStatus.ACTIVE
+                    ).all()
+                    
+                    if not accounts:
+                        continue
+                    
+                    total_accounts += len(accounts)
+                    
+                    # Sincronizar pedidos dos últimos 7 dias de cada conta
+                    for account in accounts:
+                        try:
+                            # Buscar primeiro usuário da empresa para validação de token
+                            user = db.query(User).filter(
+                                User.company_id == company.id,
+                                User.is_active == True
+                            ).first()
+                            
+                            if not user:
+                                logger.warning(f"⚠️ Nenhum usuário ativo para empresa {company.name}")
+                                continue
+                            
+                            # Verificar/renovar token
+                            token_manager = TokenManager(db)
+                            valid_token = token_manager.get_valid_token(user.id)
+                            
+                            if not valid_token:
+                                logger.warning(f"⚠️ Token inválido para {account.nickname}")
+                                continue
+                            
+                            # Sincronizar pedidos dos últimos 7 dias (paginação completa)
+                            orders_service = MLOrdersService(db)
+                            result = orders_service.sync_orders_from_api(
+                                ml_account_id=account.id,
+                                company_id=company.id,
+                                limit=50,
+                                is_full_import=False  # False = últimos 7 dias
+                            )
+                            
+                            if result.get("success"):
+                                new_count = result.get("saved_count", 0)
+                                updated_count = result.get("updated_count", 0)
+                                total_new += new_count
+                                total_updated += updated_count
+                                
+                                if new_count > 0 or updated_count > 0:
+                                    logger.info(f"   ✅ {company.name}/{account.nickname}: {new_count} novos, {updated_count} atualizados")
+                            
+                        except Exception as e:
+                            logger.error(f"   ❌ Erro conta {account.nickname}: {e}")
+                            continue
+                    
+                except Exception as e:
+                    logger.error(f"❌ Erro empresa {company.name}: {e}")
+                    continue
+            
+            logger.info(f"✅ [AUTO-SYNC MEIA-NOITE] Concluído: {total_new} novos, {total_updated} atualizados em {total_accounts} contas")
+            
+            return {
+                "success": True,
+                "message": f"Sincronização 7 dias: {total_new} novos, {total_updated} atualizados",
+                "total_new": total_new,
+                "total_updated": total_updated,
+                "companies": total_companies,
+                "accounts": total_accounts
+            }
+            
         except Exception as e:
-            logger.error(f"Erro ao buscar user_id para conta {account.id}: {e}")
-            return None
-
+            logger.error(f"❌ [AUTO-SYNC MEIA-NOITE] Erro: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+        finally:
+            db.close()
+    
     def get_sync_status(self) -> dict:
-        """Retorna status da última sincronização"""
+        """Retorna status do serviço de sincronização"""
         return {
             "service_active": True,
             "sync_interval_minutes": self.sync_interval_minutes,

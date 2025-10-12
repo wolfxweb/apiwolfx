@@ -19,6 +19,7 @@ from app.routes.sales_analysis_routes import router as sales_analysis_router
 # Scheduler para sincronização automática
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from app.services.auto_sync_service import AutoSyncService
 import atexit
 
@@ -46,23 +47,43 @@ app.mount("/static", StaticFiles(directory="public"), name="static")
 scheduler = BackgroundScheduler()
 auto_sync_service = AutoSyncService()
 
-def run_auto_sync():
-    """Executa sincronização automática"""
+def run_recent_sync():
+    """JOB 1: Sincroniza pedidos RECENTES (últimas horas) - A cada 15 minutos"""
     try:
-        result = auto_sync_service.sync_today_orders()
+        result = auto_sync_service.sync_recent_orders()
         if result.get("success"):
-            print(f"🔄 Auto-sync: {result.get('message', 'Concluído')}")
+            print(f"🔄 Auto-sync 15min: {result.get('message', 'Concluído')}")
         else:
-            print(f"❌ Auto-sync falhou: {result.get('error', 'Erro desconhecido')}")
+            print(f"❌ Auto-sync 15min falhou: {result.get('error', 'Erro desconhecido')}")
     except Exception as e:
-        print(f"❌ Erro na auto-sync: {e}")
+        print(f"❌ Erro na auto-sync 15min: {e}")
 
-# Configurar scheduler para rodar a cada 15 minutos
+def run_daily_full_sync():
+    """JOB 2: Sincroniza TODOS pedidos dos últimos 7 dias - À meia-noite"""
+    try:
+        result = auto_sync_service.sync_last_7_days_orders()
+        if result.get("success"):
+            print(f"🌙 Auto-sync meia-noite: {result.get('message', 'Concluído')}")
+        else:
+            print(f"❌ Auto-sync meia-noite falhou: {result.get('error', 'Erro desconhecido')}")
+    except Exception as e:
+        print(f"❌ Erro na auto-sync meia-noite: {e}")
+
+# JOB 1: Sincronização rápida a cada 15 minutos (pedidos recentes)
 scheduler.add_job(
-    func=run_auto_sync,
+    func=run_recent_sync,
     trigger=IntervalTrigger(minutes=15),
-    id='auto_sync_orders',
-    name='Sincronização automática de pedidos',
+    id='auto_sync_recent_orders',
+    name='Sincronização automática - Pedidos recentes (15min)',
+    replace_existing=True
+)
+
+# JOB 2: Sincronização completa à meia-noite (últimos 7 dias)
+scheduler.add_job(
+    func=run_daily_full_sync,
+    trigger=CronTrigger(hour=0, minute=0),  # Todos os dias à meia-noite
+    id='auto_sync_7days_orders',
+    name='Sincronização automática - Últimos 7 dias (meia-noite)',
     replace_existing=True
 )
 
@@ -78,7 +99,9 @@ async def startup_event():
         # Iniciar scheduler
         if not scheduler.running:
             scheduler.start()
-            print("🔄 Scheduler de sincronização automática iniciado (a cada 15 minutos)")
+   
+            print("   📦 JOB 1: Pedidos recentes - A cada 15 minutos")
+            print("   🌙 JOB 2: Últimos 7 dias completos - À meia-noite (00:00)")
         else:
             print("🔄 Scheduler já está rodando")
         

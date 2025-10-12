@@ -788,6 +788,7 @@ function applyFilters() {
 
 function syncOrders() {
     console.log('🔄 Iniciando sincronização de pedidos...');
+    console.log('🌐 URL:', window.location.origin + '/ml/api/orders/sync');
     
     // Mostrar loading
     showLoading(true);
@@ -795,30 +796,69 @@ function syncOrders() {
     // Mostrar alerta de início
     showSuccess('Iniciando sincronização de pedidos...');
     
+    console.log('📤 Enviando requisição...');
+    
     fetch('/ml/api/orders/sync', {
         method: 'GET',
-        credentials: 'include'
-    })
-    .then(response => {
-        console.log('📡 Resposta recebida:', response.status);
-        if (checkSessionExpired(response)) {
-            showLoading(false);
-            return;
+        credentials: 'include',
+        headers: {
+            'Accept': 'application/json'
         }
+    })
+    .then(async response => {
+        console.log('📡 Resposta recebida!');
+        console.log('   Status:', response.status);
+        console.log('   Status Text:', response.statusText);
+        console.log('   Content-Type:', response.headers.get('content-type'));
+        console.log('   Headers:', [...response.headers.entries()]);
+        
+        if (checkSessionExpired(response)) {
+            console.log('⚠️ Sessão expirada, parando...');
+            showLoading(false);
+            return null;
+        }
+        
+        // Verificar se é JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('❌ Resposta não é JSON!');
+            console.error('   Content-Type:', contentType);
+            console.error('   Primeiros 500 caracteres:', text.substring(0, 500));
+            throw new Error('Servidor retornou resposta inválida (não JSON)');
+        }
+        
+        console.log('✅ Resposta é JSON, fazendo parse...');
         return response.json();
     })
     .then(data => {
+        if (!data) {
+            console.log('⚠️ Sem dados (sessão expirada?)');
+            return; // Sessão expirada ou erro
+        }
+        
         console.log('📊 Dados da sincronização:', data);
         if (data && data.success) {
-            showSuccess(`✅ Sincronização concluída: ${data.total_saved || 0} pedidos novos, ${data.total_updated || 0} atualizados`);
-            loadOrders(currentPage);
+            if (data.status === 'processing') {
+                showSuccess(`🚀 ${data.message || 'Sincronização iniciada! Aguarde 1-2 minutos e atualize a página.'}`);
+                // Auto-atualizar após 60 segundos
+                setTimeout(() => {
+                    console.log('🔄 Auto-atualizando página...');
+                    loadOrders(currentPage);
+                }, 60000);
+            } else {
+                showSuccess(`✅ Sincronização concluída: ${data.total_saved || 0} pedidos novos, ${data.total_updated || 0} atualizados`);
+                loadOrders(currentPage);
+            }
         } else {
             showError('❌ Erro ao sincronizar pedidos: ' + (data?.error || 'Erro desconhecido'));
         }
         showLoading(false);
     })
     .catch(error => {
-        console.error('❌ Erro na sincronização:', error);
+        console.error('❌ Erro capturado no catch:', error);
+        console.error('   Mensagem:', error.message);
+        console.error('   Stack:', error.stack);
         showError('Erro ao sincronizar pedidos: ' + error.message);
         showLoading(false);
     });

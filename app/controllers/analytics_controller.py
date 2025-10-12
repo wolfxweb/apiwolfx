@@ -26,13 +26,18 @@ class AnalyticsController:
             logger.info(f"📊 Dashboard Analytics - Filtros: company_id={company_id}, ml_account_id={ml_account_id}, period_days={period_days}, search={search}")
             
             # Calcular data de corte
-            date_from = datetime.utcnow() - timedelta(days=period_days)
-            logger.info(f"📅 Buscando pedidos desde: {date_from}")
+            # IMPORTANTE: ML filtra por date_closed (vendas confirmadas), não date_created
+            # ML usa período completo: da meia-noite do dia -N até agora
+            # Exemplo: 7 dias = de 05/10 00:00:00 até 12/10 23:59:59
+            date_from = (datetime.utcnow().date() - timedelta(days=period_days))
+            date_from = datetime.combine(date_from, datetime.min.time())  # Meia-noite do dia -N
+            logger.info(f"📅 Buscando VENDAS CONFIRMADAS desde: {date_from} (meia-noite do dia -{period_days})")
             
-            # Query base de pedidos
+            # Query base de pedidos CONFIRMADOS (com date_closed preenchido)
             orders_query = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
-                MLOrder.date_created >= date_from
+                MLOrder.date_closed >= date_from,  # ✅ Filtro por confirmação, não criação
+                MLOrder.date_closed.isnot(None)  # Apenas vendas confirmadas
             )
             
             # Filtrar por conta ML
@@ -42,7 +47,7 @@ class AnalyticsController:
             
             # Buscar pedidos confirmados/pagos
             orders = orders_query.all()
-            logger.info(f"📦 Total de pedidos encontrados: {len(orders)}")
+            logger.info(f"📦 Total de VENDAS CONFIRMADAS encontradas: {len(orders)}")
             
             # Buscar VENDAS canceladas
             # ML: "Vendas do período selecionado que DEPOIS foram canceladas"
@@ -117,9 +122,14 @@ class AnalyticsController:
                     if ml_account.tokens:
                         token = sorted(ml_account.tokens, key=lambda t: t.created_at, reverse=True)[0]
                         if token and token.access_token:
-                            # Buscar devoluções via API (Claims)
+                            # Buscar devoluções via API (Claims) - precisa passar ml_user_id como seller
                             claims_service = MLClaimsService()
-                            returns_data = claims_service.get_returns_metrics(token.access_token, date_from, datetime.utcnow())
+                            returns_data = claims_service.get_returns_metrics(
+                                token.access_token, 
+                                date_from, 
+                                datetime.utcnow(),
+                                ml_account.ml_user_id  # Passar seller ID
+                            )
                             returns_count_api += returns_data.get('returns_count', 0)
                             returns_value_api += returns_data.get('returns_value', 0)
                             
@@ -130,10 +140,12 @@ class AnalyticsController:
             except Exception as e:
                 logger.warning(f"⚠️  Erro ao buscar dados adicionais (não crítico): {e}")
             
-            # Priorizar dados do DB (mais confiáveis se sincronizado corretamente)
-            # Usar API apenas se DB não tiver dados
-            returns_count = refunded_count_db if refunded_count_db > 0 else returns_count_api
-            returns_value = refunded_value_db if refunded_value_db > 0 else returns_value_api
+            # Usar APENAS dados da API do Claims
+            # O painel ML conta devoluções por CLAIMS criados no período, não por status do pedido
+            # Claims podem ser criados para vendas antigas (fora do período)
+            # Por isso a API do Claims é a fonte correta
+            returns_count = returns_count_api
+            returns_value = returns_value_api
             
             logger.info(f"📊 Devoluções finais: {returns_count} devoluções (R$ {returns_value:.2f})")
             logger.info(f"   - Do DB (REFUNDED): {refunded_count_db} (R$ {refunded_value_db:.2f})")

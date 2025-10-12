@@ -382,39 +382,105 @@ class MLOrdersService:
             return []
 
     def _fetch_orders_from_api(self, access_token: str, seller_id: str, limit: int = 50, offset: int = 0, days_back: int = 7) -> List[Dict]:
-        """Busca orders da API do Mercado Libre"""
+        """
+        Busca orders da API do Mercado Libre com paginação inteligente
+        
+        IMPORTANTE: Filtra por date_closed (vendas confirmadas), não date_created
+        
+        Estratégia:
+        1. Primeira chamada: descobre o TOTAL de pedidos
+        2. Calcula quantas páginas são necessárias
+        3. Baixa todos os pedidos em lotes de 50
+        """
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
             
-            # Calcular data de início (últimos X dias)
+            # Calcular data de início (da meia-noite do dia -N até agora)
             from datetime import datetime, timedelta
-            start_date = datetime.now() - timedelta(days=days_back)
-            start_date_str = start_date.strftime("%Y-%m-%dT%H:%M:%S.000-04:00")
+            date_to = datetime.utcnow()
+            date_from = (date_to.date() - timedelta(days=days_back))
+            date_from = datetime.combine(date_from, datetime.min.time())
             
-            # Buscar orders recentes do vendedor
+            # Formatar para API (ISO 8601)
+            date_from_str = date_from.strftime("%Y-%m-%dT00:00:00.000-00:00")
+            date_to_str = date_to.strftime("%Y-%m-%dT23:59:59.000-00:00")
+            
+            logger.info(f"📅 Buscando vendas CONFIRMADAS de {date_from_str} até {date_to_str}")
+            
+            # PASSO 1: Primeira chamada para descobrir o TOTAL
             orders_url = f"{self.base_url}/orders/search"
-            params = {
+            params_first = {
                 "seller": seller_id,
-                "limit": limit,
-                "offset": offset,
-                "sort": "date_desc",
-                "order.date_created.from": start_date_str
+                "order.date_closed.from": date_from_str,  # ✅ Filtro por CONFIRMAÇÃO
+                "order.date_closed.to": date_to_str,
+                "limit": 1,  # Buscar apenas 1 para saber o total
+                "offset": 0,
+                "sort": "date_desc"
             }
             
-            logger.info(f"Buscando pedidos com filtro de data: {start_date_str}")
-            logger.info(f"Parâmetros da API: {params}")
+            logger.info(f"🔍 PASSO 1: Consultando quantidade total de pedidos...")
+            response_first = requests.get(orders_url, headers=headers, params=params_first, timeout=30)
             
-            response = requests.get(orders_url, headers=headers, params=params, timeout=60)
-            
-            if response.status_code == 200:
-                data = response.json()
-                orders = data.get("results", [])
-                total = data.get("paging", {}).get("total", 0)
-                logger.info(f"API retornou {len(orders)} pedidos (total disponível: {total})")
-                return orders
-            else:
-                logger.warning(f"Erro ao buscar orders da API: {response.status_code} - {response.text[:200]}")
+            if response_first.status_code != 200:
+                logger.error(f"Erro ao consultar total: {response_first.status_code} - {response_first.text[:200]}")
                 return []
+            
+            first_data = response_first.json()
+            total_orders = first_data.get("paging", {}).get("total", 0)
+            
+            logger.info(f"✅ Total de pedidos disponíveis na API: {total_orders}")
+            
+            if total_orders == 0:
+                logger.info("Nenhum pedido encontrado no período")
+                return []
+            
+            # PASSO 2: Calcular quantas páginas precisamos buscar
+            max_per_page = 50  # Limite máximo da API
+            total_pages = (total_orders + max_per_page - 1) // max_per_page  # Arredondar para cima
+            
+            logger.info(f"📦 PASSO 2: Buscando {total_orders} pedidos em {total_pages} lotes de até {max_per_page}")
+            
+            # PASSO 3: Buscar todos os pedidos em lotes
+            all_orders = []
+            
+            for page in range(total_pages):
+                current_offset = page * max_per_page
+                
+                params = {
+                    "seller": seller_id,
+                    "order.date_closed.from": date_from_str,
+                    "order.date_closed.to": date_to_str,
+                    "limit": max_per_page,
+                    "offset": current_offset,
+                    "sort": "date_desc"
+                }
+                
+                logger.info(f"   📄 Lote {page + 1}/{total_pages} (offset: {current_offset})...")
+                
+                response = requests.get(orders_url, headers=headers, params=params, timeout=60)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    orders = data.get("results", [])
+                    
+                    logger.info(f"      ✅ Baixados {len(orders)} pedidos")
+                    all_orders.extend(orders)
+                    
+                    # Parar se não retornou nada
+                    if len(orders) == 0:
+                        break
+                else:
+                    logger.error(f"   ❌ Erro no lote {page + 1}: {response.status_code}")
+                    break
+                
+                # Pequena pausa entre requisições para não sobrecarregar a API
+                if page < total_pages - 1:  # Não pausar no último
+                    import time
+                    time.sleep(0.5)  # 500ms entre requisições
+            
+            logger.info(f"✅ CONCLUÍDO: {len(all_orders)}/{total_orders} pedidos baixados com sucesso")
+            
+            return all_orders
                 
         except Exception as e:
             logger.error(f"Erro ao buscar orders da API: {e}")

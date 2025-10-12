@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Cookie, Query
+from fastapi import APIRouter, Depends, Request, Cookie, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -124,29 +124,66 @@ async def get_orders_api(
 
 @ml_orders_router.get("/api/orders/sync")
 async def sync_orders_api(
+    background_tasks: BackgroundTasks,
     ml_account_id: Optional[int] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """API para sincronizar orders da API do Mercado Libre (apenas recentes)"""
+    """
+    API para sincronizar orders da API do Mercado Libre (em background)
+    
+    Retorna imediatamente e processa em background para evitar timeout do ngrok
+    """
     try:
+        print(f"🔍 SYNC ENDPOINT: Recebeu requisição")
+        print(f"   session_token: {session_token[:20] if session_token else 'None'}...")
+        
         if not session_token:
+            print("❌ Sem session_token")
             return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
         
         result = AuthController().get_user_by_session(session_token, db)
         if result.get("error"):
+            print(f"❌ Sessão inválida: {result.get('error')}")
             return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]
         
-        controller = MLOrdersController(db)
-        result = controller.sync_orders(company_id=company_id, ml_account_id=ml_account_id, is_full_import=False)
+        print(f"✅ Usuário autenticado: company_id={company_id}")
+        print(f"🚀 Iniciando sincronização em background...")
         
-        return JSONResponse(content=result)
+        # Adicionar tarefa em background
+        from app.config.database import SessionLocal
+        
+        def sync_in_background():
+            """Executa sincronização em background"""
+            db_bg = SessionLocal()
+            try:
+                controller = MLOrdersController(db_bg)
+                result = controller.sync_orders(company_id=company_id, ml_account_id=ml_account_id, is_full_import=False)
+                print(f"✅ BACKGROUND SYNC CONCLUÍDA: {result.get('total_saved', 0)} novos, {result.get('total_updated', 0)} atualizados")
+            except Exception as e:
+                print(f"❌ BACKGROUND SYNC ERRO: {e}")
+            finally:
+                db_bg.close()
+        
+        background_tasks.add_task(sync_in_background)
+        
+        # Retornar imediatamente
+        response_data = {
+            "success": True,
+            "message": "Sincronização iniciada em background. Aguarde alguns minutos e atualize a página.",
+            "status": "processing"
+        }
+        
+        print(f"✅ Retornando resposta imediata")
+        return JSONResponse(content=response_data)
         
     except Exception as e:
         logging.error(f"Erro no endpoint sync orders: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(content={
             "success": False,
             "error": f"Erro interno: {str(e)}"

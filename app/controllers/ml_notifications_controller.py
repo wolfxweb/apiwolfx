@@ -146,13 +146,13 @@ class MLNotificationsController:
                 SELECT t.access_token
                 FROM tokens t
                 JOIN ml_accounts ma ON ma.id = t.ml_account_id
-                WHERE ma.ml_user_id = :ml_user_id
+                WHERE ma.ml_user_id = CAST(:ml_user_id AS VARCHAR)
                 AND t.is_active = true
                 ORDER BY t.expires_at DESC
                 LIMIT 1
             """)
             
-            result = db.execute(query, {"ml_user_id": ml_user_id}).fetchone()
+            result = db.execute(query, {"ml_user_id": str(ml_user_id)}).fetchone()
             return result[0] if result else None
             
         except Exception as e:
