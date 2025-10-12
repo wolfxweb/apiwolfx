@@ -44,12 +44,19 @@ class AnalyticsController:
             orders = orders_query.all()
             logger.info(f"📦 Total de pedidos encontrados: {len(orders)}")
             
-            # Buscar pedidos cancelados no período (pela DATA DO CANCELAMENTO, não criação)
-            # ML conta cancelamentos pela data em que foram cancelados (last_updated)
+            # Buscar VENDAS canceladas
+            # ML: "Vendas do período selecionado que DEPOIS foram canceladas"
+            # "do período selecionado" = vendas CONFIRMADAS no período (date_closed no período)
+            # "que depois foram canceladas" = status atual é CANCELLED
+            # IMPORTANTE: ML só conta vendas que ficaram ativas por um tempo (não cancelamentos imediatos por fraude)
+            # Filtrar apenas vendas canceladas com mais de 24h entre confirmação e cancelamento
+            from sqlalchemy import func, cast, Float
             cancelled_query = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
-                MLOrder.last_updated >= date_from,  # Data do cancelamento
-                MLOrder.status == OrderStatus.CANCELLED
+                MLOrder.date_closed >= date_from,  # ✅ Vendas CONFIRMADAS no período
+                MLOrder.status == OrderStatus.CANCELLED,
+                # Apenas vendas que ficaram ativas por mais de 24 horas antes de cancelar
+                func.extract('epoch', MLOrder.last_updated - MLOrder.date_closed) > 86400  # 24 horas em segundos
             )
             
             if ml_account_id:
@@ -59,13 +66,22 @@ class AnalyticsController:
             cancelled_count = len(cancelled_orders)
             cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
             
-            logger.info(f"❌ Pedidos cancelados (cancelados no período): {cancelled_count} (R$ {cancelled_value:.2f})")
+            # DEBUG: Mostrar detalhes dos pedidos cancelados
+            if cancelled_orders:
+                logger.info(f"🔍 DEBUG - Pedidos cancelados encontrados:")
+                for order in cancelled_orders:
+                    logger.info(f"   Order ID: {order.ml_order_id}, Created: {order.date_created}, Closed: {order.date_closed}, Status: {order.status}, Value: R$ {order.total_amount}")
             
-            # Buscar pedidos reembolsados (devoluções) no período (pela DATA DO REEMBOLSO, não criação)
-            # ML conta devoluções pela data em que foram reembolsados (last_updated)
+            logger.info(f"❌ VENDAS canceladas (confirmadas no período e depois canceladas): {cancelled_count} (R$ {cancelled_value:.2f})")
+            
+            # Buscar VENDAS devolvidas  
+            # ML: "Vendas do período selecionado em que compradores solicitaram devolução"
+            # "do período selecionado" = vendas CONFIRMADAS no período (date_closed no período)
+            # "em que compradores solicitaram devolução" = status atual é REFUNDED
+            # Devoluções normalmente levam dias/semanas, então sem filtro de tempo mínimo
             refunded_query = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
-                MLOrder.last_updated >= date_from,  # Data do reembolso
+                MLOrder.date_closed >= date_from,  # ✅ Vendas CONFIRMADAS no período
                 MLOrder.status == OrderStatus.REFUNDED
             )
             
@@ -76,7 +92,13 @@ class AnalyticsController:
             refunded_count_db = len(refunded_orders)
             refunded_value_db = sum(float(order.total_amount or 0) for order in refunded_orders)
             
-            logger.info(f"💸 Pedidos reembolsados (reembolsados no período): {refunded_count_db} (R$ {refunded_value_db:.2f})")
+            # DEBUG: Mostrar detalhes dos pedidos devolvidos
+            if refunded_orders:
+                logger.info(f"🔍 DEBUG - Pedidos devolvidos encontrados:")
+                for order in refunded_orders:
+                    logger.info(f"   Order ID: {order.ml_order_id}, Created: {order.date_created}, Closed: {order.date_closed}, Status: {order.status}, Value: R$ {order.total_amount}")
+            
+            logger.info(f"💸 VENDAS devolvidas (confirmadas no período e depois devolvidas): {refunded_count_db} (R$ {refunded_value_db:.2f})")
             
             # Buscar dados de devoluções via API e visitas de todas as contas da empresa
             returns_count_api = 0
@@ -108,10 +130,10 @@ class AnalyticsController:
             except Exception as e:
                 logger.warning(f"⚠️  Erro ao buscar dados adicionais (não crítico): {e}")
             
-            # Combinar devoluções do DB e da API (usar o maior valor para evitar duplicatas)
-            # A API pode ter mais info, mas o DB tem dados mais confiáveis se sincronizado
-            returns_count = max(refunded_count_db, returns_count_api)
-            returns_value = max(refunded_value_db, returns_value_api)
+            # Priorizar dados do DB (mais confiáveis se sincronizado corretamente)
+            # Usar API apenas se DB não tiver dados
+            returns_count = refunded_count_db if refunded_count_db > 0 else returns_count_api
+            returns_value = refunded_value_db if refunded_value_db > 0 else returns_value_api
             
             logger.info(f"📊 Devoluções finais: {returns_count} devoluções (R$ {returns_value:.2f})")
             logger.info(f"   - Do DB (REFUNDED): {refunded_count_db} (R$ {refunded_value_db:.2f})")
