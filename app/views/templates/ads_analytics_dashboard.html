@@ -3,6 +3,14 @@
 {% block title %}Analytics & Performance{% endblock %}
 
 {% block content %}
+<style>
+/* Tooltips alinhados à esquerda */
+.tooltip-inner {
+    text-align: left !important;
+    max-width: 300px !important;
+}
+</style>
+
 <div class="container-fluid">
     <!-- Header -->
     <div class="row mb-4">
@@ -133,7 +141,14 @@
             <div class="card border-warning">
                 <div class="card-body text-center">
                     <i class="bi bi-x-circle text-warning display-6"></i>
-                    <h6 class="text-muted mt-2 mb-1">Vendas Canceladas</h6>
+                    <h6 class="text-muted mt-2 mb-1">
+                        Vendas Canceladas
+                        <i class="bi bi-question-circle-fill text-secondary" 
+                           style="font-size: 0.85rem; cursor: help;"
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top"
+                           title="São vendas que foram pagas → entregues → devolvidas → reembolsadas"></i>
+                    </h6>
                     <h3 class="mb-0 text-warning" id="kpi-cancelled-value">R$ 0,00</h3>
                     <p class="text-muted mb-0">
                         <span id="kpi-cancelled-count">0</span> pedidos
@@ -145,7 +160,14 @@
             <div class="card border-danger">
                 <div class="card-body text-center">
                     <i class="bi bi-arrow-return-left text-danger display-6"></i>
-                    <h6 class="text-muted mt-2 mb-1">Devoluções</h6>
+                    <h6 class="text-muted mt-2 mb-1">
+                        Devoluções
+                        <i class="bi bi-question-circle-fill text-secondary" 
+                           style="font-size: 0.85rem; cursor: help;"
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top"
+                           title="Vendas em que compradores abriram reclamação (claim) solicitando devolução. Pode virar mediação (mediation) quando o MercadoLibre intervém para resolver o problema."></i>
+                    </h6>
                     <h3 class="mb-0 text-danger" id="kpi-returns-value">R$ 0,00</h3>
                     <p class="text-muted mb-0">
                         <span id="kpi-returns-count">0</span> devoluções
@@ -652,7 +674,17 @@ function loadDashboardData(page = 1) {
     fetch(apiUrl, {
         credentials: 'include'
     })
-    .then(response => response.json())
+    .then(response => {
+        // Verificar se não está autenticado
+        if (response.status === 401) {
+            console.warn('⚠️ Não autenticado, redirecionando para login...');
+            window.location.href = '/login';
+            return Promise.reject('not_authenticated');
+        }
+        
+        // Se não for 401, continuar normalmente
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             console.log('✅ Dados carregados:', data);
@@ -706,6 +738,11 @@ function loadDashboardData(page = 1) {
         }
     })
     .catch(error => {
+        // Ignorar erro se foi redirecionamento para login
+        if (error === 'not_authenticated') {
+            return;
+        }
+        
         console.error('Erro:', error);
         showAlert('danger', 'Erro ao carregar dados');
     });
@@ -724,14 +761,22 @@ function loadTopProducts() {
     fetch(apiUrl, {
         credentials: 'include'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (response.status === 401) {
+            window.location.href = '/login';
+            return Promise.reject('not_authenticated');
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             renderTopProductsReal(data.top_sold, data.top_revenue);
         }
     })
     .catch(error => {
-        console.error('Erro ao carregar top produtos:', error);
+        if (error !== 'not_authenticated') {
+            console.error('Erro ao carregar top produtos:', error);
+        }
     });
 }
 
@@ -740,14 +785,22 @@ function loadAccountsSummary() {
     fetch('/api/analytics/accounts-summary', {
         credentials: 'include'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (response.status === 401) {
+            window.location.href = '/login';
+            return Promise.reject('not_authenticated');
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             renderAccountsSummaryReal(data.accounts);
         }
     })
     .catch(error => {
-        console.error('Erro ao carregar resumo de contas:', error);
+        if (error !== 'not_authenticated') {
+            console.error('Erro ao carregar resumo de contas:', error);
+        }
     });
 }
 

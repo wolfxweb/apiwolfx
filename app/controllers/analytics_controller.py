@@ -51,7 +51,9 @@ class AnalyticsController:
             
             # Buscar VENDAS canceladas
             # ML: "Vendas do período selecionado que DEPOIS foram canceladas"
-            # Critérios: confirmadas no período + CANCELLED + pagas (não "not_paid")
+            # CRITÉRIO AJUSTADO: Vendas que foram ENTREGUES e depois CANCELADAS
+            # (baseado na análise: todos os cancelamentos têm "not_paid", então não podemos filtrar por "paid")
+            # O ML parece contar apenas cancelamentos que tiveram alguma ação antes (delivered)
             from sqlalchemy import func, cast, Float, text
             
             # Usar query SQL pura para trabalhar com JSONB
@@ -61,9 +63,9 @@ class AnalyticsController:
                 WHERE company_id = :company_id
                   AND date_closed >= :date_from
                   AND status = 'CANCELLED'
-                  AND tags::jsonb @> '["paid"]'::jsonb
-                  AND NOT (tags::jsonb @> '["not_paid"]'::jsonb)
+                  AND tags::jsonb @> '["delivered"]'::jsonb
                   AND NOT (tags::jsonb @> '["test_order"]'::jsonb)
+                ORDER BY date_closed DESC
             """)
             
             params = {
@@ -79,9 +81,9 @@ class AnalyticsController:
                       AND ml_account_id = :ml_account_id
                       AND date_closed >= :date_from
                       AND status = 'CANCELLED'
-                      AND tags::jsonb @> '["paid"]'::jsonb
-                      AND NOT (tags::jsonb @> '["not_paid"]'::jsonb)
+                      AND tags::jsonb @> '["delivered"]'::jsonb
                       AND NOT (tags::jsonb @> '["test_order"]'::jsonb)
+                    ORDER BY date_closed DESC
                 """)
                 params["ml_account_id"] = ml_account_id
             
