@@ -5,11 +5,32 @@
 {% block content %}
 <style>
 /* Custom styles for landing page */
+body {
+    margin: 0;
+    padding: 0;
+}
+
+/* Override navbar for home page */
+.navbar {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px);
+}
+
 .hero-section {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 80px 0;
-    margin-bottom: 0;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
 }
 
 .hero-section h1 {
@@ -58,6 +79,15 @@
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     padding: 60px 0;
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+    position: relative;
+}
+
+.ai-section {
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+    position: relative;
 }
 
 .stat-item {
@@ -80,6 +110,9 @@
     background-color: #343a40;
     color: white;
     padding: 80px 0;
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+    position: relative;
 }
 
 .btn-primary-custom {
@@ -144,33 +177,78 @@
 
 <!-- Hero Section -->
 <section class="hero-section">
-    <div class="container">
-        <div class="row align-items-center">
-            <div class="col-lg-6">
-                <h1 class="display-4 fw-bold mb-4">
-                    <span class="gvmia-logo text-white">GVMIA</span>
-                </h1>
-                <p class="gvmia-subtitle text-white-50">Gestor Vendas Marketplace Inteligente Analytics</p>
-                <p class="lead">
-                    A plataforma completa para gerenciar suas vendas no Mercado Livre com 
-                    <strong>Inteligência Artificial (ChatGPT)</strong> analisando seus anúncios. 
-                    Dashboard atualizado, análise de produtos, gestão de pedidos e muito mais.
+    <div class="container-fluid px-5 px-lg-5" style="min-height: 100vh; display: flex; align-items: center; padding-top: 100px !important; max-width: 100%;">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-6 mb-4 mb-lg-0">
+                <div class="mb-4">
+                    <h1 class="display-2 fw-bold mb-3">
+                        <span class="gvmia-logo text-white" style="font-size: 5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">GVMIA</span>
+                    </h1>
+                    <p class="h4 text-white mb-4" style="font-weight: 300; letter-spacing: 1px;">
+                        Gestão Inteligente de Vendas para Mercado Livre
+                    </p>
+                </div>
+                <p class="lead mb-5" style="font-size: 1.4rem; line-height: 1.7;">
+                    Plataforma completa com <strong class="text-warning">Inteligência Artificial</strong> que analisa 
+                    seus anúncios, otimiza preços e maximiza seus lucros no Mercado Livre.
                 </p>
+                <div class="mb-5">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-check-circle-fill text-warning me-3" style="font-size: 1.5rem;"></i>
+                        <span style="font-size: 1.1rem;">Dashboard completo de vendas e custos</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-check-circle-fill text-warning me-3" style="font-size: 1.5rem;"></i>
+                        <span style="font-size: 1.1rem;">Análise com IA (ChatGPT) dos seus produtos</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-check-circle-fill text-warning me-3" style="font-size: 1.5rem;"></i>
+                        <span style="font-size: 1.1rem;">Gestão completa de pedidos e anúncios</span>
+                    </div>
+                </div>
                 <div class="d-flex gap-3 flex-wrap">
-                    <a href="/auth/register" class="btn btn-light btn-lg px-4 py-3">
-                        <i class="bi bi-rocket-takeoff me-2"></i>Começar Gratuitamente
+                    <a href="/auth/register" class="btn btn-warning btn-lg px-5 py-3 fw-bold" style="font-size: 1.2rem;">
+                        <i class="bi bi-rocket-takeoff me-2"></i>Começar Agora
                     </a>
-                    <a href="#funcionalidades" class="btn btn-outline-light btn-lg px-4 py-3">
-                        <i class="bi bi-play-circle me-2"></i>Ver Funcionalidades
+                    <a href="#planos" class="btn btn-outline-light btn-lg px-5 py-3" style="font-size: 1.2rem;">
+                        <i class="bi bi-tag me-2"></i>Ver Planos
                     </a>
                 </div>
             </div>
             <div class="col-lg-6">
-                <div class="screenshot-placeholder">
-                    <div>
-                        <i class="bi bi-laptop text-white" style="font-size: 4rem; opacity: 0.8;"></i>
-                        <p class="mt-3 mb-0">Dashboard GVMIA</p>
-                        <small>Interface moderna e intuitiva</small>
+                <div class="card bg-white bg-opacity-10 border-0 shadow-lg" style="backdrop-filter: blur(10px);">
+                    <div class="card-body p-5">
+                        <div class="text-center text-white">
+                            <i class="bi bi-graph-up-arrow" style="font-size: 6rem; opacity: 0.9;"></i>
+                            <h3 class="mt-4 mb-3 fw-bold">Dashboard GVMIA</h3>
+                            <p class="mb-4 lead">Visualize suas vendas, custos e lucros em um só lugar</p>
+                            <div class="row g-4 text-start">
+                                <div class="col-6">
+                                    <div class="p-4 bg-white bg-opacity-10 rounded">
+                                        <h5 class="mb-2"><i class="bi bi-trophy-fill text-warning me-2"></i>Score IA</h5>
+                                        <p class="mb-0">Análise 0-100</p>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="p-4 bg-white bg-opacity-10 rounded">
+                                        <h5 class="mb-2"><i class="bi bi-cash-stack text-success me-2"></i>Lucro Real</h5>
+                                        <p class="mb-0">Com todos custos</p>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="p-4 bg-white bg-opacity-10 rounded">
+                                        <h5 class="mb-2"><i class="bi bi-bar-chart-fill text-info me-2"></i>Analytics</h5>
+                                        <p class="mb-0">Vendas e ROAS</p>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="p-4 bg-white bg-opacity-10 rounded">
+                                        <h5 class="mb-2"><i class="bi bi-robot text-warning me-2"></i>IA Insights</h5>
+                                        <p class="mb-0">Otimização auto</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -181,29 +259,39 @@
 <!-- Stats Section -->
 <section class="stats-section">
     <div class="container">
-        <div class="row">
-            <div class="col-md-3">
+        <div class="row justify-content-center">
+            <div class="col-md-3 col-6">
                 <div class="stat-item">
-                    <span class="stat-number">🤖 IA</span>
-                    <span class="stat-label">Análise Inteligente</span>
+                    <span class="stat-number">
+                        <i class="bi bi-robot"></i>
+                    </span>
+                    <span class="stat-label">Análise com IA</span>
+                    <small class="d-block mt-2 opacity-75">ChatGPT integrado</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 col-6">
                 <div class="stat-item">
-                    <span class="stat-number">Automática</span>
-                    <span class="stat-label">Sincronização de Dados</span>
+                    <span class="stat-number">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </span>
+                    <span class="stat-label">Sync Automática</span>
+                    <small class="d-block mt-2 opacity-75">Dados sempre atualizados</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 col-6">
                 <div class="stat-item">
                     <span class="stat-number">100%</span>
                     <span class="stat-label">Integração ML</span>
+                    <small class="d-block mt-2 opacity-75">API oficial</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 col-6">
                 <div class="stat-item">
-                    <span class="stat-number">Grátis</span>
-                    <span class="stat-label">Para Começar</span>
+                    <span class="stat-number">
+                        <i class="bi bi-infinity"></i>
+                    </span>
+                    <span class="stat-label">Créditos Eternos</span>
+                    <small class="d-block mt-2 opacity-75">Nunca expiram</small>
                 </div>
             </div>
         </div>
@@ -211,7 +299,7 @@
 </section>
 
 <!-- AI Highlight Section -->
-<section class="py-5" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+<section class="py-5 ai-section" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-6 text-white">
@@ -485,7 +573,7 @@
 </section>
 
 <!-- Pricing Section -->
-<section class="py-5 bg-light">
+<section id="planos" class="py-5 bg-light">
     <div class="container">
         <div class="row mb-5">
             <div class="col-lg-8 mx-auto text-center">
