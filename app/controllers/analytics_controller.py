@@ -328,6 +328,39 @@ class AnalyticsController:
             logger.info(f"✅ Dashboard processado: {len(products_data)} produtos, {total_orders} pedidos, {total_items_sold} itens, R$ {total_revenue:.2f} receita")
             logger.info(f"💰 Custos - ML: R$ {ml_fees_total:.2f}, Frete: R$ {shipping_fees_total:.2f}, Marketing: R$ {marketing_cost_total:.2f}")
             
+            # Gerar timeline de vendas por dia
+            timeline_data = {}
+            for order in orders:
+                if order.date_closed:
+                    # Agrupar por data (dia)
+                    date_key = order.date_closed.strftime('%d/%m')
+                    
+                    if date_key not in timeline_data:
+                        timeline_data[date_key] = {
+                            'date': date_key,
+                            'revenue': 0,
+                            'orders': 0,
+                            'units': 0
+                        }
+                    
+                    timeline_data[date_key]['revenue'] += float(order.total_amount or 0)
+                    timeline_data[date_key]['orders'] += 1
+                    
+                    # Contar unidades
+                    if order.order_items:
+                        for item in order.order_items:
+                            timeline_data[date_key]['units'] += item.get('quantity', 0)
+            
+            # Converter para lista ordenada por data
+            timeline = sorted(timeline_data.values(), key=lambda x: x['date'])
+            
+            # Total de produtos únicos anunciados
+            from app.models.saas_models import MLProductStatus
+            total_products = self.db.query(MLProduct).filter(
+                MLProduct.company_id == company_id,
+                MLProduct.status.in_([MLProductStatus.ACTIVE, MLProductStatus.PAUSED])
+            ).count()
+            
             return {
                 'success': True,
                 'kpis': {
@@ -339,7 +372,8 @@ class AnalyticsController:
                     'cancelled_value': cancelled_value,
                     'returns_count': returns_count,
                     'returns_value': returns_value,
-                    'total_visits': total_visits
+                    'total_visits': total_visits,
+                    'total_products': total_products
                 },
                 'costs': {
                     'ml_fees': ml_fees_total,
@@ -367,7 +401,8 @@ class AnalyticsController:
                     'avg_profit_per_order': avg_profit_per_order
                 },
                 'products': products_data,
-                'total': len(products_data)
+                'total': len(products_data),
+                'timeline': timeline
             }
             
         except Exception as e:

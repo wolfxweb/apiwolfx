@@ -1,175 +1,655 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - API Mercado Livre{% endblock %}
+{% block title %}Dashboard - Vendas MercadoLibre{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <!-- Header do Dashboard -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h2 class="mb-1">
-                    <i class="bi bi-speedometer2"></i> Dashboard
-                </h2>
-                <p class="text-muted mb-0">
-                    Bem-vindo, {{ user.first_name }}! 👋
-                </p>
-            </div>
-        </div>
-        
-        
-        <!-- Cards de Estatísticas -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="bi bi-people-fill text-primary fs-1"></i>
-                        <h5 class="card-title mt-2">Usuários</h5>
-                        <h3 class="text-primary">0</h3>
-                        <small class="text-muted">Total de usuários</small>
-                    </div>
+<style>
+/* Tooltips alinhados à esquerda */
+.tooltip-inner {
+    text-align: left !important;
+    max-width: 300px !important;
+}
+
+/* Cards com hover effect */
+.stat-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Gráficos responsivos */
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+</style>
+
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">📊 Dashboard de Vendas</h1>
+                    <p class="text-muted mb-0">
+                        Bem-vindo, {{ user.first_name }}! Acompanhe suas vendas do MercadoLibre em tempo real
+                    </p>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="bi bi-shop text-success fs-1"></i>
-                        <h5 class="card-title mt-2">Contas ML</h5>
-                        <h3 class="text-success">{{ total_accounts }}</h3>
-                        <small class="text-muted">Contas conectadas</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="bi bi-box text-warning fs-1"></i>
-                        <h5 class="card-title mt-2">Produtos</h5>
-                        <h3 class="text-warning">0</h3>
-                        <small class="text-muted">Produtos sincronizados</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="bi bi-graph-up text-info fs-1"></i>
-                        <h5 class="card-title mt-2">Vendas</h5>
-                        <h3 class="text-info">0</h3>
-                        <small class="text-muted">Vendas hoje</small>
-                    </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshDashboard()">
+                        <i class="bi bi-arrow-clockwise"></i> Atualizar
+                    </button>
                 </div>
             </div>
         </div>
-        
-        <!-- Links Principais -->
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-shop"></i> Mercado Livre
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-text">Gerencie suas contas e integrações do Mercado Livre.</p>
-                        <a href="/ml/accounts" class="btn btn-primary">
-                            <i class="bi bi-shop"></i> Gerenciar Contas ML
-                        </a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-clock-history"></i> Atividades Recentes
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="list-group list-group-flush">
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <i class="bi bi-person-plus text-success"></i>
-                                    <span class="ms-2">Conta criada com sucesso</span>
-                                </div>
-                                <small class="text-muted">Agora</small>
-                            </div>
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <i class="bi bi-info-circle text-info"></i>
-                                    <span class="ms-2">Bem-vindo ao sistema!</span>
-                                </div>
-                                <small class="text-muted">Agora</small>
-                            </div>
+    </div>
+
+    <!-- Filtro de Período -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <label class="form-label mb-0 fw-bold">Período:</label>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Próximos Passos -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-list-check"></i> Próximos Passos
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="flex-shrink-0">
-                                <i class="bi bi-1-circle-fill text-primary fs-4"></i>
-                            </div>
-                            <div class="flex-grow-1 ms-3">
-                                <h6 class="mb-1">Conectar Conta ML</h6>
-                                <p class="text-muted mb-0 small">Conecte sua conta do Mercado Livre para começar</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="flex-shrink-0">
-                                <i class="bi bi-2-circle text-muted fs-4"></i>
-                            </div>
-                            <div class="flex-grow-1 ms-3">
-                                <h6 class="mb-1">Sincronizar Produtos</h6>
-                                <p class="text-muted mb-0 small">Importe seus produtos do ML</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="flex-shrink-0">
-                                <i class="bi bi-3-circle text-muted fs-4"></i>
-                            </div>
-                            <div class="flex-grow-1 ms-3">
-                                <h6 class="mb-1">Configurar Relatórios</h6>
-                                <p class="text-muted mb-0 small">Configure seus relatórios personalizados</p>
-                            </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="period-selector" onchange="loadDashboard()">
+                                <option value="1">Hoje</option>
+                                <option value="7">Últimos 7 dias</option>
+                                <option value="15">Últimos 15 dias</option>
+                                <option value="30" selected>Últimos 30 dias</option>
+                                <option value="60">Últimos 60 dias</option>
+                                <option value="90">Últimos 90 dias</option>
+                            </select>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- KPIs Principais -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm stat-card">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-currency-dollar text-success fs-1"></i>
+                    </div>
+                    <h6 class="text-muted mb-1">Receita Total</h6>
+                    <h3 class="mb-0 text-success" id="kpi-revenue">R$ 0,00</h3>
+                    <small class="text-muted">vendas brutas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm stat-card">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-cart-check text-primary fs-1"></i>
+                    </div>
+                    <h6 class="text-muted mb-1">Pedidos</h6>
+                    <h3 class="mb-0 text-primary" id="kpi-orders">0</h3>
+                    <small class="text-muted">pedidos confirmados</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm stat-card">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-box-seam text-info fs-1"></i>
+                    </div>
+                    <h6 class="text-muted mb-1">Produtos Vendidos</h6>
+                    <h3 class="mb-0 text-info" id="kpi-units">0</h3>
+                    <small class="text-muted">unidades</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm stat-card">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-graph-up-arrow text-warning fs-1"></i>
+                    </div>
+                    <h6 class="text-muted mb-1">Ticket Médio</h6>
+                    <h3 class="mb-0 text-warning" id="kpi-avg-ticket">R$ 0,00</h3>
+                    <small class="text-muted">por pedido</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs Secundários -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card border-danger stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-arrow-return-left text-danger fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">
+                        Devoluções
+                        <i class="bi bi-question-circle-fill text-secondary" 
+                           style="font-size: 0.75rem; cursor: help;"
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top"
+                           title="Vendas em que compradores abriram reclamação (claim) solicitando devolução. Pode virar mediação (mediation) quando o MercadoLibre intervém."></i>
+                    </h6>
+                    <h4 class="mb-0 text-danger" id="kpi-returns-value">R$ 0,00</h4>
+                    <small class="text-muted"><span id="kpi-returns-count">0</span> devoluções</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-warning stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-x-circle text-warning fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">
+                        Canceladas
+                        <i class="bi bi-question-circle-fill text-secondary" 
+                           style="font-size: 0.75rem; cursor: help;"
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top"
+                           title="Vendas que foram pagas → entregues → devolvidas → reembolsadas"></i>
+                    </h6>
+                    <h4 class="mb-0 text-warning" id="kpi-cancelled-value">R$ 0,00</h4>
+                    <small class="text-muted"><span id="kpi-cancelled-count">0</span> pedidos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-info stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-eye text-info fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Visitas</h6>
+                    <h4 class="mb-0 text-info" id="kpi-visits">0</h4>
+                    <small class="text-muted">visualizações</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-success stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-percent text-success fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Conversão</h6>
+                    <h4 class="mb-0 text-success" id="kpi-conversion">0%</h4>
+                    <small class="text-muted">vendas/visitas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-primary stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-shop text-primary fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Contas ML</h6>
+                    <h4 class="mb-0 text-primary">{{ total_accounts }}</h4>
+                    <small class="text-muted">conectadas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-secondary stat-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-box text-secondary fs-4"></i>
+                    <h6 class="text-muted mt-2 mb-1">Produtos</h6>
+                    <h4 class="mb-0 text-secondary" id="kpi-products">0</h4>
+                    <small class="text-muted">anúncios ativos</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="row mb-4">
+        <!-- Gráfico de Vendas ao Longo do Tempo -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-graph-up"></i> Evolução de Vendas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="salesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico de Status de Pedidos -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-pie-chart"></i> Status dos Pedidos
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Produtos e Categorias -->
+    <div class="row mb-4">
+        <!-- Top 5 Produtos -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-trophy"></i> Top 5 Produtos por Receita
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="topProductsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top 5 Produtos por Quantidade -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-box-seam"></i> Top 5 Produtos por Unidades
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="topUnitsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Links Rápidos -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-graph-up-arrow text-primary"></i> Analytics Detalhado
+                    </h5>
+                    <p class="card-text">Acesse análises avançadas com Pareto, margem de lucro e muito mais.</p>
+                    <a href="/analytics" class="btn btn-primary btn-sm">
+                        <i class="bi bi-arrow-right"></i> Ver Analytics
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-shop text-success"></i> Gerenciar Contas
+                    </h5>
+                    <p class="card-text">Gerencie suas contas e integrações do MercadoLibre.</p>
+                    <a href="/ml/accounts" class="btn btn-success btn-sm">
+                        <i class="bi bi-arrow-right"></i> Ver Contas
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-box text-info"></i> Produtos
+                    </h5>
+                    <p class="card-text">Visualize e gerencie seus produtos sincronizados.</p>
+                    <a href="/products/imported" class="btn btn-info btn-sm">
+                        <i class="bi bi-arrow-right"></i> Ver Produtos
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+    <div class="d-flex justify-content-center align-items-center h-100">
+        <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-// Auto-refresh das estatísticas a cada 30 segundos
-setInterval(function() {
-    // TODO: Implementar atualização automática das estatísticas
-    console.log('Atualizando estatísticas...');
-}, 30000);
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-// Inicializar tooltips
-var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
+<script>
+// Variáveis globais
+let salesChart = null;
+let statusChart = null;
+let topProductsChart = null;
+let topUnitsChart = null;
+
+// Formatar moeda
+function formatBRL(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value || 0);
+}
+
+// Formatar número
+function formatNumber(value) {
+    return new Intl.NumberFormat('pt-BR').format(value || 0);
+}
+
+// Mostrar loading
+function showLoading() {
+    document.getElementById('loading-overlay').style.display = 'block';
+}
+
+// Esconder loading
+function hideLoading() {
+    document.getElementById('loading-overlay').style.display = 'none';
+}
+
+// Carregar dados do dashboard
+function loadDashboard() {
+    const period = document.getElementById('period-selector').value;
+    
+    console.log('📊 Carregando dashboard para período:', period);
+    showLoading();
+    
+    fetch(`/api/analytics/sales-dashboard?period=${period}`, {
+        credentials: 'include'
+    })
+    .then(response => {
+        if (response.status === 401) {
+            console.warn('⚠️ Não autenticado, redirecionando...');
+            window.location.href = '/login';
+            return Promise.reject('not_authenticated');
+        }
+        return response.json();
+    })
+    .then(data => {
+        hideLoading();
+        
+        if (data.success) {
+            console.log('✅ Dados carregados:', data);
+            
+            // Atualizar KPIs
+            document.getElementById('kpi-revenue').textContent = formatBRL(data.kpis.total_revenue);
+            document.getElementById('kpi-orders').textContent = formatNumber(data.kpis.total_orders);
+            document.getElementById('kpi-units').textContent = formatNumber(data.kpis.total_sold);
+            document.getElementById('kpi-avg-ticket').textContent = formatBRL(data.kpis.avg_ticket);
+            document.getElementById('kpi-returns-value').textContent = formatBRL(data.kpis.returns_value || 0);
+            document.getElementById('kpi-returns-count').textContent = formatNumber(data.kpis.returns_count || 0);
+            document.getElementById('kpi-cancelled-value').textContent = formatBRL(data.kpis.cancelled_value || 0);
+            document.getElementById('kpi-cancelled-count').textContent = formatNumber(data.kpis.cancelled_orders || 0);
+            document.getElementById('kpi-visits').textContent = formatNumber(data.kpis.total_visits || 0);
+            document.getElementById('kpi-products').textContent = formatNumber(data.kpis.total_products || 0);
+            
+            // Taxa de conversão
+            const conversionRate = data.kpis.total_visits > 0 
+                ? ((data.kpis.total_sold / data.kpis.total_visits) * 100).toFixed(2)
+                : 0;
+            document.getElementById('kpi-conversion').textContent = conversionRate + '%';
+            
+            // Renderizar gráficos
+            renderSalesChart(data.timeline || []);
+            renderStatusChart(data.kpis);
+            renderTopProductsCharts(data.products || []);
+        } else {
+            console.error('Erro:', data.error);
+            alert('Erro ao carregar dados: ' + (data.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        if (error !== 'not_authenticated') {
+            console.error('Erro:', error);
+            alert('Erro ao carregar dashboard');
+        }
+    });
+}
+
+// Renderizar gráfico de vendas ao longo do tempo
+function renderSalesChart(timeline) {
+    const ctx = document.getElementById('salesChart');
+    
+    if (salesChart) {
+        salesChart.destroy();
+    }
+    
+    // Se não há dados de timeline, criar dados agregados
+    const labels = timeline.length > 0 
+        ? timeline.map(t => t.date) 
+        : ['Período'];
+    
+    const revenues = timeline.length > 0 
+        ? timeline.map(t => t.revenue) 
+        : [0];
+    
+    const orders = timeline.length > 0 
+        ? timeline.map(t => t.orders) 
+        : [0];
+    
+    salesChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Receita (R$)',
+                    data: revenues,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.4,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Pedidos',
+                    data: orders,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Receita (R$)'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Pedidos'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            }
+        }
+    });
+}
+
+// Renderizar gráfico de status
+function renderStatusChart(kpis) {
+    const ctx = document.getElementById('statusChart');
+    
+    if (statusChart) {
+        statusChart.destroy();
+    }
+    
+    const paid = kpis.total_orders || 0;
+    const cancelled = kpis.cancelled_orders || 0;
+    const returns = kpis.returns_count || 0;
+    
+    statusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Confirmados', 'Cancelados', 'Devoluções'],
+            datasets: [{
+                data: [paid, cancelled, returns],
+                backgroundColor: [
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(255, 99, 132, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(75, 192, 192)',
+                    'rgb(255, 206, 86)',
+                    'rgb(255, 99, 132)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+// Renderizar gráficos de top produtos
+function renderTopProductsCharts(products) {
+    // Ordenar por receita
+    const topByRevenue = [...products]
+        .sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
+        .slice(0, 5);
+    
+    // Ordenar por quantidade
+    const topByUnits = [...products]
+        .sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0))
+        .slice(0, 5);
+    
+    // Gráfico por receita
+    const ctxRevenue = document.getElementById('topProductsChart');
+    if (topProductsChart) {
+        topProductsChart.destroy();
+    }
+    
+    topProductsChart = new Chart(ctxRevenue, {
+        type: 'bar',
+        data: {
+            labels: topByRevenue.map(p => (p.title || 'Sem título').substring(0, 30) + '...'),
+            datasets: [{
+                label: 'Receita (R$)',
+                data: topByRevenue.map(p => p.revenue || 0),
+                backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                borderColor: 'rgb(54, 162, 235)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // Gráfico por unidades
+    const ctxUnits = document.getElementById('topUnitsChart');
+    if (topUnitsChart) {
+        topUnitsChart.destroy();
+    }
+    
+    topUnitsChart = new Chart(ctxUnits, {
+        type: 'bar',
+        data: {
+            labels: topByUnits.map(p => (p.title || 'Sem título').substring(0, 30) + '...'),
+            datasets: [{
+                label: 'Unidades Vendidas',
+                data: topByUnits.map(p => p.sold_quantity || 0),
+                backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                borderColor: 'rgb(255, 159, 64)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Refresh dashboard
+function refreshDashboard() {
+    loadDashboard();
+}
+
+// Inicializar ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✅ Dashboard carregado');
+    
+    // Inicializar tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Carregar dados
+    loadDashboard();
+    
+    // Auto-refresh a cada 5 minutos
+    setInterval(loadDashboard, 5 * 60 * 1000);
 });
 </script>
 {% endblock %}
