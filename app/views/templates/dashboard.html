@@ -30,11 +30,11 @@
 <div class="container-fluid">
     <!-- Header -->
     <div class="row mb-4">
-        <div class="col-12">
+    <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
-                <div>
+            <div>
                     <h1 class="h3 mb-1">📊 Dashboard de Vendas</h1>
-                    <p class="text-muted mb-0">
+                <p class="text-muted mb-0">
                         Bem-vindo, {{ user.first_name }}! Acompanhe suas vendas do MercadoLibre em tempo real
                     </p>
                 </div>
@@ -44,14 +44,14 @@
                     </button>
                 </div>
             </div>
+            </div>
         </div>
-    </div>
-
+        
     <!-- Filtro de Período -->
-    <div class="row mb-4">
+        <div class="row mb-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-body">
+                    <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-auto">
                             <label class="form-label mb-0 fw-bold">Período:</label>
@@ -106,10 +106,10 @@
                     <h6 class="text-muted mb-1">Receita Total</h6>
                     <h3 class="mb-0 text-success" id="kpi-revenue">R$ 0,00</h3>
                     <small class="text-muted">vendas brutas</small>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
+            <div class="col-md-3">
             <div class="card border-0 shadow-sm stat-card">
                 <div class="card-body text-center">
                     <div class="mb-2">
@@ -118,10 +118,10 @@
                     <h6 class="text-muted mb-1">Pedidos</h6>
                     <h3 class="mb-0 text-primary" id="kpi-orders">0</h3>
                     <small class="text-muted">pedidos confirmados</small>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
+            <div class="col-md-3">
             <div class="card border-0 shadow-sm stat-card">
                 <div class="card-body text-center">
                     <div class="mb-2">
@@ -130,10 +130,10 @@
                     <h6 class="text-muted mb-1">Produtos Vendidos</h6>
                     <h3 class="mb-0 text-info" id="kpi-units">0</h3>
                     <small class="text-muted">unidades</small>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
+            <div class="col-md-3">
             <div class="card border-0 shadow-sm stat-card">
                 <div class="card-body text-center">
                     <div class="mb-2">
@@ -338,14 +338,14 @@
                         <i class="bi bi-graph-up"></i> Evolução de Vendas
                     </h5>
                 </div>
-                <div class="card-body">
+                    <div class="card-body">
                     <div class="chart-container">
                         <canvas id="salesChart"></canvas>
                     </div>
                 </div>
             </div>
         </div>
-
+        
         <!-- Gráfico de Status de Pedidos -->
         <div class="col-md-4">
             <div class="card">
@@ -365,35 +365,35 @@
 
     <!-- Gráfico de Distribuição de Custos -->
     <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
                         <i class="bi bi-pie-chart-fill"></i> Distribuição de Custos
-                    </h5>
-                </div>
-                <div class="card-body">
+                        </h5>
+                    </div>
+                    <div class="card-body">
                     <div class="chart-container">
                         <canvas id="costsChart"></canvas>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
                         <i class="bi bi-bar-chart"></i> Custos por Categoria
-                    </h5>
-                </div>
-                <div class="card-body">
+                        </h5>
+                    </div>
+                    <div class="card-body">
                     <div class="chart-container">
                         <canvas id="costsBarChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                                </div>
+                            </div>
+                                </div>
+                            </div>
+                        </div>
 
     <!-- Top Produtos e Categorias -->
     <div class="row mb-4">
@@ -412,27 +412,27 @@
                 </div>
             </div>
         </div>
-
+        
         <!-- Top 5 Produtos por Quantidade -->
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
+            <div class="card-header">
+                <h5 class="mb-0">
                         <i class="bi bi-box-seam"></i> Top 5 Produtos por Unidades
-                    </h5>
-                </div>
-                <div class="card-body">
+                </h5>
+            </div>
+            <div class="card-body">
                     <div class="chart-container">
                         <canvas id="topUnitsChart"></canvas>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
 
     <!-- Links Rápidos -->
     <div class="row">
-        <div class="col-md-4">
+                    <div class="col-md-4">
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title">
@@ -442,10 +442,10 @@
                     <a href="/analytics" class="btn btn-primary btn-sm">
                         <i class="bi bi-arrow-right"></i> Ver Analytics
                     </a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title">
@@ -455,9 +455,9 @@
                     <a href="/ml/accounts" class="btn btn-success btn-sm">
                         <i class="bi bi-arrow-right"></i> Ver Contas
                     </a>
-                </div>
-            </div>
-        </div>
+                            </div>
+                        </div>
+                    </div>
         <div class="col-md-4">
             <div class="card">
                 <div class="card-body">
@@ -999,11 +999,11 @@ function refreshDashboard() {
 // Inicializar ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Dashboard carregado');
-    
-    // Inicializar tooltips
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
+
+// Inicializar tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
     });
     
     // Carregar dados

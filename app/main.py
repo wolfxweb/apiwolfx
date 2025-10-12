@@ -15,12 +15,15 @@ from app.routes.product_routes import product_router
 from app.routes.pricing_analysis_routes import router as pricing_analysis_router
 from app.routes.ml_pricing_routes import router as ml_pricing_router
 from app.routes.sales_analysis_routes import router as sales_analysis_router
+from app.routes.catalog_monitoring_routes import router as catalog_monitoring_router
 
 # Scheduler para sincronização automática
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from app.services.auto_sync_service import AutoSyncService
+from app.services.catalog_monitoring_service import CatalogMonitoringService
+from app.config.database import SessionLocal
 import atexit
 
 # Inicializar FastAPI
@@ -87,6 +90,29 @@ scheduler.add_job(
     replace_existing=True
 )
 
+# Função para monitoramento de catálogo
+def run_catalog_monitoring():
+    """Executa monitoramento de catálogos ativos"""
+    try:
+        db = SessionLocal()
+        try:
+            catalog_service = CatalogMonitoringService(db)
+            catalog_service.collect_catalog_data_for_all_active()
+            print("✅ Monitoramento de catálogo executado com sucesso")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"❌ Erro no monitoramento de catálogo: {e}")
+
+# JOB 3: Monitoramento de catálogo a cada 12 horas
+scheduler.add_job(
+    func=run_catalog_monitoring,
+    trigger=IntervalTrigger(hours=12),
+    id='catalog_monitoring_12h',
+    name='Monitoramento de Catálogo ML (12h)',
+    replace_existing=True
+)
+
 # Criar tabelas do banco de dados
 @app.on_event("startup")
 async def startup_event():
@@ -99,9 +125,9 @@ async def startup_event():
         # Iniciar scheduler
         if not scheduler.running:
             scheduler.start()
-   
             print("   📦 JOB 1: Pedidos recentes - A cada 15 minutos")
             print("   🌙 JOB 2: Últimos 7 dias completos - À meia-noite (00:00)")
+            print("   📊 JOB 3: Monitoramento de Catálogo - A cada 12 horas")
         else:
             print("🔄 Scheduler já está rodando")
         
@@ -134,6 +160,7 @@ app.include_router(product_router)  # Sem prefixo para /api/products
 app.include_router(pricing_analysis_router, prefix="/api/pricing")  # Para /api/pricing/analysis
 app.include_router(ml_pricing_router, prefix="/api/ml-pricing")  # Para /api/ml-pricing/fees
 app.include_router(sales_analysis_router)  # Para /api/sales/analysis
+app.include_router(catalog_monitoring_router)  # Para /api/catalog-monitoring
 
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")

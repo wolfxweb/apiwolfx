@@ -238,17 +238,55 @@
                 <div class="col-md-12 mb-4" id="catalog-info-card">
                     <div class="card h-100">
                         <div class="card-header bg-info text-white">
-                            <h5 class="mb-0" id="catalog-shipping-header">
-                                <i class="bi bi-truck"></i> Custos de Envio
-                            </h5>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0" id="catalog-shipping-header">
+                                    <i class="bi bi-truck"></i> Custos de Envio
+                                </h5>
+                                <!-- Botão de ativação do monitoramento -->
+                                <div id="monitoring-toggle" style="display:none;">
+                                    <button class="btn btn-sm btn-warning" onclick="toggleMonitoring()" id="monitoring-btn">
+                                        <i class="bi bi-eye"></i> Ativar Monitoramento
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-body">
-                            <div id="catalog-shipping-content">
-                                <div class="text-center py-3">
-                                    <div class="spinner-border spinner-border-sm" role="status">
-                                        <span class="visually-hidden">Carregando...</span>
+                            <!-- Tabs Navigation -->
+                            <ul class="nav nav-tabs mb-3" id="catalog-tabs" style="display:none;" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="catalog-current-tab" data-bs-toggle="tab" data-bs-target="#catalog-current" type="button" role="tab">
+                                        <i class="bi bi-clock-history"></i> Atual
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="catalog-history-tab" data-bs-toggle="tab" data-bs-target="#catalog-history" type="button" role="tab">
+                                        <i class="bi bi-graph-up"></i> Histórico
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <!-- Tabs Content -->
+                            <div class="tab-content" id="catalog-tabs-content">
+                                <!-- Tab Atual -->
+                                <div class="tab-pane fade show active" id="catalog-current" role="tabpanel">
+                                    <div id="catalog-shipping-content">
+                                        <div class="text-center py-3">
+                                            <div class="spinner-border spinner-border-sm" role="status">
+                                                <span class="visually-hidden">Carregando...</span>
+                                            </div>
+                                            <p class="mt-2 mb-0">Verificando informações...</p>
+                                        </div>
                                     </div>
-                                    <p class="mt-2 mb-0">Verificando informações...</p>
+                                </div>
+                                
+                                <!-- Tab Histórico -->
+                                <div class="tab-pane fade" id="catalog-history" role="tabpanel">
+                                    <div id="catalog-history-content">
+                                        <div class="text-center py-3 text-muted">
+                                            <i class="bi bi-clock-history fs-1"></i>
+                                            <p class="mt-2">Selecione "Atual" primeiro para ativar o monitoramento</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -634,11 +672,24 @@ function renderCatalogInfo(data) {
     // Ordenar por preço
     const sortedProducts = data.catalog_products.sort((a, b) => a.price - b.price);
     
+    // Formatar data de última sincronização
+    let lastSyncFormatted = 'N/A';
+    if (data.last_sync) {
+        const lastSyncDate = new Date(data.last_sync);
+        lastSyncFormatted = lastSyncDate.toLocaleString('pt-BR', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+    }
+    
     let html = `
         <div class="mb-3">
             <div class="d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">Anunciantes do Catálogo (${sortedProducts.length})</h6>
-                <small class="text-muted">Última atualização: ${data.last_updated || 'N/A'}</small>
+                <small class="text-muted">Última atualização: ${lastSyncFormatted}</small>
             </div>
         </div>
         
@@ -3481,6 +3532,301 @@ function toggleDebugInfo() {
         debugDiv.style.display = 'none';
         icon.className = 'bi bi-chevron-down';
     }
+}
+
+// ===== MONITORAMENTO DE CATÁLOGO =====
+let currentCatalogProductId = null;
+let monitoringActive = false;
+
+// Verificar status do monitoramento
+async function checkMonitoringStatus(catalogProductId) {
+    if (!catalogProductId) return;
+    
+    currentCatalogProductId = catalogProductId;
+    
+    try {
+        const response = await fetch(`/api/catalog-monitoring/status?catalog_product_id=${catalogProductId}`, {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        monitoringActive = data.is_active || false;
+        
+        // Mostrar botão de toggle
+        document.getElementById('monitoring-toggle').style.display = 'block';
+        
+        // Atualizar botão
+        const btn = document.getElementById('monitoring-btn');
+        if (monitoringActive) {
+            btn.className = 'btn btn-sm btn-success';
+            btn.innerHTML = '<i class="bi bi-eye-fill"></i> Monitoramento Ativo';
+        } else {
+            btn.className = 'btn btn-sm btn-warning';
+            btn.innerHTML = '<i class="bi bi-eye"></i> Ativar Monitoramento';
+        }
+        
+        // Se estiver ativo, carregar histórico
+        if (monitoringActive) {
+            loadCatalogHistory(catalogProductId);
+        }
+    } catch (error) {
+        console.error('Erro ao verificar status do monitoramento:', error);
+    }
+}
+
+// Toggle do monitoramento
+async function toggleMonitoring() {
+    if (!currentCatalogProductId) return;
+    
+    const btn = document.getElementById('monitoring-btn');
+    btn.disabled = true;
+    
+    try {
+        const endpoint = monitoringActive ? 'deactivate' : 'activate';
+        const response = await fetch(`/api/catalog-monitoring/${endpoint}?catalog_product_id=${currentCatalogProductId}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            monitoringActive = !monitoringActive;
+            
+            // Atualizar botão
+            if (monitoringActive) {
+                btn.className = 'btn btn-sm btn-success';
+                btn.innerHTML = '<i class="bi bi-eye-fill"></i> Monitoramento Ativo';
+                showToast('Monitoramento ativado! Primeira coleta em andamento...', 'success');
+                
+                // Carregar histórico após ativação
+                setTimeout(() => loadCatalogHistory(currentCatalogProductId), 2000);
+            } else {
+                btn.className = 'btn btn-sm btn-warning';
+                btn.innerHTML = '<i class="bi bi-eye"></i> Ativar Monitoramento';
+                showToast('Monitoramento desativado', 'info');
+            }
+        } else {
+            showToast(data.message || 'Erro ao alterar monitoramento', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao toggle monitoramento:', error);
+        showToast('Erro ao processar solicitação', 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// Carregar histórico do catálogo
+async function loadCatalogHistory(catalogProductId) {
+    if (!catalogProductId) return;
+    
+    const container = document.getElementById('catalog-history-content');
+    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div><p class="mt-2">Carregando histórico...</p></div>';
+    
+    try {
+        const response = await fetch(`/api/catalog-monitoring/history?catalog_product_id=${catalogProductId}&limit=50`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('Erro ao carregar histórico');
+        
+        const history = await response.json();
+        
+        if (!history || history.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-info-circle"></i>
+                    <p class="mb-0">Nenhum histórico encontrado ainda.</p>
+                    <small>O histórico será gerado automaticamente a cada 12 horas.</small>
+                </div>
+            `;
+            return;
+        }
+        
+        // Renderizar histórico
+        renderCatalogHistoryChart(history);
+        
+    } catch (error) {
+        console.error('Erro ao carregar histórico:', error);
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Erro ao carregar histórico
+            </div>
+        `;
+    }
+}
+
+// Renderizar gráfico do histórico
+function renderCatalogHistoryChart(history) {
+    const container = document.getElementById('catalog-history-content');
+    
+    // Preparar dados para o gráfico
+    const labels = history.map(h => {
+        const date = new Date(h.collected_at);
+        return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }).reverse();
+    
+    const companyPrices = history.map(h => h.company_price ? h.company_price / 100 : null).reverse();
+    const minPrices = history.map(h => h.min_price ? h.min_price / 100 : null).reverse();
+    const avgPrices = history.map(h => h.avg_price ? h.avg_price / 100 : null).reverse();
+    const buyBoxPrices = history.map(h => h.buy_box_winner_price ? h.buy_box_winner_price / 100 : null).reverse();
+    
+    container.innerHTML = `
+        <div class="row">
+            <div class="col-12 mb-3">
+                <h6><i class="bi bi-graph-up"></i> Evolução de Preços no Catálogo</h6>
+                <canvas id="catalog-history-chart" height="80"></canvas>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6><i class="bi bi-table"></i> Últimas Coletas</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>Posição</th>
+                                <th>Seu Preço</th>
+                                <th>Buy Box</th>
+                                <th>Menor Preço</th>
+                                <th>Preço Médio</th>
+                                <th>Participantes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${history.slice(0, 10).map(h => `
+                                <tr>
+                                    <td><small>${new Date(h.collected_at).toLocaleString('pt-BR')}</small></td>
+                                    <td>
+                                        ${h.company_position ? 
+                                            `<span class="badge ${h.company_position <= 3 ? 'bg-success' : 'bg-secondary'}">${h.company_position}º</span>` : 
+                                            '<span class="text-muted">-</span>'}
+                                    </td>
+                                    <td>${h.company_price_brl || '-'}</td>
+                                    <td>
+                                        ${h.company_has_buy_box ? 
+                                            '<span class="badge bg-warning text-dark"><i class="bi bi-trophy-fill"></i></span>' : 
+                                            h.buy_box_winner_price_brl || '-'}
+                                    </td>
+                                    <td>${h.min_price_brl || '-'}</td>
+                                    <td>${h.avg_price_brl || '-'}</td>
+                                    <td>${h.total_participants || 0}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Criar gráfico
+    const ctx = document.getElementById('catalog-history-chart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Seu Preço',
+                    data: companyPrices,
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1
+                },
+                {
+                    label: 'Buy Box',
+                    data: buyBoxPrices,
+                    borderColor: 'rgb(255, 193, 7)',
+                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1
+                },
+                {
+                    label: 'Menor Preço',
+                    data: minPrices,
+                    borderColor: 'rgb(40, 167, 69)',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1
+                },
+                {
+                    label: 'Preço Médio',
+                    data: avgPrices,
+                    borderColor: 'rgb(108, 117, 125)',
+                    backgroundColor: 'rgba(108, 117, 125, 0.1)',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': R$ ' + (context.parsed.y || 0).toFixed(2);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toFixed(2);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Adicionar ao loadCatalogInfo para verificar monitoramento
+const originalLoadCatalogInfo = loadCatalogInfo;
+loadCatalogInfo = function(productId) {
+    originalLoadCatalogInfo(productId);
+    
+    // Após carregar dados do catálogo, verificar se tem catalog_product_id
+    setTimeout(() => {
+        // Buscar catalog_product_id dos dados carregados
+        fetch(`/ml/products/api/product/${productId}/catalog/database`, {
+            credentials: 'include'
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.catalog_product_id) {
+                // Mostrar tabs
+                document.getElementById('catalog-tabs').style.display = 'flex';
+                // Verificar status do monitoramento
+                checkMonitoringStatus(data.catalog_product_id);
+            }
+        })
+        .catch(err => console.error('Erro ao buscar catalog_product_id:', err));
+    }, 1000);
+};
+
+function showToast(message, type = 'info') {
+    // Função simples para mostrar mensagens
+    const alertClass = type === 'success' ? 'alert-success' : type === 'error' ? 'alert-danger' : 'alert-info';
+    const toast = document.createElement('div');
+    toast.className = `alert ${alertClass} position-fixed top-0 end-0 m-3`;
+    toast.style.zIndex = '9999';
+    toast.innerHTML = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 
 </script>

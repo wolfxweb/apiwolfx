@@ -797,3 +797,92 @@ class SKUManagement(Base):
         Index('ix_sku_management_status', 'status'),
     )
 
+
+class MLCatalogMonitoring(Base):
+    """Controle de ativação do monitoramento de catálogo"""
+    __tablename__ = "ml_catalog_monitoring"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    catalog_product_id = Column(String(50), nullable=False, index=True)  # ID do produto no catálogo ML
+    ml_product_id = Column(Integer, ForeignKey("ml_products.id"), nullable=True, index=True)  # Produto ML da empresa (opcional)
+    
+    # Controle de ativação
+    is_active = Column(Boolean, default=True, nullable=False, index=True)  # Se o monitoramento está ativo
+    
+    # Timestamps
+    activated_at = Column(DateTime(timezone=True), server_default=func.now())
+    deactivated_at = Column(DateTime(timezone=True), nullable=True)
+    last_check_at = Column(DateTime(timezone=True), nullable=True)  # Última vez que foi verificado
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    ml_product = relationship("MLProduct", foreign_keys=[ml_product_id])
+    
+    # Índices e constraints
+    __table_args__ = (
+        Index('ix_catalog_monitoring_company', 'company_id'),
+        Index('ix_catalog_monitoring_catalog_product', 'catalog_product_id'),
+        Index('ix_catalog_monitoring_is_active', 'is_active'),
+        Index('ix_catalog_monitoring_company_catalog', 'company_id', 'catalog_product_id'),
+        Index('ix_catalog_monitoring_active', 'company_id', 'is_active'),
+        # Constraint: Um catálogo só pode ser monitorado uma vez por empresa
+        {'extend_existing': True}
+    )
+
+
+class MLCatalogHistory(Base):
+    """Histórico de monitoramento do catálogo do Mercado Livre"""
+    __tablename__ = "ml_catalog_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    catalog_product_id = Column(String(50), nullable=False, index=True)  # ID do produto no catálogo ML
+    ml_product_id = Column(Integer, ForeignKey("ml_products.id"), nullable=True, index=True)  # Produto ML da empresa
+    monitoring_id = Column(Integer, ForeignKey("ml_catalog_monitoring.id"), nullable=True, index=True)  # Referência ao monitoramento
+    
+    # Dados do catálogo no momento da coleta
+    total_participants = Column(Integer, default=0)  # Total de participantes/vendedores
+    buy_box_winner_id = Column(String(50))  # ID do vendedor que ganhou a buy box
+    buy_box_winner_price = Column(Integer)  # Preço do vencedor da buy box (em centavos)
+    
+    # Posição do produto da empresa
+    company_position = Column(Integer)  # Posição do produto da empresa no catálogo
+    company_price = Column(Integer)  # Preço do produto da empresa (em centavos)
+    company_has_buy_box = Column(Boolean, default=False)  # Se a empresa ganhou a buy box
+    
+    # Estatísticas de preços
+    min_price = Column(Integer)  # Menor preço no catálogo (em centavos)
+    max_price = Column(Integer)  # Maior preço no catálogo (em centavos)
+    avg_price = Column(Integer)  # Preço médio no catálogo (em centavos)
+    median_price = Column(Integer)  # Preço mediano no catálogo (em centavos)
+    
+    # Estatísticas de quantidade
+    total_available_quantity = Column(Integer, default=0)  # Total disponível no catálogo
+    total_sold_quantity = Column(Integer, default=0)  # Total vendido no catálogo
+    
+    # Dados completos em JSON (para análises futuras)
+    participants_snapshot = Column(JSON)  # Snapshot de todos os participantes
+    
+    # Timestamps
+    collected_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    ml_product = relationship("MLProduct", foreign_keys=[ml_product_id])
+    monitoring = relationship("MLCatalogMonitoring", foreign_keys=[monitoring_id])
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_catalog_history_company', 'company_id'),
+        Index('ix_catalog_history_catalog_product', 'catalog_product_id'),
+        Index('ix_catalog_history_ml_product', 'ml_product_id'),
+        Index('ix_catalog_history_monitoring', 'monitoring_id'),
+        Index('ix_catalog_history_collected_at', 'collected_at'),
+        Index('ix_catalog_history_company_catalog', 'company_id', 'catalog_product_id'),
+        Index('ix_catalog_history_company_collected', 'company_id', 'collected_at'),
+    )
+
