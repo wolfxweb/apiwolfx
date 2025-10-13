@@ -694,28 +694,20 @@ function showLoadingSkeleton() {
     const skeletonText = '<span class="loading-skeleton" style="display: inline-block; width: 80px; height: 1.2em; border-radius: 4px;"></span>';
     const skeletonTextLarge = '<span class="loading-skeleton" style="display: inline-block; width: 120px; height: 1.2em; border-radius: 4px;"></span>';
     
-    // Aplicar skeleton nos principais campos KPI
-    const kpiFields = [
+    // Aplicar skeleton APENAS nos campos de VALORES (não nos textos descritivos)
+    const valueFields = [
         'kpi-revenue', 'kpi-orders', 'kpi-units', 'kpi-avg-ticket',
         'kpi-returns-value', 'kpi-returns-count', 'kpi-cancelled-value', 
-        'kpi-cancelled-count', 'kpi-visits', 'kpi-products', 'kpi-conversion'
-    ];
-    
-    // Aplicar skeleton nos campos de custos
-    const costFields = [
+        'kpi-cancelled-count', 'kpi-visits', 'kpi-products', 'kpi-conversion',
         'kpi-ml-fees', 'kpi-ml-fees-percent', 'kpi-shipping', 'kpi-shipping-percent',
         'kpi-marketing', 'kpi-marketing-percent', 'kpi-product-cost', 'kpi-product-cost-percent',
-        'kpi-taxes', 'kpi-taxes-percent', 'kpi-other-costs', 'kpi-other-costs-percent'
-    ];
-    
-    // Aplicar skeleton nos campos de análise financeira
-    const financialFields = [
+        'kpi-taxes', 'kpi-taxes-percent', 'kpi-other-costs', 'kpi-other-costs-percent',
         'kpi-gross-revenue', 'kpi-total-costs', 'kpi-total-costs-percent',
         'kpi-net-profit', 'kpi-net-margin'
     ];
     
-    // Aplicar skeleton em todos os campos
-    [...kpiFields, ...costFields, ...financialFields].forEach(id => {
+    // Aplicar skeleton apenas nos campos de valores
+    valueFields.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
             // Usar skeleton maior para valores monetários
