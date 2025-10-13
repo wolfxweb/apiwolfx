@@ -2,6 +2,7 @@
 
 {% block title %}Análise do Produto - GVMIA{% endblock %}
 
+
 {% block content %}
 <div class="container-fluid">
     <div class="row">
@@ -3730,6 +3731,10 @@ function renderCatalogHistoryTable(history) {
         return;
     }
     
+    // Renderizar gráfico de evolução de preços
+    console.log('🚀 [TABLE] Chamando renderPriceEvolutionChart...');
+    renderPriceEvolutionChart(history);
+    
     // Armazenar dados para paginação
     allHistoryData = history.sort((a, b) => {
         const dateA = new Date(a.collected_at);
@@ -3745,6 +3750,10 @@ function renderCatalogHistoryTable(history) {
 function renderHistoryPage(page) {
     currentHistoryPage = page;
     const container = document.getElementById('catalog-history-content');
+    
+    // Preservar o gráfico se existir
+    const existingChart = container.querySelector('#priceEvolutionChart');
+    const chartContainer = existingChart ? existingChart.closest('.card') : null;
     
     // Calcular índices
     const startIndex = (page - 1) * historyItemsPerPage;
@@ -3890,7 +3899,12 @@ function renderHistoryPage(page) {
         `;
     }
     
-    container.innerHTML = html;
+    // Restaurar o gráfico se existir
+    if (chartContainer) {
+        container.innerHTML = chartContainer.outerHTML + html;
+    } else {
+        container.innerHTML = html;
+    }
 }
 
 // Confirmar exclusão do histórico
@@ -3981,6 +3995,174 @@ function showToast(message, type = 'info') {
     toast.innerHTML = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+}
+
+// Função para renderizar gráfico de evolução de preços
+function renderPriceEvolutionChart(historyData) {
+    console.log('📈 [CHART] renderPriceEvolutionChart chamada com:', historyData.length, 'registros');
+    
+    const container = document.getElementById('catalog-history-content');
+    console.log('🎯 [CHART] Container encontrado:', container);
+    
+    if (!container) {
+        console.error('❌ [CHART] Container catalog-history-content não encontrado!');
+        return;
+    }
+    
+    
+    // Preparar dados
+    const labels = [];
+    const sellerData = {};
+    const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
+    
+    historyData.forEach((record, index) => {
+        const date = new Date(record.collected_at);
+        const dateLabel = date.toLocaleString('pt-BR', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        labels.push(dateLabel);
+        
+        if (record.participants_snapshot && Array.isArray(record.participants_snapshot)) {
+            console.log(`📊 [CHART] Processando ${record.participants_snapshot.length} participantes para registro ${index}`);
+            record.participants_snapshot.forEach(participant => {
+                const sellerNickname = participant.seller_nickname || 'Vendedor Desconhecido';
+                const price = participant.price || 0; // Valores já estão em reais
+                console.log(`📊 [CHART] Vendedor: ${sellerNickname}, Preço: R$ ${price}`);
+                
+                if (!sellerData[sellerNickname]) {
+                    sellerData[sellerNickname] = {
+                        label: sellerNickname,
+                        data: [],
+                        borderColor: colors[Object.keys(sellerData).length % colors.length],
+                        backgroundColor: colors[Object.keys(sellerData).length % colors.length] + '20',
+                        tension: 0.1,
+                        fill: false,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    };
+                }
+                
+                // Preencher com null se não houver dados para este vendedor neste registro
+                while (sellerData[sellerNickname].data.length < index) {
+                    sellerData[sellerNickname].data.push(null);
+                }
+                
+                sellerData[sellerNickname].data.push(price);
+            });
+        }
+    });
+    
+    // Garantir que todos os datasets tenham o mesmo tamanho
+    Object.values(sellerData).forEach(dataset => {
+        while (dataset.data.length < labels.length) {
+            dataset.data.push(null);
+        }
+    });
+    
+    // Criar HTML do gráfico
+    const chartHtml = `
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-graph-up-arrow"></i> Evolução de Preços por Vendedor
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i> 
+                        Mostrando evolução de preços dos últimos ${historyData.length} registros de monitoramento
+                    </small>
+                </div>
+                <div style="position: relative; height: 400px; width: 100%;">
+                    <canvas id="priceEvolutionChart" style="max-width: 100%; max-height: 100%;"></canvas>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar gráfico ao início do container
+    console.log('📝 [CHART] Adicionando HTML do gráfico...');
+    container.innerHTML = chartHtml + container.innerHTML;
+    
+    // Renderizar gráfico após o DOM ser atualizado
+    setTimeout(() => {
+        const ctx = document.getElementById('priceEvolutionChart');
+        console.log('🎨 [CHART] Canvas encontrado após timeout:', ctx);
+        console.log('📚 [CHART] Chart.js disponível:', typeof Chart !== 'undefined');
+        
+        if (ctx && typeof Chart !== 'undefined') {
+            console.log('📊 [CHART] Labels:', labels.length, labels);
+            console.log('📊 [CHART] Seller Data:', Object.keys(sellerData).length, sellerData);
+            console.log('📊 [CHART] Datasets:', Object.values(sellerData));
+            
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: Object.values(sellerData)
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Data/Hora'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Preço (R$)'
+                            },
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'R$ ' + value.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': R$ ' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            console.log('✅ Gráfico de evolução de preços renderizado com sucesso!');
+            console.log('📏 [CHART] Canvas dimensions:', ctx.width, 'x', ctx.height);
+            console.log('📏 [CHART] Canvas style:', ctx.style.width, 'x', ctx.style.height);
+        } else {
+            console.error('❌ Chart.js não disponível ou canvas não encontrado');
+        }
+    }, 100);
 }
 
 </script>
