@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Perfil do Usuário - GIVM{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-person-circle"></i> Perfil do Usuário</h2>
+                <a href="/dashboard" class="btn btn-outline-primary">
+                    <i class="bi bi-house"></i> Voltar ao Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Informações Pessoais -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-person-lines-fill"></i> Informações Pessoais</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong><i class="bi bi-person"></i> Nome:</strong> {{ user.first_name }} {{ user.last_name }}</p>
+                            <p><strong><i class="bi bi-envelope"></i> Email:</strong> {{ user.email }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong><i class="bi bi-hash"></i> ID:</strong> {{ user.id }}</p>
+                            <p><strong><i class="bi bi-shield-check"></i> Função:</strong> 
+                                <span class="badge bg-info">{{ user.role }}</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Informações da Empresa -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Informações da Empresa</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong><i class="bi bi-building"></i> Nome:</strong> {{ company.name or 'N/A' }}</p>
+                            <p><strong><i class="bi bi-tag"></i> Slug:</strong> {{ company.slug or 'N/A' }}</p>
+                            <p><strong><i class="bi bi-hash"></i> ID:</strong> {{ company.id or 'N/A' }}</p>
+                            <p><strong><i class="bi bi-globe"></i> Domínio:</strong> {{ company.domain or 'N/A' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong><i class="bi bi-shield-check"></i> Status:</strong> 
+                                {% if company.status %}
+                                    {% if company.status == 'active' %}
+                                        <span class="badge bg-success">{{ company.status|title }}</span>
+                                    {% elif company.status == 'trial' %}
+                                        <span class="badge bg-warning">{{ company.status|title }}</span>
+                                    {% elif company.status == 'suspended' %}
+                                        <span class="badge bg-danger">{{ company.status|title }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ company.status|title }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary">N/A</span>
+                                {% endif %}
+                            </p>
+                            <p><strong><i class="bi bi-calendar-plus"></i> Criada em:</strong> 
+                                {% if company.created_at %}
+                                    {{ company.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </p>
+                            <p><strong><i class="bi bi-people"></i> Usuários:</strong> 
+                                <span class="badge bg-info">{{ company.total_users or 0 }} / {{ company.max_users or '∞' }}</span>
+                            </p>
+                            <p><strong><i class="bi bi-shop"></i> Contas ML:</strong> 
+                                <span class="badge bg-info">{{ company.total_ml_accounts or 0 }} / {{ company.max_ml_accounts or '∞' }}</span>
+                            </p>
+                        </div>
+                    </div>
+                    {% if company.description %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <p><strong><i class="bi bi-text-paragraph"></i> Descrição:</strong><br>
+                                {{ company.description }}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Plano/Assinatura -->
+        <div class="col-md-4">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-credit-card"></i> Plano & Assinatura</h5>
+                </div>
+                <div class="card-body">
+                    {% if subscription %}
+                        <p><strong><i class="bi bi-trophy"></i> Plano:</strong> 
+                            <span class="badge bg-primary">{{ subscription.plan_name or 'N/A' }}</span>
+                        </p>
+                        {% if subscription.price %}
+                        <p><strong><i class="bi bi-currency-dollar"></i> Preço:</strong> 
+                            {{ subscription.currency or 'BRL' }} {{ subscription.price }}
+                        </p>
+                        {% endif %}
+                        <p><strong><i class="bi bi-calendar-check"></i> Início:</strong><br>
+                            {% if subscription.starts_at %}
+                                {{ subscription.starts_at.strftime('%d/%m/%Y') }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </p>
+                        <p><strong><i class="bi bi-calendar-x"></i> Vencimento:</strong><br>
+                            {% if subscription.ends_at %}
+                                {{ subscription.ends_at.strftime('%d/%m/%Y') }}
+                            {% elif subscription.trial_ends_at %}
+                                <span class="text-warning">{{ subscription.trial_ends_at.strftime('%d/%m/%Y') }} (Trial)</span>
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </p>
+                        <p><strong><i class="bi bi-info-circle"></i> Status:</strong> 
+                            {% if subscription.is_trial %}
+                                <span class="badge bg-warning">Trial</span>
+                            {% else %}
+                                <span class="badge bg-success">{{ subscription.status|title }}</span>
+                            {% endif %}
+                        </p>
+                    {% else %}
+                        <div class="text-center text-muted">
+                            <i class="bi bi-exclamation-triangle fs-1"></i>
+                            <p class="mt-2">Nenhuma assinatura ativa encontrada</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+{% endblock %}

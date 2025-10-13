@@ -169,7 +169,7 @@ async def dashboard(
                          company=user_data.get("company", {}),
                          total_accounts=total_accounts)
 
-@auth_router.get("/profile")
+@auth_router.get("/profile", response_class=HTMLResponse)
 async def profile(
     request: Request,
     session_token: Optional[str] = Cookie(None),
@@ -183,8 +183,45 @@ async def profile(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
-    # TODO: Implementar página de perfil
-    return {"message": "Página de perfil em desenvolvimento", "user": result["user"]}
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar informações completas da empresa
+    from sqlalchemy import text
+    from app.models.saas_models import Company, Subscription, MLAccount
+    
+    # Informações da empresa
+    company_query = text("""
+        SELECT c.*, 
+               COUNT(DISTINCT u.id) as total_users,
+               COUNT(DISTINCT ma.id) as total_ml_accounts
+        FROM companies c
+        LEFT JOIN users u ON u.company_id = c.id AND u.is_active = true
+        LEFT JOIN ml_accounts ma ON ma.company_id = c.id AND ma.status = 'ACTIVE'
+        WHERE c.id = :company_id
+        GROUP BY c.id
+    """)
+    
+    company_result = db.execute(company_query, {"company_id": company_id}).fetchone()
+    company_info = dict(company_result._mapping) if company_result else {}
+    
+    # Informações da assinatura
+    subscription_query = text("""
+        SELECT * FROM subscriptions 
+        WHERE company_id = :company_id 
+        AND status = 'active'
+        ORDER BY created_at DESC 
+        LIMIT 1
+    """)
+    
+    subscription_result = db.execute(subscription_query, {"company_id": company_id}).fetchone()
+    subscription_info = dict(subscription_result._mapping) if subscription_result else {}
+    
+    from app.views.template_renderer import render_template
+    return render_template("profile.html", 
+                         user=user_data,
+                         company=company_info,
+                         subscription=subscription_info)
 
 @auth_router.get("/forgot-password")
 async def forgot_password_page(request: Request):

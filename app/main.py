@@ -16,6 +16,7 @@ from app.routes.pricing_analysis_routes import router as pricing_analysis_router
 from app.routes.ml_pricing_routes import router as ml_pricing_router
 from app.routes.sales_analysis_routes import router as sales_analysis_router
 from app.routes.catalog_monitoring_routes import router as catalog_monitoring_router
+# from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -177,6 +178,7 @@ app.include_router(pricing_analysis_router, prefix="/api/pricing")  # Para /api/
 app.include_router(ml_pricing_router, prefix="/api/ml-pricing")  # Para /api/ml-pricing/fees
 app.include_router(sales_analysis_router)  # Para /api/sales/analysis
 app.include_router(catalog_monitoring_router)  # Para /api/catalog-monitoring
+# app.include_router(settings_router)  # Removido - usando /auth/profile
 
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")
