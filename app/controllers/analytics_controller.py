@@ -4,7 +4,7 @@ Controller para Analytics & Performance
 import logging
 from typing import Dict, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, and_
+from sqlalchemy import func, desc, and_, text
 from datetime import datetime, timedelta
 
 from app.models.saas_models import MLProduct, MLOrder, MLAccount, MLProductStatus, OrderStatus
@@ -75,43 +75,23 @@ class AnalyticsController:
                 date_from = datetime.combine(date_from, datetime.min.time())  # Meia-noite do dia -N
                 logger.info(f"📅 Buscando VENDAS CONFIRMADAS desde: {date_from} (meia-noite do dia -{period_days})")
             
-            # Query base de pedidos CONFIRMADOS (com date_closed preenchido)
-            orders_query = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id,
-                MLOrder.date_closed >= date_from,  # ✅ Filtro por confirmação, não criação
-                MLOrder.date_closed.isnot(None)  # Apenas vendas confirmadas
-            )
-            
-            # Para períodos com data final definida, adicionar filtro
-            if 'date_to' in locals() and date_to:
-                orders_query = orders_query.filter(MLOrder.date_closed <= date_to)
-            
-            # Filtrar por conta ML
-            if ml_account_id:
-                logger.info(f"🔍 Filtrando por conta ML: {ml_account_id}")
-                orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
-            
-            # Buscar pedidos confirmados/pagos
-            orders = orders_query.all()
-            logger.info(f"📦 Total de VENDAS CONFIRMADAS encontradas: {len(orders)}")
-            
-            # Buscar VENDAS canceladas
-            # ML: "Vendas do período selecionado que DEPOIS foram canceladas"
-            # CRITÉRIO AJUSTADO: Vendas que foram ENTREGUES e depois CANCELADAS
-            # (baseado na análise: todos os cancelamentos têm "not_paid", então não podemos filtrar por "paid")
-            # O ML parece contar apenas cancelamentos que tiveram alguma ação antes (delivered)
-            from sqlalchemy import func, cast, Float, text
-            
-            # Usar query SQL pura para trabalhar com JSONB
-            cancelled_sql = text("""
-                SELECT *
+            # Query otimizada de pedidos CONFIRMADOS com agregações
+            # Usar consulta SQL otimizada com índices criados
+            orders_sql = text("""
+                SELECT 
+                    ml_order_id,
+                    total_amount,
+                    sale_fees,
+                    shipping_cost,
+                    advertising_cost,
+                    coupon_amount,
+                    order_items,
+                    date_closed,
+                    status
                 FROM ml_orders
                 WHERE company_id = :company_id
                   AND date_closed >= :date_from
-                  AND status = 'CANCELLED'
-                  AND tags::jsonb @> '["delivered"]'::jsonb
-                  AND NOT (tags::jsonb @> '["test_order"]'::jsonb)
-                ORDER BY date_closed DESC
+                  AND date_closed IS NOT NULL
             """)
             
             params = {
@@ -119,9 +99,103 @@ class AnalyticsController:
                 "date_from": date_from
             }
             
+            # Para períodos com data final definida, adicionar filtro
+            if 'date_to' in locals() and date_to:
+                orders_sql = text("""
+                    SELECT 
+                        ml_order_id,
+                        total_amount,
+                        sale_fees,
+                        shipping_cost,
+                        advertising_cost,
+                        coupon_amount,
+                        order_items,
+                        date_closed,
+                        status
+                    FROM ml_orders
+                    WHERE company_id = :company_id
+                      AND date_closed >= :date_from
+                      AND date_closed <= :date_to
+                      AND date_closed IS NOT NULL
+                """)
+                params["date_to"] = date_to
+            
+            # Filtrar por conta ML
+            if ml_account_id:
+                logger.info(f"🔍 Filtrando por conta ML: {ml_account_id}")
+                orders_sql = text("""
+                    SELECT 
+                        ml_order_id,
+                        total_amount,
+                        sale_fees,
+                        shipping_cost,
+                        advertising_cost,
+                        coupon_amount,
+                        order_items,
+                        date_closed,
+                        status
+                    FROM ml_orders
+                    WHERE company_id = :company_id
+                      AND ml_account_id = :ml_account_id
+                      AND date_closed >= :date_from
+                      AND date_closed IS NOT NULL
+                """)
+                params["ml_account_id"] = ml_account_id
+                
+                if 'date_to' in locals() and date_to:
+                    orders_sql = text("""
+                        SELECT 
+                            ml_order_id,
+                            total_amount,
+                            sale_fees,
+                            shipping_cost,
+                            advertising_cost,
+                            coupon_amount,
+                            order_items,
+                            date_closed,
+                            status
+                        FROM ml_orders
+                        WHERE company_id = :company_id
+                          AND ml_account_id = :ml_account_id
+                          AND date_closed >= :date_from
+                          AND date_closed <= :date_to
+                          AND date_closed IS NOT NULL
+                    """)
+            
+            # Executar consulta otimizada
+            orders_result = self.db.execute(orders_sql, params).fetchall()
+            orders = [dict(row._mapping) for row in orders_result]
+            logger.info(f"📦 Total de VENDAS CONFIRMADAS encontradas: {len(orders)}")
+            
+            # Buscar VENDAS canceladas
+            # ML: "Vendas do período selecionado que DEPOIS foram canceladas"
+            # CRITÉRIO AJUSTADO: Vendas que foram ENTREGUES e depois CANCELADAS
+            # (baseado na análise: todos os cancelamentos têm "not_paid", então não podemos filtrar por "paid")
+            # O ML parece contar apenas cancelamentos que tiveram alguma ação antes (delivered)
+            
+            # Query otimizada para pedidos cancelados com agregação
+            cancelled_sql = text("""
+                SELECT 
+                    COUNT(*) as count,
+                    COALESCE(SUM(total_amount), 0) as total_value
+                FROM ml_orders
+                WHERE company_id = :company_id
+                  AND date_closed >= :date_from
+                  AND status = 'CANCELLED'
+                  AND tags::jsonb @> '["delivered"]'::jsonb
+                  AND NOT (tags::jsonb @> '["test_order"]'::jsonb)
+            """)
+            
+            cancelled_params = {
+                "company_id": company_id,
+                "date_from": date_from
+            }
+            
             if ml_account_id:
                 cancelled_sql = text("""
-                    SELECT *
+                    SELECT 
+                        COUNT(*) as count,
+                        COALESCE(SUM(total_amount), 0) as total_value
                     FROM ml_orders
                     WHERE company_id = :company_id
                       AND ml_account_id = :ml_account_id
@@ -129,46 +203,47 @@ class AnalyticsController:
                       AND status = 'CANCELLED'
                       AND tags::jsonb @> '["delivered"]'::jsonb
                       AND NOT (tags::jsonb @> '["test_order"]'::jsonb)
-                    ORDER BY date_closed DESC
                 """)
-                params["ml_account_id"] = ml_account_id
+                cancelled_params["ml_account_id"] = ml_account_id
             
-            cancelled_result = self.db.execute(cancelled_sql, params).fetchall()
-            cancelled_orders = [dict(row._mapping) for row in cancelled_result]
-            cancelled_count = len(cancelled_orders)
-            cancelled_value = sum(float(order.get('total_amount', 0) or 0) for order in cancelled_orders)
-            
-            # DEBUG: Mostrar detalhes dos pedidos cancelados
-            if cancelled_orders:
-                logger.info(f"🔍 DEBUG - Pedidos cancelados encontrados:")
-                for order in cancelled_orders:
-                    logger.info(f"   Order ID: {order.get('ml_order_id')}, Value: R$ {order.get('total_amount')}, Tags: {order.get('tags')}")
+            cancelled_result = self.db.execute(cancelled_sql, cancelled_params).fetchone()
+            cancelled_count = cancelled_result.count if cancelled_result else 0
+            cancelled_value = float(cancelled_result.total_value) if cancelled_result else 0.0
             
             logger.info(f"❌ VENDAS canceladas (confirmadas no período e depois canceladas): {cancelled_count} (R$ {cancelled_value:.2f})")
             
-            # Buscar VENDAS devolvidas  
-            # ML: "Vendas do período selecionado em que compradores solicitaram devolução"
-            # "do período selecionado" = vendas CONFIRMADAS no período (date_closed no período)
-            # "em que compradores solicitaram devolução" = status atual é REFUNDED
-            # Devoluções normalmente levam dias/semanas, então sem filtro de tempo mínimo
-            refunded_query = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id,
-                MLOrder.date_closed >= date_from,  # ✅ Vendas CONFIRMADAS no período
-                MLOrder.status == OrderStatus.REFUNDED
-            )
+            # Query otimizada para pedidos devolvidos com agregação
+            refunded_sql = text("""
+                SELECT 
+                    COUNT(*) as count,
+                    COALESCE(SUM(total_amount), 0) as total_value
+                FROM ml_orders
+                WHERE company_id = :company_id
+                  AND date_closed >= :date_from
+                  AND status = 'REFUNDED'
+            """)
+            
+            refunded_params = {
+                "company_id": company_id,
+                "date_from": date_from
+            }
             
             if ml_account_id:
-                refunded_query = refunded_query.filter(MLOrder.ml_account_id == ml_account_id)
+                refunded_sql = text("""
+                    SELECT 
+                        COUNT(*) as count,
+                        COALESCE(SUM(total_amount), 0) as total_value
+                    FROM ml_orders
+                    WHERE company_id = :company_id
+                      AND ml_account_id = :ml_account_id
+                      AND date_closed >= :date_from
+                      AND status = 'REFUNDED'
+                """)
+                refunded_params["ml_account_id"] = ml_account_id
             
-            refunded_orders = refunded_query.all()
-            refunded_count_db = len(refunded_orders)
-            refunded_value_db = sum(float(order.total_amount or 0) for order in refunded_orders)
-            
-            # DEBUG: Mostrar detalhes dos pedidos devolvidos
-            if refunded_orders:
-                logger.info(f"🔍 DEBUG - Pedidos devolvidos encontrados:")
-                for order in refunded_orders:
-                    logger.info(f"   Order ID: {order.ml_order_id}, Created: {order.date_created}, Closed: {order.date_closed}, Status: {order.status}, Value: R$ {order.total_amount}")
+            refunded_result = self.db.execute(refunded_sql, refunded_params).fetchone()
+            refunded_count_db = refunded_result.count if refunded_result else 0
+            refunded_value_db = float(refunded_result.total_value) if refunded_result else 0.0
             
             logger.info(f"💸 VENDAS devolvidas (confirmadas no período e depois devolvidas): {refunded_count_db} (R$ {refunded_value_db:.2f})")
             
@@ -178,26 +253,48 @@ class AnalyticsController:
             total_visits = 0
             
             try:
-                # Buscar todas as contas ML da empresa
-                accounts_query = self.db.query(MLAccount).filter(MLAccount.company_id == company_id)
-                if ml_account_id:
-                    accounts_query = accounts_query.filter(MLAccount.id == ml_account_id)
+                # Query otimizada para buscar contas ML
+                accounts_sql = text("""
+                    SELECT id, ml_user_id, nickname
+                    FROM ml_accounts
+                    WHERE company_id = :company_id
+                """)
                 
-                ml_accounts = accounts_query.all()
+                accounts_params = {"company_id": company_id}
+                
+                if ml_account_id:
+                    accounts_sql = text("""
+                        SELECT id, ml_user_id, nickname
+                        FROM ml_accounts
+                        WHERE company_id = :company_id AND id = :ml_account_id
+                    """)
+                    accounts_params["ml_account_id"] = ml_account_id
+                
+                accounts_result = self.db.execute(accounts_sql, accounts_params).fetchall()
+                ml_accounts = [dict(row._mapping) for row in accounts_result]
                 
                 # Importar TokenManager para renovação automática
                 from app.services.token_manager import TokenManager
                 from app.models.saas_models import User
                 
+                # Query otimizada para buscar usuário ativo da empresa
+                user_sql = text("""
+                    SELECT id, company_id, email, first_name, last_name
+                    FROM users
+                    WHERE company_id = :company_id AND is_active = true
+                    LIMIT 1
+                """)
+                
+                user_result = self.db.execute(user_sql, {"company_id": company_id}).fetchone()
+                
+                if not user_result:
+                    logger.warning(f"⚠️ Usuário não encontrado para company_id={company_id}")
+                    user = None
+                else:
+                    user = dict(user_result._mapping)
+                
                 for ml_account in ml_accounts:
-                    # Buscar usuário da empresa para usar TokenManager
-                    user = self.db.query(User).filter(
-                        User.company_id == company_id,
-                        User.is_active == True
-                    ).first()
-                    
                     if not user:
-                        logger.warning(f"⚠️ Usuário não encontrado para company_id={company_id}")
                         continue
                     
                     # Usar TokenManager para obter token válido (renova automaticamente se expirado)
@@ -243,37 +340,98 @@ class AnalyticsController:
             logger.info(f"   - Do DB (REFUNDED): {refunded_count_db} (R$ {refunded_value_db:.2f})")
             logger.info(f"   - Da API (Claims): {returns_count_api} (R$ {returns_value_api:.2f})")
             
-            # Processar pedidos e itens
-            total_revenue = 0  # Receita real dos pedidos
-            total_items_sold = 0  # Total de itens vendidos
-            total_orders = len(orders)  # Total de pedidos
+            # Query otimizada para agregações de pedidos
+            aggregation_sql = text("""
+                SELECT 
+                    COUNT(*) as total_orders,
+                    COALESCE(SUM(total_amount), 0) as total_revenue,
+                    COALESCE(SUM(sale_fees), 0) as ml_fees_total,
+                    COALESCE(SUM(shipping_cost), 0) as shipping_fees_total,
+                    COALESCE(SUM(advertising_cost), 0) as marketing_cost_total,
+                    COALESCE(SUM(coupon_amount), 0) as discounts_total
+                FROM ml_orders
+                WHERE company_id = :company_id
+                  AND date_closed >= :date_from
+                  AND date_closed IS NOT NULL
+            """)
             
-            ml_fees_total = 0  # Taxas ML reais
-            shipping_fees_total = 0  # Custos de frete reais
-            discounts_total = 0  # Descontos reais
-            marketing_cost_total = 0  # Custos de marketing (do banco)
+            agg_params = {
+                "company_id": company_id,
+                "date_from": date_from
+            }
             
-            products_sales = {}  # Vendas por produto
+            if 'date_to' in locals() and date_to:
+                aggregation_sql = text("""
+                    SELECT 
+                        COUNT(*) as total_orders,
+                        COALESCE(SUM(total_amount), 0) as total_revenue,
+                        COALESCE(SUM(sale_fees), 0) as ml_fees_total,
+                        COALESCE(SUM(shipping_cost), 0) as shipping_fees_total,
+                        COALESCE(SUM(advertising_cost), 0) as marketing_cost_total,
+                        COALESCE(SUM(coupon_amount), 0) as discounts_total
+                    FROM ml_orders
+                    WHERE company_id = :company_id
+                      AND date_closed >= :date_from
+                      AND date_closed <= :date_to
+                      AND date_closed IS NOT NULL
+                """)
+                agg_params["date_to"] = date_to
             
-            logger.info(f"🔄 Processando {total_orders} pedidos...")
+            if ml_account_id:
+                aggregation_sql = text("""
+                    SELECT 
+                        COUNT(*) as total_orders,
+                        COALESCE(SUM(total_amount), 0) as total_revenue,
+                        COALESCE(SUM(sale_fees), 0) as ml_fees_total,
+                        COALESCE(SUM(shipping_cost), 0) as shipping_fees_total,
+                        COALESCE(SUM(advertising_cost), 0) as marketing_cost_total,
+                        COALESCE(SUM(coupon_amount), 0) as discounts_total
+                    FROM ml_orders
+                    WHERE company_id = :company_id
+                      AND ml_account_id = :ml_account_id
+                      AND date_closed >= :date_from
+                      AND date_closed IS NOT NULL
+                """)
+                agg_params["ml_account_id"] = ml_account_id
+                
+                if 'date_to' in locals() and date_to:
+                    aggregation_sql = text("""
+                        SELECT 
+                            COUNT(*) as total_orders,
+                            COALESCE(SUM(total_amount), 0) as total_revenue,
+                            COALESCE(SUM(sale_fees), 0) as ml_fees_total,
+                            COALESCE(SUM(shipping_cost), 0) as shipping_fees_total,
+                            COALESCE(SUM(advertising_cost), 0) as marketing_cost_total,
+                            COALESCE(SUM(coupon_amount), 0) as discounts_total
+                        FROM ml_orders
+                        WHERE company_id = :company_id
+                          AND ml_account_id = :ml_account_id
+                          AND date_closed >= :date_from
+                          AND date_closed <= :date_to
+                          AND date_closed IS NOT NULL
+                    """)
+            
+            agg_result = self.db.execute(aggregation_sql, agg_params).fetchone()
+            
+            total_orders = agg_result.total_orders if agg_result else 0
+            total_revenue = float(agg_result.total_revenue) if agg_result else 0.0
+            ml_fees_total = float(agg_result.ml_fees_total) if agg_result else 0.0
+            shipping_fees_total = float(agg_result.shipping_fees_total) if agg_result else 0.0
+            marketing_cost_total = float(agg_result.marketing_cost_total) if agg_result else 0.0
+            discounts_total = float(agg_result.discounts_total) if agg_result else 0.0
+            
+            logger.info(f"📊 Agregações calculadas: {total_orders} pedidos, R$ {total_revenue:.2f} receita")
+            
+            # Processar itens dos pedidos para produtos (ainda precisa do loop para JSON)
+            total_items_sold = 0
+            products_sales = {}
+            
+            logger.info(f"🔄 Processando itens de {total_orders} pedidos...")
             
             for order in orders:
-                # Receita do pedido (já está em reais)
-                order_revenue = float(order.total_amount or 0)
-                total_revenue += order_revenue
-                
-                # Taxas reais do pedido (já estão em reais)
-                ml_fees_total += float(order.sale_fees or 0)
-                shipping_fees_total += float(order.shipping_cost or 0)
-                
-                # Custo de marketing salvo no banco (advertising_cost já em reais)
-                if order.advertising_cost:
-                    ads_cost = float(order.advertising_cost or 0)
-                    marketing_cost_total += ads_cost
-                
                 # Processar itens do pedido
-                if order.order_items:
-                    for item in order.order_items:
+                if order.get('order_items'):
+                    for item in order['order_items']:
                         item_id = item.get('item', {}).get('id')
                         quantity = item.get('quantity', 0)
                         unit_price = float(item.get('unit_price', 0))  # Já está em reais
@@ -292,43 +450,58 @@ class AnalyticsController:
                                 }
                             products_sales[item_id]['quantity_sold'] += quantity
                             products_sales[item_id]['revenue'] += unit_price * quantity
-                
-                # Processar descontos
-                if order.coupon_amount:
-                    discounts_total += float(order.coupon_amount or 0)
             
-            # Buscar produtos para enriquecer dados e aplicar filtro de busca
-            products_data = []
-            for ml_item_id, sales_data in products_sales.items():
-                product = self.db.query(MLProduct).filter(
-                    MLProduct.ml_item_id == ml_item_id,
-                    MLProduct.company_id == company_id
-                ).first()
+            # Query otimizada para buscar produtos
+            if products_sales:
+                ml_item_ids = list(products_sales.keys())
                 
-                if product:
-                    # Aplicar filtro de busca se fornecido
-                    if search:
-                        search_term = search.lower()
-                        title_match = search_term in product.title.lower()
-                        sku_match = product.seller_sku and search_term in product.seller_sku.lower()
-                        id_match = search_term in ml_item_id.lower()
-                        
-                        if not (title_match or sku_match or id_match):
-                            continue  # Pular este produto
+                # Criar placeholders para IN clause
+                placeholders = ','.join([f':item_{i}' for i in range(len(ml_item_ids))])
+                
+                products_sql = text(f"""
+                    SELECT id, ml_item_id, title, status, permalink, available_quantity, seller_sku
+                    FROM ml_products
+                    WHERE company_id = :company_id
+                      AND ml_item_id IN ({placeholders})
+                """)
+                
+                products_params = {"company_id": company_id}
+                for i, item_id in enumerate(ml_item_ids):
+                    products_params[f"item_{i}"] = item_id
+                
+                products_result = self.db.execute(products_sql, products_params).fetchall()
+                products_dict = {row.ml_item_id: dict(row._mapping) for row in products_result}
+                
+                # Enriquecer dados de vendas com informações dos produtos
+                products_data = []
+                for ml_item_id, sales_data in products_sales.items():
+                    product = products_dict.get(ml_item_id)
                     
-                    products_data.append({
-                        'id': product.id,
-                        'ml_item_id': ml_item_id,
-                        'title': product.title,
-                        'price': sales_data['unit_price'],
-                        'available_quantity': product.available_quantity or 0,
-                        'sold_quantity': sales_data['quantity_sold'],
-                        'status': product.status.value if product.status else 'unknown',
-                        'thumbnail': product.thumbnail,
-                        'revenue': sales_data['revenue'],
-                        'seller_sku': product.seller_sku,
-                        'category_name': product.category_name
-                    })
+                    if product:
+                        # Aplicar filtro de busca se fornecido
+                        if search:
+                            search_term = search.lower()
+                            title_match = search_term in product['title'].lower()
+                            sku_match = product['seller_sku'] and search_term in product['seller_sku'].lower()
+                            id_match = search_term in ml_item_id.lower()
+                            
+                            if not (title_match or sku_match or id_match):
+                                continue  # Pular este produto
+                        
+                        products_data.append({
+                            'id': product['id'],
+                            'ml_item_id': ml_item_id,
+                            'title': product['title'],
+                            'price': sales_data['unit_price'],
+                            'available_quantity': product['available_quantity'] or 0,
+                            'sold_quantity': sales_data['quantity_sold'],
+                            'status': product['status'],
+                            'revenue': sales_data['revenue'],
+                            'seller_sku': product['seller_sku'],
+                            'category_name': product.get('category_name', '')
+                        })
+            else:
+                products_data = []
             
             # Ticket médio (receita por pedido)
             avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
@@ -379,9 +552,12 @@ class AnalyticsController:
             
             # Primeiro, coletar dados dos pedidos
             for order in orders:
-                if order.date_closed:
+                if order.get('date_closed'):
                     # Agrupar por data (dia)
-                    date_key = order.date_closed.strftime('%d/%m')
+                    date_closed = order['date_closed']
+                    if isinstance(date_closed, str):
+                        date_closed = datetime.fromisoformat(date_closed.replace('Z', '+00:00'))
+                    date_key = date_closed.strftime('%d/%m')
                     
                     if date_key not in timeline_data:
                         timeline_data[date_key] = {
@@ -391,12 +567,12 @@ class AnalyticsController:
                             'units': 0
                         }
                     
-                    timeline_data[date_key]['revenue'] += float(order.total_amount or 0)
+                    timeline_data[date_key]['revenue'] += float(order.get('total_amount', 0) or 0)
                     timeline_data[date_key]['orders'] += 1
                     
                     # Contar unidades
-                    if order.order_items:
-                        for item in order.order_items:
+                    if order.get('order_items'):
+                        for item in order['order_items']:
                             timeline_data[date_key]['units'] += item.get('quantity', 0)
             
             # Criar timeline completa com todos os dias do período
