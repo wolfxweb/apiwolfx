@@ -4,6 +4,45 @@
 
 {% block content %}
 <style>
+/* Otimizações de performance */
+.dashboard-card {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+.chart-container {
+    contain: layout style paint;
+    will-change: contents;
+}
+
+/* Loading otimizado */
+.loading-skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Transições suaves */
+.kpi-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Otimização de fontes */
+body {
+    font-display: swap;
+}
+
 /* Tooltips alinhados à esquerda */
 .tooltip-inner {
     text-align: left !important;
@@ -37,11 +76,6 @@
                 <p class="text-muted mb-0">
                         Bem-vindo, {{ user.first_name }}! Acompanhe suas vendas do MercadoLibre em tempo real
                     </p>
-                </div>
-                <div>
-                    <button class="btn btn-sm btn-outline-primary" onclick="refreshDashboard()">
-                        <i class="bi bi-arrow-clockwise"></i> Atualizar
-                    </button>
                 </div>
             </div>
             </div>
@@ -475,11 +509,13 @@
 </div>
 
 <!-- Loading Overlay -->
-<div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
-    <div class="d-flex justify-content-center align-items-center h-100">
-        <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
+<div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999;">
+    <div class="d-flex flex-column justify-content-center align-items-center h-100">
+        <div class="spinner-border text-light mb-3" style="width: 4rem; height: 4rem;" role="status">
             <span class="visually-hidden">Carregando...</span>
         </div>
+        <h4 class="text-light">Carregando Dashboard...</h4>
+        <p class="text-light-50">Aguarde enquanto buscamos os dados mais recentes</p>
     </div>
 </div>
 {% endblock %}
@@ -496,6 +532,14 @@ let topUnitsChart = null;
 let costsChart = null;
 let costsBarChart = null;
 
+// Cache de dados para evitar requisições desnecessárias
+let dataCache = {};
+let lastRequestTime = 0;
+const CACHE_DURATION = 30000; // 30 segundos
+
+// Debounce para evitar múltiplas chamadas
+let loadDashboardTimeout = null;
+
 // Formatar moeda
 function formatBRL(value) {
     return new Intl.NumberFormat('pt-BR', {
@@ -507,6 +551,18 @@ function formatBRL(value) {
 // Formatar número
 function formatNumber(value) {
     return new Intl.NumberFormat('pt-BR').format(value || 0);
+}
+
+// Função de debounce para evitar múltiplas chamadas
+function debounce(func, wait) {
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(loadDashboardTimeout);
+            func(...args);
+        };
+        clearTimeout(loadDashboardTimeout);
+        loadDashboardTimeout = setTimeout(later, wait);
+    };
 }
 
 // Mostrar loading
@@ -538,12 +594,29 @@ function handlePeriodChange() {
     }
 }
 
-// Carregar dados do dashboard
+// Carregar dados do dashboard com cache e otimizações
 function loadDashboard() {
     const period = document.getElementById('period-selector').value;
     
     console.log('📊 Carregando dashboard para período:', period);
+    
+    // Verificar cache primeiro
+    const cacheKey = `${period}_${document.getElementById('date-from')?.value || ''}_${document.getElementById('date-to')?.value || ''}`;
+    const now = Date.now();
+    
+    if (dataCache[cacheKey] && (now - lastRequestTime) < CACHE_DURATION) {
+        console.log('🚀 Usando dados do cache');
+        // Mostrar skeleton rapidamente e depois os dados
+        showLoadingSkeleton();
+        setTimeout(() => {
+            updateDashboardUI(dataCache[cacheKey]);
+        }, 200);
+        return;
+    }
+    
+    // Mostrar loading completo para nova requisição
     showLoading();
+    showLoadingSkeleton();
     
     // Tratar períodos especiais - enviar como parâmetros especiais
     let url = `/api/analytics/sales-dashboard?period=${period}`;
@@ -567,8 +640,15 @@ function loadDashboard() {
         url += `&date_from=${dateFrom}&date_to=${dateTo}`;
     }
     
+    // Usar AbortController para cancelar requisições anteriores
+    if (window.currentRequest) {
+        window.currentRequest.abort();
+    }
+    window.currentRequest = new AbortController();
+    
     fetch(url, {
-        credentials: 'include'
+        credentials: 'include',
+        signal: window.currentRequest.signal
     })
     .then(response => {
         if (response.status === 401) {
@@ -579,81 +659,156 @@ function loadDashboard() {
         return response.json();
     })
     .then(data => {
-        hideLoading();
+        lastRequestTime = now;
         
         if (data.success) {
             console.log('✅ Dados carregados:', data);
             
-            // Atualizar KPIs
-            document.getElementById('kpi-revenue').textContent = formatBRL(data.kpis.total_revenue);
-            document.getElementById('kpi-orders').textContent = formatNumber(data.kpis.total_orders);
-            document.getElementById('kpi-units').textContent = formatNumber(data.kpis.total_sold);
-            document.getElementById('kpi-avg-ticket').textContent = formatBRL(data.kpis.avg_ticket);
-            document.getElementById('kpi-returns-value').textContent = formatBRL(data.kpis.returns_value || 0);
-            document.getElementById('kpi-returns-count').textContent = formatNumber(data.kpis.returns_count || 0);
-            document.getElementById('kpi-cancelled-value').textContent = formatBRL(data.kpis.cancelled_value || 0);
-            document.getElementById('kpi-cancelled-count').textContent = formatNumber(data.kpis.cancelled_orders || 0);
-            document.getElementById('kpi-visits').textContent = formatNumber(data.kpis.total_visits || 0);
-            document.getElementById('kpi-products').textContent = formatNumber(data.kpis.total_products || 0);
+            // Salvar no cache
+            dataCache[cacheKey] = data;
             
-            // Taxa de conversão
-            const conversionRate = data.kpis.total_visits > 0 
-                ? ((data.kpis.total_sold / data.kpis.total_visits) * 100).toFixed(2)
-                : 0;
-            document.getElementById('kpi-conversion').textContent = conversionRate + '%';
+            // Atualizar UI (que vai esconder o loading quando terminar)
+            updateDashboardUI(data);
             
-            // Atualizar cards de custos
-            if (data.costs) {
-                document.getElementById('kpi-ml-fees').textContent = formatBRL(data.costs.ml_fees || 0);
-                document.getElementById('kpi-ml-fees-percent').textContent = (data.costs.ml_fees_percent || 0).toFixed(1) + '%';
-                
-                document.getElementById('kpi-shipping').textContent = formatBRL(data.costs.shipping_fees || 0);
-                document.getElementById('kpi-shipping-percent').textContent = (data.costs.shipping_fees_percent || 0).toFixed(1) + '%';
-                
-                document.getElementById('kpi-marketing').textContent = formatBRL(data.costs.marketing_cost || 0);
-                document.getElementById('kpi-marketing-percent').textContent = (data.costs.marketing_percent || 0).toFixed(1) + '%';
-                
-                document.getElementById('kpi-product-cost').textContent = formatBRL(data.costs.product_cost || 0);
-                document.getElementById('kpi-product-cost-percent').textContent = (data.costs.product_cost_percent || 0).toFixed(1) + '%';
-                
-                document.getElementById('kpi-taxes').textContent = formatBRL(data.costs.taxes || 0);
-                document.getElementById('kpi-taxes-percent').textContent = (data.costs.taxes_percent || 0).toFixed(1) + '%';
-                
-                document.getElementById('kpi-other-costs').textContent = formatBRL(data.costs.other_costs || 0);
-                document.getElementById('kpi-other-costs-percent').textContent = (data.costs.other_costs_percent || 0).toFixed(1) + '%';
-            }
-            
-            // Atualizar resumo financeiro
-            if (data.profit) {
-                document.getElementById('kpi-gross-revenue').textContent = formatBRL(data.kpis.total_revenue || 0);
-                document.getElementById('kpi-total-costs').textContent = formatBRL(data.costs.total_costs || 0);
-                document.getElementById('kpi-total-costs-percent').textContent = (data.costs.total_costs_percent || 0).toFixed(1) + '%';
-                document.getElementById('kpi-net-profit').textContent = formatBRL(data.profit.net_profit || 0);
-                document.getElementById('kpi-net-margin').textContent = (data.profit.net_margin || 0).toFixed(1) + '%';
-            }
-            
-            // Renderizar gráficos
-            renderSalesChart(data.timeline || []);
-            renderStatusChart(data.kpis);
-            renderTopProductsCharts(data.products || []);
-            renderCostsCharts(data.costs);
         } else {
-            console.error('Erro:', data.error);
-            alert('Erro ao carregar dados: ' + (data.error || 'Erro desconhecido'));
+            hideLoading();
+            console.error('❌ Erro ao carregar dados:', data.error);
+            alert('Erro ao carregar dados: ' + data.error);
         }
     })
     .catch(error => {
         hideLoading();
+        if (error.name === 'AbortError') {
+            console.log('🔄 Requisição cancelada');
+            return;
+        }
+        console.error('❌ Erro na requisição:', error);
         if (error !== 'not_authenticated') {
-            console.error('Erro:', error);
-            alert('Erro ao carregar dashboard');
+            alert('Erro ao carregar dados do dashboard. Tente novamente.');
         }
     });
 }
 
+// Função para mostrar loading skeleton nos campos
+function showLoadingSkeleton() {
+    const skeletonText = '<span class="loading-skeleton" style="display: inline-block; width: 80px; height: 1.2em; border-radius: 4px;"></span>';
+    const skeletonTextLarge = '<span class="loading-skeleton" style="display: inline-block; width: 120px; height: 1.2em; border-radius: 4px;"></span>';
+    
+    // Aplicar skeleton nos principais campos KPI
+    const kpiFields = [
+        'kpi-revenue', 'kpi-orders', 'kpi-units', 'kpi-avg-ticket',
+        'kpi-returns-value', 'kpi-returns-count', 'kpi-cancelled-value', 
+        'kpi-cancelled-count', 'kpi-visits', 'kpi-products', 'kpi-conversion'
+    ];
+    
+    // Aplicar skeleton nos campos de custos
+    const costFields = [
+        'kpi-ml-fees', 'kpi-ml-fees-percent', 'kpi-shipping', 'kpi-shipping-percent',
+        'kpi-marketing', 'kpi-marketing-percent', 'kpi-product-cost', 'kpi-product-cost-percent',
+        'kpi-taxes', 'kpi-taxes-percent', 'kpi-other-costs', 'kpi-other-costs-percent'
+    ];
+    
+    // Aplicar skeleton nos campos de análise financeira
+    const financialFields = [
+        'kpi-gross-revenue', 'kpi-total-costs', 'kpi-total-costs-percent',
+        'kpi-net-profit', 'kpi-net-margin'
+    ];
+    
+    // Aplicar skeleton em todos os campos
+    [...kpiFields, ...costFields, ...financialFields].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            // Usar skeleton maior para valores monetários
+            const isMonetary = id.includes('revenue') || id.includes('costs') || id.includes('profit') || 
+                              id.includes('fees') || id.includes('shipping') || id.includes('marketing') ||
+                              id.includes('product-cost') || id.includes('taxes') || id.includes('other-costs');
+            element.innerHTML = isMonetary ? skeletonTextLarge : skeletonText;
+        }
+    });
+}
+
+// Função separada para atualizar a UI (reutilizável para cache)
+function updateDashboardUI(data) {
+    // Salvar dados globalmente para lazy loading
+    window.lastDashboardData = data;
+    
+    // Atualizar KPIs
+    document.getElementById('kpi-revenue').textContent = formatBRL(data.kpis.total_revenue);
+    document.getElementById('kpi-orders').textContent = formatNumber(data.kpis.total_orders);
+    document.getElementById('kpi-units').textContent = formatNumber(data.kpis.total_sold);
+    document.getElementById('kpi-avg-ticket').textContent = formatBRL(data.kpis.avg_ticket);
+    document.getElementById('kpi-returns-value').textContent = formatBRL(data.kpis.returns_value || 0);
+    document.getElementById('kpi-returns-count').textContent = formatNumber(data.kpis.returns_count || 0);
+    document.getElementById('kpi-cancelled-value').textContent = formatBRL(data.kpis.cancelled_value || 0);
+    document.getElementById('kpi-cancelled-count').textContent = formatNumber(data.kpis.cancelled_orders || 0);
+    document.getElementById('kpi-visits').textContent = formatNumber(data.kpis.total_visits || 0);
+    document.getElementById('kpi-products').textContent = formatNumber(data.kpis.total_products || 0);
+    
+    // Taxa de conversão
+    const conversionRate = data.kpis.total_visits > 0 
+        ? ((data.kpis.total_sold / data.kpis.total_visits) * 100).toFixed(2)
+        : 0;
+    document.getElementById('kpi-conversion').textContent = conversionRate + '%';
+    
+    // Atualizar cards de custos
+    if (data.costs) {
+        document.getElementById('kpi-ml-fees').textContent = formatBRL(data.costs.ml_fees || 0);
+        document.getElementById('kpi-ml-fees-percent').textContent = (data.costs.ml_fees_percent || 0).toFixed(1) + '%';
+        
+        document.getElementById('kpi-shipping').textContent = formatBRL(data.costs.shipping_fees || 0);
+        document.getElementById('kpi-shipping-percent').textContent = (data.costs.shipping_fees_percent || 0).toFixed(1) + '%';
+        
+        document.getElementById('kpi-marketing').textContent = formatBRL(data.costs.marketing_cost || 0);
+        document.getElementById('kpi-marketing-percent').textContent = (data.costs.marketing_percent || 0).toFixed(1) + '%';
+        
+        document.getElementById('kpi-product-cost').textContent = formatBRL(data.costs.product_cost || 0);
+        document.getElementById('kpi-product-cost-percent').textContent = (data.costs.product_cost_percent || 0).toFixed(1) + '%';
+        
+        document.getElementById('kpi-taxes').textContent = formatBRL(data.costs.taxes || 0);
+        document.getElementById('kpi-taxes-percent').textContent = (data.costs.taxes_percent || 0).toFixed(1) + '%';
+        
+        document.getElementById('kpi-other-costs').textContent = formatBRL(data.costs.other_costs || 0);
+        document.getElementById('kpi-other-costs-percent').textContent = (data.costs.other_costs_percent || 0).toFixed(1) + '%';
+    }
+    
+    // Atualizar resumo financeiro
+    if (data.profit) {
+        document.getElementById('kpi-gross-revenue').textContent = formatBRL(data.kpis.total_revenue || 0);
+        document.getElementById('kpi-total-costs').textContent = formatBRL(data.costs.total_costs || 0);
+        document.getElementById('kpi-total-costs-percent').textContent = (data.costs.total_costs_percent || 0).toFixed(1) + '%';
+        document.getElementById('kpi-net-profit').textContent = formatBRL(data.profit.net_profit || 0);
+        document.getElementById('kpi-net-margin').textContent = (data.profit.net_margin || 0).toFixed(1) + '%';
+    }
+    
+    // Renderizar gráficos (forçar renderização para carregamento inicial)
+    renderSalesChart(data.timeline || [], true);
+    renderStatusChart(data.kpis, true);
+    renderTopProductsCharts(data.products || [], true);
+    renderCostsCharts(data.costs, true);
+    
+    // Esconder loading após renderizar tudo
+    hideLoading();
+}
+
+// Lazy loading para gráficos - só renderiza quando visível
+function isElementInViewport(el) {
+    const rect = el.getBoundingClientRect();
+    return (
+        rect.top >= 0 &&
+        rect.left >= 0 &&
+        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
+}
+
 // Renderizar gráfico de vendas ao longo do tempo
-function renderSalesChart(timeline) {
+function renderSalesChart(timeline, forceRender = false) {
     const ctx = document.getElementById('salesChart');
+    
+    // Lazy loading - só renderiza se estiver visível (exceto quando forçado)
+    if (!forceRender && !isElementInViewport(ctx)) {
+        return;
+    }
     
     if (salesChart) {
         salesChart.destroy();
@@ -736,8 +891,13 @@ function renderSalesChart(timeline) {
 }
 
 // Renderizar gráfico de status
-function renderStatusChart(kpis) {
+function renderStatusChart(kpis, forceRender = false) {
     const ctx = document.getElementById('statusChart');
+    
+    // Lazy loading - só renderiza se estiver visível (exceto quando forçado)
+    if (!forceRender && !isElementInViewport(ctx)) {
+        return;
+    }
     
     if (statusChart) {
         statusChart.destroy();
@@ -780,7 +940,7 @@ function renderStatusChart(kpis) {
 }
 
 // Renderizar gráficos de top produtos
-function renderTopProductsCharts(products) {
+function renderTopProductsCharts(products, forceRender = false) {
     // Ordenar por receita
     const topByRevenue = [...products]
         .sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
@@ -863,7 +1023,7 @@ function renderTopProductsCharts(products) {
 }
 
 // Renderizar gráficos de custos
-function renderCostsCharts(costs) {
+function renderCostsCharts(costs, forceRender = false) {
     if (!costs) return;
     
     // Gráfico de pizza - Distribuição de Custos
@@ -991,14 +1151,63 @@ function renderCostsCharts(costs) {
     });
 }
 
-// Refresh dashboard
-function refreshDashboard() {
-    loadDashboard();
-}
+
+// Versão com debounce da função loadDashboard
+const debouncedLoadDashboard = debounce(loadDashboard, 300);
 
 // Inicializar ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Dashboard carregado');
+
+    // Otimizar event listeners com debounce
+    const periodSelector = document.getElementById('period-selector');
+    if (periodSelector) {
+        periodSelector.addEventListener('change', debouncedLoadDashboard);
+    }
+
+    const dateFrom = document.getElementById('date-from');
+    const dateTo = document.getElementById('date-to');
+    if (dateFrom) dateFrom.addEventListener('change', debouncedLoadDashboard);
+    if (dateTo) dateTo.addEventListener('change', debouncedLoadDashboard);
+
+    // Mostrar skeleton inicial
+    showLoadingSkeleton();
+    
+    // Carregar dados iniciais
+    loadDashboard();
+
+    // Observer para lazy loading de gráficos
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const chartId = entry.target.id;
+                // Re-renderizar gráfico quando ficar visível
+                if (window.lastDashboardData) {
+                    switch(chartId) {
+                        case 'salesChart':
+                            renderSalesChart(window.lastDashboardData.timeline || []);
+                            break;
+                        case 'statusChart':
+                            renderStatusChart(window.lastDashboardData.kpis);
+                            break;
+                        case 'topProductsChart':
+                        case 'topUnitsChart':
+                            renderTopProductsCharts(window.lastDashboardData.products || []);
+                            break;
+                        case 'costsChart':
+                        case 'costsBarChart':
+                            renderCostsCharts(window.lastDashboardData.costs);
+                            break;
+                    }
+                }
+            }
+        });
+    }, { threshold: 0.1 });
+
+    // Observar todos os canvas de gráficos
+    document.querySelectorAll('canvas').forEach(canvas => {
+        observer.observe(canvas);
+    });
 
 // Inicializar tooltips
 var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
