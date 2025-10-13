@@ -470,7 +470,7 @@ function loadProductAnalysis(productId) {
             console.log('📡 Resposta recebida:', response.status);
             return response.json();
         })
-        .then(data => {
+        .then(async data => {
             console.log('📊 Dados recebidos:', data);
             console.log('📊 Tipo dos dados:', typeof data);
             console.log('📊 Success:', data?.success);
@@ -481,16 +481,30 @@ function loadProductAnalysis(productId) {
             if (data && data.success) {
                 console.log('✅ Produto carregado com sucesso');
                 console.log('📦 Dados do produto:', data.product);
+                
+                // Renderizar informações básicas primeiro
                 renderProductInfo(data.product);
+                
+                // Carregar informações de catálogo (não bloqueia)
                 checkCatalogInfo(data.product);
-                loadMarketingAnalysis(data.product); // Card de Marketing com métricas de Product Ads
+                
+                // Carregar análises em paralelo (não bloqueiam a interface)
+                loadMarketingAnalysis(data.product);
                 loadPricingAnalysis(data.product);
-                loadSalesAnalysis(data.product);
+                
+                // Carregar análise de vendas de forma assíncrona (não bloqueia)
+                loadSalesAnalysis(data.product).catch(error => {
+                    console.error('❌ Erro ao carregar análise de vendas:', error);
+                });
+                
+                // Configurar tabs (não depende da análise de vendas)
                 setupSalesAnalysisTabs(data.product);
                 
-                // Mostrar conteúdo
+                // Mostrar conteúdo imediatamente
                 document.getElementById('loading-state').classList.add('d-none');
                 document.getElementById('analysis-content').classList.remove('d-none');
+                
+                console.log('🎉 Interface carregada, análises em background');
             } else {
                 console.log('❌ Erro ao carregar produto:', data?.error);
                 console.log('❌ Dados completos:', data);
@@ -903,6 +917,11 @@ function renderCatalogInfo(data) {
     
     // Armazenar dados originais para filtros
     window.catalogData = data;
+    
+    // Configurar monitoramento imediatamente após renderizar
+    if (data.catalog_product_id) {
+        setupCatalogMonitoring(data.catalog_product_id);
+    }
     
     console.log('✅ Informações de catálogo renderizadas com sucesso');
 }
@@ -3930,42 +3949,28 @@ async function deleteHistory() {
     }
 }
 
-// Adicionar ao loadCatalogInfo para verificar monitoramento
-const originalLoadCatalogInfo = loadCatalogInfo;
-loadCatalogInfo = function(productId) {
-    originalLoadCatalogInfo(productId);
+// Função para configurar monitoramento após renderizar catálogo
+function setupCatalogMonitoring(catalogProductId) {
+    console.log('🔧 Configurando monitoramento para catálogo:', catalogProductId);
     
-    // Após carregar dados do catálogo, verificar se é um produto de catálogo
-    setTimeout(() => {
-        // Buscar catalog_product_id dos dados carregados
-        fetch(`/ml/products/api/product/${productId}/catalog/database`, {
-            credentials: 'include'
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success && data.is_catalog) {
-                // Mostrar tabs e switch para qualquer produto de catálogo
-                document.getElementById('catalog-tabs').style.display = 'flex';
-                
-                // Mostrar switch de monitoramento
-                const toggleDiv = document.getElementById('monitoring-toggle');
-                toggleDiv.style.display = 'flex';
-                
-                // Se tem catalog_product_id, verificar status do monitoramento
-                if (data.catalog_product_id) {
-                    checkMonitoringStatus(data.catalog_product_id);
-                } else {
-                    // Se não tem catalog_product_id, mostrar como inativo
-                    const switchInput = document.getElementById('monitoring-switch');
-                    const statusBadge = document.getElementById('monitoring-status');
-                    switchInput.checked = false;
-                    statusBadge.innerHTML = '<span class="badge bg-secondary">Inativo</span>';
-                }
-            }
-        })
-        .catch(err => console.error('Erro ao buscar catalog_product_id:', err));
-    }, 1000);
-};
+    // Mostrar tabs e switch para qualquer produto de catálogo
+    const catalogTabs = document.getElementById('catalog-tabs');
+    const toggleDiv = document.getElementById('monitoring-toggle');
+    
+    if (catalogTabs) catalogTabs.style.display = 'flex';
+    if (toggleDiv) toggleDiv.style.display = 'flex';
+    
+    // Se tem catalog_product_id, verificar status do monitoramento
+    if (catalogProductId) {
+        checkMonitoringStatus(catalogProductId);
+    } else {
+        // Se não tem catalog_product_id, mostrar como inativo
+        const switchInput = document.getElementById('monitoring-switch');
+        const statusBadge = document.getElementById('monitoring-status');
+        if (switchInput) switchInput.checked = false;
+        if (statusBadge) statusBadge.innerHTML = '<span class="badge bg-secondary">Inativo</span>';
+    }
+}
 
 function showToast(message, type = 'info') {
     // Função simples para mostrar mensagens
