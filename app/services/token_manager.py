@@ -194,3 +194,102 @@ class TokenManager:
         except Exception as e:
             logger.error(f"Erro ao testar token: {e}")
             return False
+    
+    def test_token_permissions(self, token: str, user_id: str) -> Dict[str, bool]:
+        """Testa se o token tem permissões específicas necessárias"""
+        permissions = {
+            'users_me': False,
+            'visits': False,
+            'claims': False,
+            'orders': False
+        }
+        
+        try:
+            headers = {
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Testar /users/me
+            response = requests.get('https://api.mercadolibre.com/users/me', headers=headers, timeout=10)
+            permissions['users_me'] = response.status_code == 200
+            
+            # Testar permissão de visitas
+            try:
+                visits_url = f'https://api.mercadolibre.com/users/{user_id}/items_visits/time_window'
+                visits_response = requests.get(visits_url, headers=headers, params={'last': 1, 'unit': 'day'}, timeout=10)
+                permissions['visits'] = visits_response.status_code == 200
+                if visits_response.status_code != 200:
+                    logger.warning(f"Token sem permissão de visitas: {visits_response.status_code}")
+            except Exception as e:
+                logger.warning(f"Erro ao testar permissão de visitas: {e}")
+            
+            # Testar permissão de claims
+            try:
+                claims_url = f'https://api.mercadolibre.com/users/{user_id}/claims/search'
+                claims_response = requests.get(claims_url, headers=headers, params={'limit': 1}, timeout=10)
+                permissions['claims'] = claims_response.status_code == 200
+                if claims_response.status_code != 200:
+                    logger.warning(f"Token sem permissão de claims: {claims_response.status_code}")
+            except Exception as e:
+                logger.warning(f"Erro ao testar permissão de claims: {e}")
+            
+            # Testar permissão de orders
+            try:
+                orders_url = f'https://api.mercadolibre.com/orders/search'
+                orders_response = requests.get(orders_url, headers=headers, params={'seller': user_id, 'limit': 1}, timeout=10)
+                permissions['orders'] = orders_response.status_code == 200
+                if orders_response.status_code != 200:
+                    logger.warning(f"Token sem permissão de orders: {orders_response.status_code}")
+            except Exception as e:
+                logger.warning(f"Erro ao testar permissão de orders: {e}")
+            
+            logger.info(f"Permissões do token: {permissions}")
+            return permissions
+            
+        except Exception as e:
+            logger.error(f"Erro ao testar permissões do token: {e}")
+            return permissions
+    
+    def _refresh_token_with_scope(self, user_id: int, scope: str = 'read') -> Optional[str]:
+        """Renova token com escopo específico"""
+        try:
+            logger.info(f"🔄 Renovando token com escopo '{scope}' para user_id: {user_id}")
+            
+            # Buscar refresh_token do usuário
+            refresh_token = self._get_refresh_token(user_id)
+            if not refresh_token:
+                logger.error(f"Refresh token não encontrado para user_id: {user_id}")
+                return None
+            
+            # Dados para renovação
+            data = {
+                'grant_type': 'refresh_token',
+                'client_id': self.client_id,
+                'client_secret': self.client_secret,
+                'refresh_token': refresh_token,
+                'scope': scope  # Adicionar escopo específico
+            }
+            
+            response = requests.post(self.token_url, data=data, timeout=30)
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                new_access_token = token_data.get('access_token')
+                new_refresh_token = token_data.get('refresh_token')
+                
+                if new_access_token:
+                    # Salvar novo token
+                    self._save_new_token(user_id, new_access_token, new_refresh_token)
+                    logger.info(f"✅ Token renovado com escopo '{scope}' para user_id: {user_id}")
+                    return new_access_token
+                else:
+                    logger.error(f"Token de acesso não encontrado na resposta para user_id: {user_id}")
+                    return None
+            else:
+                logger.error(f"Erro ao renovar token: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erro ao renovar token com escopo: {e}")
+            return None

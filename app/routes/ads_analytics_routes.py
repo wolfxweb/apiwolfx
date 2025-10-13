@@ -245,3 +245,4 @@ async def get_product_performance(
             "success": False,
             "error": f"Erro interno: {str(e)}"
         }, status_code=500)
+

@@ -299,10 +299,12 @@ class AnalyticsController:
                     
                     # Usar TokenManager para obter token válido (renova automaticamente se expirado)
                     token_manager = TokenManager(self.db)
-                    valid_token = token_manager.get_valid_token(user.id)
+                    valid_token = token_manager.get_valid_token(user['id'])
+                    
+                    logger.info(f"🔍 DEBUG - Token obtido: {valid_token[:20] if valid_token else 'None'}...")
                     
                     if not valid_token:
-                        logger.warning(f"⚠️ Token inválido/expirado para conta {ml_account.nickname}")
+                        logger.warning(f"⚠️ Token inválido/expirado para conta {ml_account['nickname']}")
                         continue
                     
                     # Buscar devoluções via API (Claims) com token válido
@@ -311,20 +313,26 @@ class AnalyticsController:
                         valid_token,  # ✅ Token renovado automaticamente
                         date_from, 
                         datetime.utcnow(),
-                        ml_account.ml_user_id
+                        ml_account['ml_user_id']
                     )
                     returns_count_api += returns_data.get('returns_count', 0)
                     returns_value_api += returns_data.get('returns_value', 0)
                     
                     # Buscar visitas com token válido
                     visits_service = MLVisitsService()
+                    
+                    logger.info(f"🔍 DEBUG - ml_user_id: {ml_account['ml_user_id']}, token: {valid_token[:20]}...")
+                    
+                    # Buscar visitas diretamente (removendo verificação de permissões por enquanto)
                     visits_data = visits_service.get_user_visits(
-                        ml_account.ml_user_id, 
-                        valid_token,  # ✅ Token renovado automaticamente
+                        ml_account['ml_user_id'], 
+                        valid_token,
                         date_from, 
                         datetime.utcnow()
                     )
-                    total_visits += visits_data.get('total_visits', 0)
+                    account_visits = visits_data.get('total_visits', 0)
+                    total_visits += account_visits
+                    logger.info(f"👁️  Visitas da conta {ml_account['nickname']}: {account_visits}")
                     
             except Exception as e:
                 logger.warning(f"⚠️  Erro ao buscar dados adicionais (não crítico): {e}")
@@ -628,6 +636,9 @@ class AnalyticsController:
                 MLProduct.company_id == company_id,
                 MLProduct.status.in_([MLProductStatus.ACTIVE, MLProductStatus.PAUSED])
             ).count()
+            
+            # Log para debug
+            logger.info(f"🔍 DEBUG - Total de visitas encontradas: {total_visits}")
             
             return {
                 'success': True,
