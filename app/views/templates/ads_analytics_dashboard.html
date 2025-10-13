@@ -636,7 +636,13 @@ function showLoadingSkeleton() {
     const valueFields = [
         'kpi-revenue', 'kpi-quantity', 
         'kpi-orders', 'kpi-avg-ticket', 'kpi-visits', 'kpi-conversion',
-        'kpi-cancelled-value', 'kpi-cancelled-count', 'kpi-returns-value', 'kpi-returns-count'
+        'kpi-cancelled-value', 'kpi-cancelled-count', 'kpi-returns-value', 'kpi-returns-count',
+        // Campos de Custos e Margens
+        'ml-fees-value', 'ml-fees-percent', 'shipping-fees-value', 'shipping-fees-percent',
+        'discounts-value', 'discounts-percent', 'product-cost-value', 'product-cost-percent',
+        'taxes-value', 'taxes-percent', 'other-costs-value', 'other-costs-detail',
+        'marketing-value', 'marketing-percent', 'gross-revenue', 'total-costs-value',
+        'total-costs-percent', 'net-profit-value', 'net-profit-margin', 'avg-profit-value', 'avg-profit-detail'
     ];
     
     // Aplicar skeleton apenas nos campos de valores
@@ -645,7 +651,9 @@ function showLoadingSkeleton() {
         if (element) {
             // Usar skeleton maior para valores monetários
             const isMonetary = id.includes('revenue') || id.includes('ticket') || 
-                              id.includes('cancelled-value') || id.includes('returns-value');
+                              id.includes('cancelled-value') || id.includes('returns-value') ||
+                              id.includes('-value') || id.includes('gross-revenue') ||
+                              id.includes('net-profit-value') || id.includes('avg-profit-value');
             element.innerHTML = isMonetary ? skeletonTextLarge : skeletonText;
         }
     });
