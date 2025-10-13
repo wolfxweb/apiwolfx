@@ -8,6 +8,10 @@ from app.routes.category_routes import category_router
 from app.routes.sku_management_routes import sku_management_router
 from app.controllers.auth_controller import get_current_user
 from app.views.template_renderer import render_template
+from app.services.auto_sync_service import AutoSyncService
+from app.services.catalog_monitoring_service import CatalogMonitoringService
+from app.config.database import get_db
+from sqlalchemy.orm import Session
 
 # Router principal que agrupa todas as rotas
 main_router = APIRouter()
@@ -45,4 +49,47 @@ async def internal_products_page(request: Request, session_token: str = Cookie(N
     except Exception:
         # Se token expirado ou inválido, redirecionar para login
         return RedirectResponse(url="/auth/login", status_code=302)
+
+# Endpoint temporário para testar sincronização
+@main_router.get("/api/test/sync")
+async def test_sync(db: Session = Depends(get_db)):
+    """Endpoint temporário para testar sincronização manual"""
+    try:
+        auto_sync = AutoSyncService()
+        
+        # Testar sincronização recente
+        result_recent = auto_sync.sync_recent_orders()
+        
+        return {
+            "success": True,
+            "message": "Teste de sincronização executado",
+            "recent_sync": result_recent,
+            "timestamp": "2025-01-13T12:57:00"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": "2025-01-13T12:57:00"
+        }
+
+@main_router.get("/api/test/catalog-monitoring")
+async def test_catalog_monitoring(db: Session = Depends(get_db)):
+    """Endpoint temporário para testar monitoramento de catálogo"""
+    try:
+        catalog_service = CatalogMonitoringService(db)
+        result = catalog_service.collect_catalog_data_for_all_active()
+        
+        return {
+            "success": True,
+            "message": "Teste de monitoramento de catálogo executado",
+            "result": result,
+            "timestamp": "2025-01-13T12:57:00"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": "2025-01-13T12:57:00"
+        }
 

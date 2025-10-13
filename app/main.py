@@ -28,7 +28,7 @@ import atexit
 
 # Inicializar FastAPI
 app = FastAPI(
-    title="GVMIA - Gestor Vendas Marketplace Inteligente Analytics",
+    title="GIVM - Gestão Inteligente de Vendas para Marketplace",
     description="Plataforma de gestão inteligente para marketplaces com Inteligência Artificial",
     version="2.0.0",
     docs_url="/docs"
@@ -53,13 +53,16 @@ auto_sync_service = AutoSyncService()
 def run_recent_sync():
     """JOB 1: Sincroniza pedidos RECENTES (últimas horas) - A cada 15 minutos"""
     try:
+        print("📦 [AUTO-SYNC 15min] Iniciando...")
         result = auto_sync_service.sync_recent_orders()
         if result.get("success"):
-            print(f"🔄 Auto-sync 15min: {result.get('message', 'Concluído')}")
+            print(f"✅ Auto-sync 15min: {result.get('message', 'Concluído')}")
         else:
             print(f"❌ Auto-sync 15min falhou: {result.get('error', 'Erro desconhecido')}")
     except Exception as e:
         print(f"❌ Erro na auto-sync 15min: {e}")
+        import traceback
+        traceback.print_exc()
 
 def run_daily_full_sync():
     """JOB 2: Sincroniza TODOS pedidos dos últimos 7 dias - À meia-noite"""
@@ -72,28 +75,29 @@ def run_daily_full_sync():
     except Exception as e:
         print(f"❌ Erro na auto-sync meia-noite: {e}")
 
-# JOB 1: Sincronização rápida a cada 15 minutos (pedidos recentes)
+# JOB 1: Sincronização rápida a cada 30 minutos (pedidos novos)
 scheduler.add_job(
     func=run_recent_sync,
-    trigger=IntervalTrigger(minutes=15),
+    trigger=IntervalTrigger(minutes=30),
     id='auto_sync_recent_orders',
-    name='Sincronização automática - Pedidos recentes (15min)',
+    name='Sincronização automática - Pedidos novos (30min)',
     replace_existing=True
 )
 
-# JOB 2: Sincronização completa à meia-noite (últimos 7 dias)
-scheduler.add_job(
-    func=run_daily_full_sync,
-    trigger=CronTrigger(hour=0, minute=0),  # Todos os dias à meia-noite
-    id='auto_sync_7days_orders',
-    name='Sincronização automática - Últimos 7 dias (meia-noite)',
-    replace_existing=True
-)
+# JOB 2: Sincronização completa à meia-noite (últimos 7 dias) - INATIVO
+# scheduler.add_job(
+#     func=run_daily_full_sync,
+#     trigger=CronTrigger(hour=0, minute=0),  # Todos os dias à meia-noite
+#     id='auto_sync_7days_orders',
+#     name='Sincronização automática - Últimos 7 dias (meia-noite)',
+#     replace_existing=True
+# )
 
 # Função para monitoramento de catálogo
 def run_catalog_monitoring():
     """Executa monitoramento de catálogos ativos"""
     try:
+        print("📊 [CATALOG MONITORING] Iniciando...")
         db = SessionLocal()
         try:
             catalog_service = CatalogMonitoringService(db)
@@ -103,6 +107,8 @@ def run_catalog_monitoring():
             db.close()
     except Exception as e:
         print(f"❌ Erro no monitoramento de catálogo: {e}")
+        import traceback
+        traceback.print_exc()
 
 # JOB 3: Monitoramento de catálogo a cada 12 horas
 scheduler.add_job(
@@ -118,21 +124,31 @@ scheduler.add_job(
 async def startup_event():
     """Evento de inicialização da aplicação"""
     try:
+        print("🚀 [STARTUP] Iniciando aplicação...")
+        
         # Criar tabelas se não existirem
         Base.metadata.create_all(bind=engine)
         print("✅ Banco de dados inicializado")
         
         # Iniciar scheduler
+        print(f"🔧 [STARTUP] Scheduler rodando antes: {scheduler.running}")
         if not scheduler.running:
+            print("🔧 [STARTUP] Iniciando scheduler...")
             scheduler.start()
-            print("   📦 JOB 1: Pedidos recentes - A cada 15 minutos")
-            print("   🌙 JOB 2: Últimos 7 dias completos - À meia-noite (00:00)")
+            print(f"🔧 [STARTUP] Scheduler rodando depois: {scheduler.running}")
+            print(f"🔧 [STARTUP] Jobs ativos: {len(scheduler.get_jobs())}")
+            print("   📦 JOB 1: Pedidos novos - A cada 30 minutos")
+            print("   🌙 JOB 2: Últimos 7 dias completos - INATIVO")
             print("   📊 JOB 3: Monitoramento de Catálogo - A cada 12 horas")
         else:
             print("🔄 Scheduler já está rodando")
         
+        print("✅ [STARTUP] Aplicação inicializada com sucesso!")
+        
     except Exception as e:
         print(f"❌ Erro ao inicializar: {e}")
+        import traceback
+        traceback.print_exc()
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -165,7 +181,7 @@ app.include_router(catalog_monitoring_router)  # Para /api/catalog-monitoring
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")
 async def root():
-    """Página inicial - Landing page do GVMIA"""
+    """Página inicial - Landing page do GIVM"""
     from app.views.template_renderer import render_template
     return render_template("home.html")
 

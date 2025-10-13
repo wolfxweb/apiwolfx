@@ -458,13 +458,13 @@ class ApiLog(Base):
 
 class OrderStatus(enum.Enum):
     """Status do pedido"""
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    PAID = "paid"
-    SHIPPED = "shipped"
-    DELIVERED = "delivered"
-    CANCELLED = "cancelled"
-    REFUNDED = "refunded"
+    PENDING = "PENDING"
+    CONFIRMED = "CONFIRMED"
+    PAID = "PAID"
+    SHIPPED = "SHIPPED"
+    DELIVERED = "DELIVERED"
+    CANCELLED = "CANCELLED"
+    REFUNDED = "REFUNDED"
 
 class MLOrder(Base):
     """Modelo de Pedidos do Mercado Libre - Completo"""

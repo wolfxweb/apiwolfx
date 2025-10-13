@@ -7,8 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from app.config.database import SessionLocal
 from app.services.ml_orders_service import MLOrdersService
-from app.models.saas_models import MLAccount, MLAccountStatus, Company, User
-from app.services.token_manager import TokenManager
+from app.models.saas_models import MLAccount, MLAccountStatus, Company
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,8 @@ class AutoSyncService:
             logger.info("🔄 [AUTO-SYNC 15min] Iniciando sincronização de pedidos recentes...")
             
             # Buscar todas as empresas ativas
-            companies = db.query(Company).filter(Company.is_active == True).all()
+            from app.models.saas_models import CompanyStatus
+            companies = db.query(Company).filter(Company.status == CompanyStatus.ACTIVE).all()
             
             if not companies:
                 logger.info("Nenhuma empresa ativa para sincronizar")
@@ -63,19 +63,9 @@ class AutoSyncService:
                     # Sincronizar pedidos de cada conta (apenas do dia)
                     for account in accounts:
                         try:
-                            # Buscar primeiro usuário da empresa para validação de token
-                            user = db.query(User).filter(
-                                User.company_id == company.id,
-                                User.is_active == True
-                            ).first()
-                            
-                            if not user:
-                                logger.warning(f"⚠️ Nenhum usuário ativo para empresa {company.name}")
-                                continue
-                            
-                            # Verificar/renovar token
-                            token_manager = TokenManager(db)
-                            valid_token = token_manager.get_valid_token(user.id)
+                            # Buscar token diretamente da conta ML (sem depender de usuário logado)
+                            orders_service = MLOrdersService(db)
+                            valid_token = orders_service._get_active_token(account.id)
                             
                             if not valid_token:
                                 logger.warning(f"⚠️ Token inválido para {account.nickname}")
@@ -90,10 +80,13 @@ class AutoSyncService:
                             )
                             
                             if result.get("success"):
-                                processed = result.get("orders_processed", 0)
-                                total_processed += processed
-                                if processed > 0:
-                                    logger.info(f"   ✅ {company.name}/{account.nickname}: {processed} pedidos")
+                                new_orders = result.get("new_orders", 0)
+                                total_processed += new_orders
+                                existing_orders = result.get("existing_orders", 0)
+                                if new_orders > 0:
+                                    logger.info(f"   ✅ {company.name}/{account.nickname}: {new_orders} novos pedidos, {existing_orders} já existiam")
+                                elif existing_orders > 0:
+                                    logger.info(f"   ℹ️ {company.name}/{account.nickname}: {existing_orders} pedidos já existiam (nenhum novo)")
                             
                         except Exception as e:
                             logger.error(f"   ❌ Erro conta {account.nickname}: {e}")
@@ -103,11 +96,11 @@ class AutoSyncService:
                     logger.error(f"❌ Erro empresa {company.name}: {e}")
                     continue
             
-            logger.info(f"✅ [AUTO-SYNC 15min] Concluído: {total_processed} pedidos em {total_accounts} contas")
+            logger.info(f"✅ [AUTO-SYNC 15min] Concluído: {total_processed} novos pedidos em {total_accounts} contas")
             
             return {
                 "success": True,
-                "message": f"{total_processed} pedidos processados",
+                "message": f"{total_processed} novos pedidos sincronizados",
                 "total_processed": total_processed,
                 "companies": total_companies,
                 "accounts": total_accounts
@@ -133,7 +126,8 @@ class AutoSyncService:
             logger.info("🌙 [AUTO-SYNC MEIA-NOITE] Iniciando sincronização dos últimos 7 dias...")
             
             # Buscar todas as empresas ativas
-            companies = db.query(Company).filter(Company.is_active == True).all()
+            from app.models.saas_models import CompanyStatus
+            companies = db.query(Company).filter(Company.status == CompanyStatus.ACTIVE).all()
             
             if not companies:
                 logger.info("Nenhuma empresa ativa para sincronizar")
@@ -161,19 +155,9 @@ class AutoSyncService:
                     # Sincronizar pedidos dos últimos 7 dias de cada conta
                     for account in accounts:
                         try:
-                            # Buscar primeiro usuário da empresa para validação de token
-                            user = db.query(User).filter(
-                                User.company_id == company.id,
-                                User.is_active == True
-                            ).first()
-                            
-                            if not user:
-                                logger.warning(f"⚠️ Nenhum usuário ativo para empresa {company.name}")
-                                continue
-                            
-                            # Verificar/renovar token
-                            token_manager = TokenManager(db)
-                            valid_token = token_manager.get_valid_token(user.id)
+                            # Buscar token diretamente da conta ML (sem depender de usuário logado)
+                            orders_service = MLOrdersService(db)
+                            valid_token = orders_service._get_active_token(account.id)
                             
                             if not valid_token:
                                 logger.warning(f"⚠️ Token inválido para {account.nickname}")

@@ -153,9 +153,9 @@ class MLOrdersService:
             }
     
     def sync_today_orders(self, ml_account_id: int, company_id: int, limit: int = 50) -> Dict:
-        """Sincroniza apenas pedidos do dia atual"""
+        """Sincroniza apenas pedidos NOVOS que não estão no sistema"""
         try:
-            logger.info(f"Sincronizando pedidos do dia para ml_account_id: {ml_account_id}")
+            logger.info(f"Sincronizando pedidos novos para ml_account_id: {ml_account_id}")
             
             # Verificar se a conta pertence à empresa
             account = self.db.query(MLAccount).filter(
@@ -178,9 +178,9 @@ class MLOrdersService:
                     "error": "Token não encontrado ou expirado"
                 }
             
-            # Buscar apenas pedidos do dia atual (days_back=1)
-            logger.info("Sincronização do dia - buscando pedidos de hoje")
-            orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=1)
+            # Buscar pedidos recentes da API (últimas 2 horas para capturar pedidos novos)
+            logger.info("Sincronização de pedidos novos - buscando pedidos recentes")
+            orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=0.1)  # ~2.4 horas
             
             if not orders_data:
                 return {
@@ -191,23 +191,33 @@ class MLOrdersService:
                     "total_processed": 0
                 }
             
-            # Salvar orders no banco
-            saved_count = 0
-            updated_count = 0
+            # Processar orders - salvar apenas os novos
+            new_orders_count = 0
+            existing_orders_count = 0
             
             for order_data in orders_data:
                 try:
-                    # Usar o método existente de salvar order
+                    ml_order_id = order_data.get("id")
+                    
+                    # Verificar se o pedido já existe no sistema
+                    existing_order = self.db.query(MLOrder).filter(
+                        MLOrder.ml_order_id == ml_order_id
+                    ).first()
+                    
+                    if existing_order:
+                        # Pedido já existe, pular
+                        existing_orders_count += 1
+                        logger.debug(f"Pedido {ml_order_id} já existe no sistema, pulando...")
+                        continue
+                    
+                    # Pedido é novo, salvar
                     result = self._save_order_to_database(order_data, ml_account_id, company_id)
-                    if isinstance(result, dict) and result.get("created"):
-                        saved_count += 1
-                    elif isinstance(result, dict) and not result.get("created"):
-                        updated_count += 1
-                    else:
-                        # Se result não é um dict, assumir que foi criado
-                        saved_count += 1
+                    if result:
+                        new_orders_count += 1
+                        logger.info(f"✅ Novo pedido {ml_order_id} salvo com sucesso")
+                    
                 except Exception as e:
-                    logger.error(f"Erro ao salvar order {order_data.get('id', 'unknown')}: {e}")
+                    logger.error(f"❌ Erro ao processar pedido {order_data.get('id', 'unknown')}: {e}")
                     continue
             
             self.db.commit()
@@ -228,10 +238,10 @@ class MLOrdersService:
             
             return {
                 "success": True,
-                "message": f"Sincronização do dia concluída: {saved_count} orders criadas, {updated_count} orders atualizadas",
-                "saved_count": saved_count,
-                "updated_count": updated_count,
-                "total_processed": len(orders_data),
+                "message": f"Sincronização de pedidos novos: {new_orders_count} novos pedidos, {existing_orders_count} já existiam",
+                "new_orders": new_orders_count,
+                "existing_orders": existing_orders_count,
+                "total_processed": new_orders_count,
                 "advertising_sync": advertising_result
             }
             
@@ -989,21 +999,21 @@ class MLOrdersService:
     def _convert_api_order_to_model(self, order_data: Dict, ml_account_id: int, company_id: int) -> Dict:
         """Converte dados da API para formato do modelo - Versão Completa"""
         try:
-            # Converter status
+            # Converter status - usar valores diretos do enum
             status_mapping = {
-                "confirmed": OrderStatus.CONFIRMED,
-                "payment_required": OrderStatus.PENDING,
-                "payment_in_process": OrderStatus.PENDING,
-                "paid": OrderStatus.PAID,
-                "ready_to_ship": OrderStatus.PAID,
-                "shipped": OrderStatus.SHIPPED,
-                "delivered": OrderStatus.DELIVERED,
-                "cancelled": OrderStatus.CANCELLED,
-                "refunded": OrderStatus.REFUNDED
+                "confirmed": "CONFIRMED",
+                "payment_required": "PENDING", 
+                "payment_in_process": "PENDING",
+                "paid": "PAID",
+                "ready_to_ship": "PAID",
+                "shipped": "SHIPPED",
+                "delivered": "DELIVERED",
+                "cancelled": "CANCELLED",
+                "refunded": "REFUNDED"
             }
             
             status = order_data.get("status", "pending")
-            order_status = status_mapping.get(status, OrderStatus.PENDING)
+            order_status = status_mapping.get(status, "PENDING")
             
             # Converter datas
             date_created = None
@@ -1244,14 +1254,22 @@ class MLOrdersService:
                     Token.is_active == True
                 ).update({"is_active": False})
                 
-                # Buscar user_id da empresa da conta ML
+                # Buscar user_id da empresa da conta ML (para compatibilidade)
                 from app.models.saas_models import MLAccount, User
                 account = self.db.query(MLAccount).filter(MLAccount.id == ml_account_id).first()
                 user_id = None
                 if account:
-                    # Buscar qualquer usuário da empresa
+                    # Buscar qualquer usuário da empresa (pode ser inativo, não importa)
                     user = self.db.query(User).filter(User.company_id == account.company_id).first()
                     user_id = user.id if user else None
+                    
+                # Se não encontrar usuário, usar o user_id do token anterior
+                if not user_id:
+                    old_token = self.db.query(Token).filter(
+                        Token.ml_account_id == ml_account_id,
+                        Token.is_active == False
+                    ).order_by(Token.created_at.desc()).first()
+                    user_id = old_token.user_id if old_token else None
                 
                 # Criar novo token
                 new_token = Token(

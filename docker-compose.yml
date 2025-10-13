@@ -15,7 +15,6 @@ services:
     # depends_on:
       # - db
     volumes:
-      - ./app:/app/app
       - ./public:/app/public
     networks:
       - apiwolfx-network

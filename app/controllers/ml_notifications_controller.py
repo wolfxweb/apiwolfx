@@ -227,6 +227,7 @@ class MLNotificationsController:
             
             if existing:
                 # Atualizar pedido existente
+                logger.info(f"🔧 [NOTIF] Atualizando pedido existente: {order_id}")
                 update_query = text("""
                     UPDATE ml_orders SET
                         status = :status,
@@ -240,9 +241,25 @@ class MLNotificationsController:
                     WHERE ml_order_id = :order_id
                 """)
                 
+                # Mapear status para o formato do enum
+                status_mapping = {
+                    "confirmed": "CONFIRMED",
+                    "payment_required": "PENDING",
+                    "payment_in_process": "PENDING",
+                    "paid": "PAID",
+                    "ready_to_ship": "PAID",
+                    "shipped": "SHIPPED",
+                    "delivered": "DELIVERED",
+                    "cancelled": "CANCELLED",
+                    "refunded": "REFUNDED"
+                }
+                api_status = order_data.get("status", "pending")
+                db_status = status_mapping.get(api_status, "PENDING")
+                logger.info(f"🔄 Atualizando pedido {order_id}: status API='{api_status}' -> DB='{db_status}'")
+                
                 db.execute(update_query, {
                     "order_id": str(order_id),
-                    "status": order_data.get("status"),
+                    "status": db_status,
                     "status_detail": order_data.get("status_detail", {}).get("code") if order_data.get("status_detail") else None,
                     "date_closed": order_data.get("date_closed"),
                     "last_updated": order_data.get("last_updated"),
