@@ -1,0 +1,721 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Empresas - SuperAdmin GIVM{% endblock %}
+
+{% block content %}
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2"><i class="bi bi-building"></i> Gerenciar Empresas</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <div class="btn-group me-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshCompanies()">
+                            <i class="bi bi-arrow-clockwise"></i> Atualizar
+                        </button>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="showCreateCompanyModal()">
+                            <i class="bi bi-plus-circle"></i> Nova Empresa
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome, email ou domínio..." onkeyup="filterCompanies()">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="statusFilter" onchange="filterCompanies()">
+                        <option value="">Todos os Status</option>
+                        <option value="ACTIVE">Ativo</option>
+                        <option value="TRIAL">Trial</option>
+                        <option value="INACTIVE">Inativo</option>
+                        <option value="SUSPENDED">Suspenso</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="sortBy" onchange="sortCompanies()">
+                        <option value="name">Nome</option>
+                        <option value="created_at">Data de Criação</option>
+                        <option value="status">Status</option>
+                        <option value="users_count">Usuários</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Estatísticas Rápidas -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-white bg-success stats-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Ativas</h6>
+                                    <h4 class="mb-0" id="activeCount">0</h4>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-building fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-warning stats-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Trial</h6>
+                                    <h4 class="mb-0" id="trialCount">0</h4>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-clock fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-secondary stats-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Inativas</h6>
+                                    <h4 class="mb-0" id="inactiveCount">0</h4>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-pause fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-danger stats-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Suspensas</h6>
+                                    <h4 class="mb-0" id="suspendedCount">0</h4>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Empresas -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="companiesTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nome</th>
+                                    <th>Slug</th>
+                                    <th>Domínio</th>
+                                    <th>Status</th>
+                                    <th>Usuários</th>
+                                    <th>Contas ML</th>
+                                    <th>Criada em</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="companiesTableBody">
+                                <!-- Dados carregados via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginação -->
+                    <nav aria-label="Paginação de empresas">
+                        <ul class="pagination justify-content-center" id="pagination">
+                            <!-- Paginação gerada via JavaScript -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Modal para Criar/Editar Empresa -->
+<div class="modal fade" id="companyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="companyModalTitle">Nova Empresa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="companyForm">
+                    <input type="hidden" id="companyId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="companyName" class="form-label">Nome da Empresa *</label>
+                                <input type="text" class="form-control" id="companyName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="companySlug" class="form-label">Slug *</label>
+                                <input type="text" class="form-control" id="companySlug" required>
+                                <div class="form-text">Identificador único (ex: minha-empresa)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="companyDomain" class="form-label">Domínio</label>
+                                <input type="text" class="form-control" id="companyDomain" placeholder="exemplo.com">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="companyStatus" class="form-label">Status *</label>
+                                <select class="form-select" id="companyStatus" required>
+                                    <option value="TRIAL">Trial</option>
+                                    <option value="ACTIVE">Ativo</option>
+                                    <option value="INACTIVE">Inativo</option>
+                                    <option value="SUSPENDED">Suspenso</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="companyDescription" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="companyDescription" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="maxUsers" class="form-label">Máximo de Usuários</label>
+                                <input type="number" class="form-control" id="maxUsers" min="1" value="10">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="maxMLAccounts" class="form-label">Máximo de Contas ML</label>
+                                <input type="number" class="form-control" id="maxMLAccounts" min="1" value="5">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveCompany()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalTitle">Confirmar Ação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="confirmModalBody">
+                <!-- Conteúdo dinâmico -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmButton" onclick="executeConfirmedAction()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let companiesData = [];
+let currentPage = 1;
+let itemsPerPage = 10;
+let currentAction = null;
+let currentCompanyId = null;
+
+// Carregar dados iniciais
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanies();
+});
+
+// Carregar empresas
+async function loadCompanies() {
+    try {
+        showLoading();
+        
+        const response = await fetch('/api/superadmin/companies');
+        if (!response.ok) {
+            throw new Error('Erro ao carregar empresas');
+        }
+        
+        const data = await response.json();
+        companiesData = data.companies || [];
+        
+        updateStatistics();
+        renderCompanies();
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar empresas: ' + error.message, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Atualizar estatísticas
+function updateStatistics() {
+    const stats = {
+        ACTIVE: 0,
+        TRIAL: 0,
+        INACTIVE: 0,
+        SUSPENDED: 0
+    };
+    
+    companiesData.forEach(company => {
+        if (stats.hasOwnProperty(company.status)) {
+            stats[company.status]++;
+        }
+    });
+    
+    document.getElementById('activeCount').textContent = stats.ACTIVE;
+    document.getElementById('trialCount').textContent = stats.TRIAL;
+    document.getElementById('inactiveCount').textContent = stats.INACTIVE;
+    document.getElementById('suspendedCount').textContent = stats.SUSPENDED;
+}
+
+// Renderizar empresas
+function renderCompanies() {
+    const tbody = document.getElementById('companiesTableBody');
+    const filteredCompanies = getFilteredCompanies();
+    const sortedCompanies = getSortedCompanies(filteredCompanies);
+    const paginatedCompanies = getPaginatedCompanies(sortedCompanies);
+    
+    tbody.innerHTML = '';
+    
+    paginatedCompanies.forEach(company => {
+        const row = createCompanyRow(company);
+        tbody.appendChild(row);
+    });
+    
+    renderPagination(filteredCompanies.length);
+}
+
+// Criar linha da tabela
+function createCompanyRow(company) {
+    const row = document.createElement('tr');
+    
+    const statusBadge = getStatusBadge(company.status);
+    const createdAt = new Date(company.created_at).toLocaleDateString('pt-BR');
+    
+    row.innerHTML = `
+        <td>${company.id}</td>
+        <td>
+            <strong>${company.name}</strong>
+            ${company.description ? `<br><small class="text-muted">${company.description}</small>` : ''}
+        </td>
+        <td><code>${company.slug}</code></td>
+        <td>${company.domain || '-'}</td>
+        <td>${statusBadge}</td>
+        <td>
+            <span class="badge bg-info">${company.users_count || 0}</span>
+            ${company.max_users ? `<small class="text-muted">/ ${company.max_users}</small>` : ''}
+        </td>
+        <td>
+            <span class="badge bg-info">${company.ml_accounts_count || 0}</span>
+            ${company.max_ml_accounts ? `<small class="text-muted">/ ${company.max_ml_accounts}</small>` : ''}
+        </td>
+        <td>${createdAt}</td>
+        <td>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-primary" onclick="viewCompany(${company.id})" title="Ver detalhes">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button class="btn btn-outline-secondary" onclick="editCompany(${company.id})" title="Editar">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-outline-danger" onclick="confirmAction('delete', ${company.id}, '${company.name}')" title="Excluir">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </td>
+    `;
+    
+    return row;
+}
+
+// Obter badge de status
+function getStatusBadge(status) {
+    const badges = {
+        'ACTIVE': '<span class="badge bg-success">Ativo</span>',
+        'TRIAL': '<span class="badge bg-warning">Trial</span>',
+        'INACTIVE': '<span class="badge bg-secondary">Inativo</span>',
+        'SUSPENDED': '<span class="badge bg-danger">Suspenso</span>'
+    };
+    return badges[status] || '<span class="badge bg-secondary">Desconhecido</span>';
+}
+
+// Filtrar empresas
+function getFilteredCompanies() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    return companiesData.filter(company => {
+        const matchesSearch = !searchTerm || 
+            company.name.toLowerCase().includes(searchTerm) ||
+            company.slug.toLowerCase().includes(searchTerm) ||
+            (company.domain && company.domain.toLowerCase().includes(searchTerm));
+        
+        const matchesStatus = !statusFilter || company.status === statusFilter;
+        
+        return matchesSearch && matchesStatus;
+    });
+}
+
+// Ordenar empresas
+function getSortedCompanies(companies) {
+    const sortBy = document.getElementById('sortBy').value;
+    
+    return companies.sort((a, b) => {
+        switch (sortBy) {
+            case 'name':
+                return a.name.localeCompare(b.name);
+            case 'created_at':
+                return new Date(b.created_at) - new Date(a.created_at);
+            case 'status':
+                return a.status.localeCompare(b.status);
+            case 'users_count':
+                return (b.users_count || 0) - (a.users_count || 0);
+            default:
+                return 0;
+        }
+    });
+}
+
+// Paginar empresas
+function getPaginatedCompanies(companies) {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return companies.slice(startIndex, endIndex);
+}
+
+// Renderizar paginação
+function renderPagination(totalItems) {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const pagination = document.getElementById('pagination');
+    
+    pagination.innerHTML = '';
+    
+    // Botão anterior
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Anterior</a>`;
+    pagination.appendChild(prevLi);
+    
+    // Páginas
+    for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i})">${i}</a>`;
+        pagination.appendChild(li);
+    }
+    
+    // Botão próximo
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Próximo</a>`;
+    pagination.appendChild(nextLi);
+}
+
+// Mudar página
+function changePage(page) {
+    const totalPages = Math.ceil(getFilteredCompanies().length / itemsPerPage);
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        renderCompanies();
+    }
+}
+
+// Filtrar empresas (evento)
+function filterCompanies() {
+    currentPage = 1;
+    renderCompanies();
+}
+
+// Ordenar empresas (evento)
+function sortCompanies() {
+    renderCompanies();
+}
+
+// Atualizar empresas
+function refreshCompanies() {
+    loadCompanies();
+}
+
+// Mostrar modal de criação
+function showCreateCompanyModal() {
+    document.getElementById('companyModalTitle').textContent = 'Nova Empresa';
+    document.getElementById('companyForm').reset();
+    document.getElementById('companyId').value = '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('companyModal'));
+    modal.show();
+}
+
+// Ver empresa
+function viewCompany(id) {
+    window.location.href = `/superadmin/companies/${id}`;
+}
+
+// Editar empresa
+function editCompany(id) {
+    const company = companiesData.find(c => c.id === id);
+    if (!company) return;
+    
+    document.getElementById('companyModalTitle').textContent = 'Editar Empresa';
+    document.getElementById('companyId').value = company.id;
+    document.getElementById('companyName').value = company.name;
+    document.getElementById('companySlug').value = company.slug;
+    document.getElementById('companyDomain').value = company.domain || '';
+    document.getElementById('companyStatus').value = company.status;
+    document.getElementById('companyDescription').value = company.description || '';
+    document.getElementById('maxUsers').value = company.max_users || 10;
+    document.getElementById('maxMLAccounts').value = company.max_ml_accounts || 5;
+    
+    const modal = new bootstrap.Modal(document.getElementById('companyModal'));
+    modal.show();
+}
+
+// Salvar empresa
+async function saveCompany() {
+    const form = document.getElementById('companyForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const companyData = {
+        name: document.getElementById('companyName').value,
+        slug: document.getElementById('companySlug').value,
+        domain: document.getElementById('companyDomain').value,
+        status: document.getElementById('companyStatus').value,
+        description: document.getElementById('companyDescription').value,
+        max_users: parseInt(document.getElementById('maxUsers').value),
+        max_ml_accounts: parseInt(document.getElementById('maxMLAccounts').value)
+    };
+    
+    const companyId = document.getElementById('companyId').value;
+    const isEdit = !!companyId;
+    
+    try {
+        showLoading();
+        
+        const url = isEdit ? `/api/superadmin/companies/${companyId}` : '/api/superadmin/companies';
+        const method = isEdit ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(companyData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erro ao salvar empresa');
+        }
+        
+        const result = await response.json();
+        
+        showAlert(isEdit ? 'Empresa atualizada com sucesso!' : 'Empresa criada com sucesso!', 'success');
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('companyModal'));
+        modal.hide();
+        
+        // Recarregar dados
+        loadCompanies();
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao salvar empresa: ' + error.message, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Confirmar ação
+function confirmAction(action, id, name) {
+    currentAction = action;
+    currentCompanyId = id;
+    
+    const modal = document.getElementById('confirmModal');
+    const title = document.getElementById('confirmModalTitle');
+    const body = document.getElementById('confirmModalBody');
+    const button = document.getElementById('confirmButton');
+    
+    switch (action) {
+        case 'delete':
+            title.textContent = 'Confirmar Exclusão';
+            body.innerHTML = `
+                <p>Tem certeza que deseja excluir a empresa <strong>"${name}"</strong>?</p>
+                <p class="text-danger"><i class="bi bi-exclamation-triangle"></i> Esta ação não pode ser desfeita!</p>
+            `;
+            button.className = 'btn btn-danger';
+            button.textContent = 'Excluir';
+            break;
+    }
+    
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+// Executar ação confirmada
+async function executeConfirmedAction() {
+    if (!currentAction || !currentCompanyId) return;
+    
+    try {
+        showLoading();
+        
+        switch (currentAction) {
+            case 'delete':
+                await deleteCompany(currentCompanyId);
+                break;
+        }
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
+        modal.hide();
+        
+        // Limpar variáveis
+        currentAction = null;
+        currentCompanyId = null;
+        
+        // Recarregar dados
+        loadCompanies();
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao executar ação: ' + error.message, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Excluir empresa
+async function deleteCompany(id) {
+    const response = await fetch(`/api/superadmin/companies/${id}`, {
+        method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Erro ao excluir empresa');
+    }
+    
+    showAlert('Empresa excluída com sucesso!', 'success');
+}
+
+// Utilitários
+function showLoading() {
+    // Implementar loading se necessário
+}
+
+function hideLoading() {
+    // Implementar hide loading se necessário
+}
+
+function showAlert(message, type) {
+    // Criar alerta
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Remover após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 5000);
+}
+</script>
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Estatísticas */
+.stats-card {
+    transition: transform 0.2s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+}
+
+/* Tabela responsiva */
+.table-responsive {
+    border-radius: 0.375rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    width: 100%;
+}
+
+.table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* Filtros */
+.input-group, .form-select {
+    border-radius: 0.375rem;
+}
+
+/* Paginação */
+.pagination {
+    margin-top: 20px;
+}
+
+/* Modal */
+.modal-lg {
+    max-width: 800px;
+}
+
+/* Alerts */
+.alert {
+    border-radius: 0.375rem;
+    border: none;
+}
+</style>
+{% endblock %}

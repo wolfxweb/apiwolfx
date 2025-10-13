@@ -137,7 +137,7 @@ class SuperAdminController:
                 "id": company.id,
                 "name": company.name,
                 "slug": company.slug,
-                "status": company.status.value,
+                "status": company.status,
                 "created_at": company.created_at,
                 "trial_ends_at": company.trial_ends_at,
                 "max_users": company.max_users,
@@ -218,7 +218,7 @@ class SuperAdminController:
                 "description": company.description,
                 "domain": company.domain,
                 "logo_url": company.logo_url,
-                "status": company.status.value,
+                "status": company.status,
                 "max_users": company.max_users,
                 "max_ml_accounts": company.max_ml_accounts,
                 "features": company.features,
@@ -356,3 +356,109 @@ class SuperAdminController:
         except Exception:
             self.db.rollback()
             return False
+    
+    def create_company(self, company_data: Dict) -> Dict:
+        """Cria uma nova empresa"""
+        try:
+            # Verificar se slug já existe
+            existing = self.db.query(Company).filter(Company.slug == company_data["slug"]).first()
+            if existing:
+                raise ValueError("Slug já existe")
+            
+            # Verificar se domínio já existe (se fornecido)
+            if company_data.get("domain"):
+                existing_domain = self.db.query(Company).filter(Company.domain == company_data["domain"]).first()
+                if existing_domain:
+                    raise ValueError("Domínio já existe")
+            
+            company = Company(
+                name=company_data["name"],
+                slug=company_data["slug"],
+                domain=company_data.get("domain"),
+                description=company_data.get("description"),
+                status=company_data["status"],
+                max_users=company_data.get("max_users", 10),
+                max_ml_accounts=company_data.get("max_ml_accounts", 5)
+            )
+            
+            self.db.add(company)
+            self.db.commit()
+            
+            return {
+                "id": company.id,
+                "message": "Empresa criada com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e
+    
+    def update_company(self, company_id: int, company_data: Dict) -> Dict:
+        """Atualiza uma empresa existente"""
+        try:
+            company = self.db.query(Company).filter(Company.id == company_id).first()
+            if not company:
+                raise ValueError("Empresa não encontrada")
+            
+            # Verificar se slug já existe (em outra empresa)
+            if company_data.get("slug") and company_data["slug"] != company.slug:
+                existing = self.db.query(Company).filter(
+                    Company.slug == company_data["slug"],
+                    Company.id != company_id
+                ).first()
+                if existing:
+                    raise ValueError("Slug já existe")
+            
+            # Verificar se domínio já existe (em outra empresa)
+            if company_data.get("domain") and company_data["domain"] != company.domain:
+                existing_domain = self.db.query(Company).filter(
+                    Company.domain == company_data["domain"],
+                    Company.id != company_id
+                ).first()
+                if existing_domain:
+                    raise ValueError("Domínio já existe")
+            
+            # Atualizar campos
+            company.name = company_data["name"]
+            company.slug = company_data["slug"]
+            company.domain = company_data.get("domain")
+            company.description = company_data.get("description")
+            company.status = company_data["status"]
+            company.max_users = company_data.get("max_users", company.max_users)
+            company.max_ml_accounts = company_data.get("max_ml_accounts", company.max_ml_accounts)
+            
+            self.db.commit()
+            
+            return {
+                "id": company.id,
+                "message": "Empresa atualizada com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e
+    
+    def delete_company(self, company_id: int) -> Dict:
+        """Exclui uma empresa"""
+        try:
+            company = self.db.query(Company).filter(Company.id == company_id).first()
+            if not company:
+                raise ValueError("Empresa não encontrada")
+            
+            # Verificar se há usuários ativos
+            active_users = self.db.query(User).filter(
+                User.company_id == company_id,
+                User.is_active == True
+            ).count()
+            
+            if active_users > 0:
+                raise ValueError(f"Não é possível excluir empresa com {active_users} usuário(s) ativo(s)")
+            
+            # Excluir empresa (cascade será tratado pelo banco)
+            self.db.delete(company)
+            self.db.commit()
+            
+            return {
+                "message": "Empresa excluída com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e

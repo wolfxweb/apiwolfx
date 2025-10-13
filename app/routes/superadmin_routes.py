@@ -169,3 +169,85 @@ async def assign_plan_to_company(
         raise HTTPException(status_code=400, detail="Erro ao atribuir plano")
     
     return RedirectResponse(url=f"/superadmin/companies/{company_id}", status_code=302)
+
+# ==================== API REST PARA EMPRESAS ====================
+
+@superadmin_router.get("/api/superadmin/companies")
+async def api_get_companies(
+    page: int = 1,
+    per_page: int = 20,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """API: Lista empresas com paginação"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    companies_data = controller.get_companies_list(page=page, per_page=per_page, status=status)
+    return companies_data
+
+@superadmin_router.get("/api/superadmin/companies/{company_id}")
+async def api_get_company(
+    company_id: int,
+    db: Session = Depends(get_db)
+):
+    """API: Obtém detalhes de uma empresa"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    company_details = controller.get_company_details(company_id)
+    
+    if not company_details:
+        raise HTTPException(status_code=404, detail="Empresa não encontrada")
+    
+    return company_details
+
+@superadmin_router.post("/api/superadmin/companies")
+async def api_create_company(
+    company_data: dict,
+    db: Session = Depends(get_db)
+):
+    """API: Cria uma nova empresa"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    
+    try:
+        result = controller.create_company(company_data)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@superadmin_router.put("/api/superadmin/companies/{company_id}")
+async def api_update_company(
+    company_id: int,
+    company_data: dict,
+    db: Session = Depends(get_db)
+):
+    """API: Atualiza uma empresa existente"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    
+    try:
+        result = controller.update_company(company_id, company_data)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@superadmin_router.delete("/api/superadmin/companies/{company_id}")
+async def api_delete_company(
+    company_id: int,
+    db: Session = Depends(get_db)
+):
+    """API: Exclui uma empresa"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    
+    try:
+        result = controller.delete_company(company_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
