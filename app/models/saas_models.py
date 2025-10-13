@@ -14,6 +14,8 @@ class CompanyStatus(enum.Enum):
     SUSPENDED = "suspended"
     TRIAL = "trial"
 
+# SuperAdminRole enum removido - usando strings simples
+
 class UserRole(enum.Enum):
     """Roles de usuário"""
     SUPER_ADMIN = "super_admin"        # Acesso total ao sistema
@@ -57,6 +59,37 @@ class Company(Base):
     subscriptions = relationship("Subscription", back_populates="company", cascade="all, delete-orphan")
     products = relationship("Product", back_populates="company", cascade="all, delete-orphan")
     internal_products = relationship("InternalProduct", back_populates="company", cascade="all, delete-orphan")
+
+class SuperAdmin(Base):
+    """Modelo de SuperAdmin para gerenciamento do sistema"""
+    __tablename__ = "super_admins"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    role = Column(String(50), default="company_manager", index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    
+    # Permissões específicas
+    can_manage_companies = Column(Boolean, default=True)
+    can_manage_plans = Column(Boolean, default=True)
+    can_manage_users = Column(Boolean, default=True)
+    can_view_analytics = Column(Boolean, default=True)
+    can_access_system_logs = Column(Boolean, default=False)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    last_login = Column(DateTime)
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_super_admins_email_active', 'email', 'is_active'),
+        Index('ix_super_admins_role_active', 'role', 'is_active'),
+    )
 
 class User(Base):
     """Modelo de Usuário (atualizado para SaaS)"""

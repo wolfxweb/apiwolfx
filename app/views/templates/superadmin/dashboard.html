@@ -1,0 +1,221 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Dashboard - SuperAdmin GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-speedometer2"></i> Dashboard
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-calendar"></i> Hoje
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Cards de Estatísticas -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Empresas Ativas
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ overview.companies.active }}
+                        </div>
+                        <div class="text-xs text-muted">
+                            {{ overview.companies.total }} total
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-building text-primary" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Usuários Ativos
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ overview.users.active }}
+                        </div>
+                        <div class="text-xs text-muted">
+                            {{ overview.users.total }} total
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-people text-success" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Contas ML
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ overview.ml_accounts.active }}
+                        </div>
+                        <div class="text-xs text-muted">
+                            {{ overview.ml_accounts.total }} total
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-shop text-info" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Assinaturas Ativas
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ overview.subscriptions.active }}
+                        </div>
+                        <div class="text-xs text-muted">
+                            {{ overview.subscriptions.total }} total
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-credit-card text-warning" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Seção de Status das Empresas -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="bi bi-pie-chart"></i> Status das Empresas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <div class="text-success">
+                            <i class="bi bi-check-circle" style="font-size: 3rem;"></i>
+                            <h4 class="mt-2">{{ overview.companies.active }}</h4>
+                            <p class="mb-0">Ativas</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="text-warning">
+                            <i class="bi bi-clock" style="font-size: 3rem;"></i>
+                            <h4 class="mt-2">{{ overview.companies.trial }}</h4>
+                            <p class="mb-0">Trial</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="text-danger">
+                            <i class="bi bi-x-circle" style="font-size: 3rem;"></i>
+                            <h4 class="mt-2">{{ overview.companies.inactive }}</h4>
+                            <p class="mb-0">Inativas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="bi bi-currency-dollar"></i> Receita Mensal
+                </h6>
+            </div>
+            <div class="card-body text-center">
+                <h2 class="text-success">R$ {{ "%.2f"|format(overview.revenue.monthly_revenue) }}</h2>
+                <p class="mb-0">{{ overview.revenue.monthly_subscriptions }} assinaturas</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ações Rápidas -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="bi bi-lightning"></i> Ações Rápidas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="/superadmin/companies" class="btn btn-primary w-100">
+                            <i class="bi bi-building"></i><br>
+                            <small>Gerenciar Empresas</small>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="/superadmin/plans" class="btn btn-success w-100">
+                            <i class="bi bi-credit-card"></i><br>
+                            <small>Gerenciar Planos</small>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="/superadmin/users" class="btn btn-info w-100">
+                            <i class="bi bi-people"></i><br>
+                            <small>Gerenciar Usuários</small>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="/superadmin/analytics" class="btn btn-warning w-100">
+                            <i class="bi bi-graph-up"></i><br>
+                            <small>Analytics</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+.border-left-info {
+    border-left: 0.25rem solid #36b9cc !important;
+}
+.border-left-warning {
+    border-left: 0.25rem solid #f6c23e !important;
+}
+</style>
+{% endblock %}
