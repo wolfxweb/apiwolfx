@@ -18,12 +18,12 @@ def get_company_id(session_token: Optional[str] = Cookie(None), db: Session = De
         raise HTTPException(status_code=401, detail="Não autenticado")
     
     saas_service = SAASService(db)
-    session = saas_service.get_session_by_token(session_token)
+    user = saas_service.validate_session(session_token)
     
-    if not session or not session.user:
+    if not user:
         raise HTTPException(status_code=401, detail="Sessão inválida")
     
-    return session.user.company_id
+    return user.company_id
 
 
 @router.post("/activate")

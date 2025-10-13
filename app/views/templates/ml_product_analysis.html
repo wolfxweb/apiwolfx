@@ -261,14 +261,14 @@
                             </div>
                             
                             <!-- Tabs Navigation -->
-                            <ul class="nav nav-tabs mb-3" id="catalog-tabs" style="display:none;" role="tablist">
+                            <ul class="nav nav-tabs mb-3" id="catalog-tabs" role="tablist">
                                 <li class="nav-item" role="presentation">
                                     <button class="nav-link active" id="catalog-current-tab" data-bs-toggle="tab" data-bs-target="#catalog-current" type="button" role="tab">
                                         <i class="bi bi-clock-history"></i> Atual
                                     </button>
                                 </li>
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="catalog-history-tab" data-bs-toggle="tab" data-bs-target="#catalog-history" type="button" role="tab">
+                                    <button class="nav-link" id="catalog-history-tab" data-bs-toggle="tab" data-bs-target="#catalog-history" type="button" role="tab" onclick="loadCatalogHistory(currentCatalogProductId)">
                                         <i class="bi bi-graph-up"></i> Histórico
                                     </button>
                                 </li>
@@ -3663,8 +3663,8 @@ async function loadCatalogHistory(catalogProductId) {
             return;
         }
         
-        // Renderizar histórico
-        renderCatalogHistoryChart(history);
+         // Renderizar histórico
+         renderCatalogHistoryTable(history);
         
     } catch (error) {
         console.error('Erro ao carregar histórico:', error);
@@ -3676,141 +3676,142 @@ async function loadCatalogHistory(catalogProductId) {
     }
 }
 
-// Renderizar gráfico do histórico
-function renderCatalogHistoryChart(history) {
+// Renderizar tabela do histórico
+function renderCatalogHistoryTable(history) {
     const container = document.getElementById('catalog-history-content');
     
-    // Preparar dados para o gráfico
-    const labels = history.map(h => {
-        const date = new Date(h.collected_at);
-        return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    }).reverse();
-    
-    const companyPrices = history.map(h => h.company_price ? h.company_price / 100 : null).reverse();
-    const minPrices = history.map(h => h.min_price ? h.min_price / 100 : null).reverse();
-    const avgPrices = history.map(h => h.avg_price ? h.avg_price / 100 : null).reverse();
-    const buyBoxPrices = history.map(h => h.buy_box_winner_price ? h.buy_box_winner_price / 100 : null).reverse();
+    // Ordenar histórico por data (mais recente primeiro)
+    const sortedHistory = history.sort((a, b) => {
+        const dateA = new Date(a.collected_at);
+        const dateB = new Date(b.collected_at);
+        return dateB - dateA;
+    });
     
     container.innerHTML = `
-        <div class="row">
-            <div class="col-12 mb-3">
-                <h6><i class="bi bi-graph-up"></i> Evolução de Preços no Catálogo</h6>
-                <canvas id="catalog-history-chart" height="80"></canvas>
-            </div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0"><i class="bi bi-table"></i> Histórico de Monitoramento</h6>
+            <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteHistory()" title="Remover todo o histórico">
+                <i class="bi bi-trash"></i> Remover Histórico
+            </button>
         </div>
         
-        <div class="row mt-3">
-            <div class="col-12">
-                <h6><i class="bi bi-table"></i> Últimas Coletas</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead>
-                            <tr>
-                                <th>Data/Hora</th>
-                                <th>Posição</th>
-                                <th>Seu Preço</th>
-                                <th>Buy Box</th>
-                                <th>Menor Preço</th>
-                                <th>Preço Médio</th>
-                                <th>Participantes</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${history.slice(0, 10).map(h => `
-                                <tr>
-                                    <td><small>${new Date(h.collected_at).toLocaleString('pt-BR')}</small></td>
-                                    <td>
-                                        ${h.company_position ? 
-                                            `<span class="badge ${h.company_position <= 3 ? 'bg-success' : 'bg-secondary'}">${h.company_position}º</span>` : 
-                                            '<span class="text-muted">-</span>'}
-                                    </td>
-                                    <td>${h.company_price_brl || '-'}</td>
-                                    <td>
-                                        ${h.company_has_buy_box ? 
-                                            '<span class="badge bg-warning text-dark"><i class="bi bi-trophy-fill"></i></span>' : 
-                                            h.buy_box_winner_price_brl || '-'}
-                                    </td>
-                                    <td>${h.min_price_brl || '-'}</td>
-                                    <td>${h.avg_price_brl || '-'}</td>
-                                    <td>${h.total_participants || 0}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Total Participantes</th>
+                        <th>Posição da Empresa</th>
+                        <th>Preço da Empresa</th>
+                        <th>Buy Box</th>
+                        <th>Menor Preço</th>
+                        <th>Preço Médio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sortedHistory.map(h => `
+                        <tr>
+                            <td>
+                                <small>${new Date(h.collected_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">${h.total_participants || 0}</span>
+                            </td>
+                            <td>
+                                ${h.company_position ? 
+                                    `<span class="badge ${h.company_position <= 3 ? 'bg-success' : 'bg-secondary'}">${h.company_position}º</span>` : 
+                                    '<span class="text-muted">N/A</span>'}
+                            </td>
+                            <td>
+                                ${h.company_price_brl ? `R$ ${h.company_price_brl}` : '-'}
+                            </td>
+                            <td>
+                                ${h.company_has_buy_box ? 
+                                    '<span class="badge bg-success">SIM</span>' : 
+                                    '<span class="badge bg-secondary">NÃO</span>'}
+                            </td>
+                            <td>
+                                ${h.min_price_brl ? `R$ ${h.min_price_brl}` : '-'}
+                            </td>
+                            <td>
+                                ${h.avg_price_brl ? `R$ ${h.avg_price_brl}` : '-'}
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>
+        
+        ${sortedHistory.length === 0 ? `
+            <div class="alert alert-info text-center mt-3">
+                <i class="bi bi-info-circle"></i>
+                <p class="mb-0">Nenhum histórico encontrado ainda.</p>
+                <small>O histórico será gerado automaticamente a cada 12 horas quando o monitoramento estiver ativo.</small>
+            </div>
+        ` : `
+            <div class="mt-3 text-center">
+                <small class="text-muted">
+                    Mostrando ${sortedHistory.length} ${sortedHistory.length === 1 ? 'coleta' : 'coletas'} de histórico
+                </small>
+            </div>
+        `}
     `;
+}
+
+// Confirmar exclusão do histórico
+function confirmDeleteHistory() {
+    if (confirm('Tem certeza que deseja remover todo o histórico de monitoramento? Esta ação não pode ser desfeita.')) {
+        deleteHistory();
+    }
+}
+
+// Deletar histórico
+async function deleteHistory() {
+    if (!currentCatalogProductId) {
+        alert('Erro: ID do catálogo não encontrado');
+        return;
+    }
     
-    // Criar gráfico
-    const ctx = document.getElementById('catalog-history-chart').getContext('2d');
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Seu Preço',
-                    data: companyPrices,
-                    borderColor: 'rgb(54, 162, 235)',
-                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.1
-                },
-                {
-                    label: 'Buy Box',
-                    data: buyBoxPrices,
-                    borderColor: 'rgb(255, 193, 7)',
-                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.1
-                },
-                {
-                    label: 'Menor Preço',
-                    data: minPrices,
-                    borderColor: 'rgb(40, 167, 69)',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.1
-                },
-                {
-                    label: 'Preço Médio',
-                    data: avgPrices,
-                    borderColor: 'rgb(108, 117, 125)',
-                    backgroundColor: 'rgba(108, 117, 125, 0.1)',
-                    borderWidth: 1,
-                    borderDash: [5, 5],
-                    tension: 0.1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.dataset.label + ': R$ ' + (context.parsed.y || 0).toFixed(2);
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: false,
-                    ticks: {
-                        callback: function(value) {
-                            return 'R$ ' + value.toFixed(2);
-                        }
-                    }
-                }
-            }
+    try {
+        const response = await fetch(`/api/catalog-monitoring/delete-history?catalog_product_id=${currentCatalogProductId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('Erro ao deletar histórico');
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Recarregar histórico (vai mostrar "Nenhum histórico encontrado")
+            loadCatalogHistory(currentCatalogProductId);
+            
+            // Mostrar toast de sucesso
+            const toast = document.createElement('div');
+            toast.className = 'toast align-items-center text-white bg-success border-0';
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="bi bi-check-circle"></i> Histórico removido com sucesso!
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+            
+            // Remover toast do DOM após 3 segundos
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        } else {
+            alert('Erro: ' + (result.message || 'Falha ao deletar histórico'));
         }
-    });
+    } catch (error) {
+        console.error('Erro ao deletar histórico:', error);
+        alert('Erro ao deletar histórico: ' + error.message);
+    }
 }
 
 // Adicionar ao loadCatalogInfo para verificar monitoramento
