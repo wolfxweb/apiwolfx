@@ -920,6 +920,19 @@ function getShippingTypeLabel(logisticType) {
     return translations[logisticType] || logisticType;
 }
 
+function getShippingBadgeClass(logisticType) {
+    const badgeClasses = {
+        'fulfillment': 'bg-primary',
+        'xd_drop_off': 'bg-warning text-dark',
+        'drop_off': 'bg-warning text-dark',
+        'cross_docking': 'bg-info',
+        'me2': 'bg-secondary',
+        'standard': 'bg-secondary',
+        'default': 'bg-light text-dark'
+    };
+    return badgeClasses[logisticType] || 'bg-light text-dark';
+}
+
 function loadCompetitiveAnalysis(productId, product) {
     console.log('📊 Carregando análise competitiva para produto:', productId);
     
@@ -3676,86 +3689,189 @@ async function loadCatalogHistory(catalogProductId) {
     }
 }
 
-// Renderizar tabela do histórico
+// Variáveis de paginação do histórico
+let currentHistoryPage = 1;
+const historyItemsPerPage = 10; // 10 coletas por página
+let allHistoryData = [];
+
+// Renderizar tabela do histórico como tabela única contínua
 function renderCatalogHistoryTable(history) {
+    console.log('📊 renderCatalogHistoryTable chamado com:', history);
+    
     const container = document.getElementById('catalog-history-content');
     
-    // Ordenar histórico por data (mais recente primeiro)
-    const sortedHistory = history.sort((a, b) => {
+    if (!history || history.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i>
+                <p class="mb-0">Nenhum histórico encontrado ainda.</p>
+                <small>O histórico será gerado automaticamente a cada 12 horas quando o monitoramento estiver ativo.</small>
+            </div>
+        `;
+        return;
+    }
+    
+    // Armazenar dados para paginação
+    allHistoryData = history.sort((a, b) => {
         const dateA = new Date(a.collected_at);
         const dateB = new Date(b.collected_at);
         return dateB - dateA;
     });
     
-    container.innerHTML = `
+    // Renderizar primeira página
+    renderHistoryPage(1);
+}
+
+// Renderizar página específica do histórico
+function renderHistoryPage(page) {
+    currentHistoryPage = page;
+    const container = document.getElementById('catalog-history-content');
+    
+    // Calcular índices
+    const startIndex = (page - 1) * historyItemsPerPage;
+    const endIndex = startIndex + historyItemsPerPage;
+    const pageData = allHistoryData.slice(startIndex, endIndex);
+    
+    // Total de páginas
+    const totalPages = Math.ceil(allHistoryData.length / historyItemsPerPage);
+    
+    // Renderizar tabela única contínua
+    let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="mb-0"><i class="bi bi-table"></i> Histórico de Monitoramento</h6>
+            <h6 class="mb-0"><i class="bi bi-table"></i> Histórico de Monitoramento (${allHistoryData.length} ${allHistoryData.length === 1 ? 'coleta' : 'coletas'})</h6>
             <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteHistory()" title="Remover todo o histórico">
                 <i class="bi bi-trash"></i> Remover Histórico
             </button>
         </div>
         
         <div class="table-responsive">
-            <table class="table table-sm table-hover">
-                <thead>
+            <table class="table table-hover">
+                <thead class="table-primary text-white">
                     <tr>
                         <th>Data/Hora</th>
-                        <th>Total Participantes</th>
-                        <th>Posição da Empresa</th>
-                        <th>Preço da Empresa</th>
-                        <th>Buy Box</th>
-                        <th>Menor Preço</th>
-                        <th>Preço Médio</th>
+                        <th>Vendedor</th>
+                        <th>Preço</th>
+                        <th>Posição</th>
+                        <th>Envio</th>
+                        <th>Loja Oficial</th>
+                        <th>Desconto</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${sortedHistory.map(h => `
-                        <tr>
-                            <td>
-                                <small>${new Date(h.collected_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>
-                            </td>
-                            <td>
-                                <span class="badge bg-info">${h.total_participants || 0}</span>
-                            </td>
-                            <td>
-                                ${h.company_position ? 
-                                    `<span class="badge ${h.company_position <= 3 ? 'bg-success' : 'bg-secondary'}">${h.company_position}º</span>` : 
-                                    '<span class="text-muted">N/A</span>'}
-                            </td>
-                            <td>
-                                ${h.company_price_brl ? `R$ ${h.company_price_brl}` : '-'}
-                            </td>
-                            <td>
-                                ${h.company_has_buy_box ? 
-                                    '<span class="badge bg-success">SIM</span>' : 
-                                    '<span class="badge bg-secondary">NÃO</span>'}
-                            </td>
-                            <td>
-                                ${h.min_price_brl ? `R$ ${h.min_price_brl}` : '-'}
-                            </td>
-                            <td>
-                                ${h.avg_price_brl ? `R$ ${h.avg_price_brl}` : '-'}
-                            </td>
-                        </tr>
-                    `).join('')}
+    `;
+    
+    // Renderizar coletas da página atual
+    pageData.forEach(h => {
+        console.log('📊 Processando coleta:', h);
+        console.log('📊 participants_snapshot:', h.participants_snapshot);
+        
+        const collectedDate = new Date(h.collected_at).toLocaleString('pt-BR', { 
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        if (h.participants_snapshot && h.participants_snapshot.length > 0) {
+            h.participants_snapshot.forEach((p, index) => {
+                const isCompany = p.seller_nickname && p.seller_nickname.toUpperCase() === 'WOLFXDISTRIBUIDORA';
+                
+                // Formatar preço
+                const priceFormatted = p.price_brl || (p.price ? 
+                    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.price) : 
+                    '-');
+                
+                // Informações de envio
+                let shippingBadge = `<span class="badge ${getShippingBadgeClass(p.logistic_type)}">${getShippingTypeLabel(p.logistic_type)}</span>`;
+                
+                // Posição
+                let positionBadge = '-';
+                if (p.position === 1) {
+                    positionBadge = '<span class="badge bg-warning text-dark">🥇 1º Lugar</span>';
+                } else if (p.position === 2) {
+                    positionBadge = '<span class="badge bg-secondary">🥈 2º Lugar</span>';
+                } else if (p.position === 3) {
+                    positionBadge = '<span class="badge bg-warning" style="background-color: #cd7f32 !important;">🥉 3º Lugar</span>';
+                } else if (p.position) {
+                    positionBadge = `<span class="badge bg-light text-dark">#${p.position}</span>`;
+                }
+                
+                // Mostrar data/hora apenas na primeira linha de cada coleta
+                const dateCell = index === 0 ? 
+                    `<td rowspan="${h.participants_snapshot.length}" class="align-middle bg-light"><small><strong>${collectedDate}</strong></small></td>` : 
+                    '';
+                
+                html += `
+                    <tr ${isCompany ? 'class="table-primary"' : ''}>
+                        ${dateCell}
+                        <td>
+                            <small class="text-muted d-block">${p.seller_id || '-'}</small>
+                            <strong>${p.seller_nickname || '-'}</strong>
+                            <small class="text-muted d-block">${p.mlb_id || '-'}</small>
+                        </td>
+                        <td><strong>${priceFormatted}</strong></td>
+                        <td>${positionBadge}</td>
+                        <td>${shippingBadge}</td>
+                        <td class="text-center">
+                            ${p.official_store ? 
+                                '<span class="badge bg-info">Sim</span>' : 
+                                '<span class="text-muted">Não</span>'}
+                        </td>
+                        <td>
+                            ${p.discount_percentage ? 
+                                `<span class="badge bg-danger">-${p.discount_percentage}%</span>` : 
+                                '<span class="text-muted">-</span>'}
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    });
+    
+    html += `
                 </tbody>
             </table>
         </div>
-        
-        ${sortedHistory.length === 0 ? `
-            <div class="alert alert-info text-center mt-3">
-                <i class="bi bi-info-circle"></i>
-                <p class="mb-0">Nenhum histórico encontrado ainda.</p>
-                <small>O histórico será gerado automaticamente a cada 12 horas quando o monitoramento estiver ativo.</small>
-            </div>
-        ` : `
-            <div class="mt-3 text-center">
-                <small class="text-muted">
-                    Mostrando ${sortedHistory.length} ${sortedHistory.length === 1 ? 'coleta' : 'coletas'} de histórico
-                </small>
-            </div>
-        `}
     `;
+    
+    // Adicionar paginação
+    if (totalPages > 1) {
+        html += `
+            <nav aria-label="Paginação do histórico">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item ${page === 1 ? 'disabled' : ''}">
+                        <a class="page-link" href="#" onclick="renderHistoryPage(${page - 1}); return false;">Anterior</a>
+                    </li>
+        `;
+        
+        // Páginas
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= page - 2 && i <= page + 2)) {
+                html += `
+                    <li class="page-item ${i === page ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="renderHistoryPage(${i}); return false;">${i}</a>
+                    </li>
+                `;
+            } else if (i === page - 3 || i === page + 3) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+        
+        html += `
+                    <li class="page-item ${page === totalPages ? 'disabled' : ''}">
+                        <a class="page-link" href="#" onclick="renderHistoryPage(${page + 1}); return false;">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="text-center text-muted mt-2">
+                <small>Mostrando página ${page} de ${totalPages} (${allHistoryData.length} ${allHistoryData.length === 1 ? 'coleta' : 'coletas'} no total)</small>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
 }
 
 // Confirmar exclusão do histórico

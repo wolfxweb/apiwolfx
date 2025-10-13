@@ -107,3 +107,17 @@ async def get_history(
         limit=limit
     )
 
+
+@router.delete("/delete-history")
+async def delete_history(
+    catalog_product_id: str = Query(..., description="ID do produto no catálogo ML"),
+    company_id: int = Depends(get_company_id),
+    db: Session = Depends(get_db)
+):
+    """Remove todo o histórico de monitoramento de um catálogo"""
+    controller = CatalogMonitoringController(db)
+    return controller.delete_history(
+        company_id=company_id,
+        catalog_product_id=catalog_product_id
+    )
+

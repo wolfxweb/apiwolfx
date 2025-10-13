@@ -131,4 +131,14 @@ class CatalogMonitoringController:
             # Snapshot dos participantes
             "participants_snapshot": item.participants_snapshot if item.participants_snapshot else []
         }
+    
+    def delete_history(self, company_id: int, catalog_product_id: str) -> Dict:
+        """Remove todo o histórico de monitoramento de um catálogo"""
+        deleted_count = self.service.delete_catalog_history(company_id, catalog_product_id)
+        
+        return {
+            "success": True,
+            "message": f"Histórico removido com sucesso",
+            "deleted_count": deleted_count
+        }
 

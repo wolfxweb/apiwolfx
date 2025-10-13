@@ -8,6 +8,7 @@ from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 import statistics
+import pytz
 
 from app.models.saas_models import (
     MLCatalogMonitoring,
@@ -18,6 +19,13 @@ from app.models.saas_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Timezone de Brasília
+BRASILIA_TZ = pytz.timezone('America/Sao_Paulo')
+
+def get_brasilia_now():
+    """Retorna o datetime atual no timezone de Brasília"""
+    return datetime.now(BRASILIA_TZ)
 
 
 class CatalogMonitoringService:
@@ -114,17 +122,22 @@ class CatalogMonitoringService:
             participants_snapshot.append({
                 "position": idx,
                 "ml_item_id": p.ml_item_id,
+                "mlb_id": p.ml_item_id,  # Usar ml_item_id como mlb_id
                 "seller_id": p.seller_id,
                 "seller_nickname": p.seller_nickname,
                 "price": p.price,
+                "price_brl": f"R$ {str(p.price).replace('.', ',')}",
                 "available_quantity": p.available_quantity,
                 "sold_quantity": p.sold_quantity,
                 "buy_box_winner": p.buy_box_winner,
                 "status": p.status,
                 "condition": p.condition,
                 "shipping_free": p.shipping_free,
+                "logistic_type": p.logistic_type,
+                "official_store": True if p.official_store_id else False,
                 "seller_reputation_level": p.seller_reputation_level,
-                "seller_power_seller": p.seller_power_seller
+                "seller_power_seller": p.seller_power_seller,
+                "discount_percentage": round(((p.original_price - p.price) / p.original_price) * 100) if p.original_price and p.price and p.original_price > p.price else None
             })
         
         # Criar registro de histórico
@@ -157,13 +170,13 @@ class CatalogMonitoringService:
             # Snapshot completo
             participants_snapshot=participants_snapshot,
             
-            collected_at=datetime.now()
+            collected_at=get_brasilia_now()
         )
         
         self.db.add(history)
         
         # Atualizar last_check_at no monitoramento
-        monitoring.last_check_at = datetime.now()
+        monitoring.last_check_at = get_brasilia_now()
         
         self.db.commit()
         
@@ -192,7 +205,7 @@ class CatalogMonitoringService:
             else:
                 # Reativar
                 existing.is_active = True
-                existing.activated_at = datetime.now()
+                existing.activated_at = get_brasilia_now()
                 existing.deactivated_at = None
                 self.db.commit()
                 monitoring = existing
@@ -204,7 +217,7 @@ class CatalogMonitoringService:
                 catalog_product_id=catalog_product_id,
                 ml_product_id=ml_product_id,
                 is_active=True,
-                activated_at=datetime.now()
+                activated_at=get_brasilia_now()
             )
             self.db.add(monitoring)
             self.db.commit()
@@ -231,7 +244,7 @@ class CatalogMonitoringService:
         
         if monitoring:
             monitoring.is_active = False
-            monitoring.deactivated_at = datetime.now()
+            monitoring.deactivated_at = get_brasilia_now()
             self.db.commit()
             logger.info(f"🔴 Monitoramento desativado para catálogo {catalog_product_id}")
             return True
@@ -256,4 +269,18 @@ class CatalogMonitoringService:
                 MLCatalogHistory.catalog_product_id == catalog_product_id
             )
         ).order_by(MLCatalogHistory.collected_at.desc()).first()
+    
+    def delete_catalog_history(self, company_id: int, catalog_product_id: str) -> int:
+        """Remove todo o histórico de monitoramento de um catálogo"""
+        deleted_count = self.db.query(MLCatalogHistory).filter(
+            and_(
+                MLCatalogHistory.company_id == company_id,
+                MLCatalogHistory.catalog_product_id == catalog_product_id
+            )
+        ).delete()
+        
+        self.db.commit()
+        logger.info(f"🗑️  {deleted_count} registros de histórico removidos para catálogo {catalog_product_id}")
+        
+        return deleted_count
 
