@@ -41,6 +41,9 @@ services:
       - SECRET_KEY=x9k2mP8vL3nR7qT5wY1jH6fD4sA0bN9cE8gU2iO7lK3mQ6rT1wZ5yX8h
       - ALLOWED_HOSTS=wolfx.com.br,www.wolfx.com.br
       
+      # OpenAI API
+      - OPENAI_API_KEY=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
+      
     networks:
       - server
     deploy:
