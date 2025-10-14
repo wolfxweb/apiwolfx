@@ -1,6 +1,6 @@
 """add_has_catalog_products_field
 
-Revision ID: 20250106140000
+Revision ID: 20250106140000_add_has_catalog_products_field
 Revises: 20250106130000
 Create Date: 2025-01-06 14:00:00.000000
 
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '20250106140000'
+revision = '20250106140000_add_has_catalog_products_field'
 down_revision = '20250106130000'
 branch_labels = None
 depends_on = None

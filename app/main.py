@@ -187,7 +187,40 @@ app.include_router(superadmin_router)  # Para /superadmin
 async def root():
     """Página inicial - Landing page do GIVM"""
     from app.views.template_renderer import render_template
-    return render_template("home.html")
+    from app.models.saas_models import Subscription
+    from app.config.database import SessionLocal
+    
+    # Buscar planos templates do banco de dados
+    db = SessionLocal()
+    try:
+        plans = db.query(Subscription).filter(
+            Subscription.status == "template"
+        ).order_by(Subscription.price).all()
+        
+        # Converter para dict para passar ao template
+        plans_data = []
+        for plan in plans:
+            plans_data.append({
+                "id": plan.id,
+                "plan_name": plan.plan_name,
+                "description": plan.description,
+                "price": float(plan.price) if plan.price else 0,
+                "promotional_price": float(plan.promotional_price) if plan.promotional_price else None,
+                "currency": plan.currency,
+                "billing_cycle": plan.billing_cycle,
+                "max_users": plan.max_users,
+                "max_ml_accounts": plan.max_ml_accounts,
+                "storage_gb": plan.storage_gb,
+                "ai_analysis_monthly": plan.ai_analysis_monthly,
+                "catalog_monitoring_slots": plan.catalog_monitoring_slots,
+                "product_mining_slots": plan.product_mining_slots,
+                "product_monitoring_slots": plan.product_monitoring_slots,
+                "trial_days": plan.trial_days
+            })
+    finally:
+        db.close()
+    
+    return render_template("home.html", plans=plans_data)
 
 
 

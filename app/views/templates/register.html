@@ -60,6 +60,36 @@
                     
                     <hr class="my-4">
                     
+                    <!-- Seleção de Plano -->
+                    <h6 class="text-primary mb-3">
+                        <i class="bi bi-credit-card"></i> Escolha seu Plano
+                    </h6>
+                    
+                    <div class="mb-4">
+                        <label for="plan_id" class="form-label">
+                            <i class="bi bi-tag-fill"></i> Plano *
+                        </label>
+                        <select class="form-select" id="plan_id" name="plan_id" required onchange="updatePlanInfo()">
+                            <option value="">Selecione um plano...</option>
+                            {% for plan in plans %}
+                            <option value="{{ plan.id }}" 
+                                    data-price="{{ plan.price }}" 
+                                    data-promotional="{{ plan.promotional_price or '' }}"
+                                    {% if selected_plan and selected_plan == plan.id %}selected{% endif %}>
+                                {{ plan.plan_name }} - 
+                                {% if plan.promotional_price %}
+                                    {{ plan.promotional_price|brl }} ({{ plan.price|brl }})
+                                {% else %}
+                                    {{ plan.price|brl }}
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div id="planInfo" class="form-text mt-2"></div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
                     <!-- Informações Pessoais -->
                     <h6 class="text-primary mb-3">
                         <i class="bi bi-person"></i>Informações Pessoais
@@ -233,5 +263,30 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
 
 // Auto-focus no primeiro campo
 document.getElementById('company_name').focus();
+
+// Função para atualizar informações do plano
+function updatePlanInfo() {
+    const select = document.getElementById('plan_id');
+    const infoDiv = document.getElementById('planInfo');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (selectedOption.value) {
+        const promotional = selectedOption.dataset.promotional;
+        
+        if (promotional) {
+            const discount = Math.round(((selectedOption.dataset.price - promotional) / selectedOption.dataset.price) * 100);
+            infoDiv.innerHTML = `<strong class="text-success"><i class="bi bi-star-fill"></i> Você está economizando ${discount}% com o preço promocional!</strong>`;
+        } else {
+            infoDiv.innerHTML = '<strong class="text-primary"><i class="bi bi-info-circle-fill"></i> Ótima escolha! Comece agora mesmo.</strong>';
+        }
+    } else {
+        infoDiv.innerHTML = '';
+    }
+}
+
+// Atualizar info do plano se já estiver selecionado
+if (document.getElementById('plan_id').value) {
+    updatePlanInfo();
+}
 </script>
 {% endblock %}

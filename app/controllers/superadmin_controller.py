@@ -140,17 +140,12 @@ class SuperAdminController:
                 "status": company.status.upper() if isinstance(company.status, str) else company.status.value.upper(),
                 "created_at": company.created_at,
                 "trial_ends_at": company.trial_ends_at,
-                "max_users": company.max_users,
-                "max_ml_accounts": company.max_ml_accounts,
                 "users_count": users_count,
                 "ml_accounts_count": ml_accounts_count,
                 "has_active_subscription": bool(active_subscription),
                 "subscription_plan": active_subscription.plan_name if active_subscription else None,
                 # Novos campos de plano
-                "plan_expires_at": company.plan_expires_at,
-                "max_catalog_monitoring": company.max_catalog_monitoring,
-                "ai_analysis_limit": company.ai_analysis_limit,
-                "ai_analysis_extra_package": company.ai_analysis_extra_package
+                "plan_expires_at": company.plan_expires_at
             })
         
         return {
@@ -224,8 +219,6 @@ class SuperAdminController:
                 "domain": company.domain,
                 "logo_url": company.logo_url,
                 "status": company.status,
-                "max_users": company.max_users,
-                "max_ml_accounts": company.max_ml_accounts,
                 "features": company.features,
                 "created_at": company.created_at,
                 "updated_at": company.updated_at,
@@ -379,19 +372,51 @@ class SuperAdminController:
             company = Company(
                 name=company_data["name"],
                 slug=company_data["slug"],
-                domain=company_data.get("domain"),
+                domain=company_data.get("domain") if company_data.get("domain") else None,
                 description=company_data.get("description"),
                 status=company_data["status"],
-                max_users=company_data.get("max_users", 10),
-                max_ml_accounts=company_data.get("max_ml_accounts", 5),
-                # Novos campos de plano
-                plan_expires_at=company_data.get("plan_expires_at"),
-                max_catalog_monitoring=company_data.get("max_catalog_monitoring", 5),
-                ai_analysis_limit=company_data.get("ai_analysis_limit", 10),
-                ai_analysis_extra_package=company_data.get("ai_analysis_extra_package", 0)
+                # Campos de plano
+                plan_expires_at=company_data.get("plan_expires_at")
             )
             
             self.db.add(company)
+            self.db.flush()  # Para obter o ID da empresa
+            
+            # Criar assinatura se plan_id foi fornecido
+            if company_data.get("plan_id"):
+                plan_template = self.db.query(Subscription).filter(
+                    Subscription.id == company_data["plan_id"],
+                    Subscription.status == "template"
+                ).first()
+                
+                if plan_template:
+                    from datetime import datetime, timedelta
+                    
+                    trial_days = plan_template.trial_days if hasattr(plan_template, 'trial_days') else 0
+                    is_trial = trial_days > 0
+                    
+                    subscription = Subscription(
+                        company_id=company.id,
+                        plan_name=plan_template.plan_name,
+                        description=plan_template.description,
+                        price=plan_template.promotional_price if plan_template.promotional_price else plan_template.price,
+                        currency=plan_template.currency,
+                        billing_cycle=plan_template.billing_cycle,
+                        max_users=plan_template.max_users,
+                        max_ml_accounts=plan_template.max_ml_accounts,
+                        storage_gb=plan_template.storage_gb if hasattr(plan_template, 'storage_gb') else 5,
+                        ai_analysis_monthly=plan_template.ai_analysis_monthly if hasattr(plan_template, 'ai_analysis_monthly') else 10,
+                        catalog_monitoring_slots=plan_template.catalog_monitoring_slots if hasattr(plan_template, 'catalog_monitoring_slots') else 5,
+                        product_mining_slots=plan_template.product_mining_slots if hasattr(plan_template, 'product_mining_slots') else 10,
+                        product_monitoring_slots=plan_template.product_monitoring_slots if hasattr(plan_template, 'product_monitoring_slots') else 20,
+                        status="active",
+                        is_trial=is_trial,
+                        starts_at=datetime.utcnow(),
+                        ends_at=datetime.utcnow() + timedelta(days=30) if not is_trial else None,
+                        trial_ends_at=datetime.utcnow() + timedelta(days=trial_days) if is_trial else None
+                    )
+                    self.db.add(subscription)
+            
             self.db.commit()
             
             return {
@@ -430,21 +455,12 @@ class SuperAdminController:
             # Atualizar campos
             company.name = company_data["name"]
             company.slug = company_data["slug"]
-            company.domain = company_data.get("domain")
+            company.domain = company_data.get("domain") if company_data.get("domain") else None
             company.description = company_data.get("description")
             company.status = company_data["status"]
-            company.max_users = company_data.get("max_users", company.max_users)
-            company.max_ml_accounts = company_data.get("max_ml_accounts", company.max_ml_accounts)
-            
-            # Atualizar novos campos de plano
+            # Atualizar campos de plano
             if "plan_expires_at" in company_data:
                 company.plan_expires_at = company_data["plan_expires_at"]
-            if "max_catalog_monitoring" in company_data:
-                company.max_catalog_monitoring = company_data["max_catalog_monitoring"]
-            if "ai_analysis_limit" in company_data:
-                company.ai_analysis_limit = company_data["ai_analysis_limit"]
-            if "ai_analysis_extra_package" in company_data:
-                company.ai_analysis_extra_package = company_data["ai_analysis_extra_package"]
             
             self.db.commit()
             
@@ -457,27 +473,280 @@ class SuperAdminController:
             raise e
     
     def delete_company(self, company_id: int) -> Dict:
-        """Exclui uma empresa"""
+        """Exclui uma empresa e todos os seus registros associados"""
         try:
+            from app.models.saas_models import Token, MLOrder, MLCatalogMonitoring, MLCatalogHistory
+            from sqlalchemy import text
+            
             company = self.db.query(Company).filter(Company.id == company_id).first()
             if not company:
                 raise ValueError("Empresa não encontrada")
             
-            # Verificar se há usuários ativos
-            active_users = self.db.query(User).filter(
-                User.company_id == company_id,
-                User.is_active == True
-            ).count()
+            # Excluir TODOS os registros associados em ordem
+            # 1. Tokens (vinculados a usuários)
+            tokens = self.db.query(Token).join(User).filter(User.company_id == company_id).all()
+            for token in tokens:
+                self.db.delete(token)
             
-            if active_users > 0:
-                raise ValueError(f"Não é possível excluir empresa com {active_users} usuário(s) ativo(s)")
+            # 2. Histórico de catálogo
+            self.db.execute(text("""
+                DELETE FROM ml_catalog_history 
+                WHERE monitoring_id IN (
+                    SELECT id FROM ml_catalog_monitoring WHERE company_id = :company_id
+                )
+            """), {"company_id": company_id})
             
-            # Excluir empresa (cascade será tratado pelo banco)
+            # 3. Monitoramento de catálogo
+            self.db.execute(text("DELETE FROM ml_catalog_monitoring WHERE company_id = :company_id"), 
+                          {"company_id": company_id})
+            
+            # 4. Pedidos ML
+            self.db.execute(text("DELETE FROM ml_orders WHERE company_id = :company_id"), 
+                          {"company_id": company_id})
+            
+            # 5. Contas ML
+            self.db.execute(text("DELETE FROM ml_accounts WHERE company_id = :company_id"), 
+                          {"company_id": company_id})
+            
+            # 6. Assinaturas
+            self.db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
+                          {"company_id": company_id})
+            
+            # 7. Produtos internos
+            self.db.execute(text("DELETE FROM internal_products WHERE company_id = :company_id"), 
+                          {"company_id": company_id})
+            
+            # 8. Produtos
+            self.db.execute(text("DELETE FROM products WHERE company_id = :company_id"), 
+                          {"company_id": company_id})
+            
+            # 9. Usuários
+            users = self.db.query(User).filter(User.company_id == company_id).all()
+            for user in users:
+                self.db.delete(user)
+            
+            # 10. Finalmente, excluir a empresa
             self.db.delete(company)
             self.db.commit()
             
             return {
-                "message": "Empresa excluída com sucesso"
+                "message": f"Empresa '{company.name}' e todos os seus registros foram excluídos com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e
+    
+    # ==================== MÉTODOS PARA PLANOS ====================
+    
+    def get_plans_overview(self) -> Dict:
+        """Retorna visão geral dos planos"""
+        try:
+            # Total de planos (templates)
+            total_plans = self.db.query(Subscription).filter(
+                Subscription.status == "template"
+            ).count()
+            
+            # Planos ativos (templates ativos)
+            active_plans = self.db.query(Subscription).filter(
+                Subscription.status == "template"
+            ).count()
+            
+            # Assinaturas trial
+            trial_plans = self.db.query(Subscription).filter(
+                Subscription.is_trial == True,
+                Subscription.status == "active"
+            ).count()
+            
+            # Empresas com planos ativos
+            companies_with_plans = self.db.query(Subscription).filter(
+                Subscription.status == "active",
+                Subscription.company_id.isnot(None)
+            ).distinct(Subscription.company_id).count()
+            
+            # Lista de todos os planos
+            plans = self.db.query(Subscription).filter(
+                Subscription.status == "template"
+            ).all()
+            
+            plans_data = []
+            for plan in plans:
+                # Contar assinaturas ativas deste plano
+                active_subscriptions = self.db.query(Subscription).filter(
+                    Subscription.plan_name == plan.plan_name,
+                    Subscription.status == "active",
+                    Subscription.company_id.isnot(None)
+                ).count()
+                
+                plans_data.append({
+                    "id": plan.id,
+                    "plan_name": plan.plan_name,
+                    "description": plan.description if hasattr(plan, 'description') else None,
+                    "price": float(plan.price) if plan.price else 0,
+                    "promotional_price": float(plan.promotional_price) if hasattr(plan, 'promotional_price') and plan.promotional_price else None,
+                    "currency": plan.currency,
+                    "billing_cycle": plan.billing_cycle if hasattr(plan, 'billing_cycle') else "monthly",
+                    "status": "active",  # Templates são sempre ativos
+                    
+                    # Limites básicos
+                    "max_users": plan.max_users if hasattr(plan, 'max_users') else 10,
+                    "max_ml_accounts": plan.max_ml_accounts if hasattr(plan, 'max_ml_accounts') else 5,
+                    
+                    # Recursos vendidos
+                    "storage_gb": plan.storage_gb if hasattr(plan, 'storage_gb') else 5,
+                    "ai_analysis_monthly": plan.ai_analysis_monthly if hasattr(plan, 'ai_analysis_monthly') else 10,
+                    "catalog_monitoring_slots": plan.catalog_monitoring_slots if hasattr(plan, 'catalog_monitoring_slots') else 5,
+                    "product_mining_slots": plan.product_mining_slots if hasattr(plan, 'product_mining_slots') else 10,
+                    "product_monitoring_slots": plan.product_monitoring_slots if hasattr(plan, 'product_monitoring_slots') else 20,
+                    
+                    "trial_days": plan.trial_days if hasattr(plan, 'trial_days') else 0,
+                    "active_subscriptions": active_subscriptions,
+                    "created_at": plan.created_at
+                })
+            
+            return {
+                "total": total_plans,
+                "active_plans": active_plans,
+                "trial_plans": trial_plans,
+                "companies_with_plans": companies_with_plans,
+                "plans": plans_data
+            }
+        except Exception as e:
+            print(f"Erro ao buscar planos: {e}")
+            return {
+                "total": 0,
+                "active_plans": 0,
+                "trial_plans": 0,
+                "companies_with_plans": 0,
+                "plans": []
+            }
+    
+    def create_plan_template(self, plan_data: Dict) -> Dict:
+        """Cria um template de plano"""
+        try:
+            # Verificar se já existe plano com este nome
+            existing = self.db.query(Subscription).filter(
+                Subscription.plan_name == plan_data["plan_name"],
+                Subscription.status == "template"
+            ).first()
+            
+            if existing:
+                raise ValueError("Já existe um plano com este nome")
+            
+            plan = Subscription(
+                company_id=None,  # Template não pertence a nenhuma empresa
+                plan_name=plan_data["plan_name"],
+                description=plan_data.get("description"),
+                price=str(plan_data.get("price", 0)),
+                promotional_price=str(plan_data.get("promotional_price")) if plan_data.get("promotional_price") else None,
+                currency=plan_data.get("currency", "BRL"),
+                billing_cycle=plan_data.get("billing_cycle", "monthly"),
+                status="template",
+                is_trial=False,
+                
+                # Limites básicos
+                max_users=plan_data.get("max_users", 10),
+                max_ml_accounts=plan_data.get("max_ml_accounts", 5),
+                
+                # Recursos vendidos
+                storage_gb=plan_data.get("storage_gb", 5),
+                ai_analysis_monthly=plan_data.get("ai_analysis_monthly", 10),
+                catalog_monitoring_slots=plan_data.get("catalog_monitoring_slots", 5),
+                product_mining_slots=plan_data.get("product_mining_slots", 10),
+                product_monitoring_slots=plan_data.get("product_monitoring_slots", 20),
+                
+                trial_days=plan_data.get("trial_days", 0)
+            )
+            
+            self.db.add(plan)
+            self.db.commit()
+            
+            return {
+                "id": plan.id,
+                "message": "Plano criado com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e
+    
+    def update_plan_template(self, plan_id: int, plan_data: Dict) -> Dict:
+        """Atualiza um template de plano"""
+        try:
+            plan = self.db.query(Subscription).filter(
+                Subscription.id == plan_id,
+                Subscription.status == "template"
+            ).first()
+            
+            if not plan:
+                raise ValueError("Plano não encontrado")
+            
+            # Verificar se o novo nome já existe (em outro plano)
+            if plan_data.get("plan_name") and plan_data["plan_name"] != plan.plan_name:
+                existing = self.db.query(Subscription).filter(
+                    Subscription.plan_name == plan_data["plan_name"],
+                    Subscription.status == "template",
+                    Subscription.id != plan_id
+                ).first()
+                
+                if existing:
+                    raise ValueError("Já existe um plano com este nome")
+            
+            # Atualizar campos
+            plan.plan_name = plan_data.get("plan_name", plan.plan_name)
+            plan.description = plan_data.get("description", plan.description)
+            plan.price = str(plan_data.get("price", plan.price))
+            plan.promotional_price = str(plan_data.get("promotional_price")) if plan_data.get("promotional_price") else None
+            plan.currency = plan_data.get("currency", plan.currency)
+            plan.billing_cycle = plan_data.get("billing_cycle", plan.billing_cycle)
+            
+            # Limites básicos
+            plan.max_users = plan_data.get("max_users", plan.max_users)
+            plan.max_ml_accounts = plan_data.get("max_ml_accounts", plan.max_ml_accounts)
+            
+            # Recursos vendidos
+            plan.storage_gb = plan_data.get("storage_gb", plan.storage_gb if hasattr(plan, 'storage_gb') else 5)
+            plan.ai_analysis_monthly = plan_data.get("ai_analysis_monthly", plan.ai_analysis_monthly if hasattr(plan, 'ai_analysis_monthly') else 10)
+            plan.catalog_monitoring_slots = plan_data.get("catalog_monitoring_slots", plan.catalog_monitoring_slots if hasattr(plan, 'catalog_monitoring_slots') else 5)
+            plan.product_mining_slots = plan_data.get("product_mining_slots", plan.product_mining_slots if hasattr(plan, 'product_mining_slots') else 10)
+            plan.product_monitoring_slots = plan_data.get("product_monitoring_slots", plan.product_monitoring_slots if hasattr(plan, 'product_monitoring_slots') else 20)
+            
+            plan.trial_days = plan_data.get("trial_days", plan.trial_days)
+            
+            self.db.commit()
+            
+            return {
+                "id": plan.id,
+                "message": "Plano atualizado com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e
+    
+    def delete_plan_template(self, plan_id: int) -> Dict:
+        """Exclui um template de plano"""
+        try:
+            plan = self.db.query(Subscription).filter(
+                Subscription.id == plan_id,
+                Subscription.status == "template"
+            ).first()
+            
+            if not plan:
+                raise ValueError("Plano não encontrado")
+            
+            # Verificar se há assinaturas ativas usando este plano
+            active_subscriptions = self.db.query(Subscription).filter(
+                Subscription.plan_name == plan.plan_name,
+                Subscription.status == "active",
+                Subscription.company_id.isnot(None)
+            ).count()
+            
+            if active_subscriptions > 0:
+                raise ValueError(f"Não é possível excluir plano com {active_subscriptions} assinatura(s) ativa(s)")
+            
+            self.db.delete(plan)
+            self.db.commit()
+            
+            return {
+                "message": "Plano excluído com sucesso"
             }
         except Exception as e:
             self.db.rollback()

@@ -582,12 +582,101 @@ body {
             <div class="col-lg-8 mx-auto text-center">
                 <h2 class="display-5 fw-bold mb-4">Planos e Preços</h2>
                 <p class="lead text-muted">
-                    Escolha o plano ideal para o seu negócio. <strong>Pague apenas pelas análises com IA que você usar!</strong>
+                    Escolha o plano ideal para o seu negócio. <strong>Recursos poderosos para impulsionar suas vendas!</strong>
                 </p>
             </div>
         </div>
 
         <div class="row g-4">
+            {% if plans %}
+                {% for plan in plans %}
+                <div class="col-lg-4">
+                    <div class="card h-100 shadow-sm {% if loop.index == 2 %}border-warning shadow-lg{% else %}border-primary{% endif %}" style="border-width: {% if loop.index == 2 %}3{% else %}2{% endif %}px;">
+                        {% if loop.index == 2 %}
+                        <div class="card-header bg-warning text-dark text-center py-3">
+                            <span class="badge bg-dark mb-2">MAIS POPULAR</span>
+                            <h3 class="fw-bold mb-0">{{ plan.plan_name }}</h3>
+                        </div>
+                        {% endif %}
+                        <div class="card-body p-4">
+                            <div class="text-center mb-4">
+                                {% if loop.index != 2 %}
+                                <h3 class="fw-bold">{{ plan.plan_name }}</h3>
+                                {% endif %}
+                                
+                                {% if plan.promotional_price %}
+                                <div class="display-4 fw-bold {% if loop.index == 2 %}text-warning{% else %}text-success{% endif %} my-3">
+                                    {{ plan.promotional_price|brl }}
+                                </div>
+                                <p class="text-muted">
+                                    <small class="text-decoration-line-through">{{ plan.price|brl }}</small><br>
+                                    <strong>{{ plan.ai_analysis_monthly }} análises IA/mês</strong>
+                                </p>
+                                {% else %}
+                                <div class="display-4 fw-bold {% if loop.index == 2 %}text-warning{% else %}text-primary{% endif %} my-3">
+                                    {{ plan.price|brl }}
+                                </div>
+                                <p class="text-muted">
+                                    <strong>{{ plan.ai_analysis_monthly }} análises IA/mês</strong>
+                                </p>
+                                {% endif %}
+                            </div>
+                            
+                            <ul class="list-unstyled mb-4">
+                                {% if plan.description %}
+                                    {% for feature in plan.description.split('\n') %}
+                                    {% if feature.strip() %}
+                                    <li class="mb-3">
+                                        <i class="bi bi-check-circle-fill {% if loop.index == 2 %}text-warning{% else %}text-success{% endif %} me-2"></i>
+                                        <strong>{{ feature.strip() }}</strong>
+                                    </li>
+                                    {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                <li class="mb-3">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>🤖 {{ plan.ai_analysis_monthly }} análises IA/mês</strong>
+                                </li>
+                                <li class="mb-3">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>💾 {{ plan.storage_gb }}GB armazenamento</strong>
+                                </li>
+                                <li class="mb-3">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>👁️ {{ plan.catalog_monitoring_slots }} catálogos monitorados</strong>
+                                </li>
+                                <li class="mb-3">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>⛏️ {{ plan.product_mining_slots }} slots mineração</strong>
+                                </li>
+                                <li class="mb-3">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>📊 {{ plan.product_monitoring_slots }} produtos monitorados</strong>
+                                </li>
+                                {% endif %}
+                            </ul>
+                            
+                            {% if plan.promotional_price %}
+                            <div class="alert {% if loop.index == 2 %}alert-warning{% else %}alert-primary{% endif %} mb-3">
+                                <small><i class="bi bi-star-fill me-1"></i> <strong>PROMOÇÃO!</strong> Economize {{ "%.0f"|format(((plan.price - plan.promotional_price) / plan.price * 100)) }}%</small>
+                            </div>
+                            {% endif %}
+                            
+                            {% if plan.trial_days > 0 %}
+                            <div class="alert alert-info mb-3">
+                                <small><i class="bi bi-clock-history me-1"></i> <strong>{{ plan.trial_days }} dias de teste grátis!</strong></small>
+                            </div>
+                            {% endif %}
+                            
+                            <a href="/auth/register?plan={{ plan.id }}" class="btn {% if loop.index == 2 %}btn-warning text-dark fw-bold{% else %}btn-primary{% endif %} w-100 btn-lg">
+                                Começar Agora
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <!-- Fallback se não houver planos -->
             <!-- Plano Trial -->
             <div class="col-lg-4">
                 <div class="card h-100 shadow-sm border-primary" style="border-width: 2px;">
@@ -764,6 +853,7 @@ body {
                 </div>
         </div>
     </div>
+    {% endif %}
     
         <!-- Compra Por Demanda -->
         <div class="row mt-5">

@@ -768,13 +768,6 @@ function loadDashboardData(page = 1) {
             document.getElementById('kpi-cancelled-count').textContent = formatNumber(data.kpis.cancelled_orders || 0);
             document.getElementById('kpi-returns-value').textContent = formatBRL(data.kpis.returns_value || 0);
             document.getElementById('kpi-returns-count').textContent = formatNumber(data.kpis.returns_count || 0);
-            // Debug: verificar dados de visitas
-            console.log('🔍 Dados de visitas:', {
-                total_visits: data.kpis.total_visits,
-                total_sold: data.kpis.total_sold,
-                visits_element: document.getElementById('kpi-visits')
-            });
-            
             document.getElementById('kpi-visits').textContent = formatNumber(data.kpis.total_visits || 0);
             
             // Calcular e exibir taxa de conversão

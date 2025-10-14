@@ -44,15 +44,10 @@ class Company(Base):
     status = Column(Enum(CompanyStatus), default=CompanyStatus.TRIAL, index=True)
     
     # Configurações
-    max_ml_accounts = Column(Integer, default=5)
-    max_users = Column(Integer, default=10)
     features = Column(JSON)  # Features habilitadas
     
     # Plano e Limites
     plan_expires_at = Column(DateTime)  # Data de vencimento do plano
-    max_catalog_monitoring = Column(Integer, default=5)  # Quantidade de catálogos monitorados
-    ai_analysis_limit = Column(Integer, default=10)  # Limite de análises de IA do plano
-    ai_analysis_extra_package = Column(Integer, default=0)  # Análises de IA do pacote adicional
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
@@ -238,16 +233,32 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
     
     id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)  # Nullable para templates
     
     # Dados da assinatura
     plan_name = Column(String(100), nullable=False)
+    description = Column(Text)  # Descrição do plano
     plan_features = Column(JSON)
     price = Column(String(50))
+    promotional_price = Column(String(50))  # Preço promocional
     currency = Column(String(10), default="BRL")
+    billing_cycle = Column(String(20), default="monthly")  # monthly, quarterly, yearly
+    
+    # Limites e recursos do plano
+    max_users = Column(Integer, default=10)  # Quantidade de usuários
+    max_ml_accounts = Column(Integer, default=5)  # Quantidade de contas ML
+    
+    # Recursos vendidos no plano
+    storage_gb = Column(Integer, default=5)  # Espaço de armazenamento em GB
+    ai_analysis_monthly = Column(Integer, default=10)  # Análises de IA por mês
+    catalog_monitoring_slots = Column(Integer, default=5)  # Slots de monitoramento de catálogo
+    product_mining_slots = Column(Integer, default=10)  # Slots de mineração de produto
+    product_monitoring_slots = Column(Integer, default=20)  # Slots de monitoramento de produto
+    
+    trial_days = Column(Integer, default=0)  # Dias de trial gratuito
     
     # Status
-    status = Column(String(50), default="active", index=True)
+    status = Column(String(50), default="active", index=True)  # active, inactive, template
     is_trial = Column(Boolean, default=True)
     
     # Timestamps

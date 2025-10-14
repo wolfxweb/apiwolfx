@@ -58,13 +58,37 @@ async def login(
 @auth_router.get("/register", response_class=HTMLResponse)
 async def register_page(
     request: Request, 
+    plan: int = None,
     error: str = None, 
     success: str = None,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
     """Página de cadastro"""
-    return auth_controller.get_register_page(error=error, success=success, session_token=session_token, db=db)
+    from app.models.saas_models import Subscription
+    
+    # Buscar planos disponíveis
+    plans = db.query(Subscription).filter(
+        Subscription.status == "template"
+    ).order_by(Subscription.price).all()
+    
+    plans_data = []
+    for p in plans:
+        plans_data.append({
+            "id": p.id,
+            "plan_name": p.plan_name,
+            "price": float(p.price) if p.price else 0,
+            "promotional_price": float(p.promotional_price) if p.promotional_price else None
+        })
+    
+    return auth_controller.get_register_page(
+        error=error, 
+        success=success, 
+        session_token=session_token, 
+        selected_plan=plan,
+        plans=plans_data,
+        db=db
+    )
 
 @auth_router.post("/register")
 async def register(
@@ -77,6 +101,7 @@ async def register(
     email: str = Form(...),
     password: str = Form(...),
     confirm_password: str = Form(...),
+    plan_id: int = Form(None),
     terms: bool = Form(False),
     newsletter: bool = Form(False),
     db: Session = Depends(get_db)
@@ -100,6 +125,7 @@ async def register(
         last_name=last_name,
         email=email,
         password=password,
+        plan_id=plan_id,
         terms=terms,
         newsletter=newsletter,
         db=db

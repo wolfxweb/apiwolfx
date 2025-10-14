@@ -92,6 +92,15 @@ async def superadmin_company_details(
     return render_template("superadmin/company_details.html", 
                          company_details=company_details)
 
+@superadmin_router.get("/superadmin/plans", response_class=HTMLResponse)
+async def superadmin_plans(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Lista de planos"""
+    # TODO: Verificar autenticação de superadmin
+    return render_template("superadmin/plans.html")
+
 @superadmin_router.post("/superadmin/companies/{company_id}/status")
 async def update_company_status(
     request: Request,
@@ -246,6 +255,106 @@ async def api_delete_company(
     
     try:
         result = controller.delete_company(company_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@superadmin_router.get("/api/superadmin/companies/{company_id}/subscription")
+async def api_get_company_subscription(
+    company_id: int,
+    db: Session = Depends(get_db)
+):
+    """API: Busca assinatura ativa da empresa"""
+    # TODO: Verificar autenticação de superadmin
+    from app.models.saas_models import Subscription
+    
+    try:
+        # Buscar assinatura ativa da empresa
+        subscription = db.query(Subscription).filter(
+            Subscription.company_id == company_id,
+            Subscription.status == "active"
+        ).first()
+        
+        if not subscription:
+            return {"subscription": None, "plan_template_id": None}
+        
+        # Buscar o template do plano com o mesmo nome
+        plan_template = db.query(Subscription).filter(
+            Subscription.plan_name == subscription.plan_name,
+            Subscription.status == "template"
+        ).first()
+        
+        return {
+            "subscription": {
+                "id": subscription.id,
+                "plan_name": subscription.plan_name,
+                "price": subscription.price,
+                "status": subscription.status
+            },
+            "plan_template_id": plan_template.id if plan_template else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+# ==================== API REST PARA PLANOS ====================
+
+@superadmin_router.get("/api/superadmin/plans")
+async def api_get_plans(db: Session = Depends(get_db)):
+    """API: Lista todos os planos"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    return controller.get_plans_overview()
+
+@superadmin_router.post("/api/superadmin/plans")
+async def api_create_plan(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API: Cria um novo plano"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    
+    try:
+        plan_data = await request.json()
+        result = controller.create_plan_template(plan_data)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@superadmin_router.put("/api/superadmin/plans/{plan_id}")
+async def api_update_plan(
+    plan_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API: Atualiza um plano existente"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    
+    try:
+        plan_data = await request.json()
+        result = controller.update_plan_template(plan_id, plan_data)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@superadmin_router.delete("/api/superadmin/plans/{plan_id}")
+async def api_delete_plan(
+    plan_id: int,
+    db: Session = Depends(get_db)
+):
+    """API: Exclui um plano"""
+    # TODO: Verificar autenticação de superadmin
+    controller = SuperAdminController(db)
+    
+    try:
+        result = controller.delete_plan_template(plan_id)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

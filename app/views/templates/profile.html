@@ -78,11 +78,18 @@
                                     N/A
                                 {% endif %}
                             </p>
+                            {% if company.trial_ends_at %}
+                            <p><strong><i class="bi bi-clock-history"></i> Trial expira em:</strong> 
+                                <span class="badge bg-warning text-dark">
+                                    {{ company.trial_ends_at.strftime('%d/%m/%Y %H:%M') }}
+                                </span>
+                            </p>
+                            {% endif %}
                             <p><strong><i class="bi bi-people"></i> Usuários:</strong> 
-                                <span class="badge bg-info">{{ company.total_users or 0 }} / {{ company.max_users or '∞' }}</span>
+                                <span class="badge bg-info">{{ company.total_users or 0 }} / {{ subscription.max_users or '∞' }}</span>
                             </p>
                             <p><strong><i class="bi bi-shop"></i> Contas ML:</strong> 
-                                <span class="badge bg-info">{{ company.total_ml_accounts or 0 }} / {{ company.max_ml_accounts or '∞' }}</span>
+                                <span class="badge bg-info">{{ company.total_ml_accounts or 0 }} / {{ subscription.max_ml_accounts or '∞' }}</span>
                             </p>
                         </div>
                     </div>
@@ -112,17 +119,17 @@
                         </p>
                         {% if subscription.price %}
                         <p><strong><i class="bi bi-currency-dollar"></i> Preço:</strong> 
-                            {{ subscription.currency or 'BRL' }} {{ subscription.price }}
+                            {{ subscription.price|brl }}
                         </p>
                         {% endif %}
-                        <p><strong><i class="bi bi-calendar-check"></i> Início:</strong><br>
+                        <p><strong><i class="bi bi-calendar-check"></i> Início:</strong> 
                             {% if subscription.starts_at %}
                                 {{ subscription.starts_at.strftime('%d/%m/%Y') }}
                             {% else %}
                                 N/A
                             {% endif %}
                         </p>
-                        <p><strong><i class="bi bi-calendar-x"></i> Vencimento:</strong><br>
+                        <p><strong><i class="bi bi-calendar-x"></i> Vencimento:</strong> 
                             {% if subscription.ends_at %}
                                 {{ subscription.ends_at.strftime('%d/%m/%Y') }}
                             {% elif subscription.trial_ends_at %}

@@ -118,10 +118,7 @@
                                     <th>ID</th>
                                     <th>Nome</th>
                                     <th>Status</th>
-                                    <th>Usuários</th>
-                                    <th>Contas ML</th>
-                                    <th>Catálogos</th>
-                                    <th>Análises IA</th>
+                                    <th>Plano</th>
                                     <th>Vencimento</th>
                                     <th>Ações</th>
                                 </tr>
@@ -193,20 +190,6 @@
                         <label for="companyDescription" class="form-label">Descrição</label>
                         <textarea class="form-control" id="companyDescription" rows="3"></textarea>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="maxUsers" class="form-label">Máximo de Usuários</label>
-                                <input type="number" class="form-control" id="maxUsers" min="1" value="10">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="maxMLAccounts" class="form-label">Máximo de Contas ML</label>
-                                <input type="number" class="form-control" id="maxMLAccounts" min="1" value="5">
-                            </div>
-                        </div>
-                    </div>
                     
                     <hr class="my-4">
                     <h6 class="mb-3"><i class="bi bi-calendar-check"></i> Configurações do Plano</h6>
@@ -221,26 +204,12 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="maxCatalogMonitoring" class="form-label">Máx. Catálogos Monitorados</label>
-                                <input type="number" class="form-control" id="maxCatalogMonitoring" min="0" value="5">
-                                <div class="form-text">Quantidade de catálogos que podem ser monitorados</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="aiAnalysisLimit" class="form-label">Análises de IA (Plano)</label>
-                                <input type="number" class="form-control" id="aiAnalysisLimit" min="0" value="10">
-                                <div class="form-text">Limite de análises de IA incluídas no plano</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="aiAnalysisExtraPackage" class="form-label">Análises de IA (Pacote Extra)</label>
-                                <input type="number" class="form-control" id="aiAnalysisExtraPackage" min="0" value="0">
-                                <div class="form-text">Pacote adicional de análises contratado</div>
+                                <label for="planId" class="form-label">Plano Associado</label>
+                                <select class="form-select" id="planId">
+                                    <option value="">Sem plano</option>
+                                    <!-- Planos carregados via JavaScript -->
+                                </select>
+                                <div class="form-text">Plano de assinatura da empresa</div>
                             </div>
                         </div>
                     </div>
@@ -282,10 +251,41 @@ let currentCompanyId = null;
 
 // Carregar dados iniciais
 document.addEventListener('DOMContentLoaded', function() {
+    loadPlans();
     loadCompanies();
 });
 
 // Carregar empresas
+let availablePlans = [];
+
+// Carregar planos disponíveis
+async function loadPlans() {
+    try {
+        const response = await fetch('/api/superadmin/plans');
+        if (response.ok) {
+            const data = await response.json();
+            availablePlans = data.plans || [];
+            updatePlanSelect();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar planos:', error);
+    }
+}
+
+// Atualizar select de planos
+function updatePlanSelect() {
+    const select = document.getElementById('planId');
+    select.innerHTML = '<option value="">Sem plano</option>';
+    
+    availablePlans.forEach(plan => {
+        const option = document.createElement('option');
+        option.value = plan.id;
+        const price = plan.promotional_price || plan.price;
+        option.textContent = `${plan.plan_name} - R$ ${price.toFixed(2)}`;
+        select.appendChild(option);
+    });
+}
+
 async function loadCompanies() {
     try {
         showLoading();
@@ -355,7 +355,10 @@ function createCompanyRow(company) {
     const createdAt = new Date(company.created_at).toLocaleDateString('pt-BR');
     
     const planExpiresAt = company.plan_expires_at ? new Date(company.plan_expires_at).toLocaleDateString('pt-BR') : '-';
-    const totalAiAnalysis = (company.ai_analysis_limit || 0) + (company.ai_analysis_extra_package || 0);
+    const planName = company.subscription_plan || 'Sem plano';
+    const planBadge = company.has_active_subscription ? 
+        `<span class="badge bg-success">${planName}</span>` : 
+        `<span class="badge bg-secondary">${planName}</span>`;
     
     row.innerHTML = `
         <td>${company.id}</td>
@@ -364,21 +367,7 @@ function createCompanyRow(company) {
             ${company.description ? `<br><small class="text-muted">${company.description}</small>` : ''}
         </td>
         <td>${statusBadge}</td>
-        <td>
-            <span class="badge bg-info">${company.users_count || 0}</span>
-            <small class="text-muted">/ ${company.max_users || 0}</small>
-        </td>
-        <td>
-            <span class="badge bg-info">${company.ml_accounts_count || 0}</span>
-            <small class="text-muted">/ ${company.max_ml_accounts || 0}</small>
-        </td>
-        <td>
-            <span class="badge bg-secondary">${company.max_catalog_monitoring || 0}</span>
-        </td>
-        <td>
-            <span class="badge bg-primary">${totalAiAnalysis}</span>
-            ${company.ai_analysis_extra_package > 0 ? `<br><small class="text-muted">(${company.ai_analysis_limit} + ${company.ai_analysis_extra_package})</small>` : ''}
-        </td>
+        <td>${planBadge}</td>
         <td>
             ${planExpiresAt !== '-' ? `<span class="badge bg-warning text-dark">${planExpiresAt}</span>` : '-'}
         </td>
@@ -514,6 +503,9 @@ function showCreateCompanyModal() {
     document.getElementById('companyForm').reset();
     document.getElementById('companyId').value = '';
     
+    // Atualizar lista de planos
+    updatePlanSelect();
+    
     const modal = new bootstrap.Modal(document.getElementById('companyModal'));
     modal.show();
 }
@@ -524,7 +516,7 @@ function viewCompany(id) {
 }
 
 // Editar empresa
-function editCompany(id) {
+async function editCompany(id) {
     const company = companiesData.find(c => c.id === id);
     if (!company) return;
     
@@ -535,14 +527,30 @@ function editCompany(id) {
     document.getElementById('companyDomain').value = company.domain || '';
     document.getElementById('companyStatus').value = company.status;
     document.getElementById('companyDescription').value = company.description || '';
-    document.getElementById('maxUsers').value = company.max_users || 10;
-    document.getElementById('maxMLAccounts').value = company.max_ml_accounts || 5;
     
     // Novos campos de plano
     document.getElementById('planExpiresAt').value = company.plan_expires_at ? company.plan_expires_at.split('T')[0] : '';
-    document.getElementById('maxCatalogMonitoring').value = company.max_catalog_monitoring || 5;
-    document.getElementById('aiAnalysisLimit').value = company.ai_analysis_limit || 10;
-    document.getElementById('aiAnalysisExtraPackage').value = company.ai_analysis_extra_package || 0;
+    
+    // Atualizar lista de planos
+    updatePlanSelect();
+    
+    // Buscar assinatura ativa da empresa
+    try {
+        const response = await fetch(`/api/superadmin/companies/${id}/subscription`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.subscription && data.plan_template_id) {
+                document.getElementById('planId').value = data.plan_template_id;
+            } else {
+                document.getElementById('planId').value = '';
+            }
+        } else {
+            document.getElementById('planId').value = '';
+        }
+    } catch (error) {
+        console.error('Erro ao buscar assinatura:', error);
+        document.getElementById('planId').value = '';
+    }
     
     const modal = new bootstrap.Modal(document.getElementById('companyModal'));
     modal.show();
@@ -556,19 +564,17 @@ async function saveCompany() {
         return;
     }
     
+    const planId = document.getElementById('planId').value;
+    
     const companyData = {
         name: document.getElementById('companyName').value,
         slug: document.getElementById('companySlug').value,
         domain: document.getElementById('companyDomain').value,
         status: document.getElementById('companyStatus').value,
         description: document.getElementById('companyDescription').value,
-        max_users: parseInt(document.getElementById('maxUsers').value),
-        max_ml_accounts: parseInt(document.getElementById('maxMLAccounts').value),
-        // Novos campos de plano
+        // Campos de plano
         plan_expires_at: document.getElementById('planExpiresAt').value || null,
-        max_catalog_monitoring: parseInt(document.getElementById('maxCatalogMonitoring').value) || 5,
-        ai_analysis_limit: parseInt(document.getElementById('aiAnalysisLimit').value) || 10,
-        ai_analysis_extra_package: parseInt(document.getElementById('aiAnalysisExtraPackage').value) || 0
+        plan_id: planId ? parseInt(planId) : null
     };
     
     const companyId = document.getElementById('companyId').value;
@@ -624,13 +630,25 @@ function confirmAction(action, id, name) {
     
     switch (action) {
         case 'delete':
-            title.textContent = 'Confirmar Exclusão';
+            title.textContent = 'Confirmar Exclusão Completa';
             body.innerHTML = `
                 <p>Tem certeza que deseja excluir a empresa <strong>"${name}"</strong>?</p>
-                <p class="text-danger"><i class="bi bi-exclamation-triangle"></i> Esta ação não pode ser desfeita!</p>
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i> <strong>ATENÇÃO!</strong>
+                    <p class="mb-0 mt-2">Esta ação irá excluir PERMANENTEMENTE:</p>
+                    <ul class="mb-0 mt-2">
+                        <li>Todos os usuários da empresa</li>
+                        <li>Todas as contas Mercado Livre</li>
+                        <li>Todos os pedidos e histórico</li>
+                        <li>Todo o monitoramento de catálogo</li>
+                        <li>Todos os produtos e dados</li>
+                        <li>Todas as assinaturas</li>
+                    </ul>
+                    <p class="mt-2 mb-0"><strong>Esta ação NÃO PODE ser desfeita!</strong></p>
+                </div>
             `;
             button.className = 'btn btn-danger';
-            button.textContent = 'Excluir';
+            button.innerHTML = '<i class="bi bi-trash-fill"></i> Excluir Tudo';
             break;
     }
     

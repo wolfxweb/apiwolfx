@@ -3,7 +3,8 @@ Serviço para gerenciar operações do banco de dados
 """
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from app.models.database_models import User, Token, Product, Category, ApiLog
+from app.models.database_models import Product, Category, ApiLog
+from app.models.saas_models import User, Token
 from app.models.mercadolibre_models import MLUser, MLToken, MLItem
 from typing import Optional, List
 from datetime import datetime, timedelta

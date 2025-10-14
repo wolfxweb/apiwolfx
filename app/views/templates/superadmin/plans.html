@@ -87,10 +87,8 @@
                             <th>ID</th>
                             <th>Nome do Plano</th>
                             <th>Preço</th>
-                            <th>Usuários</th>
-                            <th>Contas ML</th>
-                            <th>Catálogos</th>
-                            <th>Análises IA</th>
+                            <th>Recursos</th>
+                            <th>Assinaturas</th>
                             <th>Status</th>
                             <th>Ações</th>
                         </tr>
@@ -136,13 +134,20 @@
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="mb-3">
                                 <label for="planPrice" class="form-label">Preço (R$) *</label>
                                 <input type="number" step="0.01" class="form-control" id="planPrice" required>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="planPromotionalPrice" class="form-label">Preço Promocional (R$)</label>
+                                <input type="number" step="0.01" class="form-control" id="planPromotionalPrice">
+                                <div class="form-text">Opcional</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
                             <div class="mb-3">
                                 <label for="planCurrency" class="form-label">Moeda</label>
                                 <select class="form-select" id="planCurrency">
@@ -151,7 +156,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="mb-3">
                                 <label for="planBillingCycle" class="form-label">Ciclo de Cobrança *</label>
                                 <select class="form-select" id="planBillingCycle" required>
@@ -169,7 +174,7 @@
                     </div>
                     
                     <hr class="my-4">
-                    <h6 class="mb-3"><i class="bi bi-sliders"></i> Limites e Recursos</h6>
+                    <h6 class="mb-3"><i class="bi bi-sliders"></i> Limites Básicos</h6>
                     
                     <div class="row">
                         <div class="col-md-6">
@@ -186,20 +191,52 @@
                         </div>
                     </div>
                     
+                    <hr class="my-4">
+                    <h6 class="mb-3"><i class="bi bi-cart-check"></i> Recursos Vendidos</h6>
+                    
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="planMaxCatalogMonitoring" class="form-label">Máx. Catálogos Monitorados</label>
-                                <input type="number" class="form-control" id="planMaxCatalogMonitoring" min="0" value="5">
+                                <label for="planStorageGb" class="form-label">Armazenamento (GB)</label>
+                                <input type="number" class="form-control" id="planStorageGb" min="1" value="5">
+                                <div class="form-text">Espaço de armazenamento em Gigabytes</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="planAiAnalysisLimit" class="form-label">Análises de IA (Mensais)</label>
-                                <input type="number" class="form-control" id="planAiAnalysisLimit" min="0" value="10">
+                                <label for="planAiAnalysisMonthly" class="form-label">Análises de IA (Mensais)</label>
+                                <input type="number" class="form-control" id="planAiAnalysisMonthly" min="0" value="10">
+                                <div class="form-text">Quantidade de análises de IA por mês</div>
                             </div>
                         </div>
                     </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="planCatalogMonitoringSlots" class="form-label">Slots de Monit. Catálogo</label>
+                                <input type="number" class="form-control" id="planCatalogMonitoringSlots" min="0" value="5">
+                                <div class="form-text">Catálogos simultâneos</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="planProductMiningSlots" class="form-label">Slots de Mineração</label>
+                                <input type="number" class="form-control" id="planProductMiningSlots" min="0" value="10">
+                                <div class="form-text">Produtos para mineração</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="planProductMonitoringSlots" class="form-label">Slots de Monit. Produto</label>
+                                <input type="number" class="form-control" id="planProductMonitoringSlots" min="0" value="20">
+                                <div class="form-text">Produtos para monitorar</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h6 class="mb-3"><i class="bi bi-clock-history"></i> Trial</h6>
                     
                     <div class="mb-3">
                         <label for="planTrialDays" class="form-label">Dias de Trial Gratuito</label>
@@ -265,20 +302,32 @@ function createPlanRow(plan) {
         ? '<span class="badge bg-success">Ativo</span>' 
         : '<span class="badge bg-secondary">Inativo</span>';
     
+    const resourcesHtml = `
+        <small>
+            <i class="bi bi-hdd"></i> ${plan.storage_gb || 5}GB |
+            <i class="bi bi-robot"></i> ${plan.ai_analysis_monthly || 10}/mês<br>
+            <i class="bi bi-eye"></i> ${plan.catalog_monitoring_slots || 5} cat. |
+            <i class="bi bi-minecart"></i> ${plan.product_mining_slots || 10} min. |
+            <i class="bi bi-graph-up"></i> ${plan.product_monitoring_slots || 20} mon.
+        </small>
+    `;
+    
+    const priceHtml = plan.promotional_price 
+        ? `<strong class="text-success">${plan.currency} ${parseFloat(plan.promotional_price).toFixed(2)}</strong>
+           <br><small class="text-muted text-decoration-line-through">${plan.currency} ${parseFloat(plan.price).toFixed(2)}</small>
+           <br><small class="text-muted">${getBillingCycleText(plan.billing_cycle)}</small>`
+        : `<strong>${plan.currency} ${parseFloat(plan.price).toFixed(2)}</strong>
+           <br><small class="text-muted">${getBillingCycleText(plan.billing_cycle)}</small>`;
+    
     row.innerHTML = `
         <td>${plan.id}</td>
         <td>
             <strong>${plan.plan_name}</strong>
             ${plan.description ? `<br><small class="text-muted">${plan.description}</small>` : ''}
         </td>
-        <td>
-            <strong>${plan.currency} ${parseFloat(plan.price).toFixed(2)}</strong>
-            <br><small class="text-muted">${getBillingCycleText(plan.billing_cycle)}</small>
-        </td>
-        <td><span class="badge bg-info">${plan.max_users || 10}</span></td>
-        <td><span class="badge bg-info">${plan.max_ml_accounts || 5}</span></td>
-        <td><span class="badge bg-secondary">${plan.max_catalog_monitoring || 5}</span></td>
-        <td><span class="badge bg-primary">${plan.ai_analysis_limit || 10}</span></td>
+        <td>${priceHtml}</td>
+        <td>${resourcesHtml}</td>
+        <td><span class="badge bg-info">${plan.active_subscriptions || 0}</span></td>
         <td>${statusBadge}</td>
         <td>
             <div class="btn-group btn-group-sm">
@@ -333,13 +382,22 @@ function editPlan(id) {
     document.getElementById('planName').value = plan.plan_name;
     document.getElementById('planStatus').value = plan.status;
     document.getElementById('planPrice').value = plan.price;
+    document.getElementById('planPromotionalPrice').value = plan.promotional_price || '';
     document.getElementById('planCurrency').value = plan.currency || 'BRL';
     document.getElementById('planBillingCycle').value = plan.billing_cycle || 'monthly';
     document.getElementById('planDescription').value = plan.description || '';
+    
+    // Limites básicos
     document.getElementById('planMaxUsers').value = plan.max_users || 10;
     document.getElementById('planMaxMLAccounts').value = plan.max_ml_accounts || 5;
-    document.getElementById('planMaxCatalogMonitoring').value = plan.max_catalog_monitoring || 5;
-    document.getElementById('planAiAnalysisLimit').value = plan.ai_analysis_limit || 10;
+    
+    // Recursos vendidos
+    document.getElementById('planStorageGb').value = plan.storage_gb || 5;
+    document.getElementById('planAiAnalysisMonthly').value = plan.ai_analysis_monthly || 10;
+    document.getElementById('planCatalogMonitoringSlots').value = plan.catalog_monitoring_slots || 5;
+    document.getElementById('planProductMiningSlots').value = plan.product_mining_slots || 10;
+    document.getElementById('planProductMonitoringSlots').value = plan.product_monitoring_slots || 20;
+    
     document.getElementById('planTrialDays').value = plan.trial_days || 0;
     
     const modal = new bootstrap.Modal(document.getElementById('planModal'));
@@ -354,17 +412,28 @@ async function savePlan() {
         return;
     }
     
+    const promotionalPrice = document.getElementById('planPromotionalPrice').value;
+    
     const planData = {
         plan_name: document.getElementById('planName').value,
         status: document.getElementById('planStatus').value,
         price: parseFloat(document.getElementById('planPrice').value),
+        promotional_price: promotionalPrice ? parseFloat(promotionalPrice) : null,
         currency: document.getElementById('planCurrency').value,
         billing_cycle: document.getElementById('planBillingCycle').value,
         description: document.getElementById('planDescription').value,
+        
+        // Limites básicos
         max_users: parseInt(document.getElementById('planMaxUsers').value) || 10,
         max_ml_accounts: parseInt(document.getElementById('planMaxMLAccounts').value) || 5,
-        max_catalog_monitoring: parseInt(document.getElementById('planMaxCatalogMonitoring').value) || 5,
-        ai_analysis_limit: parseInt(document.getElementById('planAiAnalysisLimit').value) || 10,
+        
+        // Recursos vendidos
+        storage_gb: parseInt(document.getElementById('planStorageGb').value) || 5,
+        ai_analysis_monthly: parseInt(document.getElementById('planAiAnalysisMonthly').value) || 10,
+        catalog_monitoring_slots: parseInt(document.getElementById('planCatalogMonitoringSlots').value) || 5,
+        product_mining_slots: parseInt(document.getElementById('planProductMiningSlots').value) || 10,
+        product_monitoring_slots: parseInt(document.getElementById('planProductMonitoringSlots').value) || 20,
+        
         trial_days: parseInt(document.getElementById('planTrialDays').value) || 0
     };
     

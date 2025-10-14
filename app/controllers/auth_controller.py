@@ -46,7 +46,7 @@ class AuthController:
                              error=error or "", 
                              success=success or "")
     
-    def get_register_page(self, error: str = None, success: str = None, session_token: str = None, db: Session = None) -> HTMLResponse:
+    def get_register_page(self, error: str = None, success: str = None, session_token: str = None, selected_plan: int = None, plans: list = None, db: Session = None) -> HTMLResponse:
         """Renderiza página de cadastro"""
         user_data = None
         
@@ -59,7 +59,9 @@ class AuthController:
         return render_template("register.html", 
                              user=user_data,
                              error=error or "", 
-                             success=success or "")
+                             success=success or "",
+                             selected_plan=selected_plan,
+                             plans=plans or [])
     
     def login(self, email: str, password: str, remember: bool = False, db: Session = None) -> dict:
         """Processa login do usuário"""
@@ -122,7 +124,7 @@ class AuthController:
     
     def register(self, company_name: str, company_domain: str, company_description: str,
                 first_name: str, last_name: str, email: str, password: str, 
-                terms: bool, newsletter: bool = False, db: Session = None) -> dict:
+                plan_id: int = None, terms: bool = False, newsletter: bool = False, db: Session = None) -> dict:
         """Processa cadastro de novo usuário e empresa"""
         try:
             # Verificar se email já existe
@@ -144,17 +146,36 @@ class AuthController:
             if existing_slug:
                 company_slug = f"{company_slug}-{secrets.randbelow(1000)}"
             
-            # Criar empresa
+            # Buscar informações do plano ANTES de criar a empresa
+            trial_days = 0
+            is_trial = False
+            plan_template = None
+            
+            if plan_id:
+                from app.models.saas_models import Subscription
+                
+                # Buscar o template do plano
+                plan_template = db.query(Subscription).filter(
+                    Subscription.id == plan_id,
+                    Subscription.status == "template"
+                ).first()
+                
+                if plan_template:
+                    trial_days = plan_template.trial_days if hasattr(plan_template, 'trial_days') else 0
+                    is_trial = trial_days > 0
+            
+            # Criar empresa com status ACTIVE e trial_ends_at baseado no plano
+            company_status = "ACTIVE"
+            trial_ends_at = datetime.utcnow() + timedelta(days=trial_days) if trial_days > 0 else None
+            
             company = Company(
                 name=company_name,
                 slug=company_slug,
                 description=company_description or "",
-                domain=company_domain if company_domain else None,  # Usar None se vazio
-                status="TRIAL",
-                max_ml_accounts=5,
-                max_users=10,
+                domain=company_domain if company_domain else None,
+                status=company_status,
                 features={"api_access": True, "analytics": True, "reports": True},
-                trial_ends_at=datetime.utcnow() + timedelta(days=14)
+                trial_ends_at=trial_ends_at
             )
             db.add(company)
             db.flush()  # Para obter o ID
@@ -174,6 +195,30 @@ class AuthController:
             )
             db.add(user)
             db.flush()  # Para obter o ID
+            
+            # Criar assinatura do plano selecionado
+            if plan_id and plan_template:
+                subscription = Subscription(
+                    company_id=company.id,
+                    plan_name=plan_template.plan_name,
+                    description=plan_template.description,
+                    price=plan_template.promotional_price if plan_template.promotional_price else plan_template.price,
+                    currency=plan_template.currency,
+                    billing_cycle=plan_template.billing_cycle,
+                    max_users=plan_template.max_users,
+                    max_ml_accounts=plan_template.max_ml_accounts,
+                    storage_gb=plan_template.storage_gb if hasattr(plan_template, 'storage_gb') else 5,
+                    ai_analysis_monthly=plan_template.ai_analysis_monthly if hasattr(plan_template, 'ai_analysis_monthly') else 10,
+                    catalog_monitoring_slots=plan_template.catalog_monitoring_slots if hasattr(plan_template, 'catalog_monitoring_slots') else 5,
+                    product_mining_slots=plan_template.product_mining_slots if hasattr(plan_template, 'product_mining_slots') else 10,
+                    product_monitoring_slots=plan_template.product_monitoring_slots if hasattr(plan_template, 'product_monitoring_slots') else 20,
+                    status="active",
+                    is_trial=is_trial,
+                    starts_at=datetime.utcnow(),
+                    ends_at=datetime.utcnow() + timedelta(days=30) if not is_trial else None,
+                    trial_ends_at=datetime.utcnow() + timedelta(days=trial_days) if is_trial else None
+                )
+                db.add(subscription)
             
             # Criar sessão inicial
             session_token = self._generate_session_token()

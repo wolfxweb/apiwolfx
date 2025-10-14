@@ -6,6 +6,22 @@ from pathlib import Path
 # Configurar templates com Jinja2 nativo
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
+# Adicionar filtro customizado para formatação de moeda brasileira
+def format_brl(value):
+    """Formata valor em padrão brasileiro: R$ 1.234,56"""
+    if value is None:
+        return "R$ 0,00"
+    try:
+        # Formata com 2 casas decimais
+        formatted = "{:,.2f}".format(float(value))
+        # Troca ponto por vírgula e vírgula por ponto
+        formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"R$ {formatted}"
+    except (ValueError, TypeError):
+        return "R$ 0,00"
+
+templates.env.filters['brl'] = format_brl
+
 def render_template(template_name: str, request: Request = None, **context) -> HTMLResponse:
     """Função de conveniência para renderizar templates usando Jinja2 nativo"""
     if request is None:
