@@ -91,4 +91,5 @@ services:
 
 networks:
   apiwolfx-network:
-    driver: bridge
+    driver: overlay
+    attachable: true
