@@ -1,6 +1,7 @@
 """
 Serviço para análise de produtos com ChatGPT
 """
+import os
 import logging
 import requests
 import json
@@ -116,7 +117,7 @@ class AIAnalysisService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.api_key = "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"
+        self.api_key = os.getenv("OPENAI_API_KEY", "")
         self.api_url = "https://api.openai.com/v1/chat/completions"
     
     def analyze_product(self, product_id: int, company_id: int, catalog_data: Optional[List] = None, 
