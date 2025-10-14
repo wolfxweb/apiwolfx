@@ -12,6 +12,7 @@ services:
       - ML_APP_ID=6987936494418444
       - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
       - ML_REDIRECT_URI=https://3bd19a96a6ac.ngrok-free.app/api/callback
+      - OPENAI_API_KEY=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
     # depends_on:
       # - db
     volumes:
