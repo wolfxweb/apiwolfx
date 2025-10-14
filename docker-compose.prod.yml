@@ -34,8 +34,6 @@ services:
     volumes:
       - ./public:/app/public
       - ./logs:/app/logs
-    networks:
-      - apiwolfx-network
     deploy:
       restart_policy:
         condition: on-failure
@@ -81,15 +79,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./letsencrypt:/letsencrypt
-    networks:
-      - apiwolfx-network
     deploy:
       restart_policy:
         condition: on-failure
         delay: 5s
         max_attempts: 3
-
-networks:
-  apiwolfx-network:
-    external: true
-    name: apiwolfx-network
