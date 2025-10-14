@@ -137,7 +137,7 @@ class SuperAdminController:
                 "id": company.id,
                 "name": company.name,
                 "slug": company.slug,
-                "status": company.status,
+                "status": company.status.upper() if isinstance(company.status, str) else company.status.value.upper(),
                 "created_at": company.created_at,
                 "trial_ends_at": company.trial_ends_at,
                 "max_users": company.max_users,
@@ -145,7 +145,12 @@ class SuperAdminController:
                 "users_count": users_count,
                 "ml_accounts_count": ml_accounts_count,
                 "has_active_subscription": bool(active_subscription),
-                "subscription_plan": active_subscription.plan_name if active_subscription else None
+                "subscription_plan": active_subscription.plan_name if active_subscription else None,
+                # Novos campos de plano
+                "plan_expires_at": company.plan_expires_at,
+                "max_catalog_monitoring": company.max_catalog_monitoring,
+                "ai_analysis_limit": company.ai_analysis_limit,
+                "ai_analysis_extra_package": company.ai_analysis_extra_package
             })
         
         return {
@@ -378,7 +383,12 @@ class SuperAdminController:
                 description=company_data.get("description"),
                 status=company_data["status"],
                 max_users=company_data.get("max_users", 10),
-                max_ml_accounts=company_data.get("max_ml_accounts", 5)
+                max_ml_accounts=company_data.get("max_ml_accounts", 5),
+                # Novos campos de plano
+                plan_expires_at=company_data.get("plan_expires_at"),
+                max_catalog_monitoring=company_data.get("max_catalog_monitoring", 5),
+                ai_analysis_limit=company_data.get("ai_analysis_limit", 10),
+                ai_analysis_extra_package=company_data.get("ai_analysis_extra_package", 0)
             )
             
             self.db.add(company)
@@ -425,6 +435,16 @@ class SuperAdminController:
             company.status = company_data["status"]
             company.max_users = company_data.get("max_users", company.max_users)
             company.max_ml_accounts = company_data.get("max_ml_accounts", company.max_ml_accounts)
+            
+            # Atualizar novos campos de plano
+            if "plan_expires_at" in company_data:
+                company.plan_expires_at = company_data["plan_expires_at"]
+            if "max_catalog_monitoring" in company_data:
+                company.max_catalog_monitoring = company_data["max_catalog_monitoring"]
+            if "ai_analysis_limit" in company_data:
+                company.ai_analysis_limit = company_data["ai_analysis_limit"]
+            if "ai_analysis_extra_package" in company_data:
+                company.ai_analysis_extra_package = company_data["ai_analysis_extra_package"]
             
             self.db.commit()
             

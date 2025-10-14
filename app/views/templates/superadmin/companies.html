@@ -117,12 +117,12 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Nome</th>
-                                    <th>Slug</th>
-                                    <th>Domínio</th>
                                     <th>Status</th>
                                     <th>Usuários</th>
                                     <th>Contas ML</th>
-                                    <th>Criada em</th>
+                                    <th>Catálogos</th>
+                                    <th>Análises IA</th>
+                                    <th>Vencimento</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
@@ -204,6 +204,43 @@
                             <div class="mb-3">
                                 <label for="maxMLAccounts" class="form-label">Máximo de Contas ML</label>
                                 <input type="number" class="form-control" id="maxMLAccounts" min="1" value="5">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h6 class="mb-3"><i class="bi bi-calendar-check"></i> Configurações do Plano</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="planExpiresAt" class="form-label">Data de Vencimento do Plano</label>
+                                <input type="date" class="form-control" id="planExpiresAt">
+                                <div class="form-text">Data em que o plano expira</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="maxCatalogMonitoring" class="form-label">Máx. Catálogos Monitorados</label>
+                                <input type="number" class="form-control" id="maxCatalogMonitoring" min="0" value="5">
+                                <div class="form-text">Quantidade de catálogos que podem ser monitorados</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="aiAnalysisLimit" class="form-label">Análises de IA (Plano)</label>
+                                <input type="number" class="form-control" id="aiAnalysisLimit" min="0" value="10">
+                                <div class="form-text">Limite de análises de IA incluídas no plano</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="aiAnalysisExtraPackage" class="form-label">Análises de IA (Pacote Extra)</label>
+                                <input type="number" class="form-control" id="aiAnalysisExtraPackage" min="0" value="0">
+                                <div class="form-text">Pacote adicional de análises contratado</div>
                             </div>
                         </div>
                     </div>
@@ -317,24 +354,34 @@ function createCompanyRow(company) {
     const statusBadge = getStatusBadge(company.status);
     const createdAt = new Date(company.created_at).toLocaleDateString('pt-BR');
     
+    const planExpiresAt = company.plan_expires_at ? new Date(company.plan_expires_at).toLocaleDateString('pt-BR') : '-';
+    const totalAiAnalysis = (company.ai_analysis_limit || 0) + (company.ai_analysis_extra_package || 0);
+    
     row.innerHTML = `
         <td>${company.id}</td>
         <td>
             <strong>${company.name}</strong>
             ${company.description ? `<br><small class="text-muted">${company.description}</small>` : ''}
         </td>
-        <td><code>${company.slug}</code></td>
-        <td>${company.domain || '-'}</td>
         <td>${statusBadge}</td>
         <td>
             <span class="badge bg-info">${company.users_count || 0}</span>
-            ${company.max_users ? `<small class="text-muted">/ ${company.max_users}</small>` : ''}
+            <small class="text-muted">/ ${company.max_users || 0}</small>
         </td>
         <td>
             <span class="badge bg-info">${company.ml_accounts_count || 0}</span>
-            ${company.max_ml_accounts ? `<small class="text-muted">/ ${company.max_ml_accounts}</small>` : ''}
+            <small class="text-muted">/ ${company.max_ml_accounts || 0}</small>
         </td>
-        <td>${createdAt}</td>
+        <td>
+            <span class="badge bg-secondary">${company.max_catalog_monitoring || 0}</span>
+        </td>
+        <td>
+            <span class="badge bg-primary">${totalAiAnalysis}</span>
+            ${company.ai_analysis_extra_package > 0 ? `<br><small class="text-muted">(${company.ai_analysis_limit} + ${company.ai_analysis_extra_package})</small>` : ''}
+        </td>
+        <td>
+            ${planExpiresAt !== '-' ? `<span class="badge bg-warning text-dark">${planExpiresAt}</span>` : '-'}
+        </td>
         <td>
             <div class="btn-group btn-group-sm">
                 <button class="btn btn-outline-primary" onclick="viewCompany(${company.id})" title="Ver detalhes">
@@ -491,6 +538,12 @@ function editCompany(id) {
     document.getElementById('maxUsers').value = company.max_users || 10;
     document.getElementById('maxMLAccounts').value = company.max_ml_accounts || 5;
     
+    // Novos campos de plano
+    document.getElementById('planExpiresAt').value = company.plan_expires_at ? company.plan_expires_at.split('T')[0] : '';
+    document.getElementById('maxCatalogMonitoring').value = company.max_catalog_monitoring || 5;
+    document.getElementById('aiAnalysisLimit').value = company.ai_analysis_limit || 10;
+    document.getElementById('aiAnalysisExtraPackage').value = company.ai_analysis_extra_package || 0;
+    
     const modal = new bootstrap.Modal(document.getElementById('companyModal'));
     modal.show();
 }
@@ -510,7 +563,12 @@ async function saveCompany() {
         status: document.getElementById('companyStatus').value,
         description: document.getElementById('companyDescription').value,
         max_users: parseInt(document.getElementById('maxUsers').value),
-        max_ml_accounts: parseInt(document.getElementById('maxMLAccounts').value)
+        max_ml_accounts: parseInt(document.getElementById('maxMLAccounts').value),
+        // Novos campos de plano
+        plan_expires_at: document.getElementById('planExpiresAt').value || null,
+        max_catalog_monitoring: parseInt(document.getElementById('maxCatalogMonitoring').value) || 5,
+        ai_analysis_limit: parseInt(document.getElementById('aiAnalysisLimit').value) || 10,
+        ai_analysis_extra_package: parseInt(document.getElementById('aiAnalysisExtraPackage').value) || 0
     };
     
     const companyId = document.getElementById('companyId').value;

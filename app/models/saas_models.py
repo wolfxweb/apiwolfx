@@ -48,6 +48,12 @@ class Company(Base):
     max_users = Column(Integer, default=10)
     features = Column(JSON)  # Features habilitadas
     
+    # Plano e Limites
+    plan_expires_at = Column(DateTime)  # Data de vencimento do plano
+    max_catalog_monitoring = Column(Integer, default=5)  # Quantidade de catálogos monitorados
+    ai_analysis_limit = Column(Integer, default=10)  # Limite de análises de IA do plano
+    ai_analysis_extra_package = Column(Integer, default=0)  # Análises de IA do pacote adicional
+    
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
