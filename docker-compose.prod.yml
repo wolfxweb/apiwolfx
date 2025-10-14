@@ -8,7 +8,7 @@ services:
     command: >
       sh -c "
         apt-get update && 
-        apt-get install -y git &&
+        apt-get install -y git gcc default-libmysqlclient-dev pkg-config &&
         git clone https://github.com/wolfxweb/apiwolfx.git /tmp/app &&
         cp -r /tmp/app/* /app/ &&
         pip install --no-cache-dir -r requirements.txt &&
