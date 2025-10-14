@@ -91,5 +91,5 @@ services:
 
 networks:
   apiwolfx-network:
-    driver: overlay
-    attachable: true
+    external: true
+    name: apiwolfx-network
