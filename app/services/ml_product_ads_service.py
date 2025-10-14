@@ -29,25 +29,36 @@ class MLProductAdsService:
             Dict com métricas de publicidade ou None se não encontrado
         """
         try:
-            from app.models.saas_models import MLAccount, Token
+            from app.models.saas_models import MLAccount, Token, User
+            from app.services.token_manager import TokenManager
             
-            # Buscar conta ML e token
+            # Buscar conta ML
             ml_account = self.db.query(MLAccount).filter(MLAccount.id == ml_account_id).first()
             if not ml_account:
                 logger.error(f"Conta ML {ml_account_id} não encontrada")
                 return None
             
+            # Buscar token
             token = self.db.query(Token).filter(Token.ml_account_id == ml_account_id).first()
             if not token:
                 logger.error(f"Token não encontrado para conta {ml_account_id}")
+                return None
+            
+            # Buscar user_id do token
+            user = self.db.query(User).filter(User.id == token.user_id).first()
+            if not user:
+                logger.error(f"Usuário não encontrado para token")
                 return None
             
             site_id = ml_account.site_id or "MLB"
             
             logger.info(f"Buscando métricas de Product Ads para item {ml_item_id}")
             
+            # Inicializar TokenManager
+            token_manager = TokenManager(self.db)
+            
             # Buscar métricas diretamente do item usando novo endpoint
-            metrics_data = self._fetch_item_metrics(site_id, ml_item_id, token.access_token, days)
+            metrics_data = self._fetch_item_metrics(site_id, ml_item_id, token.access_token, days, user.id, token_manager)
             
             if metrics_data and metrics_data.get("metrics"):
                 metrics = metrics_data["metrics"]
@@ -118,7 +129,7 @@ class MLProductAdsService:
             logger.error(f"Erro ao buscar anunciantes: {e}")
             return []
     
-    def _fetch_item_metrics(self, site_id: str, ml_item_id: str, access_token: str, days: int = 30) -> Optional[Dict]:
+    def _fetch_item_metrics(self, site_id: str, ml_item_id: str, access_token: str, days: int = 30, user_id: int = None, token_manager = None) -> Optional[Dict]:
         """Busca métricas de Product Ads de um item específico"""
         try:
             # Endpoint correto conforme documentação: /advertising/{SITE_ID}/product_ads/ads/{ITEM_ID}
@@ -157,6 +168,27 @@ class MLProductAdsService:
                 logger.info(f"✅ Métricas encontradas para item {ml_item_id}")
                 logger.info(f"Status do item: {data.get('status')}, Campaign ID: {data.get('campaign_id')}")
                 return data
+            elif response.status_code == 401 and user_id and token_manager:
+                # Token expirado, tentar renovar usando TokenManager
+                logger.warning(f"Token expirado (401), tentando renovar para usuário {user_id}")
+                new_token = token_manager._refresh_token(user_id)
+                
+                if new_token:
+                    # Tentar novamente com novo token
+                    headers["Authorization"] = f"Bearer {new_token}"
+                    response = requests.get(url, params=params, headers=headers, timeout=30)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        logger.info(f"✅ Métricas encontradas após renovação do token para item {ml_item_id}")
+                        logger.info(f"Status do item: {data.get('status')}, Campaign ID: {data.get('campaign_id')}")
+                        return data
+                    else:
+                        logger.warning(f"Item {ml_item_id} sem Product Ads após renovação: {response.status_code}")
+                        return None
+                else:
+                    logger.error(f"Não foi possível renovar o token para usuário {user_id}")
+                    return None
             else:
                 logger.warning(f"Item {ml_item_id} sem Product Ads: {response.status_code}")
                 return None
