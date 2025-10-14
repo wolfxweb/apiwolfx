@@ -3,7 +3,17 @@ version: '3.8'
 services:
   # API FastAPI
   api:
-    image: ghcr.io/wolfxweb/apiwolfx:latest
+    image: python:3.11-slim
+    working_dir: /app
+    command: >
+      sh -c "
+        apt-get update && 
+        apt-get install -y git &&
+        git clone https://github.com/wolfxweb/apiwolfx.git /tmp/app &&
+        cp -r /tmp/app/* /app/ &&
+        pip install --no-cache-dir -r requirements.txt &&
+        python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
     environment:
       # Database
       - DATABASE_URL=postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial
