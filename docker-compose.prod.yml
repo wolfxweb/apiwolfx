@@ -3,8 +3,7 @@ version: '3.8'
 services:
   # API FastAPI
   api:
-    build: .
-    container_name: apiwolfx-api
+    image: ghcr.io/wolfxweb/apiwolfx:latest
     environment:
       # Database
       - DATABASE_URL=postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial
@@ -13,11 +12,13 @@ services:
       - ML_APP_ID=6987936494418444
       - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
       - ML_REDIRECT_URI=https://wolfx.com.br/api/callback
+      - ML_NOTIFICATION_URL=https://wolfx.com.br/api/notifications
       
       # Mercado Pago API
       - MP_ACCESS_TOKEN=APP_USR-6987936494418444-101415-df063090488cd09fd99bb0e75ba91dc5-534913383560219
       - MP_PUBLIC_KEY=APP_USR-a77d3ee7-7c94-443e-b910-d4e0c3e41e63
       - MP_WEBHOOK_SECRET=7c315606ea2ebac4cb8410755f6bd42af5f8d7d5af0e5bcdcb1d4b5440068bb2
+      - MP_WEBHOOK_URL=https://wolfx.com.br/payment/webhooks/mercadopago
       
       # Application
       - API_HOST=0.0.0.0
@@ -35,7 +36,11 @@ services:
       - ./logs:/app/logs
     networks:
       - apiwolfx-network
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
     labels:
       # Traefik labels para proxy reverso e SSL
       - "traefik.enable=true"
@@ -53,7 +58,6 @@ services:
   # Traefik - Proxy Reverso com SSL automático
   traefik:
     image: traefik:v2.10
-    container_name: apiwolfx-traefik
     command:
       # Configurações gerais
       - "--api.dashboard=true"
@@ -79,7 +83,11 @@ services:
       - ./letsencrypt:/letsencrypt
     networks:
       - apiwolfx-network
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
 
 networks:
   apiwolfx-network:
