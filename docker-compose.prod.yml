@@ -41,19 +41,19 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 3
-    labels:
-      # Traefik labels para proxy reverso e SSL
-      - "traefik.enable=true"
-      - "traefik.http.routers.apiwolfx.rule=Host(`wolfx.com.br`)"
-      - "traefik.http.routers.apiwolfx.entrypoints=websecure"
-      - "traefik.http.routers.apiwolfx.tls=true"
-      - "traefik.http.routers.apiwolfx.tls.certresolver=letsencrypt"
-      - "traefik.http.services.apiwolfx.loadbalancer.server.port=8000"
-      # Redirect HTTP to HTTPS
-      - "traefik.http.routers.apiwolfx-http.rule=Host(`wolfx.com.br`)"
-      - "traefik.http.routers.apiwolfx-http.entrypoints=web"
-      - "traefik.http.routers.apiwolfx-http.middlewares=redirect-to-https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      labels:
+        # Traefik labels para proxy reverso e SSL
+        - "traefik.enable=true"
+        - "traefik.http.routers.apiwolfx.rule=Host(`wolfx.com.br`)"
+        - "traefik.http.routers.apiwolfx.entrypoints=websecure"
+        - "traefik.http.routers.apiwolfx.tls=true"
+        - "traefik.http.routers.apiwolfx.tls.certresolver=letsencrypt"
+        - "traefik.http.services.apiwolfx.loadbalancer.server.port=8000"
+        # Redirect HTTP to HTTPS
+        - "traefik.http.routers.apiwolfx-http.rule=Host(`wolfx.com.br`)"
+        - "traefik.http.routers.apiwolfx-http.entrypoints=web"
+        - "traefik.http.routers.apiwolfx-http.middlewares=redirect-to-https"
+        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
 networks:
   server:
