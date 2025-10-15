@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Meus Pagamentos{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-receipt"></i> Meus Pagamentos
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div id="loading" class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-2">Carregando pagamentos...</p>
+                    </div>
+                    
+                    <div id="payments-container" style="display: none;">
+                        <!-- Pagamentos serão carregados aqui -->
+                    </div>
+                    
+                    <div id="no-payments" style="display: none;" class="text-center py-5">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle fs-1"></i>
+                            <h5 class="mt-3">Nenhum pagamento encontrado</h5>
+                            <p class="mb-3">
+                                Você ainda não possui pagamentos registrados em sua conta.
+                                <br>
+                                <strong>Dica:</strong> Faça sua primeira assinatura para começar!
+                            </p>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                <a href="/auth/plans" class="btn btn-primary">
+                                    <i class="bi bi-credit-card"></i> Ver Planos Disponíveis
+                                </a>
+                                <a href="/auth/profile" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Voltar ao Perfil
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="error-message" style="display: none;" class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <span id="error-text"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadPayments();
+});
+
+async function loadPayments() {
+    try {
+        const response = await fetch('/api/payments/my-payments');
+        const data = await response.json();
+        
+        // Esconder loading
+        document.getElementById('loading').style.display = 'none';
+        
+        if (data.payments && data.payments.length > 0) {
+            displayPayments(data.payments);
+        } else {
+            document.getElementById('no-payments').style.display = 'block';
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar pagamentos:', error);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error-message').style.display = 'block';
+        document.getElementById('error-text').textContent = 'Erro ao carregar pagamentos. Tente novamente.';
+    }
+}
+
+function displayPayments(payments) {
+    const container = document.getElementById('payments-container');
+    
+    let html = '<div class="row">';
+    
+    payments.forEach(payment => {
+        const statusClass = getStatusClass(payment.status);
+        const statusIcon = getStatusIcon(payment.status);
+        const date = new Date(payment.created_at).toLocaleDateString('pt-BR');
+        
+        html += `
+            <div class="col-md-6 mb-3">
+                <div class="card border-${statusClass}">
+                    <div class="card-header bg-${statusClass} text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                ${statusIcon} ${payment.description || 'Pagamento'}
+                            </h6>
+                            <span class="badge bg-light text-dark">R$ ${payment.amount.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Status:</small><br>
+                                <span class="badge bg-${statusClass}">${payment.status}</span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Data:</small><br>
+                                <span>${date}</span>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-6">
+                                <small class="text-muted">Método:</small><br>
+                                <span>${payment.payment_method || 'N/A'}</span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">ID:</small><br>
+                                <small class="text-muted">${payment.mp_payment_id || payment.id}</small>
+                            </div>
+                        </div>
+                        ${payment.plan_name ? `
+                            <div class="mt-2">
+                                <small class="text-muted">Plano:</small><br>
+                                <span class="badge bg-info">${payment.plan_name}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    container.style.display = 'block';
+}
+
+function getStatusClass(status) {
+    switch(status) {
+        case 'approved': return 'success';
+        case 'pending': return 'warning';
+        case 'rejected': case 'cancelled': return 'danger';
+        default: return 'secondary';
+    }
+}
+
+function getStatusIcon(status) {
+    switch(status) {
+        case 'approved': return '<i class="bi bi-check-circle"></i>';
+        case 'pending': return '<i class="bi bi-clock"></i>';
+        case 'rejected': case 'cancelled': return '<i class="bi bi-x-circle"></i>';
+        default: return '<i class="bi bi-question-circle"></i>';
+    }
+}
+</script>
+{% endblock %}

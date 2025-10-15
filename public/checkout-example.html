@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout Transparente - Mercado Pago</title>
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .checkout-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .plan-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .plan-card:hover {
+            border-color: #007bff;
+            transform: translateY(-5px);
+        }
+
+        .plan-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+
+        .plan-price {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        .plan-features {
+            list-style: none;
+            margin-bottom: 20px;
+        }
+
+        .plan-features li {
+            padding: 5px 0;
+            color: #666;
+        }
+
+        .plan-features li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,123,255,0.3);
+        }
+
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 1px solid #c3e6cb;
+        }
+
+        .payment-info {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #2196f3;
+        }
+
+        .payment-info h3 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .payment-info p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .checkout-container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="checkout-container">
+        <div class="header">
+            <h1>🚀 WolfX Pro</h1>
+            <p>Escolha seu plano e comece a vender mais</p>
+        </div>
+
+        <div class="plan-card">
+            <div class="plan-name">Plano Pro</div>
+            <div class="plan-price">R$ 59,90<span style="font-size: 1rem; color: #666;">/mês</span></div>
+            <ul class="plan-features">
+                <li>Até 5 contas Mercado Livre</li>
+                <li>Análises de IA ilimitadas</li>
+                <li>Monitoramento de 20 produtos</li>
+                <li>Relatórios avançados</li>
+                <li>Suporte prioritário</li>
+            </ul>
+        </div>
+
+        <div class="payment-info">
+            <h3>💳 Pagamento Seguro</h3>
+            <p>Seus dados são protegidos pelo Mercado Pago. Aceitamos cartões de crédito, débito e PIX.</p>
+        </div>
+
+        <form id="checkout-form">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required placeholder="seu@email.com">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="firstName">Nome</label>
+                    <input type="text" id="firstName" name="firstName" required placeholder="João">
+                </div>
+                <div class="form-group">
+                    <label for="lastName">Sobrenome</label>
+                    <input type="text" id="lastName" name="lastName" required placeholder="Silva">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="documentType">Tipo de Documento</label>
+                    <select id="documentType" name="documentType" required>
+                        <option value="CPF">CPF</option>
+                        <option value="CNPJ">CNPJ</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="documentNumber">Número do Documento</label>
+                    <input type="text" id="documentNumber" name="documentNumber" required placeholder="000.000.000-00">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="paymentMethod">Método de Pagamento</label>
+                <select id="paymentMethod" name="paymentMethod" required>
+                    <option value="">Selecione...</option>
+                    <option value="credit_card">Cartão de Crédito</option>
+                    <option value="debit_card">Cartão de Débito</option>
+                    <option value="pix">PIX</option>
+                </select>
+            </div>
+
+            <div id="card-fields" style="display: none;">
+                <div class="form-group">
+                    <label for="cardNumber">Número do Cartão</label>
+                    <input type="text" id="cardNumber" name="cardNumber" placeholder="0000 0000 0000 0000">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="expiryMonth">Mês</label>
+                        <select id="expiryMonth" name="expiryMonth">
+                            <option value="">Mês</option>
+                            <option value="01">01</option>
+                            <option value="02">02</option>
+                            <option value="03">03</option>
+                            <option value="04">04</option>
+                            <option value="05">05</option>
+                            <option value="06">06</option>
+                            <option value="07">07</option>
+                            <option value="08">08</option>
+                            <option value="09">09</option>
+                            <option value="10">10</option>
+                            <option value="11">11</option>
+                            <option value="12">12</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="expiryYear">Ano</label>
+                        <select id="expiryYear" name="expiryYear">
+                            <option value="">Ano</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="securityCode">Código de Segurança</label>
+                        <input type="text" id="securityCode" name="securityCode" placeholder="123" maxlength="4">
+                    </div>
+                    <div class="form-group">
+                        <label for="installments">Parcelas</label>
+                        <select id="installments" name="installments">
+                            <option value="1">À vista</option>
+                            <option value="2">2x</option>
+                            <option value="3">3x</option>
+                            <option value="6">6x</option>
+                            <option value="12">12x</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processando pagamento...</p>
+            </div>
+
+            <div id="error-message" class="error" style="display: none;"></div>
+            <div id="success-message" class="success" style="display: none;"></div>
+
+            <button type="submit" class="btn" id="submit-btn">
+                💳 Pagar R$ 59,90
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Configuração do Mercado Pago
+        const mp = new MercadoPago('TEST-50c8e464-533c-4054-add8-09668b41cada', {
+            locale: 'pt-BR'
+        });
+
+        // Preencher anos de expiração
+        const currentYear = new Date().getFullYear();
+        const expiryYearSelect = document.getElementById('expiryYear');
+        for (let i = 0; i < 10; i++) {
+            const year = currentYear + i;
+            const option = document.createElement('option');
+            option.value = year.toString().slice(-2);
+            option.textContent = year;
+            expiryYearSelect.appendChild(option);
+        }
+
+        // Mostrar/esconder campos do cartão
+        document.getElementById('paymentMethod').addEventListener('change', function() {
+            const cardFields = document.getElementById('card-fields');
+            if (this.value === 'credit_card' || this.value === 'debit_card') {
+                cardFields.style.display = 'block';
+            } else {
+                cardFields.style.display = 'none';
+            }
+        });
+
+        // Formatação do número do cartão
+        document.getElementById('cardNumber').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            value = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+            e.target.value = value;
+        });
+
+        // Formatação do CPF/CNPJ
+        document.getElementById('documentNumber').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            const type = document.getElementById('documentType').value;
+            
+            if (type === 'CPF') {
+                value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+            } else if (type === 'CNPJ') {
+                value = value.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+            }
+            
+            e.target.value = value;
+        });
+
+        // Processar formulário
+        document.getElementById('checkout-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submit-btn');
+            const loading = document.getElementById('loading');
+            const errorDiv = document.getElementById('error-message');
+            const successDiv = document.getElementById('success-message');
+            
+            // Mostrar loading
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            
+            try {
+                const formData = new FormData(this);
+                const paymentMethod = formData.get('paymentMethod');
+                
+                let paymentData;
+                
+                if (paymentMethod === 'credit_card' || paymentMethod === 'debit_card') {
+                    // Processar pagamento com cartão
+                    const cardData = {
+                        cardNumber: formData.get('cardNumber').replace(/\D/g, ''),
+                        securityCode: formData.get('securityCode'),
+                        expiryMonth: formData.get('expiryMonth'),
+                        expiryYear: '20' + formData.get('expiryYear')
+                    };
+                    
+                    // Criar token do cartão
+                    const tokenResponse = await mp.fields.createCardToken({
+                        cardNumber: cardData.cardNumber,
+                        securityCode: cardData.securityCode,
+                        expiryMonth: cardData.expiryMonth,
+                        expiryYear: cardData.expiryYear
+                    });
+                    
+                    if (tokenResponse.error) {
+                        throw new Error(tokenResponse.error.message);
+                    }
+                    
+                    paymentData = {
+                        transaction_amount: 59.90,
+                        description: 'Assinatura WolfX Pro - 1 mês',
+                        payment_method_id: paymentMethod,
+                        payer: {
+                            email: formData.get('email'),
+                            identification: {
+                                type: formData.get('documentType'),
+                                number: formData.get('documentNumber').replace(/\D/g, '')
+                            },
+                            first_name: formData.get('firstName'),
+                            last_name: formData.get('lastName')
+                        },
+                        installments: parseInt(formData.get('installments')),
+                        token: tokenResponse.id
+                    };
+                } else if (paymentMethod === 'pix') {
+                    // Para PIX, usar preferência de pagamento
+                    const preferenceData = {
+                        items: [{
+                            title: 'Assinatura WolfX Pro',
+                            quantity: 1,
+                            unit_price: 59.90
+                        }],
+                        payer: {
+                            email: formData.get('email'),
+                            name: formData.get('firstName') + ' ' + formData.get('lastName'),
+                            identification: {
+                                type: formData.get('documentType'),
+                                number: formData.get('documentNumber').replace(/\D/g, '')
+                            }
+                        },
+                        payment_methods: {
+                            excluded_payment_methods: [
+                                { id: 'credit_card' },
+                                { id: 'debit_card' }
+                            ],
+                            excluded_payment_types: []
+                        }
+                    };
+                    
+                    // Criar preferência
+                    const response = await fetch('/api/payments/create-preference', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(preferenceData)
+                    });
+                    
+                    const preference = await response.json();
+                    
+                    if (preference.init_point) {
+                        window.location.href = preference.init_point;
+                        return;
+                    }
+                }
+                
+                // Processar pagamento
+                const response = await fetch('/api/payments/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(paymentData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'approved') {
+                    successDiv.innerHTML = `
+                        <h3>🎉 Pagamento Aprovado!</h3>
+                        <p>Seu pagamento foi processado com sucesso. ID: ${result.id}</p>
+                        <p>Você receberá um email de confirmação em breve.</p>
+                    `;
+                    successDiv.style.display = 'block';
+                    
+                    // Redirecionar após 3 segundos
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 3000);
+                } else {
+                    throw new Error(`Pagamento não aprovado: ${result.status}`);
+                }
+                
+            } catch (error) {
+                console.error('Erro no pagamento:', error);
+                errorDiv.innerHTML = `
+                    <h3>❌ Erro no Pagamento</h3>
+                    <p>${error.message}</p>
+                    <p>Tente novamente ou entre em contato conosco.</p>
+                `;
+                errorDiv.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
+

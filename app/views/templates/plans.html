@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Planos e Assinaturas - WolfX{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center mb-5">
+                <h1><i class="bi bi-rocket"></i> Escolha seu Plano WolfX</h1>
+                <p class="lead text-muted">Escolha o plano ideal para sua empresa e comece a vender mais no Mercado Livre</p>
+                <a href="/profile" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar ao Perfil
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Status da Assinatura Atual -->
+    {% if subscription %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <h5><i class="bi bi-info-circle"></i> Sua Assinatura Atual</h5>
+                <p class="mb-0">
+                    <strong>Plano:</strong> {{ subscription.plan_name }} | 
+                    <strong>Status:</strong> 
+                    {% if subscription.is_trial %}
+                        <span class="badge bg-warning">Trial</span>
+                    {% else %}
+                        <span class="badge bg-success">{{ subscription.status|title }}</span>
+                    {% endif %}
+                    {% if subscription.ends_at %}
+                        | <strong>Vence em:</strong> {{ subscription.ends_at.strftime('%d/%m/%Y') }}
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Planos Disponíveis do Banco -->
+    <div class="row">
+        {% for plan in plans %}
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 {% if plan.plan_name == 'Pro' %}shadow-lg border-primary{% else %}shadow-sm{% endif %}">
+                <div class="card-header {% if plan.plan_name == 'Pro' %}bg-primary text-white{% elif plan.plan_name == 'Enterprise' %}bg-dark text-white{% else %}bg-light{% endif %} text-center position-relative">
+                    {% if plan.plan_name == 'Pro' %}
+                    <span class="badge bg-warning text-dark position-absolute top-0 start-50 translate-middle px-3">
+                        Mais Popular
+                    </span>
+                    {% endif %}
+                    <h3 class="my-0">
+                        {% if plan.plan_name == 'Básico' %}🚀{% elif plan.plan_name == 'Pro' %}⭐{% else %}🏢{% endif %}
+                        {{ plan.plan_name }}
+                    </h3>
+                    <div class="display-6">R$ {{ "%.2f"|format(plan.price) }}</div>
+                    <small>por {{ plan.billing_cycle }}</small>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    {% if plan.description %}
+                    <div class="plan-features">
+                        {% set features = plan.description.split(', ') %}
+                        <ul class="list-unstyled">
+                            {% for feature in features %}
+                            <li class="mb-2">
+                                <i class="bi bi-check-circle text-success"></i> 
+                                {{ feature.strip() }}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-auto">
+                        <button class="btn {% if plan.plan_name == 'Pro' %}btn-primary{% elif plan.plan_name == 'Enterprise' %}btn-outline-dark{% else %}btn-outline-primary{% endif %} w-100" 
+                                onclick="selectPlan('{{ plan.plan_name.lower() }}', {{ plan.price }}, '{{ plan.plan_name }}')">
+                            <i class="bi bi-credit-card"></i> Escolher {{ plan.plan_name }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Informações de Pagamento -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h5><i class="bi bi-shield-check"></i> Pagamento Seguro</h5>
+                    <p class="mb-2">Seus dados são protegidos pelo Mercado Pago</p>
+                    <div class="d-flex justify-content-center align-items-center gap-3">
+                        <i class="bi bi-credit-card fs-4"></i>
+                        <i class="bi bi-paypal fs-4"></i>
+                        <i class="bi bi-currency-exchange fs-4"></i>
+                        <span class="badge bg-success">PIX</span>
+                        <span class="badge bg-primary">Cartão</span>
+                        <span class="badge bg-warning text-dark">Boleto</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Checkout -->
+<div class="modal fade" id="checkoutModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-credit-card"></i> Finalizar Compra</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="checkout-content">
+                    <!-- Conteúdo do checkout será carregado aqui -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+<script>
+        // Configuração do Mercado Pago - PRODUÇÃO com usuários de teste
+        // IMPORTANTE: Mercado Pago usa usuários de teste em ambiente de produção
+        const mp = new MercadoPago('APP_USR-4549749e-5420-4118-95fe-ab17831df6bb', {
+            locale: 'pt-BR'
+        });
+
+let selectedPlan = null;
+
+function selectPlan(planId, price, planName) {
+    selectedPlan = { id: planId, price: price, name: planName };
+    
+    // Mostrar modal de checkout
+    const modal = new bootstrap.Modal(document.getElementById('checkoutModal'));
+    modal.show();
+    
+    // Carregar conteúdo do checkout
+    loadCheckoutContent();
+}
+
+function loadCheckoutContent() {
+    const content = document.getElementById('checkout-content');
+    content.innerHTML = `
+        <div class="text-center mb-4">
+            <h4>${selectedPlan.name}</h4>
+            <h2 class="text-primary">R$ ${selectedPlan.price.toFixed(2)}</h2>
+            <small class="text-muted">por mês</small>
+        </div>
+        
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            <strong>Você será redirecionado para o Mercado Pago</strong><br>
+            Após o pagamento, sua assinatura será ativada automaticamente.
+        </div>
+        
+        <div class="d-grid gap-2">
+            <button class="btn btn-success btn-lg" onclick="createPreference()">
+                <i class="bi bi-credit-card"></i> Pagar com Mercado Pago
+            </button>
+            <button class="btn btn-outline-secondary" onclick="openTransparentCheckout()">
+                <i class="bi bi-credit-card-2-front"></i> Checkout Transparente
+            </button>
+        </div>
+    `;
+}
+
+async function createPreference() {
+    try {
+        const response = await fetch('/api/payments/create-preference', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                items: [{
+                    title: selectedPlan.name,
+                    quantity: 1,
+                    unit_price: selectedPlan.price
+                }],
+                payer: {
+                    email: 'cliente@empresa.com',
+                    name: 'Cliente Empresa',
+                    surname: 'Empresa',
+                    identification: {
+                        type: 'CPF',
+                        number: '12345678901'
+                    }
+                },
+                external_reference: `subscription_${selectedPlan.id}_${Date.now()}`
+            })
+        });
+        
+        const preference = await response.json();
+        
+        if (preference.init_point) {
+            // Redirecionar para o checkout do Mercado Pago
+            window.location.href = preference.init_point;
+        } else {
+            alert('Erro ao criar preferência de pagamento');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao processar pagamento');
+    }
+}
+
+function openTransparentCheckout() {
+    // Abrir checkout transparente em nova aba
+    window.open('/checkout-example.html', '_blank');
+}
+
+// Fechar modal quando clicar fora
+document.getElementById('checkoutModal').addEventListener('hidden.bs.modal', function () {
+    selectedPlan = null;
+});
+</script>
+{% endblock %}

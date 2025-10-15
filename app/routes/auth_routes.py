@@ -231,11 +231,11 @@ async def profile(
     company_result = db.execute(company_query, {"company_id": company_id}).fetchone()
     company_info = dict(company_result._mapping) if company_result else {}
     
-    # Informações da assinatura
+    # Informações da assinatura (incluindo trial)
     subscription_query = text("""
         SELECT * FROM subscriptions 
         WHERE company_id = :company_id 
-        AND status = 'active'
+        AND (status = 'active' OR is_trial = true)
         ORDER BY created_at DESC 
         LIMIT 1
     """)
@@ -248,6 +248,79 @@ async def profile(
                          user=user_data,
                          company=company_info,
                          subscription=subscription_info)
+
+@auth_router.get("/plans", response_class=HTMLResponse)
+async def plans_page(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de planos e assinaturas"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar assinatura atual
+    from sqlalchemy import text
+    
+    subscription_query = text("""
+        SELECT * FROM subscriptions 
+        WHERE company_id = :company_id 
+        AND (status = 'active' OR is_trial = true)
+        ORDER BY created_at DESC 
+        LIMIT 1
+    """)
+    
+    subscription_result = db.execute(subscription_query, {"company_id": company_id}).fetchone()
+    subscription_info = dict(subscription_result._mapping) if subscription_result else None
+    
+    # Buscar planos disponíveis do banco de dados
+    plans_query = text("""
+        SELECT * FROM mp_plans 
+        WHERE is_active = true
+        ORDER BY price ASC
+    """)
+    
+    plans_result = db.execute(plans_query).fetchall()
+    available_plans = [dict(plan._mapping) for plan in plans_result]
+    
+    from app.views.template_renderer import render_template
+    return render_template("plans.html", 
+                         user=user_data,
+                         subscription=subscription_info,
+                         plans=available_plans)
+
+@auth_router.get("/payments", response_class=HTMLResponse)
+async def payments_page(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de pagamentos do usuário"""
+    try:
+        # Obter usuário da sessão
+        auth_controller = AuthController()
+        user_result = auth_controller.get_user_by_session(session_token, db)
+        
+        if user_result.get("error"):
+            return RedirectResponse(url="/auth/login", status_code=302)
+        
+        user_data = user_result["user"]
+        company_id = user_data["company_id"]
+        
+        from app.views.template_renderer import render_template
+        return render_template("payments.html", 
+                             user=user_data)
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao carregar página de pagamentos: {e}")
+        return RedirectResponse(url="/auth/login", status_code=302)
 
 @auth_router.get("/forgot-password")
 async def forgot_password_page(request: Request):
