@@ -1111,6 +1111,7 @@ async def update_account_payable(
 @financial_router.delete("/api/financial/payables/{payable_id}")
 async def delete_account_payable(
     payable_id: int,
+    delete_data: dict,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -1134,12 +1135,44 @@ async def delete_account_payable(
     if not payable:
         raise HTTPException(status_code=404, detail="Conta a pagar não encontrada")
     
-    # Remover conta a pagar
+    remove_future_entries = delete_data.get("remove_future_entries", False)
+    deleted_count = 1
+    
+    # Se deve remover lançamentos futuros
+    if remove_future_entries:
+        if payable.total_installments > 1:
+            # É uma conta parcelada - remover todas as parcelas
+            parent_id = payable.parent_payable_id if payable.parent_payable_id else payable_id
+            
+            # Remover todas as parcelas (incluindo a principal)
+            all_installments = db.query(AccountPayable).filter(
+                or_(
+                    AccountPayable.id == parent_id,
+                    AccountPayable.parent_payable_id == parent_id
+                ),
+                AccountPayable.company_id == company_id
+            ).all()
+            
+            deleted_count = len(all_installments)
+            for installment in all_installments:
+                db.delete(installment)
+                
+        elif payable.is_recurring:
+            # É uma despesa recorrente - remover todas as recorrências futuras
+            # Para despesas recorrentes, removemos apenas a entrada atual
+            # (as futuras seriam geradas automaticamente baseadas na frequência)
+            pass
+    
+    # Remover a conta atual
     db.delete(payable)
     db.commit()
     
-    logger.info(f"✅ Conta a pagar excluída: {payable.description} (ID: {payable_id})")
-    return {"message": "Conta a pagar excluída com sucesso"}
+    if remove_future_entries and deleted_count > 1:
+        logger.info(f"✅ Conta a pagar e {deleted_count - 1} lançamentos futuros excluídos: {payable.description} (ID: {payable_id})")
+        return {"message": f"Conta e {deleted_count - 1} lançamentos futuros excluídos com sucesso"}
+    else:
+        logger.info(f"✅ Conta a pagar excluída: {payable.description} (ID: {payable_id})")
+        return {"message": "Conta a pagar excluída com sucesso"}
 
 @financial_router.put("/api/financial/payables/{payable_id}/mark-paid")
 async def mark_payable_as_paid(

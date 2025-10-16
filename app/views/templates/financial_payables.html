@@ -268,7 +268,20 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita.
+                <div id="deleteModalBody">
+                    <!-- Conteúdo será preenchido dinamicamente -->
+                </div>
+                <div id="deleteFutureEntries" style="display: none;" class="mt-3">
+                    <div class="alert alert-warning">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="removeFutureEntries">
+                            <label class="form-check-label" for="removeFutureEntries">
+                                <strong>Remover também os lançamentos futuros</strong><br>
+                                <small class="text-muted">Marque esta opção se deseja excluir todas as parcelas ou recorrências futuras desta conta.</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -697,7 +710,54 @@ async function confirmPayment() {
 
 // Função para excluir conta a pagar
 function deletePayable(id) {
+    const payable = payables.find(p => p.id === id);
+    if (!payable) return;
+    
     currentDeleteId = id;
+    
+    // Verificar se é conta parcelada ou recorrente
+    const isInstallment = payable.total_installments > 1;
+    const isRecurring = payable.is_recurring;
+    
+    // Configurar o modal baseado no tipo de conta
+    if (isInstallment || isRecurring) {
+        document.getElementById('deleteModalLabel').textContent = 'Confirmar Exclusão';
+        document.getElementById('deleteModalBody').innerHTML = `
+            <p>Tem certeza que deseja excluir esta conta?</p>
+            <div class="alert alert-info">
+                <strong>Conta:</strong> ${payable.description}<br>
+                <strong>Fornecedor:</strong> ${payable.supplier_name || '-'}<br>
+                <strong>Valor:</strong> R$ ${parseFloat(payable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}<br>
+                ${isInstallment ? `<strong>Parcelas:</strong> ${payable.installment_number || 1}/${payable.total_installments}<br>` : ''}
+                ${isRecurring ? `<strong>Tipo:</strong> Despesa Recorrente (${payable.recurring_frequency})<br>` : ''}
+            </div>
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Esta ação não pode ser desfeita.
+            </div>
+        `;
+        
+        // Mostrar opção para remover lançamentos futuros
+        document.getElementById('deleteFutureEntries').style.display = 'block';
+        document.getElementById('removeFutureEntries').checked = false;
+    } else {
+        // Conta simples
+        document.getElementById('deleteModalLabel').textContent = 'Confirmar Exclusão';
+        document.getElementById('deleteModalBody').innerHTML = `
+            <p>Tem certeza que deseja excluir esta conta a pagar?</p>
+            <div class="alert alert-info">
+                <strong>Conta:</strong> ${payable.description}<br>
+                <strong>Fornecedor:</strong> ${payable.supplier_name || '-'}<br>
+                <strong>Valor:</strong> R$ ${parseFloat(payable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+            </div>
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Esta ação não pode ser desfeita.
+            </div>
+        `;
+        
+        // Ocultar opção para remover lançamentos futuros
+        document.getElementById('deleteFutureEntries').style.display = 'none';
+    }
+    
     const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
     modal.show();
 }
@@ -707,9 +767,21 @@ async function confirmDelete() {
     if (!currentDeleteId) return;
     
     try {
+        // Verificar se deve remover lançamentos futuros
+        const removeFutureEntries = document.getElementById('removeFutureEntries').checked;
+        
+        // Preparar dados para envio
+        const deleteData = {
+            remove_future_entries: removeFutureEntries
+        };
+        
         const response = await fetch(`/api/financial/payables/${currentDeleteId}`, {
             method: 'DELETE',
-            credentials: 'include'
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(deleteData)
         });
         
         if (response.ok) {
