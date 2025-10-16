@@ -650,10 +650,10 @@ function togglePaymentStatus(id) {
     
     if (receivable) {
         if (receivable.status === 'paid' || receivable.status === 'received') {
-            // Se está recebido, perguntar se quer marcar como pendente
-            if (confirm('Deseja marcar esta conta como pendente?')) {
-                markAsPending(id);
-            }
+            // Se está recebido, mostrar modal para confirmar reversão
+            currentRevertId = id;
+            const modal = new bootstrap.Modal(document.getElementById('revertToPendingModal'));
+            modal.show();
         } else {
             // Se está pendente, marcar diretamente como recebido
             markAsReceived(id);
@@ -713,6 +713,13 @@ function markAsPending(id) {
     });
 }
 
+function confirmRevertToPending() {
+    if (currentRevertId) {
+        markAsPending(currentRevertId);
+        bootstrap.Modal.getInstance(document.getElementById('revertToPendingModal')).hide();
+        currentRevertId = null;
+    }
+}
 
 // Função para atualizar contas a receber
 function refreshReceivables() {
