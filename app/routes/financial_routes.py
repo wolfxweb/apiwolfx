@@ -1206,12 +1206,31 @@ async def delete_account_payable(
                 
         elif payable.is_recurring:
             # É uma despesa recorrente - remover todas as recorrências futuras
-            # Para despesas recorrentes, removemos apenas a entrada atual
-            # (as futuras seriam geradas automaticamente baseadas na frequência)
-            pass
+            # Buscar todas as recorrências relacionadas pela descrição base e frequência
+            base_description = payable.description
+            # Remover sufixo "- Recorrência X" se existir para obter a descrição base
+            if " - Recorrência " in base_description:
+                base_description = base_description.split(" - Recorrência ")[0]
+            
+            # Buscar todas as recorrências relacionadas
+            related_recurring = db.query(AccountPayable).filter(
+                AccountPayable.company_id == company_id,
+                AccountPayable.is_recurring == True,
+                AccountPayable.recurring_frequency == payable.recurring_frequency,
+                or_(
+                    AccountPayable.description == base_description,
+                    AccountPayable.description.like(f"{base_description} - Recorrência %")
+                )
+            ).all()
+            
+            deleted_count = len(related_recurring)
+            for recurring in related_recurring:
+                db.delete(recurring)
     
-    # Remover a conta atual
-    db.delete(payable)
+    # Remover a conta atual apenas se não foi removida na lógica acima
+    if not remove_future_entries or (not payable.is_recurring and payable.total_installments <= 1):
+        db.delete(payable)
+    
     db.commit()
     
     if remove_future_entries and deleted_count > 1:
