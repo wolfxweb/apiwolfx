@@ -1895,7 +1895,10 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                     <div class="col-4">
                         <div class="card bg-success bg-opacity-10 border-success">
                             <div class="card-body py-2 px-3">
-                                <small class="text-muted d-block">Lucro</small>
+                                <small class="text-muted d-block">
+                                    Lucro 
+                                    <i class="bi bi-info-circle-fill ms-1" data-bs-toggle="tooltip" title="Lucro líquido = Preço de venda - Total de custos. Representa o ganho real após deduzir todos os custos."></i>
+                                </small>
                                 <strong class="text-success fs-6">${formatPrice(productNetProfit)} <small class="text-muted">(${actualMargin.toFixed(2)}%)</small></strong>
                             </div>
                         </div>
@@ -1903,7 +1906,10 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                     <div class="col-4">
                         <div class="card bg-primary bg-opacity-10 border-primary">
                             <div class="card-body py-2 px-3">
-                                <small class="text-muted d-block">Markup</small>
+                                <small class="text-muted d-block">
+                                    Markup 
+                                    <i class="bi bi-info-circle-fill ms-1" data-bs-toggle="tooltip" title="Markup = ((Preço de venda ÷ Total de custos) - 1) × 100%. Percentual de acréscimo sobre o custo total para chegar ao preço de venda."></i>
+                                </small>
                                 <strong class="text-primary fs-6">${markup.toFixed(2)}%</strong>
                          
                             </div>
@@ -1912,7 +1918,10 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
                     <div class="col-4">
                         <div class="card bg-danger bg-opacity-10 border-danger">
                             <div class="card-body py-2 px-3">
-                                <small class="text-muted d-block">Total Custos</small>
+                                <small class="text-muted d-block">
+                                    Total Custos 
+                                    <i class="bi bi-info-circle-fill ms-1" data-bs-toggle="tooltip" title="Total Custos = Custo do produto + Taxas ML + Frete + Outros custos. Soma de todos os custos envolvidos na venda do produto."></i>
+                                </small>
                                 <strong class="text-danger fs-6">${formatPrice(totalAllCosts)}</strong>
                             </div>
                         </div>
@@ -1947,6 +1956,10 @@ function renderPricingAnalysis(data, product, mlFeesData = null) {
         "markup_percentual": markup,
         "roi_percentual": roi
     };
+    
+    // Inicializar tooltips para os novos ícones explicativos
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
     
     console.log('✅ Análise de preços renderizada e salva para IA');
 }
