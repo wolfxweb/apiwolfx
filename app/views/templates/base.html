@@ -84,13 +84,40 @@
                         </ul>
                     </li>
                     {% endif %}
+                    
+                    {% if user %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="financialDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-currency-dollar"></i> Financeiro
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="financialDropdown">
+                            <li><a class="dropdown-item" href="/financial/dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/financial/receivables"><i class="bi bi-arrow-down-circle"></i> Contas a Receber</a></li>
+                            <li><a class="dropdown-item" href="/financial/payables"><i class="bi bi-arrow-up-circle"></i> Contas a Pagar</a></li>
+                            <li><a class="dropdown-item" href="/financial/cashflow"><i class="bi bi-graph-up"></i> Fluxo de Caixa</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/financial/categories"><i class="bi bi-tags"></i> Categorias</a></li>
+                            <li><a class="dropdown-item" href="/financial/cost-centers"><i class="bi bi-building"></i> Centros de Custo</a></li>
+                            <li><a class="dropdown-item" href="/financial/accounts"><i class="bi bi-bank"></i> Contas Bancárias</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/financial/reports"><i class="bi bi-file-earmark-text"></i> Relatórios</a></li>
+                            <li><a class="dropdown-item" href="/financial/settings"><i class="bi bi-gear"></i> Configurações</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
                 </ul>
                 
                 <ul class="navbar-nav">
                     {% if user %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-person-circle"></i> {{ user.first_name }} {{ user.last_name }}
+                            <i class="bi bi-person-circle"></i> 
+                            {% if user and user.first_name and user.last_name %}
+                                {{ user.first_name }} {{ user.last_name }}
+                            {% else %}
+                                Usuário
+                            {% endif %}
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
                             <li><a class="dropdown-item" href="/auth/profile"><i class="bi bi-person"></i> Perfil</a></li>

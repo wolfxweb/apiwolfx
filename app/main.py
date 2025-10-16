@@ -18,6 +18,7 @@ from app.routes.sales_analysis_routes import router as sales_analysis_router
 from app.routes.catalog_monitoring_routes import router as catalog_monitoring_router
 from app.routes.superadmin_routes import superadmin_router
 from app.routes.payment_routes import router as payment_router
+from app.routes.financial_routes import financial_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -182,6 +183,7 @@ app.include_router(sales_analysis_router)  # Para /api/sales/analysis
 app.include_router(catalog_monitoring_router)  # Para /api/catalog-monitoring
 app.include_router(superadmin_router)  # Para /superadmin
 app.include_router(payment_router)  # Para /api/payments
+app.include_router(financial_router)  # Para /financial e /api/financial
 # app.include_router(settings_router)  # Removido - usando /auth/profile
 
 # Rotas principais (sem prefixo para compatibilidade)

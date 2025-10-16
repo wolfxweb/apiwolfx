@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+
+{% block title %}Categorias Financeiras - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-tags"></i> Categorias Financeiras</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshCategories()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="showCreateCategoryModal()">
+                <i class="bi bi-plus-circle"></i> Nova Categoria
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome ou código..." onkeyup="filterCategories()">
+        </div>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="typeFilter" onchange="filterCategories()">
+            <option value="">Todos os Tipos</option>
+            <option value="revenue">Receita</option>
+            <option value="expense">Despesa</option>
+            <option value="investment">Investimento</option>
+            <option value="transfer">Transferência</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="statusFilter" onchange="filterCategories()">
+            <option value="">Todos os Status</option>
+            <option value="active">Ativo</option>
+            <option value="inactive">Inativo</option>
+        </select>
+    </div>
+</div>
+
+<!-- Estatísticas Rápidas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-success stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Receitas</h6>
+                        <h4 class="mb-0" id="revenueCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-arrow-up-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Despesas</h6>
+                        <h4 class="mb-0" id="expenseCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-arrow-down-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Investimentos</h6>
+                        <h4 class="mb-0" id="investmentCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-graph-up fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total</h6>
+                        <h4 class="mb-0" id="totalCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-tags fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Categorias -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="categoriesTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th>Nome</th>
+                        <th>Tipo</th>
+                        <th>Limite Mensal</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="categoriesTableBody">
+                    <!-- Dados carregados via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Paginação -->
+        <nav aria-label="Paginação de categorias">
+            <ul class="pagination justify-content-center" id="pagination">
+                <!-- Paginação gerada via JavaScript -->
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Modal para Criar/Editar Categoria -->
+<div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="categoryModalTitle">Nova Categoria</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="categoryForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="categoryCode" class="form-label">Código *</label>
+                                <input type="text" class="form-control" id="categoryCode" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="categoryName" class="form-label">Nome *</label>
+                                <input type="text" class="form-control" id="categoryName" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="categoryType" class="form-label">Tipo *</label>
+                                <select class="form-select" id="categoryType" required>
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="revenue">Receita</option>
+                                    <option value="expense">Despesa</option>
+                                    <option value="investment">Investimento</option>
+                                    <option value="transfer">Transferência</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="monthlyLimit" class="form-label">Limite Mensal</label>
+                                <input type="number" class="form-control" id="monthlyLimit" step="0.01" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="categoryDescription" class="form-label">Descrição</label>
+                                <textarea class="form-control" id="categoryDescription" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isActive" checked>
+                                    <label class="form-check-label" for="isActive">
+                                        Categoria ativa
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveCategory()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Confirmar Exclusão -->
+<div class="modal fade" id="deleteCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir a categoria <strong id="deleteCategoryName"></strong>?</p>
+                <p class="text-danger"><small>Esta ação não pode ser desfeita.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteCategory()">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais
+let categories = [];
+let currentEditId = null;
+let currentDeleteId = null;
+
+// Carregar categorias ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadCategories();
+});
+
+// Função para carregar categorias
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/financial/categories', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            categories = await response.json();
+            renderCategories();
+            updateStats();
+        } else {
+            showAlert('Erro ao carregar categorias', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar categorias', 'danger');
+    }
+}
+
+// Função para renderizar categorias na tabela
+function renderCategories() {
+    const tbody = document.getElementById('categoriesTableBody');
+    tbody.innerHTML = '';
+    
+    categories.forEach(category => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${category.code || '-'}</td>
+            <td>${category.name}</td>
+            <td><span class="badge ${getTypeBadgeClass(category.type)}">${getTypeLabel(category.type)}</span></td>
+            <td>${category.monthly_limit ? 'R$ ' + parseFloat(category.monthly_limit).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
+            <td><span class="badge ${category.is_active ? 'bg-success' : 'bg-secondary'}">${category.is_active ? 'Ativo' : 'Inativo'}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editCategory(${category.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${category.id}, '${category.name}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Função para atualizar estatísticas
+function updateStats() {
+    const revenueCount = categories.filter(c => c.type === 'revenue').length;
+    const expenseCount = categories.filter(c => c.type === 'expense').length;
+    const investmentCount = categories.filter(c => c.type === 'investment').length;
+    const totalCount = categories.length;
+    
+    document.getElementById('revenueCount').textContent = revenueCount;
+    document.getElementById('expenseCount').textContent = expenseCount;
+    document.getElementById('investmentCount').textContent = investmentCount;
+    document.getElementById('totalCount').textContent = totalCount;
+}
+
+// Função para filtrar categorias
+function filterCategories() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const typeFilter = document.getElementById('typeFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    const filtered = categories.filter(category => {
+        const matchesSearch = !searchTerm || 
+            category.name.toLowerCase().includes(searchTerm) ||
+            (category.code && category.code.toLowerCase().includes(searchTerm));
+        
+        const matchesType = !typeFilter || category.type === typeFilter;
+        const matchesStatus = !statusFilter || 
+            (statusFilter === 'active' && category.is_active) ||
+            (statusFilter === 'inactive' && !category.is_active);
+        
+        return matchesSearch && matchesType && matchesStatus;
+    });
+    
+    // Renderizar categorias filtradas
+    const tbody = document.getElementById('categoriesTableBody');
+    tbody.innerHTML = '';
+    
+    filtered.forEach(category => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${category.code || '-'}</td>
+            <td>${category.name}</td>
+            <td><span class="badge ${getTypeBadgeClass(category.type)}">${getTypeLabel(category.type)}</span></td>
+            <td>${category.monthly_limit ? 'R$ ' + parseFloat(category.monthly_limit).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
+            <td><span class="badge ${category.is_active ? 'bg-success' : 'bg-secondary'}">${category.is_active ? 'Ativo' : 'Inativo'}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editCategory(${category.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${category.id}, '${category.name}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Função para mostrar modal de criação
+function showCreateCategoryModal() {
+    currentEditId = null;
+    document.getElementById('categoryModalTitle').textContent = 'Nova Categoria';
+    document.getElementById('categoryForm').reset();
+    document.getElementById('isActive').checked = true;
+    
+    const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
+    modal.show();
+}
+
+// Função para editar categoria
+function editCategory(id) {
+    const category = categories.find(c => c.id === id);
+    if (!category) return;
+    
+    currentEditId = id;
+    document.getElementById('categoryModalTitle').textContent = 'Editar Categoria';
+    
+    // Preencher formulário
+    document.getElementById('categoryCode').value = category.code || '';
+    document.getElementById('categoryName').value = category.name || '';
+    document.getElementById('categoryType').value = category.type || '';
+    document.getElementById('monthlyLimit').value = category.monthly_limit || '';
+    document.getElementById('categoryDescription').value = category.description || '';
+    document.getElementById('isActive').checked = category.is_active;
+    
+    const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
+    modal.show();
+}
+
+// Função para salvar categoria
+async function saveCategory() {
+    const formData = {
+        code: document.getElementById('categoryCode').value,
+        name: document.getElementById('categoryName').value,
+        type: document.getElementById('categoryType').value,
+        monthly_limit: document.getElementById('monthlyLimit').value || null,
+        description: document.getElementById('categoryDescription').value,
+        is_active: document.getElementById('isActive').checked
+    };
+    
+    try {
+        const url = currentEditId ? `/api/financial/categories/${currentEditId}` : '/api/financial/categories';
+        const method = currentEditId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showAlert('Categoria salva com sucesso!', 'success');
+            loadCategories();
+            bootstrap.Modal.getInstance(document.getElementById('categoryModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao salvar categoria', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao salvar categoria', 'danger');
+    }
+}
+
+// Função para excluir categoria
+function deleteCategory(id, name) {
+    currentDeleteId = id;
+    document.getElementById('deleteCategoryName').textContent = name;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteCategoryModal'));
+    modal.show();
+}
+
+// Função para confirmar exclusão
+async function confirmDeleteCategory() {
+    try {
+        const response = await fetch(`/api/financial/categories/${currentDeleteId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            showAlert('Categoria excluída com sucesso!', 'success');
+            loadCategories();
+            bootstrap.Modal.getInstance(document.getElementById('deleteCategoryModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao excluir categoria', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao excluir categoria', 'danger');
+    }
+}
+
+// Função para atualizar categorias
+function refreshCategories() {
+    loadCategories();
+}
+
+// Funções auxiliares
+function getTypeBadgeClass(type) {
+    switch(type) {
+        case 'revenue': return 'bg-success';
+        case 'expense': return 'bg-danger';
+        case 'investment': return 'bg-info';
+        case 'transfer': return 'bg-warning';
+        default: return 'bg-secondary';
+    }
+}
+
+function getTypeLabel(type) {
+    switch(type) {
+        case 'revenue': return 'Receita';
+        case 'expense': return 'Despesa';
+        case 'investment': return 'Investimento';
+        case 'transfer': return 'Transferência';
+        default: return type;
+    }
+}
+
+function showAlert(message, type) {
+    // Criar alerta Bootstrap
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Tentar encontrar container adequado
+    let container = document.querySelector('.container-fluid');
+    if (!container) {
+        container = document.querySelector('.container');
+    }
+    if (!container) {
+        container = document.querySelector('main');
+    }
+    if (!container) {
+        container = document.body;
+    }
+    
+    // Inserir no topo do container encontrado
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    }
+    
+    // Remover automaticamente após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

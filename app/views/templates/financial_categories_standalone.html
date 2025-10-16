@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Categorias Financeiras - GIVM{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1>
+                <i class="bi bi-tags text-primary"></i>
+                Categorias Financeiras
+            </h1>
+            <p>Usuário: {{ user.first_name }} {{ user.last_name }}</p>
+            <p>Company ID: {{ user.company_id }}</p>
+            <p>Email: {{ user.email }}</p>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nome</th>
+                                    <th>Tipo</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>REC001</code></td>
+                                    <td><strong>Vendas de Produtos</strong></td>
+                                    <td><span class="badge bg-success">Receita</span></td>
+                                    <td><span class="badge bg-success">Ativa</span></td>
+                                </tr>
+                                <tr>
+                                    <td><code>EXP001</code></td>
+                                    <td><strong>Marketing</strong></td>
+                                    <td><span class="badge bg-danger">Despesa</span></td>
+                                    <td><span class="badge bg-success">Ativa</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
