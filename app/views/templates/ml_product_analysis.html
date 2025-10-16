@@ -4065,11 +4065,19 @@ function renderPriceEvolutionChart(historyData) {
     // Identificar vendedores que não estão mais no catálogo atual
     const currentSellers = new Set();
     const allHistoricalSellers = new Set();
+    const oldSellers = new Set(); // Vendedores que estavam no histórico mais antigo
     
     // Pegar vendedores do catálogo atual (primeiro registro)
     if (historyData.length > 0 && historyData[0].participants_snapshot) {
         historyData[0].participants_snapshot.forEach(participant => {
             currentSellers.add(participant.seller_nickname);
+        });
+    }
+    
+    // Pegar vendedores do histórico mais antigo (último registro)
+    if (historyData.length > 1 && historyData[historyData.length - 1].participants_snapshot) {
+        historyData[historyData.length - 1].participants_snapshot.forEach(participant => {
+            oldSellers.add(participant.seller_nickname);
         });
     }
     
@@ -4084,6 +4092,9 @@ function renderPriceEvolutionChart(historyData) {
     
     // Vendedores que saíram do catálogo
     const sellersWhoLeft = Array.from(allHistoricalSellers).filter(seller => !currentSellers.has(seller));
+    
+    // Vendedores que entraram = estão no atual mas não estavam no histórico mais antigo
+    const sellersWhoJoined = Array.from(currentSellers).filter(seller => !oldSellers.has(seller));
     
     // Criar dados dos vendedores que saíram
     const sellersLeftData = [];
@@ -4126,6 +4137,45 @@ function renderPriceEvolutionChart(historyData) {
     
     // Ordenar por último preço (maior para menor)
     sellersLeftData.sort((a, b) => b.lastPrice - a.lastPrice);
+    
+    // Criar dados dos novos vendedores
+    const sellersJoinedData = [];
+    sellersWhoJoined.forEach(sellerNickname => {
+        const sellerPrices = [];
+        const sellerDates = [];
+        
+        // Buscar dados do vendedor no histórico (apenas registros recentes onde ele aparece)
+        historyData.forEach((record, index) => {
+            if (record.participants_snapshot) {
+                const participant = record.participants_snapshot.find(p => p.seller_nickname === sellerNickname);
+                if (participant) {
+                    sellerPrices.push(participant.price);
+                    sellerDates.push(record.collected_at);
+                }
+            }
+        });
+        
+        if (sellerPrices.length > 0) {
+            const firstPrice = sellerPrices[0];
+            const lastPrice = sellerPrices[sellerPrices.length - 1];
+            const priceChange = lastPrice - firstPrice;
+            const priceChangePercent = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0;
+            
+            sellersJoinedData.push({
+                nickname: sellerNickname,
+                firstPrice: firstPrice,
+                lastPrice: lastPrice,
+                priceChange: priceChange,
+                priceChangePercent: priceChangePercent,
+                totalRecords: sellerPrices.length,
+                firstDate: sellerDates[0],
+                lastDate: sellerDates[sellerDates.length - 1]
+            });
+        }
+    });
+    
+    // Ordenar novos vendedores por último preço (menor para maior - mais competitivos primeiro)
+    sellersJoinedData.sort((a, b) => a.lastPrice - b.lastPrice);
     
     // Criar HTML da tabela de vendedores que saíram
     let sellersLeftTableHtml = '';
@@ -4181,6 +4231,66 @@ function renderPriceEvolutionChart(historyData) {
             </div>
         `;
     }
+    
+    // Criar HTML da tabela de novos vendedores
+    let sellersJoinedTableHtml = '';
+    if (sellersJoinedData.length > 0) {
+        sellersJoinedTableHtml = `
+            <div class="table-responsive mt-4">
+                <table class="table table-sm table-hover">
+                    <thead class="table-success">
+                        <tr>
+                            <th><i class="bi bi-person-plus"></i> Novo Vendedor</th>
+                            <th><i class="bi bi-currency-dollar"></i> Primeiro Preço</th>
+                            <th><i class="bi bi-currency-dollar"></i> Último Preço</th>
+                            <th><i class="bi bi-arrow-up-down"></i> Variação</th>
+                            <th><i class="bi bi-percent"></i> %</th>
+                            <th><i class="bi bi-bar-chart"></i> Registros</th>
+                            <th><i class="bi bi-calendar"></i> Entrou em</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        sellersJoinedData.forEach(seller => {
+            const priceChangeClass = seller.priceChange > 0 ? 'text-success' : seller.priceChange < 0 ? 'text-danger' : 'text-muted';
+            const priceChangeIcon = seller.priceChange > 0 ? 'bi-arrow-up' : seller.priceChange < 0 ? 'bi-arrow-down' : 'bi-dash';
+            const entryDate = new Date(seller.firstDate).toLocaleDateString('pt-BR');
+            
+            sellersJoinedTableHtml += `
+                <tr>
+                    <td>
+                        <strong>${seller.nickname}</strong>
+                        <br><small class="text-success">Novo no catálogo</small>
+                    </td>
+                    <td>R$ ${seller.firstPrice.toFixed(2)}</td>
+                    <td>R$ ${seller.lastPrice.toFixed(2)}</td>
+                    <td class="${priceChangeClass}">
+                        <i class="bi ${priceChangeIcon}"></i>
+                        R$ ${Math.abs(seller.priceChange).toFixed(2)}
+                    </td>
+                    <td class="${priceChangeClass}">
+                        ${seller.priceChangePercent > 0 ? '+' : ''}${seller.priceChangePercent.toFixed(1)}%
+                    </td>
+                    <td>
+                        <span class="badge bg-success">${seller.totalRecords}</span>
+                    </td>
+                    <td>
+                        <small class="text-muted">${entryDate}</small>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        sellersJoinedTableHtml += `
+                    </tbody>
+                </table>
+                <div class="text-muted">
+                    <small><i class="bi bi-info-circle"></i> Vendedores que entraram no catálogo recentemente</small>
+                </div>
+            </div>
+        `;
+    }
 
     // Criar HTML do gráfico
     const chartHtml = `
@@ -4201,6 +4311,7 @@ function renderPriceEvolutionChart(historyData) {
                     <canvas id="priceEvolutionChart" style="max-width: 100%; max-height: 100%;"></canvas>
                 </div>
                 ${sellersLeftTableHtml}
+                ${sellersJoinedTableHtml}
             </div>
         </div>
     `;
