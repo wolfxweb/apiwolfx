@@ -917,35 +917,82 @@ async def create_account_payable(
     recurring_frequency = payable_data.get("recurring_frequency")
     installment_due_date = payable_data.get("installment_due_date")
     
-    # Se for despesa recorrente, criar apenas uma entrada com frequência
+    # Se for despesa recorrente, criar múltiplas entradas baseadas na frequência
     if is_recurring and recurring_frequency:
-        new_payable = AccountPayable(
-            company_id=company_id,
-            supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
-            category_id=payable_data.get("category_id"),
-            cost_center_id=payable_data.get("cost_center_id"),
-            account_id=payable_data.get("account_id"),
-            payment_method_id=payable_data.get("payment_method_id"),
-            invoice_number=payable_data.get("invoice_number"),
-            description=payable_data.get("description"),
-            amount=payable_data.get("amount"),
-            due_date=datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date(),
-            status="pending",
-            installment_number=1,
-            total_installments=1,
-            is_recurring=True,
-            recurring_frequency=recurring_frequency,
-            recurring_end_date=datetime.strptime(payable_data.get("recurring_end_date"), "%Y-%m-%d").date() if payable_data.get("recurring_end_date") else None,
-            is_fixed=payable_data.get("is_fixed", False),
-            notes=payable_data.get("notes")
-        )
+        from dateutil.relativedelta import relativedelta
         
-        db.add(new_payable)
+        # Calcular quantas entradas criar baseado na frequência e data de término
+        start_date = datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date()
+        end_date = datetime.strptime(payable_data.get("recurring_end_date"), "%Y-%m-%d").date()
+        
+        # Calcular número de entradas baseado na frequência
+        if recurring_frequency == "monthly":
+            months_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+            total_entries = months_diff + 1
+        elif recurring_frequency == "quarterly":
+            months_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+            total_entries = (months_diff // 3) + 1
+        elif recurring_frequency == "yearly":
+            years_diff = end_date.year - start_date.year
+            total_entries = years_diff + 1
+        else:
+            total_entries = 1
+        
+        # Limitar a um máximo razoável (ex: 60 entradas)
+        total_entries = min(total_entries, 60)
+        
+        created_entries = []
+        base_description = payable_data.get("description")
+        base_invoice = payable_data.get("invoice_number")
+        
+        for i in range(total_entries):
+            # Calcular data de vencimento baseada na frequência
+            if recurring_frequency == "monthly":
+                due_date = start_date + relativedelta(months=i)
+            elif recurring_frequency == "quarterly":
+                due_date = start_date + relativedelta(months=i*3)
+            elif recurring_frequency == "yearly":
+                due_date = start_date + relativedelta(years=i)
+            else:
+                due_date = start_date
+            
+            # Se a data calculada ultrapassar a data de término, parar
+            if due_date > end_date:
+                break
+            
+            # Criar entrada recorrente
+            recurring_payable = AccountPayable(
+                company_id=company_id,
+                supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+                category_id=payable_data.get("category_id"),
+                cost_center_id=payable_data.get("cost_center_id"),
+                account_id=payable_data.get("account_id"),
+                payment_method_id=payable_data.get("payment_method_id"),
+                invoice_number=f"{base_invoice}-{i+1}" if base_invoice else None,
+                description=f"{base_description} - Recorrência {i+1}" if i > 0 else base_description,
+                amount=payable_data.get("amount"),
+                due_date=due_date,
+                status="pending",
+                installment_number=i+1,
+                total_installments=total_entries,
+                is_recurring=True,
+                recurring_frequency=recurring_frequency,
+                recurring_end_date=end_date,
+                is_fixed=payable_data.get("is_fixed", False),
+                notes=payable_data.get("notes")
+            )
+            
+            db.add(recurring_payable)
+            created_entries.append(recurring_payable)
+        
         db.commit()
-        db.refresh(new_payable)
         
-        logger.info(f"✅ Despesa recorrente criada: {new_payable.description} (ID: {new_payable.id})")
-        return {"message": "Despesa recorrente criada com sucesso", "id": new_payable.id}
+        # Refresh para obter os IDs
+        for entry in created_entries:
+            db.refresh(entry)
+        
+        logger.info(f"✅ {len(created_entries)} despesas recorrentes criadas: {base_description}")
+        return {"message": f"{len(created_entries)} despesas recorrentes criadas com sucesso", "count": len(created_entries)}
     
     # Se for parcelamento, criar múltiplas entradas
     elif total_installments > 1:
