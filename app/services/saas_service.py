@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.models.saas_models import (
     Company, User, MLAccount, UserMLAccount, Token, Product, 
-    UserSession, Subscription, ApiLog, CompanyStatus, UserRole, MLAccountStatus
+    UserSession, Subscription, CompanyStatus, UserRole, MLAccountStatus
 )
+from app.models.database_models import ApiLog
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import logging

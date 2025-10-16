@@ -60,6 +60,18 @@ class Company(Base):
     subscriptions = relationship("Subscription", back_populates="company", cascade="all, delete-orphan")
     products = relationship("Product", back_populates="company", cascade="all, delete-orphan")
     internal_products = relationship("InternalProduct", back_populates="company", cascade="all, delete-orphan")
+    
+    # Relacionamentos Financeiros
+    financial_accounts = relationship("FinancialAccount", back_populates="company", cascade="all, delete-orphan")
+    cost_centers = relationship("CostCenter", back_populates="company", cascade="all, delete-orphan")
+    financial_categories = relationship("FinancialCategory", back_populates="company", cascade="all, delete-orphan")
+    financial_customers = relationship("FinancialCustomer", back_populates="company", cascade="all, delete-orphan")
+    financial_suppliers = relationship("FinancialSupplier", back_populates="company", cascade="all, delete-orphan")
+    accounts_receivable = relationship("AccountReceivable", back_populates="company", cascade="all, delete-orphan")
+    accounts_payable = relationship("AccountPayable", back_populates="company", cascade="all, delete-orphan")
+    financial_transactions = relationship("FinancialTransaction", back_populates="company", cascade="all, delete-orphan")
+    financial_goals = relationship("FinancialGoal", back_populates="company", cascade="all, delete-orphan")
+    financial_alerts = relationship("FinancialAlert", back_populates="company", cascade="all, delete-orphan")
 
 class SuperAdmin(Base):
     """Modelo de SuperAdmin para gerenciamento do sistema"""
@@ -476,35 +488,7 @@ class MLProductAttribute(Base):
         Index('ix_ml_product_attributes_attribute_id', 'attribute_id'),
     )
 
-class ApiLog(Base):
-    """Modelo de log da API (atualizado)"""
-    __tablename__ = "api_logs"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=True, index=True)
-    
-    # Dados da requisição
-    endpoint = Column(String(255), nullable=False, index=True)
-    method = Column(String(10), nullable=False)
-    status_code = Column(Integer)
-    response_time_ms = Column(Integer)
-    ip_address = Column(String(45))
-    user_agent = Column(Text)
-    
-    # Dados adicionais
-    request_data = Column(JSON)
-    response_data = Column(JSON)
-    error_message = Column(Text)
-    
-    # Timestamps
-    created_at = Column(DateTime, default=func.now(), index=True)
-    
-    # Relacionamentos
-    company = relationship("Company")
-    user = relationship("User")
-    ml_account = relationship("MLAccount")
+# ApiLog removido - já definido em database_models.py
 
 class OrderStatus(enum.Enum):
     """Status do pedido"""

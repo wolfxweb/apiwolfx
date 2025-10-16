@@ -2,67 +2,110 @@
 
 {% block title %}Contas Bancárias - GIVM{% endblock %}
 
-{% block extra_css %}
-<style>
-    .account-card {
-        transition: transform 0.2s ease-in-out;
-    }
-    .account-card:hover {
-        transform: translateY(-2px);
-    }
-    .balance-positive {
-        color: #28a745;
-    }
-    .balance-negative {
-        color: #dc3545;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1>
-                    <i class="bi bi-bank text-primary"></i>
-                    Contas Bancárias
-                </h1>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newAccountModal">
-                    <i class="bi bi-plus-circle"></i> Nova Conta
-                </button>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-bank"></i> Contas Bancárias</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshAccounts()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="showCreateAccountModal()">
+                <i class="bi bi-plus-circle"></i> Nova Conta
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome, banco ou agência..." onkeyup="filterAccounts()">
+        </div>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="typeFilter" onchange="filterAccounts()">
+            <option value="">Todos os Tipos</option>
+            <option value="checking">Conta Corrente</option>
+            <option value="savings">Poupança</option>
+            <option value="investment">Investimento</option>
+            <option value="credit">Cartão de Crédito</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="statusFilter" onchange="filterAccounts()">
+            <option value="">Todos os Status</option>
+            <option value="active">Ativo</option>
+            <option value="inactive">Inativo</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="bankFilter" onchange="filterAccounts()">
+            <option value="">Todos os Bancos</option>
+            <!-- Bancos carregados via JavaScript -->
+        </select>
+    </div>
+</div>
+
+<!-- Estatísticas Rápidas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-success stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Saldo Total</h6>
+                        <h4 class="mb-0" id="totalBalance">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-currency-dollar fs-1"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    
-    <!-- Lista de Contas -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Nome da Conta</th>
-                                    <th>Tipo</th>
-                                    <th>Banco</th>
-                                    <th>Agência/Conta</th>
-                                    <th>Saldo Atual</th>
-                                    <th>Status</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="accountsTable">
-                                <tr>
-                                    <td colspan="7" class="text-center">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Carregando...</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+    <div class="col-md-3">
+        <div class="card text-white bg-primary stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Contas Ativas</h6>
+                        <h4 class="mb-0" id="activeCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-bank fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Bancos</h6>
+                        <h4 class="mb-0" id="banksCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-building fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total</h6>
+                        <h4 class="mb-0" id="totalCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-credit-card fs-1"></i>
                     </div>
                 </div>
             </div>
@@ -70,176 +113,598 @@
     </div>
 </div>
 
-<!-- Modal Nova Conta -->
-<div class="modal fade" id="newAccountModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- Tabela de Contas Bancárias -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="accountsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Banco</th>
+                        <th>Nome da Conta</th>
+                        <th>Tipo</th>
+                        <th>Agência</th>
+                        <th>Conta</th>
+                        <th>Saldo Atual</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsTableBody">
+                    <!-- Dados carregados via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Footer com paginação e contadores -->
+    <div class="card-footer bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <small class="text-muted">
+                    Mostrando <span id="showing-start">1</span> a <span id="showing-end">10</span> 
+                    de <span id="showing-total">0</span> conta(s) bancária(s)
+                </small>
+            </div>
+            <div class="col-md-6">
+                <nav aria-label="Paginação de contas bancárias">
+                    <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination">
+                        <!-- Paginação gerada via JavaScript -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Criar/Editar Conta Bancária -->
+<div class="modal fade" id="accountModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Nova Conta</h5>
+                <h5 class="modal-title" id="accountModalTitle">Nova Conta Bancária</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form id="newAccountForm">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nome da Conta</label>
-                        <input type="text" class="form-control" name="account_name" required>
+            <div class="modal-body">
+                <form id="accountForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="bankName" class="form-label">Banco *</label>
+                                <input type="text" class="form-control" id="bankName" required placeholder="Ex: Banco do Brasil">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="accountName" class="form-label">Nome da Conta *</label>
+                                <input type="text" class="form-control" id="accountName" required placeholder="Ex: Conta Principal">
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tipo</label>
-                        <select class="form-select" name="account_type" required>
-                            <option value="bank">Conta Bancária</option>
-                            <option value="cash">Caixa</option>
-                            <option value="credit_card">Cartão de Crédito</option>
-                            <option value="investment">Investimento</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Banco</label>
-                        <input type="text" class="form-control" name="bank_name">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="accountType" class="form-label">Tipo de Conta *</label>
+                                <select class="form-select" id="accountType" required>
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="checking">Conta Corrente</option>
+                                    <option value="savings">Poupança</option>
+                                    <option value="investment">Investimento</option>
+                                    <option value="credit">Cartão de Crédito</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="agency" class="form-label">Agência</label>
+                                <input type="text" class="form-control" id="agency" placeholder="Ex: 1234">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="accountNumber" class="form-label">Número da Conta</label>
+                                <input type="text" class="form-control" id="accountNumber" placeholder="Ex: 12345-6">
+                            </div>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">Agência</label>
-                                <input type="text" class="form-control" name="agency">
+                                <label for="initialBalance" class="form-label">Saldo Inicial</label>
+                                <input type="number" class="form-control" id="initialBalance" step="0.01" placeholder="0.00">
+                                <div class="form-text">Saldo atual da conta</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">Conta</label>
-                                <input type="text" class="form-control" name="account_number">
+                                <label for="limitAmount" class="form-label">Limite (Cartão/Credito)</label>
+                                <input type="number" class="form-control" id="limitAmount" step="0.01" placeholder="0.00">
+                                <div class="form-text">Para cartões de crédito ou contas com limite</div>
                             </div>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Saldo Inicial</label>
-                        <input type="number" class="form-control" name="initial_balance" step="0.01" value="0">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="holderName" class="form-label">Nome do Titular</label>
+                                <input type="text" class="form-control" id="holderName" placeholder="Nome completo do titular">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="holderDocument" class="form-label">CPF/CNPJ do Titular</label>
+                                <input type="text" class="form-control" id="holderDocument" placeholder="000.000.000-00">
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Descrição</label>
-                        <textarea class="form-control" name="description" rows="3"></textarea>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="accountDescription" class="form-label">Descrição</label>
+                                <textarea class="form-control" id="accountDescription" rows="3" placeholder="Observações sobre a conta"></textarea>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Criar Conta</button>
-                </div>
-            </form>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isActive" checked>
+                                    <label class="form-check-label" for="isActive">
+                                        Conta ativa
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isMainAccount">
+                                    <label class="form-check-label" for="isMainAccount">
+                                        Conta principal
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveAccount()">Salvar</button>
+            </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
+<!-- Modal para Confirmar Exclusão -->
+<div class="modal fade" id="deleteAccountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir a conta bancária <strong id="deleteAccountName"></strong>?</p>
+                <p class="text-danger"><small>Esta ação não pode ser desfeita e pode afetar transações associadas.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteAccount()">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    // Carregar contas
-    async function loadAccounts() {
-        try {
-            const response = await fetch('/api/financial/accounts');
-            const accounts = await response.json();
-            
-            const tbody = document.getElementById('accountsTable');
-            
-            if (accounts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Nenhuma conta encontrada</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = accounts.map(account => `
-                <tr>
-                    <td><strong>${account.account_name}</strong></td>
-                    <td><span class="badge bg-secondary">${getAccountTypeLabel(account.account_type)}</span></td>
-                    <td>${account.bank_name || '-'}</td>
-                    <td>${account.agency || '-'} / ${account.account_number || '-'}</td>
-                    <td><strong class="${account.current_balance >= 0 ? 'balance-positive' : 'balance-negative'}">R$ ${account.current_balance.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></td>
-                    <td><span class="badge ${account.is_active ? 'bg-success' : 'bg-secondary'}">${account.is_active ? 'Ativa' : 'Inativa'}</span></td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="editAccount(${account.id})">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(${account.id})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-            
-        } catch (error) {
-            console.error('❌ Erro ao carregar contas:', error);
-            document.getElementById('accountsTable').innerHTML = '<tr><td colspan="7" class="text-center text-danger">Erro ao carregar contas</td></tr>';
+// Variáveis globais
+let accounts = [];
+let filteredAccounts = [];
+let currentEditId = null;
+let currentDeleteId = null;
+let currentPage = 1;
+let itemsPerPage = 10;
+
+// Carregar contas bancárias ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadAccounts();
+});
+
+// Função para carregar contas bancárias
+async function loadAccounts() {
+    try {
+        const response = await fetch('/api/financial/accounts', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            accounts = await response.json();
+            filteredAccounts = [...accounts];
+            renderAccounts();
+            updateStats();
+            updateBankFilter();
+        } else {
+            showAlert('Erro ao carregar contas bancárias', 'danger');
         }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar contas bancárias', 'danger');
+    }
+}
+
+// Função para renderizar contas bancárias na tabela
+function renderAccounts() {
+    const tbody = document.getElementById('accountsTableBody');
+    
+    if (filteredAccounts.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-5">
+                    <i class="bi bi-bank display-1 text-muted"></i>
+                    <h4 class="mt-3">Nenhuma conta bancária encontrada</h4>
+                    <p class="text-muted">
+                        Nenhuma conta bancária foi encontrada com os filtros aplicados.
+                        <br>
+                        <button class="btn btn-primary mt-2" onclick="showCreateAccountModal()">
+                            <i class="bi bi-plus-circle"></i> Nova Conta Bancária
+                        </button>
+                    </p>
+                </td>
+            </tr>
+        `;
+        updatePaginationCounters(0);
+        return;
     }
     
-    function getAccountTypeLabel(type) {
-        const labels = {
-            'bank': 'Bancária',
-            'cash': 'Caixa',
-            'credit_card': 'Cartão',
-            'investment': 'Investimento'
-        };
-        return labels[type] || type;
-    }
+    // Calcular página atual
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const accountsToShow = filteredAccounts.slice(startIndex, endIndex);
     
-    // Criar nova conta
-    document.getElementById('newAccountForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData);
-        
-        try {
-            const response = await fetch('/api/financial/accounts', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                bootstrap.Modal.getInstance(document.getElementById('newAccountModal')).hide();
-                e.target.reset();
-                loadAccounts();
-                showAlert('success', '✅ Conta criada com sucesso!');
-            } else {
-                showAlert('danger', '❌ Erro: ' + result.message);
-            }
-        } catch (error) {
-            console.error('❌ Erro ao criar conta:', error);
-            showAlert('danger', '❌ Erro ao criar conta');
-        }
+    tbody.innerHTML = '';
+    accountsToShow.forEach(account => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-building me-2"></i>
+                    ${account.bank_name}
+                </div>
+            </td>
+            <td>${account.account_name}</td>
+            <td><span class="badge ${getTypeBadgeClass(account.account_type)}">${getTypeLabel(account.account_type)}</span></td>
+            <td>${account.agency || '-'}</td>
+            <td>${account.account_number || '-'}</td>
+            <td>
+                <span class="fw-bold ${account.current_balance >= 0 ? 'text-success' : 'text-danger'}">
+                    R$ ${parseFloat(account.current_balance || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                </span>
+            </td>
+            <td>
+                <span class="badge ${account.is_active ? 'bg-success' : 'bg-secondary'}">
+                    ${account.is_active ? 'Ativo' : 'Inativo'}
+                </span>
+                ${account.is_main_account ? '<i class="bi bi-star-fill text-warning ms-1" title="Conta Principal"></i>' : ''}
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editAccount(${account.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(${account.id}, '${account.account_name}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
     });
     
-    function editAccount(accountId) {
-        showAlert('info', 'Funcionalidade de edição em desenvolvimento');
+    // Atualizar contadores e paginação
+    updatePaginationCounters(filteredAccounts.length);
+    renderPagination(filteredAccounts.length);
+}
+
+// Função para atualizar estatísticas
+function updateStats() {
+    const activeCount = accounts.filter(a => a.is_active).length;
+    const uniqueBanks = [...new Set(accounts.map(a => a.bank_name))].length;
+    const totalBalance = accounts.reduce((sum, a) => sum + (parseFloat(a.current_balance) || 0), 0);
+    const totalCount = accounts.length;
+    
+    document.getElementById('activeCount').textContent = activeCount;
+    document.getElementById('banksCount').textContent = uniqueBanks;
+    document.getElementById('totalBalance').textContent = 'R$ ' + totalBalance.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('totalCount').textContent = totalCount;
+}
+
+// Função para filtrar contas bancárias
+function filterAccounts() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const typeFilter = document.getElementById('typeFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    const bankFilter = document.getElementById('bankFilter').value;
+    
+    filteredAccounts = accounts.filter(account => {
+        const matchesSearch = !searchTerm || 
+            account.account_name.toLowerCase().includes(searchTerm) ||
+            account.bank_name.toLowerCase().includes(searchTerm) ||
+            (account.agency && account.agency.toLowerCase().includes(searchTerm)) ||
+            (account.account_number && account.account_number.toLowerCase().includes(searchTerm));
+        
+        const matchesType = !typeFilter || account.account_type === typeFilter;
+        
+        const matchesStatus = !statusFilter || 
+            (statusFilter === 'active' && account.is_active) ||
+            (statusFilter === 'inactive' && !account.is_active);
+        
+        const matchesBank = !bankFilter || account.bank_name === bankFilter;
+        
+        return matchesSearch && matchesType && matchesStatus && matchesBank;
+    });
+    
+    // Reset para primeira página
+    currentPage = 1;
+    
+    // Renderizar contas filtradas
+    renderAccounts();
+}
+
+// Função para atualizar filtro de bancos
+function updateBankFilter() {
+    const select = document.getElementById('bankFilter');
+    const banks = [...new Set(accounts.map(a => a.bank_name))].sort();
+    
+    select.innerHTML = '<option value="">Todos os Bancos</option>';
+    banks.forEach(bank => {
+        const option = document.createElement('option');
+        option.value = bank;
+        option.textContent = bank;
+        select.appendChild(option);
+    });
+}
+
+// Função para mostrar modal de criação
+function showCreateAccountModal() {
+    currentEditId = null;
+    document.getElementById('accountModalTitle').textContent = 'Nova Conta Bancária';
+    document.getElementById('accountForm').reset();
+    document.getElementById('isActive').checked = true;
+    document.getElementById('isMainAccount').checked = false;
+    
+    const modal = new bootstrap.Modal(document.getElementById('accountModal'));
+    modal.show();
+}
+
+// Função para editar conta bancária
+function editAccount(id) {
+    const account = accounts.find(a => a.id === id);
+    if (!account) return;
+    
+    currentEditId = id;
+    document.getElementById('accountModalTitle').textContent = 'Editar Conta Bancária';
+    
+    // Preencher formulário
+    document.getElementById('bankName').value = account.bank_name || '';
+    document.getElementById('accountName').value = account.account_name || '';
+    document.getElementById('accountType').value = account.account_type || '';
+    document.getElementById('agency').value = account.agency || '';
+    document.getElementById('accountNumber').value = account.account_number || '';
+    document.getElementById('initialBalance').value = account.current_balance || '';
+    document.getElementById('limitAmount').value = account.limit_amount || '';
+    document.getElementById('holderName').value = account.holder_name || '';
+    document.getElementById('holderDocument').value = account.holder_document || '';
+    document.getElementById('accountDescription').value = account.description || '';
+    document.getElementById('isActive').checked = account.is_active;
+    document.getElementById('isMainAccount').checked = account.is_main_account;
+    
+    const modal = new bootstrap.Modal(document.getElementById('accountModal'));
+    modal.show();
+}
+
+// Função para salvar conta bancária
+async function saveAccount() {
+    const formData = {
+        bank_name: document.getElementById('bankName').value,
+        account_name: document.getElementById('accountName').value,
+        account_type: document.getElementById('accountType').value,
+        agency: document.getElementById('agency').value,
+        account_number: document.getElementById('accountNumber').value,
+        current_balance: document.getElementById('initialBalance').value || 0,
+        limit_amount: document.getElementById('limitAmount').value || null,
+        holder_name: document.getElementById('holderName').value,
+        holder_document: document.getElementById('holderDocument').value,
+        description: document.getElementById('accountDescription').value,
+        is_active: document.getElementById('isActive').checked,
+        is_main_account: document.getElementById('isMainAccount').checked
+    };
+    
+    try {
+        const url = currentEditId ? `/api/financial/accounts/${currentEditId}` : '/api/financial/accounts';
+        const method = currentEditId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showAlert('Conta bancária salva com sucesso!', 'success');
+            loadAccounts();
+            bootstrap.Modal.getInstance(document.getElementById('accountModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao salvar conta bancária', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao salvar conta bancária', 'danger');
+    }
+}
+
+// Função para excluir conta bancária
+function deleteAccount(id, name) {
+    currentDeleteId = id;
+    document.getElementById('deleteAccountName').textContent = name;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteAccountModal'));
+    modal.show();
+}
+
+// Função para confirmar exclusão
+async function confirmDeleteAccount() {
+    try {
+        const response = await fetch(`/api/financial/accounts/${currentDeleteId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            showAlert('Conta bancária excluída com sucesso!', 'success');
+            loadAccounts();
+            bootstrap.Modal.getInstance(document.getElementById('deleteAccountModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao excluir conta bancária', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao excluir conta bancária', 'danger');
+    }
+}
+
+// Função para atualizar contas bancárias
+function refreshAccounts() {
+    loadAccounts();
+}
+
+// Funções auxiliares
+function getTypeBadgeClass(type) {
+    switch(type) {
+        case 'checking': return 'bg-primary';
+        case 'savings': return 'bg-success';
+        case 'investment': return 'bg-info';
+        case 'credit': return 'bg-warning';
+        default: return 'bg-secondary';
+    }
+}
+
+function getTypeLabel(type) {
+    switch(type) {
+        case 'checking': return 'Corrente';
+        case 'savings': return 'Poupança';
+        case 'investment': return 'Investimento';
+        case 'credit': return 'Cartão';
+        default: return type;
+    }
+}
+
+// Funções de paginação
+function updatePaginationCounters(total) {
+    const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+    const end = Math.min(currentPage * itemsPerPage, total);
+    
+    document.getElementById('showing-start').textContent = start;
+    document.getElementById('showing-end').textContent = end;
+    document.getElementById('showing-total').textContent = total;
+}
+
+function renderPagination(total) {
+    const pagination = document.getElementById('pagination');
+    const totalPages = Math.ceil(total / itemsPerPage);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
     }
     
-    function deleteAccount(accountId) {
-        if (confirm('Tem certeza que deseja excluir esta conta?')) {
-            showAlert('info', 'Funcionalidade de exclusão em desenvolvimento');
+    let html = '';
+    
+    // Botão anterior
+    html += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    if (startPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(1)">1</a></li>`;
+        if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
         }
     }
     
-    function showAlert(type, message) {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+            </li>
         `;
-        
-        const container = document.querySelector('.container');
-        container.insertBefore(alertDiv, container.firstChild);
-        
-        // Auto-remove após 5 segundos
-        setTimeout(() => {
-            if (alertDiv.parentNode) {
-                alertDiv.remove();
-            }
-        }, 5000);
     }
     
-    // Carregar dados quando a página carregar
-    document.addEventListener('DOMContentLoaded', loadAccounts);
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${totalPages})">${totalPages}</a></li>`;
+    }
+    
+    // Botão próximo
+    html += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = html;
+}
+
+function changePage(page) {
+    const totalPages = Math.ceil(filteredAccounts.length / itemsPerPage);
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        renderAccounts();
+    }
+}
+
+function showAlert(message, type) {
+    // Criar alerta Bootstrap
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Tentar encontrar container adequado
+    let container = document.querySelector('.container-fluid');
+    if (!container) {
+        container = document.querySelector('.container');
+    }
+    if (!container) {
+        container = document.querySelector('main');
+    }
+    if (!container) {
+        container = document.body;
+    }
+    
+    // Inserir no topo do container encontrado
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    }
+    
+    // Remover automaticamente após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
 </script>
 {% endblock %}

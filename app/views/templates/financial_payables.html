@@ -1,0 +1,659 @@
+{% extends "base.html" %}
+
+{% block title %}Contas a Pagar{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="bi bi-arrow-up-circle text-danger"></i> Contas a Pagar</h2>
+                    <p class="text-muted">Gerencie suas contas a pagar e despesas</p>
+                </div>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#payableModal" onclick="newPayable()">
+                    <i class="bi bi-plus-circle"></i> Nova Conta a Pagar
+                </button>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por descrição, fornecedor..." onkeyup="filterPayables()">
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="statusFilter" onchange="filterPayables()">
+                                <option value="">Todos os Status</option>
+                                <option value="pending">Pendente</option>
+                                <option value="paid">Pago</option>
+                                <option value="overdue">Vencido</option>
+                                <option value="cancelled">Cancelado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="text" class="form-control" id="supplierFilter" placeholder="Filtrar por fornecedor" onkeyup="filterPayables()">
+                        </div>
+                        <div class="col-md-2">
+                            <input type="date" class="form-control" id="dueDateFrom" placeholder="Vencimento de" onchange="filterPayables()">
+                        </div>
+                        <div class="col-md-2">
+                            <input type="date" class="form-control" id="dueDateTo" placeholder="Vencimento até" onchange="filterPayables()">
+                        </div>
+                        <div class="col-md-1">
+                            <button class="btn btn-outline-secondary" onclick="clearFilters()" title="Limpar filtros">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Fornecedor</th>
+                                    <th>Descrição</th>
+                                    <th>Valor</th>
+                                    <th>Vencimento</th>
+                                    <th>Status</th>
+                                    <th>Categoria</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payablesTableBody">
+                                <tr>
+                                    <td colspan="7" class="text-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginação -->
+                    <nav aria-label="Paginação de contas a pagar">
+                        <ul class="pagination justify-content-center" id="payablesPagination">
+                            <!-- Paginação será inserida via JavaScript -->
+                        </ul>
+                    </nav>
+                    
+                    <!-- Contadores -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <small class="text-muted">
+                                Mostrando <span id="payablesShowing">0</span> de <span id="payablesTotal">0</span> contas a pagar
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Nova/Editar Conta a Pagar -->
+<div class="modal fade" id="payableModal" tabindex="-1" aria-labelledby="payableModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="payableModalTitle">Nova Conta a Pagar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="payableForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="supplierName" class="form-label">Fornecedor *</label>
+                                <input type="text" class="form-control" id="supplierName" required placeholder="Nome do fornecedor">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="invoiceNumber" class="form-label">Número da Nota</label>
+                                <input type="text" class="form-control" id="invoiceNumber" placeholder="Ex: NF-001">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Descrição *</label>
+                                <input type="text" class="form-control" id="description" required placeholder="Descrição da despesa">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Valor *</label>
+                                <input type="number" class="form-control" id="amount" step="0.01" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="dueDate" class="form-label">Data de Vencimento *</label>
+                                <input type="date" class="form-control" id="dueDate" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="categoryId" class="form-label">Categoria</label>
+                                <select class="form-select" id="categoryId">
+                                    <option value="">Selecione a categoria</option>
+                                    <!-- Categorias carregadas via JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="costCenterId" class="form-label">Centro de Custo</label>
+                                <select class="form-select" id="costCenterId">
+                                    <option value="">Selecione o centro de custo</option>
+                                    <!-- Centros de custo carregados via JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="accountId" class="form-label">Conta Bancária</label>
+                                <select class="form-select" id="accountId">
+                                    <option value="">Selecione a conta</option>
+                                    <!-- Contas bancárias carregadas via JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isRecurring">
+                                    <label class="form-check-label" for="isRecurring">
+                                        Despesa recorrente
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isFixed">
+                                    <label class="form-check-label" for="isFixed">
+                                        Despesa fixa
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" id="recurringOptions" style="display: none;">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="recurringFrequency" class="form-label">Frequência</label>
+                                <select class="form-select" id="recurringFrequency">
+                                    <option value="monthly">Mensal</option>
+                                    <option value="quarterly">Trimestral</option>
+                                    <option value="yearly">Anual</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="recurringEndDate" class="form-label">Data de Término</label>
+                                <input type="date" class="form-control" id="recurringEndDate">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="notes" rows="3" placeholder="Observações adicionais"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="savePayable()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação para Exclusão -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais
+let payables = [];
+let filteredPayables = [];
+let categories = [];
+let costCenters = [];
+let accounts = [];
+let currentEditId = null;
+let currentDeleteId = null;
+let currentPage = 1;
+let itemsPerPage = 10;
+
+// Carregar dados ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadPayables();
+    loadCategories();
+    loadCostCenters();
+    loadAccounts();
+});
+
+// Função para carregar contas a pagar
+async function loadPayables() {
+    try {
+        const response = await fetch('/api/financial/payables', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            payables = await response.json();
+            filteredPayables = [...payables];
+            renderPayablesTable();
+            renderPagination();
+        } else {
+            showAlert('Erro ao carregar contas a pagar', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar contas a pagar:', error);
+        showAlert('Erro ao carregar contas a pagar', 'danger');
+    }
+}
+
+// Função para carregar categorias
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/financial/categories', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            categories = await response.json();
+            updateCategorySelects();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar categorias:', error);
+    }
+}
+
+// Função para carregar centros de custo
+async function loadCostCenters() {
+    try {
+        const response = await fetch('/api/financial/cost-centers', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            costCenters = await response.json();
+            updateCostCenterSelects();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar centros de custo:', error);
+    }
+}
+
+// Função para carregar contas bancárias
+async function loadAccounts() {
+    try {
+        const response = await fetch('/api/financial/accounts', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            accounts = await response.json();
+            updateAccountSelects();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar contas bancárias:', error);
+    }
+}
+
+// Função para renderizar tabela
+function renderPayablesTable() {
+    const tbody = document.getElementById('payablesTableBody');
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const payablesToShow = filteredPayables.slice(startIndex, endIndex);
+    
+    tbody.innerHTML = '';
+    payablesToShow.forEach(payable => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${payable.supplier_name || '-'}</td>
+            <td>
+                <div class="d-flex flex-column">
+                    <span class="fw-bold">${payable.description}</span>
+                    ${payable.invoice_number ? `<small class="text-muted">NF: ${payable.invoice_number}</small>` : ''}
+                </div>
+            </td>
+            <td>
+                <span class="fw-bold text-danger">R$ ${parseFloat(payable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+            </td>
+            <td>${formatDate(payable.due_date)}</td>
+            <td>${getStatusBadge(payable.status)}</td>
+            <td>${payable.category_name || '-'}</td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editPayable(${payable.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deletePayable(${payable.id})" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Atualizar contadores
+    document.getElementById('payablesShowing').textContent = payablesToShow.length;
+    document.getElementById('payablesTotal').textContent = filteredPayables.length;
+}
+
+// Função para filtrar contas a pagar
+function filterPayables() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const supplierFilter = document.getElementById('supplierFilter').value.toLowerCase();
+    const dueDateFrom = document.getElementById('dueDateFrom').value;
+    const dueDateTo = document.getElementById('dueDateTo').value;
+    
+    filteredPayables = payables.filter(payable => {
+        const matchesSearch = !searchTerm || 
+            (payable.description && payable.description.toLowerCase().includes(searchTerm)) ||
+            (payable.supplier_name && payable.supplier_name.toLowerCase().includes(searchTerm)) ||
+            (payable.invoice_number && payable.invoice_number.toLowerCase().includes(searchTerm));
+        
+        const matchesStatus = !statusFilter || payable.status === statusFilter;
+        
+        const matchesSupplier = !supplierFilter || (payable.supplier_name && payable.supplier_name.toLowerCase().includes(supplierFilter));
+        
+        const matchesDateFrom = !dueDateFrom || payable.due_date >= dueDateFrom;
+        const matchesDateTo = !dueDateTo || payable.due_date <= dueDateTo;
+        
+        return matchesSearch && matchesStatus && matchesSupplier && matchesDateFrom && matchesDateTo;
+    });
+    
+    currentPage = 1;
+    renderPayablesTable();
+    renderPagination();
+}
+
+// Função para limpar filtros
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('supplierFilter').value = '';
+    document.getElementById('dueDateFrom').value = '';
+    document.getElementById('dueDateTo').value = '';
+    filterPayables();
+}
+
+// Função para nova conta a pagar
+function newPayable() {
+    currentEditId = null;
+    document.getElementById('payableModalTitle').textContent = 'Nova Conta a Pagar';
+    document.getElementById('payableForm').reset();
+    document.getElementById('recurringOptions').style.display = 'none';
+}
+
+// Função para editar conta a pagar
+function editPayable(id) {
+    const payable = payables.find(p => p.id === id);
+    if (!payable) return;
+    
+    currentEditId = id;
+    document.getElementById('payableModalTitle').textContent = 'Editar Conta a Pagar';
+    
+    // Preencher formulário
+    document.getElementById('supplierName').value = payable.supplier_name || '';
+    document.getElementById('invoiceNumber').value = payable.invoice_number || '';
+    document.getElementById('description').value = payable.description || '';
+    document.getElementById('amount').value = payable.amount || '';
+    document.getElementById('dueDate').value = payable.due_date || '';
+    document.getElementById('categoryId').value = payable.category_id || '';
+    document.getElementById('costCenterId').value = payable.cost_center_id || '';
+    document.getElementById('accountId').value = payable.account_id || '';
+    document.getElementById('isRecurring').checked = payable.is_recurring || false;
+    document.getElementById('isFixed').checked = payable.is_fixed || false;
+    document.getElementById('recurringFrequency').value = payable.recurring_frequency || '';
+    document.getElementById('recurringEndDate').value = payable.recurring_end_date || '';
+    document.getElementById('notes').value = payable.notes || '';
+    
+    // Mostrar opções de recorrência se necessário
+    document.getElementById('recurringOptions').style.display = payable.is_recurring ? 'block' : 'none';
+}
+
+// Função para salvar conta a pagar
+async function savePayable() {
+    const formData = {
+        supplier_name: document.getElementById('supplierName').value,
+        invoice_number: document.getElementById('invoiceNumber').value || null,
+        description: document.getElementById('description').value,
+        amount: document.getElementById('amount').value,
+        due_date: document.getElementById('dueDate').value,
+        category_id: document.getElementById('categoryId').value || null,
+        cost_center_id: document.getElementById('costCenterId').value || null,
+        account_id: document.getElementById('accountId').value || null,
+        is_recurring: document.getElementById('isRecurring').checked,
+        is_fixed: document.getElementById('isFixed').checked,
+        recurring_frequency: document.getElementById('recurringFrequency').value || null,
+        recurring_end_date: document.getElementById('recurringEndDate').value || null,
+        notes: document.getElementById('notes').value || null
+    };
+    
+    try {
+        const url = currentEditId ? `/api/financial/payables/${currentEditId}` : '/api/financial/payables';
+        const method = currentEditId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showAlert(result.message || 'Conta a pagar salva com sucesso!', 'success');
+            document.getElementById('payableModal').querySelector('.btn-close').click();
+            loadPayables();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao salvar conta a pagar', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar conta a pagar:', error);
+        showAlert('Erro ao salvar conta a pagar', 'danger');
+    }
+}
+
+// Função para excluir conta a pagar
+function deletePayable(id) {
+    currentDeleteId = id;
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+
+// Função para confirmar exclusão
+async function confirmDelete() {
+    if (!currentDeleteId) return;
+    
+    try {
+        const response = await fetch(`/api/financial/payables/${currentDeleteId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showAlert(result.message || 'Conta a pagar excluída com sucesso!', 'success');
+            document.getElementById('deleteModal').querySelector('.btn-close').click();
+            loadPayables();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao excluir conta a pagar', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir conta a pagar:', error);
+        showAlert('Erro ao excluir conta a pagar', 'danger');
+    }
+    
+    currentDeleteId = null;
+}
+
+// Função para renderizar paginação
+function renderPagination() {
+    const totalPages = Math.ceil(filteredPayables.length / itemsPerPage);
+    const pagination = document.getElementById('payablesPagination');
+    
+    pagination.innerHTML = '';
+    
+    if (totalPages <= 1) return;
+    
+    // Botão anterior
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Anterior</a>`;
+    pagination.appendChild(prevLi);
+    
+    // Páginas
+    for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i})">${i}</a>`;
+        pagination.appendChild(li);
+    }
+    
+    // Botão próximo
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Próximo</a>`;
+    pagination.appendChild(nextLi);
+}
+
+// Função para mudar página
+function changePage(page) {
+    const totalPages = Math.ceil(filteredPayables.length / itemsPerPage);
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        renderPayablesTable();
+        renderPagination();
+    }
+}
+
+// Funções auxiliares
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge bg-warning">Pendente</span>',
+        'paid': '<span class="badge bg-success">Pago</span>',
+        'overdue': '<span class="badge bg-danger">Vencido</span>',
+        'cancelled': '<span class="badge bg-secondary">Cancelado</span>'
+    };
+    return badges[status] || '<span class="badge bg-secondary">Desconhecido</span>';
+}
+
+function updateCategorySelects() {
+    const select = document.getElementById('categoryId');
+    if (select) {
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">Selecione a categoria</option>';
+        categories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category.id;
+            option.textContent = category.name;
+            select.appendChild(option);
+        });
+        select.value = currentValue;
+    }
+}
+
+function updateCostCenterSelects() {
+    const select = document.getElementById('costCenterId');
+    if (select) {
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">Selecione o centro de custo</option>';
+        costCenters.forEach(costCenter => {
+            const option = document.createElement('option');
+            option.value = costCenter.id;
+            option.textContent = costCenter.name;
+            select.appendChild(option);
+        });
+        select.value = currentValue;
+    }
+}
+
+function updateAccountSelects() {
+    const select = document.getElementById('accountId');
+    if (select) {
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">Selecione a conta</option>';
+        accounts.forEach(account => {
+            const option = document.createElement('option');
+            option.value = account.id;
+            option.textContent = `${account.bank_name} - ${account.account_name}`;
+            select.appendChild(option);
+        });
+        select.value = currentValue;
+    }
+}
+
+// Mostrar/ocultar opções de recorrência
+document.getElementById('isRecurring').addEventListener('change', function() {
+    document.getElementById('recurringOptions').style.display = this.checked ? 'block' : 'none';
+});
+
+// Função para mostrar alertas
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Remover alerta após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

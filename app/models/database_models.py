@@ -8,25 +8,7 @@ from app.config.database import Base
 
 # NOTA: Modelos User e Token movidos para app.models.saas_models
 
-class Product(Base):
-    """Modelo de produto"""
-    __tablename__ = "products"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    ml_item_id = Column(String(50), unique=True, nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    title = Column(String(500), nullable=False)
-    price = Column(Numeric(10, 2))
-    currency_id = Column(String(10))
-    condition = Column(String(50))
-    permalink = Column(String(500))
-    thumbnail = Column(String(500))
-    status = Column(String(50), index=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-    # Relacionamentos
-    user = relationship("User", back_populates="products")
+# Product removido - já definido em saas_models.py
 
 class Category(Base):
     """Modelo de categoria"""

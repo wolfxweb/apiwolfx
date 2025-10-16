@@ -1,0 +1,898 @@
+{% extends "base.html" %}
+
+{% block title %}Contas a Receber - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-arrow-down-circle"></i> Contas a Receber</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshReceivables()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="showCreateReceivableModal()">
+                <i class="bi bi-plus-circle"></i> Nova Conta
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por descrição ou cliente..." onkeyup="filterReceivables()">
+        </div>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="statusFilter" onchange="filterReceivables()">
+            <option value="">Todos os Status</option>
+            <option value="pending">Pendente</option>
+            <option value="paid">Pago</option>
+            <option value="overdue">Vencido</option>
+            <option value="cancelled">Cancelado</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <input type="text" class="form-control" id="customerFilter" placeholder="Filtrar por cliente" onkeyup="filterReceivables()">
+    </div>
+    <div class="col-md-2">
+        <input type="date" class="form-control" id="dueDateFrom" placeholder="Vencimento de" onchange="filterReceivables()">
+    </div>
+    <div class="col-md-2">
+        <input type="date" class="form-control" id="dueDateTo" placeholder="Vencimento até" onchange="filterReceivables()">
+    </div>
+    <div class="col-md-1">
+        <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+            <i class="bi bi-x-circle"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Estatísticas Rápidas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total a Receber</h6>
+                        <h4 class="mb-0" id="totalAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-arrow-down-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Recebido</h6>
+                        <h4 class="mb-0" id="paidAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Vencido</h6>
+                        <h4 class="mb-0" id="overdueAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-exclamation-triangle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Pendente</h6>
+                        <h4 class="mb-0" id="pendingAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-clock fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Contas a Receber -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="receivablesTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Descrição</th>
+                        <th>Valor</th>
+                        <th>Vencimento</th>
+                        <th>Status</th>
+                        <th>Parcelas</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="receivablesTableBody">
+                    <!-- Dados carregados via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Footer com paginação e contadores -->
+    <div class="card-footer bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <small class="text-muted">
+                    Mostrando <span id="showing-start">1</span> a <span id="showing-end">10</span> 
+                    de <span id="showing-total">0</span> conta(s) a receber
+                </small>
+            </div>
+            <div class="col-md-6">
+                <nav aria-label="Paginação de contas a receber">
+                    <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination">
+                        <!-- Paginação gerada via JavaScript -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Criar/Editar Conta a Receber -->
+<div class="modal fade" id="receivableModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="receivableModalTitle">Nova Conta a Receber</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="receivableForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="customerName" class="form-label">Cliente *</label>
+                                <input type="text" class="form-control" id="customerName" required placeholder="Nome do cliente">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="invoiceNumber" class="form-label">Número da Nota</label>
+                                <input type="text" class="form-control" id="invoiceNumber" placeholder="Ex: NF-001">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Descrição *</label>
+                                <textarea class="form-control" id="description" rows="3" required placeholder="Descrição da conta a receber"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Valor *</label>
+                                <input type="number" class="form-control" id="amount" step="0.01" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="dueDate" class="form-label">Data de Vencimento *</label>
+                                <input type="date" class="form-control" id="dueDate" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="categoryId" class="form-label">Categoria</label>
+                                <select class="form-select" id="categoryId">
+                                    <option value="">Selecione a categoria</option>
+                                    <!-- Categorias carregadas via JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="costCenterId" class="form-label">Centro de Custo</label>
+                                <select class="form-select" id="costCenterId">
+                                    <option value="">Selecione o centro de custo</option>
+                                    <!-- Centros de custo carregados via JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="accountId" class="form-label">Conta Bancária</label>
+                                <select class="form-select" id="accountId">
+                                    <option value="">Selecione a conta</option>
+                                    <!-- Contas bancárias carregadas via JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isRecurring">
+                                    <label class="form-check-label" for="isRecurring">
+                                        Conta recorrente
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3" id="recurringFields" style="display: none;">
+                                <label for="recurringFrequency" class="form-label">Frequência</label>
+                                <select class="form-select" id="recurringFrequency">
+                                    <option value="monthly">Mensal</option>
+                                    <option value="quarterly">Trimestral</option>
+                                    <option value="yearly">Anual</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="notes" class="form-label">Observações</label>
+                                <textarea class="form-control" id="notes" rows="2" placeholder="Observações adicionais"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveReceivable()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Confirmar Exclusão -->
+<div class="modal fade" id="deleteReceivableModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir esta conta a receber?</p>
+                <p class="text-danger"><small>Esta ação não pode ser desfeita e pode afetar parcelas associadas.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteReceivable()">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Marcar como Pago -->
+<div class="modal fade" id="markPaidModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Marcar como Pago</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="paidAmount" class="form-label">Valor Pago</label>
+                    <input type="number" class="form-control" id="paidAmount" step="0.01" placeholder="0.00">
+                </div>
+                <div class="mb-3">
+                    <label for="paidDate" class="form-label">Data do Pagamento</label>
+                    <input type="date" class="form-control" id="paidDate">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="confirmMarkAsPaid()">Marcar como Pago</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais
+let receivables = [];
+let filteredReceivables = [];
+// Removido array de customers - agora usando campo de texto livre
+let categories = [];
+let costCenters = [];
+let accounts = [];
+let currentEditId = null;
+let currentDeleteId = null;
+let currentPaidId = null;
+let currentPage = 1;
+let itemsPerPage = 10;
+
+// Carregar dados ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadReceivables();
+    // Removido loadCustomers() - agora usando campo de texto livre
+    loadCategories();
+    loadCostCenters();
+    loadAccounts();
+});
+
+// Função para carregar contas a receber
+async function loadReceivables() {
+    try {
+        const response = await fetch('/api/financial/receivables', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            receivables = await response.json();
+            filteredReceivables = [...receivables];
+            renderReceivables();
+            updateStats();
+        } else {
+            showAlert('Erro ao carregar contas a receber', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar contas a receber', 'danger');
+    }
+}
+
+// Função para carregar clientes
+// Função removida - agora usando campo de texto livre para cliente
+
+// Função para carregar categorias
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/financial/categories', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            categories = await response.json();
+            updateCategorySelects();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar categorias:', error);
+    }
+}
+
+// Função para carregar centros de custo
+async function loadCostCenters() {
+    try {
+        const response = await fetch('/api/financial/cost-centers', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            costCenters = await response.json();
+            updateCostCenterSelects();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar centros de custo:', error);
+    }
+}
+
+// Função para carregar contas bancárias
+async function loadAccounts() {
+    try {
+        const response = await fetch('/api/financial/accounts', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            accounts = await response.json();
+            updateAccountSelects();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar contas bancárias:', error);
+    }
+}
+
+// Função para renderizar contas a receber na tabela
+function renderReceivables() {
+    const tbody = document.getElementById('receivablesTableBody');
+    
+    if (filteredReceivables.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-5">
+                    <i class="bi bi-arrow-down-circle display-1 text-muted"></i>
+                    <h4 class="mt-3">Nenhuma conta a receber encontrada</h4>
+                    <p class="text-muted">
+                        Nenhuma conta a receber foi encontrada com os filtros aplicados.
+                        <br>
+                        <button class="btn btn-primary mt-2" onclick="showCreateReceivableModal()">
+                            <i class="bi bi-plus-circle"></i> Nova Conta a Receber
+                        </button>
+                    </p>
+                </td>
+            </tr>
+        `;
+        updatePaginationCounters(0);
+        return;
+    }
+    
+    // Calcular página atual
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const receivablesToShow = filteredReceivables.slice(startIndex, endIndex);
+    
+    tbody.innerHTML = '';
+    receivablesToShow.forEach(receivable => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${receivable.customer_name || receivable.description || '-'}</td>
+            <td>
+                <div class="d-flex flex-column">
+                    <span class="fw-bold">${receivable.description}</span>
+                    ${receivable.invoice_number ? `<small class="text-muted">NF: ${receivable.invoice_number}</small>` : ''}
+                </div>
+            </td>
+            <td>
+                <span class="fw-bold">R$ ${parseFloat(receivable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                ${receivable.paid_amount ? `<br><small class="text-success">Pago: R$ ${parseFloat(receivable.paid_amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</small>` : ''}
+            </td>
+            <td>
+                <span class="${getDateClass(receivable.due_date, receivable.status)}">${formatDate(receivable.due_date)}</span>
+            </td>
+            <td><span class="badge ${getStatusBadgeClass(receivable.status)}">${getStatusLabel(receivable.status)}</span></td>
+            <td>
+                ${receivable.total_installments > 1 ? `${receivable.installment_number}/${receivable.total_installments}` : '-'}
+            </td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    ${receivable.status === 'pending' ? `<button class="btn btn-outline-success" onclick="markAsPaid(${receivable.id})" title="Marcar como Pago"><i class="bi bi-check-circle"></i></button>` : ''}
+                    <button class="btn btn-outline-primary" onclick="editReceivable(${receivable.id})" title="Editar"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-outline-danger" onclick="deleteReceivable(${receivable.id})" title="Excluir"><i class="bi bi-trash"></i></button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Atualizar contadores e paginação
+    updatePaginationCounters(filteredReceivables.length);
+    renderPagination(filteredReceivables.length);
+}
+
+// Função para atualizar estatísticas
+function updateStats() {
+    const totalAmount = receivables.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+    const paidAmount = receivables.reduce((sum, r) => sum + (parseFloat(r.paid_amount) || 0), 0);
+    const overdueAmount = receivables.filter(r => r.status === 'overdue').reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+    const pendingAmount = receivables.filter(r => r.status === 'pending').reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+    
+    document.getElementById('totalAmount').textContent = 'R$ ' + totalAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('paidAmount').textContent = 'R$ ' + paidAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('overdueAmount').textContent = 'R$ ' + overdueAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('pendingAmount').textContent = 'R$ ' + pendingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+}
+
+// Função para filtrar contas a receber
+function filterReceivables() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const customerFilter = document.getElementById('customerFilter').value.toLowerCase();
+    const dueDateFrom = document.getElementById('dueDateFrom').value;
+    const dueDateTo = document.getElementById('dueDateTo').value;
+    
+    filteredReceivables = receivables.filter(receivable => {
+        const matchesSearch = !searchTerm || 
+            receivable.description.toLowerCase().includes(searchTerm) ||
+            (receivable.customer_name && receivable.customer_name.toLowerCase().includes(searchTerm)) ||
+            (receivable.invoice_number && receivable.invoice_number.toLowerCase().includes(searchTerm));
+        
+        const matchesStatus = !statusFilter || receivable.status === statusFilter;
+        
+        const matchesCustomer = !customerFilter || (receivable.customer_name && receivable.customer_name.toLowerCase().includes(customerFilter));
+        
+        const matchesDateFrom = !dueDateFrom || receivable.due_date >= dueDateFrom;
+        const matchesDateTo = !dueDateTo || receivable.due_date <= dueDateTo;
+        
+        return matchesSearch && matchesStatus && matchesCustomer && matchesDateFrom && matchesDateTo;
+    });
+    
+    // Reset para primeira página
+    currentPage = 1;
+    
+    // Renderizar contas filtradas
+    renderReceivables();
+}
+
+// Função para limpar filtros
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('customerFilter').value = '';
+    document.getElementById('dueDateFrom').value = '';
+    document.getElementById('dueDateTo').value = '';
+    filterReceivables();
+}
+
+// Função para mostrar modal de criação
+function showCreateReceivableModal() {
+    currentEditId = null;
+    document.getElementById('receivableModalTitle').textContent = 'Nova Conta a Receber';
+    document.getElementById('receivableForm').reset();
+    document.getElementById('dueDate').value = new Date().toISOString().split('T')[0];
+    
+    const modal = new bootstrap.Modal(document.getElementById('receivableModal'));
+    modal.show();
+}
+
+// Função para editar conta a receber
+function editReceivable(id) {
+    const receivable = receivables.find(r => r.id === id);
+    if (!receivable) return;
+    
+    currentEditId = id;
+    document.getElementById('receivableModalTitle').textContent = 'Editar Conta a Receber';
+    
+    // Preencher formulário
+    document.getElementById('customerName').value = receivable.customer_name || '';
+    document.getElementById('invoiceNumber').value = receivable.invoice_number || '';
+    document.getElementById('description').value = receivable.description || '';
+    document.getElementById('amount').value = receivable.amount || '';
+    document.getElementById('dueDate').value = receivable.due_date || '';
+    document.getElementById('categoryId').value = receivable.category_id || '';
+    document.getElementById('costCenterId').value = receivable.cost_center_id || '';
+    document.getElementById('accountId').value = receivable.account_id || '';
+    document.getElementById('isRecurring').checked = receivable.is_recurring || false;
+    document.getElementById('recurringFrequency').value = receivable.recurring_frequency || 'monthly';
+    document.getElementById('notes').value = receivable.notes || '';
+    
+    // Mostrar campos de recorrência se necessário
+    toggleRecurringFields();
+    
+    const modal = new bootstrap.Modal(document.getElementById('receivableModal'));
+    modal.show();
+}
+
+// Função para salvar conta a receber
+async function saveReceivable() {
+    const formData = {
+        customer_name: document.getElementById('customerName').value,
+        invoice_number: document.getElementById('invoiceNumber').value || null,
+        description: document.getElementById('description').value,
+        amount: document.getElementById('amount').value,
+        due_date: document.getElementById('dueDate').value,
+        category_id: document.getElementById('categoryId').value || null,
+        cost_center_id: document.getElementById('costCenterId').value || null,
+        account_id: document.getElementById('accountId').value || null,
+        is_recurring: document.getElementById('isRecurring').checked,
+        recurring_frequency: document.getElementById('recurringFrequency').value || null,
+        notes: document.getElementById('notes').value || null
+    };
+    
+    try {
+        const url = currentEditId ? `/api/financial/receivables/${currentEditId}` : '/api/financial/receivables';
+        const method = currentEditId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showAlert('Conta a receber salva com sucesso!', 'success');
+            loadReceivables();
+            bootstrap.Modal.getInstance(document.getElementById('receivableModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao salvar conta a receber', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao salvar conta a receber', 'danger');
+    }
+}
+
+// Função para excluir conta a receber
+function deleteReceivable(id) {
+    currentDeleteId = id;
+    const modal = new bootstrap.Modal(document.getElementById('deleteReceivableModal'));
+    modal.show();
+}
+
+// Função para confirmar exclusão
+async function confirmDeleteReceivable() {
+    try {
+        const response = await fetch(`/api/financial/receivables/${currentDeleteId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            showAlert('Conta a receber excluída com sucesso!', 'success');
+            loadReceivables();
+            bootstrap.Modal.getInstance(document.getElementById('deleteReceivableModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao excluir conta a receber', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao excluir conta a receber', 'danger');
+    }
+}
+
+// Função para marcar como pago
+function markAsPaid(id) {
+    currentPaidId = id;
+    const receivable = receivables.find(r => r.id === id);
+    if (receivable) {
+        document.getElementById('paidAmount').value = receivable.amount;
+        document.getElementById('paidDate').value = new Date().toISOString().split('T')[0];
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('markPaidModal'));
+    modal.show();
+}
+
+// Função para confirmar marcação como pago
+async function confirmMarkAsPaid() {
+    try {
+        const response = await fetch(`/api/financial/receivables/${currentPaidId}/mark-paid`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                paid_amount: document.getElementById('paidAmount').value,
+                paid_date: document.getElementById('paidDate').value
+            })
+        });
+        
+        if (response.ok) {
+            showAlert('Conta a receber marcada como paga!', 'success');
+            loadReceivables();
+            bootstrap.Modal.getInstance(document.getElementById('markPaidModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao marcar como pago', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao marcar como pago', 'danger');
+    }
+}
+
+// Função para atualizar contas a receber
+function refreshReceivables() {
+    loadReceivables();
+}
+
+// Funções auxiliares
+function getStatusBadgeClass(status) {
+    switch(status) {
+        case 'pending': return 'bg-warning';
+        case 'paid': return 'bg-success';
+        case 'overdue': return 'bg-danger';
+        case 'cancelled': return 'bg-secondary';
+        default: return 'bg-secondary';
+    }
+}
+
+function getStatusLabel(status) {
+    switch(status) {
+        case 'pending': return 'Pendente';
+        case 'paid': return 'Pago';
+        case 'overdue': return 'Vencido';
+        case 'cancelled': return 'Cancelado';
+        default: return status;
+    }
+}
+
+function getDateClass(dueDate, status) {
+    const today = new Date();
+    const due = new Date(dueDate);
+    
+    if (status === 'paid') return 'text-success';
+    if (status === 'overdue' || (due < today && status === 'pending')) return 'text-danger fw-bold';
+    return 'text-dark';
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+}
+
+// Função removida - agora usando campo de texto livre para cliente
+
+function updateCategorySelects() {
+    const select = document.getElementById('categoryId');
+    if (select) {
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">Selecione a categoria</option>';
+        categories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category.id;
+            option.textContent = `${category.code} - ${category.name}`;
+            select.appendChild(option);
+        });
+        select.value = currentValue;
+    }
+}
+
+function updateCostCenterSelects() {
+    const select = document.getElementById('costCenterId');
+    if (select) {
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">Selecione o centro de custo</option>';
+        costCenters.forEach(costCenter => {
+            const option = document.createElement('option');
+            option.value = costCenter.id;
+            option.textContent = `${costCenter.code} - ${costCenter.name}`;
+            select.appendChild(option);
+        });
+        select.value = currentValue;
+    }
+}
+
+function updateAccountSelects() {
+    const select = document.getElementById('accountId');
+    if (select) {
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">Selecione a conta</option>';
+        accounts.forEach(account => {
+            const option = document.createElement('option');
+            option.value = account.id;
+            option.textContent = `${account.bank_name} - ${account.account_name}`;
+            select.appendChild(option);
+        });
+        select.value = currentValue;
+    }
+}
+
+function toggleRecurringFields() {
+    const isRecurring = document.getElementById('isRecurring');
+    const recurringFields = document.getElementById('recurringFields');
+    if (isRecurring.checked) {
+        recurringFields.style.display = 'block';
+    } else {
+        recurringFields.style.display = 'none';
+    }
+}
+
+// Event listener para checkbox de recorrência
+document.addEventListener('DOMContentLoaded', function() {
+    const isRecurring = document.getElementById('isRecurring');
+    if (isRecurring) {
+        isRecurring.addEventListener('change', toggleRecurringFields);
+    }
+});
+
+// Funções de paginação
+function updatePaginationCounters(total) {
+    const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+    const end = Math.min(currentPage * itemsPerPage, total);
+    
+    document.getElementById('showing-start').textContent = start;
+    document.getElementById('showing-end').textContent = end;
+    document.getElementById('showing-total').textContent = total;
+}
+
+function renderPagination(total) {
+    const pagination = document.getElementById('pagination');
+    const totalPages = Math.ceil(total / itemsPerPage);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    
+    // Botão anterior
+    html += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    if (startPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(1)">1</a></li>`;
+        if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${totalPages})">${totalPages}</a></li>`;
+    }
+    
+    // Botão próximo
+    html += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = html;
+}
+
+function changePage(page) {
+    const totalPages = Math.ceil(filteredReceivables.length / itemsPerPage);
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        renderReceivables();
+    }
+}
+
+function showAlert(message, type) {
+    // Criar alerta Bootstrap
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Tentar encontrar container adequado
+    let container = document.querySelector('.container-fluid');
+    if (!container) {
+        container = document.querySelector('.container');
+    }
+    if (!container) {
+        container = document.querySelector('main');
+    }
+    if (!container) {
+        container = document.body;
+    }
+    
+    // Inserir no topo do container encontrado
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    }
+    
+    // Remover automaticamente após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

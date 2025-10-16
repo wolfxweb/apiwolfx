@@ -6,12 +6,17 @@ Seguindo o padrão do sistema
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, func, desc
 from typing import Dict, Any, List, Optional
 import logging
-from datetime import datetime
+from datetime import datetime, date
 
 from app.config.database import get_db
 from app.controllers.auth_controller import AuthController
+from app.models.financial_models import (
+    FinancialAccount, FinancialCategory, CostCenter, FinancialCustomer,
+    AccountReceivable, FinancialSupplier, AccountPayable
+)
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -22,97 +27,13 @@ financial_router = APIRouter()
 # Instanciar controller
 auth_controller = AuthController()
 
-# Dados mockados em memória (temporário para demonstração)
-mock_categories = [
-    {
-        "id": 1,
-        "code": "REC001",
-        "name": "Receitas de Vendas",
-        "type": "revenue",
-        "monthly_limit": 50000.00,
-        "description": "Receitas provenientes de vendas de produtos",
-        "is_active": True,
-        "created_at": datetime.now(),
-        "company_id": None
-    },
-    {
-        "id": 2,
-        "code": "EXP001", 
-        "name": "Marketing",
-        "type": "expense",
-        "monthly_limit": 5000.00,
-        "description": "Gastos com marketing e publicidade",
-        "is_active": True,
-        "created_at": datetime.now(),
-        "company_id": None
-    },
-    {
-        "id": 3,
-        "code": "INV001",
-        "name": "Equipamentos",
-        "type": "investment",
-        "monthly_limit": 10000.00,
-        "description": "Investimentos em equipamentos",
-        "is_active": True,
-        "created_at": datetime.now(),
-        "company_id": None
-    }
-]
-
-# Contador para IDs únicos
-next_category_id = 4
-
-# Dados mockados para centros de custo
-mock_cost_centers = [
-    {
-        "id": 1,
-        "code": "CC001",
-        "name": "Administração",
-        "responsible": "João Silva",
-        "responsible_email": "joao@empresa.com",
-        "parent_id": None,
-        "parent_name": None,
-        "monthly_budget": 15000.00,
-        "color": "#007bff",
-        "description": "Centro de custo para despesas administrativas",
-        "is_active": True,
-        "created_at": datetime.now(),
-        "company_id": None
-    },
-    {
-        "id": 2,
-        "code": "CC002",
-        "name": "Marketing",
-        "responsible": "Maria Santos",
-        "responsible_email": "maria@empresa.com",
-        "parent_id": None,
-        "parent_name": None,
-        "monthly_budget": 8000.00,
-        "color": "#28a745",
-        "description": "Centro de custo para atividades de marketing",
-        "is_active": True,
-        "created_at": datetime.now(),
-        "company_id": None
-    },
-    {
-        "id": 3,
-        "code": "CC003",
-        "name": "Marketing Digital",
-        "responsible": "Carlos Lima",
-        "responsible_email": "carlos@empresa.com",
-        "parent_id": 2,
-        "parent_name": "Marketing",
-        "monthly_budget": 5000.00,
-        "color": "#17a2b8",
-        "description": "Subcentro para marketing digital",
-        "is_active": True,
-        "created_at": datetime.now(),
-        "company_id": None
-    }
-]
-
-# Contador para IDs únicos de centros de custo
-next_cost_center_id = 4
+# Funções auxiliares para operações com banco de dados
+def get_company_id_from_user(user_data: dict) -> int:
+    """Extrai o company_id do usuário logado"""
+    company_id = user_data.get("company_id")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Company ID não encontrado")
+    return company_id
 
 # =====================================================
 # ROTAS DE INTERFACE (TEMPLATES)
@@ -139,6 +60,25 @@ async def financial_categories(
     from app.views.template_renderer import render_template
     return render_template("financial_categories.html", user=user_data)
 
+@financial_router.get("/financial/payables", response_class=HTMLResponse)
+async def financial_payables(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de contas a pagar"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    
+    from app.views.template_renderer import render_template
+    return render_template("financial_payables.html", user=user_data)
+
 @financial_router.get("/financial/cost-centers", response_class=HTMLResponse)
 async def financial_cost_centers(
     request: Request,
@@ -159,6 +99,46 @@ async def financial_cost_centers(
     from app.views.template_renderer import render_template
     return render_template("financial_cost_centers.html", user=user_data)
 
+@financial_router.get("/financial/accounts", response_class=HTMLResponse)
+async def financial_accounts(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de contas bancárias"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    logger.info(f"🔍 DEBUG - user_data: {user_data}")
+    
+    from app.views.template_renderer import render_template
+    return render_template("financial_accounts.html", user=user_data)
+
+@financial_router.get("/financial/receivables", response_class=HTMLResponse)
+async def financial_receivables(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de contas a receber"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    logger.info(f"🔍 DEBUG - user_data: {user_data}")
+    
+    from app.views.template_renderer import render_template
+    return render_template("financial_receivables.html", user=user_data)
+
 # =====================================================
 # ROTAS DE API
 # =====================================================
@@ -177,11 +157,27 @@ async def get_financial_categories(
         raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
     
     user_data = result["user"]
-    company_id = user_data.get("company_id")
+    company_id = get_company_id_from_user(user_data)
     
-    # Filtrar categorias por company_id (se implementado)
-    # Por enquanto, retornar todas as categorias mockadas
-    return mock_categories
+    # Buscar categorias no banco de dados
+    categories = db.query(FinancialCategory).filter(
+        FinancialCategory.company_id == company_id
+    ).order_by(FinancialCategory.name).all()
+    
+    return [
+        {
+            "id": cat.id,
+            "code": cat.code,
+            "name": cat.name,
+            "type": cat.type.value if cat.type else None,
+            "monthly_limit": float(cat.monthly_limit) if cat.monthly_limit else None,
+            "description": cat.description,
+            "is_active": cat.is_active,
+            "created_at": cat.created_at,
+            "company_id": cat.company_id
+        }
+        for cat in categories
+    ]
 
 @financial_router.post("/api/financial/categories")
 async def create_financial_category(
@@ -198,7 +194,7 @@ async def create_financial_category(
         raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
     
     user_data = result["user"]
-    company_id = user_data.get("company_id")
+    company_id = get_company_id_from_user(user_data)
     
     # Validar dados obrigatórios
     if not category_data.get("name"):
@@ -206,25 +202,25 @@ async def create_financial_category(
     if not category_data.get("type"):
         raise HTTPException(status_code=400, detail="Tipo é obrigatório")
     
-    # Criar nova categoria
-    global next_category_id
-    new_category = {
-        "id": next_category_id,
-        "code": category_data.get("code", f"CAT{next_category_id:03d}"),
-        "name": category_data.get("name"),
-        "type": category_data.get("type"),
-        "monthly_limit": float(category_data.get("monthly_limit", 0)) if category_data.get("monthly_limit") else None,
-        "description": category_data.get("description", ""),
-        "is_active": category_data.get("is_active", True),
-        "created_at": datetime.now(),
-        "company_id": company_id
-    }
+    # Criar nova categoria no banco
+    from app.models.financial_models import CategoryType
     
-    mock_categories.append(new_category)
-    next_category_id += 1
+    new_category = FinancialCategory(
+        company_id=company_id,
+        code=category_data.get("code", ""),
+        name=category_data.get("name"),
+        type=CategoryType(category_data.get("type")),
+        monthly_limit=float(category_data.get("monthly_limit", 0)) if category_data.get("monthly_limit") else None,
+        description=category_data.get("description", ""),
+        is_active=category_data.get("is_active", True)
+    )
     
-    logger.info(f"✅ Categoria criada: {new_category['name']} (ID: {new_category['id']})")
-    return {"message": "Categoria criada com sucesso", "id": new_category["id"]}
+    db.add(new_category)
+    db.commit()
+    db.refresh(new_category)
+    
+    logger.info(f"✅ Categoria criada: {new_category.name} (ID: {new_category.id})")
+    return {"message": "Categoria criada com sucesso", "id": new_category.id}
 
 @financial_router.put("/api/financial/categories/{category_id}")
 async def update_financial_category(
@@ -323,9 +319,23 @@ async def get_cost_centers(
     user_data = result["user"]
     company_id = user_data.get("company_id")
     
-    # Filtrar centros de custo por company_id (se implementado)
-    # Por enquanto, retornar todos os centros de custo mockados
-    return mock_cost_centers
+    # Buscar centros de custo no banco de dados
+    cost_centers = db.query(CostCenter).filter(
+        CostCenter.company_id == company_id
+    ).order_by(CostCenter.name).all()
+    
+    return [
+        {
+            "id": cc.id,
+            "code": cc.code,
+            "name": cc.name,
+            "description": cc.description,
+            "is_active": cc.is_active,
+            "created_at": cc.created_at,
+            "company_id": cc.company_id
+        }
+        for cc in cost_centers
+    ]
 
 @financial_router.post("/api/financial/cost-centers")
 async def create_cost_center(
@@ -347,38 +357,22 @@ async def create_cost_center(
     # Validar dados obrigatórios
     if not cost_center_data.get("name"):
         raise HTTPException(status_code=400, detail="Nome é obrigatório")
-    if not cost_center_data.get("code"):
-        raise HTTPException(status_code=400, detail="Código é obrigatório")
     
-    # Criar novo centro de custo
-    global next_cost_center_id
-    new_cost_center = {
-        "id": next_cost_center_id,
-        "code": cost_center_data.get("code"),
-        "name": cost_center_data.get("name"),
-        "responsible": cost_center_data.get("responsible", ""),
-        "responsible_email": cost_center_data.get("responsible_email", ""),
-        "parent_id": int(cost_center_data.get("parent_id")) if cost_center_data.get("parent_id") else None,
-        "parent_name": None,  # Será preenchido se parent_id existir
-        "monthly_budget": float(cost_center_data.get("monthly_budget", 0)) if cost_center_data.get("monthly_budget") else None,
-        "color": cost_center_data.get("color", "#007bff"),
-        "description": cost_center_data.get("description", ""),
-        "is_active": cost_center_data.get("is_active", True),
-        "created_at": datetime.now(),
-        "company_id": company_id
-    }
+    # Criar novo centro de custo no banco
+    new_cost_center = CostCenter(
+        company_id=company_id,
+        code=cost_center_data.get("code", ""),
+        name=cost_center_data.get("name"),
+        description=cost_center_data.get("description", ""),
+        is_active=cost_center_data.get("is_active", True)
+    )
     
-    # Preencher parent_name se parent_id existir
-    if new_cost_center["parent_id"]:
-        parent = next((cc for cc in mock_cost_centers if cc["id"] == new_cost_center["parent_id"]), None)
-        if parent:
-            new_cost_center["parent_name"] = parent["name"]
+    db.add(new_cost_center)
+    db.commit()
+    db.refresh(new_cost_center)
     
-    mock_cost_centers.append(new_cost_center)
-    next_cost_center_id += 1
-    
-    logger.info(f"✅ Centro de custo criado: {new_cost_center['name']} (ID: {new_cost_center['id']})")
-    return {"message": "Centro de custo criado com sucesso", "id": new_cost_center["id"]}
+    logger.info(f"✅ Centro de custo criado: {new_cost_center.name} (ID: {new_cost_center.id})")
+    return {"message": "Centro de custo criado com sucesso", "id": new_cost_center.id}
 
 @financial_router.put("/api/financial/cost-centers/{cost_center_id}")
 async def update_cost_center(
@@ -399,39 +393,27 @@ async def update_cost_center(
     company_id = user_data.get("company_id")
     
     # Buscar centro de custo existente
-    cost_center_index = None
-    for i, cc in enumerate(mock_cost_centers):
-        if cc["id"] == cost_center_id:
-            cost_center_index = i
-            break
+    cost_center = db.query(CostCenter).filter(
+        CostCenter.id == cost_center_id,
+        CostCenter.company_id == company_id
+    ).first()
     
-    if cost_center_index is None:
+    if not cost_center:
         raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
     
-    # Atualizar centro de custo
-    parent_id = int(cost_center_data.get("parent_id")) if cost_center_data.get("parent_id") else None
-    parent_name = None
+    # Atualizar campos
+    if cost_center_data.get("code") is not None:
+        cost_center.code = cost_center_data.get("code")
+    if cost_center_data.get("name"):
+        cost_center.name = cost_center_data.get("name")
+    if cost_center_data.get("description") is not None:
+        cost_center.description = cost_center_data.get("description")
+    if cost_center_data.get("is_active") is not None:
+        cost_center.is_active = cost_center_data.get("is_active")
     
-    if parent_id:
-        parent = next((cc for cc in mock_cost_centers if cc["id"] == parent_id), None)
-        if parent:
-            parent_name = parent["name"]
+    db.commit()
     
-    mock_cost_centers[cost_center_index].update({
-        "code": cost_center_data.get("code", mock_cost_centers[cost_center_index]["code"]),
-        "name": cost_center_data.get("name", mock_cost_centers[cost_center_index]["name"]),
-        "responsible": cost_center_data.get("responsible", mock_cost_centers[cost_center_index]["responsible"]),
-        "responsible_email": cost_center_data.get("responsible_email", mock_cost_centers[cost_center_index]["responsible_email"]),
-        "parent_id": parent_id,
-        "parent_name": parent_name,
-        "monthly_budget": float(cost_center_data.get("monthly_budget", 0)) if cost_center_data.get("monthly_budget") else None,
-        "color": cost_center_data.get("color", mock_cost_centers[cost_center_index]["color"]),
-        "description": cost_center_data.get("description", mock_cost_centers[cost_center_index]["description"]),
-        "is_active": cost_center_data.get("is_active", mock_cost_centers[cost_center_index]["is_active"]),
-        "updated_at": datetime.now()
-    })
-    
-    logger.info(f"✅ Centro de custo atualizado: {mock_cost_centers[cost_center_index]['name']} (ID: {cost_center_id})")
+    logger.info(f"✅ Centro de custo atualizado: {cost_center.name} (ID: {cost_center_id})")
     return {"message": "Centro de custo atualizado com sucesso"}
 
 @financial_router.delete("/api/financial/cost-centers/{cost_center_id}")
@@ -452,24 +434,704 @@ async def delete_cost_center(
     company_id = user_data.get("company_id")
     
     # Buscar centro de custo existente
-    cost_center_index = None
-    cost_center_name = None
-    for i, cc in enumerate(mock_cost_centers):
-        if cc["id"] == cost_center_id:
-            cost_center_index = i
-            cost_center_name = cc["name"]
-            break
+    cost_center = db.query(CostCenter).filter(
+        CostCenter.id == cost_center_id,
+        CostCenter.company_id == company_id
+    ).first()
     
-    if cost_center_index is None:
+    if not cost_center:
         raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
     
-    # Verificar se tem centros filhos
-    has_children = any(cc["parent_id"] == cost_center_id for cc in mock_cost_centers)
-    if has_children:
-        raise HTTPException(status_code=400, detail="Não é possível excluir um centro de custo que possui centros filhos")
+    # Verificação de centros filhos removida (coluna parent_id não existe)
     
     # Remover centro de custo
-    mock_cost_centers.pop(cost_center_index)
+    db.delete(cost_center)
+    db.commit()
     
-    logger.info(f"✅ Centro de custo excluído: {cost_center_name} (ID: {cost_center_id})")
+    logger.info(f"✅ Centro de custo excluído: {cost_center.name} (ID: {cost_center_id})")
     return {"message": "Centro de custo excluído com sucesso"}
+
+# =====================================================
+# ROTAS DE API PARA CONTAS BANCÁRIAS
+# =====================================================
+
+@financial_router.get("/api/financial/accounts")
+async def get_bank_accounts(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter contas bancárias"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar contas bancárias no banco de dados
+    accounts = db.query(FinancialAccount).filter(
+        FinancialAccount.company_id == company_id
+    ).order_by(FinancialAccount.bank_name, FinancialAccount.account_name).all()
+    
+    return [
+        {
+            "id": acc.id,
+            "bank_name": acc.bank_name,
+            "account_name": acc.account_name,
+            "account_type": acc.account_type.value if acc.account_type else None,
+            "agency_number": acc.agency_number,
+            "account_number": acc.account_number,
+            "initial_balance": float(acc.initial_balance),
+            "current_balance": float(acc.current_balance),
+            "credit_limit": float(acc.credit_limit) if acc.credit_limit else None,
+            "is_main": acc.is_main,
+            "is_active": acc.is_active,
+            "notes": acc.notes,
+            "created_at": acc.created_at,
+            "company_id": acc.company_id
+        }
+        for acc in accounts
+    ]
+
+@financial_router.post("/api/financial/accounts")
+async def create_bank_account(
+    account_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para criar conta bancária"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Validar dados obrigatórios
+    if not account_data.get("bank_name"):
+        raise HTTPException(status_code=400, detail="Nome do banco é obrigatório")
+    if not account_data.get("account_name"):
+        raise HTTPException(status_code=400, detail="Nome da conta é obrigatório")
+    if not account_data.get("account_type"):
+        raise HTTPException(status_code=400, detail="Tipo da conta é obrigatório")
+    
+    # Criar nova conta bancária no banco
+    from app.models.financial_models import AccountType
+    
+    new_account = FinancialAccount(
+        company_id=company_id,
+        bank_name=account_data.get("bank_name"),
+        account_name=account_data.get("account_name"),
+        account_type=AccountType(account_data.get("account_type")),
+        agency_number=account_data.get("agency_number"),
+        account_number=account_data.get("account_number"),
+        initial_balance=float(account_data.get("initial_balance", 0)),
+        current_balance=float(account_data.get("initial_balance", 0)), # Saldo atual começa com o saldo inicial
+        credit_limit=float(account_data.get("credit_limit", 0)) if account_data.get("credit_limit") else None,
+        is_main=account_data.get("is_main", False),
+        is_active=account_data.get("is_active", True),
+        notes=account_data.get("notes")
+    )
+    
+    db.add(new_account)
+    db.commit()
+    db.refresh(new_account)
+    
+    logger.info(f"✅ Conta bancária criada: {new_account.account_name} (ID: {new_account.id})")
+    return {"message": "Conta bancária criada com sucesso", "id": new_account.id}
+
+@financial_router.put("/api/financial/accounts/{account_id}")
+async def update_bank_account(
+    account_id: int,
+    account_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar conta bancária"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar conta bancária existente
+    account = db.query(FinancialAccount).filter(
+        FinancialAccount.id == account_id,
+        FinancialAccount.company_id == company_id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Conta bancária não encontrada")
+    
+    # Atualizar campos
+    if account_data.get("bank_name"):
+        account.bank_name = account_data.get("bank_name")
+    if account_data.get("account_name"):
+        account.account_name = account_data.get("account_name")
+    if account_data.get("account_type"):
+        from app.models.financial_models import AccountType
+        account.account_type = AccountType(account_data.get("account_type"))
+    if account_data.get("agency_number") is not None:
+        account.agency_number = account_data.get("agency_number")
+    if account_data.get("account_number") is not None:
+        account.account_number = account_data.get("account_number")
+    if account_data.get("initial_balance") is not None:
+        account.initial_balance = float(account_data.get("initial_balance"))
+    if account_data.get("current_balance") is not None:
+        account.current_balance = float(account_data.get("current_balance"))
+    if account_data.get("credit_limit") is not None:
+        account.credit_limit = float(account_data.get("credit_limit")) if account_data.get("credit_limit") else None
+    if account_data.get("is_main") is not None:
+        account.is_main = account_data.get("is_main")
+    if account_data.get("is_active") is not None:
+        account.is_active = account_data.get("is_active")
+    if account_data.get("notes") is not None:
+        account.notes = account_data.get("notes")
+    
+    db.commit()
+    
+    logger.info(f"✅ Conta bancária atualizada: {account.account_name} (ID: {account_id})")
+    return {"message": "Conta bancária atualizada com sucesso"}
+
+@financial_router.delete("/api/financial/accounts/{account_id}")
+async def delete_bank_account(
+    account_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para excluir conta bancária"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar conta bancária existente
+    account = db.query(FinancialAccount).filter(
+        FinancialAccount.id == account_id,
+        FinancialAccount.company_id == company_id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Conta bancária não encontrada")
+    
+    if account.is_main:
+        raise HTTPException(status_code=400, detail="Não é possível excluir a conta principal")
+    
+    # Remover conta bancária
+    db.delete(account)
+    db.commit()
+    
+    logger.info(f"✅ Conta bancária excluída: {account.account_name} (ID: {account_id})")
+    return {"message": "Conta bancária excluída com sucesso"}
+
+# =====================================================
+# ROTAS DE API PARA CONTAS A RECEBER
+# =====================================================
+
+@financial_router.get("/api/financial/receivables")
+async def get_accounts_receivable(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter contas a receber"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar contas a receber no banco de dados
+    receivables = db.query(AccountReceivable).filter(
+        AccountReceivable.company_id == company_id
+    ).order_by(desc(AccountReceivable.due_date)).all()
+    
+    return [
+        {
+            "id": rec.id,
+            "customer_name": rec.customer_name,  # Campo de texto livre
+            "category_id": rec.category_id,
+            "cost_center_id": rec.cost_center_id,
+            "account_id": rec.account_id,
+            "invoice_number": rec.invoice_number,
+            "description": rec.description,
+            "amount": float(rec.amount),
+            "due_date": rec.due_date.isoformat() if rec.due_date else None,
+            "paid_date": rec.paid_date.isoformat() if rec.paid_date else None,
+            "paid_amount": float(rec.paid_amount) if rec.paid_amount else None,
+            "status": rec.status,
+            "installment_number": rec.installment_number,
+            "total_installments": rec.total_installments,
+            "parent_receivable_id": rec.parent_receivable_id,
+            "is_recurring": rec.is_recurring,
+            "recurring_frequency": rec.recurring_frequency,
+            "recurring_end_date": rec.recurring_end_date.isoformat() if rec.recurring_end_date else None,
+            "notes": rec.notes,
+            "created_at": rec.created_at,
+            "updated_at": rec.updated_at
+        }
+        for rec in receivables
+    ]
+
+@financial_router.post("/api/financial/receivables")
+async def create_account_receivable(
+    receivable_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para criar conta a receber"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Validar dados obrigatórios
+    if not receivable_data.get("customer_name"):
+        raise HTTPException(status_code=400, detail="Nome do cliente é obrigatório")
+    if not receivable_data.get("description"):
+        raise HTTPException(status_code=400, detail="Descrição é obrigatória")
+    if not receivable_data.get("amount"):
+        raise HTTPException(status_code=400, detail="Valor é obrigatório")
+    if not receivable_data.get("due_date"):
+        raise HTTPException(status_code=400, detail="Data de vencimento é obrigatória")
+    
+    # Criar nova conta a receber no banco
+    new_receivable = AccountReceivable(
+        company_id=company_id,
+        customer_name=receivable_data.get("customer_name"),  # Campo de texto livre
+        category_id=receivable_data.get("category_id"),
+        cost_center_id=receivable_data.get("cost_center_id"),
+        account_id=receivable_data.get("account_id"),
+        invoice_number=receivable_data.get("invoice_number"),
+        description=receivable_data.get("description"),
+        amount=receivable_data.get("amount"),
+        due_date=datetime.strptime(receivable_data.get("due_date"), "%Y-%m-%d").date(),
+        status="pending",
+        installment_number=receivable_data.get("installment_number"),
+        total_installments=receivable_data.get("total_installments"),
+        parent_receivable_id=receivable_data.get("parent_receivable_id"),
+        is_recurring=receivable_data.get("is_recurring", False),
+        recurring_frequency=receivable_data.get("recurring_frequency"),
+        recurring_end_date=datetime.strptime(receivable_data.get("recurring_end_date"), "%Y-%m-%d").date() if receivable_data.get("recurring_end_date") else None,
+        notes=receivable_data.get("notes")
+    )
+    
+    db.add(new_receivable)
+    db.commit()
+    db.refresh(new_receivable)
+    
+    logger.info(f"✅ Conta a receber criada: {new_receivable.description} (ID: {new_receivable.id})")
+    return {"message": "Conta a receber criada com sucesso", "id": new_receivable.id}
+
+@financial_router.put("/api/financial/receivables/{receivable_id}")
+async def update_account_receivable(
+    receivable_id: int,
+    receivable_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar conta a receber"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a receber existente
+    receivable = db.query(AccountReceivable).filter(
+        AccountReceivable.id == receivable_id,
+        AccountReceivable.company_id == company_id
+    ).first()
+    
+    if not receivable:
+        raise HTTPException(status_code=404, detail="Conta a receber não encontrada")
+    
+    # Atualizar campos
+    if receivable_data.get("customer_name") is not None:
+        receivable.customer_name = receivable_data.get("customer_name")
+    if receivable_data.get("category_id") is not None:
+        receivable.category_id = receivable_data.get("category_id")
+    if receivable_data.get("cost_center_id") is not None:
+        receivable.cost_center_id = receivable_data.get("cost_center_id")
+    if receivable_data.get("account_id") is not None:
+        receivable.account_id = receivable_data.get("account_id")
+    if receivable_data.get("invoice_number") is not None:
+        receivable.invoice_number = receivable_data.get("invoice_number")
+    if receivable_data.get("description"):
+        receivable.description = receivable_data.get("description")
+    if receivable_data.get("amount"):
+        receivable.amount = receivable_data.get("amount")
+    if receivable_data.get("due_date"):
+        receivable.due_date = datetime.strptime(receivable_data.get("due_date"), "%Y-%m-%d").date()
+    if receivable_data.get("is_recurring") is not None:
+        receivable.is_recurring = receivable_data.get("is_recurring")
+    if receivable_data.get("recurring_frequency"):
+        receivable.recurring_frequency = receivable_data.get("recurring_frequency")
+    if receivable_data.get("recurring_end_date"):
+        receivable.recurring_end_date = datetime.strptime(receivable_data.get("recurring_end_date"), "%Y-%m-%d").date()
+    if receivable_data.get("notes") is not None:
+        receivable.notes = receivable_data.get("notes")
+    
+    db.commit()
+    
+    logger.info(f"✅ Conta a receber atualizada: {receivable.description} (ID: {receivable_id})")
+    return {"message": "Conta a receber atualizada com sucesso"}
+
+@financial_router.delete("/api/financial/receivables/{receivable_id}")
+async def delete_account_receivable(
+    receivable_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para excluir conta a receber"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a receber existente
+    receivable = db.query(AccountReceivable).filter(
+        AccountReceivable.id == receivable_id,
+        AccountReceivable.company_id == company_id
+    ).first()
+    
+    if not receivable:
+        raise HTTPException(status_code=404, detail="Conta a receber não encontrada")
+    
+    # Verificar se tem parcelas filhas
+    has_installments = db.query(AccountReceivable).filter(
+        AccountReceivable.parent_receivable_id == receivable_id
+    ).count() > 0
+    
+    if has_installments:
+        raise HTTPException(status_code=400, detail="Não é possível excluir uma conta a receber que possui parcelas")
+    
+    # Remover conta a receber
+    db.delete(receivable)
+    db.commit()
+    
+    logger.info(f"✅ Conta a receber excluída: {receivable.description} (ID: {receivable_id})")
+    return {"message": "Conta a receber excluída com sucesso"}
+
+# =====================================================
+# ROTAS DE API PARA CONTAS A PAGAR
+# =====================================================
+
+@financial_router.get("/api/financial/payables")
+async def get_accounts_payable(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter contas a pagar"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar contas a pagar no banco de dados
+    payables = db.query(AccountPayable).filter(
+        AccountPayable.company_id == company_id
+    ).order_by(desc(AccountPayable.due_date)).all()
+    
+    return [
+        {
+            "id": pay.id,
+            "supplier_name": pay.supplier_name,  # Campo de texto livre
+            "category_id": pay.category_id,
+            "cost_center_id": pay.cost_center_id,
+            "account_id": pay.account_id,
+            "invoice_number": pay.invoice_number,
+            "description": pay.description,
+            "amount": float(pay.amount),
+            "due_date": pay.due_date.isoformat() if pay.due_date else None,
+            "paid_date": pay.paid_date.isoformat() if pay.paid_date else None,
+            "paid_amount": float(pay.paid_amount) if pay.paid_amount else None,
+            "status": pay.status,
+            "installment_number": pay.installment_number,
+            "total_installments": pay.total_installments,
+            "parent_payable_id": pay.parent_payable_id,
+            "is_recurring": pay.is_recurring,
+            "is_fixed": pay.is_fixed,
+            "recurring_frequency": pay.recurring_frequency,
+            "recurring_end_date": pay.recurring_end_date.isoformat() if pay.recurring_end_date else None,
+            "notes": pay.notes,
+            "created_at": pay.created_at,
+            "updated_at": pay.updated_at
+        }
+        for pay in payables
+    ]
+
+@financial_router.post("/api/financial/payables")
+async def create_account_payable(
+    payable_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para criar conta a pagar"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Validar dados obrigatórios
+    if not payable_data.get("supplier_name"):
+        raise HTTPException(status_code=400, detail="Nome do fornecedor é obrigatório")
+    if not payable_data.get("description"):
+        raise HTTPException(status_code=400, detail="Descrição é obrigatória")
+    if not payable_data.get("amount"):
+        raise HTTPException(status_code=400, detail="Valor é obrigatório")
+    if not payable_data.get("due_date"):
+        raise HTTPException(status_code=400, detail="Data de vencimento é obrigatória")
+    
+    # Criar nova conta a pagar no banco
+    new_payable = AccountPayable(
+        company_id=company_id,
+        supplier_name=payable_data.get("supplier_name"),  # Campo de texto livre
+        category_id=payable_data.get("category_id"),
+        cost_center_id=payable_data.get("cost_center_id"),
+        account_id=payable_data.get("account_id"),
+        invoice_number=payable_data.get("invoice_number"),
+        description=payable_data.get("description"),
+        amount=payable_data.get("amount"),
+        due_date=datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date(),
+        status="pending",
+        installment_number=payable_data.get("installment_number"),
+        total_installments=payable_data.get("total_installments"),
+        parent_payable_id=payable_data.get("parent_payable_id"),
+        is_recurring=payable_data.get("is_recurring", False),
+        is_fixed=payable_data.get("is_fixed", False),
+        recurring_frequency=payable_data.get("recurring_frequency"),
+        recurring_end_date=datetime.strptime(payable_data.get("recurring_end_date"), "%Y-%m-%d").date() if payable_data.get("recurring_end_date") else None,
+        notes=payable_data.get("notes")
+    )
+    
+    db.add(new_payable)
+    db.commit()
+    db.refresh(new_payable)
+    
+    logger.info(f"✅ Conta a pagar criada: {new_payable.description} (ID: {new_payable.id})")
+    return {"message": "Conta a pagar criada com sucesso", "id": new_payable.id}
+
+@financial_router.put("/api/financial/payables/{payable_id}")
+async def update_account_payable(
+    payable_id: int,
+    payable_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar conta a pagar"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a pagar existente
+    payable = db.query(AccountPayable).filter(
+        AccountPayable.id == payable_id,
+        AccountPayable.company_id == company_id
+    ).first()
+    
+    if not payable:
+        raise HTTPException(status_code=404, detail="Conta a pagar não encontrada")
+    
+    # Atualizar campos
+    if payable_data.get("supplier_name") is not None:
+        payable.supplier_name = payable_data.get("supplier_name")
+    if payable_data.get("category_id") is not None:
+        payable.category_id = payable_data.get("category_id")
+    if payable_data.get("cost_center_id") is not None:
+        payable.cost_center_id = payable_data.get("cost_center_id")
+    if payable_data.get("account_id") is not None:
+        payable.account_id = payable_data.get("account_id")
+    if payable_data.get("invoice_number") is not None:
+        payable.invoice_number = payable_data.get("invoice_number")
+    if payable_data.get("description"):
+        payable.description = payable_data.get("description")
+    if payable_data.get("amount"):
+        payable.amount = payable_data.get("amount")
+    if payable_data.get("due_date"):
+        payable.due_date = datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date()
+    if payable_data.get("status"):
+        payable.status = payable_data.get("status")
+    if payable_data.get("installment_number") is not None:
+        payable.installment_number = payable_data.get("installment_number")
+    if payable_data.get("total_installments") is not None:
+        payable.total_installments = payable_data.get("total_installments")
+    if payable_data.get("parent_payable_id") is not None:
+        payable.parent_payable_id = payable_data.get("parent_payable_id")
+    if payable_data.get("is_recurring") is not None:
+        payable.is_recurring = payable_data.get("is_recurring")
+    if payable_data.get("is_fixed") is not None:
+        payable.is_fixed = payable_data.get("is_fixed")
+    if payable_data.get("recurring_frequency") is not None:
+        payable.recurring_frequency = payable_data.get("recurring_frequency")
+    if payable_data.get("recurring_end_date"):
+        payable.recurring_end_date = datetime.strptime(payable_data.get("recurring_end_date"), "%Y-%m-%d").date()
+    if payable_data.get("notes") is not None:
+        payable.notes = payable_data.get("notes")
+    
+    db.commit()
+    
+    logger.info(f"✅ Conta a pagar atualizada: {payable.description} (ID: {payable_id})")
+    return {"message": "Conta a pagar atualizada com sucesso"}
+
+@financial_router.delete("/api/financial/payables/{payable_id}")
+async def delete_account_payable(
+    payable_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para excluir conta a pagar"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a pagar existente
+    payable = db.query(AccountPayable).filter(
+        AccountPayable.id == payable_id,
+        AccountPayable.company_id == company_id
+    ).first()
+    
+    if not payable:
+        raise HTTPException(status_code=404, detail="Conta a pagar não encontrada")
+    
+    # Remover conta a pagar
+    db.delete(payable)
+    db.commit()
+    
+    logger.info(f"✅ Conta a pagar excluída: {payable.description} (ID: {payable_id})")
+    return {"message": "Conta a pagar excluída com sucesso"}
+
+@financial_router.post("/api/financial/receivables/{receivable_id}/mark-paid")
+async def mark_receivable_as_paid(
+    receivable_id: int,
+    payment_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para marcar conta a receber como paga"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a receber existente
+    receivable = db.query(AccountReceivable).filter(
+        AccountReceivable.id == receivable_id,
+        AccountReceivable.company_id == company_id
+    ).first()
+    
+    if not receivable:
+        raise HTTPException(status_code=404, detail="Conta a receber não encontrada")
+    
+    # Atualizar status de pagamento
+    receivable.status = "paid"
+    receivable.paid_date = datetime.strptime(payment_data.get("paid_date"), "%Y-%m-%d").date()
+    receivable.paid_amount = payment_data.get("paid_amount", receivable.amount)
+    
+    db.commit()
+    
+    logger.info(f"✅ Conta a receber marcada como paga: {receivable.description} (ID: {receivable_id})")
+    return {"message": "Conta a receber marcada como paga com sucesso"}
+
+# =====================================================
+# ROTAS DE API PARA CLIENTES
+# =====================================================
+
+@financial_router.get("/api/financial/customers")
+async def get_financial_customers(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter clientes financeiros"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar clientes no banco de dados
+    customers = db.query(FinancialCustomer).filter(
+        FinancialCustomer.company_id == company_id,
+        FinancialCustomer.is_active == True
+    ).order_by(FinancialCustomer.name).all()
+    
+    return [
+        {
+            "id": customer.id,
+            "name": customer.name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "document": customer.document,
+            "address": customer.address,
+            "city": customer.city,
+            "state": customer.state,
+            "zip_code": customer.zip_code,
+            "is_active": customer.is_active,
+            "notes": customer.notes,
+            "created_at": customer.created_at
+        }
+        for customer in customers
+    ]
