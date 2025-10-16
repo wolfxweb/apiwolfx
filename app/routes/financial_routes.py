@@ -62,6 +62,58 @@ mock_categories = [
 # Contador para IDs únicos
 next_category_id = 4
 
+# Dados mockados para centros de custo
+mock_cost_centers = [
+    {
+        "id": 1,
+        "code": "CC001",
+        "name": "Administração",
+        "responsible": "João Silva",
+        "responsible_email": "joao@empresa.com",
+        "parent_id": None,
+        "parent_name": None,
+        "monthly_budget": 15000.00,
+        "color": "#007bff",
+        "description": "Centro de custo para despesas administrativas",
+        "is_active": True,
+        "created_at": datetime.now(),
+        "company_id": None
+    },
+    {
+        "id": 2,
+        "code": "CC002",
+        "name": "Marketing",
+        "responsible": "Maria Santos",
+        "responsible_email": "maria@empresa.com",
+        "parent_id": None,
+        "parent_name": None,
+        "monthly_budget": 8000.00,
+        "color": "#28a745",
+        "description": "Centro de custo para atividades de marketing",
+        "is_active": True,
+        "created_at": datetime.now(),
+        "company_id": None
+    },
+    {
+        "id": 3,
+        "code": "CC003",
+        "name": "Marketing Digital",
+        "responsible": "Carlos Lima",
+        "responsible_email": "carlos@empresa.com",
+        "parent_id": 2,
+        "parent_name": "Marketing",
+        "monthly_budget": 5000.00,
+        "color": "#17a2b8",
+        "description": "Subcentro para marketing digital",
+        "is_active": True,
+        "created_at": datetime.now(),
+        "company_id": None
+    }
+]
+
+# Contador para IDs únicos de centros de custo
+next_cost_center_id = 4
+
 # =====================================================
 # ROTAS DE INTERFACE (TEMPLATES)
 # =====================================================
@@ -86,6 +138,26 @@ async def financial_categories(
     
     from app.views.template_renderer import render_template
     return render_template("financial_categories.html", user=user_data)
+
+@financial_router.get("/financial/cost-centers", response_class=HTMLResponse)
+async def financial_cost_centers(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de centros de custo"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    logger.info(f"🔍 DEBUG - user_data: {user_data}")
+    
+    from app.views.template_renderer import render_template
+    return render_template("financial_cost_centers.html", user=user_data)
 
 # =====================================================
 # ROTAS DE API
@@ -230,3 +302,174 @@ async def delete_financial_category(
     
     logger.info(f"✅ Categoria excluída: {category_name} (ID: {category_id})")
     return {"message": "Categoria excluída com sucesso"}
+
+# =====================================================
+# ROTAS DE API PARA CENTROS DE CUSTO
+# =====================================================
+
+@financial_router.get("/api/financial/cost-centers")
+async def get_cost_centers(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter centros de custo"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Filtrar centros de custo por company_id (se implementado)
+    # Por enquanto, retornar todos os centros de custo mockados
+    return mock_cost_centers
+
+@financial_router.post("/api/financial/cost-centers")
+async def create_cost_center(
+    cost_center_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para criar centro de custo"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Validar dados obrigatórios
+    if not cost_center_data.get("name"):
+        raise HTTPException(status_code=400, detail="Nome é obrigatório")
+    if not cost_center_data.get("code"):
+        raise HTTPException(status_code=400, detail="Código é obrigatório")
+    
+    # Criar novo centro de custo
+    global next_cost_center_id
+    new_cost_center = {
+        "id": next_cost_center_id,
+        "code": cost_center_data.get("code"),
+        "name": cost_center_data.get("name"),
+        "responsible": cost_center_data.get("responsible", ""),
+        "responsible_email": cost_center_data.get("responsible_email", ""),
+        "parent_id": int(cost_center_data.get("parent_id")) if cost_center_data.get("parent_id") else None,
+        "parent_name": None,  # Será preenchido se parent_id existir
+        "monthly_budget": float(cost_center_data.get("monthly_budget", 0)) if cost_center_data.get("monthly_budget") else None,
+        "color": cost_center_data.get("color", "#007bff"),
+        "description": cost_center_data.get("description", ""),
+        "is_active": cost_center_data.get("is_active", True),
+        "created_at": datetime.now(),
+        "company_id": company_id
+    }
+    
+    # Preencher parent_name se parent_id existir
+    if new_cost_center["parent_id"]:
+        parent = next((cc for cc in mock_cost_centers if cc["id"] == new_cost_center["parent_id"]), None)
+        if parent:
+            new_cost_center["parent_name"] = parent["name"]
+    
+    mock_cost_centers.append(new_cost_center)
+    next_cost_center_id += 1
+    
+    logger.info(f"✅ Centro de custo criado: {new_cost_center['name']} (ID: {new_cost_center['id']})")
+    return {"message": "Centro de custo criado com sucesso", "id": new_cost_center["id"]}
+
+@financial_router.put("/api/financial/cost-centers/{cost_center_id}")
+async def update_cost_center(
+    cost_center_id: int,
+    cost_center_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar centro de custo"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar centro de custo existente
+    cost_center_index = None
+    for i, cc in enumerate(mock_cost_centers):
+        if cc["id"] == cost_center_id:
+            cost_center_index = i
+            break
+    
+    if cost_center_index is None:
+        raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
+    
+    # Atualizar centro de custo
+    parent_id = int(cost_center_data.get("parent_id")) if cost_center_data.get("parent_id") else None
+    parent_name = None
+    
+    if parent_id:
+        parent = next((cc for cc in mock_cost_centers if cc["id"] == parent_id), None)
+        if parent:
+            parent_name = parent["name"]
+    
+    mock_cost_centers[cost_center_index].update({
+        "code": cost_center_data.get("code", mock_cost_centers[cost_center_index]["code"]),
+        "name": cost_center_data.get("name", mock_cost_centers[cost_center_index]["name"]),
+        "responsible": cost_center_data.get("responsible", mock_cost_centers[cost_center_index]["responsible"]),
+        "responsible_email": cost_center_data.get("responsible_email", mock_cost_centers[cost_center_index]["responsible_email"]),
+        "parent_id": parent_id,
+        "parent_name": parent_name,
+        "monthly_budget": float(cost_center_data.get("monthly_budget", 0)) if cost_center_data.get("monthly_budget") else None,
+        "color": cost_center_data.get("color", mock_cost_centers[cost_center_index]["color"]),
+        "description": cost_center_data.get("description", mock_cost_centers[cost_center_index]["description"]),
+        "is_active": cost_center_data.get("is_active", mock_cost_centers[cost_center_index]["is_active"]),
+        "updated_at": datetime.now()
+    })
+    
+    logger.info(f"✅ Centro de custo atualizado: {mock_cost_centers[cost_center_index]['name']} (ID: {cost_center_id})")
+    return {"message": "Centro de custo atualizado com sucesso"}
+
+@financial_router.delete("/api/financial/cost-centers/{cost_center_id}")
+async def delete_cost_center(
+    cost_center_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para excluir centro de custo"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar centro de custo existente
+    cost_center_index = None
+    cost_center_name = None
+    for i, cc in enumerate(mock_cost_centers):
+        if cc["id"] == cost_center_id:
+            cost_center_index = i
+            cost_center_name = cc["name"]
+            break
+    
+    if cost_center_index is None:
+        raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
+    
+    # Verificar se tem centros filhos
+    has_children = any(cc["parent_id"] == cost_center_id for cc in mock_cost_centers)
+    if has_children:
+        raise HTTPException(status_code=400, detail="Não é possível excluir um centro de custo que possui centros filhos")
+    
+    # Remover centro de custo
+    mock_cost_centers.pop(cost_center_index)
+    
+    logger.info(f"✅ Centro de custo excluído: {cost_center_name} (ID: {cost_center_id})")
+    return {"message": "Centro de custo excluído com sucesso"}

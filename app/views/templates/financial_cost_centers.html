@@ -1,0 +1,633 @@
+{% extends "base.html" %}
+
+{% block title %}Centros de Custo - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-building"></i> Centros de Custo</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshCostCenters()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="showCreateCostCenterModal()">
+                <i class="bi bi-plus-circle"></i> Novo Centro de Custo
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome ou código..." onkeyup="filterCostCenters()">
+        </div>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="statusFilter" onchange="filterCostCenters()">
+            <option value="">Todos os Status</option>
+            <option value="active">Ativo</option>
+            <option value="inactive">Inativo</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="parentFilter" onchange="filterCostCenters()">
+            <option value="">Todos os Níveis</option>
+            <option value="parent">Centros Pai</option>
+            <option value="child">Centros Filho</option>
+        </select>
+    </div>
+</div>
+
+<!-- Estatísticas Rápidas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-success stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Centros Pai</h6>
+                        <h4 class="mb-0" id="parentCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-building fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Centros Filho</h6>
+                        <h4 class="mb-0" id="childCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-diagram-3 fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Orçamento Total</h6>
+                        <h4 class="mb-0" id="totalBudget">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-currency-dollar fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-primary stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total</h6>
+                        <h4 class="mb-0" id="totalCount">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-building fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Centros de Custo -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="costCentersTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th>Nome</th>
+                        <th>Responsável</th>
+                        <th>Centro Pai</th>
+                        <th>Orçamento Mensal</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="costCentersTableBody">
+                    <!-- Dados carregados via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Footer com paginação e contadores -->
+    <div class="card-footer bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <small class="text-muted">
+                    Mostrando <span id="showing-start">1</span> a <span id="showing-end">10</span> 
+                    de <span id="showing-total">0</span> centro(s) de custo
+                </small>
+            </div>
+            <div class="col-md-6">
+                <nav aria-label="Paginação de centros de custo">
+                    <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination">
+                        <!-- Paginação gerada via JavaScript -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Criar/Editar Centro de Custo -->
+<div class="modal fade" id="costCenterModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="costCenterModalTitle">Novo Centro de Custo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="costCenterForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="costCenterCode" class="form-label">Código *</label>
+                                <input type="text" class="form-control" id="costCenterCode" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="costCenterName" class="form-label">Nome *</label>
+                                <input type="text" class="form-control" id="costCenterName" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="responsible" class="form-label">Responsável</label>
+                                <input type="text" class="form-control" id="responsible" placeholder="Nome do responsável">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="responsibleEmail" class="form-label">E-mail do Responsável</label>
+                                <input type="email" class="form-control" id="responsibleEmail" placeholder="email@exemplo.com">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="parentCostCenter" class="form-label">Centro Pai</label>
+                                <select class="form-select" id="parentCostCenter">
+                                    <option value="">Nenhum (Centro Principal)</option>
+                                    <!-- Centros pai carregados via JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="monthlyBudget" class="form-label">Orçamento Mensal</label>
+                                <input type="number" class="form-control" id="monthlyBudget" step="0.01" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="color" class="form-label">Cor</label>
+                                <input type="color" class="form-control form-control-color" id="color" value="#007bff">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" id="isActive" checked>
+                                    <label class="form-check-label" for="isActive">
+                                        Centro de custo ativo
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="costCenterDescription" class="form-label">Descrição</label>
+                                <textarea class="form-control" id="costCenterDescription" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveCostCenter()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Confirmar Exclusão -->
+<div class="modal fade" id="deleteCostCenterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o centro de custo <strong id="deleteCostCenterName"></strong>?</p>
+                <p class="text-danger"><small>Esta ação não pode ser desfeita e pode afetar centros de custo filhos.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteCostCenter()">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais
+let costCenters = [];
+let filteredCostCenters = [];
+let currentEditId = null;
+let currentDeleteId = null;
+let currentPage = 1;
+let itemsPerPage = 10;
+
+// Carregar centros de custo ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadCostCenters();
+});
+
+// Função para carregar centros de custo
+async function loadCostCenters() {
+    try {
+        const response = await fetch('/api/financial/cost-centers', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            costCenters = await response.json();
+            filteredCostCenters = [...costCenters];
+            renderCostCenters();
+            updateStats();
+            updateParentSelect();
+        } else {
+            showAlert('Erro ao carregar centros de custo', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar centros de custo', 'danger');
+    }
+}
+
+// Função para renderizar centros de custo na tabela
+function renderCostCenters() {
+    const tbody = document.getElementById('costCentersTableBody');
+    
+    if (filteredCostCenters.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-5">
+                    <i class="bi bi-building display-1 text-muted"></i>
+                    <h4 class="mt-3">Nenhum centro de custo encontrado</h4>
+                    <p class="text-muted">
+                        Nenhum centro de custo foi encontrado com os filtros aplicados.
+                        <br>
+                        <button class="btn btn-primary mt-2" onclick="showCreateCostCenterModal()">
+                            <i class="bi bi-plus-circle"></i> Novo Centro de Custo
+                        </button>
+                    </p>
+                </td>
+            </tr>
+        `;
+        updatePaginationCounters(0);
+        return;
+    }
+    
+    // Calcular página atual
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const costCentersToShow = filteredCostCenters.slice(startIndex, endIndex);
+    
+    tbody.innerHTML = '';
+    costCentersToShow.forEach(costCenter => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${costCenter.code || '-'}</td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <div class="color-indicator me-2" style="width: 16px; height: 16px; background-color: ${costCenter.color || '#007bff'}; border-radius: 3px;"></div>
+                    ${costCenter.name}
+                </div>
+            </td>
+            <td>${costCenter.responsible || '-'}</td>
+            <td>${costCenter.parent_name || '-'}</td>
+            <td>${costCenter.monthly_budget ? 'R$ ' + parseFloat(costCenter.monthly_budget).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
+            <td><span class="badge ${costCenter.is_active ? 'bg-success' : 'bg-secondary'}">${costCenter.is_active ? 'Ativo' : 'Inativo'}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editCostCenter(${costCenter.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteCostCenter(${costCenter.id}, '${costCenter.name}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Atualizar contadores e paginação
+    updatePaginationCounters(filteredCostCenters.length);
+    renderPagination(filteredCostCenters.length);
+}
+
+// Função para atualizar estatísticas
+function updateStats() {
+    const parentCount = costCenters.filter(c => !c.parent_id).length;
+    const childCount = costCenters.filter(c => c.parent_id).length;
+    const totalBudget = costCenters.reduce((sum, c) => sum + (parseFloat(c.monthly_budget) || 0), 0);
+    const totalCount = costCenters.length;
+    
+    document.getElementById('parentCount').textContent = parentCount;
+    document.getElementById('childCount').textContent = childCount;
+    document.getElementById('totalBudget').textContent = 'R$ ' + totalBudget.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('totalCount').textContent = totalCount;
+}
+
+// Função para filtrar centros de custo
+function filterCostCenters() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const parentFilter = document.getElementById('parentFilter').value;
+    
+    filteredCostCenters = costCenters.filter(costCenter => {
+        const matchesSearch = !searchTerm || 
+            costCenter.name.toLowerCase().includes(searchTerm) ||
+            (costCenter.code && costCenter.code.toLowerCase().includes(searchTerm)) ||
+            (costCenter.responsible && costCenter.responsible.toLowerCase().includes(searchTerm));
+        
+        const matchesStatus = !statusFilter || 
+            (statusFilter === 'active' && costCenter.is_active) ||
+            (statusFilter === 'inactive' && !costCenter.is_active);
+        
+        const matchesParent = !parentFilter || 
+            (parentFilter === 'parent' && !costCenter.parent_id) ||
+            (parentFilter === 'child' && costCenter.parent_id);
+        
+        return matchesSearch && matchesStatus && matchesParent;
+    });
+    
+    // Reset para primeira página
+    currentPage = 1;
+    
+    // Renderizar centros de custo filtrados
+    renderCostCenters();
+}
+
+// Função para atualizar select de centros pai
+function updateParentSelect() {
+    const select = document.getElementById('parentCostCenter');
+    const parentCostCenters = costCenters.filter(c => !c.parent_id && c.is_active);
+    
+    select.innerHTML = '<option value="">Nenhum (Centro Principal)</option>';
+    parentCostCenters.forEach(costCenter => {
+        const option = document.createElement('option');
+        option.value = costCenter.id;
+        option.textContent = `${costCenter.code} - ${costCenter.name}`;
+        select.appendChild(option);
+    });
+}
+
+// Função para mostrar modal de criação
+function showCreateCostCenterModal() {
+    currentEditId = null;
+    document.getElementById('costCenterModalTitle').textContent = 'Novo Centro de Custo';
+    document.getElementById('costCenterForm').reset();
+    document.getElementById('isActive').checked = true;
+    document.getElementById('color').value = '#007bff';
+    
+    const modal = new bootstrap.Modal(document.getElementById('costCenterModal'));
+    modal.show();
+}
+
+// Função para editar centro de custo
+function editCostCenter(id) {
+    const costCenter = costCenters.find(c => c.id === id);
+    if (!costCenter) return;
+    
+    currentEditId = id;
+    document.getElementById('costCenterModalTitle').textContent = 'Editar Centro de Custo';
+    
+    // Preencher formulário
+    document.getElementById('costCenterCode').value = costCenter.code || '';
+    document.getElementById('costCenterName').value = costCenter.name || '';
+    document.getElementById('responsible').value = costCenter.responsible || '';
+    document.getElementById('responsibleEmail').value = costCenter.responsible_email || '';
+    document.getElementById('parentCostCenter').value = costCenter.parent_id || '';
+    document.getElementById('monthlyBudget').value = costCenter.monthly_budget || '';
+    document.getElementById('color').value = costCenter.color || '#007bff';
+    document.getElementById('costCenterDescription').value = costCenter.description || '';
+    document.getElementById('isActive').checked = costCenter.is_active;
+    
+    const modal = new bootstrap.Modal(document.getElementById('costCenterModal'));
+    modal.show();
+}
+
+// Função para salvar centro de custo
+async function saveCostCenter() {
+    const formData = {
+        code: document.getElementById('costCenterCode').value,
+        name: document.getElementById('costCenterName').value,
+        responsible: document.getElementById('responsible').value,
+        responsible_email: document.getElementById('responsibleEmail').value,
+        parent_id: document.getElementById('parentCostCenter').value || null,
+        monthly_budget: document.getElementById('monthlyBudget').value || null,
+        color: document.getElementById('color').value,
+        description: document.getElementById('costCenterDescription').value,
+        is_active: document.getElementById('isActive').checked
+    };
+    
+    try {
+        const url = currentEditId ? `/api/financial/cost-centers/${currentEditId}` : '/api/financial/cost-centers';
+        const method = currentEditId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showAlert('Centro de custo salvo com sucesso!', 'success');
+            loadCostCenters();
+            bootstrap.Modal.getInstance(document.getElementById('costCenterModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao salvar centro de custo', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao salvar centro de custo', 'danger');
+    }
+}
+
+// Função para excluir centro de custo
+function deleteCostCenter(id, name) {
+    currentDeleteId = id;
+    document.getElementById('deleteCostCenterName').textContent = name;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteCostCenterModal'));
+    modal.show();
+}
+
+// Função para confirmar exclusão
+async function confirmDeleteCostCenter() {
+    try {
+        const response = await fetch(`/api/financial/cost-centers/${currentDeleteId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            showAlert('Centro de custo excluído com sucesso!', 'success');
+            loadCostCenters();
+            bootstrap.Modal.getInstance(document.getElementById('deleteCostCenterModal')).hide();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao excluir centro de custo', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao excluir centro de custo', 'danger');
+    }
+}
+
+// Função para atualizar centros de custo
+function refreshCostCenters() {
+    loadCostCenters();
+}
+
+// Funções de paginação
+function updatePaginationCounters(total) {
+    const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+    const end = Math.min(currentPage * itemsPerPage, total);
+    
+    document.getElementById('showing-start').textContent = start;
+    document.getElementById('showing-end').textContent = end;
+    document.getElementById('showing-total').textContent = total;
+}
+
+function renderPagination(total) {
+    const pagination = document.getElementById('pagination');
+    const totalPages = Math.ceil(total / itemsPerPage);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    
+    // Botão anterior
+    html += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    if (startPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(1)">1</a></li>`;
+        if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${totalPages})">${totalPages}</a></li>`;
+    }
+    
+    // Botão próximo
+    html += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = html;
+}
+
+function changePage(page) {
+    const totalPages = Math.ceil(filteredCostCenters.length / itemsPerPage);
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        renderCostCenters();
+    }
+}
+
+function showAlert(message, type) {
+    // Criar alerta Bootstrap
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Tentar encontrar container adequado
+    let container = document.querySelector('.container-fluid');
+    if (!container) {
+        container = document.querySelector('.container');
+    }
+    if (!container) {
+        container = document.querySelector('main');
+    }
+    if (!container) {
+        container = document.body;
+    }
+    
+    // Inserir no topo do container encontrado
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    }
+    
+    // Remover automaticamente após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}
