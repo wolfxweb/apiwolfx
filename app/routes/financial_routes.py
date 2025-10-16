@@ -1325,14 +1325,14 @@ async def mark_payable_as_pending(
     logger.info(f"✅ Conta a pagar marcada como pendente: {payable.description} (ID: {payable_id})")
     return {"message": "Conta marcada como pendente com sucesso"}
 
-@financial_router.post("/api/financial/receivables/{receivable_id}/mark-paid")
-async def mark_receivable_as_paid(
+@financial_router.put("/api/financial/receivables/{receivable_id}/mark-received")
+async def mark_receivable_as_received(
     receivable_id: int,
     payment_data: dict,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """API para marcar conta a receber como paga"""
+    """API para marcar conta a receber como recebida"""
     if not session_token:
         raise HTTPException(status_code=401, detail="Token de sessão necessário")
     
@@ -1352,15 +1352,63 @@ async def mark_receivable_as_paid(
     if not receivable:
         raise HTTPException(status_code=404, detail="Conta a receber não encontrada")
     
-    # Atualizar status de pagamento
+    if receivable.status == "paid":
+        raise HTTPException(status_code=400, detail="Conta já está marcada como recebida")
+    
+    # Marcar como recebida (usar 'paid' no banco, mas mostrar 'received' na interface)
     receivable.status = "paid"
-    receivable.paid_date = datetime.strptime(payment_data.get("paid_date"), "%Y-%m-%d").date()
-    receivable.paid_amount = payment_data.get("paid_amount", receivable.amount)
+    receivable.paid_date = datetime.strptime(payment_data.get("received_date"), "%Y-%m-%d").date()
+    
+    # Se não foi informado valor recebido, usar o valor original
+    if payment_data.get("received_amount"):
+        receivable.paid_amount = float(payment_data.get("received_amount"))
+    else:
+        receivable.paid_amount = float(receivable.amount)
     
     db.commit()
     
-    logger.info(f"✅ Conta a receber marcada como paga: {receivable.description} (ID: {receivable_id})")
-    return {"message": "Conta a receber marcada como paga com sucesso"}
+    logger.info(f"✅ Conta a receber marcada como recebida: {receivable.description} (ID: {receivable_id})")
+    return {"message": "Conta a receber marcada como recebida com sucesso"}
+
+@financial_router.put("/api/financial/receivables/{receivable_id}/mark-pending")
+async def mark_receivable_as_pending(
+    receivable_id: int,
+    payment_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para marcar conta a receber como pendente"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a receber existente
+    receivable = db.query(AccountReceivable).filter(
+        AccountReceivable.id == receivable_id,
+        AccountReceivable.company_id == company_id
+    ).first()
+    
+    if not receivable:
+        raise HTTPException(status_code=404, detail="Conta a receber não encontrada")
+    
+    if receivable.status == "pending":
+        raise HTTPException(status_code=400, detail="Conta já está marcada como pendente")
+    
+    # Marcar como pendente
+    receivable.status = "pending"
+    receivable.paid_date = None
+    receivable.paid_amount = None
+    
+    db.commit()
+    
+    logger.info(f"✅ Conta a receber marcada como pendente: {receivable.description} (ID: {receivable_id})")
+    return {"message": "Conta marcada como pendente com sucesso"}
 
 # =====================================================
 # ROTAS DE API PARA CLIENTES

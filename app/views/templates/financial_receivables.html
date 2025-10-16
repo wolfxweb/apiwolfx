@@ -29,7 +29,7 @@
         <select class="form-select" id="statusFilter" onchange="filterReceivables()">
             <option value="">Todos os Status</option>
             <option value="pending">Pendente</option>
-            <option value="paid">Pago</option>
+            <option value="paid">Recebido</option>
             <option value="overdue">Vencido</option>
             <option value="cancelled">Cancelado</option>
         </select>
@@ -292,27 +292,24 @@
     </div>
 </div>
 
-<!-- Modal para Marcar como Pago -->
-<div class="modal fade" id="markPaidModal" tabindex="-1">
+<!-- Modal para Reverter para Pendente -->
+<div class="modal fade" id="revertToPendingModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Marcar como Pago</h5>
+                <h5 class="modal-title">Confirmar Reversão</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label for="paidAmount" class="form-label">Valor Pago</label>
-                    <input type="number" class="form-control" id="paidAmount" step="0.01" placeholder="0.00">
-                </div>
-                <div class="mb-3">
-                    <label for="paidDate" class="form-label">Data do Pagamento</label>
-                    <input type="date" class="form-control" id="paidDate">
+                <p>Deseja marcar esta conta como pendente?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Esta ação irá reverter o status da conta de "Recebido" para "Pendente".
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-success" onclick="confirmMarkAsPaid()">Marcar como Pago</button>
+                <button type="button" class="btn btn-warning" onclick="confirmRevertToPending()">Sim, Reverter</button>
             </div>
         </div>
     </div>
@@ -322,8 +319,9 @@
 // Variáveis globais
 let receivables = [];
 let filteredReceivables = [];
-// Removido array de customers - agora usando campo de texto livre
+// Removido array of customers - agora usando campo de texto livre
 let categories = [];
+let currentRevertId = null;
 let costCenters = [];
 let accounts = [];
 let currentEditId = null;
@@ -451,7 +449,6 @@ function renderReceivables() {
             </td>
             <td>
                 <span class="fw-bold">R$ ${parseFloat(receivable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                ${receivable.paid_amount ? `<br><small class="text-success">Pago: R$ ${parseFloat(receivable.paid_amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</small>` : ''}
             </td>
             <td>
                 <span class="${getDateClass(receivable.due_date, receivable.status)}">${formatDate(receivable.due_date)}</span>
@@ -462,7 +459,13 @@ function renderReceivables() {
             </td>
             <td>
                 <div class="btn-group btn-group-sm">
-                    ${receivable.status === 'pending' ? `<button class="btn btn-outline-success" onclick="markAsPaid(${receivable.id})" title="Marcar como Pago"><i class="bi bi-check-circle"></i></button>` : ''}
+                    <button type="button" 
+                            class="btn btn-sm ${(receivable.status === 'paid' || receivable.status === 'received') ? 'btn-warning' : 'btn-outline-success'}" 
+                            onclick="togglePaymentStatus(${receivable.id})"
+                            title="${(receivable.status === 'paid' || receivable.status === 'received') ? 'Marcar como pendente' : 'Marcar como recebido'}"
+                            data-status="${receivable.status}">
+                        <i class="fas ${(receivable.status === 'paid' || receivable.status === 'received') ? 'fa-undo' : 'fa-check'}"></i>
+                    </button>
                     <button class="btn btn-outline-primary" onclick="editReceivable(${receivable.id})" title="Editar"><i class="bi bi-pencil"></i></button>
                     <button class="btn btn-outline-danger" onclick="deleteReceivable(${receivable.id})" title="Excluir"><i class="bi bi-trash"></i></button>
                 </div>
@@ -479,12 +482,12 @@ function renderReceivables() {
 // Função para atualizar estatísticas
 function updateStats() {
     const totalAmount = receivables.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
-    const paidAmount = receivables.reduce((sum, r) => sum + (parseFloat(r.paid_amount) || 0), 0);
+    const receivedAmount = receivables.filter(r => r.status === 'paid' || r.status === 'received').reduce((sum, r) => sum + (parseFloat(r.paid_amount) || 0), 0);
     const overdueAmount = receivables.filter(r => r.status === 'overdue').reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
     const pendingAmount = receivables.filter(r => r.status === 'pending').reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
     
     document.getElementById('totalAmount').textContent = 'R$ ' + totalAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
-    document.getElementById('paidAmount').textContent = 'R$ ' + paidAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('paidAmount').textContent = 'R$ ' + receivedAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
     document.getElementById('overdueAmount').textContent = 'R$ ' + overdueAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
     document.getElementById('pendingAmount').textContent = 'R$ ' + pendingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
 }
@@ -642,46 +645,74 @@ async function confirmDeleteReceivable() {
 }
 
 // Função para marcar como pago
-function markAsPaid(id) {
-    currentPaidId = id;
+function togglePaymentStatus(id) {
     const receivable = receivables.find(r => r.id === id);
-    if (receivable) {
-        document.getElementById('paidAmount').value = receivable.amount;
-        document.getElementById('paidDate').value = new Date().toISOString().split('T')[0];
-    }
     
-    const modal = new bootstrap.Modal(document.getElementById('markPaidModal'));
-    modal.show();
+    if (receivable) {
+        if (receivable.status === 'paid' || receivable.status === 'received') {
+            // Se está recebido, perguntar se quer marcar como pendente
+            if (confirm('Deseja marcar esta conta como pendente?')) {
+                markAsPending(id);
+            }
+        } else {
+            // Se está pendente, marcar diretamente como recebido
+            markAsReceived(id);
+        }
+    } else {
+        alert('Erro: Conta não encontrada!');
+    }
 }
 
-// Função para confirmar marcação como pago
-async function confirmMarkAsPaid() {
-    try {
-        const response = await fetch(`/api/financial/receivables/${currentPaidId}/mark-paid`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                paid_amount: document.getElementById('paidAmount').value,
-                paid_date: document.getElementById('paidDate').value
-            })
-        });
-        
-        if (response.ok) {
-            showAlert('Conta a receber marcada como paga!', 'success');
+function markAsReceived(id) {
+    fetch(`/api/financial/receivables/${id}/mark-received`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+            received_date: new Date().toISOString().split('T')[0]
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            showAlert(data.message, 'success');
             loadReceivables();
-            bootstrap.Modal.getInstance(document.getElementById('markPaidModal')).hide();
         } else {
-            const error = await response.json();
-            showAlert(error.detail || 'Erro ao marcar como pago', 'danger');
+            showAlert('Erro ao marcar como recebido', 'danger');
         }
-    } catch (error) {
+    })
+    .catch(error => {
         console.error('Erro:', error);
-        showAlert('Erro ao marcar como pago', 'danger');
-    }
+        showAlert('Erro ao marcar como recebido', 'danger');
+    });
 }
+
+function markAsPending(id) {
+    fetch(`/api/financial/receivables/${id}/mark-pending`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            showAlert(data.message, 'success');
+            loadReceivables();
+        } else {
+            showAlert('Erro ao marcar como pendente', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showAlert('Erro ao marcar como pendente', 'danger');
+    });
+}
+
 
 // Função para atualizar contas a receber
 function refreshReceivables() {
@@ -693,6 +724,7 @@ function getStatusBadgeClass(status) {
     switch(status) {
         case 'pending': return 'bg-warning';
         case 'paid': return 'bg-success';
+        case 'received': return 'bg-success';
         case 'overdue': return 'bg-danger';
         case 'cancelled': return 'bg-secondary';
         default: return 'bg-secondary';
@@ -702,7 +734,8 @@ function getStatusBadgeClass(status) {
 function getStatusLabel(status) {
     switch(status) {
         case 'pending': return 'Pendente';
-        case 'paid': return 'Pago';
+        case 'paid': return 'Recebido';
+        case 'received': return 'Recebido';
         case 'overdue': return 'Vencido';
         case 'cancelled': return 'Cancelado';
         default: return status;
@@ -713,7 +746,7 @@ function getDateClass(dueDate, status) {
     const today = new Date();
     const due = new Date(dueDate);
     
-    if (status === 'paid') return 'text-success';
+    if (status === 'paid' || status === 'received') return 'text-success';
     if (status === 'overdue' || (due < today && status === 'pending')) return 'text-danger fw-bold';
     return 'text-dark';
 }

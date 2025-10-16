@@ -172,11 +172,11 @@ class AccountReceivable(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     
-    # Relacionamentos
-    customer_id = Column(Integer, ForeignKey("financial_customers.id"))
-    category_id = Column(Integer, ForeignKey("financial_categories.id"))
-    cost_center_id = Column(Integer, ForeignKey("cost_centers.id"))
-    account_id = Column(Integer, ForeignKey("financial_accounts.id"))
+    # Relacionamentos (apenas colunas que existem no banco)
+    customer_name = Column(String(255))  # Campo texto livre (não é FK)
+    category_id = Column(Integer)
+    cost_center_id = Column(Integer)
+    account_id = Column(Integer)
     
     # Dados da conta
     invoice_number = Column(String(100))
@@ -208,17 +208,13 @@ class AccountReceivable(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="accounts_receivable")
-    customer = relationship("FinancialCustomer")
-    category = relationship("FinancialCategory")
-    cost_center = relationship("CostCenter")
-    account = relationship("FinancialAccount")
     parent = relationship("AccountReceivable", remote_side=[id])
     installments = relationship("AccountReceivable")
     
     __table_args__ = (
         Index('ix_accounts_receivable_company_status', 'company_id', 'status'),
         Index('ix_accounts_receivable_due_date', 'due_date'),
-        Index('ix_accounts_receivable_customer', 'customer_id'),
+        Index('ix_accounts_receivable_customer', 'customer_name'),
     )
 
 class AccountPayable(Base):
