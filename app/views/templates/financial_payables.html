@@ -178,16 +178,6 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="isRecurring">
-                                    <label class="form-check-label" for="isRecurring">
-                                        Despesa recorrente
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="isFixed">
                                     <label class="form-check-label" for="isFixed">
                                         Despesa fixa
@@ -196,6 +186,31 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Opções de Tipo de Despesa -->
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Despesa</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expenseType" id="expenseTypeSingle" value="single" checked>
+                            <label class="form-check-label" for="expenseTypeSingle">
+                                Despesa única
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expenseType" id="expenseTypeRecurring" value="recurring">
+                            <label class="form-check-label" for="expenseTypeRecurring">
+                                Despesa recorrente
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expenseType" id="expenseTypeInstallment" value="installment">
+                            <label class="form-check-label" for="expenseTypeInstallment">
+                                Parcelamento
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Opções para Despesa Recorrente -->
                     <div class="row" id="recurringOptions" style="display: none;">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -211,6 +226,22 @@
                             <div class="mb-3">
                                 <label for="recurringEndDate" class="form-label">Data de Término</label>
                                 <input type="date" class="form-control" id="recurringEndDate">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Opções para Parcelamento -->
+                    <div class="row" id="installmentOptions" style="display: none;">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="totalInstallments" class="form-label">Quantidade de Parcelas</label>
+                                <input type="number" class="form-control" id="totalInstallments" min="2" max="60" placeholder="Ex: 12">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="installmentDueDate" class="form-label">Vencimento da 1ª Parcela</label>
+                                <input type="date" class="form-control" id="installmentDueDate">
                             </div>
                         </div>
                     </div>
@@ -247,6 +278,27 @@
     </div>
 </div>
 
+<!-- Modal de Confirmação para Pagamento -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentModalLabel">Confirmar Pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="paymentModalBody">
+                    <!-- Conteúdo será preenchido dinamicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="confirmPaymentBtn" onclick="confirmPayment()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Variáveis globais
 let payables = [];
@@ -256,6 +308,8 @@ let costCenters = [];
 let accounts = [];
 let currentEditId = null;
 let currentDeleteId = null;
+let currentPaymentId = null;
+let currentPaymentAction = null; // 'mark_paid' ou 'mark_pending'
 let currentPage = 1;
 let itemsPerPage = 10;
 
@@ -358,6 +412,9 @@ function renderPayablesTable() {
             <td>${payable.category_name || '-'}</td>
             <td>
                 <div class="btn-group" role="group">
+                    <button class="btn btn-sm ${payable.status === 'pending' ? 'btn-outline-success' : 'btn-warning'}" onclick="togglePaymentStatus(${payable.id})" title="${payable.status === 'pending' ? 'Marcar como Pago' : 'Marcar como Pendente'}">
+                        <i class="bi bi-check-circle"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-primary" onclick="editPayable(${payable.id})" title="Editar">
                         <i class="bi bi-pencil"></i>
                     </button>
@@ -419,7 +476,11 @@ function newPayable() {
     currentEditId = null;
     document.getElementById('payableModalTitle').textContent = 'Nova Conta a Pagar';
     document.getElementById('payableForm').reset();
+    
+    // Selecionar despesa única por padrão
+    document.getElementById('expenseTypeSingle').checked = true;
     document.getElementById('recurringOptions').style.display = 'none';
+    document.getElementById('installmentOptions').style.display = 'none';
 }
 
 // Função para editar conta a pagar
@@ -430,6 +491,10 @@ function editPayable(id) {
     currentEditId = id;
     document.getElementById('payableModalTitle').textContent = 'Editar Conta a Pagar';
     
+    // Abrir o modal
+    const modal = new bootstrap.Modal(document.getElementById('payableModal'));
+    modal.show();
+    
     // Preencher formulário
     document.getElementById('supplierName').value = payable.supplier_name || '';
     document.getElementById('invoiceNumber').value = payable.invoice_number || '';
@@ -439,18 +504,33 @@ function editPayable(id) {
     document.getElementById('categoryId').value = payable.category_id || '';
     document.getElementById('costCenterId').value = payable.cost_center_id || '';
     document.getElementById('accountId').value = payable.account_id || '';
-    document.getElementById('isRecurring').checked = payable.is_recurring || false;
     document.getElementById('isFixed').checked = payable.is_fixed || false;
-    document.getElementById('recurringFrequency').value = payable.recurring_frequency || '';
-    document.getElementById('recurringEndDate').value = payable.recurring_end_date || '';
     document.getElementById('notes').value = payable.notes || '';
     
-    // Mostrar opções de recorrência se necessário
-    document.getElementById('recurringOptions').style.display = payable.is_recurring ? 'block' : 'none';
+    // Determinar tipo de despesa e preencher campos correspondentes
+    if (payable.is_recurring) {
+        document.getElementById('expenseTypeRecurring').checked = true;
+        document.getElementById('recurringFrequency').value = payable.recurring_frequency || '';
+        document.getElementById('recurringEndDate').value = payable.recurring_end_date || '';
+        document.getElementById('recurringOptions').style.display = 'block';
+        document.getElementById('installmentOptions').style.display = 'none';
+    } else if (payable.total_installments > 1) {
+        document.getElementById('expenseTypeInstallment').checked = true;
+        document.getElementById('totalInstallments').value = payable.total_installments || '';
+        document.getElementById('installmentDueDate').value = payable.due_date || '';
+        document.getElementById('installmentOptions').style.display = 'block';
+        document.getElementById('recurringOptions').style.display = 'none';
+    } else {
+        document.getElementById('expenseTypeSingle').checked = true;
+        document.getElementById('recurringOptions').style.display = 'none';
+        document.getElementById('installmentOptions').style.display = 'none';
+    }
 }
 
 // Função para salvar conta a pagar
 async function savePayable() {
+    const expenseType = document.querySelector('input[name="expenseType"]:checked').value;
+    
     const formData = {
         supplier_name: document.getElementById('supplierName').value,
         invoice_number: document.getElementById('invoiceNumber').value || null,
@@ -460,12 +540,45 @@ async function savePayable() {
         category_id: document.getElementById('categoryId').value || null,
         cost_center_id: document.getElementById('costCenterId').value || null,
         account_id: document.getElementById('accountId').value || null,
-        is_recurring: document.getElementById('isRecurring').checked,
         is_fixed: document.getElementById('isFixed').checked,
-        recurring_frequency: document.getElementById('recurringFrequency').value || null,
-        recurring_end_date: document.getElementById('recurringEndDate').value || null,
         notes: document.getElementById('notes').value || null
     };
+    
+    // Adicionar campos específicos baseado no tipo de despesa
+    if (expenseType === 'recurring') {
+        formData.is_recurring = true;
+        formData.recurring_frequency = document.getElementById('recurringFrequency').value;
+        formData.recurring_end_date = document.getElementById('recurringEndDate').value;
+        
+        // Validações para despesa recorrente
+        if (!formData.recurring_frequency) {
+            showAlert('Frequência é obrigatória para despesa recorrente', 'danger');
+            return;
+        }
+        if (!formData.recurring_end_date) {
+            showAlert('Data de término é obrigatória para despesa recorrente', 'danger');
+            return;
+        }
+    } else if (expenseType === 'installment') {
+        const totalInstallments = parseInt(document.getElementById('totalInstallments').value);
+        const installmentDueDate = document.getElementById('installmentDueDate').value;
+        
+        // Validações para parcelamento
+        if (!totalInstallments || totalInstallments < 2) {
+            showAlert('Quantidade de parcelas deve ser pelo menos 2', 'danger');
+            return;
+        }
+        if (!installmentDueDate) {
+            showAlert('Vencimento da primeira parcela é obrigatório', 'danger');
+            return;
+        }
+        
+        formData.total_installments = totalInstallments;
+        formData.installment_due_date = installmentDueDate;
+    } else {
+        // Despesa única
+        formData.is_recurring = false;
+    }
     
     try {
         const url = currentEditId ? `/api/financial/payables/${currentEditId}` : '/api/financial/payables';
@@ -492,6 +605,93 @@ async function savePayable() {
     } catch (error) {
         console.error('Erro ao salvar conta a pagar:', error);
         showAlert('Erro ao salvar conta a pagar', 'danger');
+    }
+}
+
+// Função para alternar status de pagamento
+function togglePaymentStatus(id) {
+    const payable = payables.find(p => p.id === id);
+    if (!payable) return;
+    
+    currentPaymentId = id;
+    
+    if (payable.status === 'pending') {
+        // Marcar como pago
+        currentPaymentAction = 'mark_paid';
+        document.getElementById('paymentModalLabel').textContent = 'Confirmar Pagamento';
+        document.getElementById('paymentModalBody').innerHTML = `
+            <p>Deseja marcar esta conta como <strong>paga</strong>?</p>
+            <div class="alert alert-info">
+                <strong>Conta:</strong> ${payable.description}<br>
+                <strong>Fornecedor:</strong> ${payable.supplier_name || '-'}<br>
+                <strong>Valor:</strong> R$ ${parseFloat(payable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}<br>
+                <strong>Vencimento:</strong> ${formatDate(payable.due_date)}
+            </div>
+        `;
+        document.getElementById('confirmPaymentBtn').className = 'btn btn-success';
+        document.getElementById('confirmPaymentBtn').textContent = 'Marcar como Pago';
+    } else {
+        // Marcar como pendente
+        currentPaymentAction = 'mark_pending';
+        document.getElementById('paymentModalLabel').textContent = 'Confirmar Alteração';
+        document.getElementById('paymentModalBody').innerHTML = `
+            <p>Deseja marcar esta conta como <strong>pendente</strong>?</p>
+            <div class="alert alert-warning">
+                <strong>Conta:</strong> ${payable.description}<br>
+                <strong>Fornecedor:</strong> ${payable.supplier_name || '-'}<br>
+                <strong>Valor:</strong> R$ ${parseFloat(payable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}<br>
+                <strong>Data de Pagamento:</strong> ${payable.paid_date ? formatDate(payable.paid_date) : '-'}
+            </div>
+        `;
+        document.getElementById('confirmPaymentBtn').className = 'btn btn-warning';
+        document.getElementById('confirmPaymentBtn').textContent = 'Marcar como Pendente';
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
+    modal.show();
+}
+
+// Função para confirmar pagamento
+async function confirmPayment() {
+    if (!currentPaymentId || !currentPaymentAction) return;
+    
+    try {
+        let url, body, successMessage;
+        
+        if (currentPaymentAction === 'mark_paid') {
+            url = `/api/financial/payables/${currentPaymentId}/mark-paid`;
+            body = {
+                paid_date: new Date().toISOString().split('T')[0], // Data atual
+                paid_amount: null // Usar o valor original da conta
+            };
+            successMessage = 'Conta marcada como paga com sucesso!';
+        } else {
+            url = `/api/financial/payables/${currentPaymentId}/mark-pending`;
+            body = {};
+            successMessage = 'Conta marcada como pendente com sucesso!';
+        }
+        
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showAlert(result.message || successMessage, 'success');
+            document.getElementById('paymentModal').querySelector('.btn-close').click();
+            loadPayables();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao alterar status da conta', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao alterar status da conta:', error);
+        showAlert('Erro ao alterar status da conta', 'danger');
     }
 }
 
@@ -631,9 +831,25 @@ function updateAccountSelects() {
     }
 }
 
-// Mostrar/ocultar opções de recorrência
-document.getElementById('isRecurring').addEventListener('change', function() {
-    document.getElementById('recurringOptions').style.display = this.checked ? 'block' : 'none';
+// Controlar exibição das opções baseado no tipo de despesa
+document.addEventListener('DOMContentLoaded', function() {
+    // Event listeners para os radio buttons de tipo de despesa
+    document.querySelectorAll('input[name="expenseType"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            const expenseType = this.value;
+            
+            // Ocultar todas as opções primeiro
+            document.getElementById('recurringOptions').style.display = 'none';
+            document.getElementById('installmentOptions').style.display = 'none';
+            
+            // Mostrar opções baseado no tipo selecionado
+            if (expenseType === 'recurring') {
+                document.getElementById('recurringOptions').style.display = 'block';
+            } else if (expenseType === 'installment') {
+                document.getElementById('installmentOptions').style.display = 'block';
+            }
+        });
+    });
 });
 
 // Função para mostrar alertas

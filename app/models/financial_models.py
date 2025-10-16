@@ -53,25 +53,20 @@ class FinancialAccount(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     
-    # Dados bancários
+    # Dados bancários (apenas colunas que existem no banco)
     bank_name = Column(String(255), nullable=False)
     account_name = Column(String(255), nullable=False)
-    account_type = Column(Enum(AccountType), nullable=False)
+    account_type = Column(String(50), nullable=False)  # Não é enum no banco
     agency = Column(String(50))
     account_number = Column(String(50))
     
     # Informações financeiras
+    initial_balance = Column(Numeric(15, 2), default=0)
     current_balance = Column(Numeric(15, 2), default=0)
-    limit_amount = Column(Numeric(15, 2))
-    
-    # Dados do titular
-    holder_name = Column(String(255))
-    holder_document = Column(String(50))
     
     # Configurações
     description = Column(Text)
     is_active = Column(Boolean, default=True, index=True)
-    is_main_account = Column(Boolean, default=False, index=True)
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
@@ -79,8 +74,6 @@ class FinancialAccount(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="financial_accounts")
-    accounts_receivable = relationship("AccountReceivable", back_populates="account")
-    accounts_payable = relationship("AccountPayable", back_populates="account")
     
     __table_args__ = (
         Index('ix_financial_accounts_company_active', 'company_id', 'is_active'),
@@ -109,8 +102,6 @@ class FinancialCategory(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="financial_categories")
-    accounts_receivable = relationship("AccountReceivable", back_populates="category")
-    accounts_payable = relationship("AccountPayable", back_populates="category")
     
     __table_args__ = (
         Index('ix_financial_categories_company_type', 'company_id', 'type'),
@@ -169,7 +160,6 @@ class FinancialCustomer(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="financial_customers")
-    accounts_receivable = relationship("AccountReceivable", back_populates="customer")
     
     __table_args__ = (
         Index('ix_financial_customers_company_active', 'company_id', 'is_active'),
@@ -218,12 +208,12 @@ class AccountReceivable(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="accounts_receivable")
-    customer = relationship("FinancialCustomer", back_populates="accounts_receivable")
-    category = relationship("FinancialCategory", back_populates="accounts_receivable")
+    customer = relationship("FinancialCustomer")
+    category = relationship("FinancialCategory")
     cost_center = relationship("CostCenter")
-    account = relationship("FinancialAccount", back_populates="accounts_receivable")
+    account = relationship("FinancialAccount")
     parent = relationship("AccountReceivable", remote_side=[id])
-    installments = relationship("AccountReceivable", back_populates="parent")
+    installments = relationship("AccountReceivable")
     
     __table_args__ = (
         Index('ix_accounts_receivable_company_status', 'company_id', 'status'),
@@ -238,11 +228,12 @@ class AccountPayable(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     
-    # Relacionamentos
-    supplier_id = Column(Integer, ForeignKey("financial_suppliers.id"))
-    category_id = Column(Integer, ForeignKey("financial_categories.id"))
-    cost_center_id = Column(Integer, ForeignKey("cost_centers.id"))
-    account_id = Column(Integer, ForeignKey("financial_accounts.id"))
+    # Relacionamentos (apenas colunas que existem no banco)
+    supplier_name = Column(String(255))  # Campo texto livre (não é FK)
+    category_id = Column(Integer)
+    cost_center_id = Column(Integer)
+    account_id = Column(Integer)
+    payment_method_id = Column(Integer)
     
     # Dados da conta
     invoice_number = Column(String(100))
@@ -265,6 +256,9 @@ class AccountPayable(Base):
     recurring_frequency = Column(String(50))
     recurring_end_date = Column(Date)
     
+    # Tipo de custo
+    is_fixed = Column(Boolean, default=False, index=True)
+    
     # Observações
     notes = Column(Text)
     
@@ -274,17 +268,11 @@ class AccountPayable(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="accounts_payable")
-    supplier = relationship("FinancialSupplier", back_populates="accounts_payable")
-    category = relationship("FinancialCategory", back_populates="accounts_payable")
-    cost_center = relationship("CostCenter")
-    account = relationship("FinancialAccount", back_populates="accounts_payable")
-    parent = relationship("AccountPayable", remote_side=[id])
-    installments = relationship("AccountPayable", back_populates="parent")
     
     __table_args__ = (
         Index('ix_accounts_payable_company_status', 'company_id', 'status'),
         Index('ix_accounts_payable_due_date', 'due_date'),
-        Index('ix_accounts_payable_supplier', 'supplier_id'),
+        Index('ix_accounts_payable_supplier', 'supplier_name'),
     )
 
 class FinancialSupplier(Base):
@@ -316,7 +304,6 @@ class FinancialSupplier(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="financial_suppliers")
-    accounts_payable = relationship("AccountPayable", back_populates="supplier")
     
     __table_args__ = (
         Index('ix_financial_suppliers_company_active', 'company_id', 'is_active'),

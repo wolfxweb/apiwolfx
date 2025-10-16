@@ -481,15 +481,13 @@ async def get_bank_accounts(
             "id": acc.id,
             "bank_name": acc.bank_name,
             "account_name": acc.account_name,
-            "account_type": acc.account_type.value if acc.account_type else None,
-            "agency_number": acc.agency_number,
+            "account_type": acc.account_type,
+            "agency": acc.agency,
             "account_number": acc.account_number,
             "initial_balance": float(acc.initial_balance),
             "current_balance": float(acc.current_balance),
-            "credit_limit": float(acc.credit_limit) if acc.credit_limit else None,
-            "is_main": acc.is_main,
             "is_active": acc.is_active,
-            "notes": acc.notes,
+            "description": acc.description,
             "created_at": acc.created_at,
             "company_id": acc.company_id
         }
@@ -522,21 +520,17 @@ async def create_bank_account(
         raise HTTPException(status_code=400, detail="Tipo da conta é obrigatório")
     
     # Criar nova conta bancária no banco
-    from app.models.financial_models import AccountType
-    
     new_account = FinancialAccount(
         company_id=company_id,
         bank_name=account_data.get("bank_name"),
         account_name=account_data.get("account_name"),
-        account_type=AccountType(account_data.get("account_type")),
-        agency_number=account_data.get("agency_number"),
+        account_type=account_data.get("account_type"),
+        agency=account_data.get("agency"),
         account_number=account_data.get("account_number"),
         initial_balance=float(account_data.get("initial_balance", 0)),
         current_balance=float(account_data.get("initial_balance", 0)), # Saldo atual começa com o saldo inicial
-        credit_limit=float(account_data.get("credit_limit", 0)) if account_data.get("credit_limit") else None,
-        is_main=account_data.get("is_main", False),
         is_active=account_data.get("is_active", True),
-        notes=account_data.get("notes")
+        description=account_data.get("description")
     )
     
     db.add(new_account)
@@ -579,24 +573,19 @@ async def update_bank_account(
     if account_data.get("account_name"):
         account.account_name = account_data.get("account_name")
     if account_data.get("account_type"):
-        from app.models.financial_models import AccountType
-        account.account_type = AccountType(account_data.get("account_type"))
-    if account_data.get("agency_number") is not None:
-        account.agency_number = account_data.get("agency_number")
+        account.account_type = account_data.get("account_type")
+    if account_data.get("agency") is not None:
+        account.agency = account_data.get("agency")
     if account_data.get("account_number") is not None:
         account.account_number = account_data.get("account_number")
     if account_data.get("initial_balance") is not None:
         account.initial_balance = float(account_data.get("initial_balance"))
     if account_data.get("current_balance") is not None:
         account.current_balance = float(account_data.get("current_balance"))
-    if account_data.get("credit_limit") is not None:
-        account.credit_limit = float(account_data.get("credit_limit")) if account_data.get("credit_limit") else None
-    if account_data.get("is_main") is not None:
-        account.is_main = account_data.get("is_main")
     if account_data.get("is_active") is not None:
         account.is_active = account_data.get("is_active")
-    if account_data.get("notes") is not None:
-        account.notes = account_data.get("notes")
+    if account_data.get("description") is not None:
+        account.description = account_data.get("description")
     
     db.commit()
     
@@ -629,8 +618,7 @@ async def delete_bank_account(
     if not account:
         raise HTTPException(status_code=404, detail="Conta bancária não encontrada")
     
-    if account.is_main:
-        raise HTTPException(status_code=400, detail="Não é possível excluir a conta principal")
+    # Verificação de conta principal removida (coluna is_main não existe)
     
     # Remover conta bancária
     db.delete(account)
@@ -868,35 +856,35 @@ async def get_accounts_payable(
     # Buscar contas a pagar no banco de dados
     payables = db.query(AccountPayable).filter(
         AccountPayable.company_id == company_id
-    ).order_by(desc(AccountPayable.due_date)).all()
+    ).order_by(AccountPayable.due_date).all()
     
     return [
-        {
-            "id": pay.id,
-            "supplier_name": pay.supplier_name,  # Campo de texto livre
-            "category_id": pay.category_id,
-            "cost_center_id": pay.cost_center_id,
-            "account_id": pay.account_id,
-            "invoice_number": pay.invoice_number,
-            "description": pay.description,
-            "amount": float(pay.amount),
-            "due_date": pay.due_date.isoformat() if pay.due_date else None,
-            "paid_date": pay.paid_date.isoformat() if pay.paid_date else None,
-            "paid_amount": float(pay.paid_amount) if pay.paid_amount else None,
-            "status": pay.status,
-            "installment_number": pay.installment_number,
-            "total_installments": pay.total_installments,
-            "parent_payable_id": pay.parent_payable_id,
-            "is_recurring": pay.is_recurring,
-            "is_fixed": pay.is_fixed,
-            "recurring_frequency": pay.recurring_frequency,
-            "recurring_end_date": pay.recurring_end_date.isoformat() if pay.recurring_end_date else None,
-            "notes": pay.notes,
-            "created_at": pay.created_at,
-            "updated_at": pay.updated_at
-        }
-        for pay in payables
-    ]
+                {
+                    "id": pay.id,
+                    "supplier_name": pay.supplier_name,  # Campo texto livre
+                    "category_id": pay.category_id,
+                    "cost_center_id": pay.cost_center_id,
+                    "account_id": pay.account_id,
+                    "invoice_number": pay.invoice_number,
+                    "description": pay.description,
+                    "amount": float(pay.amount),
+                    "due_date": pay.due_date.isoformat() if pay.due_date else None,
+                    "paid_date": pay.paid_date.isoformat() if pay.paid_date else None,
+                    "paid_amount": float(pay.paid_amount) if pay.paid_amount else None,
+                    "status": pay.status,
+                    "installment_number": pay.installment_number,
+                    "total_installments": pay.total_installments,
+                    "parent_payable_id": pay.parent_payable_id,
+                    "is_recurring": pay.is_recurring,
+                    "recurring_frequency": pay.recurring_frequency,
+                    "recurring_end_date": pay.recurring_end_date.isoformat() if pay.recurring_end_date else None,
+                    "is_fixed": pay.is_fixed,
+                    "notes": pay.notes,
+                    "created_at": pay.created_at,
+                    "updated_at": pay.updated_at
+                }
+                for pay in payables
+            ]
 
 @financial_router.post("/api/financial/payables")
 async def create_account_payable(
@@ -916,8 +904,6 @@ async def create_account_payable(
     company_id = get_company_id_from_user(user_data)
     
     # Validar dados obrigatórios
-    if not payable_data.get("supplier_name"):
-        raise HTTPException(status_code=400, detail="Nome do fornecedor é obrigatório")
     if not payable_data.get("description"):
         raise HTTPException(status_code=400, detail="Descrição é obrigatória")
     if not payable_data.get("amount"):
@@ -925,34 +911,134 @@ async def create_account_payable(
     if not payable_data.get("due_date"):
         raise HTTPException(status_code=400, detail="Data de vencimento é obrigatória")
     
-    # Criar nova conta a pagar no banco
-    new_payable = AccountPayable(
-        company_id=company_id,
-        supplier_name=payable_data.get("supplier_name"),  # Campo de texto livre
-        category_id=payable_data.get("category_id"),
-        cost_center_id=payable_data.get("cost_center_id"),
-        account_id=payable_data.get("account_id"),
-        invoice_number=payable_data.get("invoice_number"),
-        description=payable_data.get("description"),
-        amount=payable_data.get("amount"),
-        due_date=datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date(),
-        status="pending",
-        installment_number=payable_data.get("installment_number"),
-        total_installments=payable_data.get("total_installments"),
-        parent_payable_id=payable_data.get("parent_payable_id"),
-        is_recurring=payable_data.get("is_recurring", False),
-        is_fixed=payable_data.get("is_fixed", False),
-        recurring_frequency=payable_data.get("recurring_frequency"),
-        recurring_end_date=datetime.strptime(payable_data.get("recurring_end_date"), "%Y-%m-%d").date() if payable_data.get("recurring_end_date") else None,
-        notes=payable_data.get("notes")
-    )
+    # Verificar se é parcelamento
+    total_installments = payable_data.get("total_installments", 1)
+    is_recurring = payable_data.get("is_recurring", False)
+    recurring_frequency = payable_data.get("recurring_frequency")
+    installment_due_date = payable_data.get("installment_due_date")
     
-    db.add(new_payable)
-    db.commit()
-    db.refresh(new_payable)
+    # Se for despesa recorrente, criar apenas uma entrada com frequência
+    if is_recurring and recurring_frequency:
+        new_payable = AccountPayable(
+            company_id=company_id,
+            supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+            category_id=payable_data.get("category_id"),
+            cost_center_id=payable_data.get("cost_center_id"),
+            account_id=payable_data.get("account_id"),
+            payment_method_id=payable_data.get("payment_method_id"),
+            invoice_number=payable_data.get("invoice_number"),
+            description=payable_data.get("description"),
+            amount=payable_data.get("amount"),
+            due_date=datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date(),
+            status="pending",
+            installment_number=1,
+            total_installments=1,
+            is_recurring=True,
+            recurring_frequency=recurring_frequency,
+            recurring_end_date=datetime.strptime(payable_data.get("recurring_end_date"), "%Y-%m-%d").date() if payable_data.get("recurring_end_date") else None,
+            is_fixed=payable_data.get("is_fixed", False),
+            notes=payable_data.get("notes")
+        )
+        
+        db.add(new_payable)
+        db.commit()
+        db.refresh(new_payable)
+        
+        logger.info(f"✅ Despesa recorrente criada: {new_payable.description} (ID: {new_payable.id})")
+        return {"message": "Despesa recorrente criada com sucesso", "id": new_payable.id}
     
-    logger.info(f"✅ Conta a pagar criada: {new_payable.description} (ID: {new_payable.id})")
-    return {"message": "Conta a pagar criada com sucesso", "id": new_payable.id}
+    # Se for parcelamento, criar múltiplas entradas
+    elif total_installments > 1:
+        # Criar conta principal (parent)
+        parent_payable = AccountPayable(
+            company_id=company_id,
+            supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+            category_id=payable_data.get("category_id"),
+            cost_center_id=payable_data.get("cost_center_id"),
+            account_id=payable_data.get("account_id"),
+            payment_method_id=payable_data.get("payment_method_id"),
+            invoice_number=payable_data.get("invoice_number"),
+            description=payable_data.get("description"),
+            amount=payable_data.get("amount"),
+            due_date=datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date(),
+            status="pending",
+            installment_number=0,  # Conta principal
+            total_installments=total_installments,
+            is_fixed=payable_data.get("is_fixed", False),
+            notes=payable_data.get("notes")
+        )
+        
+        db.add(parent_payable)
+        db.commit()
+        db.refresh(parent_payable)
+        
+        # Criar parcelas
+        installment_amount = float(payable_data.get("amount")) / total_installments
+        
+        # Usar data de vencimento da primeira parcela se fornecida, senão usar due_date
+        if installment_due_date:
+            base_due_date = datetime.strptime(installment_due_date, "%Y-%m-%d").date()
+        else:
+            base_due_date = datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date()
+        
+        for i in range(1, total_installments + 1):
+            # Calcular data de vencimento da parcela (mensal)
+            # Adicionar (i-1) meses à data base
+            from dateutil.relativedelta import relativedelta
+            due_date = base_due_date + relativedelta(months=i-1)
+            
+            installment = AccountPayable(
+                company_id=company_id,
+                supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+                category_id=payable_data.get("category_id"),
+                cost_center_id=payable_data.get("cost_center_id"),
+                account_id=payable_data.get("account_id"),
+                payment_method_id=payable_data.get("payment_method_id"),
+                invoice_number=f"{payable_data.get('invoice_number', '')}-{i}" if payable_data.get("invoice_number") else None,
+                description=f"{payable_data.get('description')} - Parcela {i}/{total_installments}",
+                amount=installment_amount,
+                due_date=due_date,
+                status="pending",
+                installment_number=i,
+                total_installments=total_installments,
+                parent_payable_id=parent_payable.id,
+                is_fixed=payable_data.get("is_fixed", False),
+                notes=payable_data.get("notes")
+            )
+            
+            db.add(installment)
+        
+        db.commit()
+        
+        logger.info(f"✅ Parcelamento criado: {parent_payable.description} - {total_installments} parcelas (ID: {parent_payable.id})")
+        return {"message": f"Parcelamento criado com sucesso - {total_installments} parcelas", "id": parent_payable.id}
+    
+    # Despesa única
+    else:
+        new_payable = AccountPayable(
+            company_id=company_id,
+            supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+            category_id=payable_data.get("category_id"),
+            cost_center_id=payable_data.get("cost_center_id"),
+            account_id=payable_data.get("account_id"),
+            payment_method_id=payable_data.get("payment_method_id"),
+            invoice_number=payable_data.get("invoice_number"),
+            description=payable_data.get("description"),
+            amount=payable_data.get("amount"),
+            due_date=datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date(),
+            status="pending",
+            installment_number=1,
+            total_installments=1,
+            is_fixed=payable_data.get("is_fixed", False),
+            notes=payable_data.get("notes")
+        )
+        
+        db.add(new_payable)
+        db.commit()
+        db.refresh(new_payable)
+        
+        logger.info(f"✅ Conta a pagar criada: {new_payable.description} (ID: {new_payable.id})")
+        return {"message": "Conta a pagar criada com sucesso", "id": new_payable.id}
 
 @financial_router.put("/api/financial/payables/{payable_id}")
 async def update_account_payable(
@@ -1054,6 +1140,91 @@ async def delete_account_payable(
     
     logger.info(f"✅ Conta a pagar excluída: {payable.description} (ID: {payable_id})")
     return {"message": "Conta a pagar excluída com sucesso"}
+
+@financial_router.put("/api/financial/payables/{payable_id}/mark-paid")
+async def mark_payable_as_paid(
+    payable_id: int,
+    payment_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para marcar conta a pagar como paga"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a pagar existente
+    payable = db.query(AccountPayable).filter(
+        AccountPayable.id == payable_id,
+        AccountPayable.company_id == company_id
+    ).first()
+    
+    if not payable:
+        raise HTTPException(status_code=404, detail="Conta a pagar não encontrada")
+    
+    if payable.status == "paid":
+        raise HTTPException(status_code=400, detail="Conta já está marcada como paga")
+    
+    # Marcar como paga
+    payable.status = "paid"
+    payable.paid_date = datetime.strptime(payment_data.get("paid_date"), "%Y-%m-%d").date()
+    
+    # Se não foi informado valor pago, usar o valor original
+    if payment_data.get("paid_amount"):
+        payable.paid_amount = float(payment_data.get("paid_amount"))
+    else:
+        payable.paid_amount = float(payable.amount)
+    
+    db.commit()
+    
+    logger.info(f"✅ Conta a pagar marcada como paga: {payable.description} (ID: {payable_id})")
+    return {"message": "Conta marcada como paga com sucesso"}
+
+@financial_router.put("/api/financial/payables/{payable_id}/mark-pending")
+async def mark_payable_as_pending(
+    payable_id: int,
+    payment_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para marcar conta a pagar como pendente"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a pagar existente
+    payable = db.query(AccountPayable).filter(
+        AccountPayable.id == payable_id,
+        AccountPayable.company_id == company_id
+    ).first()
+    
+    if not payable:
+        raise HTTPException(status_code=404, detail="Conta a pagar não encontrada")
+    
+    if payable.status == "pending":
+        raise HTTPException(status_code=400, detail="Conta já está marcada como pendente")
+    
+    # Marcar como pendente
+    payable.status = "pending"
+    payable.paid_date = None
+    payable.paid_amount = None
+    
+    db.commit()
+    
+    logger.info(f"✅ Conta a pagar marcada como pendente: {payable.description} (ID: {payable_id})")
+    return {"message": "Conta marcada como pendente com sucesso"}
 
 @financial_router.post("/api/financial/receivables/{receivable_id}/mark-paid")
 async def mark_receivable_as_paid(
