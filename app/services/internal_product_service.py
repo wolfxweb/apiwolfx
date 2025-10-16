@@ -606,3 +606,193 @@ class InternalProductService:
         except Exception as e:
             logger.error(f"Erro ao buscar dados de preços por SKUs: {str(e)}")
             return {"error": f"Erro interno: {str(e)}"}
+    
+    def update_internal_product_from_ml(
+        self,
+        company_id: int,
+        ml_product_id: Optional[int] = None,
+        ml_item_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Atualiza produto interno com dados do Mercado Livre (inclui resincronização)"""
+        try:
+            # Primeiro, buscar produto ML para obter o SKU
+            from app.models.saas_models import MLProduct
+            ml_product = None
+            
+            if ml_product_id:
+                ml_product = self.db.query(MLProduct).filter(
+                    and_(
+                        MLProduct.id == ml_product_id,
+                        MLProduct.company_id == company_id
+                    )
+                ).first()
+            elif ml_item_id:
+                ml_product = self.db.query(MLProduct).filter(
+                    and_(
+                        MLProduct.ml_item_id == ml_item_id,
+                        MLProduct.company_id == company_id
+                    )
+                ).first()
+            else:
+                return {"error": "ID do produto ML ou item_id é obrigatório"}
+            
+            if not ml_product:
+                return {"error": "Produto do Mercado Livre não encontrado"}
+            
+            logger.info(f"🔍 Produto ML encontrado: {ml_product.title} (SKU: {ml_product.seller_sku}, Item ID: {ml_product.ml_item_id})")
+            
+            # Buscar produto interno pelo SKU e company_id
+            internal_product = self.db.query(InternalProduct).filter(
+                and_(
+                    InternalProduct.internal_sku == ml_product.seller_sku,
+                    InternalProduct.company_id == company_id
+                )
+            ).first()
+            
+            if not internal_product:
+                # Log detalhado para debug
+                logger.warning(f"⚠️ Nenhum produto interno encontrado com SKU '{ml_product.seller_sku}' para company_id {company_id}")
+                
+                # Listar todos os produtos internos desta empresa para debug
+                all_internal_products = self.db.query(InternalProduct).filter(
+                    InternalProduct.company_id == company_id
+                ).all()
+                
+                logger.info(f"📋 Produtos internos disponíveis na empresa {company_id}:")
+                for p in all_internal_products:
+                    logger.info(f"   - {p.name} (SKU: {p.internal_sku})")
+                
+                return {
+                    "success": False,
+                    "message": f"Nenhum produto interno encontrado com SKU '{ml_product.seller_sku}' para esta empresa"
+                }
+            
+            logger.info(f"✅ Produto interno encontrado: {internal_product.name} (SKU: {internal_product.internal_sku})")
+            
+            # 🔄 RESINCRONIZAR COM MERCADO LIVRE VIA API
+            logger.info(f"🔄 Resincronizando produto {ml_product.ml_item_id} com API do Mercado Livre...")
+            
+            try:
+                # Buscar conta ML da empresa
+                from app.models.saas_models import MLAccount, MLAccountStatus
+                ml_account = self.db.query(MLAccount).filter(
+                    and_(
+                        MLAccount.company_id == company_id,
+                        MLAccount.status == MLAccountStatus.ACTIVE
+                    )
+                ).first()
+                
+                if not ml_account:
+                    logger.warning("⚠️ Nenhuma conta ML ativa encontrada, pulando resincronização")
+                else:
+                    # Resincronizar produto específico via API do ML
+                    from app.services.ml_product_service import MLProductService
+                    ml_service = MLProductService(self.db)
+                    
+                    # Obter token válido (com renovação automática se necessário)
+                    token = ml_service.get_active_token(ml_account.id)
+                    if not token:
+                        logger.error(f"❌ Token não encontrado para a conta ML {ml_account.id}")
+                    else:
+                        logger.info(f"✅ Token válido obtido para conta ML {ml_account.id}")
+                        # Buscar dados atualizados diretamente da API do Mercado Livre
+                        updated_data = ml_service.fetch_product_details(ml_product.ml_item_id, token)
+                        
+                        if updated_data:
+                            # Atualizar produto ML no banco com dados da API
+                            ml_product.title = updated_data.get("title", ml_product.title)
+                            ml_product.price = updated_data.get("price", ml_product.price)
+                            ml_product.available_quantity = updated_data.get("available_quantity", ml_product.available_quantity)
+                            ml_product.sold_quantity = updated_data.get("sold_quantity", ml_product.sold_quantity)
+                            
+                            # Mapear status usando o método do MLProductService
+                            status_str = updated_data.get("status")
+                            if status_str:
+                                ml_product.status = ml_service._map_status(status_str)
+                            
+                            ml_product.description = updated_data.get("description", ml_product.description)
+                            ml_product.category_id = updated_data.get("category_id", ml_product.category_id)
+                            ml_product.seller_sku = updated_data.get("seller_sku", ml_product.seller_sku)
+                            ml_product.permalink = updated_data.get("permalink", ml_product.permalink)
+                            ml_product.thumbnail = updated_data.get("thumbnail", ml_product.thumbnail)
+                            
+                            # Atualizar preço promocional se existir
+                            promotional_price = updated_data.get("promotional_price")
+                            if promotional_price:
+                                # Se tem preço promocional, usar ele como preço de venda
+                                ml_product.price = promotional_price
+                                logger.info(f"💰 Preço promocional encontrado na API: R$ {promotional_price}")
+                            else:
+                                # Usar preço normal da API
+                                logger.info(f"💰 Preço normal da API: R$ {ml_product.price}")
+                            
+                            self.db.commit()
+                            self.db.refresh(ml_product)
+                            
+                            logger.info(f"✅ Produto ML {ml_product.ml_item_id} resincronizado com sucesso via API")
+                        else:
+                            logger.warning(f"⚠️ Falha na resincronização do produto {ml_product.ml_item_id} via API")
+                        
+            except Exception as sync_error:
+                logger.error(f"❌ Erro na resincronização via API: {sync_error}")
+                # Continua com a atualização mesmo se a resincronização falhar
+            
+            # Atualizar dados do produto interno com informações do ML
+            update_data = {}
+            updated_fields = []
+            
+            # Atualizar título se mudou
+            if ml_product.title != internal_product.name:
+                update_data["name"] = ml_product.title
+                updated_fields.append("nome")
+                logger.info(f"📝 Atualizando nome: '{internal_product.name}' → '{ml_product.title}'")
+            
+            # Atualizar preço de venda se mudou (usar preço promocional se disponível)
+            current_price = ml_product.price
+            if current_price and float(current_price) != float(internal_product.selling_price or 0):
+                update_data["selling_price"] = current_price
+                updated_fields.append("preço de venda")
+                logger.info(f"💰 Atualizando preço de venda: R$ {internal_product.selling_price} → R$ {current_price}")
+            
+            # Atualizar descrição se mudou
+            if ml_product.description and ml_product.description != internal_product.description:
+                update_data["description"] = ml_product.description
+                updated_fields.append("descrição")
+                logger.info(f"📄 Atualizando descrição")
+            
+            # Atualizar categoria se mudou
+            if ml_product.category_id and ml_product.category_id != internal_product.category:
+                update_data["category"] = ml_product.category_id
+                updated_fields.append("categoria")
+                logger.info(f"🏷️ Atualizando categoria: '{internal_product.category}' → '{ml_product.category_id}'")
+            
+            # Aplicar atualizações se houver
+            if update_data:
+                for key, value in update_data.items():
+                    setattr(internal_product, key, value)
+                
+                self.db.commit()
+                self.db.refresh(internal_product)
+                
+                logger.info(f"✅ Produto interno {internal_product.id} atualizado com dados do ML")
+                
+                return {
+                    "success": True,
+                    "message": "Produto interno atualizado com dados resincronizados do Mercado Livre",
+                    "product_name": internal_product.name,
+                    "updated_fields": updated_fields,
+                    "ml_item_id": ml_product.ml_item_id
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": "Produto interno já está atualizado (dados resincronizados do Mercado Livre)",
+                    "product_name": internal_product.name,
+                    "updated_fields": [],
+                    "ml_item_id": ml_product.ml_item_id
+                }
+                
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Erro ao atualizar produto interno do ML: {str(e)}")
+            return {"error": f"Erro interno: {str(e)}"}

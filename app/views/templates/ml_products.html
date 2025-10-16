@@ -737,10 +737,10 @@ function renderProducts(products) {
                         <a href="/ml/products/analysis/${product.id}" class="btn btn-outline-success btn-sm" title="Análise do Produto">
                             <i class="bi bi-calculator"></i>
                         </a>
-                        <button onclick="importToInternalProduct(${product.id}, '${product.title}', '${product.ml_item_id}')" 
-                                class="btn btn-outline-primary btn-sm" 
-                                title="Importar para Produto Interno">
-                            <i class="bi bi-arrow-right-circle"></i>
+                        <button onclick="updateInternalProduct(${product.id}, '${product.title}', '${product.ml_item_id}')" 
+                                class="btn btn-outline-warning btn-sm" 
+                                title="Atualizar Produto Interno">
+                            <i class="bi bi-arrow-clockwise"></i>
                         </button>
                     </div>
                 </td>
@@ -1510,6 +1510,79 @@ function importToInternalProduct(productId, productTitle, mlItemId) {
     window.location.href = `/api/internal-products?${params.toString()}`;
 }
 
+function updateInternalProduct(productId, productTitle, mlItemId) {
+    // Armazenar dados para uso no modal
+    window.currentUpdateData = {
+        productId: productId,
+        productTitle: productTitle,
+        mlItemId: mlItemId
+    };
+    
+    // Atualizar conteúdo do modal
+    document.getElementById('updateProductModalTitle').textContent = 'Atualizar Produto Interno';
+    document.getElementById('updateProductModalBody').innerHTML = `
+        <p>Deseja resincronizar e atualizar o produto interno associado ao anúncio:</p>
+        <div class="alert alert-info">
+            <strong>"${productTitle}"</strong><br>
+            <small>ID: ${mlItemId}</small>
+        </div>
+        <p>com os dados mais recentes do Mercado Livre?</p>
+    `;
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('updateProductModal'));
+    modal.show();
+}
+
+function confirmUpdateInternalProduct() {
+    const data = window.currentUpdateData;
+    if (!data) return;
+    
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('updateProductModal'));
+    modal.hide();
+    
+    // Mostrar loading
+    showAlert('info', 'Resincronizando com Mercado Livre e atualizando produto interno...');
+    
+    // Buscar e atualizar o produto interno
+    fetch('/api/internal-products/update-from-ml', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        credentials: 'include', // Incluir cookies na requisição
+        body: JSON.stringify({
+            ml_product_id: data.productId,
+            ml_item_id: data.mlItemId
+        })
+    })
+    .then(response => {
+        if (response.status === 401) {
+            console.log('🔒 Sessão expirada, redirecionando para login');
+            window.location.href = '/auth/login';
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.success) {
+            const updatedFields = data.updated_fields && data.updated_fields.length > 0 
+                ? ` (campos atualizados: ${data.updated_fields.join(', ')})` 
+                : '';
+            showAlert('success', `✅ Produto interno "${data.product_name}" resincronizado e atualizado com sucesso!${updatedFields}`);
+            // Recarregar produtos para mostrar dados atualizados
+            loadProducts();
+        } else if (data) {
+            showAlert('warning', data.message || 'Nenhum produto interno encontrado para atualizar');
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao atualizar produto interno:', error);
+        showAlert('danger', 'Erro ao atualizar produto interno');
+    });
+}
+
 // Função para obter token de sessão
 function getSessionToken() {
     // Tentar pegar do cookie primeiro
@@ -1529,4 +1602,26 @@ function getSessionToken() {
     return localToken || sessionToken;
 }
 </script>
+
+<!-- Modal para confirmar atualização de produto interno -->
+<div class="modal fade" id="updateProductModal" tabindex="-1" aria-labelledby="updateProductModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="updateProductModalTitle">Atualizar Produto Interno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="updateProductModalBody">
+                <!-- Conteúdo será preenchido dinamicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="confirmUpdateInternalProduct()">
+                    <i class="bi bi-arrow-clockwise"></i> Resincronizar e Atualizar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

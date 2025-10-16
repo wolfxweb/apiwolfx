@@ -231,6 +231,56 @@ async def get_base_products(
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 
+@internal_product_router.post("/update-from-ml")
+async def update_internal_product_from_ml(
+    request_data: dict = Body(..., description="Dados da requisição"),
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """Atualiza produto interno com dados do Mercado Livre"""
+    logger.info(f"🔄 Recebida requisição para atualizar produto interno: {request_data}")
+    logger.info(f"🔑 Session token recebido: {session_token}")
+    
+    if not session_token:
+        logger.error("❌ Token de sessão não fornecido")
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    try:
+        # Obter usuário atual
+        logger.info(f"🔍 Tentando obter usuário com token: {session_token[:20]}...")
+        current_user = get_current_user(session_token)
+        company_id = current_user["company_id"]
+        user_id = current_user.get("id", "N/A")
+        logger.info(f"👤 Usuário logado: {current_user.get('name', 'N/A')} (user_id: {user_id}, company_id: {company_id})")
+        
+        ml_product_id = request_data.get("ml_product_id")
+        ml_item_id = request_data.get("ml_item_id")
+        
+        logger.info(f"📦 Parâmetros recebidos: ml_product_id={ml_product_id}, ml_item_id={ml_item_id}")
+        
+        if not ml_product_id and not ml_item_id:
+            logger.error("❌ Nem ml_product_id nem ml_item_id foram fornecidos")
+            raise HTTPException(status_code=400, detail="ID do produto ML ou item_id é obrigatório")
+        
+        controller = InternalProductController()
+        result = controller.update_internal_product_from_ml(
+            company_id=company_id,
+            ml_product_id=ml_product_id,
+            ml_item_id=ml_item_id,
+            db=db
+        )
+        
+        logger.info(f"✅ Resultado da atualização: {result}")
+        return JSONResponse(content=result)
+        
+    except HTTPException as e:
+        logger.error(f"❌ HTTPException: {e.detail}")
+        raise e
+    except Exception as e:
+        logger.error(f"❌ Erro ao atualizar produto interno do ML: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+
 @internal_product_router.post("/bulk-delete")
 async def bulk_delete_internal_products(
     request_data: dict = Body(..., description="Dados da requisição"),

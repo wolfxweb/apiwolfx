@@ -366,14 +366,19 @@ class PaymentController:
             if notification.type == "payment" and notification.action in ["payment.created", "payment.updated"]:
                 payment_id = notification.data.get("id")
                 if payment_id:
-                    # Buscar status atualizado do pagamento
-                    payment = self.mp_service.get_payment(int(payment_id))
-                    
-                    # Atualizar status no banco
-                    self._update_payment_status(int(payment_id), payment.status)
-                    
-                    # Ativar assinatura se pagamento aprovado
-                    if payment.status == "approved":
+                    # Tentar buscar status da API, mas não falhar se não encontrar
+                    try:
+                        payment = self.mp_service.get_payment(int(payment_id))
+                        
+                        # Atualizar status no banco
+                        self._update_payment_status(int(payment_id), payment.status)
+                        
+                        # Ativar assinatura se pagamento aprovado
+                        if payment.status == "approved":
+                            self._activate_subscription_from_payment(int(payment_id))
+                    except Exception as e:
+                        logger.warning(f"⚠️ Não foi possível buscar pagamento {payment_id} na API: {e}")
+                        # Tentar ativar assinatura mesmo sem dados da API
                         self._activate_subscription_from_payment(int(payment_id))
                     
                     logger.info(f"✅ Webhook processado: {notification.action} - Payment {payment_id}")
@@ -474,11 +479,13 @@ class PaymentController:
                 logger.warning(f"⚠️ Transação não encontrada para pagamento {payment_id}")
                 return
             
-            # Buscar dados completos do pagamento da API do Mercado Pago
-            payment_response = self.mp_service.get_payment(payment_id)
-            if not payment_response:
-                logger.warning(f"⚠️ Dados do pagamento não encontrados na API para {payment_id}")
-                return
+            # Tentar buscar dados da API do Mercado Pago, mas não falhar se não encontrar
+            payment_response = None
+            try:
+                payment_response = self.mp_service.get_payment(payment_id)
+            except Exception as e:
+                logger.warning(f"⚠️ Não foi possível buscar dados da API MP para {payment_id}: {e}")
+                # Continuar com dados da transação local
             
             # Ativar assinatura relacionada
             if transaction.subscription_id:
@@ -491,10 +498,13 @@ class PaymentController:
                     subscription.is_trial = False  # Não é mais trial
                     
                     # Usar a nova lógica de atualização de expiração
+                    external_ref = payment_response.external_reference if payment_response else transaction.external_reference
+                    status = payment_response.status if payment_response else transaction.status
+                    
                     payment_data = {
                         "id": payment_id,
-                        "external_reference": payment_response.external_reference,
-                        "status": payment_response.status
+                        "external_reference": external_ref,
+                        "status": status
                     }
                     
                     # Atualizar data de expiração baseada no ciclo de cobrança

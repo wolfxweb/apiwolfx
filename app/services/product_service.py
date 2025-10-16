@@ -176,25 +176,92 @@ class ProductService:
             )
 
             if response.status_code == 200:
-                data = response.json()
-                return {
-                    "title": data.get("title", ""),
-                    "thumbnail": data.get("thumbnail", ""),
-                    "sku": data.get("sku", ""),
-                    "price": data.get("price", 0),
-                    "available_quantity": data.get("available_quantity", 0),
-                    "sold_quantity": data.get("sold_quantity", 0),
-                    "condition": data.get("condition", ""),
-                    "category_id": data.get("category_id", ""),
-                    "listing_type_id": data.get("listing_type_id", ""),
-                    "permalink": data.get("permalink", "")
-                }
+                product_data = response.json()
+                
+                # Buscar preços promocionais se existirem
+                promotional_price = self._get_promotional_price(ml_item_id, headers)
+                if promotional_price:
+                    product_data['promotional_price'] = promotional_price
+                
+                return product_data
             else:
                 logger.error(f"Erro ao buscar produto {ml_item_id}: {response.status_code}")
                 return None
-
+                
         except Exception as e:
             logger.error(f"Erro ao buscar produto {ml_item_id}: {e}")
+            return None
+
+    def get_ml_product_data(self, ml_account_id: int, item_id: str) -> Dict[str, Any]:
+        """
+        Busca dados atualizados de um produto específico do Mercado Livre
+        """
+        try:
+            # Obter token válido
+            from app.services.ml_product_service import MLProductService
+            ml_service = MLProductService(self.db)
+            token = ml_service.get_active_token(ml_account_id)
+            
+            if not token:
+                return {
+                    "success": False,
+                    "error": "Token não encontrado para a conta ML"
+                }
+
+            # Buscar dados atualizados do produto
+            product_data = ml_service.fetch_product_details(item_id, token)
+            
+            # Processar dados para o formato esperado
+            processed_data = {
+                "title": product_data.get("title", ""),
+                "price": product_data.get("price", 0),
+                "promotional_price": product_data.get("promotional_price"),
+                "available_quantity": product_data.get("available_quantity", 0),
+                "sold_quantity": product_data.get("sold_quantity", 0),
+                "status": product_data.get("status", ""),
+                "description": product_data.get("description", ""),
+                "category_id": product_data.get("category_id", ""),
+                "seller_sku": product_data.get("seller_sku", ""),
+                "permalink": product_data.get("permalink", ""),
+                "thumbnail": product_data.get("thumbnail", "")
+            }
+            
+            return {
+                "success": True,
+                "data": processed_data
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados do produto {item_id}: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def _get_promotional_price(self, ml_item_id: str, headers: dict) -> Optional[float]:
+        """
+        Busca preço promocional do produto
+        """
+        try:
+            # Buscar informações de preços promocionais
+            response = requests.get(
+                f'https://api.mercadolibre.com/items/{ml_item_id}/promotions',
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                promotions = response.json()
+                if promotions and len(promotions) > 0:
+                    # Pegar a primeira promoção ativa
+                    for promotion in promotions:
+                        if promotion.get('status') == 'active':
+                            return promotion.get('price')
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Erro ao buscar preço promocional para {ml_item_id}: {e}")
             return None
 
     def get_products(self, company_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:

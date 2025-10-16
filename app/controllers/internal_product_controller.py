@@ -170,6 +170,33 @@ class InternalProductController:
             logger.error(f"Erro no controller ao remover produto interno: {str(e)}")
             raise HTTPException(status_code=500, detail="Erro interno do servidor")
     
+    def update_internal_product_from_ml(
+        self,
+        company_id: int,
+        ml_product_id: Optional[int] = None,
+        ml_item_id: Optional[str] = None,
+        db: Session = Depends(get_db)
+    ) -> Dict[str, Any]:
+        """Atualiza produto interno com dados do Mercado Livre"""
+        try:
+            service = InternalProductService(db)
+            result = service.update_internal_product_from_ml(
+                company_id=company_id,
+                ml_product_id=ml_product_id,
+                ml_item_id=ml_item_id
+            )
+            
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+            
+            return result
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Erro no controller ao atualizar produto interno do ML: {str(e)}")
+            raise HTTPException(status_code=500, detail="Erro interno do servidor")
+    
     def get_base_products(
         self,
         company_id: int,
