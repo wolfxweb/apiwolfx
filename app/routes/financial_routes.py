@@ -159,6 +159,26 @@ async def financial_cashflow(
     from app.views.template_renderer import render_template
     return render_template("financial_cashflow.html", user=user_data)
 
+@financial_router.get("/financial/dashboard", response_class=HTMLResponse)
+async def financial_dashboard(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página do dashboard financeiro"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    logger.info(f"🔍 DEBUG - user_data: {user_data}")
+    
+    from app.views.template_renderer import render_template
+    return render_template("financial_dashboard.html", user=user_data)
+
 # =====================================================
 # ROTAS DE API
 # =====================================================
@@ -1719,4 +1739,254 @@ async def get_cashflow_data(
     return {
         "cashflow_items": cashflow_items,
         "total_current_balance": total_current_balance
+    }
+
+@financial_router.get("/api/financial/dashboard")
+async def get_dashboard_data(
+    period: str = "this_month",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter dados do dashboard financeiro"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    from datetime import datetime, timedelta
+    from sqlalchemy import extract
+    
+    # Data atual e início do mês
+    today = datetime.now()
+    
+    # Calcular período baseado no filtro
+    if period == "this_month":
+        month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    elif period == "last_month":
+        month_start = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+        month_end = today.replace(day=1) - timedelta(days=1)
+    elif period == "last_3_months":
+        month_start = (today.replace(day=1) - timedelta(days=90))
+        month_end = today
+    elif period == "last_6_months":
+        month_start = (today.replace(day=1) - timedelta(days=180))
+        month_end = today
+    elif period == "this_year":
+        month_start = today.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_end = today
+    elif period == "last_year":
+        month_start = today.replace(year=today.year-1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_end = today.replace(year=today.year-1, month=12, day=31, hour=23, minute=59, second=59)
+    elif period == "custom" and date_from and date_to:
+        month_start = datetime.fromisoformat(date_from)
+        month_end = datetime.fromisoformat(date_to)
+    else:
+        # Padrão: este mês
+        month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    
+    # 1. Estatísticas do período filtrado
+    # Receitas do período (contas a receber pagas + pedidos ML recebidos)
+    monthly_receivables = db.query(AccountReceivable).filter(
+        AccountReceivable.company_id == company_id,
+        AccountReceivable.status.in_(['paid', 'received']),
+        AccountReceivable.paid_date >= month_start,
+        AccountReceivable.paid_date <= month_end
+    ).all()
+    
+    monthly_revenue = sum(float(rec.paid_amount or rec.amount) for rec in monthly_receivables)
+    
+    # Adicionar pedidos ML como receitas (todos os pedidos pagos, não apenas entregues)
+    from app.models.saas_models import Company, MLOrder, OrderStatus
+    company = db.query(Company).filter(Company.id == company_id).first()
+    
+    if company and company.ml_orders_as_receivables:
+        # Considerar todos os pedidos ML pagos do período como receita
+        ml_orders_paid = db.query(MLOrder).filter(
+            MLOrder.company_id == company_id,
+            MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+            MLOrder.date_closed >= month_start,
+            MLOrder.date_closed <= month_end
+        ).all()
+        
+        for order in ml_orders_paid:
+            # Calcular valor líquido (total - taxas)
+            net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+            monthly_revenue += net_amount
+    
+    # Despesas do período (contas a pagar pagas)
+    monthly_payables = db.query(AccountPayable).filter(
+        AccountPayable.company_id == company_id,
+        AccountPayable.status == 'paid',
+        AccountPayable.paid_date >= month_start,
+        AccountPayable.paid_date <= month_end
+    ).all()
+    
+    monthly_expenses = sum(float(pay.paid_amount or pay.amount) for pay in monthly_payables)
+    
+    # Lucro do mês
+    monthly_profit = monthly_revenue - monthly_expenses
+    
+    # Saldo atual das contas bancárias
+    bank_accounts = db.query(FinancialAccount).filter(
+        FinancialAccount.company_id == company_id,
+        FinancialAccount.is_active == True
+    ).all()
+    
+    current_balance = sum(float(acc.current_balance) for acc in bank_accounts)
+    
+    # 2. Dados históricos baseados no período
+    monthly_data = []
+    
+    # Se for período personalizado ou ano, mostrar dados mensais
+    if period in ["custom", "this_year", "last_year"] or (period == "last_6_months"):
+        # Para períodos longos, mostrar dados mensais
+        if period == "this_year":
+            months_to_show = 12
+        elif period == "last_year":
+            months_to_show = 12
+        elif period == "last_6_months":
+            months_to_show = 6
+        else:
+            months_to_show = 6
+            
+        for i in range(months_to_show):
+            if period == "last_year":
+                month_date = datetime(month_start.year, month_start.month - i, 1)
+            else:
+                month_date = (month_start - timedelta(days=30*i)).replace(day=1)
+            next_month = (month_date + timedelta(days=32)).replace(day=1)
+            
+            # Receitas do mês (contas a receber + pedidos ML)
+            month_receivables = db.query(AccountReceivable).filter(
+                AccountReceivable.company_id == company_id,
+                AccountReceivable.status.in_(['paid', 'received']),
+                AccountReceivable.paid_date >= month_date,
+                AccountReceivable.paid_date < next_month
+            ).all()
+        
+            month_revenue = sum(float(rec.paid_amount or rec.amount) for rec in month_receivables)
+            
+            # Adicionar pedidos ML do mês
+            if company and company.ml_orders_as_receivables:
+                month_ml_orders = db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+                    MLOrder.date_closed >= month_date,
+                    MLOrder.date_closed < next_month
+                ).all()
+                
+                for order in month_ml_orders:
+                    net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+                    month_revenue += net_amount
+        
+            # Despesas do mês
+            month_payables = db.query(AccountPayable).filter(
+                AccountPayable.company_id == company_id,
+                AccountPayable.status == 'paid',
+                AccountPayable.paid_date >= month_date,
+                AccountPayable.paid_date < next_month
+            ).all()
+            
+            month_expenses = sum(float(pay.paid_amount or pay.amount) for pay in month_payables)
+            
+            monthly_data.append({
+                "month": month_date.strftime("%m/%Y"),
+                "revenue": month_revenue,
+                "expenses": month_expenses
+        })
+    
+    monthly_data.reverse()  # Ordenar do mais antigo para o mais recente
+    
+    # 3. Top categorias do mês (incluindo Mercado Livre)
+    top_categories = []
+    categories = db.query(FinancialCategory).filter(
+        FinancialCategory.company_id == company_id
+    ).all()
+    
+    for category in categories:
+        # Calcular total de receitas desta categoria no mês
+        category_receivables = db.query(AccountReceivable).filter(
+            AccountReceivable.company_id == company_id,
+            AccountReceivable.category_id == category.id,
+            AccountReceivable.status.in_(['paid', 'received']),
+            AccountReceivable.paid_date >= month_start
+        ).all()
+        
+        category_amount = sum(float(rec.paid_amount or rec.amount) for rec in category_receivables)
+        
+        if category_amount > 0:
+            top_categories.append({
+                "name": category.name,
+                "amount": category_amount
+            })
+    
+    # Adicionar categoria "Mercado Livre" se houver pedidos ML
+    if company and company.ml_orders_as_receivables:
+        ml_orders_month = db.query(MLOrder).filter(
+            MLOrder.company_id == company_id,
+            MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+            MLOrder.date_closed >= month_start
+        ).all()
+        
+        if ml_orders_month:
+            ml_total = sum(float(order.total_amount or 0) - float(order.total_fees or 0) for order in ml_orders_month)
+            top_categories.append({
+                "name": "Mercado Livre",
+                "amount": ml_total
+            })
+    
+    # Ordenar por valor e pegar top 5
+    top_categories.sort(key=lambda x: x['amount'], reverse=True)
+    top_categories = top_categories[:5]
+    
+    # 4. Contas a receber recentes (próximas 5)
+    recent_receivables = db.query(AccountReceivable).filter(
+        AccountReceivable.company_id == company_id,
+        AccountReceivable.status == 'pending'
+    ).order_by(AccountReceivable.due_date).limit(5).all()
+    
+    recent_receivables_data = [
+        {
+            "customer_name": rec.customer_name,
+            "amount": float(rec.amount),
+            "due_date": rec.due_date.isoformat() if rec.due_date else None,
+            "status": rec.status
+        }
+        for rec in recent_receivables
+    ]
+    
+    # 5. Contas a pagar recentes (próximas 5)
+    recent_payables = db.query(AccountPayable).filter(
+        AccountPayable.company_id == company_id,
+        AccountPayable.status == 'pending'
+    ).order_by(AccountPayable.due_date).limit(5).all()
+    
+    recent_payables_data = [
+        {
+            "supplier_name": pay.supplier_name,
+            "amount": float(pay.amount),
+            "due_date": pay.due_date.isoformat() if pay.due_date else None,
+            "status": pay.status
+        }
+        for pay in recent_payables
+    ]
+    
+    return {
+        "monthly_revenue": monthly_revenue,
+        "monthly_expenses": monthly_expenses,
+        "monthly_profit": monthly_profit,
+        "current_balance": current_balance,
+        "monthly_data": monthly_data,
+        "top_categories": top_categories,
+        "recent_receivables": recent_receivables_data,
+        "recent_payables": recent_payables_data
     }

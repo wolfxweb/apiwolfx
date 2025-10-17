@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Financeiro - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-speedometer2"></i> Dashboard Financeiro</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <!-- Período -->
+            <div class="col-md-3">
+                <label for="periodFilter" class="form-label">Período</label>
+                <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod()">
+                    <option value="this_month" selected>Este mês</option>
+                    <option value="last_month">Mês anterior</option>
+                    <option value="last_3_months">Últimos 3 meses</option>
+                    <option value="last_6_months">Últimos 6 meses</option>
+                    <option value="this_year">Este ano</option>
+                    <option value="last_year">Ano anterior</option>
+                    <option value="custom">Período personalizado</option>
+                </select>
+            </div>
+            
+            <!-- Período personalizado (oculto por padrão) -->
+            <div class="col-md-3" id="customPeriodRow" style="display: none;">
+                <label for="dateFrom" class="form-label">Data inicial</label>
+                <input type="date" class="form-control" id="dateFrom">
+            </div>
+            <div class="col-md-3" id="customPeriodRow2" style="display: none;">
+                <label for="dateTo" class="form-label">Data final</label>
+                <input type="date" class="form-control" id="dateTo">
+            </div>
+            
+            <!-- Ações -->
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumo Financeiro -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Receitas do Mês</h6>
+                        <h4 class="mb-0" id="monthlyRevenue">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-arrow-up-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Despesas do Mês</h6>
+                        <h4 class="mb-0" id="monthlyExpenses">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-arrow-down-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Lucro do Mês</h6>
+                        <h4 class="mb-0" id="monthlyProfit">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-graph-up fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Saldo Atual</h6>
+                        <h4 class="mb-0" id="currentBalance">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-wallet2 fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos e Análises -->
+<div class="row mb-4">
+    <!-- Gráfico de Receitas vs Despesas -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Receitas vs Despesas (Últimos 6 meses)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="revenueExpensesChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Categorias -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Top Categorias (Este Mês)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="categoriesChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabelas de Resumo -->
+<div class="row mb-4">
+    <!-- Contas a Receber -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-arrow-down-circle"></i> Contas a Receber</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Valor</th>
+                                <th>Vencimento</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="receivablesTable">
+                            <!-- Dados carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center mt-2">
+                    <a href="/financial/receivables" class="btn btn-sm btn-outline-primary">Ver Todas</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Contas a Pagar -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-arrow-up-circle"></i> Contas a Pagar</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Fornecedor</th>
+                                <th>Valor</th>
+                                <th>Vencimento</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payablesTable">
+                            <!-- Dados carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center mt-2">
+                    <a href="/financial/payables" class="btn btn-sm btn-outline-primary">Ver Todas</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ações Rápidas -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightning"></i> Ações Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <a href="/financial/receivables" class="btn btn-outline-success w-100 mb-2">
+                            <i class="bi bi-plus-circle"></i><br>
+                            Nova Conta a Receber
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/financial/payables" class="btn btn-outline-danger w-100 mb-2">
+                            <i class="bi bi-plus-circle"></i><br>
+                            Nova Conta a Pagar
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/financial/cashflow" class="btn btn-outline-primary w-100 mb-2">
+                            <i class="bi bi-graph-up"></i><br>
+                            Fluxo de Caixa
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/financial/categories" class="btn btn-outline-info w-100 mb-2">
+                            <i class="bi bi-tags"></i><br>
+                            Categorias
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Variáveis globais
+let dashboardData = {};
+let revenueExpensesChart = null;
+let categoriesChart = null;
+
+// Carregar dados ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+    
+    // Inicializar tooltips do Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// Função para carregar dados do dashboard
+async function loadDashboardData() {
+    try {
+        const periodFilter = document.getElementById('periodFilter').value;
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+        
+        // Construir parâmetros da URL
+        const params = new URLSearchParams();
+        params.append('period', periodFilter);
+        if (dateFrom) params.append('date_from', dateFrom);
+        if (dateTo) params.append('date_to', dateTo);
+        
+        const response = await fetch(`/api/financial/dashboard?${params.toString()}`, {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            dashboardData = await response.json();
+            updateDashboardStats();
+            createCharts();
+            updateTables();
+        } else {
+            showAlert('Erro ao carregar dados do dashboard', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar dados do dashboard', 'danger');
+    }
+}
+
+// Função para atualizar estatísticas do dashboard
+function updateDashboardStats() {
+    const data = dashboardData;
+    
+    document.getElementById('monthlyRevenue').textContent = 'R$ ' + (data.monthly_revenue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('monthlyExpenses').textContent = 'R$ ' + (data.monthly_expenses || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('monthlyProfit').textContent = 'R$ ' + (data.monthly_profit || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('currentBalance').textContent = 'R$ ' + (data.current_balance || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+}
+
+// Função para criar gráficos
+function createCharts() {
+    createRevenueExpensesChart();
+    createCategoriesChart();
+}
+
+// Gráfico de Receitas vs Despesas
+function createRevenueExpensesChart() {
+    const ctx = document.getElementById('revenueExpensesChart').getContext('2d');
+    
+    // Destruir gráfico anterior se existir
+    if (revenueExpensesChart) {
+        revenueExpensesChart.destroy();
+    }
+    
+    const data = dashboardData.monthly_data || [];
+    
+    revenueExpensesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(item => item.month),
+            datasets: [{
+                label: 'Receitas',
+                data: data.map(item => item.revenue),
+                backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                borderColor: 'rgba(40, 167, 69, 1)',
+                borderWidth: 1
+            }, {
+                label: 'Despesas',
+                data: data.map(item => item.expenses),
+                backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                borderColor: 'rgba(220, 53, 69, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR');
+                        }
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': R$ ' + context.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Gráfico de Categorias
+function createCategoriesChart() {
+    const ctx = document.getElementById('categoriesChart').getContext('2d');
+    
+    // Destruir gráfico anterior se existir
+    if (categoriesChart) {
+        categoriesChart.destroy();
+    }
+    
+    const data = dashboardData.top_categories || [];
+    
+    categoriesChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.map(item => item.name),
+            datasets: [{
+                data: data.map(item => item.amount),
+                backgroundColor: [
+                    '#FF6384',
+                    '#36A2EB',
+                    '#FFCE56',
+                    '#4BC0C0',
+                    '#9966FF',
+                    '#FF9F40'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return context.label + ': R$ ' + context.parsed.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + ' (' + percentage + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Função para atualizar tabelas
+function updateTables() {
+    updateReceivablesTable();
+    updatePayablesTable();
+}
+
+// Atualizar tabela de contas a receber
+function updateReceivablesTable() {
+    const tbody = document.getElementById('receivablesTable');
+    const data = dashboardData.recent_receivables || [];
+    
+    tbody.innerHTML = '';
+    
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhuma conta a receber</td></tr>';
+        return;
+    }
+    
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${item.customer_name || '-'}</td>
+            <td>R$ ${parseFloat(item.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+            <td>${formatDate(item.due_date)}</td>
+            <td><span class="badge ${getStatusBadgeClass(item.status)}">${getStatusLabel(item.status)}</span></td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Atualizar tabela de contas a pagar
+function updatePayablesTable() {
+    const tbody = document.getElementById('payablesTable');
+    const data = dashboardData.recent_payables || [];
+    
+    tbody.innerHTML = '';
+    
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhuma conta a pagar</td></tr>';
+        return;
+    }
+    
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${item.supplier_name || '-'}</td>
+            <td>R$ ${parseFloat(item.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+            <td>${formatDate(item.due_date)}</td>
+            <td><span class="badge ${getStatusBadgeClass(item.status)}">${getStatusLabel(item.status)}</span></td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Funções auxiliares
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+}
+
+function getStatusBadgeClass(status) {
+    switch (status) {
+        case 'pending': return 'bg-warning';
+        case 'paid': return 'bg-success';
+        case 'received': return 'bg-success';
+        case 'overdue': return 'bg-danger';
+        default: return 'bg-secondary';
+    }
+}
+
+function getStatusLabel(status) {
+    switch (status) {
+        case 'pending': return 'Pendente';
+        case 'paid': return 'Pago';
+        case 'received': return 'Recebido';
+        case 'overdue': return 'Vencido';
+        default: return status;
+    }
+}
+
+// Função para atualizar dashboard
+function refreshDashboard() {
+    loadDashboardData();
+}
+
+// Função para aplicar filtros
+function applyFilters() {
+    loadDashboardData();
+}
+
+// Função para limpar filtros
+function clearFilters() {
+    document.getElementById('periodFilter').value = 'this_month';
+    document.getElementById('dateFrom').value = '';
+    document.getElementById('dateTo').value = '';
+    
+    // Ocultar período personalizado
+    document.getElementById('customPeriodRow').style.display = 'none';
+    document.getElementById('customPeriodRow2').style.display = 'none';
+    
+    loadDashboardData();
+}
+
+// Função para mostrar/ocultar período personalizado
+function toggleCustomPeriod() {
+    const periodFilter = document.getElementById('periodFilter').value;
+    const customPeriodRow = document.getElementById('customPeriodRow');
+    const customPeriodRow2 = document.getElementById('customPeriodRow2');
+    
+    if (periodFilter === 'custom') {
+        customPeriodRow.style.display = 'block';
+        customPeriodRow2.style.display = 'block';
+    } else {
+        customPeriodRow.style.display = 'none';
+        customPeriodRow2.style.display = 'none';
+    }
+}
+
+function showAlert(message, type) {
+    // Criar alerta Bootstrap
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Tentar encontrar container adequado
+    let container = document.querySelector('.container-fluid');
+    if (!container) {
+        container = document.querySelector('.container');
+    }
+    if (!container) {
+        container = document.querySelector('main');
+    }
+    if (!container) {
+        container = document.body;
+    }
+    
+    // Inserir no topo do container encontrado
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    }
+    
+    // Remover automaticamente após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}
