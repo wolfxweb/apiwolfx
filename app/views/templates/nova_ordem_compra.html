@@ -126,7 +126,7 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-3">
+                                    <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="cotacaoMoeda" class="form-label">Cotação da Moeda</label>
                                             <div class="input-group">
@@ -150,10 +150,10 @@
                                             <div class="mb-3">
                                                 <label for="comissaoAgente" class="form-label">Comissão Agente de Compras</label>
                                                 <div class="input-group">
-                                                    <span class="input-group-text">R$</span>
-                                                    <input type="number" class="form-control" id="comissaoAgente" step="0.01" min="0" value="0.00">
+                                                    <input type="number" class="form-control" id="comissaoAgente" step="0.01" min="0" max="100" value="0.00">
+                                                    <span class="input-group-text">%</span>
                                                 </div>
-                                                <small class="form-text text-muted">Comissão do agente de compras</small>
+                                                <small class="form-text text-muted">Percentual do valor do pedido</small>
                                             </div>
                                         </div>
                                         
@@ -161,7 +161,7 @@
                                             <div class="mb-3">
                                                 <label for="valorTransporte" class="form-label">Valor do Transporte</label>
                                                 <div class="input-group">
-                                                    <span class="input-group-text">R$</span>
+                                                    <span class="input-group-text moeda-sigla">R$</span>
                                                     <input type="number" class="form-control" id="valorTransporte" step="0.01" min="0" value="0.00">
                                                 </div>
                                                 <small class="form-text text-muted">Custo do transporte internacional</small>
@@ -993,6 +993,8 @@ function toggleCamposInternacionais() {
     
     if (tipoOrdem === 'internacional') {
         camposInternacionais.style.display = 'block';
+        // Atualizar símbolos de moeda nos campos internacionais
+        updateMoedaSymbols();
     } else {
         camposInternacionais.style.display = 'none';
         // Limpar campos internacionais quando ocultar
@@ -1001,6 +1003,16 @@ function toggleCamposInternacionais() {
         document.getElementById('percentualImportacao').value = '0.00';
         document.getElementById('modalidadeImportacao').value = '';
     }
+}
+
+// Função para atualizar símbolos de moeda nos campos internacionais
+function updateMoedaSymbols() {
+    const moeda = document.getElementById('moeda').value;
+    const moedaSymbols = document.querySelectorAll('.moeda-sigla');
+    
+    moedaSymbols.forEach(symbol => {
+        symbol.textContent = getMoedaSymbol(moeda);
+    });
 }
 
 // Fechar dropdown ao clicar fora
