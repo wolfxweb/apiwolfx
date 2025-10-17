@@ -1005,6 +1005,16 @@ class OrdemCompra(Base):
     moeda = Column(String(10), default="BRL", nullable=False)  # BRL, USD, CNY
     cotacao_moeda = Column(Numeric(10, 4), default=1.0)  # Taxa de câmbio para conversão
     
+    # Tipo de ordem
+    tipo_ordem = Column(String(20), default="nacional")  # nacional, internacional
+    
+    # Campos para ordens internacionais
+    comissao_agente = Column(Numeric(15, 2), default=0)  # Comissão do agente de compras
+    valor_transporte = Column(Numeric(15, 2), default=0)  # Valor do transporte
+    percentual_importacao = Column(Numeric(5, 2), default=0)  # Percentual de impostos de importação
+    modalidade_importacao = Column(String(20))  # simplificada, formal
+    valor_impostos = Column(Numeric(15, 2), default=0)  # Valor calculado dos impostos
+    
     # Observações
     observacoes = Column(Text)
     condicoes_pagamento = Column(String(255))
