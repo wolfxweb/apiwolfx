@@ -112,8 +112,15 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="supplierName" class="form-label">Fornecedor *</label>
-                                <input type="text" class="form-control" id="supplierName" required placeholder="Nome do fornecedor">
+                                <label for="supplierName" class="form-label">Fornecedor</label>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control" id="supplierName" placeholder="Digite para buscar fornecedor..." autocomplete="off">
+                                    <input type="hidden" id="fornecedorId" value="">
+                                    <div id="supplierDropdown" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;">
+                                        <!-- Resultados da busca aparecerão aqui -->
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted">Digite para buscar fornecedores cadastrados ou deixe em branco para fornecedor manual</small>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -546,6 +553,7 @@ async function savePayable() {
     
     const formData = {
         supplier_name: document.getElementById('supplierName').value,
+        fornecedor_id: document.getElementById('fornecedorId').value || null,
         invoice_number: document.getElementById('invoiceNumber').value || null,
         description: document.getElementById('description').value,
         amount: document.getElementById('amount').value,
@@ -902,6 +910,89 @@ function updateAccountSelects() {
         select.value = currentValue;
     }
 }
+
+// Autocomplete de fornecedores
+let supplierSearchTimeout;
+
+document.getElementById('supplierName').addEventListener('input', function() {
+    const query = this.value.trim();
+    const dropdown = document.getElementById('supplierDropdown');
+    const fornecedorIdInput = document.getElementById('fornecedorId');
+    
+    // Limpar timeout anterior
+    if (supplierSearchTimeout) {
+        clearTimeout(supplierSearchTimeout);
+    }
+    
+    // Se campo estiver vazio, limpar seleção
+    if (query === '') {
+        fornecedorIdInput.value = '';
+        dropdown.style.display = 'none';
+        return;
+    }
+    
+    // Debounce da busca
+    supplierSearchTimeout = setTimeout(async () => {
+        try {
+            const response = await fetch(`/api/fornecedores/search?q=${encodeURIComponent(query)}&limit=10`, {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                displaySupplierResults(data.fornecedores);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar fornecedores:', error);
+        }
+    }, 300);
+});
+
+function displaySupplierResults(fornecedores) {
+    const dropdown = document.getElementById('supplierDropdown');
+    
+    if (fornecedores.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item text-muted">Nenhum fornecedor encontrado</div>';
+    } else {
+        dropdown.innerHTML = '';
+        fornecedores.forEach(fornecedor => {
+            const item = document.createElement('div');
+            item.className = 'dropdown-item';
+            item.style.cursor = 'pointer';
+            item.innerHTML = `
+                <div class="fw-bold">${fornecedor.nome}</div>
+                ${fornecedor.nome_fantasia ? `<small class="text-muted">${fornecedor.nome_fantasia}</small><br>` : ''}
+                ${fornecedor.cnpj ? `<small class="text-muted">CNPJ: ${fornecedor.cnpj}</small>` : ''}
+            `;
+            
+            item.addEventListener('click', function() {
+                selectSupplier(fornecedor);
+            });
+            
+            dropdown.appendChild(item);
+        });
+    }
+    
+    dropdown.style.display = 'block';
+}
+
+function selectSupplier(fornecedor) {
+    const supplierNameInput = document.getElementById('supplierName');
+    const fornecedorIdInput = document.getElementById('fornecedorId');
+    const dropdown = document.getElementById('supplierDropdown');
+    
+    supplierNameInput.value = fornecedor.display_name;
+    fornecedorIdInput.value = fornecedor.id;
+    dropdown.style.display = 'none';
+}
+
+// Ocultar dropdown ao clicar fora
+document.addEventListener('click', function(event) {
+    const supplierContainer = document.querySelector('#supplierName').closest('.position-relative');
+    if (!supplierContainer.contains(event.target)) {
+        document.getElementById('supplierDropdown').style.display = 'none';
+    }
+});
 
 // Controlar exibição das opções baseado no tipo de despesa
 document.addEventListener('DOMContentLoaded', function() {

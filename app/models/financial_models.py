@@ -226,6 +226,7 @@ class AccountPayable(Base):
     
     # Relacionamentos (apenas colunas que existem no banco)
     supplier_name = Column(String(255))  # Campo texto livre (não é FK)
+    fornecedor_id = Column(Integer, ForeignKey("fornecedores.id"), nullable=True, index=True)  # FK para fornecedores
     category_id = Column(Integer)
     cost_center_id = Column(Integer)
     account_id = Column(Integer)
@@ -264,6 +265,7 @@ class AccountPayable(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="accounts_payable")
+    fornecedor = relationship("Fornecedor", back_populates="accounts_payable")
     
     __table_args__ = (
         Index('ix_accounts_payable_company_status', 'company_id', 'status'),

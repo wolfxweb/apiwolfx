@@ -1106,6 +1106,7 @@ async def create_account_payable(
             recurring_payable = AccountPayable(
                 company_id=company_id,
                 supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+                fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
                 category_id=payable_data.get("category_id"),
                 cost_center_id=payable_data.get("cost_center_id"),
                 account_id=payable_data.get("account_id"),
@@ -1142,6 +1143,7 @@ async def create_account_payable(
         parent_payable = AccountPayable(
             company_id=company_id,
             supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+            fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
             category_id=payable_data.get("category_id"),
             cost_center_id=payable_data.get("cost_center_id"),
             account_id=payable_data.get("account_id"),
@@ -1179,6 +1181,7 @@ async def create_account_payable(
             installment = AccountPayable(
                 company_id=company_id,
                 supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+                fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
                 category_id=payable_data.get("category_id"),
                 cost_center_id=payable_data.get("cost_center_id"),
                 account_id=payable_data.get("account_id"),
@@ -1207,6 +1210,7 @@ async def create_account_payable(
         new_payable = AccountPayable(
             company_id=company_id,
             supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
+            fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
             category_id=payable_data.get("category_id"),
             cost_center_id=payable_data.get("cost_center_id"),
             account_id=payable_data.get("account_id"),
@@ -1259,6 +1263,8 @@ async def update_account_payable(
     # Atualizar campos
     if payable_data.get("supplier_name") is not None:
         payable.supplier_name = payable_data.get("supplier_name")
+    if payable_data.get("fornecedor_id") is not None:
+        payable.fornecedor_id = payable_data.get("fornecedor_id")
     if payable_data.get("category_id") is not None:
         payable.category_id = payable_data.get("category_id")
     if payable_data.get("cost_center_id") is not None:

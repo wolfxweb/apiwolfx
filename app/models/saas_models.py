@@ -969,6 +969,7 @@ class Fornecedor(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="fornecedores")
+    accounts_payable = relationship("AccountPayable", back_populates="fornecedor")
     
     # Índices
     __table_args__ = (

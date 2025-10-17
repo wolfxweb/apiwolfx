@@ -67,6 +67,67 @@ async def get_fornecedores(
         "total": len(fornecedores)
     }
 
+@fornecedores_router.get("/api/fornecedores/search")
+async def search_fornecedores(
+    q: str = "",
+    limit: int = 10,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para buscar fornecedores com autocomplete"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    try:
+        from app.models.saas_models import Fornecedor
+        
+        # Buscar fornecedores ativos da empresa
+        query = db.query(Fornecedor).filter(
+            Fornecedor.company_id == company_id,
+            Fornecedor.ativo == True
+        )
+        
+        # Se há termo de busca, filtrar por nome ou nome fantasia
+        if q.strip():
+            search_term = f"%{q.strip()}%"
+            query = query.filter(
+                (Fornecedor.nome.ilike(search_term)) |
+                (Fornecedor.nome_fantasia.ilike(search_term))
+            )
+        
+        # Ordenar por nome e limitar resultados
+        fornecedores = query.order_by(Fornecedor.nome).limit(limit).all()
+        
+        # Formatar resultados para autocomplete
+        results = []
+        for fornecedor in fornecedores:
+            results.append({
+                "id": fornecedor.id,
+                "nome": fornecedor.nome,
+                "nome_fantasia": fornecedor.nome_fantasia,
+                "cnpj": fornecedor.cnpj,
+                "email": fornecedor.email,
+                "telefone": fornecedor.telefone,
+                "display_name": f"{fornecedor.nome}" + (f" ({fornecedor.nome_fantasia})" if fornecedor.nome_fantasia else "")
+            })
+        
+        return {
+            "success": True,
+            "fornecedores": results,
+            "total": len(results)
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar fornecedores: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
 @fornecedores_router.get("/api/fornecedores/{fornecedor_id}")
 async def get_fornecedor(
     fornecedor_id: int,
