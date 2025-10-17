@@ -1,0 +1,696 @@
+{% extends "base.html" %}
+
+{% block title %}Ordens de Compra{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">
+                    <i class="bi bi-file-earmark-text text-primary"></i>
+                    Ordens de Compra
+                </h1>
+                <button class="btn btn-primary" onclick="openCreateModal()">
+                    <i class="bi bi-plus-circle"></i> Nova Ordem
+                </button>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="statusFilter" class="form-label">Status</label>
+                            <select class="form-select" id="statusFilter" onchange="filterOrdens()">
+                                <option value="">Todos</option>
+                                <option value="pendente">Pendente</option>
+                                <option value="em_cotacao">Em Cotação</option>
+                                <option value="aprovada">Aprovada</option>
+                                <option value="rejeitada">Rejeitada</option>
+                                <option value="em_andamento">Em Andamento</option>
+                                <option value="entregue">Entregue</option>
+                                <option value="cancelada">Cancelada</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="searchInput" class="form-label">Buscar</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Número, fornecedor..." onkeyup="filterOrdens()">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="dateFrom" class="form-label">Data Início</label>
+                            <input type="date" class="form-control" id="dateFrom" onchange="filterOrdens()">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="dateTo" class="form-label">Data Fim</label>
+                            <input type="date" class="form-control" id="dateTo" onchange="filterOrdens()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Ordens -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="ordensTable">
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Data</th>
+                                    <th>Fornecedor</th>
+                                    <th>Status</th>
+                                    <th>Valor Total</th>
+                                    <th>Entrega Prevista</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dados carregados via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginação -->
+                    <nav aria-label="Paginação">
+                        <ul class="pagination justify-content-center" id="pagination">
+                            <!-- Paginação carregada via JavaScript -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nova/Editar Ordem -->
+<div class="modal fade" id="ordemModal" tabindex="-1" aria-labelledby="ordemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ordemModalLabel">Nova Ordem de Compra</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ordemForm">
+                    <!-- Dados Básicos -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="text-primary mb-3">Dados Básicos</h6>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="numeroOrdem" class="form-label">Número da Ordem</label>
+                                <input type="text" class="form-control" id="numeroOrdem" placeholder="Auto-gerado se vazio">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="dataOrdem" class="form-label">Data da Ordem</label>
+                                <input type="date" class="form-control" id="dataOrdem" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="dataEntregaPrevista" class="form-label">Data Entrega Prevista</label>
+                                <input type="date" class="form-control" id="dataEntregaPrevista">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="status" class="form-label">Status</label>
+                                <select class="form-select" id="status">
+                                    <option value="pendente">Pendente</option>
+                                    <option value="em_cotacao">Em Cotação</option>
+                                    <option value="aprovada">Aprovada</option>
+                                    <option value="rejeitada">Rejeitada</option>
+                                    <option value="em_andamento">Em Andamento</option>
+                                    <option value="entregue">Entregue</option>
+                                    <option value="cancelada">Cancelada</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Fornecedor -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6 class="text-primary mb-3">Fornecedor</h6>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="fornecedorSearch" class="form-label">Fornecedor</label>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control" id="fornecedorSearch" placeholder="Digite para buscar fornecedor..." autocomplete="off">
+                                    <input type="hidden" id="fornecedorId" value="">
+                                    <div id="fornecedorDropdown" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;">
+                                        <!-- Resultados da busca aparecerão aqui -->
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted">Digite para buscar fornecedores cadastrados</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="condicoesPagamento" class="form-label">Condições de Pagamento</label>
+                                <input type="text" class="form-control" id="condicoesPagamento" placeholder="Ex: 30 dias">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="prazoEntrega" class="form-label">Prazo de Entrega</label>
+                                <input type="text" class="form-control" id="prazoEntrega" placeholder="Ex: 15 dias úteis">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Moeda -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6 class="text-primary mb-3">Moeda</h6>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="moeda" class="form-label">Moeda</label>
+                                <select class="form-select" id="moeda" onchange="updateCotacaoField()">
+                                    <option value="BRL">🇧🇷 Real (BRL)</option>
+                                    <option value="USD">🇺🇸 Dólar Americano (USD)</option>
+                                    <option value="CNY">🇨🇳 Yuan Chinês (CNY)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cotacaoMoeda" class="form-label">Cotação da Moeda</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="cotacaoMoeda" step="0.0001" min="0" value="1.0000" onchange="updateValores()">
+                                    <span class="input-group-text">BRL</span>
+                                </div>
+                                <small class="form-text text-muted">Taxa de câmbio para 1 unidade da moeda selecionada em Reais</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Itens da Ordem -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6 class="text-primary mb-3">Itens da Ordem</h6>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-sm" id="itensTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Produto</th>
+                                            <th>Descrição</th>
+                                            <th>Código</th>
+                                            <th>Qtd</th>
+                                            <th>Valor Unit.</th>
+                                            <th>Total</th>
+                                            <th width="50"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Itens serão adicionados dinamicamente -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addItem()">
+                                <i class="bi bi-plus"></i> Adicionar Item
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Resumo -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="observacoes" class="form-label">Observações</label>
+                                <textarea class="form-control" id="observacoes" rows="3" placeholder="Observações gerais da ordem..."></textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Resumo Financeiro</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Subtotal:</span>
+                                        <span id="subtotal">R$ 0,00</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Desconto:</span>
+                                        <span id="desconto">R$ 0,00</span>
+                                    </div>
+                                    <hr>
+                                    <div class="d-flex justify-content-between fw-bold">
+                                        <span>Total:</span>
+                                        <span id="total">R$ 0,00</span>
+                                    </div>
+                                    <hr>
+                                    <div class="d-flex justify-content-between text-muted small">
+                                        <span>Total em Reais:</span>
+                                        <span id="totalBRL">R$ 0,00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveOrdem()">Salvar Ordem</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Ordem -->
+<div class="modal fade" id="viewModal" tabindex="-1" aria-labelledby="viewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewModalLabel">Detalhes da Ordem</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewModalBody">
+                <!-- Conteúdo carregado via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let ordensData = [];
+let currentPage = 1;
+let itemsPerPage = 10;
+let fornecedorSearchTimeout;
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', function() {
+    loadOrdens();
+    setTodayDate();
+});
+
+function setTodayDate() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('dataOrdem').value = today;
+}
+
+// Carregar ordens
+async function loadOrdens() {
+    try {
+        const status = document.getElementById('statusFilter').value;
+        const url = status ? `/api/ordem-compra?status=${status}` : '/api/ordem-compra';
+        
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            ordensData = data.ordens || [];
+            renderOrdens();
+        } else {
+            console.error('Erro ao carregar ordens');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+    }
+}
+
+// Renderizar ordens na tabela
+function renderOrdens() {
+    const tbody = document.querySelector('#ordensTable tbody');
+    tbody.innerHTML = '';
+    
+    if (ordensData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhuma ordem encontrada</td></tr>';
+        return;
+    }
+    
+    ordensData.forEach(ordem => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${ordem.numero_ordem}</td>
+            <td>${formatDate(ordem.data_ordem)}</td>
+            <td>${ordem.fornecedor_nome || '-'}</td>
+            <td><span class="badge bg-${getStatusColor(ordem.status)}">${getStatusText(ordem.status)}</span></td>
+            <td>R$ ${formatCurrency(ordem.valor_final)}</td>
+            <td>${formatDate(ordem.data_entrega_prevista)}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewOrdem(${ordem.id})">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="editOrdem(${ordem.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteOrdem(${ordem.id})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Filtros
+function filterOrdens() {
+    loadOrdens();
+}
+
+// Status helpers
+function getStatusColor(status) {
+    const colors = {
+        'pendente': 'warning',
+        'em_cotacao': 'info',
+        'aprovada': 'success',
+        'rejeitada': 'danger',
+        'em_andamento': 'info',
+        'entregue': 'primary',
+        'cancelada': 'danger'
+    };
+    return colors[status] || 'secondary';
+}
+
+function getStatusText(status) {
+    const texts = {
+        'pendente': 'Pendente',
+        'em_cotacao': 'Em Cotação',
+        'aprovada': 'Aprovada',
+        'rejeitada': 'Rejeitada',
+        'em_andamento': 'Em Andamento',
+        'entregue': 'Entregue',
+        'cancelada': 'Cancelada'
+    };
+    return texts[status] || status;
+}
+
+// Modal functions
+function openCreateModal() {
+    document.getElementById('ordemModalLabel').textContent = 'Nova Ordem de Compra';
+    document.getElementById('ordemForm').reset();
+    setTodayDate();
+    clearItens();
+    updateResumo();
+    
+    const modal = new bootstrap.Modal(document.getElementById('ordemModal'));
+    modal.show();
+}
+
+function editOrdem(id) {
+    // Implementar edição
+    console.log('Editar ordem:', id);
+}
+
+function viewOrdem(id) {
+    // Implementar visualização
+    console.log('Ver ordem:', id);
+}
+
+function deleteOrdem(id) {
+    if (confirm('Tem certeza que deseja excluir esta ordem?')) {
+        // Implementar exclusão
+        console.log('Excluir ordem:', id);
+    }
+}
+
+// Autocomplete fornecedores
+document.getElementById('fornecedorSearch').addEventListener('input', function() {
+    const query = this.value.trim();
+    const dropdown = document.getElementById('fornecedorDropdown');
+    const fornecedorIdInput = document.getElementById('fornecedorId');
+    
+    if (fornecedorSearchTimeout) {
+        clearTimeout(fornecedorSearchTimeout);
+    }
+    
+    if (query === '') {
+        fornecedorIdInput.value = '';
+        dropdown.style.display = 'none';
+        return;
+    }
+    
+    fornecedorSearchTimeout = setTimeout(async () => {
+        try {
+            const response = await fetch(`/api/fornecedores/search?q=${encodeURIComponent(query)}&limit=10`, {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                displayFornecedorResults(data.fornecedores);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar fornecedores:', error);
+        }
+    }, 300);
+});
+
+function displayFornecedorResults(fornecedores) {
+    const dropdown = document.getElementById('fornecedorDropdown');
+    dropdown.innerHTML = '';
+    
+    if (fornecedores.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item-text">Nenhum fornecedor encontrado</div>';
+    } else {
+        fornecedores.forEach(fornecedor => {
+            const item = document.createElement('div');
+            item.className = 'dropdown-item';
+            item.style.cursor = 'pointer';
+            item.innerHTML = `
+                <div class="fw-bold">${fornecedor.nome}</div>
+                <small class="text-muted">${fornecedor.cnpj || ''}</small>
+            `;
+            item.onclick = () => selectFornecedor(fornecedor);
+            dropdown.appendChild(item);
+        });
+    }
+    
+    dropdown.style.display = 'block';
+}
+
+function selectFornecedor(fornecedor) {
+    const fornecedorSearchInput = document.getElementById('fornecedorSearch');
+    const fornecedorIdInput = document.getElementById('fornecedorId');
+    const dropdown = document.getElementById('fornecedorDropdown');
+    
+    fornecedorSearchInput.value = fornecedor.display_name;
+    fornecedorIdInput.value = fornecedor.id;
+    dropdown.style.display = 'none';
+}
+
+// Itens da ordem
+function addItem() {
+    const tbody = document.querySelector('#itensTable tbody');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td><input type="text" class="form-control form-control-sm" placeholder="Nome do produto"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="Descrição"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="Código"></td>
+        <td><input type="number" class="form-control form-control-sm quantidade" step="0.001" min="0" onchange="calculateItemTotal(this)"></td>
+        <td><input type="number" class="form-control form-control-sm valor-unitario" step="0.01" min="0" onchange="calculateItemTotal(this)"></td>
+        <td><input type="number" class="form-control form-control-sm valor-total" step="0.01" readonly></td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeItem(this)"><i class="bi bi-trash"></i></button></td>
+    `;
+    tbody.appendChild(row);
+}
+
+function removeItem(button) {
+    button.closest('tr').remove();
+    updateResumo();
+}
+
+function calculateItemTotal(input) {
+    const row = input.closest('tr');
+    const quantidade = parseFloat(row.querySelector('.quantidade').value) || 0;
+    const valorUnitario = parseFloat(row.querySelector('.valor-unitario').value) || 0;
+    const valorTotal = quantidade * valorUnitario;
+    
+    row.querySelector('.valor-total').value = valorTotal.toFixed(2);
+    updateResumo();
+}
+
+function clearItens() {
+    document.querySelector('#itensTable tbody').innerHTML = '';
+}
+
+function updateResumo() {
+    const rows = document.querySelectorAll('#itensTable tbody tr');
+    let subtotal = 0;
+    
+    rows.forEach(row => {
+        const valorTotal = parseFloat(row.querySelector('.valor-total').value) || 0;
+        subtotal += valorTotal;
+    });
+    
+    const desconto = 0; // Implementar campo de desconto se necessário
+    const total = subtotal - desconto;
+    
+    // Obter moeda e cotação
+    const moeda = document.getElementById('moeda').value;
+    const cotacao = parseFloat(document.getElementById('cotacaoMoeda').value) || 1;
+    
+    // Calcular total em reais
+    const totalBRL = total * cotacao;
+    
+    // Atualizar exibição
+    const moedaSymbol = getMoedaSymbol(moeda);
+    document.getElementById('subtotal').textContent = `${moedaSymbol} ${subtotal.toFixed(2).replace('.', ',')}`;
+    document.getElementById('desconto').textContent = `${moedaSymbol} ${desconto.toFixed(2).replace('.', ',')}`;
+    document.getElementById('total').textContent = `${moedaSymbol} ${total.toFixed(2).replace('.', ',')}`;
+    document.getElementById('totalBRL').textContent = `R$ ${totalBRL.toFixed(2).replace('.', ',')}`;
+}
+
+// Salvar ordem
+async function saveOrdem() {
+    const formData = {
+        numero_ordem: document.getElementById('numeroOrdem').value,
+        data_ordem: document.getElementById('dataOrdem').value,
+        data_entrega_prevista: document.getElementById('dataEntregaPrevista').value,
+        status: document.getElementById('status').value,
+        fornecedor_id: document.getElementById('fornecedorId').value || null,
+        condicoes_pagamento: document.getElementById('condicoesPagamento').value,
+        prazo_entrega: document.getElementById('prazoEntrega').value,
+        observacoes: document.getElementById('observacoes').value,
+        moeda: document.getElementById('moeda').value,
+        cotacao_moeda: parseFloat(document.getElementById('cotacaoMoeda').value) || 1,
+        itens: getItensData()
+    };
+    
+    try {
+        const response = await fetch('/api/ordem-compra', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            alert('Ordem de compra criada com sucesso!');
+            bootstrap.Modal.getInstance(document.getElementById('ordemModal')).hide();
+            loadOrdens();
+        } else {
+            const error = await response.json();
+            alert('Erro: ' + (error.detail || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao salvar ordem de compra');
+    }
+}
+
+function getItensData() {
+    const rows = document.querySelectorAll('#itensTable tbody tr');
+    const itens = [];
+    
+    rows.forEach(row => {
+        const produtoNome = row.querySelector('td:nth-child(1) input').value;
+        const produtoDescricao = row.querySelector('td:nth-child(2) input').value;
+        const produtoCodigo = row.querySelector('td:nth-child(3) input').value;
+        const quantidade = parseFloat(row.querySelector('.quantidade').value) || 0;
+        const valorUnitario = parseFloat(row.querySelector('.valor-unitario').value) || 0;
+        const valorTotal = parseFloat(row.querySelector('.valor-total').value) || 0;
+        
+        if (produtoNome && quantidade > 0 && valorUnitario > 0) {
+            itens.push({
+                produto_nome: produtoNome,
+                produto_descricao: produtoDescricao,
+                produto_codigo: produtoCodigo,
+                quantidade: quantidade,
+                valor_unitario: valorUnitario,
+                valor_total: valorTotal
+            });
+        }
+    });
+    
+    return itens;
+}
+
+// Funções de moeda
+function updateCotacaoField() {
+    const moeda = document.getElementById('moeda').value;
+    const cotacaoInput = document.getElementById('cotacaoMoeda');
+    const cotacaoLabel = document.querySelector('#cotacaoMoeda + .input-group-text');
+    
+    if (moeda === 'BRL') {
+        cotacaoInput.value = '1.0000';
+        cotacaoInput.disabled = true;
+        cotacaoLabel.textContent = 'BRL';
+    } else {
+        cotacaoInput.disabled = false;
+        cotacaoLabel.textContent = 'BRL';
+        if (moeda === 'USD') {
+            cotacaoInput.placeholder = 'Ex: 5.20';
+        } else if (moeda === 'CNY') {
+            cotacaoInput.placeholder = 'Ex: 0.72';
+        }
+    }
+    
+    updateValores();
+}
+
+function getMoedaSymbol(moeda) {
+    const symbols = {
+        'BRL': 'R$',
+        'USD': 'US$',
+        'CNY': '¥'
+    };
+    return symbols[moeda] || 'R$';
+}
+
+function getMoedaName(moeda) {
+    const names = {
+        'BRL': 'Real',
+        'USD': 'Dólar',
+        'CNY': 'Yuan'
+    };
+    return names[moeda] || 'Real';
+}
+
+// Utilitários
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('pt-BR');
+}
+
+function formatCurrency(value, moeda = 'BRL') {
+    const symbol = getMoedaSymbol(moeda);
+    return symbol + ' ' + parseFloat(value || 0).toFixed(2).replace('.', ',');
+}
+
+// Fechar dropdown ao clicar fora
+document.addEventListener('click', function(event) {
+    const fornecedorContainer = document.querySelector('#fornecedorSearch').closest('.position-relative');
+    if (!fornecedorContainer.contains(event.target)) {
+        document.getElementById('fornecedorDropdown').style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

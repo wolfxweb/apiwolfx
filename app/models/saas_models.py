@@ -1,7 +1,7 @@
 """
 Modelos SaaS Multi-tenant para API Mercado Livre
 """
-from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Enum, JSON, Index, Numeric, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, JSON, Index, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base
@@ -73,6 +73,7 @@ class Company(Base):
     financial_transactions = relationship("FinancialTransaction", back_populates="company", cascade="all, delete-orphan")
     financial_goals = relationship("FinancialGoal", back_populates="company", cascade="all, delete-orphan")
     fornecedores = relationship("Fornecedor", back_populates="company", cascade="all, delete-orphan")
+    ordens_compra = relationship("OrdemCompra", back_populates="company", cascade="all, delete-orphan")
     financial_alerts = relationship("FinancialAlert", back_populates="company", cascade="all, delete-orphan")
 
 class SuperAdmin(Base):
@@ -970,10 +971,92 @@ class Fornecedor(Base):
     # Relacionamentos
     company = relationship("Company", back_populates="fornecedores")
     accounts_payable = relationship("AccountPayable", back_populates="fornecedor")
+    ordens_compra = relationship("OrdemCompra", back_populates="fornecedor")
     
     # Índices
     __table_args__ = (
         Index('ix_fornecedores_company_ativo', 'company_id', 'ativo'),
         Index('ix_fornecedores_cnpj', 'cnpj'),
+    )
+
+class OrdemCompra(Base):
+    """Tabela de Ordens de Compra"""
+    __tablename__ = "ordem_compra"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    fornecedor_id = Column(Integer, ForeignKey("fornecedores.id"), nullable=True, index=True)
+    
+    # Dados da ordem
+    numero_ordem = Column(String(50), nullable=False, index=True)
+    data_ordem = Column(Date, nullable=False)
+    data_entrega_prevista = Column(Date)
+    data_entrega_real = Column(Date)
+    
+    # Status
+    status = Column(String(50), default="pendente", index=True)  # pendente, em_cotacao, aprovada, rejeitada, em_andamento, entregue, cancelada
+    
+    # Valores
+    valor_total = Column(Numeric(15, 2), default=0)
+    desconto = Column(Numeric(15, 2), default=0)
+    valor_final = Column(Numeric(15, 2), default=0)
+    
+    # Moeda
+    moeda = Column(String(10), default="BRL", nullable=False)  # BRL, USD, CNY
+    cotacao_moeda = Column(Numeric(10, 4), default=1.0)  # Taxa de câmbio para conversão
+    
+    # Observações
+    observacoes = Column(Text)
+    condicoes_pagamento = Column(String(255))
+    prazo_entrega = Column(String(100))
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company", back_populates="ordens_compra")
+    fornecedor = relationship("Fornecedor", back_populates="ordens_compra")
+    itens = relationship("OrdemCompraItem", back_populates="ordem_compra", cascade="all, delete-orphan")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ordem_compra_company_status', 'company_id', 'status'),
+        Index('ix_ordem_compra_data', 'data_ordem'),
+        Index('ix_ordem_compra_numero', 'numero_ordem'),
+    )
+
+class OrdemCompraItem(Base):
+    """Itens da Ordem de Compra"""
+    __tablename__ = "ordem_compra_item"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ordem_compra_id = Column(Integer, ForeignKey("ordem_compra.id"), nullable=False, index=True)
+    
+    # Dados do produto
+    produto_id = Column(Integer, nullable=True)  # FK para produtos internos (opcional)
+    produto_nome = Column(String(255), nullable=False)
+    produto_descricao = Column(Text)
+    produto_codigo = Column(String(100))
+    
+    # Quantidades e valores
+    quantidade = Column(Numeric(10, 3), nullable=False)
+    valor_unitario = Column(Numeric(15, 2), nullable=False)
+    valor_total = Column(Numeric(15, 2), nullable=False)
+    
+    # Observações do item
+    observacoes = Column(Text)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    ordem_compra = relationship("OrdemCompra", back_populates="itens")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ordem_compra_item_ordem', 'ordem_compra_id'),
+        Index('ix_ordem_compra_item_produto', 'produto_id'),
     )
 

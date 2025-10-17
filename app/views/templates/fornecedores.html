@@ -64,7 +64,6 @@
                 <thead class="table-dark">
                     <tr>
                         <th>Nome</th>
-                        <th>Nome Fantasia</th>
                         <th>CNPJ</th>
                         <th>Contato</th>
                         <th>Cidade/UF</th>
@@ -122,12 +121,6 @@
                             <div class="mb-3">
                                 <label for="nome" class="form-label">Nome/Razão Social *</label>
                                 <input type="text" class="form-control" id="nome" placeholder="Nome da empresa" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="nome_fantasia" class="form-label">Nome Fantasia</label>
-                                <input type="text" class="form-control" id="nome_fantasia" placeholder="Nome fantasia">
                             </div>
                         </div>
                     </div>
@@ -427,7 +420,6 @@ function renderFornecedores() {
                     ${fornecedor.nome_fantasia ? `<small class="text-muted">${fornecedor.nome_fantasia}</small>` : ''}
                 </div>
             </td>
-            <td>${fornecedor.nome_fantasia || '-'}</td>
             <td>${fornecedor.cnpj || '-'}</td>
             <td>
                 <div class="d-flex flex-column">
@@ -471,7 +463,6 @@ function applyFilters() {
     filteredFornecedores = fornecedores.filter(fornecedor => {
         const matchesSearch = !searchTerm || 
             fornecedor.nome.toLowerCase().includes(searchTerm) ||
-            (fornecedor.nome_fantasia && fornecedor.nome_fantasia.toLowerCase().includes(searchTerm)) ||
             (fornecedor.cnpj && fornecedor.cnpj.includes(searchTerm)) ||
             (fornecedor.email && fornecedor.email.toLowerCase().includes(searchTerm));
         
@@ -521,7 +512,6 @@ async function editFornecedor(id) {
             
             // Preencher formulário
             document.getElementById('nome').value = fornecedor.nome || '';
-            document.getElementById('nome_fantasia').value = fornecedor.nome_fantasia || '';
             document.getElementById('cnpj').value = fornecedor.cnpj || '';
             document.getElementById('inscricao_estadual').value = fornecedor.inscricao_estadual || '';
             document.getElementById('inscricao_municipal').value = fornecedor.inscricao_municipal || '';
@@ -558,7 +548,6 @@ async function editFornecedor(id) {
 async function saveFornecedor() {
     const formData = {
         nome: document.getElementById('nome').value,
-        nome_fantasia: document.getElementById('nome_fantasia').value,
         cnpj: document.getElementById('cnpj').value,
         inscricao_estadual: document.getElementById('inscricao_estadual').value,
         inscricao_municipal: document.getElementById('inscricao_municipal').value,
