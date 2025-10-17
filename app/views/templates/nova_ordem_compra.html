@@ -28,36 +28,35 @@
                         <div class="card mb-4">
                             <div class="card-header">
                                 <h5 class="card-title mb-0">
-                                    <i class="bi bi-info-circle text-primary"></i>
+                                    <i class="bi bi-file-text text-primary"></i>
                                     Dados Básicos
                                 </h5>
                             </div>
                             <div class="card-body">
+                                <!-- Informações da Ordem -->
                                 <div class="row">
-                                    <div class="col-md-6">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="numeroOrdem" class="form-label">Número da Ordem</label>
                                             <input type="text" class="form-control" id="numeroOrdem" placeholder="Auto-gerado se vazio" {% if is_editing %}readonly{% endif %}>
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-6">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="dataOrdem" class="form-label">Data da Ordem *</label>
                                             <input type="date" class="form-control" id="dataOrdem" required>
                                         </div>
                                     </div>
-                                </div>
-                                
-                                <div class="row">
-                                    <div class="col-md-6">
+                                    
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="dataEntregaPrevista" class="form-label">Data Entrega Prevista</label>
                                             <input type="date" class="form-control" id="dataEntregaPrevista">
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-6">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="status" class="form-label">Status</label>
                                             <select class="form-select" id="status">
@@ -72,20 +71,8 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Fornecedor -->
-                    <div class="col-12">
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">
-                                    <i class="bi bi-truck text-primary"></i>
-                                    Fornecedor
-                                </h5>
-                            </div>
-                            <div class="card-body">
+                                
+                                <!-- Fornecedor -->
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -101,38 +88,24 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-6">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="condicoesPagamento" class="form-label">Condições de Pagamento</label>
                                             <input type="text" class="form-control" id="condicoesPagamento" placeholder="Ex: 30 dias">
                                         </div>
                                     </div>
-                                </div>
-                                
-                                <div class="row">
-                                    <div class="col-md-6">
+                                    
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="prazoEntrega" class="form-label">Prazo de Entrega</label>
                                             <input type="text" class="form-control" id="prazoEntrega" placeholder="Ex: 15 dias úteis">
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Moeda -->
-                    <div class="col-12">
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">
-                                    <i class="bi bi-currency-exchange text-primary"></i>
-                                    Moeda
-                                </h5>
-                            </div>
-                            <div class="card-body">
+                                
+                                <!-- Moeda e Tipo -->
                                 <div class="row">
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="tipoOrdem" class="form-label">Tipo de Ordem</label>
                                             <select class="form-select" id="tipoOrdem" onchange="toggleCamposInternacionais()">
@@ -142,7 +115,7 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="moeda" class="form-label">Moeda</label>
                                             <select class="form-select" id="moeda" onchange="updateCotacaoField()">
@@ -153,7 +126,7 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="cotacaoMoeda" class="form-label">Cotação da Moeda</label>
                                             <div class="input-group">
@@ -164,74 +137,67 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Campos Internacionais -->
-                    <div class="col-12" id="camposInternacionais" style="display: none;">
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">
-                                    <i class="bi bi-globe text-primary"></i>
-                                    Campos para Ordens Internacionais
-                                </h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="comissaoAgente" class="form-label">Comissão Agente de Compras</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text">R$</span>
-                                                <input type="number" class="form-control" id="comissaoAgente" step="0.01" min="0" value="0.00">
+                                
+                                <!-- Campos Internacionais -->
+                                <div id="camposInternacionais" style="display: none;">
+                                    <hr class="my-4">
+                                    <h6 class="text-primary mb-3">
+                                        <i class="bi bi-globe"></i> Campos para Ordens Internacionais
+                                    </h6>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <div class="mb-3">
+                                                <label for="comissaoAgente" class="form-label">Comissão Agente de Compras</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">R$</span>
+                                                    <input type="number" class="form-control" id="comissaoAgente" step="0.01" min="0" value="0.00">
+                                                </div>
+                                                <small class="form-text text-muted">Comissão do agente de compras</small>
                                             </div>
-                                            <small class="form-text text-muted">Comissão do agente de compras</small>
+                                        </div>
+                                        
+                                        <div class="col-md-3">
+                                            <div class="mb-3">
+                                                <label for="valorTransporte" class="form-label">Valor do Transporte</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">R$</span>
+                                                    <input type="number" class="form-control" id="valorTransporte" step="0.01" min="0" value="0.00">
+                                                </div>
+                                                <small class="form-text text-muted">Custo do transporte internacional</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-md-3">
+                                            <div class="mb-3">
+                                                <label for="percentualImportacao" class="form-label">Percentual de Impostos de Importação</label>
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control" id="percentualImportacao" step="0.01" min="0" max="100" value="0.00">
+                                                    <span class="input-group-text">%</span>
+                                                </div>
+                                                <small class="form-text text-muted">Percentual de impostos sobre importação</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-md-3">
+                                            <div class="mb-3">
+                                                <label for="modalidadeImportacao" class="form-label">Modalidade de Importação</label>
+                                                <select class="form-select" id="modalidadeImportacao">
+                                                    <option value="">Selecione...</option>
+                                                    <option value="simplificada">Simplificada</option>
+                                                    <option value="formal">Formal</option>
+                                                </select>
+                                                <small class="form-text text-muted">Tipo de processo de importação</small>
+                                            </div>
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="valorTransporte" class="form-label">Valor do Transporte</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text">R$</span>
-                                                <input type="number" class="form-control" id="valorTransporte" step="0.01" min="0" value="0.00">
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div class="alert alert-info">
+                                                <i class="bi bi-info-circle"></i>
+                                                <strong>Informação:</strong> Os impostos de importação serão calculados automaticamente com base no percentual informado e no valor total dos itens.
                                             </div>
-                                            <small class="form-text text-muted">Custo do transporte internacional</small>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="percentualImportacao" class="form-label">Percentual de Impostos de Importação</label>
-                                            <div class="input-group">
-                                                <input type="number" class="form-control" id="percentualImportacao" step="0.01" min="0" max="100" value="0.00">
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                            <small class="form-text text-muted">Percentual de impostos sobre importação</small>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="modalidadeImportacao" class="form-label">Modalidade de Importação</label>
-                                            <select class="form-select" id="modalidadeImportacao">
-                                                <option value="">Selecione...</option>
-                                                <option value="simplificada">Simplificada</option>
-                                                <option value="formal">Formal</option>
-                                            </select>
-                                            <small class="form-text text-muted">Tipo de processo de importação</small>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="row">
-                                    <div class="col-md-12">
-                                        <div class="alert alert-info">
-                                            <i class="bi bi-info-circle"></i>
-                                            <strong>Informação:</strong> Os impostos de importação serão calculados automaticamente com base no percentual informado e no valor total dos itens.
                                         </div>
                                     </div>
                                 </div>
