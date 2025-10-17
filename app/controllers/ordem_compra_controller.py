@@ -162,6 +162,7 @@ class OrdemCompraController:
                     quantidade=item_data.get('quantidade', 0),
                     valor_unitario=item_data.get('valor_unitario', 0),
                     valor_total=item_data.get('valor_total', 0),
+                    url=item_data.get('url'),
                     observacoes=item_data.get('observacoes')
                 )
                 db.add(item)

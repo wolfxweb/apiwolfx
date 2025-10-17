@@ -1044,6 +1044,9 @@ class OrdemCompraItem(Base):
     valor_unitario = Column(Numeric(15, 2), nullable=False)
     valor_total = Column(Numeric(15, 2), nullable=False)
     
+    # URL do produto
+    url = Column(String(500))
+    
     # Observações do item
     observacoes = Column(Text)
     
