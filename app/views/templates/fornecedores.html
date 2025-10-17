@@ -1,0 +1,764 @@
+{% extends "base.html" %}
+
+{% block title %}Fornecedores - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-truck"></i> Fornecedores</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshFornecedores()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="showCreateFornecedorModal()">
+                <i class="bi bi-plus-circle"></i> Novo Fornecedor
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <!-- Busca -->
+            <div class="col-md-4">
+                <label for="searchInput" class="form-label">Buscar</label>
+                <input type="text" class="form-control" id="searchInput" placeholder="Nome, CNPJ, email...">
+            </div>
+            
+            <!-- Status -->
+            <div class="col-md-2">
+                <label for="statusFilter" class="form-label">Status</label>
+                <select class="form-select" id="statusFilter">
+                    <option value="">Todos</option>
+                    <option value="true">Ativos</option>
+                    <option value="false">Inativos</option>
+                </select>
+            </div>
+            
+            <!-- Ações -->
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Fornecedores -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="fornecedoresTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Nome</th>
+                        <th>Nome Fantasia</th>
+                        <th>CNPJ</th>
+                        <th>Contato</th>
+                        <th>Cidade/UF</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="fornecedoresTableBody">
+                    <!-- Dados carregados via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Footer com paginação e contadores -->
+    <div class="card-footer bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <small class="text-muted">
+                    Mostrando <span id="showing-start">1</span> a <span id="showing-end">10</span> 
+                    de <span id="showing-total">0</span> fornecedor(es)
+                </small>
+            </div>
+            <div class="col-md-6">
+                <nav>
+                    <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination">
+                        <!-- Paginação carregada via JavaScript -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Criação/Edição de Fornecedor -->
+<div class="modal fade" id="fornecedorModal" tabindex="-1" aria-labelledby="fornecedorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="fornecedorModalTitle">Novo Fornecedor</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="fornecedorForm">
+                    <!-- Dados Básicos -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary"><i class="bi bi-building"></i> Dados Básicos</h6>
+                            <hr>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="nome" class="form-label">Nome/Razão Social *</label>
+                                <input type="text" class="form-control" id="nome" placeholder="Nome da empresa" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="nome_fantasia" class="form-label">Nome Fantasia</label>
+                                <input type="text" class="form-control" id="nome_fantasia" placeholder="Nome fantasia">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="cnpj" class="form-label">CNPJ</label>
+                                <input type="text" class="form-control" id="cnpj" placeholder="00.000.000/0000-00">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="inscricao_estadual" class="form-label">Inscrição Estadual</label>
+                                <input type="text" class="form-control" id="inscricao_estadual" placeholder="IE">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="inscricao_municipal" class="form-label">Inscrição Municipal</label>
+                                <input type="text" class="form-control" id="inscricao_municipal" placeholder="IM">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contato -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary"><i class="bi bi-telephone"></i> Contato</h6>
+                            <hr>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" placeholder="email@exemplo.com">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="telefone" class="form-label">Telefone</label>
+                                <input type="text" class="form-control" id="telefone" placeholder="(11) 1234-5678">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="celular" class="form-label">Celular</label>
+                                <input type="text" class="form-control" id="celular" placeholder="(11) 99999-9999">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="site" class="form-label">Site</label>
+                                <input type="url" class="form-control" id="site" placeholder="https://www.exemplo.com">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Endereço -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary"><i class="bi bi-geo-alt"></i> Endereço</h6>
+                            <hr>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="cep" class="form-label">CEP</label>
+                                <input type="text" class="form-control" id="cep" placeholder="00000-000">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="endereco" class="form-label">Endereço</label>
+                                <input type="text" class="form-control" id="endereco" placeholder="Rua, Avenida...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="numero" class="form-label">Número</label>
+                                <input type="text" class="form-control" id="numero" placeholder="123">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="complemento" class="form-label">Complemento</label>
+                                <input type="text" class="form-control" id="complemento" placeholder="Apto, Sala...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="bairro" class="form-label">Bairro</label>
+                                <input type="text" class="form-control" id="bairro" placeholder="Bairro">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="mb-3">
+                                <label for="cidade" class="form-label">Cidade</label>
+                                <input type="text" class="form-control" id="cidade" placeholder="Cidade">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="mb-3">
+                                <label for="estado" class="form-label">UF</label>
+                                <input type="text" class="form-control" id="estado" placeholder="SP" maxlength="2">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dados Bancários -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary"><i class="bi bi-bank"></i> Dados Bancários</h6>
+                            <hr>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="banco" class="form-label">Banco</label>
+                                <input type="text" class="form-control" id="banco" placeholder="Nome do banco">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="agencia" class="form-label">Agência</label>
+                                <input type="text" class="form-control" id="agencia" placeholder="1234">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="conta" class="form-label">Conta</label>
+                                <input type="text" class="form-control" id="conta" placeholder="12345-6">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="tipo_conta" class="form-label">Tipo de Conta</label>
+                                <select class="form-select" id="tipo_conta">
+                                    <option value="">Selecione</option>
+                                    <option value="corrente">Corrente</option>
+                                    <option value="poupanca">Poupança</option>
+                                    <option value="salario">Salário</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="pix" class="form-label">PIX</label>
+                                <input type="text" class="form-control" id="pix" placeholder="Chave PIX">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Observações -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary"><i class="bi bi-chat-text"></i> Observações</h6>
+                            <hr>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="observacoes" class="form-label">Observações</label>
+                                <textarea class="form-control" id="observacoes" rows="3" placeholder="Informações adicionais sobre o fornecedor"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveFornecedor()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteFornecedorModal" tabindex="-1" aria-labelledby="deleteFornecedorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteFornecedorModalLabel">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Tem certeza que deseja excluir este fornecedor? Esta ação não pode ser desfeita.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteFornecedor()">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais
+let fornecedores = [];
+let filteredFornecedores = [];
+let currentEditId = null;
+let currentDeleteId = null;
+let currentPage = 1;
+let itemsPerPage = 10;
+
+// Carregar dados ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadFornecedores();
+});
+
+// Função para carregar fornecedores
+async function loadFornecedores() {
+    try {
+        const response = await fetch('/api/fornecedores', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            fornecedores = data.fornecedores || [];
+            filteredFornecedores = [...fornecedores];
+            renderFornecedores();
+            updatePaginationCounters(fornecedores.length);
+        } else {
+            showAlert('Erro ao carregar fornecedores', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar fornecedores', 'danger');
+    }
+}
+
+// Função para renderizar a tabela de fornecedores
+function renderFornecedores() {
+    const tbody = document.getElementById('fornecedoresTableBody');
+    tbody.innerHTML = '';
+    
+    if (filteredFornecedores.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-5">
+                    <i class="bi bi-truck display-1 text-muted"></i>
+                    <h4 class="mt-3">Nenhum fornecedor encontrado</h4>
+                    <p class="text-muted">
+                        Nenhum fornecedor foi encontrado com os filtros aplicados.
+                        <br>
+                        <button class="btn btn-primary mt-2" onclick="showCreateFornecedorModal()">
+                            <i class="bi bi-plus-circle"></i> Novo Fornecedor
+                        </button>
+                    </p>
+                </td>
+            </tr>
+        `;
+        updatePaginationCounters(0);
+        return;
+    }
+    
+    // Paginação
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, filteredFornecedores.length);
+    const fornecedoresToShow = filteredFornecedores.slice(startIndex, endIndex);
+    
+    fornecedoresToShow.forEach(fornecedor => {
+        const row = document.createElement('tr');
+        
+        // Contato
+        const contato = [];
+        if (fornecedor.email) contato.push(`<i class="bi bi-envelope"></i> ${fornecedor.email}`);
+        if (fornecedor.telefone) contato.push(`<i class="bi bi-telephone"></i> ${fornecedor.telefone}`);
+        if (fornecedor.celular) contato.push(`<i class="bi bi-phone"></i> ${fornecedor.celular}`);
+        
+        // Cidade/UF
+        const cidadeUF = [];
+        if (fornecedor.cidade) cidadeUF.push(fornecedor.cidade);
+        if (fornecedor.estado) cidadeUF.push(fornecedor.estado);
+        
+        row.innerHTML = `
+            <td>
+                <div class="d-flex flex-column">
+                    <span class="fw-bold">${fornecedor.nome}</span>
+                    ${fornecedor.nome_fantasia ? `<small class="text-muted">${fornecedor.nome_fantasia}</small>` : ''}
+                </div>
+            </td>
+            <td>${fornecedor.nome_fantasia || '-'}</td>
+            <td>${fornecedor.cnpj || '-'}</td>
+            <td>
+                <div class="d-flex flex-column">
+                    ${contato.join('<br>') || '-'}
+                </div>
+            </td>
+            <td>${cidadeUF.join('/') || '-'}</td>
+            <td>
+                <span class="badge ${fornecedor.ativo ? 'bg-success' : 'bg-secondary'}">
+                    ${fornecedor.ativo ? 'Ativo' : 'Inativo'}
+                </span>
+            </td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="editFornecedor(${fornecedor.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn ${fornecedor.ativo ? 'btn-outline-warning' : 'btn-outline-success'}" 
+                            onclick="toggleFornecedorStatus(${fornecedor.id})" 
+                            title="${fornecedor.ativo ? 'Desativar' : 'Ativar'}">
+                        <i class="bi bi-${fornecedor.ativo ? 'pause' : 'play'}"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteFornecedor(${fornecedor.id})" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    updatePaginationCounters(filteredFornecedores.length);
+    renderPagination(filteredFornecedores.length);
+}
+
+// Função para aplicar filtros
+function applyFilters() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    filteredFornecedores = fornecedores.filter(fornecedor => {
+        const matchesSearch = !searchTerm || 
+            fornecedor.nome.toLowerCase().includes(searchTerm) ||
+            (fornecedor.nome_fantasia && fornecedor.nome_fantasia.toLowerCase().includes(searchTerm)) ||
+            (fornecedor.cnpj && fornecedor.cnpj.includes(searchTerm)) ||
+            (fornecedor.email && fornecedor.email.toLowerCase().includes(searchTerm));
+        
+        const matchesStatus = !statusFilter || fornecedor.ativo.toString() === statusFilter;
+        
+        return matchesSearch && matchesStatus;
+    });
+    
+    currentPage = 1;
+    renderFornecedores();
+    updatePaginationCounters(filteredFornecedores.length);
+}
+
+// Função para limpar filtros
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('statusFilter').value = '';
+    
+    filteredFornecedores = [...fornecedores];
+    currentPage = 1;
+    renderFornecedores();
+    updatePaginationCounters(fornecedores.length);
+}
+
+// Função para mostrar modal de criação
+function showCreateFornecedorModal() {
+    currentEditId = null;
+    document.getElementById('fornecedorModalTitle').textContent = 'Novo Fornecedor';
+    document.getElementById('fornecedorForm').reset();
+    
+    const modal = new bootstrap.Modal(document.getElementById('fornecedorModal'));
+    modal.show();
+}
+
+// Função para editar fornecedor
+async function editFornecedor(id) {
+    try {
+        const response = await fetch(`/api/fornecedores/${id}`, {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const fornecedor = data.fornecedor;
+            
+            currentEditId = id;
+            document.getElementById('fornecedorModalTitle').textContent = 'Editar Fornecedor';
+            
+            // Preencher formulário
+            document.getElementById('nome').value = fornecedor.nome || '';
+            document.getElementById('nome_fantasia').value = fornecedor.nome_fantasia || '';
+            document.getElementById('cnpj').value = fornecedor.cnpj || '';
+            document.getElementById('inscricao_estadual').value = fornecedor.inscricao_estadual || '';
+            document.getElementById('inscricao_municipal').value = fornecedor.inscricao_municipal || '';
+            document.getElementById('email').value = fornecedor.email || '';
+            document.getElementById('telefone').value = fornecedor.telefone || '';
+            document.getElementById('celular').value = fornecedor.celular || '';
+            document.getElementById('site').value = fornecedor.site || '';
+            document.getElementById('cep').value = fornecedor.cep || '';
+            document.getElementById('endereco').value = fornecedor.endereco || '';
+            document.getElementById('numero').value = fornecedor.numero || '';
+            document.getElementById('complemento').value = fornecedor.complemento || '';
+            document.getElementById('bairro').value = fornecedor.bairro || '';
+            document.getElementById('cidade').value = fornecedor.cidade || '';
+            document.getElementById('estado').value = fornecedor.estado || '';
+            document.getElementById('banco').value = fornecedor.banco || '';
+            document.getElementById('agencia').value = fornecedor.agencia || '';
+            document.getElementById('conta').value = fornecedor.conta || '';
+            document.getElementById('tipo_conta').value = fornecedor.tipo_conta || '';
+            document.getElementById('pix').value = fornecedor.pix || '';
+            document.getElementById('observacoes').value = fornecedor.observacoes || '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('fornecedorModal'));
+            modal.show();
+        } else {
+            showAlert('Erro ao carregar dados do fornecedor', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar dados do fornecedor', 'danger');
+    }
+}
+
+// Função para salvar fornecedor
+async function saveFornecedor() {
+    const formData = {
+        nome: document.getElementById('nome').value,
+        nome_fantasia: document.getElementById('nome_fantasia').value,
+        cnpj: document.getElementById('cnpj').value,
+        inscricao_estadual: document.getElementById('inscricao_estadual').value,
+        inscricao_municipal: document.getElementById('inscricao_municipal').value,
+        email: document.getElementById('email').value,
+        telefone: document.getElementById('telefone').value,
+        celular: document.getElementById('celular').value,
+        site: document.getElementById('site').value,
+        cep: document.getElementById('cep').value,
+        endereco: document.getElementById('endereco').value,
+        numero: document.getElementById('numero').value,
+        complemento: document.getElementById('complemento').value,
+        bairro: document.getElementById('bairro').value,
+        cidade: document.getElementById('cidade').value,
+        estado: document.getElementById('estado').value,
+        banco: document.getElementById('banco').value,
+        agencia: document.getElementById('agencia').value,
+        conta: document.getElementById('conta').value,
+        tipo_conta: document.getElementById('tipo_conta').value,
+        pix: document.getElementById('pix').value,
+        observacoes: document.getElementById('observacoes').value
+    };
+    
+    try {
+        const url = currentEditId ? `/api/fornecedores/${currentEditId}` : '/api/fornecedores';
+        const method = currentEditId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showAlert(data.message, 'success');
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('fornecedorModal'));
+            modal.hide();
+            
+            // Recarregar dados
+            loadFornecedores();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao salvar fornecedor', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao salvar fornecedor', 'danger');
+    }
+}
+
+// Função para alternar status do fornecedor
+async function toggleFornecedorStatus(id) {
+    try {
+        const response = await fetch(`/api/fornecedores/${id}/toggle-status`, {
+            method: 'PATCH',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showAlert(data.message, 'success');
+            loadFornecedores();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao alterar status', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao alterar status', 'danger');
+    }
+}
+
+// Função para deletar fornecedor
+function deleteFornecedor(id) {
+    currentDeleteId = id;
+    const modal = new bootstrap.Modal(document.getElementById('deleteFornecedorModal'));
+    modal.show();
+}
+
+// Função para confirmar exclusão
+async function confirmDeleteFornecedor() {
+    if (!currentDeleteId) return;
+    
+    try {
+        const response = await fetch(`/api/fornecedores/${currentDeleteId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showAlert(data.message, 'success');
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteFornecedorModal'));
+            modal.hide();
+            
+            // Recarregar dados
+            loadFornecedores();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao excluir fornecedor', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao excluir fornecedor', 'danger');
+    }
+}
+
+// Função para atualizar fornecedores
+function refreshFornecedores() {
+    loadFornecedores();
+}
+
+// Função para atualizar contadores de paginação
+function updatePaginationCounters(total) {
+    const start = Math.min((currentPage - 1) * itemsPerPage + 1, total);
+    const end = Math.min(currentPage * itemsPerPage, total);
+    
+    document.getElementById('showing-start').textContent = start;
+    document.getElementById('showing-end').textContent = end;
+    document.getElementById('showing-total').textContent = total;
+}
+
+// Função para renderizar paginação
+function renderPagination(total) {
+    const totalPages = Math.ceil(total / itemsPerPage);
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = '';
+    
+    if (totalPages <= 1) return;
+    
+    // Botão anterior
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Anterior</a>`;
+    pagination.appendChild(prevLi);
+    
+    // Páginas
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i})">${i}</a>`;
+        pagination.appendChild(li);
+    }
+    
+    // Botão próximo
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Próximo</a>`;
+    pagination.appendChild(nextLi);
+}
+
+// Função para mudar página
+function changePage(page) {
+    const totalPages = Math.ceil(filteredFornecedores.length / itemsPerPage);
+    if (page < 1 || page > totalPages) return;
+    
+    currentPage = page;
+    renderFornecedores();
+}
+
+// Função para mostrar alertas
+function showAlert(message, type) {
+    // Usar a função do custom.js se disponível
+    if (window.MLAPI && window.MLAPI.showNotification) {
+        window.MLAPI.showNotification(message, type);
+    } else {
+        // Fallback simples
+        const alertClass = type === 'success' ? 'alert-success' : 
+                          type === 'error' ? 'alert-danger' : 
+                          type === 'warning' ? 'alert-warning' : 'alert-info';
+        
+        const notification = document.createElement('div');
+        notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '9999';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Remover automaticamente após 5 segundos
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+}
+</script>
+{% endblock %}

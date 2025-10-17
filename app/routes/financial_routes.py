@@ -1934,7 +1934,7 @@ async def get_dashboard_data(
     top_categories.sort(key=lambda x: x['amount'], reverse=True)
     top_categories = top_categories[:5]
     
-    # 4. Contas a receber recentes (próximas 5)
+    # 4. Contas a receber recentes (próximas 5) - incluindo pedidos ML
     recent_receivables = db.query(AccountReceivable).filter(
         AccountReceivable.company_id == company_id,
         AccountReceivable.status == 'pending'
@@ -1949,6 +1949,66 @@ async def get_dashboard_data(
         }
         for rec in recent_receivables
     ]
+    
+    # Adicionar pedidos ML pendentes se estiver ativado
+    if company and company.ml_orders_as_receivables:
+        ml_orders_pending = db.query(MLOrder).filter(
+            MLOrder.company_id == company_id,
+            MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+            MLOrder.date_closed.isnot(None)
+        ).order_by(MLOrder.date_closed.desc()).limit(5).all()
+        
+        for order in ml_orders_pending:
+            # Calcular data de recebimento baseada no método de pagamento
+            payment_date = calculate_ml_payment_date(order)
+            
+            # Calcular valor líquido (total - taxas)
+            net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+            
+            # Definir status baseado no status do pedido ML e shipping
+            is_delivered = (
+                order.status == OrderStatus.DELIVERED or 
+                (order.shipping_status and order.shipping_status.lower() == "delivered")
+            )
+            
+            # Se foi entregue, verificar se já passou 7 dias
+            if is_delivered:
+                delivery_date = None
+                if order.shipping_details and isinstance(order.shipping_details, dict):
+                    status_history = order.shipping_details.get('status_history', {})
+                    if status_history and 'date_delivered' in status_history:
+                        try:
+                            delivery_date_str = status_history['date_delivered']
+                            delivery_date = datetime.fromisoformat(delivery_date_str.replace('Z', '+00:00'))
+                        except:
+                            pass
+                
+                if delivery_date:
+                    days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
+                    if days_since_delivery < 7:
+                        is_delivered = False
+            
+            ml_status = "received" if is_delivered else "pending"
+            
+            # Se foi recebido, usar data de entrega + 7 dias, senão data de pagamento prevista
+            if is_delivered and delivery_date:
+                actual_payment_date = delivery_date + timedelta(days=7)
+                due_date = actual_payment_date.isoformat()
+            else:
+                due_date = payment_date.isoformat() if payment_date else None
+            
+            # Só adicionar se ainda estiver pendente
+            if ml_status == "pending":
+                recent_receivables_data.append({
+                    "customer_name": order.buyer_nickname or order.buyer_first_name or "Cliente ML",
+                    "amount": net_amount,
+                    "due_date": due_date,
+                    "status": ml_status
+                })
+        
+        # Ordenar por data de vencimento e pegar apenas os 5 mais próximos
+        recent_receivables_data.sort(key=lambda x: x['due_date'] or '9999-12-31')
+        recent_receivables_data = recent_receivables_data[:5]
     
     # 5. Contas a pagar recentes (próximas 5)
     recent_payables = db.query(AccountPayable).filter(

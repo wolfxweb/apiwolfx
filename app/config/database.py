@@ -2,9 +2,10 @@
 Configuração do banco de dados
 """
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.sql import func
 
 # URL do banco de dados
 DATABASE_URL = os.getenv(
@@ -34,3 +35,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

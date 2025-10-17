@@ -72,6 +72,7 @@ class Company(Base):
     accounts_payable = relationship("AccountPayable", back_populates="company", cascade="all, delete-orphan")
     financial_transactions = relationship("FinancialTransaction", back_populates="company", cascade="all, delete-orphan")
     financial_goals = relationship("FinancialGoal", back_populates="company", cascade="all, delete-orphan")
+    fornecedores = relationship("Fornecedor", back_populates="company", cascade="all, delete-orphan")
     financial_alerts = relationship("FinancialAlert", back_populates="company", cascade="all, delete-orphan")
 
 class SuperAdmin(Base):
@@ -919,5 +920,59 @@ class MLCatalogHistory(Base):
         Index('ix_catalog_history_collected_at', 'collected_at'),
         Index('ix_catalog_history_company_catalog', 'company_id', 'catalog_product_id'),
         Index('ix_catalog_history_company_collected', 'company_id', 'collected_at'),
+    )
+
+class Fornecedor(Base):
+    """Tabela de Fornecedores"""
+    __tablename__ = "fornecedores"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    
+    # Dados básicos
+    nome = Column(String(255), nullable=False)
+    nome_fantasia = Column(String(255))
+    cnpj = Column(String(18), unique=True, index=True)
+    inscricao_estadual = Column(String(50))
+    inscricao_municipal = Column(String(50))
+    
+    # Contato
+    email = Column(String(255))
+    telefone = Column(String(20))
+    celular = Column(String(20))
+    site = Column(String(255))
+    
+    # Endereço
+    cep = Column(String(10))
+    endereco = Column(String(255))
+    numero = Column(String(20))
+    complemento = Column(String(100))
+    bairro = Column(String(100))
+    cidade = Column(String(100))
+    estado = Column(String(2))
+    pais = Column(String(50), default="Brasil")
+    
+    # Dados bancários
+    banco = Column(String(100))
+    agencia = Column(String(20))
+    conta = Column(String(20))
+    tipo_conta = Column(String(20))  # corrente, poupança, etc.
+    pix = Column(String(255))
+    
+    # Observações
+    observacoes = Column(Text)
+    ativo = Column(Boolean, default=True, index=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company", back_populates="fornecedores")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_fornecedores_company_ativo', 'company_id', 'ativo'),
+        Index('ix_fornecedores_cnpj', 'cnpj'),
     )
 
