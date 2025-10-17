@@ -1843,65 +1843,51 @@ async def get_dashboard_data(
     
     current_balance = sum(float(acc.current_balance) for acc in bank_accounts)
     
-    # 2. Dados históricos baseados no período
+    # 2. Dados históricos - sempre mostrar últimos 6 meses
     monthly_data = []
     
-    # Se for período personalizado ou ano, mostrar dados mensais
-    if period in ["custom", "this_year", "last_year"] or (period == "last_6_months"):
-        # Para períodos longos, mostrar dados mensais
-        if period == "this_year":
-            months_to_show = 12
-        elif period == "last_year":
-            months_to_show = 12
-        elif period == "last_6_months":
-            months_to_show = 6
-        else:
-            months_to_show = 6
-            
-        for i in range(months_to_show):
-            if period == "last_year":
-                month_date = datetime(month_start.year, month_start.month - i, 1)
-            else:
-                month_date = (month_start - timedelta(days=30*i)).replace(day=1)
-            next_month = (month_date + timedelta(days=32)).replace(day=1)
-            
-            # Receitas do mês (contas a receber + pedidos ML)
-            month_receivables = db.query(AccountReceivable).filter(
-                AccountReceivable.company_id == company_id,
-                AccountReceivable.status.in_(['paid', 'received']),
-                AccountReceivable.paid_date >= month_date,
-                AccountReceivable.paid_date < next_month
-            ).all()
+    # Sempre mostrar dados dos últimos 6 meses para o gráfico
+    for i in range(6):
+        month_date = (today - timedelta(days=30*i)).replace(day=1)
+        next_month = (month_date + timedelta(days=32)).replace(day=1)
         
-            month_revenue = sum(float(rec.paid_amount or rec.amount) for rec in month_receivables)
-            
-            # Adicionar pedidos ML do mês
-            if company and company.ml_orders_as_receivables:
-                month_ml_orders = db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
-                    MLOrder.date_closed >= month_date,
-                    MLOrder.date_closed < next_month
-                ).all()
-                
-                for order in month_ml_orders:
-                    net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
-                    month_revenue += net_amount
+        # Receitas do mês (contas a receber + pedidos ML)
+        month_receivables = db.query(AccountReceivable).filter(
+            AccountReceivable.company_id == company_id,
+            AccountReceivable.status.in_(['paid', 'received']),
+            AccountReceivable.paid_date >= month_date,
+            AccountReceivable.paid_date < next_month
+        ).all()
         
-            # Despesas do mês
-            month_payables = db.query(AccountPayable).filter(
-                AccountPayable.company_id == company_id,
-                AccountPayable.status == 'paid',
-                AccountPayable.paid_date >= month_date,
-                AccountPayable.paid_date < next_month
+        month_revenue = sum(float(rec.paid_amount or rec.amount) for rec in month_receivables)
+        
+        # Adicionar pedidos ML do mês
+        if company and company.ml_orders_as_receivables:
+            month_ml_orders = db.query(MLOrder).filter(
+                MLOrder.company_id == company_id,
+                MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+                MLOrder.date_closed >= month_date,
+                MLOrder.date_closed < next_month
             ).all()
             
-            month_expenses = sum(float(pay.paid_amount or pay.amount) for pay in month_payables)
-            
-            monthly_data.append({
-                "month": month_date.strftime("%m/%Y"),
-                "revenue": month_revenue,
-                "expenses": month_expenses
+            for order in month_ml_orders:
+                net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+                month_revenue += net_amount
+        
+        # Despesas do mês
+        month_payables = db.query(AccountPayable).filter(
+            AccountPayable.company_id == company_id,
+            AccountPayable.status == 'paid',
+            AccountPayable.paid_date >= month_date,
+            AccountPayable.paid_date < next_month
+        ).all()
+        
+        month_expenses = sum(float(pay.paid_amount or pay.amount) for pay in month_payables)
+        
+        monthly_data.append({
+            "month": month_date.strftime("%m/%Y"),
+            "revenue": month_revenue,
+            "expenses": month_expenses
         })
     
     monthly_data.reverse()  # Ordenar do mais antigo para o mais recente
