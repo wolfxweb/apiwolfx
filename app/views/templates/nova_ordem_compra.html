@@ -439,6 +439,22 @@ function getMoedaName(moeda) {
     return names[moeda] || 'Real';
 }
 
+// Formatação brasileira de moedas
+function formatarMoeda(valor, moeda = 'BRL') {
+    const moedaSymbol = getMoedaSymbol(moeda);
+    return `${moedaSymbol} ${valor.toLocaleString('pt-BR', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+    })}`;
+}
+
+function formatarValor(valor) {
+    return valor.toLocaleString('pt-BR', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+    });
+}
+
 // Seleção de produtos
 let selectedProducts = [];
 let allProducts = [];
@@ -597,7 +613,7 @@ function addProductToOrder(product, quantity, price) {
         <td>${product.internal_sku || 'N/A'}</td>
         <td><input type="number" class="form-control form-control-sm quantidade" step="0.001" min="0" value="${quantity}" onchange="calculateItemTotal(this)"></td>
         <td><input type="number" class="form-control form-control-sm valor-unitario" step="0.01" min="0" value="${price}" onchange="calculateItemTotal(this)"></td>
-        <td><input type="number" class="form-control form-control-sm valor-total" step="0.01" value="${total.toFixed(2)}" readonly></td>
+        <td><input type="number" class="form-control form-control-sm valor-total" step="0.01" value="${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}" readonly></td>
         <td><input type="url" class="form-control form-control-sm" placeholder="URL do produto"></td>
         <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeItem(this)"><i class="bi bi-trash"></i></button></td>
     `;
@@ -641,7 +657,11 @@ function calculateItemTotal(input) {
     const valorUnitario = parseFloat(row.querySelector('.valor-unitario').value) || 0;
     const valorTotal = quantidade * valorUnitario;
     
-    row.querySelector('.valor-total').value = valorTotal.toFixed(2);
+    // Formatar valor total no padrão brasileiro
+    row.querySelector('.valor-total').value = valorTotal.toLocaleString('pt-BR', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+    });
     updateResumo();
 }
 
@@ -650,7 +670,9 @@ function updateResumo() {
     let subtotal = 0;
     
     rows.forEach(row => {
-        const valorTotal = parseFloat(row.querySelector('.valor-total').value) || 0;
+        // Converter valor total formatado de volta para número
+        const valorTotalStr = row.querySelector('.valor-total').value.replace(/\./g, '').replace(',', '.');
+        const valorTotal = parseFloat(valorTotalStr) || 0;
         subtotal += valorTotal;
     });
     
@@ -665,13 +687,12 @@ function updateResumo() {
     const totalBRL = total * cotacao;
     
     // Atualizar exibição - valores principais na moeda selecionada
-    const moedaSymbol = getMoedaSymbol(moeda);
-    document.getElementById('subtotal').textContent = `${moedaSymbol} ${subtotal.toFixed(2).replace('.', ',')}`;
-    document.getElementById('desconto').textContent = `${moedaSymbol} ${desconto.toFixed(2).replace('.', ',')}`;
-    document.getElementById('total').textContent = `${moedaSymbol} ${total.toFixed(2).replace('.', ',')}`;
+    document.getElementById('subtotal').textContent = formatarMoeda(subtotal, moeda);
+    document.getElementById('desconto').textContent = formatarMoeda(desconto, moeda);
+    document.getElementById('total').textContent = formatarMoeda(total, moeda);
     
     // Valor convertido em reais (sempre em fonte menor)
-    document.getElementById('totalBRL').textContent = `R$ ${totalBRL.toFixed(2).replace('.', ',')}`;
+    document.getElementById('totalBRL').textContent = formatarMoeda(totalBRL, 'BRL');
 }
 
 function getItensData() {
@@ -685,7 +706,9 @@ function getItensData() {
         const produtoCodigo = cells[2].textContent.trim();
         const quantidade = parseFloat(row.querySelector('.quantidade').value) || 0;
         const valorUnitario = parseFloat(row.querySelector('.valor-unitario').value) || 0;
-        const valorTotal = parseFloat(row.querySelector('.valor-total').value) || 0;
+        // Converter valor total formatado de volta para número
+        const valorTotalStr = row.querySelector('.valor-total').value.replace(/\./g, '').replace(',', '.');
+        const valorTotal = parseFloat(valorTotalStr) || 0;
         const url = cells[6].querySelector('input') ? cells[6].querySelector('input').value : '';
         
         if (produtoNome && quantidade > 0) {
