@@ -41,6 +41,24 @@ async def ordem_compra_page(
     
     return render_template("ordem_compra.html", user=user_data)
 
+@ordem_compra_router.get("/ordem-compra/nova", response_class=HTMLResponse)
+async def nova_ordem_compra_page(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de nova ordem de compra"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    
+    return render_template("nova_ordem_compra.html", user=user_data)
+
 # Rotas API
 @ordem_compra_router.get("/api/ordem-compra")
 async def get_ordens_compra(
