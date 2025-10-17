@@ -439,17 +439,72 @@ function renderReceivables() {
     tbody.innerHTML = '';
     receivablesToShow.forEach(receivable => {
         const row = document.createElement('tr');
+        
+        // Determinar se é pedido ML
+        const isMLOrder = receivable.type === 'ml_order';
+        
+        // Criar conteúdo da coluna de valor
+        let valueContent = '';
+        if (isMLOrder) {
+            // Para pedidos ML, mostrar detalhes do valor
+            const totalAmount = receivable.total_amount || 0;
+            const totalFees = receivable.total_fees || 0;
+            const netAmount = receivable.amount || 0;
+            const feePercentage = totalAmount > 0 ? ((totalFees / totalAmount) * 100).toFixed(1) : '0.0';
+            
+            valueContent = `
+                <div class="d-flex flex-column">
+                    <span class="fw-bold text-success">R$ ${parseFloat(netAmount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                    <small class="text-muted">
+                        Total: R$ ${parseFloat(totalAmount).toLocaleString('pt-BR', {minimumFractionDigits: 2})} | 
+                        Comissão: R$ ${parseFloat(totalFees).toLocaleString('pt-BR', {minimumFractionDigits: 2})} (${feePercentage}%)
+                    </small>
+                </div>
+            `;
+        } else {
+            // Para contas normais, mostrar valor simples
+            valueContent = `<span class="fw-bold">R$ ${parseFloat(receivable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>`;
+        }
+        
+        // Criar conteúdo da coluna de ações
+        let actionsContent = '';
+        if (isMLOrder) {
+            // Para pedidos ML, mostrar link para detalhes do pedido
+            const mlOrderId = receivable.ml_order_id;
+            actionsContent = `
+                <div class="d-flex justify-content-center">
+                    <a href="/ml/orders/${mlOrderId}" target="_blank" class="badge bg-info text-decoration-none" title="Ver detalhes do pedido no Mercado Livre">
+                        <i class="bi bi-cart-check"></i> ML
+                    </a>
+                </div>
+            `;
+        } else {
+            // Para contas normais, mostrar botões de ação
+            actionsContent = `
+                <div class="btn-group btn-group-sm">
+                    <button type="button" 
+                            class="btn btn-sm ${(receivable.status === 'paid' || receivable.status === 'received') ? 'btn-warning' : 'btn-outline-success'}" 
+                            onclick="togglePaymentStatus('${receivable.id}')"
+                            title="${(receivable.status === 'paid' || receivable.status === 'received') ? 'Marcar como pendente' : 'Marcar como recebido'}"
+                            data-status="${receivable.status}">
+                        <i class="fas ${(receivable.status === 'paid' || receivable.status === 'received') ? 'fa-undo' : 'fa-check'}"></i>
+                    </button>
+                    <button class="btn btn-outline-primary" onclick="editReceivable('${receivable.id}')" title="Editar"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-outline-danger" onclick="deleteReceivable('${receivable.id}')" title="Excluir"><i class="bi bi-trash"></i></button>
+                </div>
+            `;
+        }
+        
         row.innerHTML = `
             <td>${receivable.customer_name || receivable.description || '-'}</td>
             <td>
                 <div class="d-flex flex-column">
                     <span class="fw-bold">${receivable.description}</span>
                     ${receivable.invoice_number ? `<small class="text-muted">NF: ${receivable.invoice_number}</small>` : ''}
+                    ${isMLOrder && receivable.notes ? `<small class="text-info">${receivable.notes}</small>` : ''}
                 </div>
             </td>
-            <td>
-                <span class="fw-bold">R$ ${parseFloat(receivable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-            </td>
+            <td>${valueContent}</td>
             <td>
                 <span class="${getDateClass(receivable.due_date, receivable.status)}">${formatDate(receivable.due_date)}</span>
             </td>
@@ -457,19 +512,7 @@ function renderReceivables() {
             <td>
                 ${receivable.total_installments > 1 ? `${receivable.installment_number}/${receivable.total_installments}` : '-'}
             </td>
-            <td>
-                <div class="btn-group btn-group-sm">
-                    <button type="button" 
-                            class="btn btn-sm ${(receivable.status === 'paid' || receivable.status === 'received') ? 'btn-warning' : 'btn-outline-success'}" 
-                            onclick="togglePaymentStatus(${receivable.id})"
-                            title="${(receivable.status === 'paid' || receivable.status === 'received') ? 'Marcar como pendente' : 'Marcar como recebido'}"
-                            data-status="${receivable.status}">
-                        <i class="fas ${(receivable.status === 'paid' || receivable.status === 'received') ? 'fa-undo' : 'fa-check'}"></i>
-                    </button>
-                    <button class="btn btn-outline-primary" onclick="editReceivable(${receivable.id})" title="Editar"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-outline-danger" onclick="deleteReceivable(${receivable.id})" title="Excluir"><i class="bi bi-trash"></i></button>
-                </div>
-            </td>
+            <td>${actionsContent}</td>
         `;
         tbody.appendChild(row);
     });
@@ -546,10 +589,17 @@ function showCreateReceivableModal() {
 
 // Função para editar conta a receber
 function editReceivable(id) {
+    // Verificar se é pedido ML (não permitir edição)
+    if (id.startsWith('ml_')) {
+        showAlert('Pedidos do Mercado Livre não podem ser editados', 'warning');
+        return;
+    }
+    
     const receivable = receivables.find(r => r.id === id);
     if (!receivable) return;
     
-    currentEditId = id;
+    // Extrair ID real para contas normais
+    currentEditId = id.replace('normal_', '');
     document.getElementById('receivableModalTitle').textContent = 'Editar Conta a Receber';
     
     // Preencher formulário
@@ -617,7 +667,13 @@ async function saveReceivable() {
 
 // Função para excluir conta a receber
 function deleteReceivable(id) {
-    currentDeleteId = id;
+    // Verificar se é pedido ML (não permitir exclusão)
+    if (id.startsWith('ml_')) {
+        showAlert('Pedidos do Mercado Livre não podem ser excluídos', 'warning');
+        return;
+    }
+    
+    currentDeleteId = id.replace('normal_', '');
     const modal = new bootstrap.Modal(document.getElementById('deleteReceivableModal'));
     modal.show();
 }
@@ -646,6 +702,12 @@ async function confirmDeleteReceivable() {
 
 // Função para marcar como pago
 function togglePaymentStatus(id) {
+    // Verificar se é pedido ML (não permitir alteração)
+    if (id.startsWith('ml_')) {
+        showAlert('Pedidos do Mercado Livre não podem ser alterados manualmente', 'warning');
+        return;
+    }
+    
     const receivable = receivables.find(r => r.id === id);
     
     if (receivable) {
@@ -664,7 +726,10 @@ function togglePaymentStatus(id) {
 }
 
 function markAsReceived(id) {
-    fetch(`/api/financial/receivables/${id}/mark-received`, {
+    // Extrair ID real para contas normais
+    const realId = id.replace('normal_', '');
+    
+    fetch(`/api/financial/receivables/${realId}/mark-received`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -690,7 +755,10 @@ function markAsReceived(id) {
 }
 
 function markAsPending(id) {
-    fetch(`/api/financial/receivables/${id}/mark-pending`, {
+    // Extrair ID real para contas normais
+    const realId = id.replace('normal_', '');
+    
+    fetch(`/api/financial/receivables/${realId}/mark-pending`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',

@@ -636,7 +636,7 @@ async def get_accounts_receivable(
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """API para obter contas a receber"""
+    """API para obter contas a receber (incluindo pedidos ML)"""
     if not session_token:
         raise HTTPException(status_code=401, detail="Token de sessão necessário")
     
@@ -647,37 +647,139 @@ async def get_accounts_receivable(
     user_data = result["user"]
     company_id = get_company_id_from_user(user_data)
     
-    # Buscar contas a receber no banco de dados
-    receivables = db.query(AccountReceivable).filter(
-        AccountReceivable.company_id == company_id
-    ).order_by(desc(AccountReceivable.due_date)).all()
+    # Buscar empresa para verificar se ML orders está ativado
+    from app.models.saas_models import Company, MLOrder, OrderStatus
+    from datetime import timedelta
     
-    return [
-        {
-            "id": rec.id,
-            "customer_name": rec.customer_name,  # Campo de texto livre
-            "category_id": rec.category_id,
-            "cost_center_id": rec.cost_center_id,
-            "account_id": rec.account_id,
-            "invoice_number": rec.invoice_number,
+    company = db.query(Company).filter(Company.id == company_id).first()
+    
+    # Lista para armazenar todos os receivables
+    all_receivables = []
+    
+    # 1. Buscar contas a receber normais
+    normal_receivables = db.query(AccountReceivable).filter(
+        AccountReceivable.company_id == company_id
+    ).all()
+    
+    for rec in normal_receivables:
+        all_receivables.append({
+            "id": f"normal_{rec.id}",
+            "type": "normal",
+            "customer_name": rec.customer_name,
             "description": rec.description,
             "amount": float(rec.amount),
             "due_date": rec.due_date.isoformat() if rec.due_date else None,
-            "paid_date": rec.paid_date.isoformat() if rec.paid_date else None,
-            "paid_amount": float(rec.paid_amount) if rec.paid_amount else None,
             "status": rec.status,
             "installment_number": rec.installment_number,
             "total_installments": rec.total_installments,
-            "parent_receivable_id": rec.parent_receivable_id,
-            "is_recurring": rec.is_recurring,
-            "recurring_frequency": rec.recurring_frequency,
-            "recurring_end_date": rec.recurring_end_date.isoformat() if rec.recurring_end_date else None,
+            "invoice_number": rec.invoice_number,
             "notes": rec.notes,
             "created_at": rec.created_at,
             "updated_at": rec.updated_at
-        }
-        for rec in receivables
-    ]
+        })
+    
+    # 2. Se ML orders está ativado, buscar pedidos ML finalizados
+    if company and company.ml_orders_as_receivables:
+        logger.info(f"DEBUG: Buscando pedidos ML para company_id={company_id}, ml_orders_as_receivables={company.ml_orders_as_receivables}")
+        ml_orders = db.query(MLOrder).filter(
+            MLOrder.company_id == company_id,
+            MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+            MLOrder.date_closed.isnot(None)
+        ).all()
+        logger.info(f"DEBUG: Encontrados {len(ml_orders)} pedidos ML")
+        
+        for order in ml_orders:
+            # Calcular data de recebimento baseada no método de pagamento
+            payment_date = calculate_ml_payment_date(order)
+            
+            # Calcular valor líquido (total - taxas)
+            net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+            
+            # Criar descrição detalhada
+            description = f"Mercado Livre - Pedido #{order.ml_order_id}"
+            
+            # Definir status baseado no status do pedido ML e shipping
+            # Se shipping_status = "delivered" ou status = DELIVERED = received (entregue)
+            # Mas se foi entregue há menos de 7 dias, continua como pending
+            from datetime import datetime, timedelta
+            
+            is_delivered = (
+                order.status == OrderStatus.DELIVERED or 
+                (order.shipping_status and order.shipping_status.lower() == "delivered")
+            )
+            
+            # Se foi entregue, verificar se já passou 7 dias
+            if is_delivered:
+                # Tentar extrair data de entrega do shipping_details
+                delivery_date = None
+                if order.shipping_details and isinstance(order.shipping_details, dict):
+                    status_history = order.shipping_details.get('status_history', {})
+                    if status_history and 'date_delivered' in status_history:
+                        try:
+                            delivery_date_str = status_history['date_delivered']
+                            # Converter string para datetime
+                            delivery_date = datetime.fromisoformat(delivery_date_str.replace('Z', '+00:00'))
+                        except:
+                            pass
+                
+                # Se não conseguiu extrair a data ou foi entregue há menos de 7 dias, continua pending
+                if delivery_date:
+                    days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
+                    if days_since_delivery < 7:
+                        is_delivered = False
+            
+            ml_status = "received" if is_delivered else "pending"
+            
+            # Debug log para o pedido específico
+            if order.ml_order_id == 2000009656360792:
+                logger.info(f"DEBUG Pedido {order.ml_order_id}: status={order.status}, shipping_status={order.shipping_status}, is_delivered={is_delivered}, ml_status={ml_status}")
+            
+            all_receivables.append({
+                "id": f"ml_{order.ml_order_id}",
+                "type": "ml_order",
+                "customer_name": order.buyer_nickname or order.buyer_first_name or "Cliente ML",
+                "description": description,
+                "amount": net_amount,
+                "due_date": payment_date.isoformat() if payment_date else None,
+                "status": ml_status,
+                "installment_number": None,
+                "total_installments": None,
+                "invoice_number": f"ML-{order.ml_order_id}",
+                "notes": None,
+                "created_at": order.date_created,
+                "updated_at": order.last_updated,
+                "ml_order_id": order.ml_order_id,
+                "total_amount": float(order.total_amount or 0),
+                "total_fees": float(order.total_fees or 0)
+            })
+    
+    # Ordenar por data de vencimento (mais recente primeiro)
+    all_receivables.sort(key=lambda x: x['due_date'] or '9999-12-31', reverse=True)
+    
+    return all_receivables
+
+def calculate_ml_payment_date(order):
+    """Calcula quando receberemos o pagamento do pedido ML"""
+    from datetime import timedelta
+    
+    if not order.date_closed:
+        return None
+    
+    base_date = order.date_closed
+    
+    # Verificar método de envio e pagamento
+    shipping_method = (order.shipping_method or '').lower()
+    payment_method = (order.payment_method_id or '').lower()
+    
+    if 'mercadoenvios' in shipping_method:
+        # Mercado Envios: 7 dias
+        return base_date + timedelta(days=7)
+    elif 'mercadopago' in payment_method:
+        # Mercado Pago: 1-2 dias
+        return base_date + timedelta(days=2)
+    else:
+        # Vendas normais: 14 dias
+        return base_date + timedelta(days=14)
 
 @financial_router.post("/api/financial/receivables")
 async def create_account_receivable(
