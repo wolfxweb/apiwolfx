@@ -1009,7 +1009,8 @@ class OrdemCompra(Base):
     tipo_ordem = Column(String(20), default="nacional")  # nacional, internacional
     
     # Campos para ordens internacionais
-    comissao_agente = Column(Numeric(15, 2), default=0)  # Comissão do agente de compras
+    comissao_agente = Column(Numeric(15, 2), default=0)  # Valor calculado da comissão do agente
+    percentual_comissao = Column(Numeric(5, 2), default=0)  # Percentual da comissão do agente
     valor_transporte = Column(Numeric(15, 2), default=0)  # Valor do transporte
     percentual_importacao = Column(Numeric(5, 2), default=0)  # Percentual de impostos de importação
     modalidade_importacao = Column(String(20))  # simplificada, formal

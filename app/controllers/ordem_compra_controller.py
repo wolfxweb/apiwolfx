@@ -57,6 +57,7 @@ class OrdemCompraController:
                     "cotacao_moeda": float(ordem.cotacao_moeda or 1.0),
                     "tipo_ordem": ordem.tipo_ordem,
                     "comissao_agente": float(ordem.comissao_agente or 0),
+                    "percentual_comissao": float(ordem.percentual_comissao or 0),
                     "valor_transporte": float(ordem.valor_transporte or 0),
                     "percentual_importacao": float(ordem.percentual_importacao or 0),
                     "modalidade_importacao": ordem.modalidade_importacao,
@@ -154,11 +155,14 @@ class OrdemCompraController:
             desconto = float(ordem_data.get('desconto', 0))
             valor_final = valor_total - desconto
             
-            # Calcular impostos para ordens internacionais
+            # Calcular impostos e comissão para ordens internacionais
             valor_impostos = 0
+            valor_comissao = 0
             if ordem_data.get('tipo_ordem') == 'internacional':
                 percentual_importacao = float(ordem_data.get('percentual_importacao', 0))
+                percentual_comissao = float(ordem_data.get('comissao_agente', 0))
                 valor_impostos = valor_total * (percentual_importacao / 100)
+                valor_comissao = valor_total * (percentual_comissao / 100)
             
             ordem = OrdemCompra(
                 company_id=company_id,
@@ -173,7 +177,8 @@ class OrdemCompraController:
                 moeda=ordem_data.get('moeda', 'BRL'),
                 cotacao_moeda=float(ordem_data.get('cotacao_moeda', 1.0)),
                 tipo_ordem=ordem_data.get('tipo_ordem', 'nacional'),
-                comissao_agente=float(ordem_data.get('comissao_agente', 0)),
+                comissao_agente=valor_comissao,
+                percentual_comissao=float(ordem_data.get('comissao_agente', 0)),
                 valor_transporte=float(ordem_data.get('valor_transporte', 0)),
                 percentual_importacao=float(ordem_data.get('percentual_importacao', 0)),
                 modalidade_importacao=ordem_data.get('modalidade_importacao'),
