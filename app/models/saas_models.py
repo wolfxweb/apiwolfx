@@ -1038,6 +1038,8 @@ class OrdemCompraItem(Base):
     produto_nome = Column(String(255), nullable=False)
     produto_descricao = Column(Text)
     produto_codigo = Column(String(100))
+    produto_imagem = Column(String(500))  # URL da imagem do produto
+    descricao_fornecedor = Column(Text)  # Descrição específica do fornecedor
     
     # Quantidades e valores
     quantidade = Column(Numeric(10, 3), nullable=False)

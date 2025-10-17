@@ -115,6 +115,8 @@ async def editar_ordem_compra_page(
                 "produto_nome": item.produto_nome,
                 "produto_descricao": item.produto_descricao,
                 "produto_codigo": item.produto_codigo,
+                "produto_imagem": item.produto_imagem,
+                "descricao_fornecedor": item.descricao_fornecedor,
                 "quantidade": float(item.quantidade),
                 "valor_unitario": float(item.valor_unitario),
                 "valor_total": float(item.valor_total),
@@ -135,6 +137,9 @@ async def editar_ordem_compra_page(
 @ordem_compra_router.get("/api/ordem-compra")
 async def get_ordens_compra(
     status: Optional[str] = None,
+    search: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -149,7 +154,7 @@ async def get_ordens_compra(
     user_data = result["user"]
     company_id = get_company_id_from_user(user_data)
     
-    ordens = ordem_compra_controller.get_ordens_compra(company_id, db, status)
+    ordens = ordem_compra_controller.get_ordens_compra(company_id, db, status, search, date_from, date_to)
     
     return {
         "success": True,

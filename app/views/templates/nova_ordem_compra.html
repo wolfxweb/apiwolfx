@@ -178,18 +178,18 @@
                             <div class="card-body">
                                 <div class="table-responsive">
                                     <table class="table table-sm" id="itensTable">
-                                        <thead>
-                                            <tr>
-                                                <th width="80">Imagem</th>
-                                                <th>Produto</th>
-                                                <th>SKU</th>
-                                                <th>Qtd</th>
-                                                <th>Valor Unit. (<span class="moeda-sigla">R$</span>)</th>
-                                                <th>Total</th>
-                                                <th>URL</th>
-                                                <th width="50"></th>
-                                            </tr>
-                                        </thead>
+                        <thead>
+                            <tr>
+                                <th width="80">Imagem</th>
+                                <th>Produto</th>
+                                <th>Descrição Item Fornecedor</th>
+                                <th>Qtd</th>
+                                <th>Valor Unit. (<span class="moeda-sigla">R$</span>)</th>
+                                <th>Total</th>
+                                <th>URL</th>
+                                <th width="50"></th>
+                            </tr>
+                        </thead>
                                         <tbody>
                                             <!-- Itens serão adicionados dinamicamente -->
                                         </tbody>
@@ -393,23 +393,28 @@ function loadItensData(itens) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>
-                <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEMyMy4zMTM3IDIwIDI2IDE3LjMxMzcgMjYgMTNDMjYgOS42ODYyOSAyMy4zMTM3IDcgMjAgN0MxNi42ODYzIDcgMTQgOS42ODYyOSAxNCAxM0MxNCAxNy4zMTM3IDE2LjY4NjMgMjAgMjAgMjBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik0yMCAyM0MyMy4zMTM3IDIzIDI2IDIwLjMxMzcgMjYgMTdDMjYgMTMuNjg2MyAyMy4zMTM3IDExIDIwIDExQzE2LjY4NjMgMTEgMTQgMTMuNjg2MyAxNCAxN0MxNCAyMC4zMTM3IDE2LjY4NjMgMjMgMjAgMjNaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo=" 
+                <img src="${item.produto_imagem || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEMyMy4zMTM3IDIwIDI2IDE3LjMxMzcgMjYgMTNDMjYgOS42ODYyOSAyMy4zMTM3IDcgMjAgN0MxNi42ODYzIDcgMTQgOS42ODYyOSAxNCAxM0MxNCAxNy4zMTM3IDE2LjY4NjMgMjAgMjAgMjBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik0yMCAyM0MyMy4zMTM3IDIzIDI2IDIwLjMxMzcgMjYgMTdDMjYgMTMuNjg2MyAyMy4zMTM3IDExIDIwIDExQzE2LjY4NjMgMTEgMTQgMTMuNjg2MyAxNCAxN0MxNCAyMC4zMTM3IDE2LjY4NjMgMjMgMjAgMjNaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='}" 
                      class="img-thumbnail" 
                      style="width: 40px; height: 40px; object-fit: cover;"
-                     alt="Sem imagem">
+                     alt="${item.produto_nome}"
+                     onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEMyMy4zMTM3IDIwIDI2IDE3LjMxMzcgMjYgMTNDMjYgOS42ODYyOSAyMy4zMTM3IDcgMjAgN0MxNi42ODYzIDcgMTQgOS42ODYyOSAxNCAxM0MxNCAxNy4zMTM3IDE2LjY4NjMgMjAgMjAgMjBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik0yMCAyM0MyMy4zMTM3IDIzIDI2IDIwLjMxMzcgMjYgMTdDMjYgMTMuNjg2MyAyMy4zMTM3IDExIDIwIDExQzE2LjY4NjMgMTEgMTQgMTMuNjg2MyAxNCAxN0MxNCAyMC4zMTM3IDE2LjY4NjMgMjMgMjAgMjNaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='">
             </td>
             <td>
                 <div class="fw-bold">${item.produto_nome}</div>
+                <small class="text-muted">SKU: ${item.produto_codigo || 'N/A'}</small>
             </td>
-            <td>${item.produto_codigo || 'N/A'}</td>
+            <td><input type="text" class="form-control form-control-sm" placeholder="Descrição do item fornecedor" value="${item.descricao_fornecedor || ''}"></td>
             <td><input type="number" class="form-control form-control-sm quantidade" step="0.001" min="0" value="${item.quantidade}" onchange="calculateItemTotal(this)"></td>
             <td><input type="number" class="form-control form-control-sm valor-unitario" step="0.01" min="0" value="${item.valor_unitario}" onchange="calculateItemTotal(this)"></td>
-            <td><input type="number" class="form-control form-control-sm valor-total" step="0.01" value="${item.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}" readonly></td>
+            <td><input type="text" class="form-control form-control-sm valor-total" value="${item.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}" data-numeric-value="${item.valor_total}" readonly></td>
             <td><input type="url" class="form-control form-control-sm" placeholder="URL do produto" value="${item.url || ''}"></td>
             <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeItem(this)"><i class="bi bi-trash"></i></button></td>
         `;
         tbody.appendChild(row);
     });
+    
+    // Atualizar resumo após carregar todos os itens
+    updateResumo();
 }
 
 // Autocomplete fornecedores
@@ -695,8 +700,9 @@ function addProductToOrder(product, quantity, price) {
         </td>
         <td>
             <div class="fw-bold">${product.name}</div>
+            <small class="text-muted">SKU: ${product.internal_sku || 'N/A'}</small>
         </td>
-        <td>${product.internal_sku || 'N/A'}</td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="Descrição do item fornecedor"></td>
         <td><input type="number" class="form-control form-control-sm quantidade" step="0.001" min="0" value="${quantity}" onchange="calculateItemTotal(this)"></td>
         <td><input type="number" class="form-control form-control-sm valor-unitario" step="0.01" min="0" value="${price}" onchange="calculateItemTotal(this)"></td>
         <td><input type="text" class="form-control form-control-sm valor-total" value="${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}" data-numeric-value="${total}" readonly></td>
@@ -716,13 +722,17 @@ function addItem() {
     const row = document.createElement('tr');
     row.innerHTML = `
         <td>
-            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEMyMy4zMTM3IDIwIDI2IDE3LjMxMzcgMjYgMTNDMjYgOS42ODYyOSAyMy4zMTM3IDcgMjAgN0MxNi42ODYzIDcgMTQgOS42ODYyOSAxNCAxM0MxNCAxNy4zMTM3IDE2LjY4NjMgMjAgMjAgMjBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik0yMCAyM0MyMy4zMTM3IDIzIDI2IDIwLjMxMzcgMjYgMTdDMjYgMTMuNjg2MyAyMy4zMTM3IDExIDIwIDExQzE2LjY4NjMgMTEgMTQgMTMuNjg2MyAxNCAxN0MxNCAyMC4zMTM3IDE2LjY4NjMgMjMgMjAgMjNaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo=" 
+            <img src="${product.main_image || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEMyMy4zMTM3IDIwIDI2IDE3LjMxMzcgMjYgMTNDMjYgOS42ODYyOSAyMy4zMTM3IDcgMjAgN0MxNi42ODYzIDcgMTQgOS42ODYyOSAxNCAxM0MxNCAxNy4zMTM3IDE2LjY4NjMgMjAgMjAgMjBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik0yMCAyM0MyMy4zMTM3IDIzIDI2IDIwLjMxMzcgMjYgMTdDMjYgMTMuNjg2MyAyMy4zMTM3IDExIDIwIDExQzE2LjY4NjMgMTEgMTQgMTMuNjg2MyAxNCAxN0MxNCAyMC4zMTM3IDE2LjY4NjMgMjMgMjAgMjNaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='}" 
                  class="img-thumbnail" 
                  style="width: 40px; height: 40px; object-fit: cover;"
-                 alt="Sem imagem">
+                 alt="${product.name}"
+                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEMyMy4zMTM3IDIwIDI2IDE3LjMxMzcgMjYgMTNDMjYgOS42ODYyOSAyMy4zMTM3IDcgMjAgN0MxNi42ODYzIDcgMTQgOS42ODYyOSAxNCAxM0MxNCAxNy4zMTM3IDE2LjY4NjMgMjAgMjAgMjBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik0yMCAyM0MyMy4zMTM3IDIzIDI2IDIwLjMxMzcgMjYgMTdDMjYgMTMuNjg2MyAyMy4zMTM3IDExIDIwIDExQzE2LjY4NjMgMTEgMTQgMTMuNjg2MyAxNCAxN0MxNCAyMC4zMTM3IDE2LjY4NjMgMjMgMjAgMjNaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='">
         </td>
-        <td><input type="text" class="form-control form-control-sm" placeholder="Nome do produto"></td>
-        <td><input type="text" class="form-control form-control-sm" placeholder="SKU"></td>
+        <td>
+            <input type="text" class="form-control form-control-sm" placeholder="Nome do produto">
+            <small class="text-muted">SKU: <input type="text" class="form-control form-control-sm mt-1" placeholder="Código do produto" style="width: 120px; display: inline-block;"></small>
+        </td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="Descrição do item fornecedor"></td>
         <td><input type="number" class="form-control form-control-sm quantidade" step="0.001" min="0" onchange="calculateItemTotal(this)"></td>
         <td><input type="number" class="form-control form-control-sm valor-unitario" step="0.01" min="0" onchange="calculateItemTotal(this)"></td>
         <td><input type="number" class="form-control form-control-sm valor-total" step="0.01" readonly></td>
@@ -755,6 +765,7 @@ function calculateItemTotal(input) {
 }
 
 function updateResumo() {
+    console.log('updateResumo chamada');
     const rows = document.querySelectorAll('#itensTable tbody tr');
     let subtotal = 0;
     
@@ -772,6 +783,8 @@ function updateResumo() {
     const moeda = document.getElementById('moeda').value;
     const cotacao = parseFloat(document.getElementById('cotacaoMoeda').value) || 1;
     
+    console.log('Moeda:', moeda, 'Cotação:', cotacao, 'Subtotal:', subtotal);
+    
     // Calcular total em reais
     const totalBRL = total * cotacao;
     
@@ -783,6 +796,12 @@ function updateResumo() {
     
     // Valor convertido em reais (sempre em fonte menor)
     document.getElementById('totalBRL').textContent = `R$ ${totalBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
+    console.log('Resumo atualizado:', {
+        subtotal: `${moedaSymbol} ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        total: `${moedaSymbol} ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        totalBRL: `R$ ${totalBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    });
 }
 
 function getItensData() {
@@ -791,21 +810,30 @@ function getItensData() {
     
     rows.forEach(row => {
         const cells = row.querySelectorAll('td');
-        const produtoNome = cells[1].querySelector('input') ? cells[1].querySelector('input').value : cells[1].textContent.trim();
-        const produtoDescricao = cells[1].querySelector('small') ? cells[1].querySelector('small').textContent.trim() : '';
-        const produtoCodigo = cells[2].textContent.trim();
+        
+        // Detectar se é produto interno (com .fw-bold) ou manual (com input)
+        const isProdutoInterno = cells[1].querySelector('.fw-bold');
+        const produtoNome = isProdutoInterno ? 
+            cells[1].querySelector('.fw-bold').textContent.trim() : 
+            cells[1].querySelector('input').value;
+        const produtoCodigo = isProdutoInterno ? 
+            cells[1].querySelector('small').textContent.replace('SKU: ', '').trim() : 
+            cells[1].querySelector('small input').value;
+        const produtoImagem = cells[0].querySelector('img').src;
+        const descricaoFornecedor = cells[2].querySelector('input').value;
         const quantidade = parseFloat(row.querySelector('.quantidade').value) || 0;
         const valorUnitario = parseFloat(row.querySelector('.valor-unitario').value) || 0;
         // Usar o valor numérico armazenado no atributo data
         const valorTotalElement = row.querySelector('.valor-total');
         const valorTotal = parseFloat(valorTotalElement.getAttribute('data-numeric-value')) || 0;
-        const url = cells[6].querySelector('input') ? cells[6].querySelector('input').value : '';
+        const url = cells[6].querySelector('input').value;
         
         if (produtoNome && quantidade > 0) {
             itens.push({
                 produto_nome: produtoNome,
-                produto_descricao: produtoDescricao,
                 produto_codigo: produtoCodigo,
+                produto_imagem: produtoImagem,
+                descricao_fornecedor: descricaoFornecedor,
                 quantidade: quantidade,
                 valor_unitario: valorUnitario,
                 valor_total: valorTotal,

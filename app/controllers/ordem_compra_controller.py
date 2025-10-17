@@ -2,6 +2,7 @@
 Controller para Ordens de Compra
 """
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.models.saas_models import OrdemCompra, OrdemCompraItem, Fornecedor
 from typing import List, Optional, Dict, Any
 import logging
@@ -15,13 +16,29 @@ class OrdemCompraController:
     def __init__(self):
         pass
     
-    def get_ordens_compra(self, company_id: int, db: Session, status: str = None) -> List[Dict[str, Any]]:
+    def get_ordens_compra(self, company_id: int, db: Session, status: str = None, search: str = None, 
+                          date_from: str = None, date_to: str = None) -> List[Dict[str, Any]]:
         """Buscar ordens de compra da empresa"""
         try:
             query = db.query(OrdemCompra).filter(OrdemCompra.company_id == company_id)
             
             if status:
                 query = query.filter(OrdemCompra.status == status)
+            
+            if search:
+                # Buscar por número da ordem ou nome do fornecedor
+                query = query.join(Fornecedor, OrdemCompra.fornecedor_id == Fornecedor.id, isouter=True).filter(
+                    or_(
+                        OrdemCompra.numero_ordem.ilike(f"%{search}%"),
+                        Fornecedor.nome.ilike(f"%{search}%")
+                    )
+                )
+            
+            if date_from:
+                query = query.filter(OrdemCompra.data_ordem >= datetime.strptime(date_from, '%Y-%m-%d').date())
+            
+            if date_to:
+                query = query.filter(OrdemCompra.data_ordem <= datetime.strptime(date_to, '%Y-%m-%d').date())
             
             ordens = query.order_by(OrdemCompra.data_ordem.desc()).all()
             
@@ -159,6 +176,8 @@ class OrdemCompraController:
                     produto_nome=item_data.get('produto_nome'),
                     produto_descricao=item_data.get('produto_descricao'),
                     produto_codigo=item_data.get('produto_codigo'),
+                    produto_imagem=item_data.get('produto_imagem'),
+                    descricao_fornecedor=item_data.get('descricao_fornecedor'),
                     quantidade=item_data.get('quantidade', 0),
                     valor_unitario=item_data.get('valor_unitario', 0),
                     valor_total=item_data.get('valor_total', 0),
@@ -210,9 +229,12 @@ class OrdemCompraController:
                             produto_nome=item_data.get('produto_nome'),
                             produto_descricao=item_data.get('produto_descricao'),
                             produto_codigo=item_data.get('produto_codigo'),
+                            produto_imagem=item_data.get('produto_imagem'),
+                            descricao_fornecedor=item_data.get('descricao_fornecedor'),
                             quantidade=item_data.get('quantidade', 0),
                             valor_unitario=item_data.get('valor_unitario', 0),
                             valor_total=item_data.get('valor_total', 0),
+                            url=item_data.get('url'),
                             observacoes=item_data.get('observacoes')
                         )
                         db.add(item)
