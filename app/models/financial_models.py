@@ -209,7 +209,7 @@ class AccountReceivable(Base):
     # Relacionamentos
     company = relationship("Company", back_populates="accounts_receivable")
     parent = relationship("AccountReceivable", remote_side=[id])
-    installments = relationship("AccountReceivable")
+    installments = relationship("AccountReceivable", overlaps="parent")
     
     __table_args__ = (
         Index('ix_accounts_receivable_company_status', 'company_id', 'status'),

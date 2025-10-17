@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Query, Cookie
+from typing import Optional
 from fastapi.responses import HTMLResponse, RedirectResponse
 from app.routes.auth_routes import auth_router
 from app.routes.product_routes import product_router
@@ -36,6 +37,48 @@ async def products_imported_page(request: Request, session_token: str = Cookie(N
     except Exception:
         # Se token expirado ou inválido, redirecionar para login
         return RedirectResponse(url="/auth/login", status_code=302)
+
+@main_router.post("/company/toggle-ml-orders-receivables")
+async def toggle_ml_orders_receivables(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Altera configuração de considerar pedidos ML como contas a receber"""
+    from app.controllers.auth_controller import AuthController
+    
+    if not session_token:
+        return {"success": False, "error": "Sessão não encontrada"}
+    
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return {"success": False, "error": "Sessão inválida"}
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    try:
+        # Buscar empresa
+        from app.models.saas_models import Company
+        company = db.query(Company).filter(Company.id == company_id).first()
+        
+        if not company:
+            return {"success": False, "error": "Empresa não encontrada"}
+        
+        # Alternar configuração
+        company.ml_orders_as_receivables = not company.ml_orders_as_receivables
+        db.commit()
+        
+        return {
+            "success": True, 
+            "message": f"Configuração alterada para: {'Ativado' if company.ml_orders_as_receivables else 'Desativado'}",
+            "ml_orders_as_receivables": company.ml_orders_as_receivables
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": f"Erro interno: {str(e)}"}
 
 @main_router.get("/internal-products", response_class=HTMLResponse)
 async def internal_products_page(request: Request, session_token: str = Cookie(None)):

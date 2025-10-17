@@ -249,6 +249,7 @@ async def profile(
                          company=company_info,
                          subscription=subscription_info)
 
+
 @auth_router.get("/plans", response_class=HTMLResponse)
 async def plans_page(
     request: Request,

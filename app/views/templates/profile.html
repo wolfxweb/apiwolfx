@@ -53,44 +53,66 @@
                             <p><strong><i class="bi bi-building"></i> Nome:</strong> {{ company.name or 'N/A' }}</p>
                             <p><strong><i class="bi bi-tag"></i> Slug:</strong> {{ company.slug or 'N/A' }}</p>
                             <p><strong><i class="bi bi-hash"></i> ID:</strong> {{ company.id or 'N/A' }}</p>
-                            <p><strong><i class="bi bi-globe"></i> Domínio:</strong> {{ company.domain or 'N/A' }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong><i class="bi bi-shield-check"></i> Status:</strong> 
-                                {% if company.status %}
-                                    {% if company.status == 'active' %}
-                                        <span class="badge bg-success">{{ company.status|title }}</span>
-                                    {% elif company.status == 'trial' %}
-                                        <span class="badge bg-warning">{{ company.status|title }}</span>
-                                    {% elif company.status == 'suspended' %}
-                                        <span class="badge bg-danger">{{ company.status|title }}</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">{{ company.status|title }}</span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="badge bg-secondary">N/A</span>
-                                {% endif %}
-                            </p>
-                            <p><strong><i class="bi bi-calendar-plus"></i> Criada em:</strong> 
-                                {% if company.created_at %}
-                                    {{ company.created_at.strftime('%d/%m/%Y %H:%M') }}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </p>
-                            {% if company.trial_ends_at %}
-                            <p><strong><i class="bi bi-clock-history"></i> Trial expira em:</strong> 
-                                <span class="badge bg-warning text-dark">
-                                    {{ company.trial_ends_at.strftime('%d/%m/%Y %H:%M') }}
-                                </span>
-                            </p>
-                            {% endif %}
-                            <p><strong><i class="bi bi-people"></i> Usuários:</strong> 
-                                <span class="badge bg-info">{{ company.total_users or 0 }} / {{ subscription.max_users or '∞' }}</span>
-                            </p>
-                            <p><strong><i class="bi bi-shop"></i> Contas ML:</strong> 
-                                <span class="badge bg-info">{{ company.total_ml_accounts or 0 }} / {{ subscription.max_ml_accounts or '∞' }}</span>
-                            </p>
+        <p><strong><i class="bi bi-globe"></i> Domínio:</strong> {{ company.domain or 'N/A' }}</p>
+    </div>
+    <div class="col-md-6">
+        <p><strong><i class="bi bi-shield-check"></i> Status:</strong>
+            {% if company.status %}
+                {% if company.status == 'active' %}
+                    <span class="badge bg-success">{{ company.status|title }}</span>
+                {% elif company.status == 'trial' %}
+                    <span class="badge bg-warning">{{ company.status|title }}</span>
+                {% elif company.status == 'suspended' %}
+                    <span class="badge bg-danger">{{ company.status|title }}</span>
+                {% else %}
+                    <span class="badge bg-secondary">{{ company.status|title }}</span>
+                {% endif %}
+            {% else %}
+                <span class="badge bg-secondary">N/A</span>
+            {% endif %}
+        </p>
+        <p><strong><i class="bi bi-calendar-plus"></i> Criada em:</strong>
+            {% if company.created_at %}
+                {% if company.created_at is string %}
+                    {{ company.created_at[:10] }}
+                {% else %}
+                    {{ company.created_at.strftime('%d/%m/%Y %H:%M') }}
+                {% endif %}
+            {% else %}
+                N/A
+            {% endif %}
+        </p>
+        {% if company.trial_ends_at %}
+        <p><strong><i class="bi bi-clock-history"></i> Trial expira em:</strong>
+            <span class="badge bg-warning text-dark">
+                {% if company.trial_ends_at is string %}
+                    {{ company.trial_ends_at[:10] }}
+                {% else %}
+                    {{ company.trial_ends_at.strftime('%d/%m/%Y %H:%M') }}
+                {% endif %}
+            </span>
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Linha separada para Pedidos ML como Contas a Receber -->
+<div class="row mt-3">
+    <div class="col-12">
+        <p><strong><i class="bi bi-cart-check"></i> Pedidos ML como Contas a Receber:</strong>
+            <div class="form-check form-switch d-inline-block ms-2">
+                <input class="form-check-input" type="checkbox" id="mlOrdersSwitch" 
+                       {% if company.ml_orders_as_receivables %}checked{% endif %}
+                       onchange="toggleMLOrdersReceivables(this)">
+                <label class="form-check-label" for="mlOrdersSwitch">
+                    {% if company.ml_orders_as_receivables %}
+                        <span class="text-success">Ativado</span>
+                    {% else %}
+                        <span class="text-muted">Desativado</span>
+                    {% endif %}
+                </label>
+            </div>
+        </p>
                         </div>
                     </div>
                     {% if company.description %}
@@ -203,6 +225,7 @@
     
 </div>
 
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     loadUserPayments();
@@ -313,6 +336,94 @@ function getStatusIcon(status) {
 
 function viewPaymentDetails(paymentId) {
     alert(`Detalhes do pagamento ${paymentId}\n\nEm desenvolvimento - será implementado em breve!`);
+}
+
+function toggleMLOrdersReceivables(switchElement) {
+    const isChecked = switchElement.checked;
+    const label = switchElement.nextElementSibling.querySelector('span');
+    
+    // Mostrar loading no switch
+    switchElement.disabled = true;
+    label.textContent = 'Alterando...';
+    
+    // Fazer a requisição
+    fetch('/api/company/toggle-ml-orders-receivables', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Atualizar o label com o novo status
+            if (data.ml_orders_as_receivables) {
+                label.textContent = 'Ativado';
+                label.className = 'text-success';
+            } else {
+                label.textContent = 'Desativado';
+                label.className = 'text-muted';
+            }
+            
+            // Mostrar notificação de sucesso
+            showNotification('Configuração alterada com sucesso!', 'success');
+        } else {
+            // Reverter o switch se houve erro
+            switchElement.checked = !isChecked;
+            label.textContent = isChecked ? 'Desativado' : 'Ativado';
+            label.className = isChecked ? 'text-muted' : 'text-success';
+            
+            // Mostrar notificação de erro
+            showNotification('Erro ao alterar configuração: ' + (data.error || 'Erro desconhecido'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        
+        // Reverter o switch se houve erro
+        switchElement.checked = !isChecked;
+        label.textContent = isChecked ? 'Desativado' : 'Ativado';
+        label.className = isChecked ? 'text-muted' : 'text-success';
+        
+        // Mostrar notificação de erro
+        showNotification('Erro de conexão. Tente novamente.', 'error');
+    })
+    .finally(() => {
+        // Reabilitar o switch
+        switchElement.disabled = false;
+    });
+}
+
+function showNotification(message, type = 'info') {
+    // Usar a função do custom.js se disponível
+    if (window.MLAPI && window.MLAPI.showNotification) {
+        window.MLAPI.showNotification(message, type);
+    } else {
+        // Fallback simples
+        const alertClass = type === 'success' ? 'alert-success' : 
+                          type === 'error' ? 'alert-danger' : 
+                          type === 'warning' ? 'alert-warning' : 'alert-info';
+        
+        const notification = document.createElement('div');
+        notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '9999';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Remover automaticamente após 5 segundos
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
 }
 </script>
 {% endblock %}
