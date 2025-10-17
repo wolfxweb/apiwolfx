@@ -11,6 +11,7 @@ from app.config.database import get_db
 from app.controllers.ordem_compra_controller import OrdemCompraController
 from app.controllers.auth_controller import AuthController
 from app.views.template_renderer import render_template
+from app.models.saas_models import OrdemCompra, OrdemCompraItem, Fornecedor
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,77 @@ async def nova_ordem_compra_page(
     user_data = result["user"]
     
     return render_template("nova_ordem_compra.html", user=user_data)
+
+@ordem_compra_router.get("/ordem-compra/editar/{ordem_id}", response_class=HTMLResponse)
+async def editar_ordem_compra_page(
+    ordem_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de edição de ordem de compra"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar dados da ordem
+    ordem = db.query(OrdemCompra).filter(
+        OrdemCompra.id == ordem_id,
+        OrdemCompra.company_id == company_id
+    ).first()
+    
+    if not ordem:
+        return RedirectResponse(url="/ordem-compra", status_code=302)
+    
+    # Buscar itens da ordem
+    itens = db.query(OrdemCompraItem).filter(
+        OrdemCompraItem.ordem_compra_id == ordem_id
+    ).all()
+    
+    # Preparar dados da ordem
+    ordem_data = {
+        "id": ordem.id,
+        "numero_ordem": ordem.numero_ordem,
+        "data_ordem": ordem.data_ordem.isoformat() if ordem.data_ordem else None,
+        "data_entrega_prevista": ordem.data_entrega_prevista.isoformat() if ordem.data_entrega_prevista else None,
+        "status": ordem.status,
+        "valor_total": float(ordem.valor_total or 0),
+        "desconto": float(ordem.desconto or 0),
+        "valor_final": float(ordem.valor_final or 0),
+        "moeda": ordem.moeda,
+        "cotacao_moeda": float(ordem.cotacao_moeda or 1.0),
+        "fornecedor_id": ordem.fornecedor_id,
+        "fornecedor_nome": ordem.fornecedor.nome if ordem.fornecedor else None,
+        "condicoes_pagamento": ordem.condicoes_pagamento,
+        "prazo_entrega": ordem.prazo_entrega,
+        "observacoes": ordem.observacoes,
+        "itens": [
+            {
+                "id": item.id,
+                "produto_nome": item.produto_nome,
+                "produto_descricao": item.produto_descricao,
+                "produto_codigo": item.produto_codigo,
+                "quantidade": float(item.quantidade),
+                "valor_unitario": float(item.valor_unitario),
+                "valor_total": float(item.valor_total),
+                "url": item.url,
+                "observacoes": item.observacoes
+            }
+            for item in itens
+        ]
+    }
+    
+    # Log para debug
+    logger.info(f"Dados da ordem carregados: {ordem_data}")
+    logger.info(f"Número de itens: {len(ordem_data['itens'])}")
+    
+    return render_template("nova_ordem_compra.html", user=user_data, ordem_data=ordem_data, is_editing=True)
 
 # Rotas API
 @ordem_compra_router.get("/api/ordem-compra")

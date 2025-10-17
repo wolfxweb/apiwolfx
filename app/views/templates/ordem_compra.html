@@ -164,9 +164,9 @@ function renderOrdens() {
                 <button class="btn btn-sm btn-outline-primary" onclick="viewOrdem(${ordem.id})">
                     <i class="bi bi-eye"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-warning" onclick="editOrdem(${ordem.id})">
+                <a href="/ordem-compra/editar/${ordem.id}" class="btn btn-sm btn-outline-warning" title="Editar">
                     <i class="bi bi-pencil"></i>
-                </button>
+                </a>
                 <button class="btn btn-sm btn-outline-danger" onclick="deleteOrdem(${ordem.id})">
                     <i class="bi bi-trash"></i>
                 </button>
@@ -209,10 +209,6 @@ function getStatusText(status) {
 }
 
 // Funções de ação
-function editOrdem(id) {
-    // Implementar edição
-    console.log('Editar ordem:', id);
-}
 
 function viewOrdem(id) {
     // Implementar visualização
