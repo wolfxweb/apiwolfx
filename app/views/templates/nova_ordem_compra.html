@@ -184,7 +184,7 @@
                                                 <th>Produto</th>
                                                 <th>SKU</th>
                                                 <th>Qtd</th>
-                                                <th>Valor Unit.</th>
+                                                <th>Valor Unit. (<span class="moeda-sigla">R$</span>)</th>
                                                 <th>Total</th>
                                                 <th>URL</th>
                                                 <th width="50"></th>
@@ -241,7 +241,6 @@
                                             <span>Total:</span>
                                             <span id="total">R$ 0,00</span>
                                         </div>
-                                        <hr>
                                         <div class="d-flex justify-content-between text-muted small">
                                             <span>Total em Reais:</span>
                                             <span id="totalBRL">R$ 0,00</span>
@@ -399,6 +398,12 @@ function updateCotacaoField() {
     const cotacaoInput = document.getElementById('cotacaoMoeda');
     const cotacaoLabel = document.querySelector('#cotacaoMoeda + .input-group-text');
     
+    // Atualizar siglas das moedas em todos os lugares
+    const moedaSymbol = getMoedaSymbol(moeda);
+    document.querySelectorAll('.moeda-sigla').forEach(element => {
+        element.textContent = moedaSymbol;
+    });
+    
     if (moeda === 'BRL') {
         cotacaoInput.value = '1.0000';
         cotacaoInput.disabled = true;
@@ -501,9 +506,9 @@ function displayProducts(products) {
                                    step="0.001" min="0" value="1" data-product-id="${product.id}">
                         </div>
                         <div class="col-6">
-                            <label class="form-label small">Valor Unit.:</label>
+                            <label class="form-label small">Valor Unit. (<span class="moeda-sigla">R$</span>):</label>
                             <input type="number" class="form-control form-control-sm product-price" 
-                                   step="0.01" min="0" value="0" data-product-id="${product.id}">
+                                   step="0.01" min="0" value="0" placeholder="0.00" data-product-id="${product.id}">
                         </div>
                     </div>
                 </div>
@@ -536,6 +541,7 @@ function searchProducts() {
 
 function addSelectedProducts() {
     const checkboxes = document.querySelectorAll('.product-checkbox:checked');
+    console.log('Checkboxes selecionados:', checkboxes.length);
     
     checkboxes.forEach(checkbox => {
         const productId = parseInt(checkbox.value);
@@ -543,13 +549,25 @@ function addSelectedProducts() {
         const quantityInput = document.querySelector(`.product-quantity[data-product-id="${productId}"]`);
         const priceInput = document.querySelector(`.product-price[data-product-id="${productId}"]`);
         
+        console.log('Produto encontrado:', product);
+        console.log('Quantidade:', quantityInput?.value);
+        console.log('Preço:', priceInput?.value);
+        
         if (product && quantityInput && priceInput) {
             const quantity = parseFloat(quantityInput.value) || 0;
             const price = parseFloat(priceInput.value) || 0;
             
-            if (quantity > 0 && price > 0) {
+            console.log('Quantidade parseada:', quantity);
+            console.log('Preço parseado:', price);
+            
+            if (quantity > 0) {
+                console.log('Adicionando produto à ordem:', product.name);
                 addProductToOrder(product, quantity, price);
+            } else {
+                console.log('Quantidade deve ser maior que 0');
             }
+        } else {
+            console.log('Produto, quantidade ou preço não encontrados');
         }
     });
     
@@ -559,9 +577,12 @@ function addSelectedProducts() {
 }
 
 function addProductToOrder(product, quantity, price) {
+    console.log('addProductToOrder chamada com:', { product: product.name, quantity, price });
     const tbody = document.querySelector('#itensTable tbody');
+    console.log('Tbody encontrado:', tbody);
     const row = document.createElement('tr');
     const total = quantity * price;
+    console.log('Total calculado:', total);
     
     row.innerHTML = `
         <td>
@@ -580,8 +601,11 @@ function addProductToOrder(product, quantity, price) {
         <td><input type="url" class="form-control form-control-sm" placeholder="URL do produto"></td>
         <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeItem(this)"><i class="bi bi-trash"></i></button></td>
     `;
+    console.log('HTML da linha criado');
     tbody.appendChild(row);
+    console.log('Linha adicionada ao tbody');
     updateResumo();
+    console.log('Resumo atualizado');
 }
 
 // Itens da ordem (manual)
@@ -640,11 +664,13 @@ function updateResumo() {
     // Calcular total em reais
     const totalBRL = total * cotacao;
     
-    // Atualizar exibição
+    // Atualizar exibição - valores principais na moeda selecionada
     const moedaSymbol = getMoedaSymbol(moeda);
     document.getElementById('subtotal').textContent = `${moedaSymbol} ${subtotal.toFixed(2).replace('.', ',')}`;
     document.getElementById('desconto').textContent = `${moedaSymbol} ${desconto.toFixed(2).replace('.', ',')}`;
     document.getElementById('total').textContent = `${moedaSymbol} ${total.toFixed(2).replace('.', ',')}`;
+    
+    // Valor convertido em reais (sempre em fonte menor)
     document.getElementById('totalBRL').textContent = `R$ ${totalBRL.toFixed(2).replace('.', ',')}`;
 }
 
@@ -662,7 +688,7 @@ function getItensData() {
         const valorTotal = parseFloat(row.querySelector('.valor-total').value) || 0;
         const url = cells[6].querySelector('input') ? cells[6].querySelector('input').value : '';
         
-        if (produtoNome && quantidade > 0 && valorUnitario > 0) {
+        if (produtoNome && quantidade > 0) {
             itens.push({
                 produto_nome: produtoNome,
                 produto_descricao: produtoDescricao,
