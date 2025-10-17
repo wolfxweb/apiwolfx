@@ -282,15 +282,10 @@
             <div class="modal-body">
                 <!-- Filtros de busca -->
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <input type="text" class="form-control" id="productSearch" placeholder="Buscar produtos..." onkeyup="searchProducts()">
+                    <div class="col-md-8">
+                        <input type="text" class="form-control" id="productSearch" placeholder="Buscar por nome ou SKU..." onkeyup="searchProducts()">
                     </div>
-                    <div class="col-md-3">
-                        <select class="form-select" id="categoryFilter" onchange="searchProducts()">
-                            <option value="">Todas as categorias</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <button class="btn btn-outline-primary w-100" onclick="searchProducts()">
                             <i class="bi bi-search"></i> Buscar
                         </button>
@@ -492,14 +487,13 @@ function displayProducts(products) {
                         </label>
                     </div>
                     <div class="text-center mb-2">
-                        <img src="${product.image_url || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik00MCA0MEM0Ni4wNzE0IDQwIDUxIDM1LjA3MTQgNTEgMjlDNTAgMjIuOTI4NiA0Ni4wNzE0IDE4IDQwIDE4QzMzLjkyODYgMTggMzAgMjIuOTI4NiAzMCAyOUMzMCAzNS4wNzE0IDMzLjkyODYgNDAgNDAgNDBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik00MCA0NkM0Ni4wNzE0IDQ2IDUxIDQxLjA3MTQgNTEgMzVDNTAgMjguOTI4NiA0Ni4wNzE0IDI0IDQwIDI0QzMzLjkyODYgMjQgMzAgMjguOTI4NiAzMCAzNUMzMCA0MS4wNzE0IDMzLjkyODYgNDYgNDAgNDZaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='}" 
+                        <img src="${product.main_image || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik00MCA0MEM0Ni4wNzE0IDQwIDUxIDM1LjA3MTQgNTEgMjlDNTAgMjIuOTI4NiA0Ni4wNzE0IDE4IDQwIDE4QzMzLjkyODYgMTggMzAgMjIuOTI4NiAzMCAyOUMzMCAzNS4wNzE0IDMzLjkyODYgNDAgNDAgNDBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik00MCA0NkM0Ni4wNzE0IDQ2IDUxIDQxLjA3MTQgNTEgMzVDNTAgMjguOTI4NiA0Ni4wNzE0IDI0IDQwIDI0QzMzLjkyODYgMjQgMzAgMjguOTI4NiAzMCAzNUMzMCA0MS4wNzE0IDMzLjkyODYgNDYgNDAgNDZaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='}" 
                              class="img-thumbnail" 
                              style="width: 80px; height: 80px; object-fit: cover;"
                              alt="${product.name}">
                     </div>
                     <h6 class="card-title">${product.name}</h6>
-                    <p class="card-text small text-muted">SKU: ${product.sku || 'N/A'}</p>
-                    <p class="card-text small">${product.description || 'Sem descrição'}</p>
+                    <p class="card-text small text-muted">SKU: ${product.internal_sku || 'N/A'}</p>
                     <div class="row g-2">
                         <div class="col-6">
                             <label class="form-label small">Quantidade:</label>
@@ -526,17 +520,14 @@ function searchProducts() {
     
     searchTimeout = setTimeout(() => {
         const searchTerm = document.getElementById('productSearch').value.toLowerCase();
-        const categoryFilter = document.getElementById('categoryFilter').value;
         
         let filteredProducts = allProducts.filter(product => {
             const matchesSearch = !searchTerm || 
                 product.name.toLowerCase().includes(searchTerm) ||
-                (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
+                (product.internal_sku && product.internal_sku.toLowerCase().includes(searchTerm)) ||
                 (product.description && product.description.toLowerCase().includes(searchTerm));
             
-            const matchesCategory = !categoryFilter || product.category === categoryFilter;
-            
-            return matchesSearch && matchesCategory;
+            return matchesSearch;
         });
         
         displayProducts(filteredProducts);
@@ -574,16 +565,15 @@ function addProductToOrder(product, quantity, price) {
     
     row.innerHTML = `
         <td>
-            <img src="${product.image_url || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEMyMy4zMTM3IDIwIDI2IDE3LjMxMzcgMjYgMTNDMjYgOS42ODYyOSAyMy4zMTM3IDcgMjAgN0MxNi42ODYzIDcgMTQgOS42ODYyOSAxNCAxM0MxNCAxNy4zMTM3IDE2LjY4NjMgMjAgMjAgMjBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik0yMCAyM0MyMy4zMTM3IDIzIDI2IDIwLjMxMzcgMjYgMTdDMjYgMTMuNjg2MyAyMy4zMTM3IDExIDIwIDExQzE2LjY4NjMgMTEgMTQgMTMuNjg2MyAxNCAxN0MxNCAyMC4zMTM3IDE2LjY4NjMgMjMgMjAgMjNaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='}" 
+            <img src="${product.main_image || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEMyMy4zMTM3IDIwIDI2IDE3LjMxMzcgMjYgMTNDMjYgOS42ODYyOSAyMy4zMTM3IDcgMjAgN0MxNi42ODYzIDcgMTQgOS42ODYyOSAxNCAxM0MxNCAxNy4zMTM3IDE2LjY4NjMgMjAgMjAgMjBaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik0yMCAyM0MyMy4zMTM3IDIzIDI2IDIwLjMxMzcgMjYgMTdDMjYgMTMuNjg2MyAyMy4zMTM3IDExIDIwIDExQzE2LjY4NjMgMTEgMTQgMTMuNjg2MyAxNCAxN0MxNCAyMC4zMTM3IDE2LjY4NjMgMjMgMjAgMjNaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='}" 
                  class="img-thumbnail" 
                  style="width: 40px; height: 40px; object-fit: cover;"
                  alt="${product.name}">
         </td>
         <td>
             <div class="fw-bold">${product.name}</div>
-            <small class="text-muted">${product.description || ''}</small>
         </td>
-        <td>${product.sku || 'N/A'}</td>
+        <td>${product.internal_sku || 'N/A'}</td>
         <td><input type="number" class="form-control form-control-sm quantidade" step="0.001" min="0" value="${quantity}" onchange="calculateItemTotal(this)"></td>
         <td><input type="number" class="form-control form-control-sm valor-unitario" step="0.01" min="0" value="${price}" onchange="calculateItemTotal(this)"></td>
         <td><input type="number" class="form-control form-control-sm valor-total" step="0.01" value="${total.toFixed(2)}" readonly></td>
