@@ -418,6 +418,9 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCategories();
     loadCostCenters();
     loadAccounts();
+    
+    // Configurar filtro automático do mês atual
+    document.getElementById('periodFilter').value = 'this_month';
 });
 
 // Função para carregar contas a receber
@@ -428,8 +431,8 @@ async function loadReceivables() {
         });
         if (response.ok) {
             receivables = await response.json();
-            filteredReceivables = [...receivables];
-            renderReceivables();
+            // Aplicar filtro automático do mês atual
+            filterReceivables();
             updateStats();
         } else {
             showAlert('Erro ao carregar contas a receber', 'danger');
@@ -605,8 +608,11 @@ function renderReceivables() {
 
 // Função para atualizar estatísticas
 function updateStats() {
+    // Usar dados filtrados em vez de todos os dados
+    const dataToUse = filteredReceivables.length > 0 ? filteredReceivables : receivables;
+    
     // Total a receber: excluir pedidos ML já recebidos e contas normais já pagas
-    const totalAmount = receivables.filter(r => {
+    const totalAmount = dataToUse.filter(r => {
         // Excluir pedidos ML com status "received"
         if (r.type === 'ml_order' && r.status === 'received') {
             return false;
@@ -619,7 +625,7 @@ function updateStats() {
     }).reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
     
     // Para pedidos ML com status "received", usar o amount. Para contas normais, usar paid_amount
-    const receivedAmount = receivables.filter(r => r.status === 'paid' || r.status === 'received').reduce((sum, r) => {
+    const receivedAmount = dataToUse.filter(r => r.status === 'paid' || r.status === 'received').reduce((sum, r) => {
         if (r.type === 'ml_order' && r.status === 'received') {
             return sum + (parseFloat(r.amount) || 0);
         } else {
@@ -627,8 +633,8 @@ function updateStats() {
         }
     }, 0);
     
-    const overdueAmount = receivables.filter(r => r.status === 'overdue').reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
-    const pendingAmount = receivables.filter(r => r.status === 'pending').reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+    const overdueAmount = dataToUse.filter(r => r.status === 'overdue').reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+    const pendingAmount = dataToUse.filter(r => r.status === 'pending').reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
     
     document.getElementById('totalAmount').textContent = 'R$ ' + totalAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
     document.getElementById('paidAmount').textContent = 'R$ ' + receivedAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2});
@@ -719,6 +725,9 @@ function filterReceivables() {
     
     // Reset para primeira página
     currentPage = 1;
+    
+    // Atualizar estatísticas com dados filtrados
+    updateStats();
     
     // Renderizar contas filtradas
     renderReceivables();
@@ -1182,5 +1191,6 @@ function showAlert(message, type) {
         }
     }, 5000);
 }
+
 </script>
 {% endblock %}

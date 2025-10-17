@@ -139,6 +139,26 @@ async def financial_receivables(
     from app.views.template_renderer import render_template
     return render_template("financial_receivables.html", user=user_data)
 
+@financial_router.get("/financial/cashflow", response_class=HTMLResponse)
+async def financial_cashflow(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de fluxo de caixa"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    logger.info(f"🔍 DEBUG - user_data: {user_data}")
+    
+    from app.views.template_renderer import render_template
+    return render_template("financial_cashflow.html", user=user_data)
+
 # =====================================================
 # ROTAS DE API
 # =====================================================
@@ -1555,3 +1575,137 @@ async def get_financial_customers(
         }
         for customer in customers
     ]
+
+@financial_router.get("/api/financial/cashflow")
+async def get_cashflow_data(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter dados do fluxo de caixa"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar empresa para verificar se ML orders está ativado
+    from app.models.saas_models import Company, MLOrder, OrderStatus
+    from datetime import timedelta, datetime
+    
+    company = db.query(Company).filter(Company.id == company_id).first()
+    
+    # Lista para armazenar todos os itens do fluxo de caixa
+    cashflow_items = []
+    
+    # 1. Buscar contas a receber (todas, incluindo pagas)
+    receivables = db.query(AccountReceivable).filter(
+        AccountReceivable.company_id == company_id
+    ).all()
+    
+    for rec in receivables:
+        # Se já foi pago/recebido, usar a data de pagamento, senão data de vencimento
+        transaction_date = rec.paid_date.isoformat() if rec.paid_date else (rec.due_date.isoformat() if rec.due_date else None)
+        
+        cashflow_items.append({
+            "id": f"rec_{rec.id}",
+            "date": transaction_date,
+            "description": f"Conta a Receber - {rec.customer_name}",
+            "type": "receivable",
+            "flow_type": "inflow",
+            "amount": float(rec.paid_amount) if rec.paid_amount else float(rec.amount),
+            "status": rec.status,
+            "customer_name": rec.customer_name,
+            "invoice_number": rec.invoice_number,
+            "is_paid": rec.status in ['paid', 'received']
+        })
+    
+    # 2. Buscar contas a pagar (todas, incluindo pagas)
+    payables = db.query(AccountPayable).filter(
+        AccountPayable.company_id == company_id
+    ).all()
+    
+    for pay in payables:
+        # Se já foi pago, usar a data de pagamento, senão data de vencimento
+        transaction_date = pay.paid_date.isoformat() if pay.paid_date else (pay.due_date.isoformat() if pay.due_date else None)
+        
+        cashflow_items.append({
+            "id": f"pay_{pay.id}",
+            "date": transaction_date,
+            "description": f"Conta a Pagar - {pay.supplier_name}",
+            "type": "payable",
+            "flow_type": "outflow",
+            "amount": float(pay.paid_amount) if pay.paid_amount else float(pay.amount),
+            "status": pay.status,
+            "supplier_name": pay.supplier_name,
+            "invoice_number": pay.invoice_number,
+            "is_paid": pay.status in ['paid']
+        })
+    
+    # 3. Se ML orders está ativado, buscar pedidos ML (todos, incluindo recebidos)
+    if company and company.ml_orders_as_receivables:
+        ml_orders = db.query(MLOrder).filter(
+            MLOrder.company_id == company_id,
+            MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+            MLOrder.date_closed.isnot(None)
+        ).all()
+        
+        for order in ml_orders:
+            # Calcular data de recebimento baseada no método de pagamento
+            payment_date = calculate_ml_payment_date(order)
+            
+            # Calcular valor líquido (total - taxas)
+            net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+            
+            # Definir status baseado no status do pedido ML e shipping
+            is_delivered = (
+                order.status == OrderStatus.DELIVERED or 
+                (order.shipping_status and order.shipping_status.lower() == "delivered")
+            )
+            
+            # Se foi entregue, verificar se já passou 7 dias
+            if is_delivered:
+                delivery_date = None
+                if order.shipping_details and isinstance(order.shipping_details, dict):
+                    status_history = order.shipping_details.get('status_history', {})
+                    if status_history and 'date_delivered' in status_history:
+                        try:
+                            delivery_date_str = status_history['date_delivered']
+                            delivery_date = datetime.fromisoformat(delivery_date_str.replace('Z', '+00:00'))
+                        except:
+                            pass
+                
+                if delivery_date:
+                    days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
+                    if days_since_delivery < 7:
+                        is_delivered = False
+            
+            ml_status = "received" if is_delivered else "pending"
+            
+            # Se foi recebido, usar data de entrega + 7 dias, senão data de pagamento prevista
+            if is_delivered and delivery_date:
+                actual_payment_date = delivery_date + timedelta(days=7)
+                transaction_date = actual_payment_date.isoformat()
+            else:
+                transaction_date = payment_date.isoformat() if payment_date else None
+            
+            cashflow_items.append({
+                "id": f"ml_{order.ml_order_id}",
+                "date": transaction_date,
+                "description": f"Mercado Livre - Pedido #{order.ml_order_id}",
+                "type": "ml_order",
+                "flow_type": "inflow",
+                "amount": net_amount,
+                "status": ml_status,
+                "ml_order_id": order.ml_order_id,
+                "buyer_name": order.buyer_nickname or order.buyer_first_name or "Cliente ML",
+                "is_paid": ml_status == "received"
+            })
+    
+    # Ordenar por data
+    cashflow_items.sort(key=lambda x: x['date'] or '9999-12-31')
+    
+    return cashflow_items
