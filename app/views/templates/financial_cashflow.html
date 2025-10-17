@@ -92,27 +92,60 @@
 
 <!-- Resumo do Fluxo de Caixa -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-white bg-success">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Entradas Previstas</h6>
-                        <h4 class="mb-0" id="expectedInflows">R$ 0,00</h4>
+                        <h6 class="card-title">
+                            Entradas Recebidas
+                            <i class="bi bi-gear-fill ms-1" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="Valor já recebido: contas a receber pagas + pedidos ML recebidos"></i>
+                        </h6>
+                        <h4 class="mb-0" id="receivedInflows">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
-                        <i class="bi bi-arrow-down-circle fs-1"></i>
+                        <i class="bi bi-check-circle fs-1"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">
+                            Entradas Pendentes
+                            <i class="bi bi-gear-fill ms-1" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="Valor a receber: contas a receber pendentes + pedidos ML pendentes"></i>
+                        </h6>
+                        <h4 class="mb-0" id="pendingInflows">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-clock fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
         <div class="card text-white bg-danger">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Saídas Previstas</h6>
+                        <h6 class="card-title">
+                            Saídas Previstas
+                            <i class="bi bi-gear-fill ms-1" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="Soma de todas as saídas: contas a pagar (pagas e pendentes)"></i>
+                        </h6>
                         <h4 class="mb-0" id="expectedOutflows">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -127,7 +160,13 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Saldo Previsto</h6>
+                        <h6 class="card-title">
+                            Saldo Previsto
+                            <i class="bi bi-gear-fill ms-1" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="Diferença entre entradas e saídas previstas (Entradas - Saídas)"></i>
+                        </h6>
                         <h4 class="mb-0" id="expectedBalance">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -142,7 +181,13 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Saldo Atual</h6>
+                        <h6 class="card-title">
+                            Saldo Atual
+                            <i class="bi bi-gear-fill ms-1" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="Saldo das contas bancárias + entradas já recebidas - saídas já pagas (valor real disponível)"></i>
+                        </h6>
                         <h4 class="mb-0" id="currentBalance">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -200,6 +245,7 @@
 // Variáveis globais
 let cashflowData = [];
 let filteredCashflowData = [];
+let totalCurrentBalance = 0;
 let currentPage = 1;
 let itemsPerPage = 10;
 
@@ -209,6 +255,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Configurar filtro automático do mês atual
     document.getElementById('periodFilter').value = 'this_month';
+    
+    // Inicializar tooltips do Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 });
 
 // Função para carregar dados do fluxo de caixa
@@ -218,7 +270,9 @@ async function loadCashflowData() {
             credentials: 'include'
         });
         if (response.ok) {
-            cashflowData = await response.json();
+            const responseData = await response.json();
+            cashflowData = responseData.cashflow_items || [];
+            totalCurrentBalance = responseData.total_current_balance || 0;
             // Aplicar filtro automático do mês atual
             filterCashflowData();
             updateCashflowStats();
@@ -332,12 +386,13 @@ function updateCashflowStats() {
     const pendingOutflows = dataToUse.filter(item => item.flow_type === 'outflow' && !item.is_paid).reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     
     // Atualizar elementos da interface
-    document.getElementById('expectedInflows').textContent = 'R$ ' + allInflows.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('receivedInflows').textContent = 'R$ ' + processedInflows.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('pendingInflows').textContent = 'R$ ' + pendingInflows.toLocaleString('pt-BR', {minimumFractionDigits: 2});
     document.getElementById('expectedOutflows').textContent = 'R$ ' + allOutflows.toLocaleString('pt-BR', {minimumFractionDigits: 2});
     document.getElementById('expectedBalance').textContent = 'R$ ' + (allInflows - allOutflows).toLocaleString('pt-BR', {minimumFractionDigits: 2});
     
-    // Saldo atual = saldo inicial + entradas processadas - saídas processadas
-    const currentBalance = 10000 + processedInflows - processedOutflows;
+    // Saldo atual = saldo das contas bancárias + entradas processadas - saídas processadas
+    const currentBalance = totalCurrentBalance + processedInflows - processedOutflows;
     document.getElementById('currentBalance').textContent = 'R$ ' + currentBalance.toLocaleString('pt-BR', {minimumFractionDigits: 2});
 }
 
@@ -371,7 +426,10 @@ function renderCashflowData() {
     
     tbody.innerHTML = '';
     
-    let runningBalance = 10000; // Saldo inicial simulado
+    // Calcular saldo inicial para a tabela (saldo bancário + entradas processadas - saídas processadas)
+    const processedInflows = filteredCashflowData.filter(item => item.flow_type === 'inflow' && item.is_paid).reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+    const processedOutflows = filteredCashflowData.filter(item => item.flow_type === 'outflow' && item.is_paid).reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+    let runningBalance = totalCurrentBalance + processedInflows - processedOutflows;
     
     dataToShow.forEach(item => {
         const row = document.createElement('tr');
@@ -392,7 +450,7 @@ function renderCashflowData() {
         
         // Adicionar indicador visual para transações já pagas/recebidas
         const isPaid = item.is_paid || false;
-        const rowClass = isPaid ? 'table-success' : '';
+        const rowClass = isPaid ? 'table-light' : '';
         const amountClass = isPaid ? 'text-muted' : (item.flow_type === 'inflow' ? 'text-success' : 'text-danger');
         
         row.className = rowClass;

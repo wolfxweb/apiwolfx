@@ -1708,4 +1708,15 @@ async def get_cashflow_data(
     # Ordenar por data
     cashflow_items.sort(key=lambda x: x['date'] or '9999-12-31')
     
-    return cashflow_items
+    # Calcular saldo atual real das contas bancárias
+    bank_accounts = db.query(FinancialAccount).filter(
+        FinancialAccount.company_id == company_id,
+        FinancialAccount.is_active == True
+    ).all()
+    
+    total_current_balance = sum(float(acc.current_balance) for acc in bank_accounts)
+    
+    return {
+        "cashflow_items": cashflow_items,
+        "total_current_balance": total_current_balance
+    }
