@@ -94,15 +94,8 @@ class FornecedoresController:
     def create_fornecedor(self, fornecedor_data: Dict[str, Any], company_id: int, db: Session) -> Dict[str, Any]:
         """Criar novo fornecedor"""
         try:
-            # Verificar se CNPJ já existe (apenas se CNPJ não estiver vazio)
+            # CNPJ duplicado permitido
             cnpj = fornecedor_data.get('cnpj', '').strip()
-            if cnpj:
-                existing = db.query(Fornecedor).filter(
-                    Fornecedor.cnpj == cnpj,
-                    Fornecedor.company_id == company_id
-                ).first()
-                if existing:
-                    return {"success": False, "error": "CNPJ já cadastrado"}
             
             # Se CNPJ estiver vazio, definir como None para evitar constraint unique
             if not cnpj:
@@ -162,16 +155,8 @@ class FornecedoresController:
             if not fornecedor:
                 return {"success": False, "error": "Fornecedor não encontrado"}
             
-            # Verificar se CNPJ já existe (se foi alterado)
+            # CNPJ duplicado permitido
             cnpj = fornecedor_data.get('cnpj', '').strip()
-            if cnpj and cnpj != fornecedor.cnpj:
-                existing = db.query(Fornecedor).filter(
-                    Fornecedor.cnpj == cnpj,
-                    Fornecedor.company_id == company_id,
-                    Fornecedor.id != fornecedor_id
-                ).first()
-                if existing:
-                    return {"success": False, "error": "CNPJ já cadastrado"}
             
             # Se CNPJ estiver vazio, definir como None para evitar constraint unique
             if not cnpj:
