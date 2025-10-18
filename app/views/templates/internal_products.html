@@ -69,36 +69,11 @@
 
 <!-- Tabela de Produtos -->
 <div class="card">
-    <div class="card-header bg-light">
-        <div class="row align-items-center">
-            <div class="col-md-4">
-                <h5 class="mb-0">
-                    <i class="bi bi-box-seam me-2"></i>
-                    Produtos Cadastrados
-                </h5>
-            </div>
-            <div class="col-md-4 text-center">
-                <div id="bulk-actions" style="display: none;">
-                    <button class="btn btn-danger btn-sm" onclick="showBulkDeleteModal()" id="bulk-delete-btn" disabled>
-                        <i class="bi bi-trash"></i> Excluir Selecionados
-                    </button>
-                </div>
-            </div>
-            <div class="col-md-4 text-end">
-                <small class="text-muted">
-                    <span id="total-products">0 produto(s)</span>
-                </small>
-            </div>
-        </div>
-    </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover" id="productsTable">
                 <thead class="table-dark">
                     <tr>
-                        <th width="50">
-                            <input type="checkbox" id="select-all-products" onchange="toggleSelectAll()">
-                        </th>
                         <th>Produto</th>
                         <th>Preço Custo</th>
                         <th>Preço Venda</th>
@@ -536,6 +511,26 @@ let itemsPerPage = 20;
 let totalProducts = 0;
 let allProducts = []; // Armazena TODOS os produtos
 
+// Mostrar spinner de carregamento
+function showLoadingSpinner() {
+    const tbody = document.getElementById('productsTableBody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="4" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <p class="mt-2 text-muted">Carregando produtos...</p>
+            </td>
+        </tr>
+    `;
+}
+
+// Esconder spinner de carregamento
+function hideLoadingSpinner() {
+    // O spinner será substituído pelos produtos quando renderProducts for chamado
+}
+
 async function loadProducts(page = 1) {
     const sessionToken = getSessionToken();
     if (!sessionToken || sessionToken === 'null') {
@@ -549,6 +544,9 @@ async function loadProducts(page = 1) {
         renderProductsPage(page);
         return;
     }
+    
+    // Mostrar spinner enquanto carrega
+    showLoadingSpinner();
     
     currentPage = 1; // Sempre começa da página 1 ao carregar
     
@@ -585,6 +583,9 @@ async function loadProducts(page = 1) {
     } catch (error) {
         console.error('Erro ao carregar produtos:', error);
         showAlert('Erro ao carregar produtos', 'danger');
+    } finally {
+        // Esconder spinner
+        hideLoadingSpinner();
     }
 }
 
@@ -604,14 +605,13 @@ function renderProductsPage(page) {
 // Renderizar produtos na tabela
 function renderProducts(products, total = null) {
     const tbody = document.getElementById('productsTableBody');
-    const totalProducts = document.getElementById('total-products');
     
     console.log(`🎨 Renderizando ${products.length} produtos na tabela`);
     
     if (products.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center py-5">
+                <td colspan="4" class="text-center py-5">
                     <i class="bi bi-box display-1 text-muted"></i>
                     <h4 class="mt-3">Nenhum produto encontrado</h4>
                     <p class="text-muted">
@@ -629,15 +629,11 @@ function renderProducts(products, total = null) {
     
     // Atualizar contador com total correto
     const displayTotal = total !== null ? total : products.length;
-    totalProducts.textContent = `${displayTotal} produto(s)`;
     
     let html = '';
     products.forEach(product => {
         html += `
             <tr>
-                <td>
-                    <input type="checkbox" class="form-check-input product-checkbox" value="${product.id}" onchange="updateSelectAllCheckbox()">
-                </td>
                 <td>
                     <div class="d-flex align-items-center">
                         <div class="me-2" style="width: 40px; height: 40px;">
