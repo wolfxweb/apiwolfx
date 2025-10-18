@@ -333,12 +333,14 @@ function renderCategories() {
             <td>${category.monthly_limit ? 'R$ ' + parseFloat(category.monthly_limit).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
             <td><span class="badge ${category.is_active ? 'bg-success' : 'bg-secondary'}">${category.is_active ? 'Ativo' : 'Inativo'}</span></td>
             <td>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="editCategory(${category.id})">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${category.id}, '${category.name}')">
-                    <i class="bi bi-trash"></i>
-                </button>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editCategory(${category.id})" title="Editar categoria">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${category.id}, '${category.name}')" title="Excluir categoria">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
