@@ -555,6 +555,12 @@ function deleteAccount(id, name) {
 
 // Função para confirmar exclusão
 async function confirmDeleteAccount() {
+    // Desabilitar botão para evitar duplo clique
+    const deleteBtn = document.querySelector('#deleteAccountModal .btn-danger');
+    const originalText = deleteBtn.innerHTML;
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Excluindo...';
+    
     try {
         const response = await fetch(`/api/financial/accounts/${currentDeleteId}`, {
             method: 'DELETE',
@@ -572,6 +578,10 @@ async function confirmDeleteAccount() {
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao excluir conta bancária', 'danger');
+    } finally {
+        // Reabilitar botão
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = originalText;
     }
 }
 

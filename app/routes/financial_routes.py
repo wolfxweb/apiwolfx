@@ -17,6 +17,7 @@ from app.models.financial_models import (
     FinancialAccount, FinancialCategory, CostCenter, FinancialCustomer,
     AccountReceivable, FinancialSupplier, AccountPayable
 )
+from app.models.saas_models import Fornecedor, OrdemCompra
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -78,6 +79,77 @@ async def financial_payables(
     
     from app.views.template_renderer import render_template
     return render_template("financial_payables.html", user=user_data)
+
+@financial_router.get("/financial/payables/nova", response_class=HTMLResponse)
+async def nova_conta_pagar(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de nova conta a pagar"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    
+    from app.views.template_renderer import render_template
+    return render_template("nova_conta_pagar.html", user=user_data)
+
+@financial_router.get("/financial/payables/editar/{payable_id}", response_class=HTMLResponse)
+async def editar_conta_pagar(
+    payable_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de edição de conta a pagar"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a pagar
+    payable = db.query(AccountPayable).filter(
+        AccountPayable.id == payable_id,
+        AccountPayable.company_id == company_id
+    ).first()
+    
+    if not payable:
+        return RedirectResponse(url="/financial/payables", status_code=302)
+    
+    # Preparar dados para o template
+    payable_data = {
+        "id": payable.id,
+        "supplier_name": payable.supplier_name,
+        "fornecedor_id": payable.fornecedor_id,
+        "ordem_compra_id": payable.ordem_compra_id,
+        "invoice_number": payable.invoice_number,
+        "description": payable.description,
+        "amount": float(payable.amount),
+        "due_date": payable.due_date.isoformat() if payable.due_date else None,
+        "category_id": payable.category_id,
+        "cost_center_id": payable.cost_center_id,
+        "account_id": payable.account_id,
+        "is_fixed": payable.is_fixed,
+        "expense_type": "single",  # Default
+        "recurring_frequency": payable.recurring_frequency,
+        "recurring_end_date": payable.recurring_end_date.isoformat() if payable.recurring_end_date else None,
+        "total_installments": payable.total_installments,
+        "installment_due_date": None,  # Será calculado se necessário
+        "notes": payable.notes
+    }
+    
+    from app.views.template_renderer import render_template
+    return render_template("editar_conta_pagar.html", user=user_data, payable_data=payable_data)
 
 @financial_router.get("/financial/cost-centers", response_class=HTMLResponse)
 async def financial_cost_centers(
@@ -199,25 +271,31 @@ async def get_financial_categories(
     user_data = result["user"]
     company_id = get_company_id_from_user(user_data)
     
+    logger.info(f"🔍 DEBUG - Buscando categorias para company_id: {company_id}")
+    
     # Buscar categorias no banco de dados
     categories = db.query(FinancialCategory).filter(
         FinancialCategory.company_id == company_id
     ).order_by(FinancialCategory.name).all()
     
-    return [
-        {
-            "id": cat.id,
-            "code": cat.code,
-            "name": cat.name,
-            "type": cat.type.value if cat.type else None,
-            "monthly_limit": float(cat.monthly_limit) if cat.monthly_limit else None,
-            "description": cat.description,
-            "is_active": cat.is_active,
-            "created_at": cat.created_at,
-            "company_id": cat.company_id
-        }
-        for cat in categories
-    ]
+    logger.info(f"🔍 DEBUG - Encontradas {len(categories)} categorias")
+    
+    return {
+        "categories": [
+            {
+                "id": cat.id,
+                "code": cat.code,
+                "name": cat.name,
+                "type": cat.type.value if cat.type else None,
+                "monthly_limit": float(cat.monthly_limit) if cat.monthly_limit else None,
+                "description": cat.description,
+                "is_active": cat.is_active,
+                "created_at": cat.created_at,
+                "company_id": cat.company_id
+            }
+            for cat in categories
+        ]
+    }
 
 @financial_router.post("/api/financial/categories")
 async def create_financial_category(
@@ -278,30 +356,39 @@ async def update_financial_category(
         raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
     
     user_data = result["user"]
-    company_id = user_data.get("company_id")
+    company_id = get_company_id_from_user(user_data)
     
     # Buscar categoria existente
-    category_index = None
-    for i, cat in enumerate(mock_categories):
-        if cat["id"] == category_id:
-            category_index = i
-            break
+    category = db.query(FinancialCategory).filter(
+        FinancialCategory.id == category_id,
+        FinancialCategory.company_id == company_id
+    ).first()
     
-    if category_index is None:
+    if not category:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
     
-    # Atualizar categoria
-    mock_categories[category_index].update({
-        "code": category_data.get("code", mock_categories[category_index]["code"]),
-        "name": category_data.get("name", mock_categories[category_index]["name"]),
-        "type": category_data.get("type", mock_categories[category_index]["type"]),
-        "monthly_limit": float(category_data.get("monthly_limit", 0)) if category_data.get("monthly_limit") else None,
-        "description": category_data.get("description", mock_categories[category_index]["description"]),
-        "is_active": category_data.get("is_active", mock_categories[category_index]["is_active"]),
-        "updated_at": datetime.now()
-    })
+    # Validar dados obrigatórios
+    if not category_data.get("name"):
+        raise HTTPException(status_code=400, detail="Nome é obrigatório")
+    if not category_data.get("type"):
+        raise HTTPException(status_code=400, detail="Tipo é obrigatório")
     
-    logger.info(f"✅ Categoria atualizada: {mock_categories[category_index]['name']} (ID: {category_id})")
+    # Atualizar categoria
+    from app.models.financial_models import CategoryType
+    from datetime import datetime
+    
+    category.code = category_data.get("code", category.code)
+    category.name = category_data.get("name")
+    category.type = CategoryType(category_data.get("type"))
+    category.monthly_limit = float(category_data.get("monthly_limit", 0)) if category_data.get("monthly_limit") else None
+    category.description = category_data.get("description", category.description)
+    category.is_active = category_data.get("is_active", category.is_active)
+    category.updated_at = datetime.now()
+    
+    db.commit()
+    db.refresh(category)
+    
+    logger.info(f"✅ Categoria atualizada: {category.name} (ID: {category_id})")
     return {"message": "Categoria atualizada com sucesso"}
 
 @financial_router.delete("/api/financial/categories/{category_id}")
@@ -319,22 +406,35 @@ async def delete_financial_category(
         raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
     
     user_data = result["user"]
-    company_id = user_data.get("company_id")
+    company_id = get_company_id_from_user(user_data)
     
     # Buscar categoria existente
-    category_index = None
-    category_name = None
-    for i, cat in enumerate(mock_categories):
-        if cat["id"] == category_id:
-            category_index = i
-            category_name = cat["name"]
-            break
+    category = db.query(FinancialCategory).filter(
+        FinancialCategory.id == category_id,
+        FinancialCategory.company_id == company_id
+    ).first()
     
-    if category_index is None:
+    if not category:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
     
-    # Remover categoria
-    mock_categories.pop(category_index)
+    category_name = category.name
+    
+    # Verificar se a categoria está sendo usada em contas a pagar
+    from app.models.financial_models import AccountPayable
+    payables_using_category = db.query(AccountPayable).filter(
+        AccountPayable.category_id == category_id,
+        AccountPayable.company_id == company_id
+    ).count()
+    
+    if payables_using_category > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Não é possível excluir a categoria '{category_name}' pois ela está sendo usada em {payables_using_category} conta(s) a pagar"
+        )
+    
+    # Excluir categoria
+    db.delete(category)
+    db.commit()
     
     logger.info(f"✅ Categoria excluída: {category_name} (ID: {category_id})")
     return {"message": "Categoria excluída com sucesso"}
@@ -357,12 +457,16 @@ async def get_cost_centers(
         raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
     
     user_data = result["user"]
-    company_id = user_data.get("company_id")
+    company_id = get_company_id_from_user(user_data)
+    
+    logger.info(f"🔍 DEBUG - Buscando centros de custo para company_id: {company_id}")
     
     # Buscar centros de custo no banco de dados
     cost_centers = db.query(CostCenter).filter(
         CostCenter.company_id == company_id
     ).order_by(CostCenter.name).all()
+    
+    logger.info(f"🔍 DEBUG - Encontrados {len(cost_centers)} centros de custo")
     
     return [
         {
@@ -509,12 +613,16 @@ async def get_bank_accounts(
         raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
     
     user_data = result["user"]
-    company_id = user_data.get("company_id")
+    company_id = get_company_id_from_user(user_data)
+    
+    logger.info(f"🔍 DEBUG - Buscando contas bancárias para company_id: {company_id}")
     
     # Buscar contas bancárias no banco de dados
     accounts = db.query(FinancialAccount).filter(
         FinancialAccount.company_id == company_id
     ).order_by(FinancialAccount.bank_name, FinancialAccount.account_name).all()
+    
+    logger.info(f"🔍 DEBUG - Encontradas {len(accounts)} contas bancárias")
     
     return [
         {
@@ -1053,8 +1161,51 @@ async def create_account_payable(
     if not payable_data.get("due_date"):
         raise HTTPException(status_code=400, detail="Data de vencimento é obrigatória")
     
+    # Validar se os IDs pertencem à empresa do usuário
+    if payable_data.get("category_id"):
+        category = db.query(FinancialCategory).filter(
+            FinancialCategory.id == payable_data.get("category_id"),
+            FinancialCategory.company_id == company_id
+        ).first()
+        if not category:
+            raise HTTPException(status_code=400, detail="Categoria não encontrada ou não pertence à sua empresa")
+    
+    if payable_data.get("cost_center_id"):
+        cost_center = db.query(CostCenter).filter(
+            CostCenter.id == payable_data.get("cost_center_id"),
+            CostCenter.company_id == company_id
+        ).first()
+        if not cost_center:
+            raise HTTPException(status_code=400, detail="Centro de custo não encontrado ou não pertence à sua empresa")
+    
+    if payable_data.get("account_id"):
+        account = db.query(FinancialAccount).filter(
+            FinancialAccount.id == payable_data.get("account_id"),
+            FinancialAccount.company_id == company_id
+        ).first()
+        if not account:
+            raise HTTPException(status_code=400, detail="Conta bancária não encontrada ou não pertence à sua empresa")
+    
+    if payable_data.get("fornecedor_id"):
+        fornecedor = db.query(Fornecedor).filter(
+            Fornecedor.id == payable_data.get("fornecedor_id"),
+            Fornecedor.company_id == company_id
+        ).first()
+        if not fornecedor:
+            raise HTTPException(status_code=400, detail="Fornecedor não encontrado ou não pertence à sua empresa")
+    
+    if payable_data.get("ordem_compra_id"):
+        ordem_compra = db.query(OrdemCompra).filter(
+            OrdemCompra.id == payable_data.get("ordem_compra_id"),
+            OrdemCompra.company_id == company_id
+        ).first()
+        if not ordem_compra:
+            raise HTTPException(status_code=400, detail="Ordem de compra não encontrada ou não pertence à sua empresa")
+    
     # Verificar se é parcelamento
-    total_installments = payable_data.get("total_installments", 1)
+    total_installments = payable_data.get("total_installments") or 1
+    if total_installments is None:
+        total_installments = 1
     is_recurring = payable_data.get("is_recurring", False)
     recurring_frequency = payable_data.get("recurring_frequency")
     installment_due_date = payable_data.get("installment_due_date")
@@ -1107,6 +1258,7 @@ async def create_account_payable(
                 company_id=company_id,
                 supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
                 fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
+                ordem_compra_id=payable_data.get("ordem_compra_id"),  # FK para ordens de compra
                 category_id=payable_data.get("category_id"),
                 cost_center_id=payable_data.get("cost_center_id"),
                 account_id=payable_data.get("account_id"),
@@ -1144,6 +1296,7 @@ async def create_account_payable(
             company_id=company_id,
             supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
             fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
+            ordem_compra_id=payable_data.get("ordem_compra_id"),  # FK para ordens de compra
             category_id=payable_data.get("category_id"),
             cost_center_id=payable_data.get("cost_center_id"),
             account_id=payable_data.get("account_id"),
@@ -1182,6 +1335,7 @@ async def create_account_payable(
                 company_id=company_id,
                 supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
                 fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
+                ordem_compra_id=payable_data.get("ordem_compra_id"),  # FK para ordens de compra
                 category_id=payable_data.get("category_id"),
                 cost_center_id=payable_data.get("cost_center_id"),
                 account_id=payable_data.get("account_id"),
@@ -1211,6 +1365,7 @@ async def create_account_payable(
             company_id=company_id,
             supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
             fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
+            ordem_compra_id=payable_data.get("ordem_compra_id"),  # FK para ordens de compra
             category_id=payable_data.get("category_id"),
             cost_center_id=payable_data.get("cost_center_id"),
             account_id=payable_data.get("account_id"),
@@ -1260,11 +1415,54 @@ async def update_account_payable(
     if not payable:
         raise HTTPException(status_code=404, detail="Conta a pagar não encontrada")
     
+    # Validar se os IDs pertencem à empresa do usuário
+    if payable_data.get("category_id"):
+        category = db.query(FinancialCategory).filter(
+            FinancialCategory.id == payable_data.get("category_id"),
+            FinancialCategory.company_id == company_id
+        ).first()
+        if not category:
+            raise HTTPException(status_code=400, detail="Categoria não encontrada ou não pertence à sua empresa")
+    
+    if payable_data.get("cost_center_id"):
+        cost_center = db.query(CostCenter).filter(
+            CostCenter.id == payable_data.get("cost_center_id"),
+            CostCenter.company_id == company_id
+        ).first()
+        if not cost_center:
+            raise HTTPException(status_code=400, detail="Centro de custo não encontrado ou não pertence à sua empresa")
+    
+    if payable_data.get("account_id"):
+        account = db.query(FinancialAccount).filter(
+            FinancialAccount.id == payable_data.get("account_id"),
+            FinancialAccount.company_id == company_id
+        ).first()
+        if not account:
+            raise HTTPException(status_code=400, detail="Conta bancária não encontrada ou não pertence à sua empresa")
+    
+    if payable_data.get("fornecedor_id"):
+        fornecedor = db.query(Fornecedor).filter(
+            Fornecedor.id == payable_data.get("fornecedor_id"),
+            Fornecedor.company_id == company_id
+        ).first()
+        if not fornecedor:
+            raise HTTPException(status_code=400, detail="Fornecedor não encontrado ou não pertence à sua empresa")
+    
+    if payable_data.get("ordem_compra_id"):
+        ordem_compra = db.query(OrdemCompra).filter(
+            OrdemCompra.id == payable_data.get("ordem_compra_id"),
+            OrdemCompra.company_id == company_id
+        ).first()
+        if not ordem_compra:
+            raise HTTPException(status_code=400, detail="Ordem de compra não encontrada ou não pertence à sua empresa")
+    
     # Atualizar campos
     if payable_data.get("supplier_name") is not None:
         payable.supplier_name = payable_data.get("supplier_name")
     if payable_data.get("fornecedor_id") is not None:
         payable.fornecedor_id = payable_data.get("fornecedor_id")
+    if payable_data.get("ordem_compra_id") is not None:
+        payable.ordem_compra_id = payable_data.get("ordem_compra_id")
     if payable_data.get("category_id") is not None:
         payable.category_id = payable_data.get("category_id")
     if payable_data.get("cost_center_id") is not None:

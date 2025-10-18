@@ -1,0 +1,613 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Conta a Pagar - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-pencil-square text-warning"></i> Editar Conta a Pagar</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="/financial/payables" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Formulário de Edição de Conta a Pagar -->
+<div class="card">
+    <div class="card-body">
+        <form id="payableForm">
+            <!-- Dados Básicos -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h6 class="text-primary"><i class="bi bi-receipt"></i> Dados Básicos</h6>
+                    <hr>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição *</label>
+                        <input type="text" class="form-control" id="description" required placeholder="Descrição da despesa" value="{{ payable_data.description or '' }}">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Valor *</label>
+                        <input type="number" class="form-control" id="amount" step="0.01" required placeholder="0.00" value="{{ payable_data.amount or '' }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="dueDate" class="form-label">Data de Vencimento *</label>
+                        <input type="date" class="form-control" id="dueDate" required value="{{ payable_data.due_date or '' }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="categoryId" class="form-label">Categoria</label>
+                        <select class="form-select" id="categoryId">
+                            <option value="">Selecione a categoria</option>
+                            <!-- Categorias carregadas via JavaScript -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="supplierName" class="form-label">Fornecedor</label>
+                        <div class="position-relative">
+                            <input type="text" class="form-control" id="supplierName" placeholder="Digite para buscar fornecedor..." autocomplete="off" value="{{ payable_data.supplier_name or '' }}">
+                            <input type="hidden" id="fornecedorId" value="{{ payable_data.fornecedor_id or '' }}">
+                            <div id="supplierDropdown" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;">
+                                <!-- Resultados da busca aparecerão aqui -->
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">Digite para buscar fornecedores cadastrados ou deixe em branco para fornecedor manual</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="invoiceNumber" class="form-label">Número da Nota</label>
+                        <input type="text" class="form-control" id="invoiceNumber" placeholder="Ex: NF-001" value="{{ payable_data.invoice_number or '' }}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="ordemCompraId" class="form-label">Ordem de Compra</label>
+                        <div class="position-relative">
+                            <input type="text" class="form-control" id="ordemCompraSearch" placeholder="Digite para buscar ordem de compra..." autocomplete="off">
+                            <input type="hidden" id="ordemCompraId" value="{{ payable_data.ordem_compra_id or '' }}">
+                            <div id="ordemCompraDropdown" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;">
+                                <!-- Resultados da busca aparecerão aqui -->
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">Digite para buscar ordens de compra cadastradas</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="notes" rows="3" placeholder="Observações adicionais">{{ payable_data.notes or '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="costCenterId" class="form-label">Centro de Custo</label>
+                        <select class="form-select" id="costCenterId">
+                            <option value="">Selecione o centro de custo</option>
+                            <!-- Centros de custo carregados via JavaScript -->
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="accountId" class="form-label">Conta Bancária</label>
+                        <select class="form-select" id="accountId">
+                            <option value="">Selecione a conta</option>
+                            <!-- Contas bancárias carregadas via JavaScript -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="isFixed" {% if payable_data.is_fixed %}checked{% endif %}>
+                            <label class="form-check-label" for="isFixed">
+                                Despesa fixa
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Opções de Tipo de Despesa -->
+            <div class="mb-3">
+                <label class="form-label">Tipo de Despesa</label>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expenseType" id="expenseTypeSingle" value="single" checked>
+                            <label class="form-check-label" for="expenseTypeSingle">
+                                Despesa única
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expenseType" id="expenseTypeRecurring" value="recurring">
+                            <label class="form-check-label" for="expenseTypeRecurring">
+                                Despesa recorrente
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expenseType" id="expenseTypeInstallment" value="installment">
+                            <label class="form-check-label" for="expenseTypeInstallment">
+                                Parcelamento
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Opções para Despesa Recorrente -->
+            <div class="row" id="recurringOptions" style="display: none;">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="recurringFrequency" class="form-label">Frequência</label>
+                        <select class="form-select" id="recurringFrequency">
+                            <option value="monthly">Mensal</option>
+                            <option value="quarterly">Trimestral</option>
+                            <option value="yearly">Anual</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="recurringEndDate" class="form-label">Data de Término</label>
+                        <input type="date" class="form-control" id="recurringEndDate" value="{{ payable_data.recurring_end_date or '' }}">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Opções para Parcelamento -->
+            <div class="row" id="installmentOptions" style="display: none;">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="totalInstallments" class="form-label">Quantidade de Parcelas</label>
+                        <input type="number" class="form-control" id="totalInstallments" min="2" max="60" placeholder="Ex: 12" value="{{ payable_data.total_installments or '' }}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="installmentDueDate" class="form-label">Vencimento da 1ª Parcela</label>
+                        <input type="date" class="form-control" id="installmentDueDate" value="{{ payable_data.installment_due_date or '' }}">
+                    </div>
+                </div>
+            </div>
+            
+        </form>
+    </div>
+    
+    <!-- Footer com botões -->
+    <div class="card-footer bg-light">
+        <div class="row align-items-center">
+            <div class="col">
+                <small class="text-muted">
+                    <i class="bi bi-info-circle"></i>
+                    Campos marcados com * são obrigatórios
+                </small>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group">
+                    <a href="/financial/payables" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </a>
+                    <button type="button" class="btn btn-primary" onclick="updatePayable()">
+                        <i class="bi bi-check-circle"></i> Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais
+let categories = [];
+let costCenters = [];
+let accounts = [];
+let fornecedores = [];
+let ordensCompra = [];
+let searchTimeout = null;
+let payableId = {{ payable_data.id }};
+
+// IDs dos dados atuais
+const currentCategoryId = {{ payable_data.category_id or 'null' }};
+const currentCostCenterId = {{ payable_data.cost_center_id or 'null' }};
+const currentAccountId = {{ payable_data.account_id or 'null' }};
+
+// Carregar dados ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadCategories();
+    loadCostCenters();
+    loadAccounts();
+    loadFornecedorData();
+    loadOrdemCompraData();
+    
+    // Event listeners para tipo de despesa
+    document.querySelectorAll('input[name="expenseType"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const recurringOptions = document.getElementById('recurringOptions');
+            const installmentOptions = document.getElementById('installmentOptions');
+            
+            // Esconder todas as opções
+            recurringOptions.style.display = 'none';
+            installmentOptions.style.display = 'none';
+            
+            // Mostrar opções baseadas na seleção
+            if (this.value === 'recurring') {
+                recurringOptions.style.display = 'block';
+            } else if (this.value === 'installment') {
+                installmentOptions.style.display = 'block';
+            }
+        });
+    });
+    
+    // Event listeners para busca de fornecedores
+    document.getElementById('supplierName').addEventListener('input', function() {
+        const query = this.value.trim();
+        if (query.length >= 2) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                searchFornecedores(query);
+            }, 300);
+        } else {
+            hideSupplierDropdown();
+        }
+    });
+    
+    // Event listeners para busca de ordens de compra
+    document.getElementById('ordemCompraSearch').addEventListener('input', function() {
+        const query = this.value.trim();
+        if (query.length >= 2) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                searchOrdensCompra(query);
+            }, 300);
+        } else {
+            hideOrdemCompraDropdown();
+        }
+    });
+    
+    // Fechar dropdowns ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.position-relative')) {
+            hideSupplierDropdown();
+            hideOrdemCompraDropdown();
+        }
+    });
+});
+
+// Carregar dados do fornecedor se existir
+async function loadFornecedorData() {
+    const fornecedorId = document.getElementById('fornecedorId').value;
+    if (fornecedorId) {
+        try {
+            const response = await fetch(`/api/fornecedores/${fornecedorId}`, {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('supplierName').value = data.fornecedor.nome;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar dados do fornecedor:', error);
+        }
+    }
+}
+
+// Carregar dados da ordem de compra se existir
+async function loadOrdemCompraData() {
+    const ordemCompraId = document.getElementById('ordemCompraId').value;
+    if (ordemCompraId) {
+        try {
+            const response = await fetch(`/api/ordem-compra/${ordemCompraId}`, {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('ordemCompraSearch').value = data.ordem.numero_ordem;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar dados da ordem de compra:', error);
+        }
+    }
+}
+
+// Carregar categorias
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/financial/categories', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            categories = data.categories || [];
+            updateCategorySelect();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar categorias:', error);
+    }
+}
+
+// Carregar centros de custo
+async function loadCostCenters() {
+    try {
+        const response = await fetch('/api/financial/cost-centers', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            costCenters = data; // API retorna array direto
+            updateCostCenterSelect();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar centros de custo:', error);
+    }
+}
+
+// Carregar contas bancárias
+async function loadAccounts() {
+    try {
+        const response = await fetch('/api/financial/accounts', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            accounts = data; // API retorna array direto
+            updateAccountSelect();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar contas bancárias:', error);
+    }
+}
+
+// Atualizar select de categorias
+function updateCategorySelect() {
+    const select = document.getElementById('categoryId');
+    select.innerHTML = '<option value="">Selecione a categoria</option>';
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        if (currentCategoryId && category.id == currentCategoryId) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+}
+
+// Atualizar select de centros de custo
+function updateCostCenterSelect() {
+    const select = document.getElementById('costCenterId');
+    select.innerHTML = '<option value="">Selecione o centro de custo</option>';
+    costCenters.forEach(center => {
+        const option = document.createElement('option');
+        option.value = center.id;
+        option.textContent = center.name;
+        if (currentCostCenterId && center.id == currentCostCenterId) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+}
+
+// Atualizar select de contas bancárias
+function updateAccountSelect() {
+    const select = document.getElementById('accountId');
+    select.innerHTML = '<option value="">Selecione a conta</option>';
+    accounts.forEach(account => {
+        const option = document.createElement('option');
+        option.value = account.id;
+        // Mostrar nome do banco + nome da conta, ou apenas nome da conta se não houver banco
+        const displayName = account.bank_name 
+            ? `${account.bank_name} - ${account.account_name}`
+            : account.account_name;
+        option.textContent = displayName;
+        if (currentAccountId && account.id == currentAccountId) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+}
+
+// Função para buscar fornecedores
+async function searchFornecedores(query) {
+    try {
+        const response = await fetch(`/api/fornecedores?search=${encodeURIComponent(query)}&limit=10`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            fornecedores = data.fornecedores || [];
+            showSupplierDropdown(fornecedores);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar fornecedores:', error);
+    }
+}
+
+// Função para mostrar dropdown de fornecedores
+function showSupplierDropdown(fornecedores) {
+    const dropdown = document.getElementById('supplierDropdown');
+    
+    if (fornecedores.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item text-muted">Nenhum fornecedor encontrado</div>';
+    } else {
+        dropdown.innerHTML = fornecedores.map(fornecedor => `
+            <div class="dropdown-item" onclick="selectFornecedor('${fornecedor.id}', '${fornecedor.nome}')">
+                <strong>${fornecedor.nome}</strong>
+                ${fornecedor.email ? `<br><small class="text-muted">${fornecedor.email}</small>` : ''}
+            </div>
+        `).join('');
+    }
+    
+    dropdown.style.display = 'block';
+}
+
+// Função para selecionar fornecedor
+function selectFornecedor(id, nome) {
+    document.getElementById('fornecedorId').value = id;
+    document.getElementById('supplierName').value = nome;
+    hideSupplierDropdown();
+}
+
+// Função para esconder dropdown de fornecedores
+function hideSupplierDropdown() {
+    document.getElementById('supplierDropdown').style.display = 'none';
+}
+
+// Função para buscar ordens de compra
+async function searchOrdensCompra(query) {
+    try {
+        const response = await fetch(`/api/ordem-compra?search=${encodeURIComponent(query)}&limit=10`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            ordensCompra = data.ordens || [];
+            showOrdemCompraDropdown(ordensCompra);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar ordens de compra:', error);
+    }
+}
+
+// Função para mostrar dropdown de ordens de compra
+function showOrdemCompraDropdown(ordens) {
+    const dropdown = document.getElementById('ordemCompraDropdown');
+    
+    if (ordens.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item text-muted">Nenhuma ordem de compra encontrada</div>';
+    } else {
+        dropdown.innerHTML = ordens.map(ordem => `
+            <div class="dropdown-item" onclick="selectOrdemCompra('${ordem.id}', '${ordem.numero_ordem}')">
+                <strong>${ordem.numero_ordem}</strong>
+                <br><small class="text-muted">${ordem.fornecedor_nome || 'Fornecedor não informado'}</small>
+                <br><small class="text-muted">Valor: R$ ${parseFloat(ordem.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</small>
+            </div>
+        `).join('');
+    }
+    
+    dropdown.style.display = 'block';
+}
+
+// Função para selecionar ordem de compra
+function selectOrdemCompra(id, numero) {
+    document.getElementById('ordemCompraId').value = id;
+    document.getElementById('ordemCompraSearch').value = numero;
+    hideOrdemCompraDropdown();
+}
+
+// Função para esconder dropdown de ordens de compra
+function hideOrdemCompraDropdown() {
+    document.getElementById('ordemCompraDropdown').style.display = 'none';
+}
+
+// Função para atualizar conta a pagar
+async function updatePayable() {
+    // Desabilitar botão para evitar duplo clique
+    const saveButton = document.querySelector('button[onclick="updatePayable()"]');
+    const originalText = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+    
+    const formData = {
+        description: document.getElementById('description').value,
+        invoice_number: document.getElementById('invoiceNumber').value,
+        amount: parseFloat(document.getElementById('amount').value),
+        due_date: document.getElementById('dueDate').value,
+        supplier_name: document.getElementById('supplierName').value,
+        fornecedor_id: document.getElementById('fornecedorId').value || null,
+        ordem_compra_id: document.getElementById('ordemCompraId').value || null,
+        category_id: document.getElementById('categoryId').value || null,
+        cost_center_id: document.getElementById('costCenterId').value || null,
+        account_id: document.getElementById('accountId').value || null,
+        is_fixed: document.getElementById('isFixed').checked,
+        expense_type: document.querySelector('input[name="expenseType"]:checked').value,
+        recurring_frequency: document.getElementById('recurringFrequency').value || null,
+        recurring_end_date: document.getElementById('recurringEndDate').value || null,
+        total_installments: parseInt(document.getElementById('totalInstallments').value) || null,
+        installment_due_date: document.getElementById('installmentDueDate').value || null,
+        notes: document.getElementById('notes').value
+    };
+    
+    try {
+        const response = await fetch(`/api/financial/payables/${payableId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showAlert('Conta a pagar atualizada com sucesso!', 'success');
+            setTimeout(() => {
+                window.location.href = '/financial/payables';
+            }, 1500);
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao atualizar conta a pagar', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao atualizar conta a pagar', 'danger');
+    } finally {
+        // Reabilitar botão
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
+    }
+}
+
+// Função para mostrar alertas
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    // Remover automaticamente após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

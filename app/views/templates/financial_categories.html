@@ -264,7 +264,8 @@ async function loadCategories() {
             credentials: 'include'
         });
         if (response.ok) {
-            categories = await response.json();
+            const data = await response.json();
+            categories = data.categories || data; // Suportar ambos os formatos
             filteredCategories = [...categories]; // Inicializar com todas as categorias
             renderCategories();
             updateStats();

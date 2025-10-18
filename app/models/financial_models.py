@@ -227,6 +227,7 @@ class AccountPayable(Base):
     # Relacionamentos (apenas colunas que existem no banco)
     supplier_name = Column(String(255))  # Campo texto livre (não é FK)
     fornecedor_id = Column(Integer, ForeignKey("fornecedores.id"), nullable=True, index=True)  # FK para fornecedores
+    ordem_compra_id = Column(Integer, ForeignKey("ordem_compra.id"), nullable=True, index=True)  # FK para ordens de compra
     category_id = Column(Integer)
     cost_center_id = Column(Integer)
     account_id = Column(Integer)
