@@ -692,8 +692,8 @@ function showAlert(message, type) {
 
 // Função para atualizar estatísticas
 function updateStats() {
-    // Usar dados filtrados em vez de todos os dados
-    const dataToUse = filteredPayables.length > 0 ? filteredPayables : payables;
+    // Usar dados filtrados (filteredPayables sempre contém os dados corretos após filtro)
+    const dataToUse = filteredPayables;
     
     if (!dataToUse || dataToUse.length === 0) {
         document.getElementById('totalAmount').textContent = 'R$ 0,00';
