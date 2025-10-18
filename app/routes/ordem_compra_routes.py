@@ -662,7 +662,7 @@ async def export_ordem_compra(
         
         # Cabeçalho da tabela de itens
         row += 1
-        headers = ['Produto', 'Quantidade', 'Valor Unit.', 'Total', 'URL', 'Imagem']
+        headers = ['Imagem', 'Produto', 'URL', 'Quantidade', 'Valor Unit.', 'Total']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.font = header_font
@@ -674,33 +674,7 @@ async def export_ordem_compra(
         for item in ordem['itens']:
             row += 1
             
-            # Coluna Produto com todas as informações
-            produto_nome = item.get('produto_nome', '')
-            produto_sku = item.get('produto_codigo', '')
-            descricao_fornecedor = item.get('descricao_fornecedor', '')
-            
-            # Montar texto completo do produto
-            produto_completo = produto_nome
-            if produto_sku:
-                produto_completo += f"\nSKU: {produto_sku}"
-            if descricao_fornecedor:
-                produto_completo += f"\nDescrição: {descricao_fornecedor}"
-            
-            ws[f'A{row}'] = produto_completo
-            ws[f'B{row}'] = item.get('quantidade', 0)
-            ws[f'C{row}'] = f"{item.get('valor_unitario', 0):.2f}"
-            ws[f'D{row}'] = f"{item.get('valor_total', 0):.2f}"
-            
-            # URL como link clicável
-            url_produto = item.get('url', '')
-            if url_produto:
-                ws[f'E{row}'] = url_produto
-                ws[f'E{row}'].hyperlink = Hyperlink(ref=f'E{row}', target=url_produto, tooltip="Clique para abrir o link")
-                ws[f'E{row}'].font = Font(name='Arial', size=10, color='0000FF', underline='single')
-            else:
-                ws[f'E{row}'] = 'Sem URL'
-            
-            # Adicionar imagem do produto se existir
+            # Coluna A: Imagem
             produto_imagem = item.get('produto_imagem', '')
             if produto_imagem:
                 try:
@@ -724,25 +698,57 @@ async def export_ordem_compra(
                         excel_img = ExcelImage(img_path)
                         excel_img.width = 100
                         excel_img.height = 100
-                        ws.add_image(excel_img, f'F{row}')
+                        ws.add_image(excel_img, f'A{row}')
                         
                         # Limpar arquivo original, mas manter o redimensionado
                         os.unlink(temp_file_path)
                         
-                        ws[f'F{row}'] = 'Imagem carregada'
+                        ws[f'A{row}'] = 'Imagem carregada'
                     else:
-                        ws[f'F{row}'] = 'Erro ao carregar imagem'
+                        ws[f'A{row}'] = 'Erro ao carregar imagem'
                 except Exception as e:
-                    ws[f'F{row}'] = f'Erro: {str(e)[:20]}...'
+                    ws[f'A{row}'] = f'Erro: {str(e)[:20]}...'
             else:
-                ws[f'F{row}'] = 'Sem imagem'
+                ws[f'A{row}'] = 'Sem imagem'
+            
+            # Coluna B: Produto com todas as informações
+            produto_nome = item.get('produto_nome', '')
+            produto_sku = item.get('produto_codigo', '')
+            descricao_fornecedor = item.get('descricao_fornecedor', '')
+            
+            # Montar texto completo do produto
+            produto_completo = produto_nome
+            if produto_sku:
+                produto_completo += f"\nSKU: {produto_sku}"
+            if descricao_fornecedor:
+                produto_completo += f"\nDescrição: {descricao_fornecedor}"
+            
+            ws[f'B{row}'] = produto_completo
+            
+            # Coluna C: URL como link clicável
+            url_produto = item.get('url', '')
+            if url_produto:
+                ws[f'C{row}'] = url_produto
+                ws[f'C{row}'].hyperlink = Hyperlink(ref=f'C{row}', target=url_produto, tooltip="Clique para abrir o link")
+                ws[f'C{row}'].font = Font(name='Arial', size=10, color='0000FF', underline='single')
+            else:
+                ws[f'C{row}'] = 'Sem URL'
+            
+            # Coluna D: Quantidade
+            ws[f'D{row}'] = item.get('quantidade', 0)
+            
+            # Coluna E: Valor Unit.
+            ws[f'E{row}'] = f"{item.get('valor_unitario', 0):.2f}"
+            
+            # Coluna F: Total
+            ws[f'F{row}'] = f"{item.get('valor_total', 0):.2f}"
             
             # Aplicar formatação às células
             for col in range(1, 7):  # 6 colunas agora
                 cell = ws.cell(row=row, column=col)
                 cell.font = normal_font
                 cell.border = thin_border
-                if col in [2, 3, 4]:  # Quantidade, Valor Unit., Total
+                if col in [4, 5, 6]:  # Quantidade, Valor Unit., Total
                     cell.alignment = center_alignment
                 else:
                     cell.alignment = left_alignment
@@ -821,7 +827,7 @@ async def export_ordem_compra(
     ws[f'A{row}'].alignment = center_alignment
     
     # Ajustar largura das colunas (6 colunas apenas)
-    column_widths = [40, 12, 15, 15, 25, 20]  # Produto, Quantidade, Valor Unit., Total, URL, Imagem
+    column_widths = [20, 40, 25, 12, 15, 15]  # Imagem, Produto, URL, Quantidade, Valor Unit., Total
     for i, width in enumerate(column_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = width
     
