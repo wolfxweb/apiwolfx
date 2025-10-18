@@ -933,7 +933,7 @@ class Fornecedor(Base):
     # Dados básicos
     nome = Column(String(255), nullable=False)
     nome_fantasia = Column(String(255))
-    cnpj = Column(String(18), unique=True, index=True)
+    cnpj = Column(String(18), index=True)
     inscricao_estadual = Column(String(50))
     inscricao_municipal = Column(String(50))
     
