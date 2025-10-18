@@ -310,3 +310,105 @@ async def update_status_ordem(
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao alterar status da ordem"))
     
     return result
+
+# Rotas para gerenciar links externos
+@ordem_compra_router.get("/api/ordem-compra/{ordem_id}/links")
+async def get_ordem_compra_links(
+    ordem_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para buscar links externos de uma ordem de compra"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    links = ordem_compra_controller.get_ordem_compra_links(ordem_id, company_id, db)
+    
+    return {"success": True, "links": links}
+
+@ordem_compra_router.post("/api/ordem-compra/{ordem_id}/links")
+async def add_ordem_compra_link(
+    ordem_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para adicionar link externo a uma ordem de compra"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Obter dados do corpo da requisição
+    body = await request.json()
+    
+    result = ordem_compra_controller.add_ordem_compra_link(ordem_id, company_id, body, db)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao adicionar link"))
+    
+    return result
+
+@ordem_compra_router.put("/api/ordem-compra/links/{link_id}")
+async def update_ordem_compra_link(
+    link_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar link externo"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Obter dados do corpo da requisição
+    body = await request.json()
+    
+    result = ordem_compra_controller.update_ordem_compra_link(link_id, company_id, body, db)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao atualizar link"))
+    
+    return result
+
+@ordem_compra_router.delete("/api/ordem-compra/links/{link_id}")
+async def delete_ordem_compra_link(
+    link_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para deletar link externo"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    result = ordem_compra_controller.delete_ordem_compra_link(link_id, company_id, db)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao deletar link"))
+    
+    return result

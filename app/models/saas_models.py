@@ -1029,6 +1029,7 @@ class OrdemCompra(Base):
     company = relationship("Company", back_populates="ordens_compra")
     fornecedor = relationship("Fornecedor", back_populates="ordens_compra")
     itens = relationship("OrdemCompraItem", back_populates="ordem_compra", cascade="all, delete-orphan")
+    links = relationship("OrdemCompraLink", back_populates="ordem_compra", cascade="all, delete-orphan")
     
     # Índices
     __table_args__ = (
@@ -1074,5 +1075,29 @@ class OrdemCompraItem(Base):
     __table_args__ = (
         Index('ix_ordem_compra_item_ordem', 'ordem_compra_id'),
         Index('ix_ordem_compra_item_produto', 'produto_id'),
+    )
+
+
+class OrdemCompraLink(Base):
+    """Links Externos das Ordens de Compra"""
+    __tablename__ = "ordem_compra_link"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    ordem_compra_id = Column(Integer, ForeignKey("ordem_compra.id"), nullable=False, index=True)
+    nome = Column(String(255), nullable=False)
+    url = Column(String(500), nullable=False)
+    descricao = Column(Text)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    ordem_compra = relationship("OrdemCompra", back_populates="links")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ordem_compra_link_company', 'company_id'),
+        Index('ix_ordem_compra_link_ordem', 'ordem_compra_id'),
     )
 

@@ -3,7 +3,7 @@ Controller para Ordens de Compra
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from app.models.saas_models import OrdemCompra, OrdemCompraItem, Fornecedor
+from app.models.saas_models import OrdemCompra, OrdemCompraItem, OrdemCompraLink, Fornecedor
 from typing import List, Optional, Dict, Any
 import logging
 from datetime import datetime, date
@@ -371,6 +371,125 @@ class OrdemCompraController:
         except Exception as e:
             db.rollback()
             logger.error(f"Erro ao deletar ordem de compra: {str(e)}")
+            return {"success": False, "error": f"Erro interno: {str(e)}"}
+    
+    # Métodos para gerenciar links externos
+    def get_ordem_compra_links(self, ordem_id: int, company_id: int, db: Session) -> List[Dict[str, Any]]:
+        """Buscar links externos de uma ordem de compra"""
+        try:
+            links = db.query(OrdemCompraLink).filter(
+                OrdemCompraLink.ordem_compra_id == ordem_id,
+                OrdemCompraLink.company_id == company_id
+            ).order_by(OrdemCompraLink.created_at.desc()).all()
+            
+            return [
+                {
+                    "id": link.id,
+                    "nome": link.nome,
+                    "url": link.url,
+                    "descricao": link.descricao,
+                    "created_at": link.created_at.isoformat() if link.created_at else None
+                }
+                for link in links
+            ]
+        except Exception as e:
+            logger.error(f"Erro ao buscar links da ordem: {str(e)}")
+            return []
+    
+    def add_ordem_compra_link(self, ordem_id: int, company_id: int, link_data: Dict[str, Any], db: Session) -> Dict[str, Any]:
+        """Adicionar link externo a uma ordem de compra"""
+        try:
+            # Verificar se a ordem pertence à empresa
+            ordem = db.query(OrdemCompra).filter(
+                OrdemCompra.id == ordem_id,
+                OrdemCompra.company_id == company_id
+            ).first()
+            
+            if not ordem:
+                return {"success": False, "error": "Ordem de compra não encontrada"}
+            
+            link = OrdemCompraLink(
+                company_id=company_id,
+                ordem_compra_id=ordem_id,
+                nome=link_data.get('nome'),
+                url=link_data.get('url'),
+                descricao=link_data.get('descricao')
+            )
+            
+            db.add(link)
+            db.commit()
+            db.refresh(link)
+            
+            return {
+                "success": True,
+                "message": "Link adicionado com sucesso!",
+                "link": {
+                    "id": link.id,
+                    "nome": link.nome,
+                    "url": link.url,
+                    "descricao": link.descricao,
+                    "created_at": link.created_at.isoformat() if link.created_at else None
+                }
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Erro ao adicionar link: {str(e)}")
+            return {"success": False, "error": f"Erro interno: {str(e)}"}
+    
+    def update_ordem_compra_link(self, link_id: int, company_id: int, link_data: Dict[str, Any], db: Session) -> Dict[str, Any]:
+        """Atualizar link externo"""
+        try:
+            link = db.query(OrdemCompraLink).filter(
+                OrdemCompraLink.id == link_id,
+                OrdemCompraLink.company_id == company_id
+            ).first()
+            
+            if not link:
+                return {"success": False, "error": "Link não encontrado"}
+            
+            link.nome = link_data.get('nome', link.nome)
+            link.url = link_data.get('url', link.url)
+            link.descricao = link_data.get('descricao', link.descricao)
+            
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": "Link atualizado com sucesso!",
+                "link": {
+                    "id": link.id,
+                    "nome": link.nome,
+                    "url": link.url,
+                    "descricao": link.descricao,
+                    "created_at": link.created_at.isoformat() if link.created_at else None
+                }
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Erro ao atualizar link: {str(e)}")
+            return {"success": False, "error": f"Erro interno: {str(e)}"}
+    
+    def delete_ordem_compra_link(self, link_id: int, company_id: int, db: Session) -> Dict[str, Any]:
+        """Deletar link externo"""
+        try:
+            link = db.query(OrdemCompraLink).filter(
+                OrdemCompraLink.id == link_id,
+                OrdemCompraLink.company_id == company_id
+            ).first()
+            
+            if not link:
+                return {"success": False, "error": "Link não encontrado"}
+            
+            db.delete(link)
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": "Link excluído com sucesso!"
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Erro ao deletar link: {str(e)}")
             return {"success": False, "error": f"Erro interno: {str(e)}"}
     
     def update_status_ordem(self, ordem_id: int, status: str, company_id: int, db: Session) -> Dict[str, Any]:

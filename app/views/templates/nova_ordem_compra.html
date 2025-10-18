@@ -261,6 +261,40 @@
                                             <label for="observacoes" class="form-label">Observações Gerais</label>
                                             <textarea class="form-control" id="observacoes" rows="4" placeholder="Observações gerais da ordem..."></textarea>
                                         </div>
+                                        
+                                        <!-- Links Externos -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Links Externos</label>
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <small class="text-muted">Adicione links do Google Drive, documentos ou outros recursos</small>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openLinksModal()">
+                                                    <i class="bi bi-plus-circle"></i> Adicionar Link
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Tabela de Links -->
+                                            <div id="linksTableContainer" style="display: none;">
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-hover">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Nome</th>
+                                                                <th width="100">Ações</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody id="linksTableBody">
+                                                            <!-- Links serão carregados aqui -->
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Mensagem quando não há links -->
+                                            <div id="noLinksMessage" class="text-muted text-center py-3">
+                                                <i class="bi bi-link-45deg fs-4"></i>
+                                                <p class="mb-0">Nenhum link adicionado ainda</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -412,6 +446,9 @@ function loadOrdemData(ordemData) {
     console.log('Carregando dados da ordem:', ordemData);
     console.log('Tipo de ordem recebido:', ordemData.tipo_ordem);
     
+    // Definir ID da ordem atual para gerenciar links
+    currentOrdemId = ordemData.id;
+    
     // Preencher campos básicos
     document.getElementById('numeroOrdem').value = ordemData.numero_ordem || '';
     document.getElementById('dataOrdem').value = ordemData.data_ordem || '';
@@ -460,6 +497,11 @@ function loadOrdemData(ordemData) {
     
     // Atualizar resumo
     updateResumo();
+    
+    // Carregar links externos se estiver editando
+    if (currentOrdemId) {
+        loadLinksForDisplay();
+    }
 }
 
 // Carregar itens da ordem
@@ -1126,6 +1168,446 @@ document.addEventListener('click', function(event) {
     const fornecedorContainer = document.querySelector('#fornecedorSearch').closest('.position-relative');
     if (!fornecedorContainer.contains(event.target)) {
         document.getElementById('fornecedorDropdown').style.display = 'none';
+    }
+});
+</script>
+
+<!-- Modal para Gerenciar Links -->
+<div class="modal fade" id="linksModal" tabindex="-1" aria-labelledby="linksModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="linksModalLabel">
+                    <i class="bi bi-link-45deg text-primary"></i>
+                    Gerenciar Links Externos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Formulário para adicionar/editar link -->
+                <form id="linkForm">
+                    <input type="hidden" id="linkId" value="">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="linkNome" class="form-label">Nome do Link *</label>
+                                <input type="text" class="form-control" id="linkNome" required placeholder="Ex: Documento de Especificação">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="linkUrl" class="form-label">URL *</label>
+                                <input type="url" class="form-control" id="linkUrl" required placeholder="https://drive.google.com/...">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="linkDescricao" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="linkDescricao" rows="2" placeholder="Descrição opcional do link..."></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i>
+                            <span id="linkSubmitText">Adicionar Link</span>
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <!-- Lista de links existentes -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">Links Adicionados</h6>
+                    <small class="text-muted" id="linksCount">0 links</small>
+                </div>
+                
+                <div id="linksList" class="list-group">
+                    <!-- Links serão carregados aqui -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação para Excluir Link -->
+<div class="modal fade" id="deleteLinkModal" tabindex="-1" aria-labelledby="deleteLinkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteLinkModalLabel">
+                    <i class="bi bi-exclamation-triangle text-warning"></i>
+                    Confirmar Exclusão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir este link?</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Nome:</strong> <span id="deleteLinkNome"></span><br>
+                    <strong>URL:</strong> <span id="deleteLinkUrl"></span>
+                </div>
+                <p class="text-muted small">Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteLink">
+                    <i class="bi bi-trash"></i> Excluir Link
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais para gerenciar links
+let currentOrdemId = null;
+let editingLinkId = null;
+
+// Função para abrir modal de links
+function openLinksModal() {
+    const modal = new bootstrap.Modal(document.getElementById('linksModal'));
+    modal.show();
+    
+    // Limpar formulário
+    document.getElementById('linkForm').reset();
+    document.getElementById('linkId').value = '';
+    document.getElementById('linkSubmitText').textContent = 'Adicionar Link';
+    editingLinkId = null;
+    
+    // Carregar links existentes
+    loadLinks();
+}
+
+// Função para carregar links na seção principal da página
+async function loadLinksForDisplay() {
+    console.log('loadLinksForDisplay chamada, currentOrdemId:', currentOrdemId);
+    
+    if (!currentOrdemId) {
+        console.log('currentOrdemId não definido, retornando');
+        return;
+    }
+    
+    try {
+        console.log('Fazendo requisição para:', `/api/ordem-compra/${currentOrdemId}/links`);
+        const response = await fetch(`/api/ordem-compra/${currentOrdemId}/links`);
+        console.log('Response status:', response.status);
+        
+        const data = await response.json();
+        console.log('Dados recebidos:', data);
+        
+        if (data.success) {
+            console.log('Links carregados com sucesso:', data.links);
+            displayLinksInPage(data.links);
+        } else {
+            console.error('Erro ao carregar links:', data.error);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar links:', error);
+    }
+}
+
+// Função para exibir links na seção principal da página
+function displayLinksInPage(links) {
+    console.log('displayLinksInPage chamada com:', links);
+    
+    const linksTableContainer = document.getElementById('linksTableContainer');
+    const noLinksMessage = document.getElementById('noLinksMessage');
+    const linksTableBody = document.getElementById('linksTableBody');
+    
+    console.log('Elementos encontrados:', {
+        linksTableContainer,
+        noLinksMessage,
+        linksTableBody
+    });
+    
+    if (!linksTableContainer || !noLinksMessage || !linksTableBody) {
+        console.error('Elementos não encontrados!');
+        return;
+    }
+    
+    if (links.length === 0) {
+        console.log('Nenhum link para exibir na página');
+        linksTableContainer.style.display = 'none';
+        noLinksMessage.style.display = 'block';
+        return;
+    }
+    
+    console.log('Exibindo links na página:', links.length);
+    linksTableContainer.style.display = 'block';
+    noLinksMessage.style.display = 'none';
+    
+    linksTableBody.innerHTML = links.map(link => `
+        <tr>
+            <td>${link.nome}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="openLink('${link.url}')" title="Abrir Link">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="editLinkFromPage(${link.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteLinkFromPage(${link.id}, '${link.nome}', '${link.url}')" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Função para editar link a partir da página principal
+function editLinkFromPage(linkId) {
+    // Abrir modal de links
+    openLinksModal();
+    
+    // Buscar dados do link e preencher formulário
+    setTimeout(() => {
+        const linkElement = document.querySelector(`[onclick="editLinkFromPage(${linkId})"]`).closest('tr');
+        const nome = linkElement.cells[0].textContent;
+        const url = linkElement.cells[1].querySelector('a').href;
+        const descricao = linkElement.cells[2].textContent === '-' ? '' : linkElement.cells[2].textContent;
+        
+        // Preencher formulário
+        document.getElementById('linkId').value = linkId;
+        document.getElementById('linkNome').value = nome;
+        document.getElementById('linkUrl').value = url;
+        document.getElementById('linkDescricao').value = descricao;
+        document.getElementById('linkSubmitText').textContent = 'Salvar Alterações';
+        
+        editingLinkId = linkId;
+    }, 100);
+}
+
+// Função para excluir link a partir da página principal
+function deleteLinkFromPage(linkId, nome, url) {
+    document.getElementById('deleteLinkNome').textContent = nome;
+    document.getElementById('deleteLinkUrl').textContent = url;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteLinkModal'));
+    modal.show();
+    
+    // Armazenar ID para exclusão
+    document.getElementById('confirmDeleteLink').onclick = () => confirmDeleteLinkFromPage(linkId);
+}
+
+// Função para confirmar exclusão a partir da página principal
+async function confirmDeleteLinkFromPage(linkId) {
+    try {
+        const response = await fetch(`/api/ordem-compra/links/${linkId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('success', 'Link excluído com sucesso!');
+            loadLinksForDisplay(); // Recarregar links na página
+            bootstrap.Modal.getInstance(document.getElementById('deleteLinkModal')).hide();
+        } else {
+            showToast('error', data.error || 'Erro ao excluir link');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir link:', error);
+        showToast('error', 'Erro ao excluir link');
+    }
+}
+
+// Função para carregar links
+async function loadLinks() {
+    console.log('loadLinks chamada, currentOrdemId:', currentOrdemId);
+    
+    if (!currentOrdemId) {
+        console.log('currentOrdemId não definido, retornando');
+        return;
+    }
+    
+    try {
+        console.log('Fazendo requisição para:', `/api/ordem-compra/${currentOrdemId}/links`);
+        const response = await fetch(`/api/ordem-compra/${currentOrdemId}/links`);
+        console.log('Response status:', response.status);
+        
+        const data = await response.json();
+        console.log('Dados recebidos:', data);
+        
+        if (data.success) {
+            console.log('Links carregados com sucesso:', data.links);
+            displayLinks(data.links);
+        } else {
+            console.error('Erro ao carregar links:', data.error);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar links:', error);
+    }
+}
+
+// Função para exibir links
+function displayLinks(links) {
+    console.log('displayLinks chamada com:', links);
+    
+    const linksList = document.getElementById('linksList');
+    const linksCount = document.getElementById('linksCount');
+    
+    console.log('Elementos encontrados:', {
+        linksList: linksList,
+        linksCount: linksCount
+    });
+    
+    if (!linksList || !linksCount) {
+        console.error('Elementos não encontrados!');
+        return;
+    }
+    
+    linksCount.textContent = `${links.length} link${links.length !== 1 ? 's' : ''}`;
+    
+    if (links.length === 0) {
+        console.log('Nenhum link para exibir');
+        linksList.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-link-45deg fs-2"></i>
+                <p class="mb-0">Nenhum link adicionado ainda</p>
+            </div>
+        `;
+        return;
+    }
+    
+    linksList.innerHTML = links.map(link => `
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">${link.nome}</h6>
+                    <p class="mb-1 text-muted small">${link.url}</p>
+                    ${link.descricao ? `<p class="mb-0 small">${link.descricao}</p>` : ''}
+                </div>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="openLink('${link.url}')" title="Abrir Link">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="editLink(${link.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteLink(${link.id}, '${link.nome}', '${link.url}')" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Função para abrir link em nova aba
+function openLink(url) {
+    window.open(url, '_blank');
+}
+
+// Função para editar link
+function editLink(linkId) {
+    // Buscar dados do link
+    const linkElement = document.querySelector(`[onclick="editLink(${linkId})"]`).closest('.list-group-item');
+    const nome = linkElement.querySelector('h6').textContent;
+    const url = linkElement.querySelector('p.text-muted').textContent;
+    const descricao = linkElement.querySelector('p.small')?.textContent || '';
+    
+    // Preencher formulário
+    document.getElementById('linkId').value = linkId;
+    document.getElementById('linkNome').value = nome;
+    document.getElementById('linkUrl').value = url;
+    document.getElementById('linkDescricao').value = descricao;
+    document.getElementById('linkSubmitText').textContent = 'Salvar Alterações';
+    
+    editingLinkId = linkId;
+    
+    // Focar no primeiro campo
+    document.getElementById('linkNome').focus();
+}
+
+// Função para excluir link
+function deleteLink(linkId, nome, url) {
+    document.getElementById('deleteLinkNome').textContent = nome;
+    document.getElementById('deleteLinkUrl').textContent = url;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteLinkModal'));
+    modal.show();
+    
+    // Armazenar ID para exclusão
+    document.getElementById('confirmDeleteLink').onclick = () => confirmDeleteLink(linkId);
+}
+
+// Função para confirmar exclusão
+async function confirmDeleteLink(linkId) {
+    try {
+        const response = await fetch(`/api/ordem-compra/links/${linkId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('success', 'Link excluído com sucesso!');
+            loadLinks(); // Recarregar lista
+            bootstrap.Modal.getInstance(document.getElementById('deleteLinkModal')).hide();
+        } else {
+            showToast('error', data.error || 'Erro ao excluir link');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir link:', error);
+        showToast('error', 'Erro ao excluir link');
+    }
+}
+
+// Event listener para formulário de link
+document.getElementById('linkForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        nome: document.getElementById('linkNome').value,
+        url: document.getElementById('linkUrl').value,
+        descricao: document.getElementById('linkDescricao').value
+    };
+    
+    try {
+        let response;
+        if (editingLinkId) {
+            // Atualizar link existente
+            response = await fetch(`/api/ordem-compra/links/${editingLinkId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+        } else {
+            // Adicionar novo link
+            response = await fetch(`/api/ordem-compra/${currentOrdemId}/links`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('success', editingLinkId ? 'Link atualizado com sucesso!' : 'Link adicionado com sucesso!');
+            loadLinks(); // Recarregar lista na modal
+            loadLinksForDisplay(); // Recarregar links na página principal
+            document.getElementById('linkForm').reset();
+            document.getElementById('linkId').value = '';
+            document.getElementById('linkSubmitText').textContent = 'Adicionar Link';
+            editingLinkId = null;
+        } else {
+            showToast('error', data.error || 'Erro ao salvar link');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar link:', error);
+        showToast('error', 'Erro ao salvar link');
     }
 });
 </script>
