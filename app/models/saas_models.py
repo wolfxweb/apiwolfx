@@ -1013,7 +1013,7 @@ class OrdemCompra(Base):
     percentual_comissao = Column(Numeric(5, 2), default=0)  # Percentual da comissão do agente
     valor_transporte = Column(Numeric(15, 2), default=0)  # Valor do transporte
     percentual_importacao = Column(Numeric(5, 2), default=0)  # Percentual de impostos de importação
-    modalidade_importacao = Column(String(20))  # simplificada, formal
+    taxas_adicionais = Column(Numeric(15, 2), default=0)  # Taxas adicionais de importação
     valor_impostos = Column(Numeric(15, 2), default=0)  # Valor calculado dos impostos
     
     # Observações

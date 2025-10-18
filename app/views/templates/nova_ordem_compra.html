@@ -181,13 +181,12 @@
                                         
                                         <div class="col-md-3">
                                             <div class="mb-3">
-                                                <label for="modalidadeImportacao" class="form-label">Modalidade de Importação</label>
-                                                <select class="form-select" id="modalidadeImportacao">
-                                                    <option value="">Selecione...</option>
-                                                    <option value="simplificada">Simplificada</option>
-                                                    <option value="formal">Formal</option>
-                                                </select>
-                                                <small class="form-text text-muted">Tipo de processo de importação</small>
+                                                <label for="taxasAdicionais" class="form-label">Taxas Adicionais</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text moeda-sigla">R$</span>
+                                                    <input type="number" class="form-control" id="taxasAdicionais" step="0.01" min="0" value="0.00">
+                                                </div>
+                                                <small class="form-text text-muted">Taxas adicionais de importação</small>
                                             </div>
                                         </div>
                                     </div>
@@ -298,6 +297,10 @@
                                             <div class="d-flex justify-content-between">
                                                 <span>Impostos Importação:</span>
                                                 <span id="impostosValor">R$ 0,00</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Taxas Adicionais:</span>
+                                                <span id="taxasAdicionaisValor">R$ 0,00</span>
                                             </div>
                                         </div>
                                         
@@ -852,6 +855,7 @@ function updateResumo() {
     const tipoOrdem = document.getElementById('tipoOrdem').value;
     let comissao = 0;
     let frete = 0;
+    let taxasAdicionais = 0;
     let valorBaseImpostos = subtotalComDesconto;
     let impostos = 0;
     let total = subtotalComDesconto;
@@ -868,14 +872,17 @@ function updateResumo() {
         // Obter valor do frete
         frete = parseFloat(document.getElementById('valorTransporte').value) || 0;
         
-        // Valor base para cálculo de impostos = produtos + comissão + frete
-        valorBaseImpostos = subtotalComDesconto + comissao + frete;
+        // Obter taxas adicionais
+        taxasAdicionais = parseFloat(document.getElementById('taxasAdicionais').value) || 0;
+        
+        // Valor base para cálculo de impostos = produtos + comissão + frete + taxas adicionais
+        valorBaseImpostos = subtotalComDesconto + comissao + frete + taxasAdicionais;
         
         // Calcular impostos sobre o valor base
         const percentualImpostos = parseFloat(document.getElementById('percentualImportacao').value) || 0;
         impostos = valorBaseImpostos * (percentualImpostos / 100);
         
-        // Total final = produtos + comissão + frete + impostos
+        // Total final = produtos + comissão + frete + taxas adicionais + impostos
         total = valorBaseImpostos + impostos;
         
         // Atualizar valores no resumo
@@ -883,6 +890,7 @@ function updateResumo() {
         document.getElementById('comissaoValor').textContent = `${moedaSymbol} ${comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         document.getElementById('freteValor').textContent = `${moedaSymbol} ${frete.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         document.getElementById('impostosValor').textContent = `${moedaSymbol} ${impostos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('taxasAdicionaisValor').textContent = `${moedaSymbol} ${taxasAdicionais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     } else {
         resumoInternacional.style.display = 'none';
     }
@@ -973,7 +981,7 @@ async function saveOrdem() {
         comissao_agente: parseFloat(document.getElementById('comissaoAgente').value) || 0,
         valor_transporte: parseFloat(document.getElementById('valorTransporte').value) || 0,
         percentual_importacao: parseFloat(document.getElementById('percentualImportacao').value) || 0,
-        modalidade_importacao: document.getElementById('modalidadeImportacao').value || null,
+        taxas_adicionais: parseFloat(document.getElementById('taxasAdicionais').value) || 0,
         itens: getItensData()
     };
     
@@ -1065,7 +1073,7 @@ function toggleCamposInternacionais() {
         document.getElementById('comissaoAgente').value = '0.00';
         document.getElementById('valorTransporte').value = '0.00';
         document.getElementById('percentualImportacao').value = '0.00';
-        document.getElementById('modalidadeImportacao').value = '';
+        document.getElementById('taxasAdicionais').value = '0.00';
     }
     
     // Atualizar resumo financeiro
@@ -1088,7 +1096,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const camposInternacionais = [
         'comissaoAgente',
         'valorTransporte', 
-        'percentualImportacao'
+        'percentualImportacao',
+        'taxasAdicionais'
     ];
     
     camposInternacionais.forEach(campoId => {

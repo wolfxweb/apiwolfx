@@ -60,7 +60,7 @@ class OrdemCompraController:
                     "percentual_comissao": float(ordem.percentual_comissao or 0),
                     "valor_transporte": float(ordem.valor_transporte or 0),
                     "percentual_importacao": float(ordem.percentual_importacao or 0),
-                    "modalidade_importacao": ordem.modalidade_importacao,
+                    "taxas_adicionais": float(ordem.taxas_adicionais or 0),
                     "valor_impostos": float(ordem.valor_impostos or 0),
                     "fornecedor_nome": ordem.fornecedor.nome if ordem.fornecedor else None,
                     "fornecedor_id": ordem.fornecedor_id,
@@ -159,23 +159,25 @@ class OrdemCompraController:
             valor_impostos = 0
             valor_comissao = 0
             valor_frete = 0
+            valor_taxas_adicionais = 0
             valor_final_com_impostos = valor_final
             
             if ordem_data.get('tipo_ordem') == 'internacional':
                 percentual_importacao = float(ordem_data.get('percentual_importacao', 0))
                 percentual_comissao = float(ordem_data.get('comissao_agente', 0))
                 valor_frete = float(ordem_data.get('valor_transporte', 0))
+                valor_taxas_adicionais = float(ordem_data.get('taxas_adicionais', 0))
                 
                 # Calcular comissão sobre o valor dos produtos
                 valor_comissao = valor_final * (percentual_comissao / 100)
                 
-                # Valor base para impostos = produtos + comissão + frete
-                valor_base_impostos = valor_final + valor_comissao + valor_frete
+                # Valor base para impostos = produtos + comissão + frete + taxas adicionais
+                valor_base_impostos = valor_final + valor_comissao + valor_frete + valor_taxas_adicionais
                 
                 # Calcular impostos sobre o valor base
                 valor_impostos = valor_base_impostos * (percentual_importacao / 100)
                 
-                # Total final = produtos + comissão + frete + impostos
+                # Total final = produtos + comissão + frete + taxas adicionais + impostos
                 valor_final_com_impostos = valor_base_impostos + valor_impostos
             
             ordem = OrdemCompra(
@@ -195,7 +197,7 @@ class OrdemCompraController:
                 percentual_comissao=float(ordem_data.get('comissao_agente', 0)),
                 valor_transporte=float(ordem_data.get('valor_transporte', 0)),
                 percentual_importacao=float(ordem_data.get('percentual_importacao', 0)),
-                modalidade_importacao=ordem_data.get('modalidade_importacao'),
+                taxas_adicionais=valor_taxas_adicionais,
                 valor_impostos=valor_impostos,
                 observacoes=ordem_data.get('observacoes'),
                 condicoes_pagamento=ordem_data.get('condicoes_pagamento'),
