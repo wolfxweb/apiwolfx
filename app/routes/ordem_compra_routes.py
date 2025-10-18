@@ -2,10 +2,20 @@
 Rotas para Ordens de Compra
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
+import io
+import requests
+from PIL import Image as PILImage
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.drawing.image import Image as ExcelImage
+from datetime import datetime
+import tempfile
+import os
 
 from app.config.database import get_db
 from app.controllers.ordem_compra_controller import OrdemCompraController
@@ -460,3 +470,346 @@ async def update_ordem_compra_status(
     except Exception as e:
         logger.error(f"Erro na API de alteração de status: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+@ordem_compra_router.get("/api/ordem-compra/export/{ordem_id}")
+async def export_ordem_compra(
+    ordem_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para exportar ordem de compra em Excel"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar dados completos da ordem
+    ordem = ordem_compra_controller.get_ordem_compra_by_id(ordem_id, company_id, db)
+    if not ordem:
+        raise HTTPException(status_code=404, detail="Ordem de compra não encontrada")
+    
+    # Buscar dados da empresa
+    from app.models.saas_models import Company
+    company = db.query(Company).filter(Company.id == company_id).first()
+    
+    # Buscar dados do fornecedor
+    fornecedor = None
+    if ordem.get('fornecedor_id'):
+        fornecedor = db.query(Fornecedor).filter(Fornecedor.id == ordem['fornecedor_id']).first()
+    
+    # Criar workbook Excel
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Ordem de Compra"
+    
+    # Estilos
+    title_font = Font(name='Arial', size=16, bold=True, color='FFFFFF')
+    header_font = Font(name='Arial', size=12, bold=True, color='FFFFFF')
+    normal_font = Font(name='Arial', size=10)
+    bold_font = Font(name='Arial', size=10, bold=True)
+    
+    title_fill = PatternFill(start_color='2F4F4F', end_color='2F4F4F', fill_type='solid')
+    header_fill = PatternFill(start_color='4682B4', end_color='4682B4', fill_type='solid')
+    light_fill = PatternFill(start_color='F0F8FF', end_color='F0F8FF', fill_type='solid')
+    
+    center_alignment = Alignment(horizontal='center', vertical='center')
+    left_alignment = Alignment(horizontal='left', vertical='center')
+    right_alignment = Alignment(horizontal='right', vertical='center')
+    
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Título principal
+    ws.merge_cells('A1:I1')
+    ws['A1'] = f"ORDEM DE COMPRA - {ordem.get('numero_ordem', '')}"
+    ws['A1'].font = title_font
+    ws['A1'].fill = title_fill
+    ws['A1'].alignment = center_alignment
+    ws.row_dimensions[1].height = 30
+    
+    # Dados da Empresa
+    row = 3
+    ws.merge_cells(f'A{row}:I{row}')
+    ws[f'A{row}'] = "DADOS DA EMPRESA"
+    ws[f'A{row}'].font = header_font
+    ws[f'A{row}'].fill = header_fill
+    ws[f'A{row}'].alignment = left_alignment
+    ws.row_dimensions[row].height = 25
+    
+    if company:
+        row += 1
+        empresa_data = [
+            ['Nome:', company.name or ''],
+            ['CNPJ:', company.cnpj or ''],
+            ['Endereço:', f"{company.endereco or ''} {company.numero or ''}"],
+            ['Cidade:', f"{company.cidade or ''} - {company.estado or ''}"],
+            ['CEP:', company.cep or ''],
+            ['País:', company.pais or 'Brasil']
+        ]
+        
+        for i, (label, value) in enumerate(empresa_data):
+            ws[f'A{row}'] = label
+            ws[f'A{row}'].font = bold_font
+            ws[f'A{row}'].fill = light_fill
+            ws[f'A{row}'].border = thin_border
+            
+            ws[f'B{row}'] = value
+            ws[f'B{row}'].font = normal_font
+            ws[f'B{row}'].border = thin_border
+            ws.merge_cells(f'B{row}:I{row}')
+            row += 1
+    
+    # Dados do Fornecedor
+    row += 1
+    ws.merge_cells(f'A{row}:I{row}')
+    ws[f'A{row}'] = "DADOS DO FORNECEDOR"
+    ws[f'A{row}'].font = header_font
+    ws[f'A{row}'].fill = header_fill
+    ws[f'A{row}'].alignment = left_alignment
+    ws.row_dimensions[row].height = 25
+    
+    if fornecedor:
+        row += 1
+        fornecedor_data = [
+            ['Nome:', fornecedor.nome or ''],
+            ['Nome Fantasia:', fornecedor.nome_fantasia or ''],
+            ['CNPJ:', fornecedor.cnpj or ''],
+            ['Endereço:', f"{fornecedor.endereco or ''} {fornecedor.numero or ''}"],
+            ['Cidade:', f"{fornecedor.cidade or ''} - {fornecedor.estado or ''}"],
+            ['CEP:', fornecedor.cep or ''],
+            ['País:', fornecedor.pais or ''],
+            ['Contato:', fornecedor.contato_nome or ''],
+            ['Telefone:', fornecedor.telefone or ''],
+            ['Email:', fornecedor.email or '']
+        ]
+        
+        for i, (label, value) in enumerate(fornecedor_data):
+            ws[f'A{row}'] = label
+            ws[f'A{row}'].font = bold_font
+            ws[f'A{row}'].fill = light_fill
+            ws[f'A{row}'].border = thin_border
+            
+            ws[f'B{row}'] = value
+            ws[f'B{row}'].font = normal_font
+            ws[f'B{row}'].border = thin_border
+            ws.merge_cells(f'B{row}:I{row}')
+            row += 1
+    
+    # Dados da Ordem
+    row += 1
+    ws.merge_cells(f'A{row}:I{row}')
+    ws[f'A{row}'] = "DADOS DA ORDEM"
+    ws[f'A{row}'].font = header_font
+    ws[f'A{row}'].fill = header_fill
+    ws[f'A{row}'].alignment = left_alignment
+    ws.row_dimensions[row].height = 25
+    
+    row += 1
+    ordem_data = [
+        ['Número da Ordem:', ordem.get('numero_ordem', '')],
+        ['Data:', ordem.get('data_ordem', '')],
+        ['Status:', ordem.get('status', '')],
+        ['Moeda:', ordem.get('moeda', 'BRL')],
+        ['Cotação:', f"{ordem.get('cotacao_moeda', 1):.4f}"],
+        ['Valor Total:', f"{ordem.get('valor_final', 0):.2f}"],
+        ['Data de Entrega:', ordem.get('data_entrega_prevista', '')]
+    ]
+    
+    for i, (label, value) in enumerate(ordem_data):
+        ws[f'A{row}'] = label
+        ws[f'A{row}'].font = bold_font
+        ws[f'A{row}'].fill = light_fill
+        ws[f'A{row}'].border = thin_border
+        
+        ws[f'B{row}'] = value
+        ws[f'B{row}'].font = normal_font
+        ws[f'B{row}'].border = thin_border
+        ws.merge_cells(f'B{row}:I{row}')
+        row += 1
+    
+    # Itens da Ordem
+    if ordem.get('itens'):
+        row += 1
+        ws.merge_cells(f'A{row}:I{row}')
+        ws[f'A{row}'] = "ITENS DA ORDEM"
+        ws[f'A{row}'].font = header_font
+        ws[f'A{row}'].fill = header_fill
+        ws[f'A{row}'].alignment = left_alignment
+        ws.row_dimensions[row].height = 25
+        
+        # Cabeçalho da tabela de itens
+        row += 1
+        headers = ['Produto', 'SKU', 'Quantidade', 'Valor Unit.', 'Total', 'Descrição Fornecedor', 'URL', 'Imagem']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_alignment
+            cell.border = thin_border
+        
+        # Dados dos itens
+        for item in ordem['itens']:
+            row += 1
+            ws[f'A{row}'] = item.get('produto_nome', '')
+            ws[f'B{row}'] = item.get('produto_codigo', '')  # SKU/Código do produto
+            ws[f'C{row}'] = item.get('quantidade', 0)
+            ws[f'D{row}'] = f"{item.get('valor_unitario', 0):.2f}"
+            ws[f'E{row}'] = f"{item.get('valor_total', 0):.2f}"
+            ws[f'F{row}'] = item.get('descricao_fornecedor', '')
+            ws[f'G{row}'] = item.get('url', '')  # URL do produto
+            
+            # Adicionar imagem do produto se existir
+            produto_imagem = item.get('produto_imagem', '')
+            if produto_imagem:
+                try:
+                    # Download da imagem
+                    response = requests.get(produto_imagem, timeout=10)
+                    if response.status_code == 200:
+                        # Salvar imagem temporariamente
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                            temp_file.write(response.content)
+                            temp_file_path = temp_file.name
+                        
+                        # Redimensionar imagem para caber na célula
+                        img = PILImage.open(temp_file_path)
+                        img.thumbnail((100, 100), PILImage.Resampling.LANCZOS)
+                        
+                        # Salvar imagem redimensionada
+                        img_path = temp_file_path.replace('.jpg', '_resized.jpg')
+                        img.save(img_path, 'JPEG', quality=85)
+                        
+                        # Adicionar imagem ao Excel
+                        excel_img = ExcelImage(img_path)
+                        excel_img.width = 100
+                        excel_img.height = 100
+                        ws.add_image(excel_img, f'H{row}')
+                        
+                        # Limpar arquivo original, mas manter o redimensionado
+                        os.unlink(temp_file_path)
+                        
+                        ws[f'H{row}'] = 'Imagem carregada'
+                    else:
+                        ws[f'H{row}'] = 'Erro ao carregar imagem'
+                except Exception as e:
+                    ws[f'H{row}'] = f'Erro: {str(e)[:20]}...'
+            else:
+                ws[f'H{row}'] = 'Sem imagem'
+            
+            # Aplicar formatação às células
+            for col in range(1, 9):
+                cell = ws.cell(row=row, column=col)
+                cell.font = normal_font
+                cell.border = thin_border
+                if col in [3, 4, 5]:  # Quantidade, Valor Unit., Total
+                    cell.alignment = center_alignment
+                else:
+                    cell.alignment = left_alignment
+            
+            # Ajustar altura da linha para acomodar a imagem
+            ws.row_dimensions[row].height = 80
+    
+    # Resumo Financeiro
+    row += 2
+    ws.merge_cells(f'A{row}:I{row}')
+    ws[f'A{row}'] = "RESUMO FINANCEIRO"
+    ws[f'A{row}'].font = header_font
+    ws[f'A{row}'].fill = header_fill
+    ws[f'A{row}'].alignment = left_alignment
+    ws.row_dimensions[row].height = 25
+    
+    # Dados do resumo financeiro
+    moeda_symbol = 'R$' if ordem.get('moeda', 'BRL') == 'BRL' else '$' if ordem.get('moeda') == 'USD' else '¥'
+    cotacao = ordem.get('cotacao_moeda', 1)
+    valor_final = ordem.get('valor_final', 0)
+    valor_brl = valor_final * cotacao
+    
+    # Calcular valores (usando dados da ordem se disponíveis)
+    subtotal = ordem.get('subtotal', valor_final)
+    comissao_agente = ordem.get('comissao_agente', 0)
+    valor_transporte = ordem.get('valor_transporte', 0)
+    taxas_adicionais = ordem.get('taxas_adicionais', 0)
+    impostos_importacao = ordem.get('impostos_importacao', 0)
+    total_ordem = ordem.get('valor_final', valor_final)
+    
+    resumo_data = [
+        ['Subtotal:', f"{moeda_symbol} {subtotal:.2f}"],
+        ['Comissão Agente:', f"{moeda_symbol} {comissao_agente:.2f}"],
+        ['Valor Transporte:', f"{moeda_symbol} {valor_transporte:.2f}"],
+        ['Taxas Adicionais:', f"{moeda_symbol} {taxas_adicionais:.2f}"],
+        ['Impostos Importação:', f"{moeda_symbol} {impostos_importacao:.2f}"],
+        ['Total:', f"{moeda_symbol} {total_ordem:.2f}"],
+        ['Total em Reais:', f"R$ {valor_brl:.2f}"]
+    ]
+    
+    for i, (label, value) in enumerate(resumo_data):
+        row += 1
+        ws[f'A{row}'] = label
+        ws[f'A{row}'].font = bold_font
+        ws[f'A{row}'].fill = light_fill
+        ws[f'A{row}'].border = thin_border
+        
+        ws[f'B{row}'] = value
+        ws[f'B{row}'].font = normal_font
+        ws[f'B{row}'].border = thin_border
+        ws[f'B{row}'].alignment = right_alignment
+        ws.merge_cells(f'B{row}:I{row}')
+    
+    # Observações
+    if ordem.get('observacoes'):
+        row += 2
+        ws.merge_cells(f'A{row}:I{row}')
+        ws[f'A{row}'] = "OBSERVAÇÕES"
+        ws[f'A{row}'].font = header_font
+        ws[f'A{row}'].fill = header_fill
+        ws[f'A{row}'].alignment = left_alignment
+        ws.row_dimensions[row].height = 25
+        
+        row += 1
+        ws.merge_cells(f'A{row}:I{row}')
+        ws[f'A{row}'] = ordem['observacoes']
+        ws[f'A{row}'].font = normal_font
+        ws[f'A{row}'].alignment = left_alignment
+        ws[f'A{row}'].border = thin_border
+    
+    # Rodapé
+    row += 2
+    ws.merge_cells(f'A{row}:I{row}')
+    ws[f'A{row}'] = f"Documento gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    ws[f'A{row}'].font = Font(name='Arial', size=8, italic=True)
+    ws[f'A{row}'].alignment = center_alignment
+    
+    # Ajustar largura das colunas
+    column_widths = [25, 15, 12, 15, 15, 30, 20, 20, 20]
+    for i, width in enumerate(column_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = width
+    
+    # Salvar em buffer
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    # Limpar arquivos temporários de imagens
+    try:
+        import glob
+        temp_files = glob.glob('/tmp/tmp*_resized.jpg')
+        for temp_file in temp_files:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+    except Exception:
+        pass  # Ignorar erros de limpeza
+    
+    # Retornar Excel
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=ordem_compra_{ordem_id}.xlsx"}
+    )

@@ -267,6 +267,9 @@ function renderOrdens() {
                     <button class="btn btn-sm btn-outline-success" onclick="manageLinks(${ordem.id})" title="Gerenciar Links">
                         <i class="bi bi-link-45deg"></i>
                     </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="exportOrdem(${ordem.id})" title="Exportar Ordem">
+                        <i class="bi bi-download"></i>
+                    </button>
                     <a href="/ordem-compra/editar/${ordem.id}" class="btn btn-sm btn-outline-warning" title="Editar">
                         <i class="bi bi-pencil"></i>
                     </a>
@@ -564,6 +567,37 @@ async function confirmStatusChange(ordemId) {
 function manageLinks(ordemId) {
     // Redirecionar para página de edição com foco nos links
     window.location.href = `/ordem-compra/editar/${ordemId}#linksSection`;
+}
+
+// Função para exportar ordem de compra
+async function exportOrdem(ordemId) {
+    try {
+        showToast('Gerando documento...', 'info');
+        
+        const response = await fetch(`/api/ordem-compra/export/${ordemId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ordem_compra_${ordemId}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            showToast('Planilha exportada com sucesso!', 'success');
+        } else {
+            const error = await response.json();
+            showToast(error.error || 'Erro ao exportar documento', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao exportar ordem:', error);
+        showToast('Erro ao exportar documento', 'error');
+    }
 }
 </script>
 {% endblock %}
