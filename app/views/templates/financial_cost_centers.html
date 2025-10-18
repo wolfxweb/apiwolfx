@@ -206,12 +206,6 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="color" class="form-label">Cor</label>
-                                <input type="color" class="form-control form-control-color" id="color" value="#007bff">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
                                 <div class="form-check mt-4">
                                     <input class="form-check-input" type="checkbox" id="isActive" checked>
                                     <label class="form-check-label" for="isActive">
@@ -328,12 +322,7 @@ function renderCostCenters() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${costCenter.code || '-'}</td>
-            <td>
-                <div class="d-flex align-items-center">
-                    <div class="color-indicator me-2" style="width: 16px; height: 16px; background-color: ${costCenter.color || '#007bff'}; border-radius: 3px;"></div>
-                    ${costCenter.name}
-                </div>
-            </td>
+            <td>${costCenter.name}</td>
             <td>${costCenter.responsible || '-'}</td>
             <td>${costCenter.parent_name || '-'}</td>
             <td>${costCenter.monthly_budget ? 'R$ ' + parseFloat(costCenter.monthly_budget).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
@@ -418,7 +407,6 @@ function showCreateCostCenterModal() {
     document.getElementById('costCenterModalTitle').textContent = 'Novo Centro de Custo';
     document.getElementById('costCenterForm').reset();
     document.getElementById('isActive').checked = true;
-    document.getElementById('color').value = '#007bff';
     
     const modal = new bootstrap.Modal(document.getElementById('costCenterModal'));
     modal.show();
@@ -439,7 +427,6 @@ function editCostCenter(id) {
     document.getElementById('responsibleEmail').value = costCenter.responsible_email || '';
     document.getElementById('parentCostCenter').value = costCenter.parent_id || '';
     document.getElementById('monthlyBudget').value = costCenter.monthly_budget || '';
-    document.getElementById('color').value = costCenter.color || '#007bff';
     document.getElementById('costCenterDescription').value = costCenter.description || '';
     document.getElementById('isActive').checked = costCenter.is_active;
     
@@ -456,7 +443,6 @@ async function saveCostCenter() {
         responsible_email: document.getElementById('responsibleEmail').value,
         parent_id: document.getElementById('parentCostCenter').value || null,
         monthly_budget: document.getElementById('monthlyBudget').value || null,
-        color: document.getElementById('color').value,
         description: document.getElementById('costCenterDescription').value,
         is_active: document.getElementById('isActive').checked
     };

@@ -552,6 +552,8 @@ async def update_cost_center(
         cost_center.name = cost_center_data.get("name")
     if cost_center_data.get("description") is not None:
         cost_center.description = cost_center_data.get("description")
+    if cost_center_data.get("color") is not None:
+        cost_center.color = cost_center_data.get("color")
     if cost_center_data.get("is_active") is not None:
         cost_center.is_active = cost_center_data.get("is_active")
     
