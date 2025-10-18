@@ -1019,10 +1019,23 @@ function updateResumo() {
         
         // Atualizar valores no resumo
         const moedaSymbol = getMoedaSymbol(moeda);
-        document.getElementById('comissaoValor').textContent = `${moedaSymbol} ${comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        document.getElementById('freteValor').textContent = `${moedaSymbol} ${frete.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        document.getElementById('impostosValor').textContent = `${moedaSymbol} ${impostos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        document.getElementById('taxasAdicionaisValor').textContent = `${moedaSymbol} ${taxasAdicionais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        
+        if (moeda === 'BRL') {
+            document.getElementById('comissaoValor').textContent = `${moedaSymbol} ${comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            document.getElementById('freteValor').textContent = `${moedaSymbol} ${frete.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            document.getElementById('impostosValor').textContent = `${moedaSymbol} ${impostos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            document.getElementById('taxasAdicionaisValor').textContent = `${moedaSymbol} ${taxasAdicionais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        } else {
+            const comissaoBRL = comissao * cotacao;
+            const freteBRL = frete * cotacao;
+            const impostosBRL = impostos * cotacao;
+            const taxasBRL = taxasAdicionais * cotacao;
+            
+            document.getElementById('comissaoValor').innerHTML = `${moedaSymbol} ${comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="text-muted">(R$ ${comissaoBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</small>`;
+            document.getElementById('freteValor').innerHTML = `${moedaSymbol} ${frete.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="text-muted">(R$ ${freteBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</small>`;
+            document.getElementById('impostosValor').innerHTML = `${moedaSymbol} ${impostos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="text-muted">(R$ ${impostosBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</small>`;
+            document.getElementById('taxasAdicionaisValor').innerHTML = `${moedaSymbol} ${taxasAdicionais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="text-muted">(R$ ${taxasBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</small>`;
+        }
     } else {
         resumoInternacional.style.display = 'none';
     }
@@ -1041,8 +1054,21 @@ function updateResumo() {
     
     // Atualizar exibição - valores principais na moeda selecionada
     const moedaSymbol = getMoedaSymbol(moeda);
-    document.getElementById('subtotal').textContent = `${moedaSymbol} ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    document.getElementById('total').textContent = `${moedaSymbol} ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
+    // Subtotal
+    if (moeda === 'BRL') {
+        document.getElementById('subtotal').textContent = `${moedaSymbol} ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+        const subtotalBRL = subtotal * cotacao;
+        document.getElementById('subtotal').innerHTML = `${moedaSymbol} ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="text-muted">(R$ ${subtotalBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</small>`;
+    }
+    
+    // Total
+    if (moeda === 'BRL') {
+        document.getElementById('total').textContent = `${moedaSymbol} ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+        document.getElementById('total').innerHTML = `${moedaSymbol} ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="text-muted">(R$ ${totalBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</small>`;
+    }
     
     // Valor convertido em reais (sempre em fonte menor)
     document.getElementById('totalBRL').textContent = `R$ ${totalBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

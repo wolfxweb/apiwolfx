@@ -23,7 +23,7 @@
                         <!-- Busca -->
                         <div class="col-md-7">
                             <label for="searchInput" class="form-label">Buscar</label>
-                            <input type="text" class="form-control" id="searchInput" placeholder="Fornecedor, descrição, NF..." onkeyup="filterPayables()">
+                            <input type="text" class="form-control" id="searchInput" placeholder="Fornecedor, descrição, NF, Ordem de Compra..." onkeyup="filterPayables()">
                         </div>
                         
                         <!-- Status -->
@@ -406,7 +406,8 @@ function filterPayables() {
         // Filtro de busca
         const matchesSearch = !searchTerm || 
             payable.description.toLowerCase().includes(searchTerm) ||
-            (payable.supplier_name && payable.supplier_name.toLowerCase().includes(searchTerm));
+            (payable.supplier_name && payable.supplier_name.toLowerCase().includes(searchTerm)) ||
+            (payable.ordem_compra_numero && payable.ordem_compra_numero.toLowerCase().includes(searchTerm));
         
         // Filtro de status
         const matchesStatus = !statusFilter || payable.status === statusFilter;

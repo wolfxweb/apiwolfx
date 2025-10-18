@@ -1157,6 +1157,12 @@ async def get_accounts_payable(
     ).all()
     category_dict = {cat.id: cat.name for cat in categories}
     
+    # Buscar ordens de compra para incluir números
+    ordens_compra = db.query(OrdemCompra).filter(
+        OrdemCompra.company_id == company_id
+    ).all()
+    ordem_dict = {ordem.id: ordem.numero_ordem for ordem in ordens_compra}
+    
     return [
                 {
                     "id": pay.id,
@@ -1180,6 +1186,8 @@ async def get_accounts_payable(
                     "recurring_end_date": pay.recurring_end_date.isoformat() if pay.recurring_end_date else None,
                     "is_fixed": pay.is_fixed,
                     "notes": pay.notes,
+                    "ordem_compra_id": pay.ordem_compra_id,
+                    "ordem_compra_numero": ordem_dict.get(pay.ordem_compra_id, None),
                     "created_at": pay.created_at,
                     "updated_at": pay.updated_at
                 }
