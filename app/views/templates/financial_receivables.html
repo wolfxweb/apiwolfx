@@ -17,38 +17,6 @@
     </div>
 </div>
 
-<!-- Filtros -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por descrição ou cliente..." onkeyup="filterReceivables()">
-        </div>
-    </div>
-    <div class="col-md-2">
-        <select class="form-select" id="statusFilter" onchange="filterReceivables()">
-            <option value="">Todos os Status</option>
-            <option value="pending">Pendente</option>
-            <option value="paid">Recebido</option>
-            <option value="overdue">Vencido</option>
-            <option value="cancelled">Cancelado</option>
-        </select>
-    </div>
-    <div class="col-md-2">
-        <input type="text" class="form-control" id="customerFilter" placeholder="Filtrar por cliente" onkeyup="filterReceivables()">
-    </div>
-    <div class="col-md-2">
-        <input type="date" class="form-control" id="dueDateFrom" placeholder="Vencimento de" onchange="filterReceivables()">
-    </div>
-    <div class="col-md-2">
-        <input type="date" class="form-control" id="dueDateTo" placeholder="Vencimento até" onchange="filterReceivables()">
-    </div>
-    <div class="col-md-1">
-        <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
-            <i class="bi bi-x-circle"></i>
-        </button>
-    </div>
-</div>
 
 <!-- Estatísticas Rápidas -->
 <div class="row mb-4">
@@ -116,21 +84,18 @@
 
 <!-- Filtros -->
 <div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
-    </div>
     <div class="card-body">
         <div class="row g-3">
             <!-- Busca -->
             <div class="col-md-3">
                 <label for="searchInput" class="form-label">Buscar</label>
-                <input type="text" class="form-control" id="searchInput" placeholder="Cliente, descrição, NF...">
+                <input type="text" class="form-control" id="searchInput" placeholder="Cliente, descrição, NF..." onkeyup="filterReceivables()">
             </div>
             
             <!-- Tipo -->
             <div class="col-md-2">
                 <label for="typeFilter" class="form-label">Tipo</label>
-                <select class="form-select" id="typeFilter">
+                <select class="form-select" id="typeFilter" onchange="filterReceivables()">
                     <option value="">Todos</option>
                     <option value="normal">Lançamento Manual</option>
                     <option value="ml_order">Mercado Livre</option>
@@ -140,7 +105,7 @@
             <!-- Status -->
             <div class="col-md-2">
                 <label for="statusFilter" class="form-label">Status</label>
-                <select class="form-select" id="statusFilter">
+                <select class="form-select" id="statusFilter" onchange="filterReceivables()">
                     <option value="">Todos</option>
                     <option value="pending">Pendente</option>
                     <option value="paid">Pago</option>
@@ -152,7 +117,7 @@
             <!-- Período -->
             <div class="col-md-3">
                 <label for="periodFilter" class="form-label">Período</label>
-                <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod()">
+                <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); filterReceivables();">
                     <option value="">Todos os períodos</option>
                     <option value="today">Hoje</option>
                     <option value="this_week">Esta semana</option>
@@ -185,11 +150,11 @@
         <div class="row g-3 mt-2" id="customPeriodRow" style="display: none;">
             <div class="col-md-3">
                 <label for="dueDateFrom" class="form-label">Data inicial</label>
-                <input type="date" class="form-control" id="dueDateFrom">
+                <input type="date" class="form-control" id="dueDateFrom" onchange="filterReceivables()">
             </div>
             <div class="col-md-3">
                 <label for="dueDateTo" class="form-label">Data final</label>
-                <input type="date" class="form-control" id="dueDateTo">
+                <input type="date" class="form-control" id="dueDateTo" onchange="filterReceivables()">
             </div>
         </div>
     </div>

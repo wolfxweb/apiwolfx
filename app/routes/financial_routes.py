@@ -1678,6 +1678,58 @@ async def mark_payable_as_pending(
     logger.info(f"✅ Conta a pagar marcada como pendente: {payable.description} (ID: {payable_id})")
     return {"message": "Conta marcada como pendente com sucesso"}
 
+@financial_router.put("/api/financial/payables/{payable_id}/status")
+async def update_payable_status(
+    payable_id: int,
+    status_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar status de conta a pagar"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Buscar conta a pagar existente
+    payable = db.query(AccountPayable).filter(
+        AccountPayable.id == payable_id,
+        AccountPayable.company_id == company_id
+    ).first()
+    
+    if not payable:
+        raise HTTPException(status_code=404, detail="Conta a pagar não encontrada")
+    
+    new_status = status_data.get("status")
+    if not new_status:
+        raise HTTPException(status_code=400, detail="Status é obrigatório")
+    
+    if new_status not in ["pending", "paid", "overdue", "cancelled"]:
+        raise HTTPException(status_code=400, detail="Status inválido")
+    
+    # Atualizar status
+    payable.status = new_status
+    
+    # Se marcando como pago, definir data de pagamento
+    if new_status == "paid":
+        payable.paid_date = datetime.now().date()
+        if not payable.paid_amount:
+            payable.paid_amount = float(payable.amount)
+    else:
+        # Se mudando para outro status, limpar dados de pagamento
+        payable.paid_date = None
+        payable.paid_amount = None
+    
+    db.commit()
+    
+    logger.info(f"✅ Status da conta a pagar atualizado: {payable.description} -> {new_status} (ID: {payable_id})")
+    return {"message": f"Status atualizado para {new_status} com sucesso"}
+
 @financial_router.put("/api/financial/receivables/{receivable_id}/mark-received")
 async def mark_receivable_as_received(
     receivable_id: int,

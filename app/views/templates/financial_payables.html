@@ -414,39 +414,57 @@ function editPayable(id) {
 }
 
 // Função para marcar como pago
-function markAsPaid(id) {
-    currentPaymentId = id;
-    currentPaymentAction = 'mark_paid';
-    
-    const payable = payables.find(p => p.id === id);
-    document.getElementById('paymentModalBody').innerHTML = `
-        <p>Tem certeza que deseja marcar esta conta como <strong>PAGA</strong>?</p>
-        <div class="alert alert-info">
-            <strong>Conta:</strong> ${payable.description}<br>
-            <strong>Valor:</strong> R$ ${parseFloat(payable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}<br>
-            <strong>Fornecedor:</strong> ${payable.supplier_name || 'N/A'}
-        </div>
-    `;
-    
-    new bootstrap.Modal(document.getElementById('paymentModal')).show();
+async function markAsPaid(id) {
+    try {
+        const response = await fetch(`/api/financial/payables/${id}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                status: 'paid'
+            })
+        });
+        
+        if (response.ok) {
+            showAlert('Conta marcada como paga com sucesso!', 'success');
+            loadPayables();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao marcar como pago', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao marcar como pago', 'danger');
+    }
 }
 
 // Função para marcar como pendente
-function markAsPending(id) {
-    currentPaymentId = id;
-    currentPaymentAction = 'mark_pending';
-    
-    const payable = payables.find(p => p.id === id);
-    document.getElementById('paymentModalBody').innerHTML = `
-        <p>Tem certeza que deseja marcar esta conta como <strong>PENDENTE</strong>?</p>
-        <div class="alert alert-warning">
-            <strong>Conta:</strong> ${payable.description}<br>
-            <strong>Valor:</strong> R$ ${parseFloat(payable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}<br>
-            <strong>Fornecedor:</strong> ${payable.supplier_name || 'N/A'}
-        </div>
-    `;
-    
-    new bootstrap.Modal(document.getElementById('paymentModal')).show();
+async function markAsPending(id) {
+    try {
+        const response = await fetch(`/api/financial/payables/${id}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                status: 'pending'
+            })
+        });
+        
+        if (response.ok) {
+            showAlert('Conta marcada como pendente com sucesso!', 'success');
+            loadPayables();
+        } else {
+            const error = await response.json();
+            showAlert(error.detail || 'Erro ao marcar como pendente', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao marcar como pendente', 'danger');
+    }
 }
 
 // Função para confirmar pagamento
