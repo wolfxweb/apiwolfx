@@ -7,9 +7,6 @@
     <h1 class="h2"><i class="bi bi-tags"></i> Categorias Financeiras</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshCategories()">
-                <i class="bi bi-arrow-clockwise"></i> Atualizar
-            </button>
             <button type="button" class="btn btn-sm btn-primary" onclick="showCreateCategoryModal()">
                 <i class="bi bi-plus-circle"></i> Nova Categoria
             </button>
@@ -18,28 +15,47 @@
 </div>
 
 <!-- Filtros -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome ou código..." onkeyup="filterCategories()">
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <!-- Busca -->
+            <div class="col-md-6">
+                <label for="searchInput" class="form-label">Buscar</label>
+                <input type="text" class="form-control" id="searchInput" placeholder="Nome, código..." onkeyup="filterCategories()">
+            </div>
+            
+            <!-- Tipo -->
+            <div class="col-md-3">
+                <label for="typeFilter" class="form-label">Tipo</label>
+                <select class="form-select" id="typeFilter" onchange="filterCategories()">
+                    <option value="">Todos</option>
+                    <option value="revenue">Receita</option>
+                    <option value="expense">Despesa</option>
+                    <option value="investment">Investimento</option>
+                    <option value="transfer">Transferência</option>
+                </select>
+            </div>
+            
+            <!-- Status -->
+            <div class="col-md-2">
+                <label for="statusFilter" class="form-label">Status</label>
+                <select class="form-select" id="statusFilter" onchange="filterCategories()">
+                    <option value="">Todos</option>
+                    <option value="active">Ativo</option>
+                    <option value="inactive">Inativo</option>
+                </select>
+            </div>
+            
+            <!-- Ações -->
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()" style="white-space: nowrap;">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </button>
+                </div>
+            </div>
         </div>
-    </div>
-    <div class="col-md-3">
-        <select class="form-select" id="typeFilter" onchange="filterCategories()">
-            <option value="">Todos os Tipos</option>
-            <option value="revenue">Receita</option>
-            <option value="expense">Despesa</option>
-            <option value="investment">Investimento</option>
-            <option value="transfer">Transferência</option>
-        </select>
-    </div>
-    <div class="col-md-3">
-        <select class="form-select" id="statusFilter" onchange="filterCategories()">
-            <option value="">Todos os Status</option>
-            <option value="active">Ativo</option>
-            <option value="inactive">Inativo</option>
-        </select>
     </div>
 </div>
 
@@ -372,6 +388,15 @@ function filterCategories() {
     renderCategories();
 }
 
+// Função para limpar filtros
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('typeFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    
+    filterCategories();
+}
+
 // Função para mostrar modal de criação
 function showCreateCategoryModal() {
     currentEditId = null;
@@ -470,11 +495,6 @@ async function confirmDeleteCategory() {
         console.error('Erro:', error);
         showAlert('Erro ao excluir categoria', 'danger');
     }
-}
-
-// Função para atualizar categorias
-function refreshCategories() {
-    loadCategories();
 }
 
 // Funções auxiliares

@@ -7,9 +7,6 @@
     <h1 class="h2"><i class="bi bi-building"></i> Centros de Custo</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshCostCenters()">
-                <i class="bi bi-arrow-clockwise"></i> Atualizar
-            </button>
             <button type="button" class="btn btn-sm btn-primary" onclick="showCreateCostCenterModal()">
                 <i class="bi bi-plus-circle"></i> Novo Centro de Custo
             </button>
@@ -18,26 +15,45 @@
 </div>
 
 <!-- Filtros -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome ou código..." onkeyup="filterCostCenters()">
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <!-- Busca -->
+            <div class="col-md-7">
+                <label for="searchInput" class="form-label">Buscar</label>
+                <input type="text" class="form-control" id="searchInput" placeholder="Nome, código, responsável..." onkeyup="filterCostCenters()">
+            </div>
+            
+            <!-- Status -->
+            <div class="col-md-2">
+                <label for="statusFilter" class="form-label">Status</label>
+                <select class="form-select" id="statusFilter" onchange="filterCostCenters()">
+                    <option value="">Todos</option>
+                    <option value="active">Ativo</option>
+                    <option value="inactive">Inativo</option>
+                </select>
+            </div>
+            
+            <!-- Nível -->
+            <div class="col-md-2">
+                <label for="parentFilter" class="form-label">Nível</label>
+                <select class="form-select" id="parentFilter" onchange="filterCostCenters()">
+                    <option value="">Todos</option>
+                    <option value="parent">Centros Pai</option>
+                    <option value="child">Centros Filho</option>
+                </select>
+            </div>
+            
+            <!-- Ações -->
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()" style="white-space: nowrap;">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </button>
+                </div>
+            </div>
         </div>
-    </div>
-    <div class="col-md-3">
-        <select class="form-select" id="statusFilter" onchange="filterCostCenters()">
-            <option value="">Todos os Status</option>
-            <option value="active">Ativo</option>
-            <option value="inactive">Inativo</option>
-        </select>
-    </div>
-    <div class="col-md-3">
-        <select class="form-select" id="parentFilter" onchange="filterCostCenters()">
-            <option value="">Todos os Níveis</option>
-            <option value="parent">Centros Pai</option>
-            <option value="child">Centros Filho</option>
-        </select>
     </div>
 </div>
 
@@ -387,6 +403,15 @@ function filterCostCenters() {
     renderCostCenters();
 }
 
+// Função para limpar filtros
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('parentFilter').value = '';
+    
+    filterCostCenters();
+}
+
 // Função para atualizar select de centros pai
 function updateParentSelect() {
     const select = document.getElementById('parentCostCenter');
@@ -503,11 +528,6 @@ async function confirmDeleteCostCenter() {
         console.error('Erro:', error);
         showAlert('Erro ao excluir centro de custo', 'danger');
     }
-}
-
-// Função para atualizar centros de custo
-function refreshCostCenters() {
-    loadCostCenters();
 }
 
 // Funções de paginação
