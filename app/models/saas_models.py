@@ -55,6 +55,40 @@ class Company(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     trial_ends_at = Column(DateTime)
     
+    # Campos de identificação da empresa
+    razao_social = Column(String(255))
+    nome_fantasia = Column(String(255))
+    cnpj = Column(String(20))
+    inscricao_estadual = Column(String(50))
+    inscricao_municipal = Column(String(50))
+    regime_tributario = Column(String(50))
+    
+    # Campos de endereço
+    cep = Column(String(10))
+    endereco = Column(String(255))
+    numero = Column(String(20))
+    complemento = Column(String(100))
+    bairro = Column(String(100))
+    cidade = Column(String(100))
+    estado = Column(String(2))
+    pais = Column(String(100))
+    
+    # Campos de impostos
+    aliquota_simples = Column(Numeric(5, 2))
+    faturamento_anual = Column(Numeric(15, 2))
+    aliquota_ir = Column(Numeric(5, 2))
+    aliquota_csll = Column(Numeric(5, 2))
+    aliquota_pis = Column(Numeric(5, 2))
+    aliquota_cofins = Column(Numeric(5, 2))
+    aliquota_icms = Column(Numeric(5, 2))
+    aliquota_iss = Column(Numeric(5, 2))
+    aliquota_ir_real = Column(Numeric(5, 2))
+    aliquota_csll_real = Column(Numeric(5, 2))
+    aliquota_pis_real = Column(Numeric(5, 2))
+    aliquota_cofins_real = Column(Numeric(5, 2))
+    aliquota_icms_real = Column(Numeric(5, 2))
+    aliquota_iss_real = Column(Numeric(5, 2))
+    
     # Relacionamentos
     users = relationship("User", back_populates="company", cascade="all, delete-orphan")
     ml_accounts = relationship("MLAccount", back_populates="company", cascade="all, delete-orphan")

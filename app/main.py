@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Cookie
+from fastapi import FastAPI, Cookie, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config.settings import settings
-from app.config.database import engine, Base
+from app.config.database import engine, Base, get_db
+from sqlalchemy.orm import Session
 from app.routes.main_routes import main_router
 from app.routes.saas_routes import saas_router
 from app.routes.auth_routes import auth_router
@@ -189,6 +191,304 @@ app.include_router(financial_router)  # Para /financial e /api/financial
 app.include_router(fornecedores_router)  # Para /fornecedores e /api/fornecedores
 app.include_router(ordem_compra_router)  # Para /ordem-compra e /api/ordem-compra
 # app.include_router(settings_router)  # Removido - usando /auth/profile
+
+# Rota específica para página de edição da empresa
+@app.get("/auth/company/edit", response_class=HTMLResponse)
+async def edit_company_page(
+    request: Request,
+    session_token: str = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de edição da empresa"""
+    if not session_token:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    from app.controllers.auth_controller import AuthController
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar informações completas da empresa
+    from sqlalchemy import text
+    from app.models.saas_models import Company, Subscription, MLAccount
+    
+    # Informações da empresa
+    company_query = text("""
+        SELECT c.*, 
+               COUNT(DISTINCT u.id) as total_users,
+               COUNT(DISTINCT ma.id) as total_ml_accounts
+        FROM companies c
+        LEFT JOIN users u ON u.company_id = c.id
+        LEFT JOIN ml_accounts ma ON ma.company_id = c.id
+        WHERE c.id = :company_id
+        GROUP BY c.id
+    """)
+    
+    result = db.execute(company_query, {"company_id": company_id}).fetchone()
+    
+    print(f"DEBUG: Carregando empresa ID: {company_id}")
+    if result:
+        print(f"DEBUG: Empresa encontrada: {result.name}")
+        print(f"DEBUG: Dados carregados do banco:")
+        print(f"  - Nome Fantasia: {getattr(result, 'nome_fantasia', None)}")
+        print(f"  - CEP: {getattr(result, 'cep', None)}")
+        print(f"  - Cidade: {getattr(result, 'cidade', None)}")
+    else:
+        print(f"DEBUG: Empresa não encontrada")
+    
+    if not result:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
+    company_data = {
+        "id": result.id,
+        "name": result.name,
+        "slug": result.slug,
+        "domain": result.domain,
+        "status": result.status,
+        "description": result.description,
+        "created_at": result.created_at,
+        "trial_ends_at": result.trial_ends_at,
+        "ml_orders_as_receivables": result.ml_orders_as_receivables,
+        "total_users": result.total_users,
+        "total_ml_accounts": result.total_ml_accounts,
+        # Campos adicionais
+        "razao_social": getattr(result, 'razao_social', None),
+        "nome_fantasia": getattr(result, 'nome_fantasia', None),
+        "cnpj": getattr(result, 'cnpj', None),
+        "inscricao_estadual": getattr(result, 'inscricao_estadual', None),
+        "inscricao_municipal": getattr(result, 'inscricao_municipal', None),
+        "regime_tributario": getattr(result, 'regime_tributario', None),
+        "cep": getattr(result, 'cep', None),
+        "endereco": getattr(result, 'endereco', None),
+        "numero": getattr(result, 'numero', None),
+        "complemento": getattr(result, 'complemento', None),
+        "bairro": getattr(result, 'bairro', None),
+        "cidade": getattr(result, 'cidade', None),
+        "estado": getattr(result, 'estado', None),
+        "pais": getattr(result, 'pais', None),
+        # Campos de impostos
+        "aliquota_simples": getattr(result, 'aliquota_simples', None),
+        "faturamento_anual": getattr(result, 'faturamento_anual', None),
+        "aliquota_ir": getattr(result, 'aliquota_ir', None),
+        "aliquota_csll": getattr(result, 'aliquota_csll', None),
+        "aliquota_pis": getattr(result, 'aliquota_pis', None),
+        "aliquota_cofins": getattr(result, 'aliquota_cofins', None),
+        "aliquota_icms": getattr(result, 'aliquota_icms', None),
+        "aliquota_iss": getattr(result, 'aliquota_iss', None),
+        "aliquota_ir_real": getattr(result, 'aliquota_ir_real', None),
+        "aliquota_csll_real": getattr(result, 'aliquota_csll_real', None),
+        "aliquota_pis_real": getattr(result, 'aliquota_pis_real', None),
+        "aliquota_cofins_real": getattr(result, 'aliquota_cofins_real', None),
+        "aliquota_icms_real": getattr(result, 'aliquota_icms_real', None),
+        "aliquota_iss_real": getattr(result, 'aliquota_iss_real', None)
+    }
+    
+    from app.views.template_renderer import render_template
+    return render_template("edit_company.html", 
+                         user=user_data, 
+                         company=company_data)
+
+# Rota específica para API de atualização da empresa
+@app.put("/api/company/update")
+async def api_update_company(
+    company_data: dict,
+    session_token: str = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar dados da empresa do usuário logado"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    from app.controllers.auth_controller import AuthController
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Usuário não possui empresa associada")
+    
+    try:
+        # Buscar a empresa
+        from app.models.saas_models import Company
+        company = db.query(Company).filter(Company.id == company_id).first()
+        
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa não encontrada")
+        
+        print(f"DEBUG: Dados recebidos: {company_data}")
+        print(f"DEBUG: Empresa encontrada: {company.name}")
+        
+        # Atualizar campos permitidos
+        if 'name' in company_data:
+            company.name = company_data['name']
+            # Gerar slug automaticamente baseado no nome
+            import re
+            slug = re.sub(r'[^a-zA-Z0-9\s-]', '', company_data['name'])
+            slug = re.sub(r'\s+', '-', slug).lower()
+            company.slug = slug
+            print(f"DEBUG: Nome atualizado para: {company.name}")
+        
+        if 'domain' in company_data:
+            company.domain = company_data['domain']
+        
+        if 'description' in company_data:
+            company.description = company_data['description']
+        
+        # Campos de identificação
+        if 'razao_social' in company_data:
+            company.razao_social = company_data['razao_social']
+            print(f"DEBUG: Razão Social atualizada para: {company.razao_social}")
+        if 'nome_fantasia' in company_data:
+            company.nome_fantasia = company_data['nome_fantasia']
+            print(f"DEBUG: Nome Fantasia atualizado para: {company.nome_fantasia}")
+        if 'cnpj' in company_data:
+            company.cnpj = company_data['cnpj']
+            print(f"DEBUG: CNPJ atualizado para: {company.cnpj}")
+        if 'inscricao_estadual' in company_data:
+            company.inscricao_estadual = company_data['inscricao_estadual']
+            print(f"DEBUG: Inscrição Estadual atualizada para: {company.inscricao_estadual}")
+        if 'inscricao_municipal' in company_data:
+            company.inscricao_municipal = company_data['inscricao_municipal']
+            print(f"DEBUG: Inscrição Municipal atualizada para: {company.inscricao_municipal}")
+        if 'regime_tributario' in company_data:
+            company.regime_tributario = company_data['regime_tributario']
+            print(f"DEBUG: Regime Tributário atualizado para: {company.regime_tributario}")
+        
+        # Campos de endereço
+        if 'cep' in company_data:
+            company.cep = company_data['cep']
+            print(f"DEBUG: CEP atualizado para: {company.cep}")
+        if 'endereco' in company_data:
+            company.endereco = company_data['endereco']
+            print(f"DEBUG: Endereço atualizado para: {company.endereco}")
+        if 'numero' in company_data:
+            company.numero = company_data['numero']
+            print(f"DEBUG: Número atualizado para: {company.numero}")
+        if 'complemento' in company_data:
+            company.complemento = company_data['complemento']
+            print(f"DEBUG: Complemento atualizado para: {company.complemento}")
+        if 'bairro' in company_data:
+            company.bairro = company_data['bairro']
+            print(f"DEBUG: Bairro atualizado para: {company.bairro}")
+        if 'cidade' in company_data:
+            company.cidade = company_data['cidade']
+            print(f"DEBUG: Cidade atualizada para: {company.cidade}")
+        if 'estado' in company_data:
+            company.estado = company_data['estado']
+            print(f"DEBUG: Estado atualizado para: {company.estado}")
+        if 'pais' in company_data:
+            company.pais = company_data['pais']
+            print(f"DEBUG: País atualizado para: {company.pais}")
+        
+        # Campos de impostos (convertendo strings vazias para None)
+        if 'aliquota_simples' in company_data:
+            company.aliquota_simples = float(company_data['aliquota_simples']) if company_data['aliquota_simples'] else None
+        if 'faturamento_anual' in company_data:
+            company.faturamento_anual = float(company_data['faturamento_anual']) if company_data['faturamento_anual'] else None
+        if 'aliquota_ir' in company_data:
+            company.aliquota_ir = float(company_data['aliquota_ir']) if company_data['aliquota_ir'] else None
+        if 'aliquota_csll' in company_data:
+            company.aliquota_csll = float(company_data['aliquota_csll']) if company_data['aliquota_csll'] else None
+        if 'aliquota_pis' in company_data:
+            company.aliquota_pis = float(company_data['aliquota_pis']) if company_data['aliquota_pis'] else None
+        if 'aliquota_cofins' in company_data:
+            company.aliquota_cofins = float(company_data['aliquota_cofins']) if company_data['aliquota_cofins'] else None
+        if 'aliquota_icms' in company_data:
+            company.aliquota_icms = float(company_data['aliquota_icms']) if company_data['aliquota_icms'] else None
+        if 'aliquota_iss' in company_data:
+            company.aliquota_iss = float(company_data['aliquota_iss']) if company_data['aliquota_iss'] else None
+        if 'aliquota_ir_real' in company_data:
+            company.aliquota_ir_real = float(company_data['aliquota_ir_real']) if company_data['aliquota_ir_real'] else None
+        if 'aliquota_csll_real' in company_data:
+            company.aliquota_csll_real = float(company_data['aliquota_csll_real']) if company_data['aliquota_csll_real'] else None
+        if 'aliquota_pis_real' in company_data:
+            company.aliquota_pis_real = float(company_data['aliquota_pis_real']) if company_data['aliquota_pis_real'] else None
+        if 'aliquota_cofins_real' in company_data:
+            company.aliquota_cofins_real = float(company_data['aliquota_cofins_real']) if company_data['aliquota_cofins_real'] else None
+        if 'aliquota_icms_real' in company_data:
+            company.aliquota_icms_real = float(company_data['aliquota_icms_real']) if company_data['aliquota_icms_real'] else None
+        if 'aliquota_iss_real' in company_data:
+            company.aliquota_iss_real = float(company_data['aliquota_iss_real']) if company_data['aliquota_iss_real'] else None
+        
+        if 'trial_ends_at' in company_data and company_data['trial_ends_at']:
+            from datetime import datetime
+            company.trial_ends_at = datetime.fromisoformat(company_data['trial_ends_at'])
+        
+        if 'ml_orders_as_receivables' in company_data:
+            company.ml_orders_as_receivables = company_data['ml_orders_as_receivables']
+        
+        # Salvar alterações
+        print(f"DEBUG: Salvando alterações no banco...")
+        try:
+            # Forçar flush antes do commit
+            db.flush()
+            print(f"DEBUG: Flush realizado")
+            
+            # Commit explícito
+            db.commit()
+            print(f"DEBUG: Commit realizado")
+            
+            # Refresh para garantir que os dados estão atualizados
+            db.refresh(company)
+            print(f"DEBUG: Refresh realizado")
+            
+            # Verificar se os dados foram realmente salvos
+            print(f"DEBUG: Verificando dados salvos:")
+            print(f"  - Nome Fantasia: {company.nome_fantasia}")
+            print(f"  - CEP: {company.cep}")
+            print(f"  - Cidade: {company.cidade}")
+            
+            # Testar com uma nova sessão para verificar se os dados foram persistidos
+            from app.config.database import SessionLocal
+            from sqlalchemy import text
+            new_db = SessionLocal()
+            try:
+                result = new_db.execute(text("SELECT nome_fantasia, cep, cidade FROM companies WHERE id = :company_id"), {"company_id": company_id}).fetchone()
+                if result:
+                    print(f"DEBUG: Verificação com nova sessão:")
+                    print(f"  - Nome Fantasia no banco: {result.nome_fantasia}")
+                    print(f"  - CEP no banco: {result.cep}")
+                    print(f"  - Cidade no banco: {result.cidade}")
+                else:
+                    print(f"DEBUG: Erro - não foi possível verificar no banco")
+            finally:
+                new_db.close()
+            
+            print(f"DEBUG: Alterações salvas com sucesso!")
+        except Exception as e:
+            print(f"DEBUG: Erro ao salvar: {str(e)}")
+            db.rollback()
+            raise e
+        
+        return {
+            "success": True,
+            "message": "Empresa atualizada com sucesso",
+            "company": {
+                "id": company.id,
+                "name": company.name,
+                "slug": company.slug,
+                "domain": company.domain,
+                "status": company.status,
+                "description": company.description,
+                "trial_ends_at": company.trial_ends_at.isoformat() if company.trial_ends_at else None,
+                "ml_orders_as_receivables": company.ml_orders_as_receivables
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar empresa: {str(e)}")
 
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")
