@@ -537,15 +537,25 @@ async def export_ordem_compra(
     ws['A1'].alignment = center_alignment
     ws.row_dimensions[1].height = 30
     
-    # Dados da Empresa
+    # Dados da Empresa e Fornecedor lado a lado
     row = 3
-    ws.merge_cells(f'A{row}:I{row}')
+    
+    # Cabeçalho DADOS DA EMPRESA (lado esquerdo)
+    ws.merge_cells(f'A{row}:D{row}')
     ws[f'A{row}'] = "DADOS DA EMPRESA"
     ws[f'A{row}'].font = header_font
     ws[f'A{row}'].fill = header_fill
     ws[f'A{row}'].alignment = left_alignment
     ws.row_dimensions[row].height = 25
     
+    # Cabeçalho DADOS DO FORNECEDOR (lado direito)
+    ws.merge_cells(f'E{row}:I{row}')
+    ws[f'E{row}'] = "DADOS DO FORNECEDOR"
+    ws[f'E{row}'].font = header_font
+    ws[f'E{row}'].fill = header_fill
+    ws[f'E{row}'].alignment = left_alignment
+    
+    # Dados da Empresa (lado esquerdo)
     if company:
         row += 1
         empresa_data = [
@@ -566,20 +576,11 @@ async def export_ordem_compra(
             ws[f'B{row}'] = value
             ws[f'B{row}'].font = normal_font
             ws[f'B{row}'].border = thin_border
-            ws.merge_cells(f'B{row}:I{row}')
+            ws.merge_cells(f'B{row}:D{row}')
             row += 1
     
-    # Dados do Fornecedor
-    row += 1
-    ws.merge_cells(f'A{row}:I{row}')
-    ws[f'A{row}'] = "DADOS DO FORNECEDOR"
-    ws[f'A{row}'].font = header_font
-    ws[f'A{row}'].fill = header_fill
-    ws[f'A{row}'].alignment = left_alignment
-    ws.row_dimensions[row].height = 25
-    
+    # Dados do Fornecedor (lado direito)
     if fornecedor:
-        row += 1
         fornecedor_data = [
             ['Nome:', fornecedor.nome or ''],
             ['Nome Fantasia:', fornecedor.nome_fantasia or ''],
@@ -593,17 +594,29 @@ async def export_ordem_compra(
             ['Email:', fornecedor.email or '']
         ]
         
+        # Resetar row para começar do lado direito
+        row = 4
         for i, (label, value) in enumerate(fornecedor_data):
-            ws[f'A{row}'] = label
-            ws[f'A{row}'].font = bold_font
-            ws[f'A{row}'].fill = light_fill
-            ws[f'A{row}'].border = thin_border
+            ws[f'E{row}'] = label
+            ws[f'E{row}'].font = bold_font
+            ws[f'E{row}'].fill = light_fill
+            ws[f'E{row}'].border = thin_border
             
-            ws[f'B{row}'] = value
-            ws[f'B{row}'].font = normal_font
-            ws[f'B{row}'].border = thin_border
-            ws.merge_cells(f'B{row}:I{row}')
+            ws[f'F{row}'] = value
+            ws[f'F{row}'].font = normal_font
+            ws[f'F{row}'].border = thin_border
+            ws.merge_cells(f'F{row}:I{row}')
             row += 1
+    
+    # Ajustar row para a próxima seção (pegar o maior entre empresa e fornecedor)
+    if company and fornecedor:
+        row = max(len(empresa_data) + 4, len(fornecedor_data) + 4)
+    elif company:
+        row = len(empresa_data) + 4
+    elif fornecedor:
+        row = len(fornecedor_data) + 4
+    else:
+        row = 4
     
     # Dados da Ordem
     row += 1
