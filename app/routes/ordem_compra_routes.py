@@ -13,6 +13,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.drawing.image import Image as ExcelImage
+from openpyxl.worksheet.hyperlink import Hyperlink
 from datetime import datetime
 import tempfile
 import os
@@ -665,7 +666,15 @@ async def export_ordem_compra(
             ws[f'D{row}'] = f"{item.get('valor_unitario', 0):.2f}"
             ws[f'E{row}'] = f"{item.get('valor_total', 0):.2f}"
             ws[f'F{row}'] = item.get('descricao_fornecedor', '')
-            ws[f'G{row}'] = item.get('url', '')  # URL do produto
+            
+            # URL como link clicável
+            url_produto = item.get('url', '')
+            if url_produto:
+                ws[f'G{row}'] = url_produto
+                ws[f'G{row}'].hyperlink = Hyperlink(ref=f'G{row}', target=url_produto, tooltip="Clique para abrir o link")
+                ws[f'G{row}'].font = Font(name='Arial', size=10, color='0000FF', underline='single')
+            else:
+                ws[f'G{row}'] = 'Sem URL'
             
             # Adicionar imagem do produto se existir
             produto_imagem = item.get('produto_imagem', '')
