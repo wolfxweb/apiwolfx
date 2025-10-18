@@ -20,31 +20,62 @@
             <div class="card mb-4">
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-3">
-                            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por descrição, fornecedor..." onkeyup="filterPayables()">
+                        <!-- Busca -->
+                        <div class="col-md-7">
+                            <label for="searchInput" class="form-label">Buscar</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Fornecedor, descrição, NF..." onkeyup="filterPayables()">
                         </div>
+                        
+                        <!-- Status -->
                         <div class="col-md-2">
+                            <label for="statusFilter" class="form-label">Status</label>
                             <select class="form-select" id="statusFilter" onchange="filterPayables()">
-                                <option value="">Todos os Status</option>
+                                <option value="">Todos</option>
                                 <option value="pending">Pendente</option>
                                 <option value="paid">Pago</option>
                                 <option value="overdue">Vencido</option>
                                 <option value="cancelled">Cancelado</option>
                             </select>
                         </div>
+                        
+                        <!-- Período -->
                         <div class="col-md-2">
-                            <input type="text" class="form-control" id="supplierFilter" placeholder="Filtrar por fornecedor" onkeyup="filterPayables()">
+                            <label for="periodFilter" class="form-label">Período</label>
+                            <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); filterPayables();">
+                                <option value="">Todos os períodos</option>
+                                <option value="today">Hoje</option>
+                                <option value="this_week">Esta semana</option>
+                                <option value="this_month">Este mês</option>
+                                <option value="last_month">Mês anterior</option>
+                                <option value="next_month">Próximo mês</option>
+                                <option value="next_30_days">Próximos 30 dias</option>
+                                <option value="next_60_days">Próximos 60 dias</option>
+                                <option value="next_90_days">Próximos 90 dias</option>
+                                <option value="this_year">Este ano</option>
+                                <option value="custom">Período personalizado</option>
+                            </select>
                         </div>
-                        <div class="col-md-2">
-                            <input type="date" class="form-control" id="dueDateFrom" placeholder="Vencimento de" onchange="filterPayables()">
-                        </div>
-                        <div class="col-md-2">
-                            <input type="date" class="form-control" id="dueDateTo" placeholder="Vencimento até" onchange="filterPayables()">
-                        </div>
+                        
+                        <!-- Ações -->
                         <div class="col-md-1">
-                            <button class="btn btn-outline-secondary" onclick="clearFilters()" title="Limpar filtros">
-                                <i class="bi bi-x-circle"></i>
-                            </button>
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()" style="white-space: nowrap;">
+                                    <i class="bi bi-x-circle"></i> Limpar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Período personalizado (oculto por padrão) -->
+                    <div class="row g-3 mt-2" id="customPeriodRow" style="display: none;">
+                        <div class="col-md-3">
+                            <label for="dueDateFrom" class="form-label">Data inicial</label>
+                            <input type="date" class="form-control" id="dueDateFrom" onchange="filterPayables()">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="dueDateTo" class="form-label">Data final</label>
+                            <input type="date" class="form-control" id="dueDateTo" onchange="filterPayables()">
                         </div>
                     </div>
                 </div>
@@ -346,42 +377,117 @@ function changePage(page) {
     }
 }
 
+// Função para aplicar filtros
+function applyFilters() {
+    filterPayables();
+}
+
+// Função para mostrar/ocultar período personalizado
+function toggleCustomPeriod() {
+    const periodFilter = document.getElementById('periodFilter').value;
+    const customPeriodRow = document.getElementById('customPeriodRow');
+    
+    if (periodFilter === 'custom') {
+        customPeriodRow.style.display = 'block';
+    } else {
+        customPeriodRow.style.display = 'none';
+    }
+}
+
 // Função para filtrar contas a pagar
 function filterPayables() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value;
-    const supplierFilter = document.getElementById('supplierFilter').value.toLowerCase();
+    const periodFilter = document.getElementById('periodFilter').value;
     const dueDateFrom = document.getElementById('dueDateFrom').value;
     const dueDateTo = document.getElementById('dueDateTo').value;
     
     filteredPayables = payables.filter(payable => {
+        // Filtro de busca
         const matchesSearch = !searchTerm || 
             payable.description.toLowerCase().includes(searchTerm) ||
             (payable.supplier_name && payable.supplier_name.toLowerCase().includes(searchTerm));
         
+        // Filtro de status
         const matchesStatus = !statusFilter || payable.status === statusFilter;
         
-        const matchesSupplier = !supplierFilter || 
-            (payable.supplier_name && payable.supplier_name.toLowerCase().includes(supplierFilter));
+        // Filtro de período
+        let matchesPeriod = true;
+        if (periodFilter && payable.due_date) {
+            const dueDate = new Date(payable.due_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            switch (periodFilter) {
+                case 'today':
+                    matchesPeriod = dueDate.toDateString() === today.toDateString();
+                    break;
+                case 'this_week':
+                    const startOfWeek = new Date(today);
+                    startOfWeek.setDate(today.getDate() - today.getDay());
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                    matchesPeriod = dueDate >= startOfWeek && dueDate <= endOfWeek;
+                    break;
+                case 'this_month':
+                    matchesPeriod = dueDate.getMonth() === today.getMonth() && dueDate.getFullYear() === today.getFullYear();
+                    break;
+                case 'last_month':
+                    const lastMonth = new Date(today);
+                    lastMonth.setMonth(today.getMonth() - 1);
+                    matchesPeriod = dueDate.getMonth() === lastMonth.getMonth() && dueDate.getFullYear() === lastMonth.getFullYear();
+                    break;
+                case 'next_month':
+                    const nextMonth = new Date(today);
+                    nextMonth.setMonth(today.getMonth() + 1);
+                    matchesPeriod = dueDate.getMonth() === nextMonth.getMonth() && dueDate.getFullYear() === nextMonth.getFullYear();
+                    break;
+                case 'next_30_days':
+                    const next30Days = new Date(today);
+                    next30Days.setDate(today.getDate() + 30);
+                    matchesPeriod = dueDate >= today && dueDate <= next30Days;
+                    break;
+                case 'next_60_days':
+                    const next60Days = new Date(today);
+                    next60Days.setDate(today.getDate() + 60);
+                    matchesPeriod = dueDate >= today && dueDate <= next60Days;
+                    break;
+                case 'next_90_days':
+                    const next90Days = new Date(today);
+                    next90Days.setDate(today.getDate() + 90);
+                    matchesPeriod = dueDate >= today && dueDate <= next90Days;
+                    break;
+                case 'this_year':
+                    matchesPeriod = dueDate.getFullYear() === today.getFullYear();
+                    break;
+                case 'custom':
+                    matchesPeriod = (!dueDateFrom || payable.due_date >= dueDateFrom) && 
+                                   (!dueDateTo || payable.due_date <= dueDateTo);
+                    break;
+            }
+        }
         
-        const matchesDateFrom = !dueDateFrom || new Date(payable.due_date) >= new Date(dueDateFrom);
-        const matchesDateTo = !dueDateTo || new Date(payable.due_date) <= new Date(dueDateTo);
-        
-        return matchesSearch && matchesStatus && matchesSupplier && matchesDateFrom && matchesDateTo;
+        return matchesSearch && matchesStatus && matchesPeriod;
     });
     
+    // Reset para primeira página
     currentPage = 1;
     renderPayablesTable();
     renderPagination();
+    updateStats();
 }
 
 // Função para limpar filtros
 function clearFilters() {
     document.getElementById('searchInput').value = '';
     document.getElementById('statusFilter').value = '';
-    document.getElementById('supplierFilter').value = '';
+    document.getElementById('periodFilter').value = '';
     document.getElementById('dueDateFrom').value = '';
     document.getElementById('dueDateTo').value = '';
+    
+    // Ocultar período personalizado
+    document.getElementById('customPeriodRow').style.display = 'none';
+    
     filterPayables();
 }
 
