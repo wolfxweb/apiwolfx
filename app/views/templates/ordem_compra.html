@@ -264,6 +264,9 @@ function renderOrdens() {
                     <button class="btn btn-sm btn-outline-info" onclick="changeStatus(${ordem.id}, '${ordem.status}')" title="Alterar Status">
                         <i class="bi bi-arrow-repeat"></i>
                     </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="manageLinks(${ordem.id})" title="Gerenciar Links">
+                        <i class="bi bi-link-45deg"></i>
+                    </button>
                     <a href="/ordem-compra/editar/${ordem.id}" class="btn btn-sm btn-outline-warning" title="Editar">
                         <i class="bi bi-pencil"></i>
                     </a>
@@ -555,6 +558,12 @@ async function confirmStatusChange(ordemId) {
         console.error('Erro ao alterar status:', error);
         showToast('Erro ao alterar status', 'error');
     }
+}
+
+// Função para gerenciar links externos
+function manageLinks(ordemId) {
+    // Redirecionar para página de edição com foco nos links
+    window.location.href = `/ordem-compra/editar/${ordemId}#linksSection`;
 }
 </script>
 {% endblock %}
