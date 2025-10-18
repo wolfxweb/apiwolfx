@@ -178,8 +178,8 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="categoryCode" class="form-label">Código *</label>
-                                <input type="text" class="form-control" id="categoryCode" required>
+                                <label for="categoryCode" class="form-label">Código</label>
+                                <input type="text" class="form-control" id="categoryCode" placeholder="Deixe vazio para gerar automaticamente (ex: CT-001)">
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -477,7 +477,14 @@ function deleteCategory(id, name) {
 
 // Função para confirmar exclusão
 async function confirmDeleteCategory() {
+    const deleteButton = document.querySelector('#deleteCategoryModal .btn-danger');
+    const originalText = deleteButton.innerHTML;
+    
     try {
+        // Desabilitar botão e mostrar spinner
+        deleteButton.disabled = true;
+        deleteButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Excluindo...';
+        
         const response = await fetch(`/api/financial/categories/${currentDeleteId}`, {
             method: 'DELETE',
             credentials: 'include'
@@ -494,6 +501,10 @@ async function confirmDeleteCategory() {
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao excluir categoria', 'danger');
+    } finally {
+        // Reabilitar botão
+        deleteButton.disabled = false;
+        deleteButton.innerHTML = originalText;
     }
 }
 

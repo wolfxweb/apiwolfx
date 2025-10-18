@@ -320,12 +320,34 @@ async def create_financial_category(
     if not category_data.get("type"):
         raise HTTPException(status_code=400, detail="Tipo é obrigatório")
     
+    # Gerar código automaticamente se não fornecido
+    code = category_data.get("code", "").strip()
+    if not code:
+        # Buscar o último código gerado para esta empresa
+        last_category = db.query(FinancialCategory).filter(
+            FinancialCategory.company_id == company_id,
+            FinancialCategory.code.like("CT-%")
+        ).order_by(FinancialCategory.code.desc()).first()
+        
+        if last_category and last_category.code:
+            # Extrair número do último código e incrementar
+            try:
+                last_number = int(last_category.code.split("-")[1])
+                next_number = last_number + 1
+            except (ValueError, IndexError):
+                next_number = 1
+        else:
+            next_number = 1
+        
+        # Gerar novo código no formato CT-001, CT-002, etc.
+        code = f"CT-{next_number:03d}"
+    
     # Criar nova categoria no banco
     from app.models.financial_models import CategoryType
     
     new_category = FinancialCategory(
         company_id=company_id,
-        code=category_data.get("code", ""),
+        code=code,
         name=category_data.get("name"),
         type=CategoryType(category_data.get("type")),
         monthly_limit=float(category_data.get("monthly_limit", 0)) if category_data.get("monthly_limit") else None,
