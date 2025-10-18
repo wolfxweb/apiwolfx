@@ -662,7 +662,7 @@ async def export_ordem_compra(
         
         # Cabeçalho da tabela de itens
         row += 1
-        headers = ['Imagem', 'Produto', 'URL', 'Quantidade', 'Valor Unit.', 'Total']
+        headers = ['Imagem', 'Produto', 'Link Produto', 'Quantidade', 'Valor Unit.', 'Total']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.font = header_font
