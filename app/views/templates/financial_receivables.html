@@ -429,7 +429,8 @@ async function loadCategories() {
             credentials: 'include'
         });
         if (response.ok) {
-            categories = await response.json();
+            const data = await response.json();
+            categories = data.categories || data; // Suportar ambos os formatos
             updateCategorySelects();
         }
     } catch (error) {
@@ -444,7 +445,8 @@ async function loadCostCenters() {
             credentials: 'include'
         });
         if (response.ok) {
-            costCenters = await response.json();
+            const data = await response.json();
+            costCenters = data; // API retorna array direto
             updateCostCenterSelects();
         }
     } catch (error) {
@@ -459,7 +461,8 @@ async function loadAccounts() {
             credentials: 'include'
         });
         if (response.ok) {
-            accounts = await response.json();
+            const data = await response.json();
+            accounts = data; // API retorna array direto
             updateAccountSelects();
         }
     } catch (error) {
@@ -786,21 +789,28 @@ function editReceivable(id) {
 
 // Função para salvar conta a receber
 async function saveReceivable() {
-    const formData = {
-        customer_name: document.getElementById('customerName').value,
-        invoice_number: document.getElementById('invoiceNumber').value || null,
-        description: document.getElementById('description').value,
-        amount: document.getElementById('amount').value,
-        due_date: document.getElementById('dueDate').value,
-        category_id: document.getElementById('categoryId').value || null,
-        cost_center_id: document.getElementById('costCenterId').value || null,
-        account_id: document.getElementById('accountId').value || null,
-        is_recurring: document.getElementById('isRecurring').checked,
-        recurring_frequency: document.getElementById('recurringFrequency').value || null,
-        notes: document.getElementById('notes').value || null
-    };
+    const saveButton = document.querySelector('#receivableModal .btn-primary');
+    const originalText = saveButton.innerHTML;
     
     try {
+        // Desabilitar botão e mostrar spinner
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+        
+        const formData = {
+            customer_name: document.getElementById('customerName').value,
+            invoice_number: document.getElementById('invoiceNumber').value || null,
+            description: document.getElementById('description').value,
+            amount: document.getElementById('amount').value,
+            due_date: document.getElementById('dueDate').value,
+            category_id: document.getElementById('categoryId').value || null,
+            cost_center_id: document.getElementById('costCenterId').value || null,
+            account_id: document.getElementById('accountId').value || null,
+            is_recurring: document.getElementById('isRecurring').checked,
+            recurring_frequency: document.getElementById('recurringFrequency').value || null,
+            notes: document.getElementById('notes').value || null
+        };
+        
         const url = currentEditId ? `/api/financial/receivables/${currentEditId}` : '/api/financial/receivables';
         const method = currentEditId ? 'PUT' : 'POST';
         
@@ -824,6 +834,10 @@ async function saveReceivable() {
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao salvar conta a receber', 'danger');
+    } finally {
+        // Reabilitar botão
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
     }
 }
 
@@ -1004,14 +1018,17 @@ function formatDate(dateString) {
 
 function updateCategorySelects() {
     const select = document.getElementById('categoryId');
-    if (select) {
+    if (select && categories && Array.isArray(categories)) {
         const currentValue = select.value;
         select.innerHTML = '<option value="">Selecione a categoria</option>';
         categories.forEach(category => {
-            const option = document.createElement('option');
-            option.value = category.id;
-            option.textContent = `${category.code} - ${category.name}`;
-            select.appendChild(option);
+            // Filtrar apenas categorias do tipo "revenue" (Receita)
+            if (category.type === 'revenue') {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = `${category.code} - ${category.name}`;
+                select.appendChild(option);
+            }
         });
         select.value = currentValue;
     }
@@ -1019,7 +1036,7 @@ function updateCategorySelects() {
 
 function updateCostCenterSelects() {
     const select = document.getElementById('costCenterId');
-    if (select) {
+    if (select && costCenters && Array.isArray(costCenters)) {
         const currentValue = select.value;
         select.innerHTML = '<option value="">Selecione o centro de custo</option>';
         costCenters.forEach(costCenter => {
@@ -1034,7 +1051,7 @@ function updateCostCenterSelects() {
 
 function updateAccountSelects() {
     const select = document.getElementById('accountId');
-    if (select) {
+    if (select && accounts && Array.isArray(accounts)) {
         const currentValue = select.value;
         select.innerHTML = '<option value="">Selecione a conta</option>';
         accounts.forEach(account => {

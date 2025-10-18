@@ -355,10 +355,13 @@ function updateCategorySelect() {
     const select = document.getElementById('categoryId');
     select.innerHTML = '<option value="">Selecione a categoria</option>';
     categories.forEach(category => {
-        const option = document.createElement('option');
-        option.value = category.id;
-        option.textContent = category.name;
-        select.appendChild(option);
+        // Filtrar apenas categorias do tipo "expense" (Despesa)
+        if (category.type === 'expense') {
+            const option = document.createElement('option');
+            option.value = category.id;
+            option.textContent = category.name;
+            select.appendChild(option);
+        }
     });
 }
 
