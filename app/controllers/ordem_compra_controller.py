@@ -102,6 +102,15 @@ class OrdemCompraController:
                 "valor_total": float(ordem.valor_total or 0),
                 "desconto": float(ordem.desconto or 0),
                 "valor_final": float(ordem.valor_final or 0),
+                "moeda": ordem.moeda,
+                "cotacao_moeda": float(ordem.cotacao_moeda or 1.0),
+                "tipo_ordem": ordem.tipo_ordem,
+                "comissao_agente": float(ordem.comissao_agente or 0),
+                "percentual_comissao": float(ordem.percentual_comissao or 0),
+                "valor_transporte": float(ordem.valor_transporte or 0),
+                "percentual_importacao": float(ordem.percentual_importacao or 0),
+                "taxas_adicionais": float(ordem.taxas_adicionais or 0),
+                "valor_impostos": float(ordem.valor_impostos or 0),
                 "fornecedor_id": ordem.fornecedor_id,
                 "fornecedor_nome": ordem.fornecedor.nome if ordem.fornecedor else None,
                 "observacoes": ordem.observacoes,
@@ -114,9 +123,12 @@ class OrdemCompraController:
                         "produto_nome": item.produto_nome,
                         "produto_descricao": item.produto_descricao,
                         "produto_codigo": item.produto_codigo,
+                        "produto_imagem": item.produto_imagem,
+                        "descricao_fornecedor": item.descricao_fornecedor,
                         "quantidade": float(item.quantidade or 0),
                         "valor_unitario": float(item.valor_unitario or 0),
                         "valor_total": float(item.valor_total or 0),
+                        "url": item.url,
                         "observacoes": item.observacoes
                     }
                     for item in itens
@@ -284,9 +296,42 @@ class OrdemCompraController:
                     desconto = float(ordem_data.get('desconto', 0))
                     valor_final = valor_total - desconto
                     
+                    # Recalcular campos internacionais
+                    valor_impostos = 0
+                    valor_comissao = 0
+                    valor_frete = 0
+                    valor_taxas_adicionais = 0
+                    valor_final_com_impostos = valor_final
+                    
+                    if ordem_data.get('tipo_ordem') == 'internacional':
+                        percentual_importacao = float(ordem_data.get('percentual_importacao', 0))
+                        percentual_comissao = float(ordem_data.get('comissao_agente', 0))
+                        valor_frete = float(ordem_data.get('valor_transporte', 0))
+                        valor_taxas_adicionais = float(ordem_data.get('taxas_adicionais', 0))
+                        
+                        # Calcular comissão sobre o valor dos produtos
+                        valor_comissao = valor_final * (percentual_comissao / 100)
+                        
+                        # Valor base para impostos = produtos + comissão + frete + taxas adicionais
+                        valor_base_impostos = valor_final + valor_comissao + valor_frete + valor_taxas_adicionais
+                        
+                        # Calcular impostos sobre o valor base
+                        valor_impostos = valor_base_impostos * (percentual_importacao / 100)
+                        
+                        # Total final = produtos + comissão + frete + taxas adicionais + impostos
+                        valor_final_com_impostos = valor_base_impostos + valor_impostos
+                        
+                        # Atualizar campos internacionais
+                        ordem.comissao_agente = valor_comissao
+                        ordem.percentual_comissao = percentual_comissao
+                        ordem.valor_transporte = valor_frete
+                        ordem.percentual_importacao = percentual_importacao
+                        ordem.taxas_adicionais = valor_taxas_adicionais
+                        ordem.valor_impostos = valor_impostos
+                    
                     ordem.valor_total = valor_total
                     ordem.desconto = desconto
-                    ordem.valor_final = valor_final
+                    ordem.valor_final = valor_final_com_impostos
                 elif hasattr(ordem, field):
                     setattr(ordem, field, value)
             

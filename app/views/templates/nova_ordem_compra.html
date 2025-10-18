@@ -291,12 +291,12 @@
                                                 <span id="freteValor">R$ 0,00</span>
                                             </div>
                                             <div class="d-flex justify-content-between">
-                                                <span>Impostos Importação:</span>
-                                                <span id="impostosValor">R$ 0,00</span>
-                                            </div>
-                                            <div class="d-flex justify-content-between">
                                                 <span>Taxas Adicionais:</span>
                                                 <span id="taxasAdicionaisValor">R$ 0,00</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Impostos Importação:</span>
+                                                <span id="impostosValor">R$ 0,00</span>
                                             </div>
                                         </div>
                                         
@@ -410,6 +410,7 @@ function setTodayDate() {
 // Carregar dados da ordem para edição
 function loadOrdemData(ordemData) {
     console.log('Carregando dados da ordem:', ordemData);
+    console.log('Tipo de ordem recebido:', ordemData.tipo_ordem);
     
     // Preencher campos básicos
     document.getElementById('numeroOrdem').value = ordemData.numero_ordem || '';
@@ -418,6 +419,14 @@ function loadOrdemData(ordemData) {
     document.getElementById('status').value = ordemData.status || 'pendente';
     document.getElementById('moeda').value = ordemData.moeda || 'BRL';
     document.getElementById('cotacaoMoeda').value = ordemData.cotacao_moeda || 1;
+    
+    // Debug do tipo de ordem
+    const tipoOrdemElement = document.getElementById('tipoOrdem');
+    console.log('Elemento tipoOrdem encontrado:', tipoOrdemElement);
+    console.log('Valor antes:', tipoOrdemElement.value);
+    tipoOrdemElement.value = ordemData.tipo_ordem || 'nacional';
+    console.log('Valor depois:', tipoOrdemElement.value);
+    
     document.getElementById('condicoesPagamento').value = ordemData.condicoes_pagamento || '';
     document.getElementById('prazoEntrega').value = ordemData.prazo_entrega || '';
     document.getElementById('observacoes').value = ordemData.observacoes || '';
@@ -428,8 +437,17 @@ function loadOrdemData(ordemData) {
         document.getElementById('fornecedorId').value = ordemData.fornecedor_id;
     }
     
+    // Preencher campos internacionais
+    document.getElementById('comissaoAgente').value = ordemData.percentual_comissao || 0;
+    document.getElementById('valorTransporte').value = ordemData.valor_transporte || 0;
+    document.getElementById('percentualImportacao').value = ordemData.percentual_importacao || 0;
+    document.getElementById('taxasAdicionais').value = ordemData.taxas_adicionais || 0;
+    
     // Atualizar cotação e moeda
     updateCotacaoField();
+    
+    // Mostrar/ocultar campos internacionais baseado no tipo
+    toggleCamposInternacionais();
     
     // Carregar itens
     console.log('Verificando itens:', ordemData.itens);
