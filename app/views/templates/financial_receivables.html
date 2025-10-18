@@ -17,71 +17,6 @@
     </div>
 </div>
 
-
-<!-- Estatísticas Rápidas -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card text-white bg-primary stats-card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title">Total a Receber</h6>
-                        <h4 class="mb-0" id="totalAmount">R$ 0,00</h4>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="bi bi-arrow-down-circle fs-1"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-success stats-card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title">Recebido</h6>
-                        <h4 class="mb-0" id="paidAmount">R$ 0,00</h4>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="bi bi-check-circle fs-1"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-warning stats-card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title">Vencido</h6>
-                        <h4 class="mb-0" id="overdueAmount">R$ 0,00</h4>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="bi bi-exclamation-triangle fs-1"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info stats-card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title">Pendente</h6>
-                        <h4 class="mb-0" id="pendingAmount">R$ 0,00</h4>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="bi bi-clock fs-1"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
@@ -160,6 +95,71 @@
     </div>
 </div>
 
+<!-- Estatísticas Rápidas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total a Receber</h6>
+                        <h4 class="mb-0" id="totalAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-arrow-down-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Recebido</h6>
+                        <h4 class="mb-0" id="paidAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Vencido</h6>
+                        <h4 class="mb-0" id="overdueAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-exclamation-triangle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Pendente</h6>
+                        <h4 class="mb-0" id="pendingAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-clock fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 <!-- Tabela de Contas a Receber -->
 <div class="card">
     <div class="card-body">
@@ -172,7 +172,6 @@
                         <th>Valor</th>
                         <th>Vencimento</th>
                         <th>Status</th>
-                        <th>Parcelas</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -522,7 +521,7 @@ function renderReceivables() {
             const mlOrderId = receivable.ml_order_id;
             actionsContent = `
                 <div class="d-flex justify-content-center">
-                    <a href="/ml/orders/${mlOrderId}" target="_blank" class="badge bg-info text-decoration-none" title="Ver detalhes do pedido no Mercado Livre">
+                    <a href="/ml/orders/${mlOrderId}" target="_blank" class="badge text-decoration-none" style="background-color: #FFD700; color: #000000;" title="Ver detalhes do pedido no Mercado Livre">
                         <i class="bi bi-cart-check"></i> ML
                     </a>
                 </div>
@@ -558,9 +557,6 @@ function renderReceivables() {
                 <span class="${getDateClass(receivable.due_date, receivable.status)}">${formatDate(receivable.due_date)}</span>
             </td>
             <td><span class="badge ${getStatusBadgeClass(receivable.status)}">${getStatusLabel(receivable.status)}</span></td>
-            <td>
-                ${receivable.total_installments > 1 ? `${receivable.installment_number}/${receivable.total_installments}` : '-'}
-            </td>
             <td>${actionsContent}</td>
         `;
         tbody.appendChild(row);
