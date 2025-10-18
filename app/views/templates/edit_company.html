@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Empresa - GIVM{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-building"></i> Editar Empresa</h2>
+                <a href="/auth/profile" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Voltar ao Perfil
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <form id="editCompanyForm">
+        <!-- Seção: Identificação da Empresa -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-building"></i> Identificação da Empresa</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="companyName" class="form-label">Nome da Empresa *</label>
+                            <input type="text" class="form-control" id="companyName" value="{{ company.name or '' }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="companySlug" class="form-label">Slug</label>
+                            <input type="text" class="form-control" id="companySlug" value="{{ company.slug or '' }}" readonly>
+                            <div class="form-text">Slug é gerado automaticamente</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="razaoSocial" class="form-label">Razão Social</label>
+                            <input type="text" class="form-control" id="razaoSocial" value="{{ company.razao_social or '' }}">
+                            <div class="form-text">Nome jurídico registrado na Receita Federal</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="nomeFantasia" class="form-label">Nome Fantasia</label>
+                            <input type="text" class="form-control" id="nomeFantasia" value="{{ company.nome_fantasia or '' }}">
+                            <div class="form-text">Nome comercial usado em marketing</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="cnpj" class="form-label">CNPJ</label>
+                            <input type="text" class="form-control" id="cnpj" value="{{ company.cnpj or '' }}">
+                            <div class="form-text">Cadastro Nacional da Pessoa Jurídica</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="inscricaoEstadual" class="form-label">Inscrição Estadual (IE)</label>
+                            <input type="text" class="form-control" id="inscricaoEstadual" value="{{ company.inscricao_estadual or '' }}">
+                            <div class="form-text">Registro na Secretaria da Fazenda</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="inscricaoMunicipal" class="form-label">Inscrição Municipal (IM)</label>
+                            <input type="text" class="form-control" id="inscricaoMunicipal" value="{{ company.inscricao_municipal or '' }}">
+                            <div class="form-text">Registro na prefeitura</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="regimeTributario" class="form-label">Regime Tributário</label>
+                            <select class="form-select" id="regimeTributario">
+                                <option value="">Selecione o regime</option>
+                                <option value="simples_nacional" {% if company.regime_tributario == 'simples_nacional' %}selected{% endif %}>Simples Nacional</option>
+                                <option value="lucro_presumido" {% if company.regime_tributario == 'lucro_presumido' %}selected{% endif %}>Lucro Presumido</option>
+                                <option value="lucro_real" {% if company.regime_tributario == 'lucro_real' %}selected{% endif %}>Lucro Real</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Seção: Endereço da Empresa -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereço da Empresa</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="cep" class="form-label">CEP</label>
+                            <input type="text" class="form-control" id="cep" value="{{ company.cep or '' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="endereco" class="form-label">Endereço</label>
+                            <input type="text" class="form-control" id="endereco" value="{{ company.endereco or '' }}">
+                            <div class="form-text">Rua, avenida, etc.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="numero" class="form-label">Número</label>
+                            <input type="text" class="form-control" id="numero" value="{{ company.numero or '' }}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="complemento" class="form-label">Complemento</label>
+                            <input type="text" class="form-control" id="complemento" value="{{ company.complemento or '' }}">
+                            <div class="form-text">Sala, bloco, loja, etc.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="bairro" class="form-label">Bairro</label>
+                            <input type="text" class="form-control" id="bairro" value="{{ company.bairro or '' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="cidade" class="form-label">Cidade</label>
+                            <input type="text" class="form-control" id="cidade" value="{{ company.cidade or '' }}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="estado" class="form-label">Estado (UF)</label>
+                            <select class="form-select" id="estado">
+                                <option value="">Selecione</option>
+                                <option value="AC" {% if company.estado == 'AC' %}selected{% endif %}>Acre</option>
+                                <option value="AL" {% if company.estado == 'AL' %}selected{% endif %}>Alagoas</option>
+                                <option value="AP" {% if company.estado == 'AP' %}selected{% endif %}>Amapá</option>
+                                <option value="AM" {% if company.estado == 'AM' %}selected{% endif %}>Amazonas</option>
+                                <option value="BA" {% if company.estado == 'BA' %}selected{% endif %}>Bahia</option>
+                                <option value="CE" {% if company.estado == 'CE' %}selected{% endif %}>Ceará</option>
+                                <option value="DF" {% if company.estado == 'DF' %}selected{% endif %}>Distrito Federal</option>
+                                <option value="ES" {% if company.estado == 'ES' %}selected{% endif %}>Espírito Santo</option>
+                                <option value="GO" {% if company.estado == 'GO' %}selected{% endif %}>Goiás</option>
+                                <option value="MA" {% if company.estado == 'MA' %}selected{% endif %}>Maranhão</option>
+                                <option value="MT" {% if company.estado == 'MT' %}selected{% endif %}>Mato Grosso</option>
+                                <option value="MS" {% if company.estado == 'MS' %}selected{% endif %}>Mato Grosso do Sul</option>
+                                <option value="MG" {% if company.estado == 'MG' %}selected{% endif %}>Minas Gerais</option>
+                                <option value="PA" {% if company.estado == 'PA' %}selected{% endif %}>Pará</option>
+                                <option value="PB" {% if company.estado == 'PB' %}selected{% endif %}>Paraíba</option>
+                                <option value="PR" {% if company.estado == 'PR' %}selected{% endif %}>Paraná</option>
+                                <option value="PE" {% if company.estado == 'PE' %}selected{% endif %}>Pernambuco</option>
+                                <option value="PI" {% if company.estado == 'PI' %}selected{% endif %}>Piauí</option>
+                                <option value="RJ" {% if company.estado == 'RJ' %}selected{% endif %}>Rio de Janeiro</option>
+                                <option value="RN" {% if company.estado == 'RN' %}selected{% endif %}>Rio Grande do Norte</option>
+                                <option value="RS" {% if company.estado == 'RS' %}selected{% endif %}>Rio Grande do Sul</option>
+                                <option value="RO" {% if company.estado == 'RO' %}selected{% endif %}>Rondônia</option>
+                                <option value="RR" {% if company.estado == 'RR' %}selected{% endif %}>Roraima</option>
+                                <option value="SC" {% if company.estado == 'SC' %}selected{% endif %}>Santa Catarina</option>
+                                <option value="SP" {% if company.estado == 'SP' %}selected{% endif %}>São Paulo</option>
+                                <option value="SE" {% if company.estado == 'SE' %}selected{% endif %}>Sergipe</option>
+                                <option value="TO" {% if company.estado == 'TO' %}selected{% endif %}>Tocantins</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="pais" class="form-label">País</label>
+                            <input type="text" class="form-control" id="pais" value="{{ company.pais or 'Brasil' }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Seção: Informações Adicionais -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações Adicionais</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <label for="companyDomain" class="form-label">Domínio</label>
+                            <input type="text" class="form-control" id="companyDomain" value="{{ company.domain or '' }}" placeholder="exemplo.com">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="companyDescription" class="form-label">Descrição</label>
+                    <textarea class="form-control" id="companyDescription" rows="3" placeholder="Descrição da empresa...">{{ company.description or '' }}</textarea>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="trialEndsAt" class="form-label">Trial Expira em</label>
+                            <input type="date" class="form-control" id="trialEndsAt" value="{% if company.trial_ends_at %}{{ company.trial_ends_at.strftime('%Y-%m-%d') }}{% endif %}">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="mlOrdersReceivables" {% if company.ml_orders_as_receivables %}checked{% endif %}>
+                                <label class="form-check-label" for="mlOrdersReceivables">
+                                    Pedidos ML como Contas a Receber
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Botões de Ação -->
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <a href="/auth/profile" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Cancelar
+                    </a>
+                    <button type="button" class="btn btn-success" onclick="saveCompany()">
+                        <i class="bi bi-check-circle"></i> Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+async function saveCompany() {
+    const saveButton = document.querySelector('button[onclick="saveCompany()"]');
+    const originalText = saveButton.innerHTML;
+    
+    try {
+        // Desabilitar botão e mostrar spinner
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+        
+        // Coletar dados do formulário
+        const formData = {
+            name: document.getElementById('companyName').value,
+            domain: document.getElementById('companyDomain').value,
+            description: document.getElementById('companyDescription').value,
+            trial_ends_at: document.getElementById('trialEndsAt').value || null,
+            ml_orders_as_receivables: document.getElementById('mlOrdersReceivables').checked,
+            
+            // Campos de identificação
+            razao_social: document.getElementById('razaoSocial').value,
+            nome_fantasia: document.getElementById('nomeFantasia').value,
+            cnpj: document.getElementById('cnpj').value,
+            inscricao_estadual: document.getElementById('inscricaoEstadual').value,
+            inscricao_municipal: document.getElementById('inscricaoMunicipal').value,
+            regime_tributario: document.getElementById('regimeTributario').value,
+            
+            // Campos de endereço
+            cep: document.getElementById('cep').value,
+            endereco: document.getElementById('endereco').value,
+            numero: document.getElementById('numero').value,
+            complemento: document.getElementById('complemento').value,
+            bairro: document.getElementById('bairro').value,
+            cidade: document.getElementById('cidade').value,
+            estado: document.getElementById('estado').value,
+            pais: document.getElementById('pais').value
+        };
+        
+        // Validar dados obrigatórios
+        if (!formData.name.trim()) {
+            showNotification('Nome da empresa é obrigatório!', 'error');
+            return;
+        }
+        
+        // Fazer requisição para salvar
+        const response = await fetch('/api/company/update', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showNotification('Empresa atualizada com sucesso!', 'success');
+            
+            // Redirecionar para o perfil após 1.5 segundos
+            setTimeout(() => {
+                window.location.href = '/auth/profile';
+            }, 1500);
+        } else {
+            showNotification(data.error || 'Erro ao salvar empresa', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro de conexão. Tente novamente.', 'error');
+    } finally {
+        // Reabilitar botão
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // Usar a função do custom.js se disponível
+    if (window.MLAPI && window.MLAPI.showNotification) {
+        window.MLAPI.showNotification(message, type);
+    } else {
+        // Fallback simples
+        const alertClass = type === 'success' ? 'alert-success' : 
+                          type === 'error' ? 'alert-danger' : 
+                          type === 'warning' ? 'alert-warning' : 'alert-info';
+        
+        const notification = document.createElement('div');
+        notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '9999';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Remover automaticamente após 5 segundos
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+}
+</script>
+{% endblock %}

@@ -249,6 +249,78 @@ async def profile(
                          company=company_info,
                          subscription=subscription_info)
 
+@auth_router.get("/company/edit", response_class=HTMLResponse)
+async def edit_company_page(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de edição da empresa"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Buscar informações completas da empresa
+    from sqlalchemy import text
+    from app.models.saas_models import Company, Subscription, MLAccount
+    
+    # Informações da empresa
+    company_query = text("""
+        SELECT c.*, 
+               COUNT(DISTINCT u.id) as total_users,
+               COUNT(DISTINCT ma.id) as total_ml_accounts
+        FROM companies c
+        LEFT JOIN users u ON u.company_id = c.id
+        LEFT JOIN ml_accounts ma ON ma.company_id = c.id
+        WHERE c.id = :company_id
+        GROUP BY c.id
+    """)
+    
+    result = db.execute(company_query, {"company_id": company_id}).fetchone()
+    
+    if not result:
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
+    company_data = {
+        "id": result.id,
+        "name": result.name,
+        "slug": result.slug,
+        "domain": result.domain,
+        "status": result.status,
+        "description": result.description,
+        "created_at": result.created_at,
+        "trial_ends_at": result.trial_ends_at,
+        "ml_orders_as_receivables": result.ml_orders_as_receivables,
+        "total_users": result.total_users,
+        "total_ml_accounts": result.total_ml_accounts,
+        # Campos adicionais
+        "razao_social": getattr(result, 'razao_social', None),
+        "nome_fantasia": getattr(result, 'nome_fantasia', None),
+        "cnpj": getattr(result, 'cnpj', None),
+        "inscricao_estadual": getattr(result, 'inscricao_estadual', None),
+        "inscricao_municipal": getattr(result, 'inscricao_municipal', None),
+        "regime_tributario": getattr(result, 'regime_tributario', None),
+        "cep": getattr(result, 'cep', None),
+        "endereco": getattr(result, 'endereco', None),
+        "numero": getattr(result, 'numero', None),
+        "complemento": getattr(result, 'complemento', None),
+        "bairro": getattr(result, 'bairro', None),
+        "cidade": getattr(result, 'cidade', None),
+        "estado": getattr(result, 'estado', None),
+        "pais": getattr(result, 'pais', None)
+    }
+    
+    from app.views.template_renderer import render_template
+    return render_template("edit_company.html", 
+                         user=user_data, 
+                         company=company_data)
+
 
 @auth_router.get("/plans", response_class=HTMLResponse)
 async def plans_page(
@@ -415,6 +487,38 @@ async def update_company(
         
         if 'description' in company_data:
             company.description = company_data['description']
+        
+        # Campos de identificação
+        if 'razao_social' in company_data:
+            company.razao_social = company_data['razao_social']
+        if 'nome_fantasia' in company_data:
+            company.nome_fantasia = company_data['nome_fantasia']
+        if 'cnpj' in company_data:
+            company.cnpj = company_data['cnpj']
+        if 'inscricao_estadual' in company_data:
+            company.inscricao_estadual = company_data['inscricao_estadual']
+        if 'inscricao_municipal' in company_data:
+            company.inscricao_municipal = company_data['inscricao_municipal']
+        if 'regime_tributario' in company_data:
+            company.regime_tributario = company_data['regime_tributario']
+        
+        # Campos de endereço
+        if 'cep' in company_data:
+            company.cep = company_data['cep']
+        if 'endereco' in company_data:
+            company.endereco = company_data['endereco']
+        if 'numero' in company_data:
+            company.numero = company_data['numero']
+        if 'complemento' in company_data:
+            company.complemento = company_data['complemento']
+        if 'bairro' in company_data:
+            company.bairro = company_data['bairro']
+        if 'cidade' in company_data:
+            company.cidade = company_data['cidade']
+        if 'estado' in company_data:
+            company.estado = company_data['estado']
+        if 'pais' in company_data:
+            company.pais = company_data['pais']
         
         if 'trial_ends_at' in company_data and company_data['trial_ends_at']:
             from datetime import datetime
