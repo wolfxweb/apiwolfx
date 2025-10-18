@@ -105,6 +105,116 @@
     </div>
 </div>
 
+<!-- Informações de Identificação da Empresa -->
+{% if company.razao_social or company.nome_fantasia or company.cnpj or company.inscricao_estadual or company.inscricao_municipal or company.regime_tributario %}
+<div class="row mt-3">
+    <div class="col-12">
+        <h6 class="text-primary mb-3"><i class="bi bi-building-gear text-primary"></i> Identificação da Empresa</h6>
+        <div class="row">
+            <div class="col-md-6">
+                {% if company.razao_social %}
+                <p><strong><i class="bi bi-building"></i> Razão Social:</strong> {{ company.razao_social }}</p>
+                {% endif %}
+                {% if company.nome_fantasia %}
+                <p><strong><i class="bi bi-shop"></i> Nome Fantasia:</strong> {{ company.nome_fantasia }}</p>
+                {% endif %}
+                {% if company.cnpj %}
+                <p><strong><i class="bi bi-card-text"></i> CNPJ:</strong> {{ company.cnpj }}</p>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                {% if company.inscricao_estadual %}
+                <p><strong><i class="bi bi-file-text"></i> Inscrição Estadual:</strong> {{ company.inscricao_estadual }}</p>
+                {% endif %}
+                {% if company.inscricao_municipal %}
+                <p><strong><i class="bi bi-file-text"></i> Inscrição Municipal:</strong> {{ company.inscricao_municipal }}</p>
+                {% endif %}
+                {% if company.regime_tributario %}
+                <p><strong><i class="bi bi-calculator"></i> Regime Tributário:</strong> 
+                    <span class="badge bg-info">{{ company.regime_tributario|replace('_', ' ')|title }}</span>
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Informações de Endereço da Empresa -->
+{% if company.cep or company.endereco or company.cidade or company.estado or company.pais %}
+<div class="row mt-3">
+    <div class="col-12">
+        <h6 class="text-success mb-3"><i class="bi bi-geo-alt text-success"></i> Endereço da Empresa</h6>
+        <div class="row">
+            <div class="col-md-6">
+                {% if company.cep %}
+                <p><strong><i class="bi bi-mailbox"></i> CEP:</strong> {{ company.cep }}</p>
+                {% endif %}
+                {% if company.endereco %}
+                <p><strong><i class="bi bi-signpost"></i> Endereço:</strong> {{ company.endereco }}{% if company.numero %}, {{ company.numero }}{% endif %}</p>
+                {% endif %}
+                {% if company.complemento %}
+                <p><strong><i class="bi bi-plus-circle"></i> Complemento:</strong> {{ company.complemento }}</p>
+                {% endif %}
+                {% if company.bairro %}
+                <p><strong><i class="bi bi-geo"></i> Bairro:</strong> {{ company.bairro }}</p>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                {% if company.cidade %}
+                <p><strong><i class="bi bi-building"></i> Cidade:</strong> {{ company.cidade }}</p>
+                {% endif %}
+                {% if company.estado %}
+                <p><strong><i class="bi bi-flag"></i> Estado:</strong> {{ company.estado }}</p>
+                {% endif %}
+                {% if company.pais %}
+                <p><strong><i class="bi bi-globe"></i> País:</strong> {{ company.pais }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Informações Tributárias -->
+{% if company.aliquota_simples or company.faturamento_anual or company.aliquota_ir or company.aliquota_csll or company.aliquota_pis or company.aliquota_cofins or company.aliquota_icms or company.aliquota_iss %}
+<div class="row mt-3">
+    <div class="col-12">
+        <h6 class="text-warning mb-3"><i class="bi bi-calculator text-warning"></i> Informações Tributárias</h6>
+        <div class="row">
+            <div class="col-md-6">
+                {% if company.aliquota_simples %}
+                <p><strong><i class="bi bi-percent"></i> Alíquota Simples Nacional:</strong> {{ company.aliquota_simples }}%</p>
+                {% endif %}
+                {% if company.faturamento_anual %}
+                <p><strong><i class="bi bi-currency-dollar"></i> Faturamento Anual:</strong> R$ {{ "{:,.2f}".format(company.faturamento_anual).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+                {% endif %}
+                {% if company.aliquota_ir %}
+                <p><strong><i class="bi bi-percent"></i> Alíquota IR:</strong> {{ company.aliquota_ir }}%</p>
+                {% endif %}
+                {% if company.aliquota_csll %}
+                <p><strong><i class="bi bi-percent"></i> Alíquota CSLL:</strong> {{ company.aliquota_csll }}%</p>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                {% if company.aliquota_pis %}
+                <p><strong><i class="bi bi-percent"></i> Alíquota PIS:</strong> {{ company.aliquota_pis }}%</p>
+                {% endif %}
+                {% if company.aliquota_cofins %}
+                <p><strong><i class="bi bi-percent"></i> Alíquota COFINS:</strong> {{ company.aliquota_cofins }}%</p>
+                {% endif %}
+                {% if company.aliquota_icms %}
+                <p><strong><i class="bi bi-percent"></i> Alíquota ICMS:</strong> {{ company.aliquota_icms }}%</p>
+                {% endif %}
+                {% if company.aliquota_iss %}
+                <p><strong><i class="bi bi-percent"></i> Alíquota ISS:</strong> {{ company.aliquota_iss }}%</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Linha separada para Pedidos ML como Contas a Receber -->
 <div class="row mt-3">
     <div class="col-12">
