@@ -102,7 +102,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Total a Receber</h6>
+                        <h6 class="card-title">
+                            Total a Receber 
+                            <i class="bi bi-info-circle" data-bs-toggle="tooltip" title="Valor líquido (já descontado comissão e frete do ML)"></i>
+                        </h6>
                         <h4 class="mb-0" id="totalAmount">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -117,7 +120,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Recebido</h6>
+                        <h6 class="card-title">
+                            Recebido 
+                            <i class="bi bi-info-circle" data-bs-toggle="tooltip" title="Valor líquido já recebido (descontado comissão e frete)"></i>
+                        </h6>
                         <h4 class="mb-0" id="paidAmount">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -132,7 +138,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Vencido</h6>
+                        <h6 class="card-title">
+                            Vencido 
+                            <i class="bi bi-info-circle" data-bs-toggle="tooltip" title="Valor líquido vencido (descontado comissão e frete)"></i>
+                        </h6>
                         <h4 class="mb-0" id="overdueAmount">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -147,7 +156,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Pendente</h6>
+                        <h6 class="card-title">
+                            Pendente 
+                            <i class="bi bi-info-circle" data-bs-toggle="tooltip" title="Valor líquido pendente (descontado comissão e frete)"></i>
+                        </h6>
                         <h4 class="mb-0" id="pendingAmount">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -382,6 +394,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCategories();
     loadCostCenters();
     loadAccounts();
+    
+    // Inicializar tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
     
     // Configurar filtro automático do mês atual
     document.getElementById('periodFilter').value = 'this_month';
