@@ -65,8 +65,6 @@ class OrdemCompraController:
                     "fornecedor_nome": ordem.fornecedor.nome if ordem.fornecedor else None,
                     "fornecedor_id": ordem.fornecedor_id,
                     "observacoes": ordem.observacoes,
-                    "condicoes_pagamento": ordem.condicoes_pagamento,
-                    "prazo_entrega": ordem.prazo_entrega,
                     "created_at": ordem.created_at.isoformat() if ordem.created_at else None,
                     "updated_at": ordem.updated_at.isoformat() if ordem.updated_at else None
                 }
@@ -116,8 +114,6 @@ class OrdemCompraController:
                 "transportadora_id": ordem.transportadora_id,
                 "transportadora_nome": ordem.transportadora.nome if ordem.transportadora else None,
                 "observacoes": ordem.observacoes,
-                "condicoes_pagamento": ordem.condicoes_pagamento,
-                "prazo_entrega": ordem.prazo_entrega,
                 "itens": [
                     {
                         "id": item.id,
@@ -214,9 +210,7 @@ class OrdemCompraController:
                 percentual_importacao=float(ordem_data.get('percentual_importacao', 0)),
                 taxas_adicionais=valor_taxas_adicionais,
                 valor_impostos=valor_impostos,
-                observacoes=ordem_data.get('observacoes'),
-                condicoes_pagamento=ordem_data.get('condicoes_pagamento'),
-                prazo_entrega=ordem_data.get('prazo_entrega')
+                observacoes=ordem_data.get('observacoes')
             )
             
             db.add(ordem)

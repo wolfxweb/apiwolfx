@@ -72,7 +72,7 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Fornecedor -->
+                                <!-- Fornecedor e Transportadora -->
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -88,37 +88,20 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-3">
+                                    <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="condicoesPagamento" class="form-label">Condições de Pagamento</label>
-                                            <input type="text" class="form-control" id="condicoesPagamento" placeholder="Ex: 30 dias">
+                                            <label for="transportadoraSearch" class="form-label">Transportadora</label>
+                                            <div class="position-relative">
+                                                <input type="text" class="form-control" id="transportadoraSearch" placeholder="Digite para buscar transportadora..." autocomplete="off">
+                                                <input type="hidden" id="transportadoraId" value="">
+                                                <div id="transportadoraDropdown" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;">
+                                                    <!-- Resultados da busca aparecerão aqui -->
+                                                </div>
+                                            </div>
+                                            <small class="form-text text-muted">Digite para buscar transportadoras cadastradas</small>
                                         </div>
                                     </div>
-                                    
-                    <div class="col-md-3">
-                        <div class="mb-3">
-                            <label for="prazoEntrega" class="form-label">Prazo de Entrega</label>
-                            <input type="text" class="form-control" id="prazoEntrega" placeholder="Ex: 15 dias úteis">
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Transportadora -->
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label for="transportadoraSearch" class="form-label">Transportadora</label>
-                            <div class="position-relative">
-                                <input type="text" class="form-control" id="transportadoraSearch" placeholder="Digite para buscar transportadora..." autocomplete="off">
-                                <input type="hidden" id="transportadoraId" value="">
-                                <div id="transportadoraDropdown" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;">
-                                    <!-- Resultados da busca aparecerão aqui -->
                                 </div>
-                            </div>
-                            <small class="form-text text-muted">Digite para buscar transportadoras cadastradas</small>
-                        </div>
-                    </div>
-                </div>
                                 
                                 <!-- Moeda e Tipo -->
                                 <div class="row">
@@ -481,8 +464,6 @@ function loadOrdemData(ordemData) {
     tipoOrdemElement.value = ordemData.tipo_ordem || 'nacional';
     console.log('Valor depois:', tipoOrdemElement.value);
     
-    document.getElementById('condicoesPagamento').value = ordemData.condicoes_pagamento || '';
-    document.getElementById('prazoEntrega').value = ordemData.prazo_entrega || '';
     document.getElementById('observacoes').value = ordemData.observacoes || '';
     
     // Preencher fornecedor
@@ -1050,8 +1031,6 @@ async function saveOrdem() {
         status: document.getElementById('status').value,
         fornecedor_id: document.getElementById('fornecedorId').value || null,
         transportadora_id: document.getElementById('transportadoraId').value || null,
-        condicoes_pagamento: document.getElementById('condicoesPagamento').value,
-        prazo_entrega: document.getElementById('prazoEntrega').value,
         observacoes: document.getElementById('observacoes').value,
         moeda: document.getElementById('moeda').value,
         cotacao_moeda: parseFloat(document.getElementById('cotacaoMoeda').value) || 1,
