@@ -971,7 +971,8 @@ class Fornecedor(Base):
     # Relacionamentos
     company = relationship("Company", back_populates="fornecedores")
     accounts_payable = relationship("AccountPayable", back_populates="fornecedor")
-    ordens_compra = relationship("OrdemCompra", back_populates="fornecedor")
+    ordens_compra = relationship("OrdemCompra", back_populates="fornecedor", foreign_keys="OrdemCompra.fornecedor_id")
+    ordens_compra_transportadora = relationship("OrdemCompra", back_populates="transportadora", foreign_keys="OrdemCompra.transportadora_id")
     
     # Índices
     __table_args__ = (
@@ -986,6 +987,7 @@ class OrdemCompra(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     fornecedor_id = Column(Integer, ForeignKey("fornecedores.id"), nullable=True, index=True)
+    transportadora_id = Column(Integer, ForeignKey("fornecedores.id"), nullable=True, index=True)
     
     # Dados da ordem
     numero_ordem = Column(String(50), nullable=False, index=True)
@@ -1027,7 +1029,8 @@ class OrdemCompra(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="ordens_compra")
-    fornecedor = relationship("Fornecedor", back_populates="ordens_compra")
+    fornecedor = relationship("Fornecedor", back_populates="ordens_compra", foreign_keys=[fornecedor_id])
+    transportadora = relationship("Fornecedor", back_populates="ordens_compra_transportadora", foreign_keys=[transportadora_id])
     itens = relationship("OrdemCompraItem", back_populates="ordem_compra", cascade="all, delete-orphan")
     links = relationship("OrdemCompraLink", back_populates="ordem_compra", cascade="all, delete-orphan")
     

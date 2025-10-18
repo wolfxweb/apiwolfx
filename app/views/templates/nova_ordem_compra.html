@@ -95,13 +95,30 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-3">
-                                        <div class="mb-3">
-                                            <label for="prazoEntrega" class="form-label">Prazo de Entrega</label>
-                                            <input type="text" class="form-control" id="prazoEntrega" placeholder="Ex: 15 dias úteis">
-                                        </div>
-                                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="prazoEntrega" class="form-label">Prazo de Entrega</label>
+                            <input type="text" class="form-control" id="prazoEntrega" placeholder="Ex: 15 dias úteis">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Transportadora -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="transportadoraSearch" class="form-label">Transportadora</label>
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="transportadoraSearch" placeholder="Digite para buscar transportadora..." autocomplete="off">
+                                <input type="hidden" id="transportadoraId" value="">
+                                <div id="transportadoraDropdown" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;">
+                                    <!-- Resultados da busca aparecerão aqui -->
                                 </div>
+                            </div>
+                            <small class="form-text text-muted">Digite para buscar transportadoras cadastradas</small>
+                        </div>
+                    </div>
+                </div>
                                 
                                 <!-- Moeda e Tipo -->
                                 <div class="row">
@@ -472,6 +489,12 @@ function loadOrdemData(ordemData) {
     if (ordemData.fornecedor_id) {
         document.getElementById('fornecedorSearch').value = ordemData.fornecedor_nome || '';
         document.getElementById('fornecedorId').value = ordemData.fornecedor_id;
+    }
+    
+    // Preencher transportadora
+    if (ordemData.transportadora_id) {
+        document.getElementById('transportadoraSearch').value = ordemData.transportadora_nome || '';
+        document.getElementById('transportadoraId').value = ordemData.transportadora_id;
     }
     
     // Preencher campos internacionais
@@ -1026,6 +1049,7 @@ async function saveOrdem() {
         data_entrega_prevista: document.getElementById('dataEntregaPrevista').value,
         status: document.getElementById('status').value,
         fornecedor_id: document.getElementById('fornecedorId').value || null,
+        transportadora_id: document.getElementById('transportadoraId').value || null,
         condicoes_pagamento: document.getElementById('condicoesPagamento').value,
         prazo_entrega: document.getElementById('prazoEntrega').value,
         observacoes: document.getElementById('observacoes').value,
@@ -1169,7 +1193,60 @@ document.addEventListener('click', function(event) {
     if (!fornecedorContainer.contains(event.target)) {
         document.getElementById('fornecedorDropdown').style.display = 'none';
     }
+    
+    const transportadoraContainer = document.querySelector('#transportadoraSearch').closest('.position-relative');
+    if (!transportadoraContainer.contains(event.target)) {
+        document.getElementById('transportadoraDropdown').style.display = 'none';
+    }
 });
+
+// Busca de transportadoras
+let transportadoraSearchTimeout;
+
+document.getElementById('transportadoraSearch').addEventListener('input', function() {
+    const query = this.value.trim();
+    
+    clearTimeout(transportadoraSearchTimeout);
+    
+    if (query.length < 2) {
+        document.getElementById('transportadoraDropdown').style.display = 'none';
+        return;
+    }
+    
+    transportadoraSearchTimeout = setTimeout(() => {
+        searchTransportadoras(query);
+    }, 300);
+});
+
+async function searchTransportadoras(query) {
+    try {
+        const response = await fetch(`/api/fornecedores?search=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        const dropdown = document.getElementById('transportadoraDropdown');
+        
+        if (data.success && data.fornecedores.length > 0) {
+            dropdown.innerHTML = data.fornecedores.map(fornecedor => `
+                <div class="dropdown-item" onclick="selectTransportadora(${fornecedor.id}, '${fornecedor.nome}')">
+                    <div class="fw-bold">${fornecedor.nome}</div>
+                    ${fornecedor.cnpj ? `<small class="text-muted">CNPJ: ${fornecedor.cnpj}</small>` : ''}
+                </div>
+            `).join('');
+            dropdown.style.display = 'block';
+        } else {
+            dropdown.innerHTML = '<div class="dropdown-item text-muted">Nenhuma transportadora encontrada</div>';
+            dropdown.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Erro ao buscar transportadoras:', error);
+    }
+}
+
+function selectTransportadora(id, nome) {
+    document.getElementById('transportadoraId').value = id;
+    document.getElementById('transportadoraSearch').value = nome;
+    document.getElementById('transportadoraDropdown').style.display = 'none';
+}
 </script>
 
 <!-- Modal para Gerenciar Links -->

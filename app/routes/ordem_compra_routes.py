@@ -113,6 +113,8 @@ async def editar_ordem_compra_page(
         "valor_impostos": float(ordem.valor_impostos or 0),
         "fornecedor_id": ordem.fornecedor_id,
         "fornecedor_nome": ordem.fornecedor.nome if ordem.fornecedor else None,
+        "transportadora_id": ordem.transportadora_id,
+        "transportadora_nome": ordem.transportadora.nome if ordem.transportadora else None,
         "condicoes_pagamento": ordem.condicoes_pagamento,
         "prazo_entrega": ordem.prazo_entrega,
         "observacoes": ordem.observacoes,

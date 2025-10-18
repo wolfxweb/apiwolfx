@@ -113,6 +113,8 @@ class OrdemCompraController:
                 "valor_impostos": float(ordem.valor_impostos or 0),
                 "fornecedor_id": ordem.fornecedor_id,
                 "fornecedor_nome": ordem.fornecedor.nome if ordem.fornecedor else None,
+                "transportadora_id": ordem.transportadora_id,
+                "transportadora_nome": ordem.transportadora.nome if ordem.transportadora else None,
                 "observacoes": ordem.observacoes,
                 "condicoes_pagamento": ordem.condicoes_pagamento,
                 "prazo_entrega": ordem.prazo_entrega,
@@ -195,6 +197,7 @@ class OrdemCompraController:
             ordem = OrdemCompra(
                 company_id=company_id,
                 fornecedor_id=ordem_data.get('fornecedor_id'),
+                transportadora_id=ordem_data.get('transportadora_id'),
                 numero_ordem=ordem_data.get('numero_ordem'),
                 data_ordem=datetime.strptime(ordem_data.get('data_ordem'), '%Y-%m-%d').date() if ordem_data.get('data_ordem') else date.today(),
                 data_entrega_prevista=datetime.strptime(ordem_data.get('data_entrega_prevista'), '%Y-%m-%d').date() if ordem_data.get('data_entrega_prevista') else None,
