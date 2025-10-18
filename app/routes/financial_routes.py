@@ -251,6 +251,25 @@ async def financial_dashboard(
     from app.views.template_renderer import render_template
     return render_template("financial_dashboard.html", user=user_data)
 
+@financial_router.get("/financial/reports", response_class=HTMLResponse)
+async def financial_reports(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de planejamento financeiro (em desenvolvimento)"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    
+    from app.views.template_renderer import render_template
+    return render_template("financial_reports.html", user=user_data)
+
 # =====================================================
 # ROTAS DE API
 # =====================================================

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Planejamento Financeiro - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-calendar-check"></i> Planejamento Financeiro</h1>
+</div>
+
+<!-- Card de desenvolvimento -->
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-tools"></i> Funcionalidade em Desenvolvimento
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <i class="bi bi-gear-fill display-1 text-warning"></i>
+                </div>
+                <h4 class="text-warning mb-3">Planejamento Financeiro</h4>
+                <p class="lead mb-4">
+                    Esta funcionalidade está sendo desenvolvida e estará disponível em breve.
+                </p>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <i class="bi bi-graph-up text-primary fs-1"></i>
+                                <h6 class="mt-2">Projeções Financeiras</h6>
+                                <small class="text-muted">Análise de tendências e previsões</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <i class="bi bi-calendar-month text-success fs-1"></i>
+                                <h6 class="mt-2">Orçamento Mensal</h6>
+                                <small class="text-muted">Controle de receitas e despesas</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <i class="bi bi-pie-chart text-info fs-1"></i>
+                                <h6 class="mt-2">Análise de Categorias</h6>
+                                <small class="text-muted">Distribuição de gastos por categoria</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <i class="bi bi-target text-danger fs-1"></i>
+                                <h6 class="mt-2">Metas Financeiras</h6>
+                                <small class="text-muted">Definição e acompanhamento de objetivos</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <a href="/financial/dashboard" class="btn btn-primary me-2">
+                        <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+                    </a>
+                    <a href="/financial/receivables" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-down-circle"></i> Contas a Receber
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Informações adicionais -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <h6><i class="bi bi-info-circle"></i> O que você pode fazer enquanto isso:</h6>
+            <ul class="mb-0">
+                <li>Gerenciar suas <strong>Contas a Receber</strong> e <strong>Contas a Pagar</strong></li>
+                <li>Organizar <strong>Categorias</strong> e <strong>Centros de Custo</strong></li>
+                <li>Configurar suas <strong>Contas Bancárias</strong></li>
+                <li>Acompanhar o <strong>Fluxo de Caixa</strong> atual</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
