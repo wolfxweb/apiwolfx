@@ -530,7 +530,7 @@ async def export_ordem_compra(
     )
     
     # Título principal
-    ws.merge_cells('A1:H1')
+    ws.merge_cells('A1:F1')
     ws['A1'] = f"ORDEM DE COMPRA - {ordem.get('numero_ordem', '')}"
     ws['A1'].font = title_font
     ws['A1'].fill = title_fill
@@ -541,7 +541,7 @@ async def export_ordem_compra(
     row = 3
     
     # Cabeçalho DADOS DA EMPRESA (lado esquerdo)
-    ws.merge_cells(f'A{row}:D{row}')
+    ws.merge_cells(f'A{row}:C{row}')
     ws[f'A{row}'] = "DADOS DA EMPRESA"
     ws[f'A{row}'].font = header_font
     ws[f'A{row}'].fill = header_fill
@@ -549,11 +549,11 @@ async def export_ordem_compra(
     ws.row_dimensions[row].height = 25
     
     # Cabeçalho DADOS DO FORNECEDOR (lado direito)
-    ws.merge_cells(f'E{row}:H{row}')
-    ws[f'E{row}'] = "DADOS DO FORNECEDOR"
-    ws[f'E{row}'].font = header_font
-    ws[f'E{row}'].fill = header_fill
-    ws[f'E{row}'].alignment = left_alignment
+    ws.merge_cells(f'D{row}:F{row}')
+    ws[f'D{row}'] = "DADOS DO FORNECEDOR"
+    ws[f'D{row}'].font = header_font
+    ws[f'D{row}'].fill = header_fill
+    ws[f'D{row}'].alignment = left_alignment
     
     # Dados da Empresa (lado esquerdo)
     if company:
@@ -576,7 +576,7 @@ async def export_ordem_compra(
             ws[f'B{row}'] = value
             ws[f'B{row}'].font = normal_font
             ws[f'B{row}'].border = thin_border
-            ws.merge_cells(f'B{row}:D{row}')
+            ws.merge_cells(f'B{row}:C{row}')
             row += 1
     
     # Dados do Fornecedor (lado direito)
@@ -597,15 +597,15 @@ async def export_ordem_compra(
         # Resetar row para começar do lado direito
         row = 4
         for i, (label, value) in enumerate(fornecedor_data):
-            ws[f'E{row}'] = label
-            ws[f'E{row}'].font = bold_font
-            ws[f'E{row}'].fill = light_fill
-            ws[f'E{row}'].border = thin_border
+            ws[f'D{row}'] = label
+            ws[f'D{row}'].font = bold_font
+            ws[f'D{row}'].fill = light_fill
+            ws[f'D{row}'].border = thin_border
             
-            ws[f'F{row}'] = value
-            ws[f'F{row}'].font = normal_font
-            ws[f'F{row}'].border = thin_border
-            ws.merge_cells(f'F{row}:H{row}')
+            ws[f'E{row}'] = value
+            ws[f'E{row}'].font = normal_font
+            ws[f'E{row}'].border = thin_border
+            ws.merge_cells(f'E{row}:F{row}')
             row += 1
     
     # Ajustar row para a próxima seção (pegar o maior entre empresa e fornecedor)
@@ -620,7 +620,7 @@ async def export_ordem_compra(
     
     # Dados da Ordem
     row += 1
-    ws.merge_cells(f'A{row}:H{row}')
+    ws.merge_cells(f'A{row}:F{row}')
     ws[f'A{row}'] = "DADOS DA ORDEM"
     ws[f'A{row}'].font = header_font
     ws[f'A{row}'].fill = header_fill
@@ -647,13 +647,13 @@ async def export_ordem_compra(
         ws[f'B{row}'] = value
         ws[f'B{row}'].font = normal_font
         ws[f'B{row}'].border = thin_border
-        ws.merge_cells(f'B{row}:H{row}')
+        ws.merge_cells(f'B{row}:F{row}')
         row += 1
     
     # Itens da Ordem
     if ordem.get('itens'):
         row += 1
-        ws.merge_cells(f'A{row}:H{row}')
+        ws.merge_cells(f'A{row}:F{row}')
         ws[f'A{row}'] = "ITENS DA ORDEM"
         ws[f'A{row}'].font = header_font
         ws[f'A{row}'].fill = header_fill
@@ -662,7 +662,7 @@ async def export_ordem_compra(
         
         # Cabeçalho da tabela de itens
         row += 1
-        headers = ['Produto', 'SKU', 'Quantidade', 'Valor Unit.', 'Total', 'Descrição Fornecedor', 'URL', 'Imagem']
+        headers = ['Produto', 'Quantidade', 'Valor Unit.', 'Total', 'URL', 'Imagem']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.font = header_font
@@ -673,21 +673,32 @@ async def export_ordem_compra(
         # Dados dos itens
         for item in ordem['itens']:
             row += 1
-            ws[f'A{row}'] = item.get('produto_nome', '')
-            ws[f'B{row}'] = item.get('produto_codigo', '')  # SKU/Código do produto
-            ws[f'C{row}'] = item.get('quantidade', 0)
-            ws[f'D{row}'] = f"{item.get('valor_unitario', 0):.2f}"
-            ws[f'E{row}'] = f"{item.get('valor_total', 0):.2f}"
-            ws[f'F{row}'] = item.get('descricao_fornecedor', '')
+            
+            # Coluna Produto com todas as informações
+            produto_nome = item.get('produto_nome', '')
+            produto_sku = item.get('produto_codigo', '')
+            descricao_fornecedor = item.get('descricao_fornecedor', '')
+            
+            # Montar texto completo do produto
+            produto_completo = produto_nome
+            if produto_sku:
+                produto_completo += f"\nSKU: {produto_sku}"
+            if descricao_fornecedor:
+                produto_completo += f"\nDescrição: {descricao_fornecedor}"
+            
+            ws[f'A{row}'] = produto_completo
+            ws[f'B{row}'] = item.get('quantidade', 0)
+            ws[f'C{row}'] = f"{item.get('valor_unitario', 0):.2f}"
+            ws[f'D{row}'] = f"{item.get('valor_total', 0):.2f}"
             
             # URL como link clicável
             url_produto = item.get('url', '')
             if url_produto:
-                ws[f'G{row}'] = url_produto
-                ws[f'G{row}'].hyperlink = Hyperlink(ref=f'G{row}', target=url_produto, tooltip="Clique para abrir o link")
-                ws[f'G{row}'].font = Font(name='Arial', size=10, color='0000FF', underline='single')
+                ws[f'E{row}'] = url_produto
+                ws[f'E{row}'].hyperlink = Hyperlink(ref=f'E{row}', target=url_produto, tooltip="Clique para abrir o link")
+                ws[f'E{row}'].font = Font(name='Arial', size=10, color='0000FF', underline='single')
             else:
-                ws[f'G{row}'] = 'Sem URL'
+                ws[f'E{row}'] = 'Sem URL'
             
             # Adicionar imagem do produto se existir
             produto_imagem = item.get('produto_imagem', '')
@@ -713,25 +724,25 @@ async def export_ordem_compra(
                         excel_img = ExcelImage(img_path)
                         excel_img.width = 100
                         excel_img.height = 100
-                        ws.add_image(excel_img, f'H{row}')
+                        ws.add_image(excel_img, f'F{row}')
                         
                         # Limpar arquivo original, mas manter o redimensionado
                         os.unlink(temp_file_path)
                         
-                        ws[f'H{row}'] = 'Imagem carregada'
+                        ws[f'F{row}'] = 'Imagem carregada'
                     else:
-                        ws[f'H{row}'] = 'Erro ao carregar imagem'
+                        ws[f'F{row}'] = 'Erro ao carregar imagem'
                 except Exception as e:
-                    ws[f'H{row}'] = f'Erro: {str(e)[:20]}...'
+                    ws[f'F{row}'] = f'Erro: {str(e)[:20]}...'
             else:
-                ws[f'H{row}'] = 'Sem imagem'
+                ws[f'F{row}'] = 'Sem imagem'
             
             # Aplicar formatação às células
-            for col in range(1, 9):
+            for col in range(1, 7):  # 6 colunas agora
                 cell = ws.cell(row=row, column=col)
                 cell.font = normal_font
                 cell.border = thin_border
-                if col in [3, 4, 5]:  # Quantidade, Valor Unit., Total
+                if col in [2, 3, 4]:  # Quantidade, Valor Unit., Total
                     cell.alignment = center_alignment
                 else:
                     cell.alignment = left_alignment
@@ -741,7 +752,7 @@ async def export_ordem_compra(
     
     # Resumo Financeiro
     row += 2
-    ws.merge_cells(f'A{row}:H{row}')
+    ws.merge_cells(f'A{row}:F{row}')
     ws[f'A{row}'] = "RESUMO FINANCEIRO"
     ws[f'A{row}'].font = header_font
     ws[f'A{row}'].fill = header_fill
@@ -783,12 +794,12 @@ async def export_ordem_compra(
         ws[f'B{row}'].font = normal_font
         ws[f'B{row}'].border = thin_border
         ws[f'B{row}'].alignment = right_alignment
-        ws.merge_cells(f'B{row}:H{row}')
+        ws.merge_cells(f'B{row}:F{row}')
     
     # Observações
     if ordem.get('observacoes'):
         row += 2
-        ws.merge_cells(f'A{row}:H{row}')
+        ws.merge_cells(f'A{row}:F{row}')
         ws[f'A{row}'] = "OBSERVAÇÕES"
         ws[f'A{row}'].font = header_font
         ws[f'A{row}'].fill = header_fill
@@ -796,7 +807,7 @@ async def export_ordem_compra(
         ws.row_dimensions[row].height = 25
         
         row += 1
-        ws.merge_cells(f'A{row}:H{row}')
+        ws.merge_cells(f'A{row}:F{row}')
         ws[f'A{row}'] = ordem['observacoes']
         ws[f'A{row}'].font = normal_font
         ws[f'A{row}'].alignment = left_alignment
@@ -804,13 +815,13 @@ async def export_ordem_compra(
     
     # Rodapé
     row += 2
-    ws.merge_cells(f'A{row}:H{row}')
+    ws.merge_cells(f'A{row}:F{row}')
     ws[f'A{row}'] = f"Documento gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     ws[f'A{row}'].font = Font(name='Arial', size=8, italic=True)
     ws[f'A{row}'].alignment = center_alignment
     
-    # Ajustar largura das colunas (8 colunas apenas)
-    column_widths = [25, 15, 12, 15, 15, 30, 20, 20]
+    # Ajustar largura das colunas (6 colunas apenas)
+    column_widths = [40, 12, 15, 15, 25, 20]  # Produto, Quantidade, Valor Unit., Total, URL, Imagem
     for i, width in enumerate(column_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = width
     
