@@ -114,7 +114,7 @@
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card text-white bg-warning stats-card">
+                    <div class="card text-white bg-danger stats-card">
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <div>
@@ -129,7 +129,7 @@
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card text-white bg-info stats-card">
+                    <div class="card text-white stats-card" style="background-color: #FF8C00;">
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <div>
@@ -692,7 +692,10 @@ function showAlert(message, type) {
 
 // Função para atualizar estatísticas
 function updateStats() {
-    if (!payables || payables.length === 0) {
+    // Usar dados filtrados em vez de todos os dados
+    const dataToUse = filteredPayables.length > 0 ? filteredPayables : payables;
+    
+    if (!dataToUse || dataToUse.length === 0) {
         document.getElementById('totalAmount').textContent = 'R$ 0,00';
         document.getElementById('paidAmount').textContent = 'R$ 0,00';
         document.getElementById('overdueAmount').textContent = 'R$ 0,00';
@@ -708,7 +711,7 @@ function updateStats() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    payables.forEach(payable => {
+    dataToUse.forEach(payable => {
         const amount = parseFloat(payable.amount) || 0;
         totalAmount += amount;
         
