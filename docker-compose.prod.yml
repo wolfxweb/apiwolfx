@@ -42,7 +42,7 @@ services:
       - ALLOWED_HOSTS=wolfx.com.br,www.wolfx.com.br
       
       # OpenAI API
-      - OPENAI_API_KEY=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
+      - OPENAI_API_KEY=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
       
     networks:
       - server

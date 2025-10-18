@@ -938,6 +938,7 @@ class Fornecedor(Base):
     inscricao_municipal = Column(String(50))
     
     # Contato
+    contato_nome = Column(String(255))
     email = Column(String(255))
     telefone = Column(String(20))
     celular = Column(String(20))
