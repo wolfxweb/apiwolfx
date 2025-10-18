@@ -530,7 +530,7 @@ async def export_ordem_compra(
     )
     
     # Título principal
-    ws.merge_cells('A1:I1')
+    ws.merge_cells('A1:H1')
     ws['A1'] = f"ORDEM DE COMPRA - {ordem.get('numero_ordem', '')}"
     ws['A1'].font = title_font
     ws['A1'].fill = title_fill
@@ -549,7 +549,7 @@ async def export_ordem_compra(
     ws.row_dimensions[row].height = 25
     
     # Cabeçalho DADOS DO FORNECEDOR (lado direito)
-    ws.merge_cells(f'E{row}:I{row}')
+    ws.merge_cells(f'E{row}:H{row}')
     ws[f'E{row}'] = "DADOS DO FORNECEDOR"
     ws[f'E{row}'].font = header_font
     ws[f'E{row}'].fill = header_fill
@@ -605,7 +605,7 @@ async def export_ordem_compra(
             ws[f'F{row}'] = value
             ws[f'F{row}'].font = normal_font
             ws[f'F{row}'].border = thin_border
-            ws.merge_cells(f'F{row}:I{row}')
+            ws.merge_cells(f'F{row}:H{row}')
             row += 1
     
     # Ajustar row para a próxima seção (pegar o maior entre empresa e fornecedor)
@@ -620,7 +620,7 @@ async def export_ordem_compra(
     
     # Dados da Ordem
     row += 1
-    ws.merge_cells(f'A{row}:I{row}')
+    ws.merge_cells(f'A{row}:H{row}')
     ws[f'A{row}'] = "DADOS DA ORDEM"
     ws[f'A{row}'].font = header_font
     ws[f'A{row}'].fill = header_fill
@@ -647,13 +647,13 @@ async def export_ordem_compra(
         ws[f'B{row}'] = value
         ws[f'B{row}'].font = normal_font
         ws[f'B{row}'].border = thin_border
-        ws.merge_cells(f'B{row}:I{row}')
+        ws.merge_cells(f'B{row}:H{row}')
         row += 1
     
     # Itens da Ordem
     if ordem.get('itens'):
         row += 1
-        ws.merge_cells(f'A{row}:I{row}')
+        ws.merge_cells(f'A{row}:H{row}')
         ws[f'A{row}'] = "ITENS DA ORDEM"
         ws[f'A{row}'].font = header_font
         ws[f'A{row}'].fill = header_fill
@@ -741,7 +741,7 @@ async def export_ordem_compra(
     
     # Resumo Financeiro
     row += 2
-    ws.merge_cells(f'A{row}:I{row}')
+    ws.merge_cells(f'A{row}:H{row}')
     ws[f'A{row}'] = "RESUMO FINANCEIRO"
     ws[f'A{row}'].font = header_font
     ws[f'A{row}'].fill = header_fill
@@ -783,12 +783,12 @@ async def export_ordem_compra(
         ws[f'B{row}'].font = normal_font
         ws[f'B{row}'].border = thin_border
         ws[f'B{row}'].alignment = right_alignment
-        ws.merge_cells(f'B{row}:I{row}')
+        ws.merge_cells(f'B{row}:H{row}')
     
     # Observações
     if ordem.get('observacoes'):
         row += 2
-        ws.merge_cells(f'A{row}:I{row}')
+        ws.merge_cells(f'A{row}:H{row}')
         ws[f'A{row}'] = "OBSERVAÇÕES"
         ws[f'A{row}'].font = header_font
         ws[f'A{row}'].fill = header_fill
@@ -796,7 +796,7 @@ async def export_ordem_compra(
         ws.row_dimensions[row].height = 25
         
         row += 1
-        ws.merge_cells(f'A{row}:I{row}')
+        ws.merge_cells(f'A{row}:H{row}')
         ws[f'A{row}'] = ordem['observacoes']
         ws[f'A{row}'].font = normal_font
         ws[f'A{row}'].alignment = left_alignment
@@ -804,13 +804,13 @@ async def export_ordem_compra(
     
     # Rodapé
     row += 2
-    ws.merge_cells(f'A{row}:I{row}')
+    ws.merge_cells(f'A{row}:H{row}')
     ws[f'A{row}'] = f"Documento gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     ws[f'A{row}'].font = Font(name='Arial', size=8, italic=True)
     ws[f'A{row}'].alignment = center_alignment
     
-    # Ajustar largura das colunas
-    column_widths = [25, 15, 12, 15, 15, 30, 20, 20, 20]
+    # Ajustar largura das colunas (8 colunas apenas)
+    column_widths = [25, 15, 12, 15, 15, 30, 20, 20]
     for i, width in enumerate(column_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = width
     
