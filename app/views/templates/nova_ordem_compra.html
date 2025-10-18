@@ -283,6 +283,24 @@
                                             <span>Desconto:</span>
                                             <span id="desconto">R$ 0,00</span>
                                         </div>
+                                        
+                                        <!-- Campos Internacionais (condicionais) -->
+                                        <div id="resumoInternacional" style="display: none;">
+                                            <hr>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Comissão Agente:</span>
+                                                <span id="comissaoValor">R$ 0,00</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Valor Transporte:</span>
+                                                <span id="freteValor">R$ 0,00</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Impostos Importação:</span>
+                                                <span id="impostosValor">R$ 0,00</span>
+                                            </div>
+                                        </div>
+                                        
                                         <hr>
                                         <div class="d-flex justify-content-between fw-bold">
                                             <span>Total:</span>
@@ -824,13 +842,59 @@ function updateResumo() {
     });
     
     const desconto = 0; // Implementar campo de desconto se necessário
-    const total = subtotal - desconto;
+    const subtotalComDesconto = subtotal - desconto;
     
     // Obter moeda e cotação
     const moeda = document.getElementById('moeda').value;
     const cotacao = parseFloat(document.getElementById('cotacaoMoeda').value) || 1;
     
-    console.log('Moeda:', moeda, 'Cotação:', cotacao, 'Subtotal:', subtotal);
+    // Verificar se é ordem internacional
+    const tipoOrdem = document.getElementById('tipoOrdem').value;
+    let comissao = 0;
+    let frete = 0;
+    let valorBaseImpostos = subtotalComDesconto;
+    let impostos = 0;
+    let total = subtotalComDesconto;
+    
+    // Mostrar/ocultar seção internacional no resumo
+    const resumoInternacional = document.getElementById('resumoInternacional');
+    if (tipoOrdem === 'internacional') {
+        resumoInternacional.style.display = 'block';
+        
+        // Calcular comissão (percentual do subtotal)
+        const percentualComissao = parseFloat(document.getElementById('comissaoAgente').value) || 0;
+        comissao = subtotalComDesconto * (percentualComissao / 100);
+        
+        // Obter valor do frete
+        frete = parseFloat(document.getElementById('valorTransporte').value) || 0;
+        
+        // Valor base para cálculo de impostos = produtos + comissão + frete
+        valorBaseImpostos = subtotalComDesconto + comissao + frete;
+        
+        // Calcular impostos sobre o valor base
+        const percentualImpostos = parseFloat(document.getElementById('percentualImportacao').value) || 0;
+        impostos = valorBaseImpostos * (percentualImpostos / 100);
+        
+        // Total final = produtos + comissão + frete + impostos
+        total = valorBaseImpostos + impostos;
+        
+        // Atualizar valores no resumo
+        const moedaSymbol = getMoedaSymbol(moeda);
+        document.getElementById('comissaoValor').textContent = `${moedaSymbol} ${comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('freteValor').textContent = `${moedaSymbol} ${frete.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('impostosValor').textContent = `${moedaSymbol} ${impostos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+        resumoInternacional.style.display = 'none';
+    }
+    
+    console.log('Cálculos:', {
+        subtotal: subtotal,
+        comissao: comissao,
+        frete: frete,
+        valorBaseImpostos: valorBaseImpostos,
+        impostos: impostos,
+        total: total
+    });
     
     // Calcular total em reais
     const totalBRL = total * cotacao;
@@ -1003,6 +1067,9 @@ function toggleCamposInternacionais() {
         document.getElementById('percentualImportacao').value = '0.00';
         document.getElementById('modalidadeImportacao').value = '';
     }
+    
+    // Atualizar resumo financeiro
+    updateResumo();
 }
 
 // Função para atualizar símbolos de moeda nos campos internacionais
@@ -1014,6 +1081,24 @@ function updateMoedaSymbols() {
         symbol.textContent = getMoedaSymbol(moeda);
     });
 }
+
+// Adicionar event listeners para campos internacionais
+document.addEventListener('DOMContentLoaded', function() {
+    // Event listeners para campos que afetam o resumo financeiro
+    const camposInternacionais = [
+        'comissaoAgente',
+        'valorTransporte', 
+        'percentualImportacao'
+    ];
+    
+    camposInternacionais.forEach(campoId => {
+        const campo = document.getElementById(campoId);
+        if (campo) {
+            campo.addEventListener('input', updateResumo);
+            campo.addEventListener('change', updateResumo);
+        }
+    });
+});
 
 // Fechar dropdown ao clicar fora
 document.addEventListener('click', function(event) {

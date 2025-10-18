@@ -158,11 +158,25 @@ class OrdemCompraController:
             # Calcular impostos e comissão para ordens internacionais
             valor_impostos = 0
             valor_comissao = 0
+            valor_frete = 0
+            valor_final_com_impostos = valor_final
+            
             if ordem_data.get('tipo_ordem') == 'internacional':
                 percentual_importacao = float(ordem_data.get('percentual_importacao', 0))
                 percentual_comissao = float(ordem_data.get('comissao_agente', 0))
-                valor_impostos = valor_total * (percentual_importacao / 100)
-                valor_comissao = valor_total * (percentual_comissao / 100)
+                valor_frete = float(ordem_data.get('valor_transporte', 0))
+                
+                # Calcular comissão sobre o valor dos produtos
+                valor_comissao = valor_final * (percentual_comissao / 100)
+                
+                # Valor base para impostos = produtos + comissão + frete
+                valor_base_impostos = valor_final + valor_comissao + valor_frete
+                
+                # Calcular impostos sobre o valor base
+                valor_impostos = valor_base_impostos * (percentual_importacao / 100)
+                
+                # Total final = produtos + comissão + frete + impostos
+                valor_final_com_impostos = valor_base_impostos + valor_impostos
             
             ordem = OrdemCompra(
                 company_id=company_id,
@@ -173,7 +187,7 @@ class OrdemCompraController:
                 status=ordem_data.get('status', 'pendente'),
                 valor_total=valor_total,
                 desconto=desconto,
-                valor_final=valor_final,
+                valor_final=valor_final_com_impostos,
                 moeda=ordem_data.get('moeda', 'BRL'),
                 cotacao_moeda=float(ordem_data.get('cotacao_moeda', 1.0)),
                 tipo_ordem=ordem_data.get('tipo_ordem', 'nacional'),
