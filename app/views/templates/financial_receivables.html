@@ -19,7 +19,7 @@
     <div class="card-body">
         <div class="row g-3">
             <!-- Busca -->
-            <div class="col-md-3">
+            <div class="col-md-5">
                 <label for="searchInput" class="form-label">Buscar</label>
                 <input type="text" class="form-control" id="searchInput" placeholder="Cliente, descrição, NF..." onkeyup="filterReceivables()">
             </div>
@@ -47,7 +47,7 @@
             </div>
             
             <!-- Período -->
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="periodFilter" class="form-label">Período</label>
                 <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); filterReceivables();">
                     <option value="">Todos os períodos</option>
@@ -65,13 +65,10 @@
             </div>
             
             <!-- Ações -->
-            <div class="col-md-2">
+            <div class="col-md-1">
                 <label class="form-label">&nbsp;</label>
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
-                        <i class="bi bi-search"></i> Filtrar
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()" style="white-space: nowrap;">
                         <i class="bi bi-x-circle"></i> Limpar
                     </button>
                 </div>
