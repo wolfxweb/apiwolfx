@@ -68,11 +68,32 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Receitas do Mês</h6>
-                        <h4 class="mb-0" id="monthlyRevenue">R$ 0,00</h4>
+                        <h6 class="card-title">
+                            Receitas Recebidas
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Valor total das receitas já recebidas no período (contas a receber pagas + pedidos ML recebidos)"></i>
+                        </h6>
+                        <h4 class="mb-0" id="receivedRevenue">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
-                        <i class="bi bi-arrow-up-circle fs-1"></i>
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">
+                            Receitas Pendentes
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Valor total das receitas ainda não recebidas com vencimento no período"></i>
+                        </h6>
+                        <h4 class="mb-0" id="pendingRevenue">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-clock fs-1"></i>
                     </div>
                 </div>
             </div>
@@ -83,22 +104,50 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Despesas do Mês</h6>
-                        <h4 class="mb-0" id="monthlyExpenses">R$ 0,00</h4>
+                        <h6 class="card-title">
+                            Despesas Pagas
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Valor total das despesas já pagas no período"></i>
+                        </h6>
+                        <h4 class="mb-0" id="paidExpenses">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
-                        <i class="bi bi-arrow-down-circle fs-1"></i>
+                        <i class="bi bi-check-circle fs-1"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card text-white bg-primary">
+        <div class="card text-white bg-warning">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Lucro do Mês</h6>
+                        <h6 class="card-title">
+                            Despesas Pendentes
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Valor total das despesas ainda não pagas com vencimento no período"></i>
+                        </h6>
+                        <h4 class="mb-0" id="pendingExpenses">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-exclamation-triangle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumo Consolidado -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white" id="monthlyProfitCard" style="background: linear-gradient(135deg, #28a745, #20c997);">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">
+                            Lucro do Mês
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Diferença entre receitas totais e despesas totais do período"></i>
+                        </h6>
                         <h4 class="mb-0" id="monthlyProfit">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -108,12 +157,33 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info">
+    <div class="col-md-4">
+        <div class="card text-white" id="cashFlowCard" style="background: linear-gradient(135deg, #6c757d, #495057);">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Saldo Atual</h6>
+                        <h6 class="card-title">
+                            Resultado Real
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Diferença entre o que realmente entrou no caixa (receitas recebidas) e o que saiu (despesas pagas)"></i>
+                        </h6>
+                        <h4 class="mb-0" id="cashFlow">R$ 0,00</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-cash-coin fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white" id="currentBalanceCard" style="background: linear-gradient(135deg, #007bff, #0056b3);">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">
+                            Projeção de Caixa
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Saldo atual + receitas pendentes - despesas pendentes. Mostra quanto você terá no caixa considerando as movimentações futuras"></i>
+                        </h6>
                         <h4 class="mb-0" id="currentBalance">R$ 0,00</h4>
                     </div>
                     <div class="align-self-center">
@@ -306,10 +376,50 @@ async function loadDashboardData() {
 function updateDashboardStats() {
     const data = dashboardData;
     
-    document.getElementById('monthlyRevenue').textContent = 'R$ ' + (data.monthly_revenue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
-    document.getElementById('monthlyExpenses').textContent = 'R$ ' + (data.monthly_expenses || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    // Receitas
+    document.getElementById('receivedRevenue').textContent = 'R$ ' + (data.received_revenue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('pendingRevenue').textContent = 'R$ ' + (data.pending_revenue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    
+    // Despesas
+    document.getElementById('paidExpenses').textContent = 'R$ ' + (data.paid_expenses || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('pendingExpenses').textContent = 'R$ ' + (data.pending_expenses || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    
+    // Resumo consolidado
     document.getElementById('monthlyProfit').textContent = 'R$ ' + (data.monthly_profit || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
     document.getElementById('currentBalance').textContent = 'R$ ' + (data.current_balance || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('cashFlow').textContent = 'R$ ' + (data.cash_flow || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    
+    // Mudar cores dinamicamente baseado nos valores
+    updateCardColors(data);
+}
+
+function updateCardColors(data) {
+    // Lucro do Mês - Verde se positivo, vermelho se negativo
+    const monthlyProfitCard = document.getElementById('monthlyProfitCard');
+    const monthlyProfit = data.monthly_profit || 0;
+    if (monthlyProfit >= 0) {
+        monthlyProfitCard.style.background = 'linear-gradient(135deg, #28a745, #20c997)'; // Verde
+    } else {
+        monthlyProfitCard.style.background = 'linear-gradient(135deg, #dc3545, #c82333)'; // Vermelho
+    }
+    
+    // Resultado Real - Verde se positivo, vermelho se negativo
+    const cashFlowCard = document.getElementById('cashFlowCard');
+    const cashFlow = data.cash_flow || 0;
+    if (cashFlow >= 0) {
+        cashFlowCard.style.background = 'linear-gradient(135deg, #28a745, #20c997)'; // Verde
+    } else {
+        cashFlowCard.style.background = 'linear-gradient(135deg, #dc3545, #c82333)'; // Vermelho
+    }
+    
+    // Projeção de Caixa - Verde se positivo, vermelho se negativo
+    const currentBalanceCard = document.getElementById('currentBalanceCard');
+    const currentBalance = data.current_balance || 0;
+    if (currentBalance >= 0) {
+        currentBalanceCard.style.background = 'linear-gradient(135deg, #28a745, #20c997)'; // Verde
+    } else {
+        currentBalanceCard.style.background = 'linear-gradient(135deg, #dc3545, #c82333)'; // Vermelho
+    }
 }
 
 // Função para criar gráficos

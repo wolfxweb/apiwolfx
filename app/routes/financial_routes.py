@@ -2116,7 +2116,7 @@ async def get_dashboard_data(
         AccountReceivable.paid_date <= month_end
     ).all()
     
-    monthly_revenue = sum(float(rec.paid_amount or rec.amount) for rec in monthly_receivables)
+    received_revenue = sum(float(rec.paid_amount or rec.amount) for rec in monthly_receivables)
     
     # Adicionar pedidos ML como receitas (todos os pedidos pagos, não apenas entregues)
     from app.models.saas_models import Company, MLOrder, OrderStatus
@@ -2134,17 +2134,42 @@ async def get_dashboard_data(
         for order in ml_orders_paid:
             # Calcular valor líquido (total - taxas)
             net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
-            monthly_revenue += net_amount
+            received_revenue += net_amount
     
-    # Despesas do período (contas a pagar pagas)
-    monthly_payables = db.query(AccountPayable).filter(
+    # Receitas pendentes (contas a receber pendentes com vencimento no período)
+    monthly_receivables_pending = db.query(AccountReceivable).filter(
+        AccountReceivable.company_id == company_id,
+        AccountReceivable.status == 'pending',
+        AccountReceivable.due_date >= month_start,
+        AccountReceivable.due_date <= month_end
+    ).all()
+    
+    pending_revenue = sum(float(rec.amount) for rec in monthly_receivables_pending)
+    
+    # Total de receitas
+    monthly_revenue = received_revenue + pending_revenue
+    
+    # Despesas do período (contas a pagar - pagas e pendentes)
+    # Contas pagas no período
+    monthly_payables_paid = db.query(AccountPayable).filter(
         AccountPayable.company_id == company_id,
         AccountPayable.status == 'paid',
         AccountPayable.paid_date >= month_start,
         AccountPayable.paid_date <= month_end
     ).all()
     
-    monthly_expenses = sum(float(pay.paid_amount or pay.amount) for pay in monthly_payables)
+    # Contas pendentes com vencimento no período
+    monthly_payables_pending = db.query(AccountPayable).filter(
+        AccountPayable.company_id == company_id,
+        AccountPayable.status == 'pending',
+        AccountPayable.due_date >= month_start,
+        AccountPayable.due_date <= month_end
+    ).all()
+    
+    # Separar despesas pagas e pendentes
+    paid_expenses = sum(float(pay.paid_amount or pay.amount) for pay in monthly_payables_paid)
+    pending_expenses = sum(float(pay.amount) for pay in monthly_payables_pending)
+    monthly_expenses = paid_expenses + pending_expenses
     
     # Lucro do mês
     monthly_profit = monthly_revenue - monthly_expenses
@@ -2156,6 +2181,9 @@ async def get_dashboard_data(
     ).all()
     
     current_balance = sum(float(acc.current_balance) for acc in bank_accounts)
+    
+    # Calcular projeção de caixa: Saldo atual + receitas pendentes - despesas pendentes
+    cash_projection = current_balance + pending_revenue - pending_expenses
     
     # 2. Dados históricos - sempre mostrar últimos 6 meses
     monthly_data = []
@@ -2340,11 +2368,19 @@ async def get_dashboard_data(
         for pay in recent_payables
     ]
     
+    # Calcular fluxo de caixa (receitas recebidas - despesas pagas)
+    cash_flow = received_revenue - paid_expenses
+    
     return {
         "monthly_revenue": monthly_revenue,
         "monthly_expenses": monthly_expenses,
         "monthly_profit": monthly_profit,
-        "current_balance": current_balance,
+        "current_balance": cash_projection,
+        "received_revenue": received_revenue,
+        "pending_revenue": pending_revenue,
+        "paid_expenses": paid_expenses,
+        "pending_expenses": pending_expenses,
+        "cash_flow": cash_flow,
         "monthly_data": monthly_data,
         "top_categories": top_categories,
         "recent_receivables": recent_receivables_data,
