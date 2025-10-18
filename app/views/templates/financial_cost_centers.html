@@ -344,12 +344,14 @@ function renderCostCenters() {
             <td>${costCenter.monthly_budget ? 'R$ ' + parseFloat(costCenter.monthly_budget).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
             <td><span class="badge ${costCenter.is_active ? 'bg-success' : 'bg-secondary'}">${costCenter.is_active ? 'Ativo' : 'Inativo'}</span></td>
             <td>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="editCostCenter(${costCenter.id})">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteCostCenter(${costCenter.id}, '${costCenter.name}')">
-                    <i class="bi bi-trash"></i>
-                </button>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editCostCenter(${costCenter.id})" title="Editar centro de custo">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCostCenter(${costCenter.id}, '${costCenter.name}')" title="Excluir centro de custo">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
