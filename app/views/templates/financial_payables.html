@@ -50,6 +50,70 @@
                 </div>
             </div>
 
+            <!-- Estatísticas Rápidas -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-white bg-primary stats-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Total a Pagar</h6>
+                                    <h4 class="mb-0" id="totalAmount">R$ 0,00</h4>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-arrow-up-circle fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-success stats-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Pago</h6>
+                                    <h4 class="mb-0" id="paidAmount">R$ 0,00</h4>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-check-circle fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-warning stats-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Vencido</h6>
+                                    <h4 class="mb-0" id="overdueAmount">R$ 0,00</h4>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-info stats-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Pendente</h6>
+                                    <h4 class="mb-0" id="pendingAmount">R$ 0,00</h4>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-clock fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Tabela -->
             <div class="card">
                 <div class="card-body">
@@ -167,6 +231,7 @@ async function loadPayables() {
             filteredPayables = [...payables];
             renderPayablesTable();
             renderPagination();
+            updateStats();
         } else {
             showAlert('Erro ao carregar contas a pagar', 'danger');
         }
@@ -499,6 +564,43 @@ function showAlert(message, type) {
             alertDiv.parentNode.removeChild(alertDiv);
         }
     }, 5000);
+}
+
+// Função para atualizar estatísticas
+function updateStats() {
+    if (!payables || payables.length === 0) {
+        document.getElementById('totalAmount').textContent = 'R$ 0,00';
+        document.getElementById('paidAmount').textContent = 'R$ 0,00';
+        document.getElementById('overdueAmount').textContent = 'R$ 0,00';
+        document.getElementById('pendingAmount').textContent = 'R$ 0,00';
+        return;
+    }
+    
+    let totalAmount = 0;
+    let paidAmount = 0;
+    let overdueAmount = 0;
+    let pendingAmount = 0;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    payables.forEach(payable => {
+        const amount = parseFloat(payable.amount) || 0;
+        totalAmount += amount;
+        
+        if (payable.status === 'paid') {
+            paidAmount += amount;
+        } else if (payable.status === 'overdue') {
+            overdueAmount += amount;
+        } else if (payable.status === 'pending') {
+            pendingAmount += amount;
+        }
+    });
+    
+    document.getElementById('totalAmount').textContent = `R$ ${totalAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+    document.getElementById('paidAmount').textContent = `R$ ${paidAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+    document.getElementById('overdueAmount').textContent = `R$ ${overdueAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+    document.getElementById('pendingAmount').textContent = `R$ ${pendingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
 }
 </script>
 {% endblock %}

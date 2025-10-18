@@ -1108,11 +1108,18 @@ async def get_accounts_payable(
         AccountPayable.company_id == company_id
     ).order_by(AccountPayable.due_date).all()
     
+    # Buscar categorias para incluir nomes
+    categories = db.query(FinancialCategory).filter(
+        FinancialCategory.company_id == company_id
+    ).all()
+    category_dict = {cat.id: cat.name for cat in categories}
+    
     return [
                 {
                     "id": pay.id,
                     "supplier_name": pay.supplier_name,  # Campo texto livre
                     "category_id": pay.category_id,
+                    "category_name": category_dict.get(pay.category_id, "N/A"),
                     "cost_center_id": pay.cost_center_id,
                     "account_id": pay.account_id,
                     "invoice_number": pay.invoice_number,
