@@ -31,24 +31,22 @@ services:
       - apiwolfx-network
     restart: unless-stopped
 
-  # Banco de dados MySQL - REMOVIDO (usando PostgreSQL externo)
+  # Banco de dados PostgreSQL - REMOVIDO (usando banco externo)
   # db:
-  #   image: mysql:8.0
+  #   image: postgres:15
   #   container_name: apiwolfx-db
   #   environment:
-  #     MYSQL_ROOT_PASSWORD: password
-  #     MYSQL_DATABASE: apiwolfx
-  #     MYSQL_USER: apiwolfx
-  #     MYSQL_PASSWORD: password
+  #     POSTGRES_DB: apiwolfx
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: password
   #   ports:
-  #     - "3306:3306"
+  #     - "5432:5432"
   #   volumes:
-  #     - mysql_data:/var/lib/mysql
+  #     - postgres_data:/var/lib/postgresql/data
   #     - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
   #   networks:
   #     - apiwolfx-network
   #   restart: unless-stopped
-  #   command: --default-authentication-plugin=mysql_native_password
 
   # phpMyAdmin - REMOVIDO (usando PostgreSQL externo)
   # phpmyadmin:
@@ -82,7 +80,7 @@ services:
       - ngrok
 
 # volumes:
-  # mysql_data:  # Removido - usando PostgreSQL externo
+  # postgres_data:  # Removido - usando banco externo
 
 networks:
   apiwolfx-network:

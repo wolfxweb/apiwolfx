@@ -44,8 +44,11 @@
     <div class="row mb-4">
         <div class="col-md-8">
             <div class="card shadow">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="bi bi-building"></i> Informações da Empresa</h5>
+                    <button class="btn btn-light btn-sm" onclick="editCompany()">
+                        <i class="bi bi-pencil"></i> Editar Empresa
+                    </button>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -225,6 +228,79 @@
     
 </div>
 
+<!-- Modal para Editar Empresa -->
+<div class="modal fade" id="editCompanyModal" tabindex="-1" aria-labelledby="editCompanyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="editCompanyModalLabel">
+                    <i class="bi bi-building"></i> Editar Empresa
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCompanyForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="companyName" class="form-label">Nome da Empresa *</label>
+                                <input type="text" class="form-control" id="companyName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="companySlug" class="form-label">Slug</label>
+                                <input type="text" class="form-control" id="companySlug" readonly>
+                                <div class="form-text">Slug é gerado automaticamente</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="companyDomain" class="form-label">Domínio</label>
+                                <input type="text" class="form-control" id="companyDomain" placeholder="exemplo.com">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="companyDescription" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="companyDescription" rows="3" placeholder="Descrição da empresa..."></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="trialEndsAt" class="form-label">Trial Expira em</label>
+                                <input type="date" class="form-control" id="trialEndsAt">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="mlOrdersReceivables">
+                                    <label class="form-check-label" for="mlOrdersReceivables">
+                                        Pedidos ML como Contas a Receber
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="saveCompany()">
+                    <i class="bi bi-check-circle"></i> Salvar Alterações
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -423,6 +499,94 @@ function showNotification(message, type = 'info') {
                 notification.remove();
             }
         }, 5000);
+    }
+}
+
+function editCompany() {
+    // Preencher o modal com os dados atuais da empresa
+    document.getElementById('companyName').value = '{{ company.name or "" }}';
+    document.getElementById('companySlug').value = '{{ company.slug or "" }}';
+    document.getElementById('companyDomain').value = '{{ company.domain or "" }}';
+    document.getElementById('companyDescription').value = '{{ company.description or "" }}';
+    
+    // Preencher data do trial
+    {% if company.trial_ends_at %}
+    const trialDate = '{{ company.trial_ends_at }}';
+    if (trialDate && trialDate !== 'None') {
+        // Converter para formato YYYY-MM-DD se necessário
+        const date = new Date(trialDate);
+        if (!isNaN(date.getTime())) {
+            document.getElementById('trialEndsAt').value = date.toISOString().split('T')[0];
+        }
+    }
+    {% endif %}
+    
+    // Preencher checkbox ML orders
+    document.getElementById('mlOrdersReceivables').checked = {{ 'true' if company.ml_orders_as_receivables else 'false' }};
+    
+    // Abrir o modal
+    const modal = new bootstrap.Modal(document.getElementById('editCompanyModal'));
+    modal.show();
+}
+
+async function saveCompany() {
+    const saveButton = document.querySelector('#editCompanyModal .btn-success');
+    const originalText = saveButton.innerHTML;
+    
+    try {
+        // Desabilitar botão e mostrar spinner
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+        
+        // Coletar dados do formulário
+        const formData = {
+            name: document.getElementById('companyName').value,
+            domain: document.getElementById('companyDomain').value,
+            description: document.getElementById('companyDescription').value,
+            trial_ends_at: document.getElementById('trialEndsAt').value || null,
+            ml_orders_as_receivables: document.getElementById('mlOrdersReceivables').checked
+        };
+        
+        // Validar dados obrigatórios
+        if (!formData.name.trim()) {
+            showNotification('Nome da empresa é obrigatório!', 'error');
+            return;
+        }
+        
+        // Fazer requisição para salvar
+        const response = await fetch('/api/company/update', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showNotification('Empresa atualizada com sucesso!', 'success');
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editCompanyModal'));
+            modal.hide();
+            
+            // Recarregar a página para mostrar as alterações
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showNotification(data.error || 'Erro ao salvar empresa', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro de conexão. Tente novamente.', 'error');
+    } finally {
+        // Reabilitar botão
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
     }
 }
 </script>

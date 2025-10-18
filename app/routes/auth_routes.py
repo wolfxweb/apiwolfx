@@ -372,3 +372,76 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail=result["error"])
     
     return result["user"]
+
+@auth_router.put("/api/company/update")
+async def update_company(
+    company_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar dados da empresa do usuário logado"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Usuário não possui empresa associada")
+    
+    try:
+        # Buscar a empresa
+        from app.models.saas_models import Company
+        company = db.query(Company).filter(Company.id == company_id).first()
+        
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa não encontrada")
+        
+        # Atualizar campos permitidos
+        if 'name' in company_data:
+            company.name = company_data['name']
+            # Gerar slug automaticamente baseado no nome
+            import re
+            slug = re.sub(r'[^a-zA-Z0-9\s-]', '', company_data['name'])
+            slug = re.sub(r'\s+', '-', slug).lower()
+            company.slug = slug
+        
+        if 'domain' in company_data:
+            company.domain = company_data['domain']
+        
+        if 'description' in company_data:
+            company.description = company_data['description']
+        
+        if 'trial_ends_at' in company_data and company_data['trial_ends_at']:
+            from datetime import datetime
+            company.trial_ends_at = datetime.fromisoformat(company_data['trial_ends_at'])
+        
+        if 'ml_orders_as_receivables' in company_data:
+            company.ml_orders_as_receivables = company_data['ml_orders_as_receivables']
+        
+        # Salvar alterações
+        db.commit()
+        db.refresh(company)
+        
+        return {
+            "success": True,
+            "message": "Empresa atualizada com sucesso",
+            "company": {
+                "id": company.id,
+                "name": company.name,
+                "slug": company.slug,
+                "domain": company.domain,
+                "status": company.status,
+                "description": company.description,
+                "trial_ends_at": company.trial_ends_at.isoformat() if company.trial_ends_at else None,
+                "ml_orders_as_receivables": company.ml_orders_as_receivables
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar empresa: {str(e)}")
