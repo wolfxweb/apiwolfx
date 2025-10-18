@@ -278,10 +278,6 @@
                                             <span>Subtotal:</span>
                                             <span id="subtotal">R$ 0,00</span>
                                         </div>
-                                        <div class="d-flex justify-content-between">
-                                            <span>Desconto:</span>
-                                            <span id="desconto">R$ 0,00</span>
-                                        </div>
                                         
                                         <!-- Campos Internacionais (condicionais) -->
                                         <div id="resumoInternacional" style="display: none;">
@@ -844,8 +840,7 @@ function updateResumo() {
         subtotal += valorTotal;
     });
     
-    const desconto = 0; // Implementar campo de desconto se necessário
-    const subtotalComDesconto = subtotal - desconto;
+    const subtotalComDesconto = subtotal;
     
     // Obter moeda e cotação
     const moeda = document.getElementById('moeda').value;
@@ -910,7 +905,6 @@ function updateResumo() {
     // Atualizar exibição - valores principais na moeda selecionada
     const moedaSymbol = getMoedaSymbol(moeda);
     document.getElementById('subtotal').textContent = `${moedaSymbol} ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    document.getElementById('desconto').textContent = `${moedaSymbol} ${desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     document.getElementById('total').textContent = `${moedaSymbol} ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     
     // Valor convertido em reais (sempre em fonte menor)
