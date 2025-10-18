@@ -313,7 +313,22 @@ async def edit_company_page(
         "bairro": getattr(result, 'bairro', None),
         "cidade": getattr(result, 'cidade', None),
         "estado": getattr(result, 'estado', None),
-        "pais": getattr(result, 'pais', None)
+        "pais": getattr(result, 'pais', None),
+        # Campos de impostos
+        "aliquota_simples": getattr(result, 'aliquota_simples', None),
+        "faturamento_anual": getattr(result, 'faturamento_anual', None),
+        "aliquota_ir": getattr(result, 'aliquota_ir', None),
+        "aliquota_csll": getattr(result, 'aliquota_csll', None),
+        "aliquota_pis": getattr(result, 'aliquota_pis', None),
+        "aliquota_cofins": getattr(result, 'aliquota_cofins', None),
+        "aliquota_icms": getattr(result, 'aliquota_icms', None),
+        "aliquota_iss": getattr(result, 'aliquota_iss', None),
+        "aliquota_ir_real": getattr(result, 'aliquota_ir_real', None),
+        "aliquota_csll_real": getattr(result, 'aliquota_csll_real', None),
+        "aliquota_pis_real": getattr(result, 'aliquota_pis_real', None),
+        "aliquota_cofins_real": getattr(result, 'aliquota_cofins_real', None),
+        "aliquota_icms_real": getattr(result, 'aliquota_icms_real', None),
+        "aliquota_iss_real": getattr(result, 'aliquota_iss_real', None)
     }
     
     from app.views.template_renderer import render_template
@@ -519,6 +534,36 @@ async def update_company(
             company.estado = company_data['estado']
         if 'pais' in company_data:
             company.pais = company_data['pais']
+        
+        # Campos de impostos
+        if 'aliquota_simples' in company_data:
+            company.aliquota_simples = company_data['aliquota_simples']
+        if 'faturamento_anual' in company_data:
+            company.faturamento_anual = company_data['faturamento_anual']
+        if 'aliquota_ir' in company_data:
+            company.aliquota_ir = company_data['aliquota_ir']
+        if 'aliquota_csll' in company_data:
+            company.aliquota_csll = company_data['aliquota_csll']
+        if 'aliquota_pis' in company_data:
+            company.aliquota_pis = company_data['aliquota_pis']
+        if 'aliquota_cofins' in company_data:
+            company.aliquota_cofins = company_data['aliquota_cofins']
+        if 'aliquota_icms' in company_data:
+            company.aliquota_icms = company_data['aliquota_icms']
+        if 'aliquota_iss' in company_data:
+            company.aliquota_iss = company_data['aliquota_iss']
+        if 'aliquota_ir_real' in company_data:
+            company.aliquota_ir_real = company_data['aliquota_ir_real']
+        if 'aliquota_csll_real' in company_data:
+            company.aliquota_csll_real = company_data['aliquota_csll_real']
+        if 'aliquota_pis_real' in company_data:
+            company.aliquota_pis_real = company_data['aliquota_pis_real']
+        if 'aliquota_cofins_real' in company_data:
+            company.aliquota_cofins_real = company_data['aliquota_cofins_real']
+        if 'aliquota_icms_real' in company_data:
+            company.aliquota_icms_real = company_data['aliquota_icms_real']
+        if 'aliquota_iss_real' in company_data:
+            company.aliquota_iss_real = company_data['aliquota_iss_real']
         
         if 'trial_ends_at' in company_data and company_data['trial_ends_at']:
             from datetime import datetime

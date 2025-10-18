@@ -18,8 +18,11 @@
     <form id="editCompanyForm">
         <!-- Seção: Identificação da Empresa -->
         <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-building"></i> Identificação da Empresa</h5>
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-building text-primary"></i>
+                    Identificação da Empresa
+                </h5>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -83,7 +86,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="regimeTributario" class="form-label">Regime Tributário</label>
-                            <select class="form-select" id="regimeTributario">
+                            <select class="form-select" id="regimeTributario" onchange="toggleImpostos()">
                                 <option value="">Selecione o regime</option>
                                 <option value="simples_nacional" {% if company.regime_tributario == 'simples_nacional' %}selected{% endif %}>Simples Nacional</option>
                                 <option value="lucro_presumido" {% if company.regime_tributario == 'lucro_presumido' %}selected{% endif %}>Lucro Presumido</option>
@@ -92,13 +95,142 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Seção de Impostos (condicional) -->
+                <div id="impostosSection" style="display: none;">
+                    <hr class="my-4">
+                    <h6 class="text-secondary mb-3"><i class="bi bi-calculator"></i> Parâmetros de Tributação</h6>
+                    
+                    <!-- Simples Nacional -->
+                    <div id="simplesNacionalFields" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="aliquotaSimples" class="form-label">Alíquota do Simples Nacional (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaSimples" step="0.01" min="0" max="100" value="{{ company.aliquota_simples or '' }}">
+                                    <div class="form-text">Percentual aplicado sobre o faturamento</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="faturamentoAnual" class="form-label">Faturamento Anual (R$)</label>
+                                    <input type="number" class="form-control" id="faturamentoAnual" step="0.01" min="0" value="{{ company.faturamento_anual or '' }}">
+                                    <div class="form-text">Receita bruta anual da empresa</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Lucro Presumido -->
+                    <div id="lucroPresumidoFields" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaIR" class="form-label">Alíquota IR (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaIR" step="0.01" min="0" max="100" value="{{ company.aliquota_ir or '' }}">
+                                    <div class="form-text">Imposto de Renda</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaCSLL" class="form-label">Alíquota CSLL (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaCSLL" step="0.01" min="0" max="100" value="{{ company.aliquota_csll or '' }}">
+                                    <div class="form-text">Contribuição Social</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaPIS" class="form-label">Alíquota PIS (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaPIS" step="0.01" min="0" max="100" value="{{ company.aliquota_pis or '' }}">
+                                    <div class="form-text">Programa de Integração Social</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaCOFINS" class="form-label">Alíquota COFINS (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaCOFINS" step="0.01" min="0" max="100" value="{{ company.aliquota_cofins or '' }}">
+                                    <div class="form-text">Contribuição para Financiamento</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaICMS" class="form-label">Alíquota ICMS (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaICMS" step="0.01" min="0" max="100" value="{{ company.aliquota_icms or '' }}">
+                                    <div class="form-text">Imposto sobre Circulação</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaISS" class="form-label">Alíquota ISS (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaISS" step="0.01" min="0" max="100" value="{{ company.aliquota_iss or '' }}">
+                                    <div class="form-text">Imposto sobre Serviços</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Lucro Real -->
+                    <div id="lucroRealFields" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaIRReal" class="form-label">Alíquota IR (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaIRReal" step="0.01" min="0" max="100" value="{{ company.aliquota_ir_real or '' }}">
+                                    <div class="form-text">Imposto de Renda</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaCSLLReal" class="form-label">Alíquota CSLL (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaCSLLReal" step="0.01" min="0" max="100" value="{{ company.aliquota_csll_real or '' }}">
+                                    <div class="form-text">Contribuição Social</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaPISReal" class="form-label">Alíquota PIS (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaPISReal" step="0.01" min="0" max="100" value="{{ company.aliquota_pis_real or '' }}">
+                                    <div class="form-text">Programa de Integração Social</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaCOFINSReal" class="form-label">Alíquota COFINS (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaCOFINSReal" step="0.01" min="0" max="100" value="{{ company.aliquota_cofins_real or '' }}">
+                                    <div class="form-text">Contribuição para Financiamento</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaICMSReal" class="form-label">Alíquota ICMS (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaICMSReal" step="0.01" min="0" max="100" value="{{ company.aliquota_icms_real or '' }}">
+                                    <div class="form-text">Imposto sobre Circulação</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="aliquotaISSReal" class="form-label">Alíquota ISS (%)</label>
+                                    <input type="number" class="form-control" id="aliquotaISSReal" step="0.01" min="0" max="100" value="{{ company.aliquota_iss_real or '' }}">
+                                    <div class="form-text">Imposto sobre Serviços</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
         <!-- Seção: Endereço da Empresa -->
         <div class="card mb-4">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereço da Empresa</h5>
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-geo-alt text-success"></i>
+                    Endereço da Empresa
+                </h5>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -193,8 +325,11 @@
         
         <!-- Seção: Informações Adicionais -->
         <div class="card mb-4">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações Adicionais</h5>
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-info-circle text-info"></i>
+                    Informações Adicionais
+                </h5>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -249,6 +384,38 @@
 </div>
 
 <script>
+// Função para controlar a exibição dos campos de impostos
+function toggleImpostos() {
+    const regime = document.getElementById('regimeTributario').value;
+    const impostosSection = document.getElementById('impostosSection');
+    const simplesNacionalFields = document.getElementById('simplesNacionalFields');
+    const lucroPresumidoFields = document.getElementById('lucroPresumidoFields');
+    const lucroRealFields = document.getElementById('lucroRealFields');
+    
+    // Esconder todos os campos primeiro
+    simplesNacionalFields.style.display = 'none';
+    lucroPresumidoFields.style.display = 'none';
+    lucroRealFields.style.display = 'none';
+    
+    if (regime === 'simples_nacional') {
+        impostosSection.style.display = 'block';
+        simplesNacionalFields.style.display = 'block';
+    } else if (regime === 'lucro_presumido') {
+        impostosSection.style.display = 'block';
+        lucroPresumidoFields.style.display = 'block';
+    } else if (regime === 'lucro_real') {
+        impostosSection.style.display = 'block';
+        lucroRealFields.style.display = 'block';
+    } else {
+        impostosSection.style.display = 'none';
+    }
+}
+
+// Inicializar campos de impostos ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    toggleImpostos();
+});
+
 async function saveCompany() {
     const saveButton = document.querySelector('button[onclick="saveCompany()"]');
     const originalText = saveButton.innerHTML;
@@ -282,7 +449,23 @@ async function saveCompany() {
             bairro: document.getElementById('bairro').value,
             cidade: document.getElementById('cidade').value,
             estado: document.getElementById('estado').value,
-            pais: document.getElementById('pais').value
+            pais: document.getElementById('pais').value,
+            
+            // Campos de impostos
+            aliquota_simples: document.getElementById('aliquotaSimples').value,
+            faturamento_anual: document.getElementById('faturamentoAnual').value,
+            aliquota_ir: document.getElementById('aliquotaIR').value,
+            aliquota_csll: document.getElementById('aliquotaCSLL').value,
+            aliquota_pis: document.getElementById('aliquotaPIS').value,
+            aliquota_cofins: document.getElementById('aliquotaCOFINS').value,
+            aliquota_icms: document.getElementById('aliquotaICMS').value,
+            aliquota_iss: document.getElementById('aliquotaISS').value,
+            aliquota_ir_real: document.getElementById('aliquotaIRReal').value,
+            aliquota_csll_real: document.getElementById('aliquotaCSLLReal').value,
+            aliquota_pis_real: document.getElementById('aliquotaPISReal').value,
+            aliquota_cofins_real: document.getElementById('aliquotaCOFINSReal').value,
+            aliquota_icms_real: document.getElementById('aliquotaICMSReal').value,
+            aliquota_iss_real: document.getElementById('aliquotaISSReal').value
         };
         
         // Validar dados obrigatórios
