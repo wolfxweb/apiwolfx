@@ -537,6 +537,7 @@ async function editFornecedor(id) {
             document.getElementById('bairro').value = fornecedor.bairro || '';
             document.getElementById('cidade').value = fornecedor.cidade || '';
             document.getElementById('estado').value = fornecedor.estado || '';
+            document.getElementById('pais').value = fornecedor.pais || '';
             document.getElementById('banco').value = fornecedor.banco || '';
             document.getElementById('agencia').value = fornecedor.agencia || '';
             document.getElementById('conta').value = fornecedor.conta || '';
@@ -557,6 +558,12 @@ async function editFornecedor(id) {
 
 // Função para salvar fornecedor
 async function saveFornecedor() {
+    // Desabilitar botão para evitar duplo clique
+    const saveButton = document.querySelector('button[onclick="saveFornecedor()"]');
+    const originalText = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+    
     const formData = {
         nome: document.getElementById('nome').value,
         nome_fantasia: document.getElementById('nome_fantasia').value,
@@ -575,6 +582,7 @@ async function saveFornecedor() {
         bairro: document.getElementById('bairro').value,
         cidade: document.getElementById('cidade').value,
         estado: document.getElementById('estado').value,
+        pais: document.getElementById('pais').value,
         banco: document.getElementById('banco').value,
         agencia: document.getElementById('agencia').value,
         conta: document.getElementById('conta').value,
@@ -613,6 +621,10 @@ async function saveFornecedor() {
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao salvar fornecedor', 'danger');
+    } finally {
+        // Reabilitar botão
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
     }
 }
 
