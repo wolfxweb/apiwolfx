@@ -176,7 +176,6 @@ let fornecedorSearchTimeout;
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
     loadOrdens();
-    setTodayDate();
     
     // Event listeners para filtros
     document.getElementById('searchInput').addEventListener('keyup', function(e) {
@@ -199,10 +198,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function setTodayDate() {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('dataOrdem').value = today;
-}
 
 // Carregar ordens
 async function loadOrdens() {
@@ -263,8 +258,11 @@ function renderOrdens() {
             <td>${formatDate(ordem.data_entrega_prevista)}</td>
             <td>
                 <div class="btn-group" role="group">
-                    <button class="btn btn-sm btn-outline-primary" onclick="viewOrdem(${ordem.id})" title="Visualizar">
-                        <i class="bi bi-eye"></i>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="copyNumero('${ordem.numero_ordem}')" title="Copiar Número">
+                        <i class="bi bi-copy"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="changeStatus(${ordem.id}, '${ordem.status}')" title="Alterar Status">
+                        <i class="bi bi-arrow-repeat"></i>
                     </button>
                     <a href="/ordem-compra/editar/${ordem.id}" class="btn btn-sm btn-outline-warning" title="Editar">
                         <i class="bi bi-pencil"></i>
@@ -457,6 +455,106 @@ function formatDate(dateString) {
 
 function formatCurrency(value) {
     return parseFloat(value || 0).toFixed(2).replace('.', ',');
+}
+
+// Função para copiar número da ordem
+function copyNumero(numero) {
+    navigator.clipboard.writeText(numero).then(function() {
+        showToast('Número copiado!', 'success');
+    }).catch(function(err) {
+        console.error('Erro ao copiar: ', err);
+        showToast('Erro ao copiar número', 'error');
+    });
+}
+
+// Função para alterar status da ordem
+function changeStatus(ordemId, currentStatus) {
+    const statusOptions = {
+        'pendente': 'Pendente',
+        'em_cotacao': 'Em Cotação',
+        'aprovada': 'Aprovada',
+        'rejeitada': 'Rejeitada',
+        'em_andamento': 'Em Andamento',
+        'entregue': 'Entregue',
+        'cancelada': 'Cancelada'
+    };
+    
+    // Criar modal dinamicamente
+    const modalHtml = `
+        <div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="statusModalLabel">
+                            <i class="bi bi-arrow-repeat text-info"></i>
+                            Alterar Status da Ordem
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="newStatus" class="form-label">Novo Status</label>
+                            <select class="form-select" id="newStatus">
+                                ${Object.entries(statusOptions).map(([value, label]) => 
+                                    `<option value="${value}" ${value === currentStatus ? 'selected' : ''}>${label}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" onclick="confirmStatusChange(${ordemId})">
+                            <i class="bi bi-check-circle"></i> Alterar Status
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal anterior se existir
+    const existingModal = document.getElementById('statusModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Adicionar novo modal ao DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Mostrar modal
+    const statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
+    statusModal.show();
+}
+
+// Função para confirmar alteração de status
+async function confirmStatusChange(ordemId) {
+    const newStatus = document.getElementById('newStatus').value;
+    
+    try {
+        const response = await fetch(`/api/ordem-compra/${ordemId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status: newStatus })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Status alterado com sucesso!', 'success');
+            // Fechar modal
+            const statusModal = bootstrap.Modal.getInstance(document.getElementById('statusModal'));
+            statusModal.hide();
+            // Recarregar dados
+            loadOrdens();
+        } else {
+            showToast(data.error || 'Erro ao alterar status', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao alterar status:', error);
+        showToast('Erro ao alterar status', 'error');
+    }
 }
 </script>
 {% endblock %}

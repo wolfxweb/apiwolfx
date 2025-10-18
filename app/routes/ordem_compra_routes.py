@@ -412,3 +412,51 @@ async def delete_ordem_compra_link(
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao deletar link"))
     
     return result
+
+@ordem_compra_router.put("/api/ordem-compra/{ordem_id}/status")
+async def update_ordem_compra_status(
+    ordem_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para alterar status de uma ordem de compra"""
+    try:
+        # Verificar autenticação
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+        
+        # Buscar sessão
+        from app.models.saas_models import UserSession
+        session = db.query(UserSession).filter(UserSession.session_token == session_token).first()
+        if not session:
+            raise HTTPException(status_code=401, detail="Sessão inválida")
+        
+        # Buscar usuário para obter company_id
+        from app.models.saas_models import User
+        user = db.query(User).filter(User.id == session.user_id).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuário não encontrado")
+        
+        company_id = user.company_id
+        
+        # Buscar dados do corpo da requisição
+        body = await request.json()
+        new_status = body.get('status')
+        
+        if not new_status:
+            raise HTTPException(status_code=400, detail="Status não fornecido")
+        
+        # Atualizar status
+        result = ordem_compra_controller.update_ordem_compra_status(ordem_id, company_id, new_status, db)
+        
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Erro ao alterar status"))
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro na API de alteração de status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")

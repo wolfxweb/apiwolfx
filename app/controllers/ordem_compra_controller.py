@@ -488,6 +488,39 @@ class OrdemCompraController:
             db.rollback()
             logger.error(f"Erro ao deletar link: {str(e)}")
             return {"success": False, "error": f"Erro interno: {str(e)}"}
+
+    def update_ordem_compra_status(self, ordem_id: int, company_id: int, status: str, db: Session) -> Dict[str, Any]:
+        """Atualizar status de uma ordem de compra"""
+        try:
+            ordem = db.query(OrdemCompra).filter(
+                OrdemCompra.id == ordem_id,
+                OrdemCompra.company_id == company_id
+            ).first()
+            
+            if not ordem:
+                return {"success": False, "error": "Ordem de compra não encontrada"}
+            
+            # Validar status
+            valid_statuses = ['pendente', 'em_cotacao', 'aprovada', 'rejeitada', 'em_andamento', 'entregue', 'cancelada']
+            if status not in valid_statuses:
+                return {"success": False, "error": "Status inválido"}
+            
+            ordem.status = status
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": "Status alterado com sucesso!",
+                "ordem": {
+                    "id": ordem.id,
+                    "numero_ordem": ordem.numero_ordem,
+                    "status": ordem.status
+                }
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Erro ao atualizar status: {str(e)}")
+            return {"success": False, "error": f"Erro interno: {str(e)}"}
     
     def update_status_ordem(self, ordem_id: int, status: str, company_id: int, db: Session) -> Dict[str, Any]:
         """Atualizar status da ordem de compra"""
