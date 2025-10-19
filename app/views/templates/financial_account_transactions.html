@@ -72,13 +72,26 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label">Tipo de Referência</label>
+                <label class="form-label">Tipo de Operação</label>
                 <select class="form-select" id="referenceTypeFilter" onchange="filterTransactions()">
-                    <option value="">Todas as Referências</option>
+                    <option value="">Todas as Operações</option>
                     <option value="ml_order">Pedidos ML</option>
                     <option value="manual">Manual</option>
                     <option value="payment">Pagamento</option>
                     <option value="transfer">Transferência</option>
+                    <option value="receipt">Recibo</option>
+                    <option value="invoice">Fatura</option>
+                    <option value="refund">Reembolso</option>
+                    <option value="fee">Taxa</option>
+                    <option value="adjustment">Ajuste</option>
+                    <option value="deposit">Depósito</option>
+                    <option value="withdrawal">Saque</option>
+                    <option value="interest">Juros</option>
+                    <option value="commission">Comissão</option>
+                    <option value="cashback">Cashback</option>
+                    <option value="bonus">Bônus</option>
+                    <option value="penalty">Multa</option>
+                    <option value="discount">Desconto</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -257,6 +270,22 @@ async function loadTransactions() {
             transactions = data.transactions;
             filteredTransactions = [...transactions];
             
+            // Debug: verificar todas as transações
+            console.log('🔍 Todas as transações:', transactions.length);
+            transactions.forEach(t => {
+                console.log('📋 Transação:', {
+                    id: t.id,
+                    reference_type: t.reference_type,
+                    reference_id: t.reference_id,
+                    description: t.description,
+                    amount: t.amount
+                });
+            });
+            
+            // Debug: verificar transações ML
+            const mlTransactions = transactions.filter(t => t.reference_type === 'ml_order');
+            console.log('📦 Transações ML encontradas:', mlTransactions.length);
+            
             // Atualizar estatísticas
             updateStatistics(data.statistics);
             
@@ -354,10 +383,7 @@ function renderTransactions() {
             </td>
             <td>${transaction.description || '-'}</td>
             <td>
-                ${transaction.reference_type ? 
-                    `<span class="badge bg-info">${getReferenceTypeLabel(transaction.reference_type)}</span>` : 
-                    '-'
-                }
+                ${getOperationLabel(transaction)}
             </td>
             <td>
                 <small class="text-muted">
@@ -385,9 +411,29 @@ function filterTransactions() {
     const dateFromFilter = document.getElementById('dateFromFilter').value;
     const dateToFilter = document.getElementById('dateToFilter').value;
     
+    console.log('🔍 Filtros aplicados:', {
+        typeFilter,
+        referenceFilter,
+        dateFromFilter,
+        dateToFilter,
+        totalTransactions: transactions.length
+    });
+    
     filteredTransactions = transactions.filter(transaction => {
         const matchesType = !typeFilter || transaction.transaction_type === typeFilter;
-        const matchesReference = !referenceFilter || transaction.reference_type === referenceFilter;
+        
+        // Filtro por referência - verificar tanto reference_type quanto descrição
+        let matchesReference = true;
+        if (referenceFilter) {
+            if (referenceFilter === 'ml_order') {
+                // Para Pedidos ML, verificar reference_type OU descrição
+                matchesReference = transaction.reference_type === 'ml_order' || 
+                                 (transaction.description && transaction.description.includes('Recebimento ML'));
+            } else {
+                // Para outros tipos, usar reference_type
+                matchesReference = transaction.reference_type === referenceFilter;
+            }
+        }
         
         let matchesDate = true;
         if (dateFromFilter || dateToFilter) {
@@ -405,7 +451,26 @@ function filterTransactions() {
             }
         }
         
-        return matchesType && matchesReference && matchesDate;
+        const matches = matchesType && matchesReference && matchesDate;
+        
+        // Log para debug de transações ML
+        if (transaction.reference_type === 'ml_order') {
+            console.log('📦 Transação ML:', {
+                id: transaction.id,
+                reference_type: transaction.reference_type,
+                description: transaction.description,
+                matchesReference,
+                matches
+            });
+        }
+        
+        return matches;
+    });
+    
+    console.log('✅ Filtro aplicado:', {
+        original: transactions.length,
+        filtered: filteredTransactions.length,
+        referenceFilter
     });
     
     currentPage = 1;
@@ -532,6 +597,38 @@ function getReferenceTypeLabel(referenceType) {
         'debit': 'Débito'
     };
     return labels[referenceType] || referenceType;
+}
+
+// Função para determinar o label da operação
+function getOperationLabel(transaction) {
+    // Se tem reference_type, usar ele
+    if (transaction.reference_type) {
+        const label = getReferenceTypeLabel(transaction.reference_type);
+        const badgeClass = transaction.reference_type === 'ml_order' ? 'bg-warning text-dark' : 'bg-info';
+        return `<span class="badge ${badgeClass}">${label}</span>`;
+    }
+    
+    // Se não tem reference_type, tentar detectar pela descrição
+    const description = transaction.description || '';
+    
+    if (description.includes('Recebimento ML') || description.includes('Pedido #')) {
+        return `<span class="badge bg-warning text-dark">Pedido ML</span>`;
+    }
+    
+    if (description.includes('Transferência') || description.includes('Enviado para') || description.includes('Recebido de')) {
+        return `<span class="badge bg-info">Transferência</span>`;
+    }
+    
+    if (description.includes('Manual') || description.includes('Lançamento manual')) {
+        return `<span class="badge bg-info">Manual</span>`;
+    }
+    
+    if (description.includes('Pagamento') || description.includes('PIX') || description.includes('TED')) {
+        return `<span class="badge bg-info">Pagamento</span>`;
+    }
+    
+    // Se não conseguir detectar, mostrar genérico
+    return `<span class="badge bg-secondary">Outros</span>`;
 }
 
 // Função para remover transação
