@@ -145,7 +145,7 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">
-                            Lucro do Mês
+                            Resultado Projetado
                             <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Diferença entre receitas totais e despesas totais do período"></i>
                         </h6>
                         <h4 class="mb-0" id="monthlyProfit">R$ 0,00</h4>
@@ -333,6 +333,7 @@ let categoriesChart = null;
 
 // Carregar dados ao inicializar
 document.addEventListener('DOMContentLoaded', function() {
+    // Carregar dados (sem spinner inicial para evitar problemas)
     loadDashboardData();
     
     // Inicializar tooltips do Bootstrap
@@ -342,9 +343,47 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Função para mostrar spinner de loading
+function showLoadingSpinner() {
+    // Mostrar spinner apenas nos valores dos cards (não quebrar a estrutura)
+    const cardValues = ['receivedRevenue', 'pendingRevenue', 'paidExpenses', 'pendingExpenses', 'monthlyProfit', 'currentBalance', 'cashFlow'];
+    cardValues.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Carregando...</span></div>';
+        }
+    });
+    
+    // Mostrar spinner nos gráficos apenas se existirem
+    const chartContainers = document.querySelectorAll('canvas');
+    chartContainers.forEach(container => {
+        if (container.parentElement) {
+            const originalContent = container.parentElement.innerHTML;
+            container.parentElement.setAttribute('data-original-content', originalContent);
+            container.parentElement.innerHTML = '<div class="d-flex justify-content-center align-items-center" style="height: 300px;"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+        }
+    });
+}
+
+// Função para esconder spinner de loading
+function hideLoadingSpinner() {
+    // Restaurar conteúdo original dos gráficos
+    const chartContainers = document.querySelectorAll('[data-original-content]');
+    chartContainers.forEach(container => {
+        const originalContent = container.getAttribute('data-original-content');
+        if (originalContent) {
+            container.innerHTML = originalContent;
+            container.removeAttribute('data-original-content');
+        }
+    });
+}
+
 // Função para carregar dados do dashboard
 async function loadDashboardData() {
     try {
+        // Mostrar spinner
+        showLoadingSpinner();
+        
         const periodFilter = document.getElementById('periodFilter').value;
         const dateFrom = document.getElementById('dateFrom').value;
         const dateTo = document.getElementById('dateTo').value;
@@ -360,14 +399,17 @@ async function loadDashboardData() {
         });
         if (response.ok) {
             dashboardData = await response.json();
+            hideLoadingSpinner(); // Esconder spinner antes de atualizar
             updateDashboardStats();
             createCharts();
             updateTables();
         } else {
+            hideLoadingSpinner(); // Esconder spinner mesmo em caso de erro
             showAlert('Erro ao carregar dados do dashboard', 'danger');
         }
     } catch (error) {
         console.error('Erro:', error);
+        hideLoadingSpinner(); // Esconder spinner em caso de erro
         showAlert('Erro ao carregar dados do dashboard', 'danger');
     }
 }
