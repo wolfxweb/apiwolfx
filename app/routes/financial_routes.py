@@ -973,6 +973,90 @@ async def delete_transaction(
         db.rollback()
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
+@financial_router.post("/api/financial/transaction")
+async def create_transaction(
+    transaction_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para criar nova movimentação manual"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    try:
+        # Validar dados
+        account_id = transaction_data.get("account_id")
+        transaction_type = transaction_data.get("transaction_type")
+        reference_type = transaction_data.get("reference_type")
+        amount = float(transaction_data.get("amount", 0))
+        description = transaction_data.get("description", "")
+        transaction_date = transaction_data.get("transaction_date")
+        
+        if not all([account_id, transaction_type, reference_type, amount, description, transaction_date]):
+            raise HTTPException(status_code=400, detail="Todos os campos são obrigatórios")
+        
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Valor deve ser maior que zero")
+        
+        # Verificar se a conta pertence à empresa
+        account = db.query(FinancialAccount).filter(
+            and_(
+                FinancialAccount.id == account_id,
+                FinancialAccount.company_id == company_id
+            )
+        ).first()
+        
+        if not account:
+            raise HTTPException(status_code=404, detail="Conta não encontrada")
+        
+        # Criar transação
+        transaction = FinancialTransaction(
+            company_id=company_id,
+            account_id=account_id,
+            transaction_type=transaction_type,
+            amount=amount,
+            description=description,
+            transaction_date=datetime.strptime(transaction_date, '%Y-%m-%d').date(),
+            reference_type=reference_type,
+            reference_id=f"manual_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        )
+        
+        db.add(transaction)
+        
+        # Atualizar saldo da conta
+        current_balance = float(account.current_balance or 0)
+        if transaction_type == "credit":
+            new_balance = current_balance + amount
+        else:
+            new_balance = current_balance - amount
+        
+        account.current_balance = new_balance
+        
+        db.commit()
+        
+        logger.info(f"💰 Movimentação criada: {transaction_type} R$ {amount:.2f} - {description}")
+        
+        return {
+            "success": True,
+            "message": "Movimentação criada com sucesso",
+            "transaction_id": transaction.id,
+            "new_balance": new_balance
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao criar movimentação: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
 @financial_router.post("/api/financial/accounts")
 async def create_bank_account(
     account_data: dict,

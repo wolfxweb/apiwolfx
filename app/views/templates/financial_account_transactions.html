@@ -11,10 +11,13 @@
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshTransactions()">
-                <i class="bi bi-arrow-clockwise"></i> Atualizar
+                <i class="bi bi-arrow-clockwise"></i> Mercado Livre
             </button>
             <button type="button" class="btn btn-sm btn-success" onclick="showTransferModal()">
                 <i class="bi bi-arrow-left-right"></i> Transferir
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="showTransactionModal()">
+                <i class="bi bi-plus-circle"></i> Movimentação
             </button>
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="goBack()">
                 <i class="bi bi-arrow-left"></i> Voltar
@@ -273,6 +276,86 @@
                 </button>
                 <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
                     <i class="bi bi-trash"></i> Remover Transação
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Criar Movimentação -->
+<div class="modal fade" id="transactionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Nova Movimentação
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="transactionForm">
+                    <div class="mb-3">
+                        <label class="form-label">Conta</label>
+                        <input type="text" class="form-control" value="{{ account.bank_name }} - {{ account.account_name }}" readonly>
+                        <small class="text-muted">Saldo atual: R$ {{ "%.2f"|format(account.current_balance or 0) }}</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Transação</label>
+                        <select class="form-select" id="transactionType" required>
+                            <option value="">Selecione o tipo...</option>
+                            <option value="credit">Crédito (Entrada)</option>
+                            <option value="debit">Débito (Saída)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Operação</label>
+                        <select class="form-select" id="operationType" required>
+                            <option value="">Selecione a operação...</option>
+                            <option value="manual">Manual</option>
+                            <option value="payment">Pagamento</option>
+                            <option value="receipt">Recibo</option>
+                            <option value="invoice">Fatura</option>
+                            <option value="refund">Reembolso</option>
+                            <option value="fee">Taxa</option>
+                            <option value="adjustment">Ajuste</option>
+                            <option value="deposit">Depósito</option>
+                            <option value="withdrawal">Saque</option>
+                            <option value="interest">Juros</option>
+                            <option value="commission">Comissão</option>
+                            <option value="cashback">Cashback</option>
+                            <option value="bonus">Bônus</option>
+                            <option value="penalty">Multa</option>
+                            <option value="discount">Desconto</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Valor</label>
+                        <div class="input-group">
+                            <span class="input-group-text">R$</span>
+                            <input type="number" class="form-control" id="transactionAmount" step="0.01" min="0.01" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <textarea class="form-control" id="transactionDescription" rows="3" placeholder="Descreva a movimentação..." required></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Data da Transação</label>
+                        <input type="date" class="form-control" id="transactionDate" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="processTransaction()" id="processTransactionBtn">
+                    <i class="bi bi-check-circle"></i> Criar Movimentação
                 </button>
             </div>
         </div>
@@ -860,6 +943,88 @@ function showTransferModal() {
     loadDestinationAccounts();
     const modal = new bootstrap.Modal(document.getElementById('transferModal'));
     modal.show();
+}
+
+// Função para mostrar modal de movimentação
+function showTransactionModal() {
+    // Limpar formulário
+    document.getElementById('transactionForm').reset();
+    
+    // Definir data atual
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('transactionDate').value = today;
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('transactionModal'));
+    modal.show();
+}
+
+// Função para processar movimentação
+async function processTransaction() {
+    const transactionType = document.getElementById('transactionType').value;
+    const operationType = document.getElementById('operationType').value;
+    const amount = parseFloat(document.getElementById('transactionAmount').value);
+    const description = document.getElementById('transactionDescription').value;
+    const transactionDate = document.getElementById('transactionDate').value;
+    
+    // Validações
+    if (!transactionType || !operationType || !amount || !description || !transactionDate) {
+        showAlert('Por favor, preencha todos os campos obrigatórios.', 'warning');
+        return;
+    }
+    
+    if (amount <= 0) {
+        showAlert('O valor deve ser maior que zero.', 'warning');
+        return;
+    }
+    
+    const processBtn = document.getElementById('processTransactionBtn');
+    const originalText = processBtn.innerHTML;
+    
+    // Desabilitar botão
+    processBtn.disabled = true;
+    processBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processando...';
+    
+    try {
+        const response = await fetch('/api/financial/transaction', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                account_id: accountId,
+                transaction_type: transactionType,
+                reference_type: operationType,
+                amount: amount,
+                description: description,
+                transaction_date: transactionDate
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('transactionModal'));
+            modal.hide();
+            
+            showAlert('Movimentação criada com sucesso!', 'success');
+            
+            // Recarregar transações e saldo
+            loadTransactions();
+            updateCurrentBalance();
+        } else {
+            showAlert('Erro ao criar movimentação: ' + (result.error || 'Erro desconhecido'), 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao criar movimentação: ' + error.message, 'danger');
+    } finally {
+        // Reabilitar botão
+        processBtn.disabled = false;
+        processBtn.innerHTML = originalText;
+    }
 }
 
 // Função para carregar contas de destino
