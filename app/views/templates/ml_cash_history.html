@@ -178,11 +178,14 @@
     </div>
 </div>
     <script>
+        console.log('Script ML Cash History carregado!');
+        
         let allHistoryData = [];
         let filteredData = [];
 
         // Carregar histórico ao inicializar
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded executado!');
             // Verificar se há filtro por conta na URL
             const urlParams = new URLSearchParams(window.location.search);
             const accountId = urlParams.get('account_id');
@@ -199,8 +202,10 @@
         });
 
         async function loadHistory() {
+            console.log('loadHistory chamada!');
             try {
-                showLoading(true);
+                // Mostrar spinner de loading
+                showLoadingSpinner();
                 
                 // Obter account_id da URL se existir
                 const urlParams = new URLSearchParams(window.location.search);
@@ -215,7 +220,8 @@
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    credentials: 'include'
                 });
 
                 if (!response.ok) {
@@ -227,16 +233,17 @@
                 if (data.success) {
                     allHistoryData = data.history || [];
                     filteredData = [...allHistoryData];
+                    hideLoadingSpinner(); // Esconder spinner antes de atualizar
                     updateSummaryCards(data.summary || {});
                     renderHistoryTable();
                 } else {
+                    hideLoadingSpinner(); // Esconder spinner mesmo em caso de erro
                     showToast('Erro ao carregar histórico: ' + (data.error || 'Erro desconhecido'), 'error');
                 }
             } catch (error) {
                 console.error('Erro:', error);
+                hideLoadingSpinner(); // Esconder spinner em caso de erro
                 showToast('Erro ao carregar histórico: ' + error.message, 'error');
-            } finally {
-                showLoading(false);
             }
         }
 
@@ -350,19 +357,42 @@
             loadHistory();
         }
 
-        function showLoading(show) {
-            const spinner = document.querySelector('.loading-spinner');
-            const table = document.getElementById('historyTable');
-            const noDataMessage = document.getElementById('noDataMessage');
+        // Função para mostrar spinner de loading (baseada na implementação de Contas a Receber)
+        function showLoadingSpinner() {
+            console.log('=== showLoadingSpinner chamada ===');
             
-            if (show) {
-                spinner.style.display = 'block';
-                table.style.display = 'none';
-                noDataMessage.style.display = 'none';
-            } else {
-                spinner.style.display = 'none';
-                // Não forçar exibição da tabela aqui, deixar para renderHistoryTable decidir
+            // Mostrar spinner nos cards de estatísticas
+            const statsCards = ['totalProcessed', 'totalPending', 'totalProcessedCount', 'totalPendingAmount'];
+            statsCards.forEach(id => {
+                const element = document.getElementById(id);
+                console.log('Procurando elemento:', id, 'Encontrado:', element);
+                if (element) {
+                    element.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Carregando...</span></div>';
+                    console.log('Spinner adicionado ao card:', id);
+                } else {
+                    console.error('Elemento não encontrado:', id);
+                }
+            });
+            
+            // Mostrar spinner na tabela
+            const tableBody = document.getElementById('historyTableBody');
+            if (tableBody) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <div class="mt-2">Carregando dados...</div>
+                        </td>
+                    </tr>
+                `;
             }
+        }
+
+        // Função para esconder spinner de loading
+        function hideLoadingSpinner() {
+            // Os valores serão atualizados pelas funções updateSummaryCards e renderHistoryTable
         }
 
         function showToast(message, type = 'info') {
