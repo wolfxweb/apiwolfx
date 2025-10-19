@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico de Lançamentos ML - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-cash-coin"></i> Histórico de Lançamentos ML</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshHistory()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="processPendingEntries()">
+                <i class="bi bi-play-circle"></i> Processar Pendentes
+            </button>
+        </div>
+    </div>
+</div>
+
+        <!-- Filtros -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="searchInput" class="form-label">Buscar</label>
+                                <input type="text" class="form-control" id="searchInput" placeholder="Pedido, conta, valor...">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="statusFilter" class="form-label">Status</label>
+                                <select class="form-select" id="statusFilter">
+                                    <option value="">Todos</option>
+                                    <option value="processed">Lançados</option>
+                                    <option value="pending">Pendentes</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="dateFrom" class="form-label">Data Início</label>
+                                <input type="date" class="form-control" id="dateFrom">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="dateTo" class="form-label">Data Fim</label>
+                                <input type="date" class="form-control" id="dateTo">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-primary me-2" onclick="filterHistory()">
+                                    <i class="bi bi-search"></i> Filtrar
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                                    <i class="bi bi-x-circle"></i> Limpar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+<!-- Cards de Resumo -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h6 class="card-title text-success mb-1">Total Lançado</h6>
+                        <h4 class="mb-0 text-success" id="totalProcessed">R$ 0,00</h4>
+                    </div>
+                    <div class="ms-3">
+                        <i class="bi bi-cash-coin fs-1 text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h6 class="card-title text-warning mb-1">Pendentes</h6>
+                        <h4 class="mb-0 text-warning" id="totalPending">0</h4>
+                    </div>
+                    <div class="ms-3">
+                        <i class="bi bi-clock fs-1 text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h6 class="card-title text-info mb-1">Processados</h6>
+                        <h4 class="mb-0 text-info" id="totalProcessedCount">0</h4>
+                    </div>
+                    <div class="ms-3">
+                        <i class="bi bi-check-circle fs-1 text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-primary">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h6 class="card-title text-primary mb-1">Valor Pendente</h6>
+                        <h4 class="mb-0 text-primary" id="totalPendingAmount">R$ 0,00</h4>
+                    </div>
+                    <div class="ms-3">
+                        <i class="bi bi-exclamation-triangle fs-1 text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Histórico -->
+<div class="card">
+    <div class="card-body">
+                        <div class="loading-spinner text-center py-4" style="display: none;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="mt-2">Carregando histórico...</p>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="historyTable" style="display: none;">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Pedido ML</th>
+                                        <th>Data Fechamento</th>
+                                        <th>Valor Bruto</th>
+                                        <th>Taxas</th>
+                                        <th>Valor Líquido</th>
+                                        <th>Conta Bancária</th>
+                                        <th>Data Lançamento</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTableBody">
+                                    <!-- Dados carregados via JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="noDataMessage" class="text-center py-4" style="display: none;">
+                            <i class="bi bi-inbox fs-1 text-muted"></i>
+                            <p class="text-muted mt-2">Nenhum lançamento encontrado</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="bi bi-info-circle text-primary me-2"></i>
+            <strong class="me-auto">GIVM</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastMessage">
+            <!-- Mensagem do toast -->
+        </div>
+    </div>
+</div>
+    <script>
+        let allHistoryData = [];
+        let filteredData = [];
+
+        // Carregar histórico ao inicializar
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar se há filtro por conta na URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const accountId = urlParams.get('account_id');
+            
+            if (accountId) {
+                // Atualizar subtítulo para mostrar que está filtrado por conta
+                const subtitle = document.getElementById('historySubtitle');
+                if (subtitle) {
+                    subtitle.textContent = `Lançamentos automáticos para a conta bancária selecionada`;
+                }
+            }
+            
+            loadHistory();
+        });
+
+        async function loadHistory() {
+            try {
+                showLoading(true);
+                
+                // Obter account_id da URL se existir
+                const urlParams = new URLSearchParams(window.location.search);
+                const accountId = urlParams.get('account_id');
+                
+                let url = '/api/ml-cash/history';
+                if (accountId) {
+                    url += `?account_id=${accountId}`;
+                }
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar histórico');
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    allHistoryData = data.history || [];
+                    filteredData = [...allHistoryData];
+                    updateSummaryCards(data.summary || {});
+                    renderHistoryTable();
+                } else {
+                    showToast('Erro ao carregar histórico: ' + (data.error || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao carregar histórico: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function updateSummaryCards(summary) {
+            document.getElementById('totalProcessed').textContent = formatCurrency(summary.total_processed_amount || 0);
+            document.getElementById('totalPending').textContent = summary.pending_count || 0;
+            document.getElementById('totalProcessedCount').textContent = summary.processed_count || 0;
+            document.getElementById('totalPendingAmount').textContent = formatCurrency(summary.pending_amount || 0);
+        }
+
+        function renderHistoryTable() {
+            const tbody = document.getElementById('historyTableBody');
+            const table = document.getElementById('historyTable');
+            const noDataMessage = document.getElementById('noDataMessage');
+
+            if (filteredData.length === 0) {
+                table.style.display = 'none';
+                noDataMessage.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            noDataMessage.style.display = 'none';
+
+            tbody.innerHTML = filteredData.map(entry => `
+                <tr>
+                    <td>
+                        <strong>${entry.ml_order_id}</strong>
+                        ${entry.buyer_nickname ? `<br><small class="text-muted">${entry.buyer_nickname}</small>` : ''}
+                    </td>
+                    <td>${formatDate(entry.date_closed)}</td>
+                    <td class="amount-positive">${formatCurrency(entry.total_amount || 0)}</td>
+                    <td class="amount-negative">-${formatCurrency(entry.total_fees || 0)}</td>
+                    <td class="amount-positive">${formatCurrency((entry.total_amount || 0) - (entry.total_fees || 0))}</td>
+                    <td>
+                        ${entry.cash_entry_account_name || 'N/A'}
+                        ${entry.cash_entry_created ? '<br><small class="text-success">✓ Lançado</small>' : '<br><small class="text-warning">⏳ Pendente</small>'}
+                    </td>
+                    <td>
+                        ${entry.cash_entry_date ? formatDate(entry.cash_entry_date) : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterHistory() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+
+            filteredData = allHistoryData.filter(entry => {
+                // Filtro de busca
+                const matchesSearch = !searchTerm || 
+                    entry.ml_order_id.toLowerCase().includes(searchTerm) ||
+                    (entry.cash_entry_account_name && entry.cash_entry_account_name.toLowerCase().includes(searchTerm)) ||
+                    entry.ml_order_id.includes(searchTerm);
+
+                // Filtro de status
+                const matchesStatus = !statusFilter || 
+                    (statusFilter === 'processed' && entry.cash_entry_created) ||
+                    (statusFilter === 'pending' && !entry.cash_entry_created);
+
+                // Filtro de data
+                const entryDate = new Date(entry.date_closed);
+                const matchesDateFrom = !dateFrom || entryDate >= new Date(dateFrom);
+                const matchesDateTo = !dateTo || entryDate <= new Date(dateTo + 'T23:59:59');
+
+                return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
+            });
+
+            renderHistoryTable();
+        }
+
+        function clearFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('dateFrom').value = '';
+            document.getElementById('dateTo').value = '';
+            filteredData = [...allHistoryData];
+            renderHistoryTable();
+        }
+
+        async function processPendingEntries() {
+            try {
+                showToast('Processando lançamentos pendentes...', 'info');
+                
+                const response = await fetch('/api/ml-cash/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(`${data.processed_count} lançamentos processados com sucesso!`, 'success');
+                    loadHistory(); // Recarregar dados
+                } else {
+                    showToast('Erro ao processar: ' + (data.error || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao processar lançamentos: ' + error.message, 'error');
+            }
+        }
+
+
+        function refreshHistory() {
+            loadHistory();
+        }
+
+        function showLoading(show) {
+            const spinner = document.querySelector('.loading-spinner');
+            const table = document.getElementById('historyTable');
+            const noDataMessage = document.getElementById('noDataMessage');
+            
+            if (show) {
+                spinner.style.display = 'block';
+                table.style.display = 'none';
+                noDataMessage.style.display = 'none';
+            } else {
+                spinner.style.display = 'none';
+                // Não forçar exibição da tabela aqui, deixar para renderHistoryTable decidir
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            
+            // Configurar cor baseada no tipo
+            const toastHeader = toast.querySelector('.toast-header');
+            if (type === 'success') {
+                toastHeader.innerHTML = '<i class="bi bi-check-circle text-success me-2"></i><strong class="me-auto">Sucesso</strong><button type="button" class="btn-close" data-bs-dismiss="toast"></button>';
+            } else if (type === 'error') {
+                toastHeader.innerHTML = '<i class="bi bi-exclamation-triangle text-danger me-2"></i><strong class="me-auto">Erro</strong><button type="button" class="btn-close" data-bs-dismiss="toast"></button>';
+            } else {
+                toastHeader.innerHTML = '<i class="bi bi-info-circle text-primary me-2"></i><strong class="me-auto">Info</strong><button type="button" class="btn-close" data-bs-dismiss="toast"></button>';
+            }
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(value);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('pt-BR');
+        }
+
+    </script>
+{% endblock %}

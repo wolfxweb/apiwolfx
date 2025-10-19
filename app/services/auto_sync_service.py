@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from app.config.database import SessionLocal
 from app.services.ml_orders_service import MLOrdersService
+from app.services.ml_cash_service import MLCashService
 from app.models.saas_models import MLAccount, MLAccountStatus, Company
 
 logger = logging.getLogger(__name__)
@@ -189,13 +190,42 @@ class AutoSyncService:
                     logger.error(f"❌ Erro empresa {company.name}: {e}")
                     continue
             
-            logger.info(f"✅ [AUTO-SYNC MEIA-NOITE] Concluído: {total_new} novos, {total_updated} atualizados em {total_accounts} contas")
+            # Processar lançamentos no caixa para pedidos recebidos
+            logger.info("💰 [AUTO-SYNC MEIA-NOITE] Processando lançamentos no caixa...")
+            total_cash_entries = 0
+            total_cash_amount = 0.0
+            
+            for company in companies:
+                try:
+                    # Verificar se a empresa tem ML orders como receitas ativado
+                    if company.ml_orders_as_receivables:
+                        cash_service = MLCashService(db)
+                        cash_result = cash_service.process_cash_entries_for_received_orders(company.id)
+                        
+                        if cash_result.get("success"):
+                            processed_count = cash_result.get("processed_count", 0)
+                            total_amount = cash_result.get("total_amount", 0.0)
+                            
+                            if processed_count > 0:
+                                total_cash_entries += processed_count
+                                total_cash_amount += total_amount
+                                logger.info(f"   💰 {company.name}: {processed_count} pedidos lançados no caixa (R$ {total_amount:.2f})")
+                        else:
+                            logger.warning(f"   ⚠️ {company.name}: Erro no lançamento no caixa - {cash_result.get('error')}")
+                    
+                except Exception as e:
+                    logger.error(f"   ❌ Erro lançamento caixa {company.name}: {e}")
+                    continue
+            
+            logger.info(f"✅ [AUTO-SYNC MEIA-NOITE] Concluído: {total_new} novos, {total_updated} atualizados, {total_cash_entries} lançamentos no caixa (R$ {total_cash_amount:.2f})")
             
             return {
                 "success": True,
-                "message": f"Sincronização 7 dias: {total_new} novos, {total_updated} atualizados",
+                "message": f"Sincronização 7 dias: {total_new} novos, {total_updated} atualizados, {total_cash_entries} lançamentos no caixa",
                 "total_new": total_new,
                 "total_updated": total_updated,
+                "total_cash_entries": total_cash_entries,
+                "total_cash_amount": total_cash_amount,
                 "companies": total_companies,
                 "accounts": total_accounts
             }

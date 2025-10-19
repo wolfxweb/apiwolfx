@@ -2146,6 +2146,45 @@ async def get_dashboard_data(
     
     pending_revenue = sum(float(rec.amount) for rec in monthly_receivables_pending)
     
+    # Adicionar pedidos ML pendentes como receitas pendentes (mesma lógica da tela de contas a receber)
+    if company and company.ml_orders_as_receivables:
+        # Buscar pedidos ML pagos que ainda não foram entregues há 7 dias
+        ml_orders_paid = db.query(MLOrder).filter(
+            MLOrder.company_id == company_id,
+            MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
+            MLOrder.date_closed.isnot(None),
+            MLOrder.date_closed >= month_start,
+            MLOrder.date_closed <= month_end
+        ).all()
+        
+        for order in ml_orders_paid:
+            # Verificar se foi entregue há mais de 7 dias (mesma lógica da tela de contas a receber)
+            is_delivered = (
+                order.status == OrderStatus.DELIVERED or 
+                (order.shipping_status and order.shipping_status.lower() == "delivered")
+            )
+            
+            if is_delivered:
+                delivery_date = None
+                if order.shipping_details and isinstance(order.shipping_details, dict):
+                    status_history = order.shipping_details.get('status_history', {})
+                    if status_history and 'date_delivered' in status_history:
+                        try:
+                            delivery_date_str = status_history['date_delivered']
+                            delivery_date = datetime.fromisoformat(delivery_date_str.replace('Z', '+00:00'))
+                        except:
+                            pass
+                
+                if delivery_date:
+                    days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
+                    if days_since_delivery < 7:
+                        is_delivered = False
+            
+            # Se não foi entregue ou foi entregue há menos de 7 dias, é pendente
+            if not is_delivered:
+                net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+                pending_revenue += net_amount
+    
     # Total de receitas
     monthly_revenue = received_revenue + pending_revenue
     

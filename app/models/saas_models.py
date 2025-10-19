@@ -641,6 +641,12 @@ class MLOrder(Base):
     # === DETALHES DE CANCELAMENTO ===
     cancel_detail = Column(JSON)  # Detalhes se cancelado
     
+    # === CONTROLE DE CAIXA ===
+    cash_entry_created = Column(Boolean, default=False, index=True)  # Se já foi lançado no caixa
+    cash_entry_date = Column(DateTime)  # Data do lançamento no caixa
+    cash_entry_amount = Column(Numeric(10, 2))  # Valor lançado no caixa
+    cash_entry_account_id = Column(Integer, ForeignKey("financial_accounts.id"))  # Conta onde foi lançado
+    
     # === TIMESTAMPS ===
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -648,6 +654,7 @@ class MLOrder(Base):
     # === RELACIONAMENTOS ===
     company = relationship("Company")
     ml_account = relationship("MLAccount")
+    cash_entry_account = relationship("FinancialAccount")
     
     # === ÍNDICES ===
     __table_args__ = (
@@ -658,6 +665,7 @@ class MLOrder(Base):
         Index('ix_ml_orders_status', 'status'),
         Index('ix_ml_orders_advertising', 'is_advertising_sale'),
         Index('ix_ml_orders_shipping_id', 'shipping_id'),
+        Index('ix_ml_orders_cash_entry', 'cash_entry_created'),
     )
 
 class CatalogParticipant(Base):

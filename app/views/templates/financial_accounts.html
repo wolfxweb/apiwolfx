@@ -387,12 +387,17 @@ function renderAccounts() {
                 ${account.is_main_account ? '<i class="bi bi-star-fill text-warning ms-1" title="Conta Principal"></i>' : ''}
             </td>
             <td>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="editAccount(${account.id})">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(${account.id}, '${account.account_name}')">
-                    <i class="bi bi-trash"></i>
-                </button>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editAccount(${account.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="openMLCashHistoryForAccount(${account.id}, '${account.account_name}')" title="Histórico ML">
+                        <i class="bi bi-cash-coin"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(${account.id}, '${account.account_name}')" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
@@ -715,6 +720,13 @@ function showAlert(message, type) {
             alertDiv.remove();
         }
     }, 5000);
+}
+
+// Função para abrir histórico de lançamentos ML para uma conta específica
+function openMLCashHistoryForAccount(accountId, accountName) {
+    // Abrir histórico com filtro para a conta específica
+    const url = `/ml-cash/history?account_id=${accountId}`;
+    window.open(url, '_blank');
 }
 </script>
 {% endblock %}

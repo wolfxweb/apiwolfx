@@ -319,16 +319,19 @@ class FinancialTransaction(Base):
     description = Column(Text, nullable=False)
     amount = Column(Numeric(15, 2), nullable=False)
     transaction_date = Column(Date, nullable=False)
-    type = Column(Enum(TransactionType), nullable=False)
+    transaction_type = Column(String(50), nullable=False)  # Usar varchar como no banco
     
-    # Relacionamentos
+    # Relacionamentos (apenas colunas que existem no banco)
     account_id = Column(Integer, ForeignKey("financial_accounts.id"))
     category_id = Column(Integer, ForeignKey("financial_categories.id"))
     cost_center_id = Column(Integer, ForeignKey("cost_centers.id"))
+    customer_id = Column(Integer, ForeignKey("financial_customers.id"))
+    supplier_id = Column(Integer, ForeignKey("financial_suppliers.id"))
+    payment_method_id = Column(Integer)
     
     # Referências
-    receivable_id = Column(Integer, ForeignKey("accounts_receivable.id"))
-    payable_id = Column(Integer, ForeignKey("accounts_payable.id"))
+    reference_id = Column(Integer)
+    reference_type = Column(String(50))
     
     # Observações
     notes = Column(Text)
@@ -342,12 +345,12 @@ class FinancialTransaction(Base):
     account = relationship("FinancialAccount")
     category = relationship("FinancialCategory")
     cost_center = relationship("CostCenter")
-    receivable = relationship("AccountReceivable")
-    payable = relationship("AccountPayable")
+    customer = relationship("FinancialCustomer")
+    supplier = relationship("FinancialSupplier")
     
     __table_args__ = (
         Index('ix_financial_transactions_company_date', 'company_id', 'transaction_date'),
-        Index('ix_financial_transactions_type', 'type'),
+        Index('ix_financial_transactions_type', 'transaction_type'),
     )
 
 class FinancialGoal(Base):

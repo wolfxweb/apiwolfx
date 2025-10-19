@@ -643,55 +643,65 @@ function filterReceivables() {
         // Filtro de período
         let matchesPeriod = true;
         if (periodFilter && receivable.due_date) {
-            const dueDate = new Date(receivable.due_date);
+            // Para pedidos ML, usar a data de fechamento (created_at) em vez de due_date
+            let filterDate;
+            if (receivable.type === 'ml_order' && receivable.created_at) {
+                filterDate = new Date(receivable.created_at);
+            } else {
+                filterDate = new Date(receivable.due_date);
+            }
+            
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
             switch (periodFilter) {
                 case 'today':
-                    matchesPeriod = dueDate.toDateString() === today.toDateString();
+                    matchesPeriod = filterDate.toDateString() === today.toDateString();
                     break;
                 case 'this_week':
                     const startOfWeek = new Date(today);
                     startOfWeek.setDate(today.getDate() - today.getDay());
                     const endOfWeek = new Date(startOfWeek);
                     endOfWeek.setDate(startOfWeek.getDate() + 6);
-                    matchesPeriod = dueDate >= startOfWeek && dueDate <= endOfWeek;
+                    matchesPeriod = filterDate >= startOfWeek && filterDate <= endOfWeek;
                     break;
                 case 'this_month':
-                    matchesPeriod = dueDate.getMonth() === today.getMonth() && dueDate.getFullYear() === today.getFullYear();
+                    matchesPeriod = filterDate.getMonth() === today.getMonth() && filterDate.getFullYear() === today.getFullYear();
                     break;
                 case 'last_month':
                     const lastMonth = new Date(today);
                     lastMonth.setMonth(today.getMonth() - 1);
-                    matchesPeriod = dueDate.getMonth() === lastMonth.getMonth() && dueDate.getFullYear() === lastMonth.getFullYear();
+                    matchesPeriod = filterDate.getMonth() === lastMonth.getMonth() && filterDate.getFullYear() === lastMonth.getFullYear();
                     break;
                 case 'next_month':
                     const nextMonth = new Date(today);
                     nextMonth.setMonth(today.getMonth() + 1);
-                    matchesPeriod = dueDate.getMonth() === nextMonth.getMonth() && dueDate.getFullYear() === nextMonth.getFullYear();
+                    matchesPeriod = filterDate.getMonth() === nextMonth.getMonth() && filterDate.getFullYear() === nextMonth.getFullYear();
                     break;
                 case 'next_30_days':
                     const next30Days = new Date(today);
                     next30Days.setDate(today.getDate() + 30);
-                    matchesPeriod = dueDate >= today && dueDate <= next30Days;
+                    matchesPeriod = filterDate >= today && filterDate <= next30Days;
                     break;
                 case 'next_60_days':
                     const next60Days = new Date(today);
                     next60Days.setDate(today.getDate() + 60);
-                    matchesPeriod = dueDate >= today && dueDate <= next60Days;
+                    matchesPeriod = filterDate >= today && filterDate <= next60Days;
                     break;
                 case 'next_90_days':
                     const next90Days = new Date(today);
                     next90Days.setDate(today.getDate() + 90);
-                    matchesPeriod = dueDate >= today && dueDate <= next90Days;
+                    matchesPeriod = filterDate >= today && filterDate <= next90Days;
                     break;
                 case 'this_year':
-                    matchesPeriod = dueDate.getFullYear() === today.getFullYear();
+                    matchesPeriod = filterDate.getFullYear() === today.getFullYear();
                     break;
                 case 'custom':
-                    matchesPeriod = (!dueDateFrom || receivable.due_date >= dueDateFrom) && 
-                                   (!dueDateTo || receivable.due_date <= dueDateTo);
+                    if (dueDateFrom && dueDateTo) {
+                        const fromDate = new Date(dueDateFrom);
+                        const toDate = new Date(dueDateTo);
+                        matchesPeriod = filterDate >= fromDate && filterDate <= toDate;
+                    }
                     break;
             }
         }
