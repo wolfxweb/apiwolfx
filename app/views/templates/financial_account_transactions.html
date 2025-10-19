@@ -13,6 +13,9 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshTransactions()">
                 <i class="bi bi-arrow-clockwise"></i> Atualizar
             </button>
+            <button type="button" class="btn btn-sm btn-success" onclick="showTransferModal()">
+                <i class="bi bi-arrow-left-right"></i> Transferir
+            </button>
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="goBack()">
                 <i class="bi bi-arrow-left"></i> Voltar
             </button>
@@ -95,16 +98,17 @@
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover" id="transactionsTable">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Data</th>
-                        <th>Tipo</th>
-                        <th>Valor</th>
-                        <th>Descrição</th>
-                        <th>Referência</th>
-                        <th>Data Criação</th>
-                    </tr>
-                </thead>
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Data</th>
+                                <th>Tipo</th>
+                                <th>Valor</th>
+                                <th>Descrição</th>
+                                <th>Referência</th>
+                                <th>Data Criação</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
                 <tbody id="transactionsTableBody">
                     <!-- Dados carregados via JavaScript -->
                 </tbody>
@@ -127,6 +131,100 @@
                         <!-- Paginação gerada via JavaScript -->
                     </ul>
                 </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Transferência entre Contas -->
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-arrow-left-right"></i> Transferir entre Contas
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="transferForm">
+                    <div class="mb-3">
+                        <label class="form-label">Conta de Origem</label>
+                        <input type="text" class="form-control" id="originAccount" value="{{ account.bank_name }} - {{ account.account_name }}" readonly>
+                        <small class="text-muted">Saldo atual: R$ {{ "%.2f"|format(account.current_balance or 0) }}</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Conta de Destino</label>
+                        <select class="form-select" id="destinationAccount" required>
+                            <option value="">Selecione a conta de destino...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Valor da Transferência</label>
+                        <div class="input-group">
+                            <span class="input-group-text">R$</span>
+                            <input type="number" class="form-control" id="transferAmount" step="0.01" min="0.01" required>
+                        </div>
+                        <small class="text-muted">Valor mínimo: R$ 0,01</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Descrição (Opcional)</label>
+                        <textarea class="form-control" id="transferDescription" rows="3" placeholder="Ex: Transferência para pagamento de fornecedor..."></textarea>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Resumo da Transferência:</strong>
+                        <div id="transferSummary" class="mt-2">
+                            <div>De: <span id="summaryOrigin">{{ account.bank_name }} - {{ account.account_name }}</span></div>
+                            <div>Para: <span id="summaryDestination">Selecione uma conta</span></div>
+                            <div>Valor: <span id="summaryAmount">R$ 0,00</span></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="processTransfer()" id="processTransferBtn">
+                    <i class="bi bi-check-circle"></i> Confirmar Transferência
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação para Remover Transação -->
+<div class="modal fade" id="deleteTransactionModal" tabindex="-1" aria-labelledby="deleteTransactionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteTransactionModalLabel">
+                    <i class="bi bi-exclamation-triangle text-warning"></i>
+                    Confirmar Remoção
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Atenção!</strong> Esta ação não pode ser desfeita.
+                </div>
+                <p>Tem certeza que deseja remover esta transação?</p>
+                <p class="text-muted">O saldo da conta será ajustado automaticamente.</p>
+                <div id="deleteTransactionDetails" class="mt-3">
+                    <!-- Detalhes da transação serão inseridos aqui -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="bi bi-trash"></i> Remover Transação
+                </button>
             </div>
         </div>
     </div>
@@ -161,6 +259,10 @@ async function loadTransactions() {
             
             // Atualizar estatísticas
             updateStatistics(data.statistics);
+            
+            // Atualizar saldo atual
+            document.getElementById('currentBalance').textContent = 
+                'R$ ' + data.account.current_balance.toLocaleString('pt-BR', {minimumFractionDigits: 2});
             
             // Renderizar tabela
             renderTransactions();
@@ -215,7 +317,7 @@ function renderTransactions() {
     if (filteredTransactions.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center py-5">
+                <td colspan="7" class="text-center py-5">
                     <i class="bi bi-list-ul display-1 text-muted"></i>
                     <h4 class="mt-3">Nenhuma transação encontrada</h4>
                     <p class="text-muted">Nenhuma transação foi encontrada com os filtros aplicados.</p>
@@ -252,8 +354,8 @@ function renderTransactions() {
             </td>
             <td>${transaction.description || '-'}</td>
             <td>
-                ${transaction.reference_type && transaction.reference_id ? 
-                    `<span class="badge bg-info">${transaction.reference_type}</span><br><small>${transaction.reference_id}</small>` : 
+                ${transaction.reference_type ? 
+                    `<span class="badge bg-info">${getReferenceTypeLabel(transaction.reference_type)}</span>` : 
                     '-'
                 }
             </td>
@@ -261,6 +363,11 @@ function renderTransactions() {
                 <small class="text-muted">
                     ${new Date(transaction.created_at).toLocaleString('pt-BR')}
                 </small>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteTransaction(${transaction.id})" title="Remover transação">
+                    <i class="bi bi-trash"></i>
+                </button>
             </td>
         `;
         tbody.appendChild(row);
@@ -372,11 +479,288 @@ function changePage(page) {
 // Função para atualizar transações
 function refreshTransactions() {
     loadTransactions();
+    updateCurrentBalance();
+}
+
+// Função para atualizar saldo atual
+async function updateCurrentBalance() {
+    try {
+        const response = await fetch(`/api/financial/account-transactions/${accountId}`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const currentBalance = data.account.current_balance;
+            
+            // Atualizar o saldo na interface
+            document.getElementById('currentBalance').textContent = 
+                'R$ ' + currentBalance.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar saldo:', error);
+    }
 }
 
 // Função para voltar
 function goBack() {
     window.history.back();
+}
+
+// Função para traduzir tipos de referência
+function getReferenceTypeLabel(referenceType) {
+    const labels = {
+        'ml_order': 'Pedido ML',
+        'manual': 'Manual',
+        'payment': 'Pagamento',
+        'transfer': 'Transferência',
+        'demo': 'Demonstração',
+        'receipt': 'Recibo',
+        'invoice': 'Fatura',
+        'refund': 'Reembolso',
+        'fee': 'Taxa',
+        'adjustment': 'Ajuste',
+        'deposit': 'Depósito',
+        'withdrawal': 'Saque',
+        'interest': 'Juros',
+        'commission': 'Comissão',
+        'cashback': 'Cashback',
+        'bonus': 'Bônus',
+        'penalty': 'Multa',
+        'discount': 'Desconto',
+        'credit': 'Crédito',
+        'debit': 'Débito'
+    };
+    return labels[referenceType] || referenceType;
+}
+
+// Função para remover transação
+function deleteTransaction(transactionId) {
+    // Buscar detalhes da transação
+    const transaction = transactions.find(t => t.id === transactionId);
+    if (!transaction) {
+        showAlert('Transação não encontrada', 'danger');
+        return;
+    }
+    
+    // Preencher detalhes no modal
+    const detailsDiv = document.getElementById('deleteTransactionDetails');
+    const date = transaction.transaction_date ? 
+        new Date(transaction.transaction_date).toLocaleDateString('pt-BR') : 
+        new Date(transaction.created_at).toLocaleDateString('pt-BR');
+    
+    detailsDiv.innerHTML = `
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Detalhes da Transação</h6>
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Data:</strong> ${date}
+                    </div>
+                    <div class="col-6">
+                        <strong>Tipo:</strong> 
+                        <span class="badge ${transaction.transaction_type === 'credit' ? 'bg-success' : 'bg-danger'}">
+                            ${transaction.transaction_type === 'credit' ? 'Crédito' : 'Débito'}
+                        </span>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-6">
+                        <strong>Valor:</strong> 
+                        <span class="fw-bold ${transaction.transaction_type === 'credit' ? 'text-success' : 'text-danger'}">
+                            ${transaction.transaction_type === 'credit' ? '+' : '-'}R$ ${parseFloat(transaction.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                        </span>
+                    </div>
+                    <div class="col-6">
+                        <strong>Descrição:</strong> ${transaction.description || '-'}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Configurar evento do botão de confirmação
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => confirmDeleteTransaction(transactionId);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteTransactionModal'));
+    modal.show();
+}
+
+// Função para confirmar remoção
+async function confirmDeleteTransaction(transactionId) {
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    const cancelBtn = document.querySelector('#deleteTransactionModal .btn-secondary');
+    
+    // Desabilitar botões para evitar duplo clique
+    confirmBtn.disabled = true;
+    cancelBtn.disabled = true;
+    
+    // Mostrar loading no botão
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Removendo...';
+    
+    try {
+        const response = await fetch(`/api/financial/transaction/${transactionId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteTransactionModal'));
+            modal.hide();
+            
+            showAlert('Transação removida com sucesso! Saldo da conta foi ajustado.', 'success');
+            
+            // Recarregar transações e saldo
+            loadTransactions();
+            updateCurrentBalance();
+        } else {
+            showAlert('Erro ao remover transação: ' + (result.error || 'Erro desconhecido'), 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao remover transação: ' + error.message, 'danger');
+    } finally {
+        // Reabilitar botões e restaurar texto original
+        confirmBtn.disabled = false;
+        cancelBtn.disabled = false;
+        confirmBtn.innerHTML = originalText;
+    }
+}
+
+// Função para mostrar modal de transferência
+function showTransferModal() {
+    loadDestinationAccounts();
+    const modal = new bootstrap.Modal(document.getElementById('transferModal'));
+    modal.show();
+}
+
+// Função para carregar contas de destino
+async function loadDestinationAccounts() {
+    try {
+        const response = await fetch('/api/financial/accounts', {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const accounts = await response.json();
+            const select = document.getElementById('destinationAccount');
+            const currentAccountId = {{ account.id }};
+            
+            select.innerHTML = '<option value="">Selecione a conta de destino...</option>';
+            
+            accounts.forEach(account => {
+                if (account.id !== currentAccountId && account.is_active) {
+                    const option = document.createElement('option');
+                    option.value = account.id;
+                    option.textContent = `${account.bank_name} - ${account.account_name}`;
+                    option.setAttribute('data-account-name', `${account.bank_name} - ${account.account_name}`);
+                    select.appendChild(option);
+                }
+            });
+        } else {
+            showAlert('Erro ao carregar contas', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar contas', 'danger');
+    }
+}
+
+// Função para atualizar resumo da transferência
+function updateTransferSummary() {
+    const destinationSelect = document.getElementById('destinationAccount');
+    const amountInput = document.getElementById('transferAmount');
+    
+    const selectedOption = destinationSelect.options[destinationSelect.selectedIndex];
+    const destinationName = selectedOption ? selectedOption.getAttribute('data-account-name') : 'Selecione uma conta';
+    const amount = amountInput.value ? parseFloat(amountInput.value).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '0,00';
+    
+    document.getElementById('summaryDestination').textContent = destinationName;
+    document.getElementById('summaryAmount').textContent = `R$ ${amount}`;
+}
+
+// Event listeners para atualizar resumo
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('destinationAccount').addEventListener('change', updateTransferSummary);
+    document.getElementById('transferAmount').addEventListener('input', updateTransferSummary);
+});
+
+// Função para processar transferência
+async function processTransfer() {
+    const destinationId = document.getElementById('destinationAccount').value;
+    const amount = document.getElementById('transferAmount').value;
+    const description = document.getElementById('transferDescription').value;
+    
+    if (!destinationId) {
+        showAlert('Selecione a conta de destino', 'warning');
+        return;
+    }
+    
+    if (!amount || parseFloat(amount) <= 0) {
+        showAlert('Digite um valor válido', 'warning');
+        return;
+    }
+    
+    const currentBalance = {{ account.current_balance or 0 }};
+    if (parseFloat(amount) > currentBalance) {
+        showAlert('Saldo insuficiente para esta transferência', 'danger');
+        return;
+    }
+    
+    try {
+        // Desabilitar botão durante processamento
+        const btn = document.getElementById('processTransferBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processando...';
+        
+        const response = await fetch('/api/financial/transfer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                from_account_id: {{ account.id }},
+                to_account_id: parseInt(destinationId),
+                amount: parseFloat(amount),
+                description: description || `Transferência entre contas`
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showAlert('Transferência realizada com sucesso!', 'success');
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('transferModal'));
+            modal.hide();
+            
+            // Limpar formulário
+            document.getElementById('transferForm').reset();
+            updateTransferSummary();
+            
+            // Recarregar transações e atualizar saldo
+            loadTransactions();
+            updateCurrentBalance();
+        } else {
+            showAlert('Erro na transferência: ' + (result.error || 'Erro desconhecido'), 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao processar transferência: ' + error.message, 'danger');
+    } finally {
+        // Reabilitar botão
+        const btn = document.getElementById('processTransferBtn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar Transferência';
+    }
 }
 
 // Função para mostrar alertas

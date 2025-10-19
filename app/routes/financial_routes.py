@@ -15,7 +15,7 @@ from app.config.database import get_db
 from app.controllers.auth_controller import AuthController
 from app.models.financial_models import (
     FinancialAccount, FinancialCategory, CostCenter, FinancialCustomer,
-    AccountReceivable, FinancialSupplier, AccountPayable
+    AccountReceivable, FinancialSupplier, AccountPayable, FinancialTransaction
 )
 from app.models.saas_models import Fornecedor, OrdemCompra
 
@@ -787,6 +787,191 @@ async def get_account_transactions(
             "total_transactions": len(transactions)
         }
     }
+
+@financial_router.post("/api/financial/transfer")
+async def process_transfer(
+    transfer_data: dict,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para processar transferência entre contas"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Validar dados obrigatórios
+    from_account_id = transfer_data.get("from_account_id")
+    to_account_id = transfer_data.get("to_account_id")
+    amount = transfer_data.get("amount")
+    description = transfer_data.get("description", "Transferência entre contas")
+    
+    if not from_account_id or not to_account_id or not amount:
+        raise HTTPException(status_code=400, detail="Dados obrigatórios não fornecidos")
+    
+    if from_account_id == to_account_id:
+        raise HTTPException(status_code=400, detail="Conta de origem e destino não podem ser iguais")
+    
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Valor deve ser maior que zero")
+    
+    try:
+        # Buscar contas
+        from_account = db.query(FinancialAccount).filter(
+            and_(
+                FinancialAccount.id == from_account_id,
+                FinancialAccount.company_id == company_id
+            )
+        ).first()
+        
+        to_account = db.query(FinancialAccount).filter(
+            and_(
+                FinancialAccount.id == to_account_id,
+                FinancialAccount.company_id == company_id
+            )
+        ).first()
+        
+        if not from_account:
+            raise HTTPException(status_code=404, detail="Conta de origem não encontrada")
+        
+        if not to_account:
+            raise HTTPException(status_code=404, detail="Conta de destino não encontrada")
+        
+        # Verificar saldo suficiente
+        current_balance = float(from_account.current_balance or 0)
+        if amount > current_balance:
+            raise HTTPException(status_code=400, detail="Saldo insuficiente")
+        
+        # Criar transações
+        # Transação de débito na conta de origem
+        debit_transaction = FinancialTransaction(
+            company_id=company_id,
+            account_id=from_account_id,
+            transaction_type="debit",
+            amount=amount,
+            description=f"Débito - {description} - Enviado para {to_account.bank_name} - {to_account.account_name}",
+            transaction_date=datetime.now().date(),
+            reference_type="transfer",
+            reference_id=f"transfer_{from_account_id}_to_{to_account_id}"
+        )
+        
+        # Transação de crédito na conta de destino
+        credit_transaction = FinancialTransaction(
+            company_id=company_id,
+            account_id=to_account_id,
+            transaction_type="credit",
+            amount=amount,
+            description=f"Crédito - {description} - Recebido de {from_account.bank_name} - {from_account.account_name}",
+            transaction_date=datetime.now().date(),
+            reference_type="transfer",
+            reference_id=f"transfer_{from_account_id}_to_{to_account_id}"
+        )
+        
+        # Atualizar saldos
+        from_account.current_balance = current_balance - amount
+        to_account.current_balance = float(to_account.current_balance or 0) + amount
+        
+        # Salvar no banco
+        db.add(debit_transaction)
+        db.add(credit_transaction)
+        db.commit()
+        
+        logger.info(f"💰 Transferência realizada: R$ {amount:.2f} da conta {from_account.account_name} para {to_account.account_name}")
+        
+        return {
+            "success": True,
+            "message": "Transferência realizada com sucesso",
+            "transfer_id": f"transfer_{from_account_id}_to_{to_account_id}",
+            "amount": amount,
+            "from_account": from_account.account_name,
+            "to_account": to_account.account_name
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao processar transferência: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+@financial_router.delete("/api/financial/transaction/{transaction_id}")
+async def delete_transaction(
+    transaction_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para remover transação e ajustar saldo da conta"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    try:
+        # Buscar transação
+        transaction = db.query(FinancialTransaction).filter(
+            and_(
+                FinancialTransaction.id == transaction_id,
+                FinancialTransaction.company_id == company_id
+            )
+        ).first()
+        
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Transação não encontrada")
+        
+        # Buscar conta
+        account = db.query(FinancialAccount).filter(
+            and_(
+                FinancialAccount.id == transaction.account_id,
+                FinancialAccount.company_id == company_id
+            )
+        ).first()
+        
+        if not account:
+            raise HTTPException(status_code=404, detail="Conta não encontrada")
+        
+        # Ajustar saldo da conta (reverter a transação)
+        current_balance = float(account.current_balance or 0)
+        if transaction.transaction_type == "credit":
+            # Se era crédito, subtrair do saldo
+            new_balance = current_balance - float(transaction.amount)
+        else:
+            # Se era débito, somar ao saldo
+            new_balance = current_balance + float(transaction.amount)
+        
+        # Atualizar saldo da conta
+        account.current_balance = new_balance
+        
+        # Remover transação
+        db.delete(transaction)
+        db.commit()
+        
+        logger.info(f"🗑️ Transação {transaction_id} removida. Saldo da conta {account.account_name} ajustado de R$ {current_balance:.2f} para R$ {new_balance:.2f}")
+        
+        return {
+            "success": True,
+            "message": "Transação removida com sucesso",
+            "transaction_id": transaction_id,
+            "account_name": account.account_name,
+            "old_balance": current_balance,
+            "new_balance": new_balance
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao remover transação: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 @financial_router.post("/api/financial/accounts")
 async def create_bank_account(
