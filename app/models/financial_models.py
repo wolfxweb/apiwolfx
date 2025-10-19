@@ -34,6 +34,11 @@ class TransactionType(enum.Enum):
     expense = "expense"
     transfer = "transfer"
 
+class FinancialTransactionType(enum.Enum):
+    """Tipos de transação financeira"""
+    credit = "credit"
+    debit = "debit"
+
 class RecurringFrequency(enum.Enum):
     """Frequência de recorrência"""
     daily = "daily"
@@ -74,6 +79,7 @@ class FinancialAccount(Base):
     
     # Relacionamentos
     company = relationship("Company", back_populates="financial_accounts")
+    transactions = relationship("FinancialTransaction", back_populates="account")
     
     __table_args__ = (
         Index('ix_financial_accounts_company_active', 'company_id', 'is_active'),
@@ -330,7 +336,7 @@ class FinancialTransaction(Base):
     payment_method_id = Column(Integer)
     
     # Referências
-    reference_id = Column(Integer)
+    reference_id = Column(String(100))  # Mudança para String para suportar IDs do ML
     reference_type = Column(String(50))
     
     # Observações
@@ -411,3 +417,4 @@ class FinancialAlert(Base):
         Index('ix_financial_alerts_company_active', 'company_id', 'is_active'),
         Index('ix_financial_alerts_read', 'is_read'),
     )
+

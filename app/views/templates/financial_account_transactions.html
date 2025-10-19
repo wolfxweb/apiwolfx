@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+
+{% block title %}Movimentações da Conta - GIVM{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-list-ul"></i> Movimentações da Conta
+        <small class="text-muted">{{ account.bank_name }} - {{ account.account_name }}</small>
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshTransactions()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="goBack()">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Informações da Conta -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h6 class="card-title">Saldo Atual</h6>
+                <h4 id="currentBalance">R$ {{ "%.2f"|format(account.current_balance or 0) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h6 class="card-title">Total Créditos</h6>
+                <h4 id="totalCredits">R$ 0,00</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h6 class="card-title">Total Débitos</h6>
+                <h4 id="totalDebits">R$ 0,00</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h6 class="card-title">Total Transações</h6>
+                <h4 id="totalTransactions">0</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <label class="form-label">Tipo de Transação</label>
+                <select class="form-select" id="transactionTypeFilter" onchange="filterTransactions()">
+                    <option value="">Todos os Tipos</option>
+                    <option value="credit">Crédito</option>
+                    <option value="debit">Débito</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Tipo de Referência</label>
+                <select class="form-select" id="referenceTypeFilter" onchange="filterTransactions()">
+                    <option value="">Todas as Referências</option>
+                    <option value="ml_order">Pedidos ML</option>
+                    <option value="manual">Manual</option>
+                    <option value="payment">Pagamento</option>
+                    <option value="transfer">Transferência</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data Início</label>
+                <input type="date" class="form-control" id="dateFromFilter" onchange="filterTransactions()">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data Fim</label>
+                <input type="date" class="form-control" id="dateToFilter" onchange="filterTransactions()">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Transações -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="transactionsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th>Valor</th>
+                        <th>Descrição</th>
+                        <th>Referência</th>
+                        <th>Data Criação</th>
+                    </tr>
+                </thead>
+                <tbody id="transactionsTableBody">
+                    <!-- Dados carregados via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Footer com paginação -->
+    <div class="card-footer bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <small class="text-muted">
+                    Mostrando <span id="showing-start">1</span> a <span id="showing-end">20</span> 
+                    de <span id="showing-total">0</span> transação(ões)
+                </small>
+            </div>
+            <div class="col-md-6">
+                <nav aria-label="Paginação de transações">
+                    <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination">
+                        <!-- Paginação gerada via JavaScript -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais
+let transactions = [];
+let filteredTransactions = [];
+let currentPage = 1;
+let itemsPerPage = 20;
+const accountId = {{ account.id }};
+
+// Carregar transações ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadTransactions();
+});
+
+// Função para carregar transações
+async function loadTransactions() {
+    try {
+        showLoadingSpinner();
+        
+        const response = await fetch(`/api/financial/account-transactions/${accountId}`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            transactions = data.transactions;
+            filteredTransactions = [...transactions];
+            
+            // Atualizar estatísticas
+            updateStatistics(data.statistics);
+            
+            // Renderizar tabela
+            renderTransactions();
+            updatePaginationCounters(filteredTransactions.length);
+            renderPagination(filteredTransactions.length);
+        } else {
+            showAlert('Erro ao carregar transações', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('Erro ao carregar transações', 'danger');
+    } finally {
+        hideLoadingSpinner();
+    }
+}
+
+// Função para mostrar spinner de carregamento
+function showLoadingSpinner() {
+    const tbody = document.getElementById('transactionsTableBody');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <div class="mt-2">Carregando transações...</div>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Função para esconder spinner de carregamento
+function hideLoadingSpinner() {
+    // O spinner será substituído pelo conteúdo real
+}
+
+// Função para atualizar estatísticas
+function updateStatistics(stats) {
+    document.getElementById('totalCredits').textContent = 
+        'R$ ' + stats.total_credits.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('totalDebits').textContent = 
+        'R$ ' + stats.total_debits.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('totalTransactions').textContent = stats.total_transactions;
+}
+
+// Função para renderizar transações na tabela
+function renderTransactions() {
+    const tbody = document.getElementById('transactionsTableBody');
+    
+    if (filteredTransactions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-5">
+                    <i class="bi bi-list-ul display-1 text-muted"></i>
+                    <h4 class="mt-3">Nenhuma transação encontrada</h4>
+                    <p class="text-muted">Nenhuma transação foi encontrada com os filtros aplicados.</p>
+                </td>
+            </tr>
+        `;
+        updatePaginationCounters(0);
+        return;
+    }
+    
+    // Calcular página atual
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const transactionsToShow = filteredTransactions.slice(startIndex, endIndex);
+    
+    tbody.innerHTML = '';
+    transactionsToShow.forEach(transaction => {
+        const row = document.createElement('tr');
+        const date = transaction.transaction_date ? 
+            new Date(transaction.transaction_date).toLocaleDateString('pt-BR') : 
+            new Date(transaction.created_at).toLocaleDateString('pt-BR');
+        
+        row.innerHTML = `
+            <td>${date}</td>
+            <td>
+                <span class="badge ${transaction.transaction_type === 'credit' ? 'bg-success' : 'bg-danger'}">
+                    ${transaction.transaction_type === 'credit' ? 'Crédito' : 'Débito'}
+                </span>
+            </td>
+            <td>
+                <span class="fw-bold ${transaction.transaction_type === 'credit' ? 'text-success' : 'text-danger'}">
+                    ${transaction.transaction_type === 'credit' ? '+' : '-'}R$ ${parseFloat(transaction.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                </span>
+            </td>
+            <td>${transaction.description || '-'}</td>
+            <td>
+                ${transaction.reference_type && transaction.reference_id ? 
+                    `<span class="badge bg-info">${transaction.reference_type}</span><br><small>${transaction.reference_id}</small>` : 
+                    '-'
+                }
+            </td>
+            <td>
+                <small class="text-muted">
+                    ${new Date(transaction.created_at).toLocaleString('pt-BR')}
+                </small>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Atualizar contadores e paginação
+    updatePaginationCounters(filteredTransactions.length);
+    renderPagination(filteredTransactions.length);
+}
+
+// Função para filtrar transações
+function filterTransactions() {
+    const typeFilter = document.getElementById('transactionTypeFilter').value;
+    const referenceFilter = document.getElementById('referenceTypeFilter').value;
+    const dateFromFilter = document.getElementById('dateFromFilter').value;
+    const dateToFilter = document.getElementById('dateToFilter').value;
+    
+    filteredTransactions = transactions.filter(transaction => {
+        const matchesType = !typeFilter || transaction.transaction_type === typeFilter;
+        const matchesReference = !referenceFilter || transaction.reference_type === referenceFilter;
+        
+        let matchesDate = true;
+        if (dateFromFilter || dateToFilter) {
+            const transactionDate = transaction.transaction_date || transaction.created_at;
+            const date = new Date(transactionDate);
+            
+            if (dateFromFilter) {
+                const fromDate = new Date(dateFromFilter);
+                matchesDate = matchesDate && date >= fromDate;
+            }
+            if (dateToFilter) {
+                const toDate = new Date(dateToFilter);
+                toDate.setHours(23, 59, 59, 999); // Fim do dia
+                matchesDate = matchesDate && date <= toDate;
+            }
+        }
+        
+        return matchesType && matchesReference && matchesDate;
+    });
+    
+    currentPage = 1;
+    renderTransactions();
+    updatePaginationCounters(filteredTransactions.length);
+    renderPagination(filteredTransactions.length);
+}
+
+// Função para atualizar contadores de paginação
+function updatePaginationCounters(total) {
+    const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+    const end = Math.min(currentPage * itemsPerPage, total);
+    
+    document.getElementById('showing-start').textContent = start;
+    document.getElementById('showing-end').textContent = end;
+    document.getElementById('showing-total').textContent = total;
+}
+
+// Função para renderizar paginação
+function renderPagination(total) {
+    const totalPages = Math.ceil(total / itemsPerPage);
+    const pagination = document.getElementById('pagination');
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '';
+    
+    // Botão anterior
+    paginationHTML += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    // Botão próximo
+    paginationHTML += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = paginationHTML;
+}
+
+// Função para mudar página
+function changePage(page) {
+    const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        renderTransactions();
+        updatePaginationCounters(filteredTransactions.length);
+        renderPagination(filteredTransactions.length);
+    }
+}
+
+// Função para atualizar transações
+function refreshTransactions() {
+    loadTransactions();
+}
+
+// Função para voltar
+function goBack() {
+    window.history.back();
+}
+
+// Função para mostrar alertas
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Inserir no topo da página
+    const container = document.querySelector('.container-fluid') || document.querySelector('.container');
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    }
+    
+    // Remover automaticamente após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

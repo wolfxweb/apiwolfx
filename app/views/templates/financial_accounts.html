@@ -297,6 +297,7 @@
     </div>
 </div>
 
+
 <script>
 // Variáveis globais
 let accounts = [];
@@ -305,6 +306,7 @@ let currentEditId = null;
 let currentDeleteId = null;
 let currentPage = 1;
 let itemsPerPage = 10;
+
 
 // Carregar contas bancárias ao inicializar
 document.addEventListener('DOMContentLoaded', function() {
@@ -393,6 +395,9 @@ function renderAccounts() {
                     </button>
                     <button class="btn btn-sm btn-outline-info" onclick="openMLCashHistoryForAccount(${account.id}, '${account.account_name}')" title="Histórico ML">
                         <i class="bi bi-cash-coin"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="viewAccountTransactions(${account.id})" title="Movimentações">
+                        <i class="bi bi-list-ul"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(${account.id}, '${account.account_name}')" title="Excluir">
                         <i class="bi bi-trash"></i>
@@ -727,6 +732,13 @@ function openMLCashHistoryForAccount(accountId, accountName) {
     // Abrir histórico com filtro para a conta específica
     const url = `/ml-cash/history?account_id=${accountId}`;
     window.open(url, '_blank');
+}
+
+// Função para visualizar movimentações da conta
+function viewAccountTransactions(accountId) {
+    // Navegar para a tela de movimentações da conta
+    const url = `/financial/account-transactions/${accountId}`;
+    window.location.href = url;
 }
 </script>
 {% endblock %}

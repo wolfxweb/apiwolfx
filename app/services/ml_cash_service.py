@@ -172,25 +172,28 @@ class MLCashService:
     
     def _create_cash_entry(self, order: MLOrder, account: FinancialAccount, amount: float):
         """
-        Cria lançamento no caixa (atualiza saldo da conta)
+        Cria lançamento no caixa (atualiza saldo da conta e registra transação)
         """
         try:
-            # Atualizar saldo da conta
-            account.current_balance = float(account.current_balance or 0) + amount
-            
-            # Criar transação financeira (opcional, para histórico)
+            # 1. Criar transação financeira (histórico)
             transaction = FinancialTransaction(
                 company_id=order.company_id,
                 account_id=account.id,
-                transaction_type="revenue",
+                transaction_type="credit",
                 amount=amount,
                 description=f"Recebimento ML - Pedido #{order.ml_order_id}",
-                transaction_date=datetime.now().date()
+                transaction_date=datetime.now().date(),
+                reference_type="ml_order",
+                reference_id=order.ml_order_id
             )
             
             self.db.add(transaction)
             
-            logger.info(f"💰 Saldo da conta {account.account_name} atualizado: +R$ {amount:.2f}")
+            # 2. Atualizar saldo da conta
+            account.current_balance = float(account.current_balance or 0) + amount
+            
+            logger.info(f"💰 Transação criada: +R$ {amount:.2f} na conta {account.account_name}")
+            logger.info(f"💰 Saldo da conta {account.account_name} atualizado: R$ {account.current_balance:.2f}")
             
         except Exception as e:
             logger.error(f"Erro ao criar lançamento no caixa: {e}")

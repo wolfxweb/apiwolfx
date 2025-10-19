@@ -191,6 +191,39 @@ async def financial_accounts(
     from app.views.template_renderer import render_template
     return render_template("financial_accounts.html", user=user_data)
 
+@financial_router.get("/financial/account-transactions/{account_id}", response_class=HTMLResponse)
+async def financial_account_transactions(
+    account_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de movimentações de uma conta específica"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    
+    # Buscar dados da conta
+    from app.models.financial_models import FinancialAccount
+    account = db.query(FinancialAccount).filter(
+        and_(
+            FinancialAccount.id == account_id,
+            FinancialAccount.company_id == user_data["company_id"]
+        )
+    ).first()
+    
+    if not account:
+        return RedirectResponse(url="/financial/accounts", status_code=302)
+    
+    from app.views.template_renderer import render_template
+    return render_template("financial_account_transactions.html", 
+                         user=user_data, account=account)
+
 @financial_router.get("/financial/receivables", response_class=HTMLResponse)
 async def financial_receivables(
     request: Request,
@@ -684,6 +717,76 @@ async def get_bank_accounts(
         }
         for acc in accounts
     ]
+
+@financial_router.get("/api/financial/account-transactions/{account_id}")
+async def get_account_transactions(
+    account_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter transações de uma conta específica"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    # Verificar se a conta pertence à empresa
+    from app.models.financial_models import FinancialAccount, FinancialTransaction
+    account = db.query(FinancialAccount).filter(
+        and_(
+            FinancialAccount.id == account_id,
+            FinancialAccount.company_id == company_id
+        )
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Conta não encontrada")
+    
+    # Buscar transações da conta (filtradas por company_id)
+    transactions = db.query(FinancialTransaction).filter(
+        and_(
+            FinancialTransaction.account_id == account_id,
+            FinancialTransaction.company_id == company_id
+        )
+    ).order_by(FinancialTransaction.created_at.desc()).all()
+    
+    # Calcular estatísticas
+    total_credits = sum(float(t.amount) for t in transactions if t.transaction_type == "credit")
+    total_debits = sum(float(t.amount) for t in transactions if t.transaction_type == "debit")
+    net_balance = total_credits - total_debits
+    
+    return {
+        "account": {
+            "id": account.id,
+            "bank_name": account.bank_name,
+            "account_name": account.account_name,
+            "current_balance": float(account.current_balance or 0)
+        },
+        "transactions": [
+            {
+                "id": t.id,
+                "transaction_type": t.transaction_type,
+                "amount": float(t.amount),
+                "description": t.description,
+                "reference_type": t.reference_type,
+                "reference_id": t.reference_id,
+                "transaction_date": t.transaction_date.isoformat() if t.transaction_date else None,
+                "created_at": t.created_at.isoformat() if t.created_at else None
+            }
+            for t in transactions
+        ],
+        "statistics": {
+            "total_credits": total_credits,
+            "total_debits": total_debits,
+            "net_balance": net_balance,
+            "total_transactions": len(transactions)
+        }
+    }
 
 @financial_router.post("/api/financial/accounts")
 async def create_bank_account(

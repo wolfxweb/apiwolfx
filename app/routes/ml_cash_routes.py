@@ -207,10 +207,7 @@ async def ml_cash_history_page(
                 </script>
             """, status_code=401)
         
-        return render_template("ml_cash_history.html", {
-            "user": result["user"],
-            "title": "Histórico de Lançamentos ML"
-        })
+        return render_template("ml_cash_history.html", user=result["user"])
         
     except Exception as e:
         logger.error(f"Erro ao carregar página de histórico: {e}")
