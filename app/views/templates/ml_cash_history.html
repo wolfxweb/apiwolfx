@@ -7,9 +7,6 @@
     <h1 class="h2"><i class="bi bi-cash-coin"></i> Histórico de Lançamentos ML</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshHistory()">
-                <i class="bi bi-arrow-clockwise"></i> Atualizar
-            </button>
             <button type="button" class="btn btn-sm btn-primary" onclick="processPendingEntries()">
                 <i class="bi bi-play-circle"></i> Processar Pendentes
             </button>
@@ -21,9 +18,6 @@
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
-                    </div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
@@ -353,9 +347,6 @@
         }
 
 
-        function refreshHistory() {
-            loadHistory();
-        }
 
         // Função para mostrar spinner de loading (baseada na implementação de Contas a Receber)
         function showLoadingSpinner() {
@@ -367,7 +358,7 @@
                 const element = document.getElementById(id);
                 console.log('Procurando elemento:', id, 'Encontrado:', element);
                 if (element) {
-                    element.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Carregando...</span></div>';
+                    element.innerHTML = '<div class="spinner-border spinner-border-sm text-dark" role="status"><span class="visually-hidden">Carregando...</span></div>';
                     console.log('Spinner adicionado ao card:', id);
                 } else {
                     console.error('Elemento não encontrado:', id);
@@ -380,10 +371,10 @@
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="7" class="text-center py-4">
-                            <div class="spinner-border text-primary" role="status">
+                            <div class="spinner-border text-success" role="status">
                                 <span class="visually-hidden">Carregando...</span>
                             </div>
-                            <div class="mt-2">Carregando dados...</div>
+                            <div class="mt-2 text-success fw-bold">Carregando dados...</div>
                         </td>
                     </tr>
                 `;
