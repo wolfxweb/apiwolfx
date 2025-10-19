@@ -2118,12 +2118,15 @@ async def get_dashboard_data(
     
     received_revenue = sum(float(rec.paid_amount or rec.amount) for rec in monthly_receivables)
     
+    # Inicializar pending_revenue antes de usar
+    pending_revenue = 0
+    
     # Adicionar pedidos ML como receitas (todos os pedidos pagos, não apenas entregues)
     from app.models.saas_models import Company, MLOrder, OrderStatus
     company = db.query(Company).filter(Company.id == company_id).first()
     
     if company and company.ml_orders_as_receivables:
-        # Considerar todos os pedidos ML pagos do período como receita
+        # Buscar pedidos ML pagos do período
         ml_orders_paid = db.query(MLOrder).filter(
             MLOrder.company_id == company_id,
             MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
@@ -2134,31 +2137,8 @@ async def get_dashboard_data(
         for order in ml_orders_paid:
             # Calcular valor líquido (total - taxas)
             net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
-            received_revenue += net_amount
-    
-    # Receitas pendentes (contas a receber pendentes com vencimento no período)
-    monthly_receivables_pending = db.query(AccountReceivable).filter(
-        AccountReceivable.company_id == company_id,
-        AccountReceivable.status == 'pending',
-        AccountReceivable.due_date >= month_start,
-        AccountReceivable.due_date <= month_end
-    ).all()
-    
-    pending_revenue = sum(float(rec.amount) for rec in monthly_receivables_pending)
-    
-    # Adicionar pedidos ML pendentes como receitas pendentes (mesma lógica da tela de contas a receber)
-    if company and company.ml_orders_as_receivables:
-        # Buscar pedidos ML pagos que ainda não foram entregues há 7 dias
-        ml_orders_paid = db.query(MLOrder).filter(
-            MLOrder.company_id == company_id,
-            MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
-            MLOrder.date_closed.isnot(None),
-            MLOrder.date_closed >= month_start,
-            MLOrder.date_closed <= month_end
-        ).all()
-        
-        for order in ml_orders_paid:
-            # Verificar se foi entregue há mais de 7 dias (mesma lógica da tela de contas a receber)
+            
+            # Aplicar mesma lógica da tela de Contas a Receber: só é "recebido" se entregue há mais de 7 dias
             is_delivered = (
                 order.status == OrderStatus.DELIVERED or 
                 (order.shipping_status and order.shipping_status.lower() == "delivered")
@@ -2177,13 +2157,30 @@ async def get_dashboard_data(
                 
                 if delivery_date:
                     days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
-                    if days_since_delivery < 7:
-                        is_delivered = False
-            
-            # Se não foi entregue ou foi entregue há menos de 7 dias, é pendente
-            if not is_delivered:
-                net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+                    if days_since_delivery >= 7:
+                        # Só adicionar como recebido se foi entregue há mais de 7 dias
+                        received_revenue += net_amount
+                    else:
+                        # Se foi entregue há menos de 7 dias, vai para pendente
+                        pending_revenue += net_amount
+                else:
+                    # Se não tem data de entrega, considerar como pendente
+                    pending_revenue += net_amount
+            else:
+                # Se não foi entregue, considerar como pendente
                 pending_revenue += net_amount
+    
+    # Receitas pendentes (contas a receber pendentes com vencimento no período)
+    monthly_receivables_pending = db.query(AccountReceivable).filter(
+        AccountReceivable.company_id == company_id,
+        AccountReceivable.status == 'pending',
+        AccountReceivable.due_date >= month_start,
+        AccountReceivable.due_date <= month_end
+    ).all()
+    
+    pending_revenue += sum(float(rec.amount) for rec in monthly_receivables_pending)
+    
+    # Nota: A lógica dos pedidos ML já foi aplicada acima, não precisa duplicar
     
     # Total de receitas
     monthly_revenue = received_revenue + pending_revenue

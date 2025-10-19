@@ -11,12 +11,12 @@ services:
       - DATABASE_URL=postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial
       - ML_APP_ID=6987936494418444
       - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
-      - ML_REDIRECT_URI=https://4492d4a065a4.ngrok-free.app/api/callback
+      - ML_REDIRECT_URI=https://92cce8e43cfa.ngrok-free.app/api/callback
       # Mercado Pago URLs (para produção, altere para seu domínio)
-      - MP_SUCCESS_URL=https://4492d4a065a4.ngrok-free.app/payment/success
-      - MP_FAILURE_URL=https://4492d4a065a4.ngrok-free.app/payment/failure
-      - MP_PENDING_URL=https://4492d4a065a4.ngrok-free.app/payment/pending
-      - MP_WEBHOOK_URL=https://4492d4a065a4.ngrok-free.app/api/payments/webhooks/mercadopago
+      - MP_SUCCESS_URL=https://92cce8e43cfa.ngrok-free.app/payment/success
+      - MP_FAILURE_URL=https://92cce8e43cfa.ngrok-free.app/payment/failure
+      - MP_PENDING_URL=https://92cce8e43cfa.ngrok-free.app/payment/pending
+      - MP_WEBHOOK_URL=https://92cce8e43cfa.ngrok-free.app/api/payments/webhooks/mercadopago
       
       # Mercado Pago Credentials
       - MP_ACCESS_TOKEN=APP_USR-6252941991597570-101508-8d44441cc0d386eee063ba11e1ea5a18-1979794691
