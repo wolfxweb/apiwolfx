@@ -26,22 +26,38 @@ class MLCashService:
         try:
             logger.info(f"💰 Processando lançamentos no caixa para empresa {company_id}")
             
-            # Data de início do mês atual
-            current_month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            
-            # Buscar pedidos recebidos a partir deste mês que ainda não foram lançados
+            # Buscar pedidos que ainda não foram lançados
             received_orders = self.db.query(MLOrder).filter(
                 and_(
                     MLOrder.company_id == company_id,
                     MLOrder.cash_entry_created == False,  # Ainda não foi lançado
-                    MLOrder.date_closed >= current_month_start,  # A partir deste mês
                     MLOrder.status == OrderStatus.PAID  # Processar pedidos pagos
                 )
             ).all()
             
             logger.info(f"📦 Encontrados {len(received_orders)} pedidos para processar")
             
+            # Log detalhado dos critérios de busca
+            total_orders = self.db.query(MLOrder).filter(MLOrder.company_id == company_id).count()
+            paid_orders = self.db.query(MLOrder).filter(
+                and_(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status == OrderStatus.PAID
+                )
+            ).count()
+            not_processed = self.db.query(MLOrder).filter(
+                and_(
+                    MLOrder.company_id == company_id,
+                    MLOrder.cash_entry_created == False
+                )
+            ).count()
+            logger.info(f"📊 Estatísticas da empresa {company_id}:")
+            logger.info(f"   📦 Total de pedidos: {total_orders}")
+            logger.info(f"   💰 Pedidos pagos: {paid_orders}")
+            logger.info(f"   ⏳ Não processados: {not_processed}")
+            
             if not received_orders:
+                logger.info("ℹ️ Nenhum pedido elegível encontrado")
                 return {
                     "success": True,
                     "message": "Nenhum pedido recebido encontrado para lançamento",

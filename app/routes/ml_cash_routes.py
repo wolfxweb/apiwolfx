@@ -45,8 +45,10 @@ async def process_cash_entries(
             raise HTTPException(status_code=400, detail="Company ID não encontrado")
         
         # Processar lançamentos no caixa
+        logger.info(f"🔍 Iniciando processamento de lançamentos para company_id={company_id}")
         cash_service = MLCashService(db)
         result = cash_service.process_cash_entries_for_received_orders(company_id)
+        logger.info(f"📊 Resultado do processamento: {result}")
         
         if result.get("success"):
             return JSONResponse(content={

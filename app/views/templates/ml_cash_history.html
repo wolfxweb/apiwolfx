@@ -242,10 +242,40 @@
         }
 
         function updateSummaryCards(summary) {
-            document.getElementById('totalProcessed').textContent = formatCurrency(summary.total_processed_amount || 0);
-            document.getElementById('totalPending').textContent = summary.pending_count || 0;
-            document.getElementById('totalProcessedCount').textContent = summary.processed_count || 0;
-            document.getElementById('totalPendingAmount').textContent = formatCurrency(summary.pending_amount || 0);
+            console.log('=== updateSummaryCards chamada ===');
+            console.log('Summary recebido:', summary);
+            
+            const totalProcessed = document.getElementById('totalProcessed');
+            const totalPending = document.getElementById('totalPending');
+            const totalProcessedCount = document.getElementById('totalProcessedCount');
+            const totalPendingAmount = document.getElementById('totalPendingAmount');
+            
+            console.log('Elementos encontrados:', {
+                totalProcessed: totalProcessed,
+                totalPending: totalPending,
+                totalProcessedCount: totalProcessedCount,
+                totalPendingAmount: totalPendingAmount
+            });
+            
+            if (totalProcessed) {
+                totalProcessed.textContent = formatCurrency(summary.total_processed_amount || 0);
+                console.log('totalProcessed atualizado para:', formatCurrency(summary.total_processed_amount || 0));
+            }
+            
+            if (totalPending) {
+                totalPending.textContent = summary.pending_count || 0;
+                console.log('totalPending atualizado para:', summary.pending_count || 0);
+            }
+            
+            if (totalProcessedCount) {
+                totalProcessedCount.textContent = summary.processed_count || 0;
+                console.log('totalProcessedCount atualizado para:', summary.processed_count || 0);
+            }
+            
+            if (totalPendingAmount) {
+                totalPendingAmount.textContent = formatCurrency(summary.pending_amount || 0);
+                console.log('totalPendingAmount atualizado para:', formatCurrency(summary.pending_amount || 0));
+            }
         }
 
         function renderHistoryTable() {
@@ -323,19 +353,24 @@
 
         async function processPendingEntries() {
             try {
+                console.log('=== processPendingEntries iniciado ===');
                 showToast('Processando lançamentos pendentes...', 'info');
                 
                 const response = await fetch('/api/ml-cash/process', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    credentials: 'include'
                 });
 
+                console.log('Resposta da API:', response.status);
                 const data = await response.json();
+                console.log('Dados recebidos:', data);
                 
                 if (data.success) {
                     showToast(`${data.processed_count} lançamentos processados com sucesso!`, 'success');
+                    console.log('Recarregando histórico...');
                     loadHistory(); // Recarregar dados
                 } else {
                     showToast('Erro ao processar: ' + (data.error || 'Erro desconhecido'), 'error');
