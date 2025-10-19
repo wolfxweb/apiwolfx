@@ -2081,24 +2081,36 @@ async def get_dashboard_data(
     today = datetime.now()
     
     # Calcular período baseado no filtro
-    if period == "this_month":
+    if period == "today":
+        month_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        month_end = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif period == "this_week":
+        # Início da semana (segunda-feira)
+        days_since_monday = today.weekday()
+        month_start = (today - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        month_end = (month_start + timedelta(days=6)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif period == "this_month":
         month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     elif period == "last_month":
         month_start = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
         month_end = today.replace(day=1) - timedelta(days=1)
-    elif period == "last_3_months":
-        month_start = (today.replace(day=1) - timedelta(days=90))
-        month_end = today
-    elif period == "last_6_months":
-        month_start = (today.replace(day=1) - timedelta(days=180))
-        month_end = today
+    elif period == "next_month":
+        next_month = today.replace(day=1) + timedelta(days=32)
+        month_start = next_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    elif period == "next_30_days":
+        month_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        month_end = (today + timedelta(days=30)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif period == "next_60_days":
+        month_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        month_end = (today + timedelta(days=60)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif period == "next_90_days":
+        month_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        month_end = (today + timedelta(days=90)).replace(hour=23, minute=59, second=59, microsecond=999999)
     elif period == "this_year":
         month_start = today.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        month_end = today
-    elif period == "last_year":
-        month_start = today.replace(year=today.year-1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        month_end = today.replace(year=today.year-1, month=12, day=31, hour=23, minute=59, second=59)
+        month_end = today.replace(month=12, day=31, hour=23, minute=59, second=59, microsecond=999999)
     elif period == "custom" and date_from and date_to:
         month_start = datetime.fromisoformat(date_from)
         month_end = datetime.fromisoformat(date_to)

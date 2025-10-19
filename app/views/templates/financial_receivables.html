@@ -383,6 +383,9 @@ let itemsPerPage = 10;
 
 // Carregar dados ao inicializar
 document.addEventListener('DOMContentLoaded', function() {
+    // Mostrar spinner inicial
+    showLoadingSpinner();
+    
     loadReceivables();
     // Removido loadCustomers() - agora usando campo de texto livre
     loadCategories();
@@ -399,6 +402,38 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('periodFilter').value = 'this_month';
 });
 
+// Função para mostrar spinner de loading
+function showLoadingSpinner() {
+    // Mostrar spinner nos cards de estatísticas
+    const statsCards = ['totalAmount', 'paidAmount', 'overdueAmount', 'pendingAmount'];
+    statsCards.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Carregando...</span></div>';
+        }
+    });
+    
+    // Mostrar spinner na tabela
+    const tableBody = document.getElementById('receivablesTableBody');
+    if (tableBody) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <div class="mt-2">Carregando dados...</div>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Função para esconder spinner de loading
+function hideLoadingSpinner() {
+    // Os valores serão atualizados pelas funções updateStats() e displayReceivables()
+}
+
 // Função para carregar contas a receber
 async function loadReceivables() {
     try {
@@ -407,14 +442,17 @@ async function loadReceivables() {
         });
         if (response.ok) {
             receivables = await response.json();
+            hideLoadingSpinner(); // Esconder spinner antes de atualizar
             // Aplicar filtro automático do mês atual
             filterReceivables();
             updateStats();
         } else {
+            hideLoadingSpinner(); // Esconder spinner mesmo em caso de erro
             showAlert('Erro ao carregar contas a receber', 'danger');
         }
     } catch (error) {
         console.error('Erro:', error);
+        hideLoadingSpinner(); // Esconder spinner em caso de erro
         showAlert('Erro ao carregar contas a receber', 'danger');
     }
 }
@@ -620,6 +658,9 @@ function updateStats() {
 
 // Função para filtrar contas a receber
 function filterReceivables() {
+    // Mostrar spinner durante o filtro
+    showLoadingSpinner();
+    
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const typeFilter = document.getElementById('typeFilter').value;
     const statusFilter = document.getElementById('statusFilter').value;
@@ -711,6 +752,9 @@ function filterReceivables() {
     
     // Reset para primeira página
     currentPage = 1;
+    
+    // Esconder spinner após filtro
+    hideLoadingSpinner();
     
     // Atualizar estatísticas com dados filtrados
     updateStats();

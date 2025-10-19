@@ -5,13 +5,6 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="bi bi-speedometer2"></i> Dashboard Financeiro</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()">
-                <i class="bi bi-arrow-clockwise"></i> Atualizar
-            </button>
-        </div>
-    </div>
 </div>
 
 <!-- Filtros -->
@@ -650,11 +643,6 @@ function getStatusLabel(status) {
         case 'overdue': return 'Vencido';
         default: return status;
     }
-}
-
-// Função para atualizar dashboard
-function refreshDashboard() {
-    loadDashboardData();
 }
 
 // Função para limpar filtros
