@@ -216,7 +216,7 @@
                         <div class="col-md-4">
                             <div class="mb-3">
                                 <label for="accountType" class="form-label">Tipo de Conta *</label>
-                                <select class="form-select" id="accountType" required>
+                                <select class="form-select" id="accountType" required onchange="toggleCreditCardFields()">
                                     <option value="">Selecione o tipo</option>
                                     <option value="checking">Conta Corrente</option>
                                     <option value="savings">Poupança</option>
@@ -251,6 +251,21 @@
                                 <label for="limitAmount" class="form-label">Limite (Cartão/Credito)</label>
                                 <input type="number" class="form-control" id="limitAmount" step="0.01" placeholder="0.00">
                                 <div class="form-text">Para cartões de crédito ou contas com limite</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Campos adicionais para Cartão de Crédito -->
+                    <div class="row" id="creditCardExtraFields" style="display: none;">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cardNumber" class="form-label">Número do Cartão</label>
+                                <input type="text" class="form-control" id="cardNumber" placeholder="#### #### #### ####" maxlength="19">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="invoiceDueDay" class="form-label">Dia de Vencimento da Fatura</label>
+                                <input type="number" class="form-control" id="invoiceDueDay" min="1" max="31" placeholder="Ex: 10">
                             </div>
                         </div>
                     </div>
@@ -458,6 +473,13 @@ function updateStats() {
     document.getElementById('totalCount').textContent = totalCount;
 }
 
+function toggleCreditCardFields() {
+    const type = document.getElementById('accountType').value;
+    const extra = document.getElementById('creditCardExtraFields');
+    if (!extra) return;
+    extra.style.display = (type === 'credit') ? 'flex' : 'none';
+}
+
 function setStatsLoading(isLoading) {
     const pairs = [
         { spinner: 'totalBalanceSpinner', value: 'totalBalance' },
@@ -543,6 +565,15 @@ function showCreateAccountModal() {
     document.getElementById('accountForm').reset();
     document.getElementById('isActive').checked = true;
     document.getElementById('isMainAccount').checked = false;
+    // Reset e ocultar campos de cartão
+    const extra = document.getElementById('creditCardExtraFields');
+    if (extra) extra.style.display = 'none';
+    const typeSel = document.getElementById('accountType');
+    if (typeSel) typeSel.value = '';
+    const cardNumber = document.getElementById('cardNumber');
+    const invoiceDueDay = document.getElementById('invoiceDueDay');
+    if (cardNumber) cardNumber.value = '';
+    if (invoiceDueDay) invoiceDueDay.value = '';
     
     const modal = new bootstrap.Modal(document.getElementById('accountModal'));
     modal.show();
@@ -569,6 +600,8 @@ function editAccount(id) {
     document.getElementById('accountDescription').value = account.description || '';
     document.getElementById('isActive').checked = account.is_active;
     document.getElementById('isMainAccount').checked = account.is_main_account;
+    // Exibir campos extras se for cartão
+    toggleCreditCardFields();
     
     const modal = new bootstrap.Modal(document.getElementById('accountModal'));
     modal.show();
@@ -587,6 +620,9 @@ async function saveAccount() {
         holder_name: document.getElementById('holderName').value,
         holder_document: document.getElementById('holderDocument').value,
         description: document.getElementById('accountDescription').value,
+        // Campos extras de cartão (opcionais)
+        card_number: document.getElementById('cardNumber') ? document.getElementById('cardNumber').value : null,
+        invoice_due_day: document.getElementById('invoiceDueDay') ? document.getElementById('invoiceDueDay').value : null,
         is_active: document.getElementById('isActive').checked,
         is_main_account: document.getElementById('isMainAccount').checked
     };

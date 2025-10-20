@@ -64,6 +64,7 @@ class FinancialAccount(Base):
     account_type = Column(String(50), nullable=False)  # Não é enum no banco
     agency = Column(String(50))
     account_number = Column(String(50))
+    # Observação: campos de cartão serão adicionados via migration posteriormente
     
     # Informações financeiras
     initial_balance = Column(Numeric(15, 2), default=0)

@@ -1153,6 +1153,7 @@ async def update_bank_account(
         account.agency = account_data.get("agency")
     if account_data.get("account_number") is not None:
         account.account_number = account_data.get("account_number")
+    # Campos de cartão temporariamente desativados no modelo
     if account_data.get("initial_balance") is not None:
         account.initial_balance = float(account_data.get("initial_balance"))
     if account_data.get("current_balance") is not None:
