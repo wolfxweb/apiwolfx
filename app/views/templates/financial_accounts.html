@@ -154,8 +154,6 @@
                         <th>Banco</th>
                         <th>Nome da Conta</th>
                         <th>Tipo</th>
-                        <th>Agência</th>
-                        <th>Conta</th>
                         <th>Saldo / Fatura</th>
                         <th>Status</th>
                         <th>Ações</th>
@@ -425,8 +423,6 @@ function renderAccounts() {
             </td>
             <td>${account.account_name}</td>
             <td><span class="badge ${getTypeBadgeClass(account.account_type)}">${getTypeLabel(account.account_type)}</span></td>
-            <td>${account.agency || '-'}</td>
-            <td>${account.account_number || '-'}</td>
             <td>
                 <span class="fw-bold ${account.current_balance >= 0 ? 'text-success' : 'text-danger'}">
                     R$ ${parseFloat(account.current_balance || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
