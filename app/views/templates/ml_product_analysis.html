@@ -108,9 +108,9 @@
                     <!-- Marketplace Fees -->
                     <div class="col-md-6 mb-4">
                         <div class="card h-100">
-                            <div class="card-header bg-primary text-white">
-                                <h5 class="mb-0">
-                                    <i class="bi bi-calculator"></i> Análise de Preços e Taxas
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-calculator text-primary"></i> Análise de Preços e Taxas
                                 </h5>
                             </div>
                 <div class="card-body">
@@ -129,10 +129,10 @@
                     <!-- Marketing Analysis -->
                     <div class="col-md-6 mb-4">
                         <div class="card h-100">
-                            <div class="card-header bg-primary text-white">
+                            <div class="card-header">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <h5 class="mb-0">
-                                        <i class="bi bi-megaphone"></i> Análise de Marketing
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-megaphone text-primary"></i> Análise de Marketing
                                     </h5>
                                     <select class="form-select form-select-sm" style="width: auto;" id="marketing-period-filter" onchange="changeMarketingPeriod()">
                                         <option value="7">7 dias</option>
@@ -154,9 +154,9 @@
                 <!-- Sales Analysis Card -->
                 <div class="col-md-12 mb-4" id="sales-analysis-card">
                     <div class="card h-100">
-                        <div class="card-header bg-success text-white">
-                            <h5 class="mb-0">
-                                <i class="bi bi-graph-up-arrow"></i> Análise de Vendas
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-graph-up-arrow text-primary"></i> Análise de Vendas
                             </h5>
                         </div>
                         <div class="card-body">
@@ -217,9 +217,9 @@
                 <!-- Análise Card -->
                 <div class="col-md-12 mb-4" id="competitive-analysis-card">
                     <div class="card h-100">
-                        <div class="card-header bg-primary text-white">
-                            <h5 class="mb-0">
-                                <i class="bi bi-graph-up"></i> Análise Competitiva
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-graph-up text-primary"></i> Análise Competitiva
                             </h5>
                         </div>
                        <div class="card-body">
@@ -238,9 +238,9 @@
                 <!-- Catalog Information -->
                 <div class="col-md-12 mb-4" id="catalog-info-card">
                     <div class="card h-100">
-                        <div class="card-header bg-info text-white">
-                            <h5 class="mb-0" id="catalog-shipping-header">
-                                <i class="bi bi-truck"></i> Custos de Envio
+                        <div class="card-header">
+                            <h5 class="card-title mb-0" id="catalog-shipping-header">
+                                <i class="bi bi-truck text-primary"></i> Custos de Envio
                             </h5>
                         </div>
                         <div class="card-body">
@@ -331,9 +331,9 @@
                                 <div id="ai-analysis-result" class="mt-4" style="display: none;">
                                     <!-- Card com Análise -->
                                     <div class="card border-primary">
-                                        <div class="card-header bg-primary text-white">
-                                            <h5 class="mb-0">
-                                                <i class="bi bi-lightbulb-fill"></i> Insights da Inteligência Artificial
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">
+                                                <i class="bi bi-lightbulb-fill text-primary"></i> Insights da Inteligência Artificial
                                             </h5>
                                         </div>
                                         <div class="card-body">
@@ -343,9 +343,9 @@
                                     
                                     <!-- Card com Logs de Debug -->
                                     <div class="card border-secondary mt-3">
-                                        <div class="card-header bg-secondary text-white">
-                                            <h6 class="mb-0">
-                                                <i class="bi bi-code-square"></i> Dados Enviados para ChatGPT
+                                        <div class="card-header">
+                                            <h6 class="card-title mb-0">
+                                                <i class="bi bi-code-square text-primary"></i> Dados Enviados para ChatGPT
                                                 <button class="btn btn-sm btn-outline-light float-end" onclick="toggleDebugInfo()">
                                                     <i class="bi bi-chevron-down" id="debug-toggle-icon"></i>
                                                 </button>
@@ -2615,9 +2615,9 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
     contentContainer.innerHTML = `
         <!-- Card de Resumo Financeiro -->
         <div class="card border-warning mb-4">
-            <div class="card-header bg-warning text-dark">
-                <h6 class="mb-0">
-                    <i class="bi bi-cash-stack"></i> Resumo Financeiro - Todos os Pedidos (${pedidosCount} pedidos)
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-cash-stack text-primary"></i> Resumo Financeiro - Todos os Pedidos (${pedidosCount} pedidos)
                     <small class="ms-2 text-muted">
                         | Custo: R$ ${precoCustoUnitario.toFixed(2)}/un | Impostos: ${percentualImpostos.toFixed(1)}% | Outros: R$ ${outrosCustosPorUnidade.toFixed(2)}/un | Marketing: ${formatCurrency(custoMarketingPorVenda)}/venda
                     </small>
@@ -2715,8 +2715,8 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
             <!-- Card Unificado de Estatísticas -->
             <div class="col-md-6 mb-4">
                 <div class="card border-primary">
-                    <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Estatísticas de Vendas</h6>
+                    <div class="card-header">
+                        <h6 class="card-title mb-0"><i class="bi bi-graph-up-arrow text-primary"></i> Estatísticas de Vendas</h6>
                     </div>
                     <div class="card-body">
                         <div class="row text-center mb-3">
@@ -2759,8 +2759,8 @@ function renderSalesAnalysis(skuData, productData, product, marketingData) {
             <!-- Card Unificado de Preços -->
             <div class="col-md-6 mb-4">
                 <div class="card border-success">
-                    <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="bi bi-currency-dollar"></i> Análise de Preços</h6>
+                    <div class="card-header">
+                        <h6 class="card-title mb-0"><i class="bi bi-currency-dollar text-primary"></i> Análise de Preços</h6>
                     </div>
                     <div class="card-body">
                         <div class="row text-center mb-3">
@@ -2914,8 +2914,8 @@ function renderOrdersAnalysis(data, sku) {
         
         <!-- Card de Resumo de Billing -->
         <div class="card border-warning mb-3">
-            <div class="card-header bg-warning text-dark">
-                <h6 class="mb-0"><i class="bi bi-cash-stack"></i> Resumo Financeiro - Taxas Mercado Livre (${orders.length} pedidos)</h6>
+            <div class="card-header">
+                <h6 class="card-title mb-0"><i class="bi bi-cash-stack text-primary"></i> Resumo Financeiro - Taxas Mercado Livre (${orders.length} pedidos)</h6>
             </div>
             <div class="card-body">
                 <!-- Primeira Linha - 4 caixas -->
