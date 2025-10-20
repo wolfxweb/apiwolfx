@@ -72,16 +72,22 @@ class MLOrdersController:
             
             if date_from:
                 try:
-                    from datetime import datetime
+                    from datetime import datetime, time
                     date_from_obj = datetime.fromisoformat(date_from)
+                    # Se não tem hora, usar início do dia (00:00:00)
+                    if date_from_obj.time() == time(0, 0, 0):
+                        date_from_obj = date_from_obj.replace(hour=0, minute=0, second=0, microsecond=0)
                     query = query.filter(MLOrder.date_created >= date_from_obj)
                 except ValueError:
                     logger.warning(f"Data inválida: {date_from}")
             
             if date_to:
                 try:
-                    from datetime import datetime
+                    from datetime import datetime, time
                     date_to_obj = datetime.fromisoformat(date_to)
+                    # Se não tem hora, usar fim do dia (23:59:59)
+                    if date_to_obj.time() == time(0, 0, 0):
+                        date_to_obj = date_to_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
                     query = query.filter(MLOrder.date_created <= date_to_obj)
                 except ValueError:
                     logger.warning(f"Data inválida: {date_to}")

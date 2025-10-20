@@ -58,7 +58,7 @@
 
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <label for="account_filter" class="form-label">Conta</label>
                             <select name="account_filter" id="account_filter" class="form-select" onchange="applyFilters()">
                                 <option value="">Todas as contas</option>
@@ -101,10 +101,10 @@
                                 <option value="custom">Período personalizado</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-1">
                             <label class="form-label">&nbsp;</label>
                             <div class="d-flex">
-                                <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()" style="white-space: nowrap;">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearFilters()" style="white-space: nowrap;">
                                     <i class="bi bi-x-circle"></i> Limpar
                                 </button>
                             </div>
@@ -779,6 +779,70 @@ function toggleCustomPeriod() {
     }
 }
 
+function getPeriodDates(period) {
+    const today = new Date();
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    
+    console.log('Calculando período:', period, 'Data atual:', formatDate(today));
+    
+    switch (period) {
+        case 'today':
+            const todayFormatted = formatDate(today);
+            console.log('Período hoje:', todayFormatted, 'a', todayFormatted);
+            return { from: todayFormatted, to: todayFormatted };
+        
+        case 'this_week':
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay());
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+            return { from: formatDate(startOfWeek), to: formatDate(endOfWeek) };
+        
+        case 'this_month':
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            return { from: formatDate(startOfMonth), to: formatDate(endOfMonth) };
+        
+        case 'last_month':
+            const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+            return { from: formatDate(startOfLastMonth), to: formatDate(endOfLastMonth) };
+        
+        case 'next_month':
+            const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+            const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+            return { from: formatDate(startOfNextMonth), to: formatDate(endOfNextMonth) };
+        
+        case 'next_30_days':
+            const next30Days = new Date(today);
+            next30Days.setDate(today.getDate() + 30);
+            return { from: formatDate(today), to: formatDate(next30Days) };
+        
+        case 'next_60_days':
+            const next60Days = new Date(today);
+            next60Days.setDate(today.getDate() + 60);
+            return { from: formatDate(today), to: formatDate(next60Days) };
+        
+        case 'next_90_days':
+            const next90Days = new Date(today);
+            next90Days.setDate(today.getDate() + 90);
+            return { from: formatDate(today), to: formatDate(next90Days) };
+        
+        case 'this_year':
+            const startOfYear = new Date(today.getFullYear(), 0, 1);
+            const endOfYear = new Date(today.getFullYear(), 11, 31);
+            return { from: formatDate(startOfYear), to: formatDate(endOfYear) };
+        
+        default:
+            return null;
+    }
+}
+
 function clearFilters() {
     // Limpar todos os filtros
     document.getElementById('account_filter').value = '';
@@ -806,12 +870,27 @@ function applyFilters() {
     let dateFrom = document.getElementById('date_from').value;
     let dateTo = document.getElementById('date_to').value;
     
+    console.log('Aplicando filtros - Período selecionado:', periodFilter);
+    console.log('Datas iniciais - De:', dateFrom, 'Até:', dateTo);
+    
     // Se período personalizado está selecionado, usar as datas customizadas
     if (periodFilter === 'custom') {
         const customDateFrom = document.getElementById('customDateFrom').value;
         const customDateTo = document.getElementById('customDateTo').value;
         if (customDateFrom) dateFrom = customDateFrom;
         if (customDateTo) dateTo = customDateTo;
+        console.log('Período personalizado - De:', dateFrom, 'Até:', dateTo);
+    } else if (periodFilter) {
+        // Processar período automático
+        const dates = getPeriodDates(periodFilter);
+        if (dates) {
+            dateFrom = dates.from;
+            dateTo = dates.to;
+            console.log('Período calculado - De:', dateFrom, 'Até:', dateTo);
+            // Atualizar os campos de data visualmente
+            document.getElementById('date_from').value = dateFrom;
+            document.getElementById('date_to').value = dateTo;
+        }
     }
     
     const filters = {
@@ -822,6 +901,8 @@ function applyFilters() {
         period_filter: periodFilter,
         limit: 50  // Limite fixo de 50 pedidos por página
     };
+    
+    console.log('Filtros finais:', filters);
     
     // Atualizar URL
     const url = new URL(window.location);
