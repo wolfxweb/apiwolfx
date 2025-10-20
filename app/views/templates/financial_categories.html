@@ -67,7 +67,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Receitas</h6>
-                        <h4 class="mb-0" id="revenueCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="revenueCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="revenueCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-arrow-up-circle fs-1"></i>
@@ -82,7 +85,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Despesas</h6>
-                        <h4 class="mb-0" id="expenseCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="expenseCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="expenseCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-arrow-down-circle fs-1"></i>
@@ -97,7 +103,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Investimentos</h6>
-                        <h4 class="mb-0" id="investmentCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="investmentCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="investmentCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-graph-up fs-1"></i>
@@ -112,7 +121,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Total</h6>
-                        <h4 class="mb-0" id="totalCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="totalCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="totalCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-tags fs-1"></i>
@@ -276,6 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para carregar categorias
 async function loadCategories() {
     try {
+        setStatsLoading(true);
         const response = await fetch('/api/financial/categories', {
             credentials: 'include'
         });
@@ -285,12 +298,15 @@ async function loadCategories() {
             filteredCategories = [...categories]; // Inicializar com todas as categorias
             renderCategories();
             updateStats();
+            setStatsLoading(false);
         } else {
             showAlert('Erro ao carregar categorias', 'danger');
+            setStatsLoading(false);
         }
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao carregar categorias', 'danger');
+        setStatsLoading(false);
     }
 }
 
@@ -362,6 +378,27 @@ function updateStats() {
     document.getElementById('expenseCount').textContent = expenseCount;
     document.getElementById('investmentCount').textContent = investmentCount;
     document.getElementById('totalCount').textContent = totalCount;
+}
+
+function setStatsLoading(isLoading) {
+    const pairs = [
+        { spinner: 'revenueCountSpinner', value: 'revenueCount' },
+        { spinner: 'expenseCountSpinner', value: 'expenseCount' },
+        { spinner: 'investmentCountSpinner', value: 'investmentCount' },
+        { spinner: 'totalCountSpinner', value: 'totalCount' },
+    ];
+    pairs.forEach(p => {
+        const sp = document.getElementById(p.spinner);
+        const val = document.getElementById(p.value);
+        if (!sp || !val) return;
+        if (isLoading) {
+            sp.classList.remove('d-none');
+            val.classList.add('d-none');
+        } else {
+            sp.classList.add('d-none');
+            val.classList.remove('d-none');
+        }
+    });
 }
 
 // Função para filtrar categorias
