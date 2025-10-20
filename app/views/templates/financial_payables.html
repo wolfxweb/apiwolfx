@@ -272,11 +272,6 @@ let itemsPerPage = 10;
 // Carregar dados ao inicializar
 document.addEventListener('DOMContentLoaded', function() {
     loadPayables();
-    
-    // Aplicar filtro do mês atual automaticamente
-    setTimeout(() => {
-        filterPayables();
-    }, 100);
 });
 
 // Função para carregar contas a pagar
@@ -288,9 +283,9 @@ async function loadPayables() {
         if (response.ok) {
             payables = await response.json();
             filteredPayables = [...payables];
-            renderPayablesTable();
-            renderPagination();
-            updateStats();
+            
+            // Aplicar filtro do mês atual automaticamente
+            filterPayables();
         } else {
             showAlert('Erro ao carregar contas a pagar', 'danger');
         }
