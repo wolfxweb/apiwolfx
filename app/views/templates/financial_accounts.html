@@ -76,7 +76,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Saldo Total</h6>
-                        <h4 class="mb-0" id="totalBalance">R$ 0,00</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="totalBalanceSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="totalBalance">R$ 0,00</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-currency-dollar fs-1"></i>
@@ -91,7 +94,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Contas Ativas</h6>
-                        <h4 class="mb-0" id="activeCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="activeCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="activeCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-bank fs-1"></i>
@@ -106,7 +112,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Bancos</h6>
-                        <h4 class="mb-0" id="banksCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="banksCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="banksCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-building fs-1"></i>
@@ -121,7 +130,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Total</h6>
-                        <h4 class="mb-0" id="totalCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="totalCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="totalCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-credit-card fs-1"></i>
@@ -335,6 +347,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para carregar contas bancárias
 async function loadAccounts() {
     try {
+        setStatsLoading(true);
         const response = await fetch('/api/financial/accounts', {
             credentials: 'include'
         });
@@ -344,12 +357,15 @@ async function loadAccounts() {
             renderAccounts();
             updateStats();
             updateBankFilter();
+            setStatsLoading(false);
         } else {
             showAlert('Erro ao carregar contas bancárias', 'danger');
+            setStatsLoading(false);
         }
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao carregar contas bancárias', 'danger');
+        setStatsLoading(false);
     }
 }
 
@@ -440,6 +456,27 @@ function updateStats() {
     document.getElementById('banksCount').textContent = uniqueBanks;
     document.getElementById('totalBalance').textContent = 'R$ ' + totalBalance.toLocaleString('pt-BR', {minimumFractionDigits: 2});
     document.getElementById('totalCount').textContent = totalCount;
+}
+
+function setStatsLoading(isLoading) {
+    const pairs = [
+        { spinner: 'totalBalanceSpinner', value: 'totalBalance' },
+        { spinner: 'activeCountSpinner', value: 'activeCount' },
+        { spinner: 'banksCountSpinner', value: 'banksCount' },
+        { spinner: 'totalCountSpinner', value: 'totalCount' },
+    ];
+    pairs.forEach(p => {
+        const sp = document.getElementById(p.spinner);
+        const val = document.getElementById(p.value);
+        if (!sp || !val) return;
+        if (isLoading) {
+            sp.classList.remove('d-none');
+            val.classList.add('d-none');
+        } else {
+            sp.classList.add('d-none');
+            val.classList.remove('d-none');
+        }
+    });
 }
 
 // Função para filtrar contas bancárias
