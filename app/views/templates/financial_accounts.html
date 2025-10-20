@@ -156,7 +156,7 @@
                         <th>Tipo</th>
                         <th>Agência</th>
                         <th>Conta</th>
-                        <th>Saldo Atual</th>
+                        <th>Saldo / Fatura</th>
                         <th>Status</th>
                         <th>Ações</th>
                     </tr>
@@ -732,6 +732,16 @@ function getTypeLabel(type) {
         case 'investment': return 'Investimento';
         case 'credit': return 'Cartão';
         default: return type;
+    }
+}
+
+function getBalanceLabel(type) {
+    switch(type) {
+        case 'credit': return 'Limite Disponível';
+        case 'checking': return 'Saldo Atual';
+        case 'savings': return 'Saldo Atual';
+        case 'investment': return 'Saldo Atual';
+        default: return 'Saldo Atual';
     }
 }
 

@@ -843,9 +843,13 @@ async def process_transfer(
         if not to_account:
             raise HTTPException(status_code=404, detail="Conta de destino não encontrada")
         
-        # Verificar saldo suficiente
+        # Verificar saldo suficiente (considerando tipo de conta)
         current_balance = float(from_account.current_balance or 0)
-        if amount > current_balance:
+        is_from_credit_card = from_account.account_type == "credit"
+        
+        # Para cartão de crédito, saldo negativo é permitido (dívida)
+        # Para outras contas, verificar saldo suficiente
+        if not is_from_credit_card and amount > current_balance:
             raise HTTPException(status_code=400, detail="Saldo insuficiente")
         
         # Criar transações
@@ -873,7 +877,7 @@ async def process_transfer(
             reference_id=f"transfer_{from_account_id}_to_{to_account_id}"
         )
         
-        # Atualizar saldos
+        # Atualizar saldos considerando tipo de conta
         from_account.current_balance = current_balance - amount
         to_account.current_balance = float(to_account.current_balance or 0) + amount
         
@@ -1031,12 +1035,24 @@ async def create_transaction(
         
         db.add(transaction)
         
-        # Atualizar saldo da conta
+        # Atualizar saldo da conta considerando tipo de conta
         current_balance = float(account.current_balance or 0)
-        if transaction_type == "credit":
-            new_balance = current_balance + amount
+        is_credit_card = account.account_type == "credit"
+        
+        # Para cartões de crédito, a lógica é inversa:
+        # - Crédito aumenta dívida (diminui saldo disponível)
+        # - Débito diminui dívida (aumenta saldo disponível)
+        if is_credit_card:
+            if transaction_type == "credit":
+                new_balance = current_balance - amount  # Crédito aumenta dívida
+            else:
+                new_balance = current_balance + amount  # Débito diminui dívida
         else:
-            new_balance = current_balance - amount
+            # Para contas normais, lógica tradicional
+            if transaction_type == "credit":
+                new_balance = current_balance + amount
+            else:
+                new_balance = current_balance - amount
         
         account.current_balance = new_balance
         
@@ -2177,15 +2193,28 @@ async def update_payable_status(
                 FinancialAccount.company_id == company_id
             ).first()
             if account:
-                # Atualiza saldo (saída)
-                account.current_balance = float(account.current_balance or 0) - amount_value
-                # Cria transação de débito
+                # Para cartões de crédito, o pagamento aumenta o saldo (reduz a dívida)
+                # Para outros tipos de conta, o pagamento diminui o saldo (saída de dinheiro)
+                is_credit_card = account.account_type == "credit"
+                
+                if is_credit_card:
+                    # Cartão de crédito: pagamento aumenta saldo (reduz dívida)
+                    account.current_balance = float(account.current_balance or 0) + amount_value
+                    transaction_type = "credit"
+                    description_prefix = "Pagamento de fatura"
+                else:
+                    # Conta corrente/poupança: pagamento diminui saldo (saída de dinheiro)
+                    account.current_balance = float(account.current_balance or 0) - amount_value
+                    transaction_type = "debit"
+                    description_prefix = "Pagamento de conta"
+                
+                # Cria transação
                 tx = FinancialTransaction(
                     company_id=company_id,
                     account_id=account.id,
-                    transaction_type="debit",
+                    transaction_type=transaction_type,
                     amount=amount_value,
-                    description=f"Pagamento de conta - {payable.description}",
+                    description=f"{description_prefix} - {payable.description}",
                     transaction_date=datetime.now().date(),
                     reference_type="payable",
                     reference_id=str(payable.id),
@@ -2214,8 +2243,16 @@ async def update_payable_status(
                     FinancialAccount.company_id == company_id
                 ).first()
                 if account:
-                    # Estorna saldo (entrada)
-                    account.current_balance = float(account.current_balance or 0) + float(existing_tx.amount or 0)
+                    # Para cartões de crédito, estorno diminui saldo (volta a dívida)
+                    # Para outros tipos de conta, estorno aumenta saldo (volta o dinheiro)
+                    is_credit_card = account.account_type == "credit"
+                    
+                    if is_credit_card:
+                        # Cartão de crédito: estorno diminui saldo (volta a dívida)
+                        account.current_balance = float(account.current_balance or 0) - float(existing_tx.amount or 0)
+                    else:
+                        # Conta corrente/poupança: estorno aumenta saldo (volta o dinheiro)
+                        account.current_balance = float(account.current_balance or 0) + float(existing_tx.amount or 0)
                 # Remove transação
                 db.delete(existing_tx)
         else:

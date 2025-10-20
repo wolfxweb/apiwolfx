@@ -61,6 +61,7 @@
                     <option value="bonus">Bônus</option>
                     <option value="penalty">Multa</option>
                     <option value="discount">Desconto</option>
+                    <option value="payable">Conta a Pagar</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -116,7 +117,7 @@
     <div class="col-md-3">
         <div class="card bg-primary text-white">
             <div class="card-body text-center">
-                <h6 class="card-title">Saldo Atual</h6>
+                <h6 class="card-title" id="balanceLabel">Saldo Atual</h6>
                 <h4 id="currentBalance">R$ {{ "%.2f"|format(account.current_balance or 0) }}</h4>
             </div>
         </div>
@@ -783,6 +784,18 @@ function goBack() {
     window.history.back();
 }
 
+// Função para ajustar label do saldo baseado no tipo de conta
+function updateBalanceLabel() {
+    const balanceLabel = document.getElementById('balanceLabel');
+    if (balanceLabel && account && account.account_type) {
+        if (account.account_type === 'credit') {
+            balanceLabel.textContent = 'Limite Disponível';
+        } else {
+            balanceLabel.textContent = 'Saldo Atual';
+        }
+    }
+}
+
 // Função para traduzir tipos de referência
 function getReferenceTypeLabel(referenceType) {
     const labels = {
@@ -805,7 +818,8 @@ function getReferenceTypeLabel(referenceType) {
         'penalty': 'Multa',
         'discount': 'Desconto',
         'credit': 'Crédito',
-        'debit': 'Débito'
+        'debit': 'Débito',
+        'payable': 'Conta a Pagar'
     };
     return labels[referenceType] || referenceType;
 }
@@ -1175,5 +1189,10 @@ function showAlert(message, type) {
         }
     }, 5000);
 }
+
+// Inicializar label do saldo baseado no tipo de conta
+document.addEventListener('DOMContentLoaded', function() {
+    updateBalanceLabel();
+});
 </script>
 {% endblock %}
