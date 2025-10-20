@@ -65,7 +65,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Centros Pai</h6>
-                        <h4 class="mb-0" id="parentCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="parentCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="parentCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-building fs-1"></i>
@@ -80,7 +83,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Centros Filho</h6>
-                        <h4 class="mb-0" id="childCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="childCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="childCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-diagram-3 fs-1"></i>
@@ -95,7 +101,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Orçamento Total</h6>
-                        <h4 class="mb-0" id="totalBudget">R$ 0,00</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="totalBudgetSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="totalBudget">R$ 0,00</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-currency-dollar fs-1"></i>
@@ -110,7 +119,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Total</h6>
-                        <h4 class="mb-0" id="totalCount">0</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="totalCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="totalCount">0</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-building fs-1"></i>
@@ -286,6 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para carregar centros de custo
 async function loadCostCenters() {
     try {
+        setStatsLoading(true);
         const response = await fetch('/api/financial/cost-centers', {
             credentials: 'include'
         });
@@ -295,12 +308,15 @@ async function loadCostCenters() {
             renderCostCenters();
             updateStats();
             updateParentSelect();
+            setStatsLoading(false);
         } else {
             showAlert('Erro ao carregar centros de custo', 'danger');
+            setStatsLoading(false);
         }
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao carregar centros de custo', 'danger');
+        setStatsLoading(false);
     }
 }
 
@@ -373,6 +389,27 @@ function updateStats() {
     document.getElementById('childCount').textContent = childCount;
     document.getElementById('totalBudget').textContent = 'R$ ' + totalBudget.toLocaleString('pt-BR', {minimumFractionDigits: 2});
     document.getElementById('totalCount').textContent = totalCount;
+}
+
+function setStatsLoading(isLoading) {
+    const pairs = [
+        { spinner: 'parentCountSpinner', value: 'parentCount' },
+        { spinner: 'childCountSpinner', value: 'childCount' },
+        { spinner: 'totalBudgetSpinner', value: 'totalBudget' },
+        { spinner: 'totalCountSpinner', value: 'totalCount' },
+    ];
+    pairs.forEach(p => {
+        const sp = document.getElementById(p.spinner);
+        const val = document.getElementById(p.value);
+        if (!sp || !val) return;
+        if (isLoading) {
+            sp.classList.remove('d-none');
+            val.classList.add('d-none');
+        } else {
+            sp.classList.add('d-none');
+            val.classList.remove('d-none');
+        }
+    });
 }
 
 // Função para filtrar centros de custo
