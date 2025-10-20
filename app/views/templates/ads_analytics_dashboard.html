@@ -1902,7 +1902,13 @@ function renderTopProductsReal(topSold, topRevenue) {
 
 // Renderizar resumo de contas com dados reais
 function renderAccountsSummaryReal(accounts) {
-    const tbody = document.getElementById('accounts-summary-body');
+    try {
+        const tbody = document.getElementById('accounts-summary-body');
+        
+        if (!tbody) {
+            console.log('ℹ️ Resumo de contas não está sendo exibido (elemento não encontrado)');
+            return;
+        }
     
     if (accounts.length === 0) {
         tbody.innerHTML = `
@@ -1929,6 +1935,9 @@ function renderAccountsSummaryReal(accounts) {
             <td class="text-end"><strong>${formatBRL(account.avg_ticket)}</strong></td>
         </tr>
     `).join('');
+    } catch (error) {
+        console.log('ℹ️ Erro ao renderizar resumo de contas:', error.message);
+    }
 }
 
 // Renderizar top produtos (função antiga - manter para compatibilidade)

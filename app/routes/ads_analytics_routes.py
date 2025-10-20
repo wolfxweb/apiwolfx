@@ -9,6 +9,7 @@ from app.controllers.ads_analytics_controller import AdsAnalyticsController
 from app.controllers.analytics_controller import AnalyticsController
 from app.controllers.auth_controller import AuthController
 
+
 ads_analytics_router = APIRouter()
 
 @ads_analytics_router.get("/analytics", response_class=HTMLResponse)
@@ -245,4 +246,5 @@ async def get_product_performance(
             "success": False,
             "error": f"Erro interno: {str(e)}"
         }, status_code=500)
+
 
