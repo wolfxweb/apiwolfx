@@ -23,13 +23,12 @@ services:
       - MP_PUBLIC_KEY=APP_USR-4549749e-5420-4118-95fe-ab17831df6bb
       - MP_WEBHOOK_SECRET=a85db9f8e932e94707bb0b23413e3b8e4abdb60e19ad81caa1e80b8459a87fe9
       - OPENAI_API_KEY=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
-    # depends_on:
-      # - db
     volumes:
       - ./public:/app/public
     networks:
       - apiwolfx-network
     restart: unless-stopped
+
 
   # Banco de dados PostgreSQL - REMOVIDO (usando banco externo)
   # db:
@@ -79,8 +78,6 @@ services:
     profiles:
       - ngrok
 
-# volumes:
-  # postgres_data:  # Removido - usando banco externo
 
 networks:
   apiwolfx-network:

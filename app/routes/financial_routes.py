@@ -1780,33 +1780,18 @@ async def create_account_payable(
     
     # Se for parcelamento, criar múltiplas entradas
     elif total_installments > 1:
-        # Criar conta principal (parent)
-        parent_payable = AccountPayable(
-            company_id=company_id,
-            supplier_name=payable_data.get("supplier_name"),  # Campo texto livre
-            fornecedor_id=payable_data.get("fornecedor_id"),  # FK para fornecedores
-            ordem_compra_id=payable_data.get("ordem_compra_id"),  # FK para ordens de compra
-            category_id=payable_data.get("category_id"),
-            cost_center_id=payable_data.get("cost_center_id"),
-            account_id=payable_data.get("account_id"),
-            payment_method_id=payable_data.get("payment_method_id"),
-            invoice_number=payable_data.get("invoice_number"),
-            description=payable_data.get("description"),
-            amount=payable_data.get("amount"),
-            due_date=datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date(),
-            status="pending",
-            installment_number=0,  # Conta principal
-            total_installments=total_installments,
-            is_fixed=payable_data.get("is_fixed", False),
-            notes=payable_data.get("notes")
-        )
-        
-        db.add(parent_payable)
-        db.commit()
-        db.refresh(parent_payable)
+        # Não criar conta principal - apenas as parcelas numeradas
         
         # Criar parcelas
-        installment_amount = float(payable_data.get("amount")) / total_installments
+        value_type = payable_data.get("value_type", "total")
+        base_amount = float(payable_data.get("amount"))
+        
+        if value_type == "total":
+            # Se for valor total, dividir igualmente entre as parcelas
+            installment_amount = base_amount / total_installments
+        else:
+            # Se for valor da parcela, usar o valor para cada parcela
+            installment_amount = base_amount
         
         # Usar data de vencimento da primeira parcela se fornecida, senão usar due_date
         if installment_due_date:
@@ -1814,6 +1799,8 @@ async def create_account_payable(
         else:
             base_due_date = datetime.strptime(payable_data.get("due_date"), "%Y-%m-%d").date()
         
+        # Criar todas as parcelas
+        created_installments = []
         for i in range(1, total_installments + 1):
             # Calcular data de vencimento da parcela (mensal)
             # Adicionar (i-1) meses à data base
@@ -1836,17 +1823,25 @@ async def create_account_payable(
                 status="pending",
                 installment_number=i,
                 total_installments=total_installments,
-                parent_payable_id=parent_payable.id,
+                parent_payable_id=None,  # Será definido depois
                 is_fixed=payable_data.get("is_fixed", False),
                 notes=payable_data.get("notes")
             )
             
             db.add(installment)
+            created_installments.append(installment)
         
         db.commit()
         
-        logger.info(f"✅ Parcelamento criado: {parent_payable.description} - {total_installments} parcelas (ID: {parent_payable.id})")
-        return {"message": f"Parcelamento criado com sucesso - {total_installments} parcelas", "id": parent_payable.id}
+        # Definir parent_payable_id para todas as parcelas (apontando para a primeira)
+        first_installment_id = created_installments[0].id
+        for installment in created_installments:
+            installment.parent_payable_id = first_installment_id
+        
+        db.commit()
+        
+        logger.info(f"✅ Parcelamento criado: {payable_data.get('description')} - {total_installments} parcelas")
+        return {"message": f"Parcelamento criado com sucesso - {total_installments} parcelas", "id": first_installment_id}
     
     # Despesa única
     else:
@@ -2024,19 +2019,31 @@ async def delete_account_payable(
     if remove_future_entries:
         if payable.total_installments > 1:
             # É uma conta parcelada - remover todas as parcelas
-            parent_id = payable.parent_payable_id if payable.parent_payable_id else payable_id
-            
-            # Remover todas as parcelas (incluindo a principal)
-            all_installments = db.query(AccountPayable).filter(
-                or_(
-                    AccountPayable.id == parent_id,
-                    AccountPayable.parent_payable_id == parent_id
-                ),
-                AccountPayable.company_id == company_id
-            ).all()
+            # Se a conta atual tem parent_payable_id, usar ele, senão ela é a principal
+            if payable.parent_payable_id:
+                # Esta é uma parcela, buscar pela parcela principal
+                parent_id = payable.parent_payable_id
+                all_installments = db.query(AccountPayable).filter(
+                    or_(
+                        AccountPayable.id == parent_id,
+                        AccountPayable.parent_payable_id == parent_id
+                    ),
+                    AccountPayable.company_id == company_id
+                ).all()
+            else:
+                # Esta é a parcela principal, buscar todas as parcelas desta série
+                all_installments = db.query(AccountPayable).filter(
+                    or_(
+                        AccountPayable.id == payable_id,
+                        AccountPayable.parent_payable_id == payable_id
+                    ),
+                    AccountPayable.company_id == company_id
+                ).all()
             
             deleted_count = len(all_installments)
+            logger.info(f"🔍 DEBUG: Encontradas {deleted_count} parcelas para exclusão")
             for installment in all_installments:
+                logger.info(f"🔍 DEBUG: Excluindo parcela {installment.installment_number}/{installment.total_installments} - {installment.description}")
                 db.delete(installment)
                 
         elif payable.is_recurring:
@@ -2063,17 +2070,17 @@ async def delete_account_payable(
                 db.delete(recurring)
     
     # Remover a conta atual apenas se não foi removida na lógica acima
-    if not remove_future_entries or (not payable.is_recurring and payable.total_installments <= 1):
+    if not remove_future_entries:
         db.delete(payable)
     
     db.commit()
     
     if remove_future_entries and deleted_count > 1:
         logger.info(f"✅ Conta a pagar e {deleted_count - 1} lançamentos futuros excluídos: {payable.description} (ID: {payable_id})")
-        return {"message": f"Conta e {deleted_count - 1} lançamentos futuros excluídos com sucesso"}
+        return {"message": f"Conta e {deleted_count - 1} lançamentos futuros excluídos com sucesso", "deleted_count": deleted_count}
     else:
         logger.info(f"✅ Conta a pagar excluída: {payable.description} (ID: {payable_id})")
-        return {"message": "Conta a pagar excluída com sucesso"}
+        return {"message": "Conta a pagar excluída com sucesso", "deleted_count": deleted_count}
 
 @financial_router.put("/api/financial/payables/{payable_id}/mark-paid")
 async def mark_payable_as_paid(

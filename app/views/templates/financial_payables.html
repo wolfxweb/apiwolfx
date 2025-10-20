@@ -218,6 +218,17 @@
                 <div id="deleteModalBody">
                     <!-- Conteúdo será preenchido dinamicamente -->
                 </div>
+                <div id="deleteInstallmentOptions" style="display: none;" class="mt-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="deleteFutureInstallments" value="true">
+                        <label class="form-check-label" for="deleteFutureInstallments">
+                            <strong>Excluir parcelas futuras</strong>
+                        </label>
+                        <small class="form-text text-muted d-block">
+                            Se marcado, todas as parcelas futuras desta conta parcelada também serão excluídas
+                        </small>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -652,15 +663,30 @@ function deletePayable(id) {
     currentDeleteId = id;
     
     const payable = payables.find(p => p.id === id);
+    
+    // Verificar se é uma conta parcelada
+    const isInstallment = payable.total_installments && payable.total_installments > 1;
+    
     document.getElementById('deleteModalBody').innerHTML = `
         <p>Tem certeza que deseja excluir esta conta a pagar?</p>
         <div class="alert alert-danger">
             <strong>Conta:</strong> ${payable.description}<br>
             <strong>Valor:</strong> R$ ${parseFloat(payable.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}<br>
             <strong>Fornecedor:</strong> ${payable.supplier_name || 'N/A'}
+            ${isInstallment ? `<br><strong>Parcelamento:</strong> ${payable.installment_number || 1}/${payable.total_installments} parcelas` : ''}
         </div>
         <p class="text-danger"><strong>Atenção:</strong> Esta ação não pode ser desfeita!</p>
     `;
+    
+    // Mostrar opção de parcelas futuras se for uma conta parcelada
+    const installmentOptions = document.getElementById('deleteInstallmentOptions');
+    if (isInstallment) {
+        installmentOptions.style.display = 'block';
+        // Resetar checkbox
+        document.getElementById('deleteFutureInstallments').checked = false;
+    } else {
+        installmentOptions.style.display = 'none';
+    }
     
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
@@ -676,6 +702,9 @@ async function confirmDelete() {
     deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Excluindo...';
     
     try {
+        // Verificar se deve excluir parcelas futuras
+        const deleteFutureInstallments = document.getElementById('deleteFutureInstallments').checked;
+        
         const response = await fetch(`/api/financial/payables/${currentDeleteId}`, {
             method: 'DELETE',
             headers: {
@@ -683,12 +712,16 @@ async function confirmDelete() {
             },
             credentials: 'include',
             body: JSON.stringify({
-                remove_future_entries: false
+                remove_future_entries: deleteFutureInstallments
             })
         });
         
         if (response.ok) {
-            showAlert('Conta a pagar excluída com sucesso!', 'success');
+            const result = await response.json();
+            const message = result.deleted_count && result.deleted_count > 1 
+                ? `${result.deleted_count} contas excluídas com sucesso!`
+                : 'Conta a pagar excluída com sucesso!';
+            showAlert(message, 'success');
             loadPayables();
         } else {
             const error = await response.json();

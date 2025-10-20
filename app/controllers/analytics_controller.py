@@ -13,8 +13,6 @@ from app.services.ml_visits_service import MLVisitsService
 
 logger = logging.getLogger(__name__)
 
-# Cache removido - focando em otimização SQL
-
 class AnalyticsController:
     """Controller para analytics de vendas e performance"""
     
@@ -29,6 +27,8 @@ class AnalyticsController:
         """Busca dados do dashboard de vendas baseado em pedidos reais"""
         try:
             logger.info(f"🚀 ANALYTICS CONTROLLER CHAMADO - company_id={company_id}, period_days={period_days}")
+            
+            # Removido cache - focando em otimização SQL
             
             logger.info(f"📊 Dashboard Analytics - Filtros: company_id={company_id}, ml_account_id={ml_account_id}, period_days={period_days}, search={search}, current_month={current_month}, last_month={last_month}, current_year={current_year}, date_from={date_from}, date_to={date_to}")
             
@@ -166,11 +166,11 @@ class AnalyticsController:
                           AND date_closed IS NOT NULL
                     """)
             
-            # Executar consulta otimizada com LIMIT para performance
-            orders_sql = text(str(orders_sql) + " ORDER BY date_closed DESC LIMIT 1000")
+            # Executar consulta otimizada - sem LIMIT para cálculos corretos
+            orders_sql = text(str(orders_sql) + " ORDER BY date_closed DESC")
             orders_result = self.db.execute(orders_sql, params).fetchall()
             orders = [dict(row._mapping) for row in orders_result]
-            logger.info(f"📦 Total de VENDAS CONFIRMADAS encontradas: {len(orders)} (limitado a 1000 para performance)")
+            logger.info(f"📦 Total de VENDAS CONFIRMADAS encontradas: {len(orders)} (período completo)")
             
             # Buscar VENDAS canceladas
             # ML: "Vendas do período selecionado que DEPOIS foram canceladas"
@@ -688,6 +688,8 @@ class AnalyticsController:
                 'total': len(products_data),
                 'timeline': timeline
             }
+            
+            # Cache removido - focando em otimização SQL
             
             return result
             

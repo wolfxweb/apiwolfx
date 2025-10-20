@@ -188,16 +188,28 @@
             
             <!-- Opções para Parcelamento -->
             <div class="row" id="installmentOptions" style="display: none;">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <div class="mb-3">
                         <label for="totalInstallments" class="form-label">Quantidade de Parcelas</label>
                         <input type="number" class="form-control" id="totalInstallments" min="2" max="60" placeholder="Ex: 12">
                     </div>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <div class="mb-3">
                         <label for="installmentDueDate" class="form-label">Vencimento da 1ª Parcela</label>
                         <input type="date" class="form-control" id="installmentDueDate">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="valueType" class="form-label">Tipo do Valor</label>
+                        <select class="form-select" id="valueType" onchange="updateValueTypeHelp()">
+                            <option value="total">Valor Total</option>
+                            <option value="installment">Valor da Parcela</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            <span id="valueTypeHelp">Selecione se o valor informado é o total ou o valor de cada parcela</span>
+                        </small>
                     </div>
                 </div>
             </div>
@@ -241,6 +253,9 @@ document.addEventListener('DOMContentLoaded', function() {
     loadAccounts();
     setTodayDate();
     
+    // Inicializar texto de ajuda do tipo de valor
+    updateValueTypeHelp();
+    
     // Event listeners para tipo de despesa
     document.querySelectorAll('input[name="expenseType"]').forEach(radio => {
         radio.addEventListener('change', function() {
@@ -257,6 +272,9 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (this.value === 'installment') {
                 installmentOptions.style.display = 'block';
             }
+            
+            // Atualizar texto de ajuda do tipo de valor
+            updateValueTypeHelp();
         });
     });
     
@@ -489,6 +507,26 @@ function hideOrdemCompraDropdown() {
     document.getElementById('ordemCompraDropdown').style.display = 'none';
 }
 
+// Função para atualizar texto de ajuda do tipo de valor
+function updateValueTypeHelp() {
+    const valueType = document.getElementById('valueType').value;
+    const helpText = document.getElementById('valueTypeHelp');
+    const installmentOptions = document.getElementById('installmentOptions');
+    
+    // Verificar se o parcelamento está ativo
+    const isInstallmentActive = installmentOptions.style.display !== 'none';
+    
+    if (isInstallmentActive) {
+        if (valueType === 'total') {
+            helpText.textContent = 'O valor será dividido igualmente entre as parcelas';
+        } else {
+            helpText.textContent = 'O valor será usado para cada parcela';
+        }
+    } else {
+        helpText.textContent = 'Selecione se o valor informado é o total ou o valor de cada parcela';
+    }
+}
+
 // Função para salvar conta a pagar
 async function savePayable() {
     // Desabilitar botão para evitar duplo clique
@@ -514,6 +552,7 @@ async function savePayable() {
         recurring_end_date: document.getElementById('recurringEndDate').value || null,
         total_installments: parseInt(document.getElementById('totalInstallments').value) || null,
         installment_due_date: document.getElementById('installmentDueDate').value || null,
+        value_type: document.getElementById('valueType').value || 'total',
         notes: document.getElementById('notes').value
     };
     
