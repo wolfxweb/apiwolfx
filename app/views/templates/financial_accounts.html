@@ -7,9 +7,6 @@
     <h1 class="h2"><i class="bi bi-bank"></i> Contas Bancárias</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshAccounts()">
-                <i class="bi bi-arrow-clockwise"></i> Atualizar
-            </button>
             <button type="button" class="btn btn-sm btn-primary" onclick="showCreateAccountModal()">
                 <i class="bi bi-plus-circle"></i> Nova Conta
             </button>
@@ -18,34 +15,42 @@
 </div>
 
 <!-- Filtros -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome, banco ou agência..." onkeyup="filterAccounts()">
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="searchInput" class="form-label">Buscar</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome, banco ou agência..." onkeyup="filterAccounts()">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label for="typeFilter" class="form-label">Tipo</label>
+                <select class="form-select" id="typeFilter" onchange="filterAccounts()">
+                    <option value="">Todos os Tipos</option>
+                    <option value="checking">Conta Corrente</option>
+                    <option value="savings">Poupança</option>
+                    <option value="investment">Investimento</option>
+                    <option value="credit">Cartão de Crédito</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="statusFilter" class="form-label">Status</label>
+                <select class="form-select" id="statusFilter" onchange="filterAccounts()">
+                    <option value="">Todos os Status</option>
+                    <option value="active">Ativo</option>
+                    <option value="inactive">Inativo</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="bankFilter" class="form-label">Banco</label>
+                <select class="form-select" id="bankFilter" onchange="filterAccounts()">
+                    <option value="">Todos os Bancos</option>
+                    <!-- Bancos carregados via JavaScript -->
+                </select>
+            </div>
         </div>
-    </div>
-    <div class="col-md-3">
-        <select class="form-select" id="typeFilter" onchange="filterAccounts()">
-            <option value="">Todos os Tipos</option>
-            <option value="checking">Conta Corrente</option>
-            <option value="savings">Poupança</option>
-            <option value="investment">Investimento</option>
-            <option value="credit">Cartão de Crédito</option>
-        </select>
-    </div>
-    <div class="col-md-3">
-        <select class="form-select" id="statusFilter" onchange="filterAccounts()">
-            <option value="">Todos os Status</option>
-            <option value="active">Ativo</option>
-            <option value="inactive">Inativo</option>
-        </select>
-    </div>
-    <div class="col-md-2">
-        <select class="form-select" id="bankFilter" onchange="filterAccounts()">
-            <option value="">Todos os Bancos</option>
-            <!-- Bancos carregados via JavaScript -->
-        </select>
     </div>
 </div>
 
@@ -393,9 +398,6 @@ function renderAccounts() {
                     <button class="btn btn-sm btn-outline-primary" onclick="editAccount(${account.id})" title="Editar">
                         <i class="bi bi-pencil"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-info" onclick="openMLCashHistoryForAccount(${account.id}, '${account.account_name}')" title="Histórico ML">
-                        <i class="bi bi-cash-coin"></i>
-                    </button>
                     <button class="btn btn-sm btn-outline-success" onclick="viewAccountTransactions(${account.id})" title="Movimentações">
                         <i class="bi bi-list-ul"></i>
                     </button>
@@ -596,9 +598,6 @@ async function confirmDeleteAccount() {
 }
 
 // Função para atualizar contas bancárias
-function refreshAccounts() {
-    loadAccounts();
-}
 
 // Funções auxiliares
 function getTypeBadgeClass(type) {
@@ -727,12 +726,6 @@ function showAlert(message, type) {
     }, 5000);
 }
 
-// Função para abrir histórico de lançamentos ML para uma conta específica
-function openMLCashHistoryForAccount(accountId, accountName) {
-    // Abrir histórico com filtro para a conta específica
-    const url = `/ml-cash/history?account_id=${accountId}`;
-    window.open(url, '_blank');
-}
 
 // Função para visualizar movimentações da conta
 function viewAccountTransactions(accountId) {
