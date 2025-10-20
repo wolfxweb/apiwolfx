@@ -89,6 +89,24 @@
         </div>
     </div>
     <div class="col-md-3">
+        <div class="card text-white bg-warning stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total Faturas</h6>
+                        <div class="d-flex align-items-center">
+                            <div id="totalCreditCardSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="totalCreditCard">R$ 0,00</h4>
+                        </div>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-credit-card fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="card text-white bg-primary stats-card">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
@@ -119,24 +137,6 @@
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-building fs-1"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-warning stats-card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title">Total</h6>
-                        <div class="d-flex align-items-center">
-                            <div id="totalCountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
-                            <h4 class="mb-0 d-none" id="totalCount">0</h4>
-                        </div>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="bi bi-credit-card fs-1"></i>
                     </div>
                 </div>
             </div>
@@ -460,13 +460,22 @@ function renderAccounts() {
 function updateStats() {
     const activeCount = accounts.filter(a => a.is_active).length;
     const uniqueBanks = [...new Set(accounts.map(a => a.bank_name))].length;
-    const totalBalance = accounts.reduce((sum, a) => sum + (parseFloat(a.current_balance) || 0), 0);
     const totalCount = accounts.length;
+    
+    // Calcular saldo total (excluindo cartões de crédito)
+    const totalBalance = accounts
+        .filter(a => a.account_type !== 'credit')
+        .reduce((sum, a) => sum + (parseFloat(a.current_balance) || 0), 0);
+    
+    // Calcular total das faturas de cartões de crédito
+    const totalCreditCard = accounts
+        .filter(a => a.account_type === 'credit')
+        .reduce((sum, a) => sum + (parseFloat(a.current_balance) || 0), 0);
     
     document.getElementById('activeCount').textContent = activeCount;
     document.getElementById('banksCount').textContent = uniqueBanks;
     document.getElementById('totalBalance').textContent = 'R$ ' + totalBalance.toLocaleString('pt-BR', {minimumFractionDigits: 2});
-    document.getElementById('totalCount').textContent = totalCount;
+    document.getElementById('totalCreditCard').textContent = 'R$ ' + totalCreditCard.toLocaleString('pt-BR', {minimumFractionDigits: 2});
 }
 
 function toggleCreditCardFields() {
@@ -484,9 +493,9 @@ function toggleCreditCardFields() {
 function setStatsLoading(isLoading) {
     const pairs = [
         { spinner: 'totalBalanceSpinner', value: 'totalBalance' },
+        { spinner: 'totalCreditCardSpinner', value: 'totalCreditCard' },
         { spinner: 'activeCountSpinner', value: 'activeCount' },
         { spinner: 'banksCountSpinner', value: 'banksCount' },
-        { spinner: 'totalCountSpinner', value: 'totalCount' },
     ];
     pairs.forEach(p => {
         const sp = document.getElementById(p.spinner);
