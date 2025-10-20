@@ -55,9 +55,7 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Filtros</h5>
-                </div>
+
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-2">
@@ -122,32 +120,24 @@
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Lista de Pedidos</h5>
-                    <span class="badge bg-primary" id="total-orders">
-                        0 pedidos
-                    </span>
-                </div>
+
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0 table-sm">
-                            <thead class="table-primary text-white">
+                            <thead class="table-dark text-white" style="background-color: #000000 !important;">
                                 <tr>
                                     <th width="50">
                                         <input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders()">
                                     </th>
-                                    <th class="sortable" data-sort="buyer_nickname" onclick="sortTable('buyer_nickname')">
-                                        Comprador <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
                                     <th class="sortable" data-sort="date_created" onclick="sortTable('date_created')">
-                                        Valores e Taxas <i class="bi bi-arrow-down-up ms-1"></i>
+                                        Detalhes do Pedido <i class="bi bi-arrow-down-up ms-1"></i>
                                     </th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="orders-table-body">
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">
+                                    <td colspan="3" class="text-center text-muted py-4">
                                         <i class="bi bi-info-circle"></i> Carregando pedidos...
                                     </td>
                                 </tr>
@@ -345,6 +335,18 @@
 </div>
 
 <style>
+/* Estilos para cabeçalho da tabela */
+thead.table-dark {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+}
+
+thead.table-dark th {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    border-color: #333333 !important;
+}
+
 /* Estilos para botões em loading */
 .btn:disabled {
     opacity: 0.6;
@@ -556,7 +558,7 @@ function renderOrders(orders) {
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="4" class="text-center text-muted py-4">
+                <td colspan="3" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -570,30 +572,17 @@ function renderOrders(orders) {
                 <input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateSelectedOrdersCount()">
             </td>
             <td class="align-middle">
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-person-circle text-success me-2 fs-4"></i>
-                    <div>
-                        <strong class="d-block">${order.buyer_nickname || 'N/A'}</strong>
-                        ${order.buyer_email ? `<small class="text-muted d-block">${order.buyer_email}</small>` : ''}
-                        <small class="text-muted d-block">
-                            <i class="bi bi-hash"></i> ${order.ml_order_id || order.order_id}
-                        </small>
-                        <small class="text-muted d-block">
-                            <i class="bi bi-calendar3"></i> ${formatDate(order.date_created)}
-                        </small>
-                    </div>
-                </div>
-            </td>
-            <td class="align-middle">
                 ${renderBillingData(order)}
             </td>
             <td class="align-middle text-nowrap">
-                <button class="btn btn-outline-primary btn-sm me-1" onclick="viewOrderDetails('${order.ml_order_id}')" title="Ver detalhes">
-                    <i class="bi bi-eye"></i>
-                </button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="copyOrderId('${order.ml_order_id}')" title="Copiar ID">
-                    <i class="bi bi-clipboard"></i>
-                </button>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${order.ml_order_id}')" title="Ver detalhes">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="copyOrderId('${order.ml_order_id}')" title="Copiar ID">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
             </td>
         </tr>
     `).join('');
@@ -620,6 +609,10 @@ function renderBillingData(order) {
     
     // Formato compacto com ícones e quebras de linha
     let items = [];
+    
+    // Informações do cliente, pedido e data (sempre no topo)
+    items.push(`<strong class="text-dark">Cliente:</strong> ${order.buyer_nickname || 'N/A'}<br><strong class="text-dark">Pedido:</strong> ${order.ml_order_id || order.order_id || 'N/A'}<br><strong class="text-dark">Data:</strong> ${formatDate(order.date_created)}`);
+//    items.push(`<hr class="my-2">`);
     
     // Valor total (sempre aparece)
     items.push(`💰 Valor Total: <strong class="text-primary">${formatCurrency(totalAmount, currency)}</strong>`);
@@ -1213,8 +1206,15 @@ function copyOrderId(orderId) {
 }
 
 function updateOrdersCount(total) {
-    document.getElementById('orders-count').innerHTML = `<i class="bi bi-info-circle"></i> ${total} pedido(s) encontrado(s)`;
-    document.getElementById('total-orders').textContent = `${total} pedidos`;
+    const ordersCountElement = document.getElementById('orders-count');
+    if (ordersCountElement) {
+        ordersCountElement.innerHTML = `<i class="bi bi-info-circle"></i> ${total} pedido(s) encontrado(s)`;
+    }
+    
+    const totalOrdersElement = document.getElementById('total-orders');
+    if (totalOrdersElement) {
+        totalOrdersElement.textContent = `${total} pedidos`;
+    }
 }
 
 function showLoading(show) {
