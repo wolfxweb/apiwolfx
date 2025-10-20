@@ -75,7 +75,7 @@ thead.table-dark th {
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label for="shipping_type" class="form-label">Tipo de Envio</label>
-                            <select name="shipping_type" id="shipping_type" class="form-select">
+                            <select name="shipping_type" id="shipping_type" class="form-select" onchange="applyFilters()">
                                 <option value="">Todos os tipos</option>
                                 <option value="me2">Mercado Envios</option>
                                 <option value="fulfillment">Full Mercado Livre</option>
@@ -85,7 +85,7 @@ thead.table-dark th {
                         </div>
                         <div class="col-md-3">
                             <label for="catalog_listing" class="form-label">Catálogo</label>
-                            <select name="catalog_listing" id="catalog_listing" class="form-select">
+                            <select name="catalog_listing" id="catalog_listing" class="form-select" onchange="applyFilters()">
                                 <option value="">Todos</option>
                                 <option value="true">Apenas catálogo</option>
                                 <option value="false">Apenas não catálogo</option>
@@ -93,13 +93,10 @@ thead.table-dark th {
                         </div>
                         <div class="col-md-4">
                             <label for="sku_filter" class="form-label">Produto ou SKU</label>
-                            <input type="text" name="sku_filter" id="sku_filter" class="form-control" placeholder="Buscar por nome ou SKU..." onkeypress="if(event.key === 'Enter') applyFilters()">
+                            <input type="text" name="sku_filter" id="sku_filter" class="form-control" placeholder="Buscar por nome ou SKU..." oninput="applyFilters()">
                         </div>
-                        <div class="col-md-2 d-flex align-items-end gap-2">
-                            <button type="button" class="btn btn-primary flex-fill" onclick="applyFilters()">
-                                <i class="bi bi-search"></i> Aplicar
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary flex-fill" onclick="clearFilters()">
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
                                 <i class="bi bi-x-circle"></i> Limpar
                             </button>
                         </div>
@@ -479,6 +476,12 @@ function loadMLAccounts() {
         return response.json();
     })
     .then(data => {
+        // Verificar se a sessão expirou baseado no conteúdo da resposta
+        if (data && data.detail === "Sessão não encontrada") {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
         if (data && data.success) {
             mlAccounts = data.accounts;
             
@@ -589,6 +592,12 @@ function loadProducts(page = 1) {
         return response.json();
     })
     .then(data => {
+        // Verificar se a sessão expirou baseado no conteúdo da resposta
+        if (data && data.detail === "Sessão não encontrada") {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
         if (data && data.success) {
             renderProducts(data.products);
             updatePagination(data.page, data.limit, data.total, data.has_next, data.has_prev);
