@@ -714,7 +714,13 @@ async def get_bank_accounts(
             "is_main_account": acc.is_main_account,  # Adicionado campo is_main_account
             "description": acc.description,
             "created_at": acc.created_at,
-            "company_id": acc.company_id
+            "company_id": acc.company_id,
+            # Campos específicos para cartão de crédito
+            "limit_amount": float(acc.limit_amount) if acc.limit_amount else None,
+            "card_number": acc.card_number,
+            "invoice_due_day": acc.invoice_due_day,
+            "holder_name": acc.holder_name,
+            "holder_document": acc.holder_document
         }
         for acc in accounts
     ]
@@ -1115,7 +1121,13 @@ async def create_bank_account(
         current_balance=float(account_data.get("initial_balance", 0)), # Saldo atual começa com o saldo inicial
         is_active=account_data.get("is_active", True),
         is_main_account=account_data.get("is_main_account", False),
-        description=account_data.get("description")
+        description=account_data.get("description"),
+        # Campos específicos para cartão de crédito
+        limit_amount=float(account_data.get("limit_amount", 0)) if account_data.get("limit_amount") else None,
+        card_number=account_data.get("card_number"),
+        invoice_due_day=int(account_data.get("invoice_due_day")) if account_data.get("invoice_due_day") else None,
+        holder_name=account_data.get("holder_name"),
+        holder_document=account_data.get("holder_document")
     )
     
     logger.info(f"✅ Nova conta criada com is_main_account: {new_account.is_main_account}")
@@ -1184,6 +1196,18 @@ async def update_bank_account(
         logger.warning("⚠️ Campo is_main_account não encontrado nos dados recebidos")
     if account_data.get("description") is not None:
         account.description = account_data.get("description")
+    
+    # Campos específicos para cartão de crédito
+    if account_data.get("limit_amount") is not None:
+        account.limit_amount = float(account_data.get("limit_amount")) if account_data.get("limit_amount") else None
+    if account_data.get("card_number") is not None:
+        account.card_number = account_data.get("card_number")
+    if account_data.get("invoice_due_day") is not None:
+        account.invoice_due_day = int(account_data.get("invoice_due_day")) if account_data.get("invoice_due_day") else None
+    if account_data.get("holder_name") is not None:
+        account.holder_name = account_data.get("holder_name")
+    if account_data.get("holder_document") is not None:
+        account.holder_document = account_data.get("holder_document")
     
     db.commit()
     

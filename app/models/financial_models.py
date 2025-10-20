@@ -58,13 +58,19 @@ class FinancialAccount(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     
-    # Dados bancários (apenas colunas que existem no banco)
+    # Dados bancários
     bank_name = Column(String(255), nullable=False)
     account_name = Column(String(255), nullable=False)
     account_type = Column(String(50), nullable=False)  # Não é enum no banco
     agency = Column(String(50))
     account_number = Column(String(50))
-    # Observação: campos de cartão serão adicionados via migration posteriormente
+    
+    # Campos específicos para cartão de crédito
+    limit_amount = Column(Numeric(15, 2))  # Limite do cartão
+    card_number = Column(String(32))  # Número do cartão
+    invoice_due_day = Column(Integer)  # Dia de vencimento da fatura
+    holder_name = Column(String(255))  # Nome do titular
+    holder_document = Column(String(50))  # CPF/CNPJ do titular
     
     # Informações financeiras
     initial_balance = Column(Numeric(15, 2), default=0)

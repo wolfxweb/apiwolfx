@@ -241,7 +241,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="initialBalance" class="form-label">Saldo Inicial</label>
+                                <label for="initialBalance" class="form-label">Saldo / Fatura</label>
                                 <input type="number" class="form-control" id="initialBalance" step="0.01" placeholder="0.00">
                                 <div class="form-text" id="initialBalanceHelp">Saldo atual da conta</div>
                             </div>
@@ -481,7 +481,7 @@ function toggleCreditCardFields() {
     const isCredit = (type === 'credit');
     extra.style.display = isCredit ? 'flex' : 'none';
     if (help) {
-        help.textContent = isCredit ? 'Valor atual da fatura' : 'Saldo atual da conta';
+        help.textContent = isCredit ? 'Valor atual da fatura (limite disponível)' : 'Saldo atual da conta';
     }
 }
 
@@ -577,8 +577,15 @@ function showCreateAccountModal() {
     if (typeSel) typeSel.value = '';
     const cardNumber = document.getElementById('cardNumber');
     const invoiceDueDay = document.getElementById('invoiceDueDay');
+    const holderName = document.getElementById('holderName');
+    const holderDocument = document.getElementById('holderDocument');
+    const limitAmount = document.getElementById('limitAmount');
+    
     if (cardNumber) cardNumber.value = '';
     if (invoiceDueDay) invoiceDueDay.value = '';
+    if (holderName) holderName.value = '';
+    if (holderDocument) holderDocument.value = '';
+    if (limitAmount) limitAmount.value = '';
     
     const modal = new bootstrap.Modal(document.getElementById('accountModal'));
     modal.show();
@@ -600,6 +607,8 @@ function editAccount(id) {
     document.getElementById('accountNumber').value = account.account_number || '';
     document.getElementById('initialBalance').value = account.current_balance || '';
     document.getElementById('limitAmount').value = account.limit_amount || '';
+    document.getElementById('cardNumber').value = account.card_number || '';
+    document.getElementById('invoiceDueDay').value = account.invoice_due_day || '';
     document.getElementById('holderName').value = account.holder_name || '';
     document.getElementById('holderDocument').value = account.holder_document || '';
     document.getElementById('accountDescription').value = account.description || '';
@@ -627,6 +636,7 @@ async function saveAccount() {
         account_type: document.getElementById('accountType').value,
         agency: document.getElementById('agency').value,
         account_number: document.getElementById('accountNumber').value,
+        initial_balance: document.getElementById('initialBalance').value || 0,
         current_balance: document.getElementById('initialBalance').value || 0,
         limit_amount: document.getElementById('limitAmount').value || null,
         holder_name: document.getElementById('holderName').value,
