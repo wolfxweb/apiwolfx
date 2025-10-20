@@ -48,11 +48,11 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <label for="searchInput" class="form-label">Buscar</label>
-                                <input type="text" class="form-control" id="searchInput" placeholder="Pedido, conta, valor...">
+                                <input type="text" class="form-control" id="searchInput" placeholder="Pedido, conta, valor..." oninput="filterHistory()">
                             </div>
                             <div class="col-md-2">
                                 <label for="statusFilter" class="form-label">Status</label>
-                                <select class="form-select" id="statusFilter">
+                                <select class="form-select" id="statusFilter" onchange="filterHistory()">
                                     <option value="">Todos</option>
                                     <option value="processed">Lançados</option>
                                     <option value="pending">Pendentes</option>
@@ -60,11 +60,11 @@
                             </div>
                             <div class="col-md-2">
                                 <label for="dateFrom" class="form-label">Data Início</label>
-                                <input type="date" class="form-control" id="dateFrom">
+                                <input type="date" class="form-control" id="dateFrom" onchange="filterHistory()">
                             </div>
                             <div class="col-md-2">
                                 <label for="dateTo" class="form-label">Data Fim</label>
-                                <input type="date" class="form-control" id="dateTo">
+                                <input type="date" class="form-control" id="dateTo" onchange="filterHistory()">
                             </div>
                             <div class="col-md-2">
                                 <label for="periodFilter" class="form-label">Período</label>
@@ -83,11 +83,25 @@
                                 </select>
                             </div>
                             <div class="col-md-1 d-flex align-items-end">
-                                <button class="btn btn-primary me-2" onclick="filterHistory()">
-                                    <i class="bi bi-search"></i> Filtrar
-                                </button>
                                 <button class="btn btn-outline-secondary" onclick="clearFilters()">
                                     <i class="bi bi-x-circle"></i> Limpar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Período personalizado (oculto por padrão) -->
+                        <div class="row mt-3" id="customPeriodRow" style="display: none;">
+                            <div class="col-md-3">
+                                <label for="customDateFrom" class="form-label">Data Início Personalizada</label>
+                                <input type="date" class="form-control" id="customDateFrom">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="customDateTo" class="form-label">Data Fim Personalizada</label>
+                                <input type="date" class="form-control" id="customDateTo">
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <button class="btn btn-outline-primary" onclick="applyCustomPeriod()">
+                                    <i class="bi bi-check-circle"></i> Aplicar Período
                                 </button>
                             </div>
                         </div>
@@ -454,29 +468,116 @@
             const statusFilter = document.getElementById('statusFilter').value;
             const dateFrom = document.getElementById('dateFrom').value;
             const dateTo = document.getElementById('dateTo').value;
+            const periodFilter = document.getElementById('periodFilter').value;
+
+            console.log('🔍 Filtro de busca:', {
+                searchTerm,
+                totalData: allHistoryData.length,
+                statusFilter,
+                dateFrom,
+                dateTo,
+                periodFilter
+            });
 
             filteredData = allHistoryData.filter(entry => {
                 // Filtro de busca
                 const matchesSearch = !searchTerm || 
-                    entry.ml_order_id.toLowerCase().includes(searchTerm) ||
-                    (entry.cash_entry_account_name && entry.cash_entry_account_name.toLowerCase().includes(searchTerm)) ||
-                    entry.ml_order_id.includes(searchTerm);
+                    (entry.ml_order_id && entry.ml_order_id.toString().toLowerCase().includes(searchTerm)) ||
+                    (entry.buyer_nickname && entry.buyer_nickname.toString().toLowerCase().includes(searchTerm)) ||
+                    (entry.cash_entry_account_name && entry.cash_entry_account_name.toString().toLowerCase().includes(searchTerm)) ||
+                    (entry.ml_order_id && entry.ml_order_id.toString().includes(searchTerm)) ||
+                    (entry.total_amount && entry.total_amount.toString().includes(searchTerm)) ||
+                    (entry.total_fees && entry.total_fees.toString().includes(searchTerm)) ||
+                    ((entry.total_amount || 0) - (entry.total_fees || 0)).toString().includes(searchTerm);
+
+                if (searchTerm) {
+                    console.log('🔍 Verificando entrada:', {
+                        ml_order_id: entry.ml_order_id,
+                        buyer_nickname: entry.buyer_nickname,
+                        total_amount: entry.total_amount,
+                        total_fees: entry.total_fees,
+                        net_amount: (entry.total_amount || 0) - (entry.total_fees || 0),
+                        matchesSearch
+                    });
+                }
 
                 // Filtro de status
                 const matchesStatus = !statusFilter || 
                     (statusFilter === 'processed' && entry.cash_entry_created) ||
                     (statusFilter === 'pending' && !entry.cash_entry_created);
 
-                // Filtro de data
+                // Filtro de data/período
                 const entryDate = new Date(entry.date_closed);
-                const matchesDateFrom = !dateFrom || entryDate >= new Date(dateFrom);
-                const matchesDateTo = !dateTo || entryDate <= new Date(dateTo + 'T23:59:59');
+                let matchesDate = true;
 
-                return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
+                if (periodFilter && !dateFrom && !dateTo) {
+                    // Aplicar filtro de período
+                    const today = new Date();
+                    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+
+                    switch (periodFilter) {
+                        case 'today':
+                            matchesDate = entryDate >= startOfToday && entryDate <= endOfToday;
+                            break;
+                        case 'this_week':
+                            const startOfWeek = new Date(today);
+                            startOfWeek.setDate(today.getDate() - today.getDay());
+                            startOfWeek.setHours(0, 0, 0, 0);
+                            matchesDate = entryDate >= startOfWeek;
+                            break;
+                        case 'this_month':
+                            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                            matchesDate = entryDate >= startOfMonth;
+                            break;
+                        case 'last_month':
+                            const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                            const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                            matchesDate = entryDate >= startOfLastMonth && entryDate <= endOfLastMonth;
+                            break;
+                        case 'next_month':
+                            const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+                            const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+                            matchesDate = entryDate >= startOfNextMonth && entryDate <= endOfNextMonth;
+                            break;
+                        case 'next_30_days':
+                            const next30Days = new Date(today);
+                            next30Days.setDate(today.getDate() + 30);
+                            matchesDate = entryDate >= today && entryDate <= next30Days;
+                            break;
+                        case 'next_60_days':
+                            const next60Days = new Date(today);
+                            next60Days.setDate(today.getDate() + 60);
+                            matchesDate = entryDate >= today && entryDate <= next60Days;
+                            break;
+                        case 'next_90_days':
+                            const next90Days = new Date(today);
+                            next90Days.setDate(today.getDate() + 90);
+                            matchesDate = entryDate >= today && entryDate <= next90Days;
+                            break;
+                        case 'this_year':
+                            const startOfYear = new Date(today.getFullYear(), 0, 1);
+                            matchesDate = entryDate >= startOfYear;
+                            break;
+                    }
+                } else if (dateFrom || dateTo) {
+                    // Aplicar filtro de data personalizada
+                    const matchesDateFrom = !dateFrom || entryDate >= new Date(dateFrom);
+                    const matchesDateTo = !dateTo || entryDate <= new Date(dateTo + 'T23:59:59');
+                    matchesDate = matchesDateFrom && matchesDateTo;
+                }
+
+                return matchesSearch && matchesStatus && matchesDate;
             });
 
             // Resetar para primeira página ao aplicar filtros
             currentPage = 1;
+            
+            console.log('📊 Resultado do filtro:', {
+                originalData: allHistoryData.length,
+                filteredData: filteredData.length,
+                searchTerm
+            });
             
             renderHistoryTable();
         }
@@ -486,12 +587,42 @@
             document.getElementById('statusFilter').value = '';
             document.getElementById('dateFrom').value = '';
             document.getElementById('dateTo').value = '';
+            document.getElementById('periodFilter').value = '';
+            document.getElementById('customDateFrom').value = '';
+            document.getElementById('customDateTo').value = '';
+            document.getElementById('customPeriodRow').style.display = 'none';
             filteredData = [...allHistoryData];
             
             // Resetar para primeira página ao limpar filtros
             currentPage = 1;
             
             renderHistoryTable();
+        }
+
+        // Função para alternar período personalizado
+        function toggleCustomPeriod() {
+            const periodFilter = document.getElementById('periodFilter').value;
+            const customPeriodRow = document.getElementById('customPeriodRow');
+            
+            if (periodFilter === 'custom') {
+                customPeriodRow.style.display = 'block';
+            } else {
+                customPeriodRow.style.display = 'none';
+            }
+        }
+
+        // Função para aplicar período personalizado
+        function applyCustomPeriod() {
+            const customDateFrom = document.getElementById('customDateFrom').value;
+            const customDateTo = document.getElementById('customDateTo').value;
+            
+            if (customDateFrom && customDateTo) {
+                document.getElementById('dateFrom').value = customDateFrom;
+                document.getElementById('dateTo').value = customDateTo;
+                filterHistory();
+            } else {
+                alert('Por favor, selecione ambas as datas para o período personalizado.');
+            }
         }
 
         async function processPendingEntries() {
