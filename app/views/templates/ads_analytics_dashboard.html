@@ -52,14 +52,11 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Filtros</h5>
-                </div>
                 <div class="card-body">
-                    <div class="row g-3">
+                    <div class="row g-3 justify-content-end">
                         <div class="col-md-2">
                             <label for="period_filter" class="form-label">Período</label>
-                            <select id="period_filter" class="form-select" onchange="handlePeriodChange()">
+                            <select id="period_filter" class="form-select" onchange="handlePeriodChange(); applyFilters();">
                                 <option value="1">Hoje</option>
                                 <option value="7">Últimos 7 dias</option>
                                 <option value="15">Últimos 15 dias</option>
@@ -71,21 +68,18 @@
                         </div>
                         <div class="col-md-2" id="date_from_container" style="display: none;">
                             <label for="date_from" class="form-label">Data Inicial</label>
-                            <input type="date" id="date_from" class="form-control">
+                            <input type="date" id="date_from" class="form-control" onchange="applyFilters()">
                         </div>
                         <div class="col-md-2" id="date_to_container" style="display: none;">
                             <label for="date_to" class="form-label">Data Final</label>
-                            <input type="date" id="date_to" class="form-control">
+                            <input type="date" id="date_to" class="form-control" onchange="applyFilters()">
                         </div>
                         <div class="col-md-3">
                             <label for="search_filter" class="form-label">Buscar Produto</label>
-                            <input type="text" id="search_filter" class="form-control" placeholder="Nome ou SKU...">
+                            <input type="text" id="search_filter" class="form-control" placeholder="Nome ou SKU..." oninput="applyFilters()">
                         </div>
-                        <div class="col-md-2 d-flex align-items-end gap-2">
-                            <button type="button" class="btn btn-primary flex-fill" onclick="applyFilters()">
-                                <i class="bi bi-search"></i> Aplicar
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary flex-fill" onclick="clearFilters()">
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
                                 <i class="bi bi-x-circle"></i> Limpar
                             </button>
                         </div>
