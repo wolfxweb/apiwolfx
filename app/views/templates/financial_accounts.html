@@ -18,14 +18,14 @@
 <div class="card mb-4">
     <div class="card-body">
         <div class="row g-3">
-            <div class="col-md-4">
+            <!-- Busca -->
+            <div class="col-md-6">
                 <label for="searchInput" class="form-label">Buscar</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome, banco ou agência..." onkeyup="filterAccounts()">
-                </div>
+                <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nome, banco ou agência..." onkeyup="filterAccounts()">
             </div>
-            <div class="col-md-3">
+            
+            <!-- Tipo -->
+            <div class="col-md-2">
                 <label for="typeFilter" class="form-label">Tipo</label>
                 <select class="form-select" id="typeFilter" onchange="filterAccounts()">
                     <option value="">Todos os Tipos</option>
@@ -35,7 +35,9 @@
                     <option value="credit">Cartão de Crédito</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            
+            <!-- Status -->
+            <div class="col-md-2">
                 <label for="statusFilter" class="form-label">Status</label>
                 <select class="form-select" id="statusFilter" onchange="filterAccounts()">
                     <option value="">Todos os Status</option>
@@ -43,12 +45,24 @@
                     <option value="inactive">Inativo</option>
                 </select>
             </div>
-            <div class="col-md-2">
+            
+            <!-- Banco -->
+            <div class="col-md-1">
                 <label for="bankFilter" class="form-label">Banco</label>
                 <select class="form-select" id="bankFilter" onchange="filterAccounts()">
                     <option value="">Todos os Bancos</option>
                     <!-- Bancos carregados via JavaScript -->
                 </select>
+            </div>
+            
+            <!-- Ações -->
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()" style="white-space: nowrap;">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -458,6 +472,17 @@ function filterAccounts() {
     
     // Renderizar contas filtradas
     renderAccounts();
+}
+
+// Função para limpar todos os filtros
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('typeFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('bankFilter').value = '';
+    
+    // Aplicar filtro vazio (mostrar todas as contas)
+    filterAccounts();
 }
 
 // Função para atualizar filtro de bancos
