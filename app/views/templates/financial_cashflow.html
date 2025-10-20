@@ -12,9 +12,9 @@
     <div class="card-body">
         <div class="row g-3">
             <!-- Período -->
-            <div class="col-md-3">
+            <div class="col-12 col-md-4">
                 <label for="periodFilter" class="form-label">Período</label>
-                <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod()">
+                <select class="form-select" id="periodFilter" onchange="onPeriodChange()">
                     <option value="">Todos os períodos</option>
                     <option value="today">Hoje</option>
                     <option value="this_week">Esta semana</option>
@@ -30,9 +30,9 @@
             </div>
             
             <!-- Tipo -->
-            <div class="col-md-2">
+            <div class="col-12 col-md-3">
                 <label for="typeFilter" class="form-label">Tipo</label>
-                <select class="form-select" id="typeFilter">
+                <select class="form-select" id="typeFilter" onchange="onTypeOrStatusChange()">
                     <option value="">Todos</option>
                     <option value="receivable">Contas a Receber</option>
                     <option value="payable">Contas a Pagar</option>
@@ -41,9 +41,9 @@
             </div>
             
             <!-- Status -->
-            <div class="col-md-2">
+            <div class="col-12 col-md-3">
                 <label for="statusFilter" class="form-label">Status</label>
-                <select class="form-select" id="statusFilter">
+                <select class="form-select" id="statusFilter" onchange="onTypeOrStatusChange()">
                     <option value="">Todos</option>
                     <option value="pending">Pendente</option>
                     <option value="paid">Pago</option>
@@ -53,13 +53,9 @@
             </div>
             
             <!-- Ações -->
-            <div class="col-md-2">
-                <label class="form-label">&nbsp;</label>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
-                        <i class="bi bi-search"></i> Filtrar
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+            <div class="col-12 col-md-2 d-flex align-items-end">
+                <div class="w-100 text-md-end">
+                    <button type="button" class="btn btn-outline-secondary w-100 w-md-auto" onclick="clearFilters()">
                         <i class="bi bi-x-circle"></i> Limpar
                     </button>
                 </div>
@@ -70,11 +66,11 @@
         <div class="row g-3 mt-2" id="customPeriodRow" style="display: none;">
             <div class="col-md-3">
                 <label for="dateFrom" class="form-label">Data inicial</label>
-                <input type="date" class="form-control" id="dateFrom">
+                <input type="date" class="form-control" id="dateFrom" onchange="onCustomDateChange()">
             </div>
             <div class="col-md-3">
                 <label for="dateTo" class="form-label">Data final</label>
-                <input type="date" class="form-control" id="dateTo">
+                <input type="date" class="form-control" id="dateTo" onchange="onCustomDateChange()">
             </div>
         </div>
     </div>
@@ -95,7 +91,10 @@
                                data-bs-placement="top" 
                                title="Valor já recebido: contas a receber pagas + pedidos ML recebidos"></i>
                         </h6>
-                        <h4 class="mb-0" id="receivedInflows">R$ 0,00</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="receivedInflowsSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="receivedInflows">R$ 0,00</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-check-circle fs-1"></i>
@@ -116,7 +115,10 @@
                                data-bs-placement="top" 
                                title="Valor a receber: contas a receber pendentes + pedidos ML pendentes"></i>
                         </h6>
-                        <h4 class="mb-0" id="pendingInflows">R$ 0,00</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="pendingInflowsSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="pendingInflows">R$ 0,00</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-clock fs-1"></i>
@@ -137,7 +139,10 @@
                                data-bs-placement="top" 
                                title="Soma de todas as saídas: contas a pagar (pagas e pendentes)"></i>
                         </h6>
-                        <h4 class="mb-0" id="expectedOutflows">R$ 0,00</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="expectedOutflowsSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="expectedOutflows">R$ 0,00</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-arrow-up-circle fs-1"></i>
@@ -162,7 +167,10 @@
                                data-bs-placement="top" 
                                title="Diferença entre entradas e saídas previstas (Entradas - Saídas)"></i>
                         </h6>
-                        <h4 class="mb-0" id="expectedBalance">R$ 0,00</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="expectedBalanceSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="expectedBalance">R$ 0,00</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-calculator fs-1"></i>
@@ -183,7 +191,10 @@
                                data-bs-placement="top" 
                                title="Saldo das contas bancárias + entradas já recebidas - saídas já pagas (valor real disponível)"></i>
                         </h6>
-                        <h4 class="mb-0" id="currentBalance">R$ 0,00</h4>
+                        <div class="d-flex align-items-center">
+                            <div id="currentBalanceSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                            <h4 class="mb-0 d-none" id="currentBalance">R$ 0,00</h4>
+                        </div>
                     </div>
                     <div class="align-self-center">
                         <i class="bi bi-wallet2 fs-1"></i>
@@ -261,22 +272,38 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para carregar dados do fluxo de caixa
 async function loadCashflowData() {
     try {
-        const response = await fetch('/api/financial/cashflow', {
+        // Mostrar spinners e ocultar valores
+        setCardsLoading(true);
+        const period = document.getElementById('periodFilter').value || '';
+        const dateFrom = document.getElementById('dateFrom').value || '';
+        const dateTo = document.getElementById('dateTo').value || '';
+        const params = new URLSearchParams();
+        if (period) params.append('period', period);
+        if (period === 'custom') {
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+        }
+
+        const url = `/api/financial/cashflow${params.toString() ? '?' + params.toString() : ''}`;
+        const response = await fetch(url, {
             credentials: 'include'
         });
         if (response.ok) {
             const responseData = await response.json();
             cashflowData = responseData.cashflow_items || [];
             totalCurrentBalance = responseData.total_current_balance || 0;
-            // Aplicar filtro automático do mês atual
+            // Aplicar filtro no cliente também (para tipo/status)
             filterCashflowData();
             updateCashflowStats();
+            setCardsLoading(false);
         } else {
             showAlert('Erro ao carregar dados do fluxo de caixa', 'danger');
+            setCardsLoading(false);
         }
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao carregar dados do fluxo de caixa', 'danger');
+        setCardsLoading(false);
     }
 }
 
@@ -389,6 +416,29 @@ function updateCashflowStats() {
     // Saldo atual = saldo das contas bancárias + entradas processadas - saídas processadas
     const currentBalance = totalCurrentBalance + processedInflows - processedOutflows;
     document.getElementById('currentBalance').textContent = 'R$ ' + currentBalance.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+}
+
+// Controla exibição de spinners nos cards
+function setCardsLoading(isLoading) {
+    const pairs = [
+        { spinner: 'receivedInflowsSpinner', value: 'receivedInflows' },
+        { spinner: 'pendingInflowsSpinner', value: 'pendingInflows' },
+        { spinner: 'expectedOutflowsSpinner', value: 'expectedOutflows' },
+        { spinner: 'expectedBalanceSpinner', value: 'expectedBalance' },
+        { spinner: 'currentBalanceSpinner', value: 'currentBalance' },
+    ];
+    pairs.forEach(p => {
+        const sp = document.getElementById(p.spinner);
+        const val = document.getElementById(p.value);
+        if (!sp || !val) return;
+        if (isLoading) {
+            sp.classList.remove('d-none');
+            val.classList.add('d-none');
+        } else {
+            sp.classList.add('d-none');
+            val.classList.remove('d-none');
+        }
+    });
 }
 
 // Função para renderizar dados do fluxo de caixa
@@ -556,7 +606,8 @@ function changePage(page) {
 
 // Função para aplicar filtros
 function applyFilters() {
-    filterCashflowData();
+    // Recarrega do servidor com período (mantém filtros de tipo/status no cliente)
+    loadCashflowData();
 }
 
 // Função para limpar filtros
@@ -582,6 +633,30 @@ function toggleCustomPeriod() {
         customPeriodRow.style.display = 'block';
     } else {
         customPeriodRow.style.display = 'none';
+    }
+}
+
+// Auto-aplicar: quando mudar período, recarrega do servidor
+function onPeriodChange() {
+    toggleCustomPeriod();
+    const period = document.getElementById('periodFilter').value;
+    if (period === 'custom') {
+        // Espera o usuário escolher datas; não carrega ainda
+        return;
+    }
+    loadCashflowData();
+}
+
+// Auto-aplicar: quando mudar tipo ou status, filtra no cliente
+function onTypeOrStatusChange() {
+    filterCashflowData();
+}
+
+// Auto-aplicar: em período personalizado, ao mudar datas recarrega do servidor
+function onCustomDateChange() {
+    const period = document.getElementById('periodFilter').value;
+    if (period === 'custom') {
+        loadCashflowData();
     }
 }
 

@@ -2302,6 +2302,9 @@ async def get_financial_customers(
 
 @financial_router.get("/api/financial/cashflow")
 async def get_cashflow_data(
+    period: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -2324,6 +2327,55 @@ async def get_cashflow_data(
     
     # Lista para armazenar todos os itens do fluxo de caixa
     cashflow_items = []
+    period_start = None
+    period_end = None
+
+    # Calcular período, se informado
+    try:
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        if period:
+            if period == "today":
+                period_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+                period_end = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif period == "this_week":
+                days_since_monday = today.weekday()
+                period_start = (today - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+                period_end = (period_start + timedelta(days=6)).replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif period == "this_month":
+                period_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                period_end = (period_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                period_end = period_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif period == "last_month":
+                period_start = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+                period_end = today.replace(day=1) - timedelta(days=1)
+                period_start = period_start.replace(hour=0, minute=0, second=0, microsecond=0)
+                period_end = period_end.replace(hour=23, minute=59, second=0, microsecond=0)
+            elif period == "next_month":
+                next_month = today.replace(day=1) + timedelta(days=32)
+                period_start = next_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                period_end = (period_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                period_end = period_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif period == "next_30_days":
+                period_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+                period_end = (today + timedelta(days=30)).replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif period == "next_60_days":
+                period_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+                period_end = (today + timedelta(days=60)).replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif period == "next_90_days":
+                period_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+                period_end = (today + timedelta(days=90)).replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif period == "this_year":
+                period_start = today.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                period_end = today.replace(month=12, day=31, hour=23, minute=59, second=59, microsecond=999999)
+        if date_from and date_to:
+            # Sobrescreve se período personalizado foi informado
+            period_start = datetime.fromisoformat(date_from)
+            period_end = datetime.fromisoformat(date_to)
+    except Exception:
+        # Em caso de erro de parsing, ignora filtro de período
+        period_start = None
+        period_end = None
     
     # 1. Buscar contas a receber (todas, incluindo pagas)
     receivables = db.query(AccountReceivable).filter(
@@ -2429,6 +2481,28 @@ async def get_cashflow_data(
                 "is_paid": ml_status == "received"
             })
     
+    # Aplicar filtro por período (servidor) se definido
+    if period_start or period_end:
+        def in_range(item_date_str: Optional[str]) -> bool:
+            if not item_date_str:
+                return False
+            try:
+                d = datetime.fromisoformat(item_date_str.replace('Z', '+00:00'))
+                # Normalizar para naive (sem timezone) para comparação consistente
+                if d.tzinfo is not None:
+                    d = d.astimezone(tz=None).replace(tzinfo=None)
+            except Exception:
+                return False
+            # Garantir que limites também sejam naive
+            ps = period_start.replace(tzinfo=None) if period_start else None
+            pe = period_end.replace(tzinfo=None) if period_end else None
+            if ps and d < ps:
+                return False
+            if pe and d > pe:
+                return False
+            return True
+        cashflow_items = [it for it in cashflow_items if in_range(it.get('date'))]
+
     # Ordenar por data
     cashflow_items.sort(key=lambda x: x['date'] or '9999-12-31')
     
