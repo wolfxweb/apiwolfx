@@ -751,8 +751,9 @@ function changePage(page) {
 
 // Função para atualizar transações
 function refreshTransactions() {
-    loadTransactions();
-    updateCurrentBalance();
+    // Abrir tela de histórico ML com account_id atual
+    const url = `/ml-cash/history?account_id=${accountId}`;
+    window.open(url, '_blank');
 }
 
 // Função para atualizar saldo atual

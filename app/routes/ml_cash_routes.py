@@ -242,7 +242,7 @@ async def get_cash_history(
         from app.models.financial_models import FinancialAccount
         from sqlalchemy import and_, or_, func, desc
         
-        # Query para buscar todos os pedidos ML da empresa
+        # Query otimizada para buscar pedidos ML da empresa
         filters = [
             MLOrder.company_id == company_id,
             or_(
@@ -254,88 +254,28 @@ async def get_cash_history(
             )
         ]
         
-        # Adicionar filtro por conta se especificado
-        if account_id:
-            # Quando account_id é especificado, mostrar TODOS os pedidos entregues da empresa
-            # (tanto os já lançados quanto os pendentes) para que possam ser processados
-            # Não adicionar filtro por cash_entry_account_id aqui
-            pass
-        # Se não especificou conta, mostrar todos os pedidos da empresa (já filtrado por company_id)
+        # Query otimizada com JOIN para buscar dados da conta em uma única consulta
+        from sqlalchemy.orm import joinedload
         
-        orders_query = db.query(MLOrder).filter(and_(*filters)).order_by(desc(MLOrder.date_closed))
+        orders_query = db.query(MLOrder).options(
+            joinedload(MLOrder.cash_entry_account)
+        ).filter(and_(*filters)).order_by(desc(MLOrder.date_closed))
         
-        orders = orders_query.all()
+        # Limitar resultados para melhor performance (últimos 1000 pedidos)
+        orders = orders_query.limit(1000).all()
         
-        # Debug: Log dos resultados
-        print(f"🔍 Buscando histórico para company_id={company_id}, account_id={account_id}")
-        print(f"📊 Total de pedidos encontrados: {len(orders)}")
+        # Log simplificado para performance
+        logger.info(f"🔍 Histórico ML carregado: {len(orders)} pedidos para company_id={company_id}")
         
-        if len(orders) == 0:
-            # Verificar se há pedidos ML para esta empresa
-            total_ml_orders = db.query(MLOrder).filter(MLOrder.company_id == company_id).count()
-            print(f"📦 Total de pedidos ML para empresa {company_id}: {total_ml_orders}")
-            
-            if total_ml_orders > 0:
-                # Verificar status dos pedidos
-                statuses = db.query(MLOrder.status, func.count(MLOrder.id)).filter(
-                    MLOrder.company_id == company_id
-                ).group_by(MLOrder.status).all()
-                print(f"📊 Status dos pedidos: {statuses}")
-                
-                # Verificar pedidos entregues
-                delivered_count = db.query(MLOrder).filter(
-                    and_(
-                        MLOrder.company_id == company_id,
-                        or_(
-                            MLOrder.status == OrderStatus.DELIVERED,
-                            and_(
-                                MLOrder.status == OrderStatus.PAID,
-                                MLOrder.shipping_status == "delivered"
-                            )
-                        )
-                    )
-                ).count()
-                print(f"✅ Pedidos entregues: {delivered_count}")
-                
-                if account_id:
-                    # Verificar se há pedidos lançados nesta conta específica
-                    cash_entries_count = db.query(MLOrder).filter(
-                        and_(
-                            MLOrder.company_id == company_id,
-                            MLOrder.cash_entry_account_id == account_id
-                        )
-                    ).count()
-                    print(f"💰 Pedidos lançados na conta {account_id}: {cash_entries_count}")
-                    
-                    # Verificar se há pedidos entregues mas não lançados
-                    delivered_not_cashed = db.query(MLOrder).filter(
-                        and_(
-                            MLOrder.company_id == company_id,
-                            or_(
-                                MLOrder.status == OrderStatus.DELIVERED,
-                                and_(
-                                    MLOrder.status == OrderStatus.PAID,
-                                    MLOrder.shipping_status == "delivered"
-                                )
-                            ),
-                            MLOrder.cash_entry_created == False
-                        )
-                    ).count()
-                    print(f"⏳ Pedidos entregues mas não lançados: {delivered_not_cashed}")
-        
-        # Processar dados para o frontend
+        # Processar dados para o frontend (otimizado)
         history_data = []
         for order in orders:
             net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
             
-            # Buscar nome da conta bancária se foi lançado
+            # Usar dados já carregados com JOIN (sem consulta adicional)
             account_name = None
-            if order.cash_entry_account_id:
-                account = db.query(FinancialAccount).filter(
-                    FinancialAccount.id == order.cash_entry_account_id
-                ).first()
-                if account:
-                    account_name = account.account_name
+            if hasattr(order, 'cash_entry_account') and order.cash_entry_account:
+                account_name = order.cash_entry_account.account_name
             
             history_data.append({
                 "ml_order_id": order.ml_order_id,

@@ -14,6 +14,32 @@
     </div>
 </div>
 
+<!-- Informação sobre critérios de processamento -->
+<div class="alert alert-info mb-4" role="alert">
+    <div class="d-flex align-items-start">
+        <i class="bi bi-info-circle-fill me-3 mt-1"></i>
+        <div>
+            <h6 class="alert-heading mb-2">
+                <i class="bi bi-clock-history"></i> Critérios de Processamento
+            </h6>
+            <p class="mb-2">
+                <strong>Pedidos processados automaticamente:</strong>
+            </p>
+            <ul class="mb-2">
+                <li>Status: <span class="badge bg-success">PAGO</span> (PAID)</li>
+                <li>Entrega concluída há mais de <strong>7 dias</strong></li>
+                <li>Valor líquido maior que zero</li>
+            </ul>
+            <p class="mb-0 text-muted">
+                <small>
+                    <i class="bi bi-exclamation-triangle"></i> 
+                    Pedidos recentes ou com entrega pendente não serão processados para evitar problemas de devolução.
+                </small>
+            </p>
+        </div>
+    </div>
+</div>
+
         <!-- Filtros -->
         <div class="row mb-4">
             <div class="col-12">
@@ -40,7 +66,23 @@
                                 <label for="dateTo" class="form-label">Data Fim</label>
                                 <input type="date" class="form-control" id="dateTo">
                             </div>
-                            <div class="col-md-3 d-flex align-items-end">
+                            <div class="col-md-2">
+                                <label for="periodFilter" class="form-label">Período</label>
+                                <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); filterHistory();">
+                                    <option value="">Todos os Períodos</option>
+                                    <option value="today">Hoje</option>
+                                    <option value="this_week">Esta Semana</option>
+                                    <option value="this_month">Este Mês</option>
+                                    <option value="last_month">Mês Anterior</option>
+                                    <option value="next_month">Próximo Mês</option>
+                                    <option value="next_30_days">Próximos 30 Dias</option>
+                                    <option value="next_60_days">Próximos 60 Dias</option>
+                                    <option value="next_90_days">Próximos 90 Dias</option>
+                                    <option value="this_year">Este Ano</option>
+                                    <option value="custom">Período Personalizado</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1 d-flex align-items-end">
                                 <button class="btn btn-primary me-2" onclick="filterHistory()">
                                     <i class="bi bi-search"></i> Filtrar
                                 </button>
@@ -145,6 +187,13 @@
                                     <!-- Dados carregados via JavaScript -->
                                 </tbody>
                             </table>
+                            
+                            <!-- Controles de Paginação -->
+                            <nav aria-label="Paginação do histórico" id="paginationNav" style="display: none;">
+                                <ul class="pagination justify-content-center" id="paginationList">
+                                    <!-- Botões de paginação serão inseridos aqui via JavaScript -->
+                                </ul>
+                            </nav>
                         </div>
                         
                         <div id="noDataMessage" class="text-center py-4" style="display: none;">
@@ -176,6 +225,11 @@
         
         let allHistoryData = [];
         let filteredData = [];
+        
+        // Variáveis de paginação
+        let currentPage = 1;
+        let itemsPerPage = 20;
+        let totalPages = 1;
 
         // Carregar histórico ao inicializar
         document.addEventListener('DOMContentLoaded', function() {
@@ -282,17 +336,29 @@
             const tbody = document.getElementById('historyTableBody');
             const table = document.getElementById('historyTable');
             const noDataMessage = document.getElementById('noDataMessage');
+            const paginationNav = document.getElementById('paginationNav');
 
             if (filteredData.length === 0) {
                 table.style.display = 'none';
+                paginationNav.style.display = 'none';
                 noDataMessage.style.display = 'block';
                 return;
             }
 
+            // Calcular paginação
+            totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            currentPage = Math.min(currentPage, totalPages);
+            
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = filteredData.slice(startIndex, endIndex);
+
             table.style.display = 'table';
+            paginationNav.style.display = totalPages > 1 ? 'block' : 'none';
             noDataMessage.style.display = 'none';
 
-            tbody.innerHTML = filteredData.map(entry => `
+            // Renderizar dados da página atual
+            tbody.innerHTML = pageData.map(entry => `
                 <tr>
                     <td>
                         <strong>${entry.ml_order_id}</strong>
@@ -311,7 +377,77 @@
                     </td>
                 </tr>
             `).join('');
+
+            // Renderizar controles de paginação
+            renderPagination();
         }
+
+        // Função para renderizar controles de paginação
+        function renderPagination() {
+            const paginationList = document.getElementById('paginationList');
+            
+            if (totalPages <= 1) {
+                paginationList.innerHTML = '';
+                return;
+            }
+
+            let paginationHTML = '';
+            
+            // Botão Anterior
+            paginationHTML += `
+                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'tabindex="-1"' : ''}>
+                        <i class="bi bi-chevron-left"></i> Anterior
+                    </a>
+                </li>
+            `;
+
+            // Números das páginas
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1)">1</a></li>`;
+                if (startPage > 2) {
+                    paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHTML += `
+                    <li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="goToPage(${i})">${i}</a>
+                    </li>
+                `;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+                paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${totalPages})">${totalPages}</a></li>`;
+            }
+
+            // Botão Próximo
+            paginationHTML += `
+                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'tabindex="-1"' : ''}>
+                        Próximo <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            `;
+
+            paginationList.innerHTML = paginationHTML;
+        }
+
+        // Função para navegar para uma página específica
+        function goToPage(page) {
+            if (page < 1 || page > totalPages) return;
+            
+            currentPage = page;
+            renderHistoryTable();
+        }
+
 
         function filterHistory() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -339,6 +475,9 @@
                 return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
             });
 
+            // Resetar para primeira página ao aplicar filtros
+            currentPage = 1;
+            
             renderHistoryTable();
         }
 
@@ -348,6 +487,10 @@
             document.getElementById('dateFrom').value = '';
             document.getElementById('dateTo').value = '';
             filteredData = [...allHistoryData];
+            
+            // Resetar para primeira página ao limpar filtros
+            currentPage = 1;
+            
             renderHistoryTable();
         }
 
