@@ -10,9 +10,9 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row g-3">
+        <div class="row g-3 justify-content-md-end">
             <!-- Período -->
-            <div class="col-md-4">
+            <div class="col-12 col-md-4">
                 <label for="periodFilter" class="form-label">Período</label>
                 <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); loadDashboardData();">
                     <option value="">Todos os períodos</option>
@@ -30,19 +30,18 @@
             </div>
             
             <!-- Período personalizado (oculto por padrão) -->
-            <div class="col-md-3" id="customPeriodRow" style="display: none;">
+            <div class="col-12 col-md-3" id="customPeriodRow" style="display: none;">
                 <label for="dateFrom" class="form-label">Data inicial</label>
                 <input type="date" class="form-control" id="dateFrom" onchange="loadDashboardData()">
             </div>
-            <div class="col-md-3" id="customPeriodRow2" style="display: none;">
+            <div class="col-12 col-md-3" id="customPeriodRow2" style="display: none;">
                 <label for="dateTo" class="form-label">Data final</label>
                 <input type="date" class="form-control" id="dateTo" onchange="loadDashboardData()">
             </div>
             
             <!-- Ações -->
-            <div class="col-md-2">
-                <label class="form-label">&nbsp;</label>
-                <div class="d-flex gap-2">
+            <div class="col-12 col-md-2 d-flex align-items-end">
+                <div class="w-100 text-md-end">
                     <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
                         <i class="bi bi-x-circle"></i> Limpar
                     </button>

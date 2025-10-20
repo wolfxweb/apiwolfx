@@ -10,9 +10,9 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row g-3">
+        <div class="row  align-items-end">
             <!-- Período -->
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-3">
                 <label for="periodFilter" class="form-label">Período</label>
                 <select class="form-select" id="periodFilter" onchange="onPeriodChange()">
                     <option value="">Todos os períodos</option>
@@ -41,7 +41,7 @@
             </div>
             
             <!-- Status -->
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-4">
                 <label for="statusFilter" class="form-label">Status</label>
                 <select class="form-select" id="statusFilter" onchange="onTypeOrStatusChange()">
                     <option value="">Todos</option>
@@ -54,8 +54,8 @@
             
             <!-- Ações -->
             <div class="col-12 col-md-2 d-flex align-items-end">
-                <div class="w-100 text-md-end">
-                    <button type="button" class="btn btn-outline-secondary w-100 w-md-auto" onclick="clearFilters()">
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
                         <i class="bi bi-x-circle"></i> Limpar
                     </button>
                 </div>
