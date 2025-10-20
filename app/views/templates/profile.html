@@ -62,46 +62,46 @@
                             <p><strong><i class="bi bi-building"></i> Nome:</strong> {{ company.name or 'N/A' }}</p>
                             <p><strong><i class="bi bi-tag"></i> Slug:</strong> {{ company.slug or 'N/A' }}</p>
                             <p><strong><i class="bi bi-hash"></i> ID:</strong> {{ company.id or 'N/A' }}</p>
-        <p><strong><i class="bi bi-globe"></i> Domínio:</strong> {{ company.domain or 'N/A' }}</p>
-    </div>
-    <div class="col-md-6">
-        <p><strong><i class="bi bi-shield-check"></i> Status:</strong>
-            {% if company.status %}
-                {% if company.status == 'active' %}
-                    <span class="badge bg-success">{{ company.status|title }}</span>
-                {% elif company.status == 'trial' %}
-                    <span class="badge bg-warning">{{ company.status|title }}</span>
-                {% elif company.status == 'suspended' %}
-                    <span class="badge bg-danger">{{ company.status|title }}</span>
-                {% else %}
-                    <span class="badge bg-secondary">{{ company.status|title }}</span>
-                {% endif %}
-            {% else %}
-                <span class="badge bg-secondary">N/A</span>
-            {% endif %}
-        </p>
-        <p><strong><i class="bi bi-calendar-plus"></i> Criada em:</strong>
-            {% if company.created_at %}
+                            <p><strong><i class="bi bi-globe"></i> Domínio:</strong> {{ company.domain or 'N/A' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong><i class="bi bi-shield-check"></i> Status:</strong> 
+                                {% if company.status %}
+                                    {% if company.status == 'active' %}
+                                        <span class="badge bg-success">{{ company.status|title }}</span>
+                                    {% elif company.status == 'trial' %}
+                                        <span class="badge bg-warning">{{ company.status|title }}</span>
+                                    {% elif company.status == 'suspended' %}
+                                        <span class="badge bg-danger">{{ company.status|title }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ company.status|title }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary">N/A</span>
+                                {% endif %}
+                            </p>
+                            <p><strong><i class="bi bi-calendar-plus"></i> Criada em:</strong> 
+                                {% if company.created_at %}
                 {% if company.created_at is string %}
                     {{ company.created_at[:10] }}
                 {% else %}
-                    {{ company.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                    {{ company.created_at.strftime('%d/%m/%Y %H:%M') }}
                 {% endif %}
-            {% else %}
-                N/A
-            {% endif %}
-        </p>
-        {% if company.trial_ends_at %}
-        <p><strong><i class="bi bi-clock-history"></i> Trial expira em:</strong>
-            <span class="badge bg-warning text-dark">
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </p>
+                            {% if company.trial_ends_at %}
+                            <p><strong><i class="bi bi-clock-history"></i> Trial expira em:</strong> 
+                                <span class="badge bg-warning text-dark">
                 {% if company.trial_ends_at is string %}
                     {{ company.trial_ends_at[:10] }}
                 {% else %}
-                    {{ company.trial_ends_at.strftime('%d/%m/%Y %H:%M') }}
+                                    {{ company.trial_ends_at.strftime('%d/%m/%Y %H:%M') }}
                 {% endif %}
-            </span>
-        </p>
-        {% endif %}
+                                </span>
+                            </p>
+                            {% endif %}
     </div>
 </div>
 
@@ -231,7 +231,7 @@
                     {% endif %}
                 </label>
             </div>
-        </p>
+                            </p>
                         </div>
                     </div>
                     {% if company.description %}

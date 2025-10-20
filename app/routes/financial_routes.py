@@ -2156,19 +2156,75 @@ async def update_payable_status(
     
     # Atualizar status
     payable.status = new_status
-    
-    # Se marcando como pago, definir data de pagamento
+
+    # Valor base da operação
+    amount_value = float(payable.paid_amount or payable.amount or 0)
+
+    # Conta vinculada: prioriza vinda do payload, senão da própria conta a pagar (se existir)
+    account_id = status_data.get("account_id") or getattr(payable, "account_id", None)
+
+    # Se marcando como pago, definir data/valor e lançar saída na conta
     if new_status == "paid":
         payable.paid_date = datetime.now().date()
-        if not payable.paid_amount:
-            payable.paid_amount = float(payable.amount)
+        if status_data.get("paid_amount") is not None:
+            payable.paid_amount = float(status_data.get("paid_amount"))
+            amount_value = float(payable.paid_amount)
+
+        # Lançar transação na conta vinculada (se houver)
+        if account_id:
+            account = db.query(FinancialAccount).filter(
+                FinancialAccount.id == account_id,
+                FinancialAccount.company_id == company_id
+            ).first()
+            if account:
+                # Atualiza saldo (saída)
+                account.current_balance = float(account.current_balance or 0) - amount_value
+                # Cria transação de débito
+                tx = FinancialTransaction(
+                    company_id=company_id,
+                    account_id=account.id,
+                    transaction_type="debit",
+                    amount=amount_value,
+                    description=f"Pagamento de conta - {payable.description}",
+                    transaction_date=datetime.now().date(),
+                    reference_type="payable",
+                    reference_id=str(payable.id),
+                    supplier_id=getattr(payable, "supplier_id", None),
+                    category_id=getattr(payable, "category_id", None),
+                    cost_center_id=getattr(payable, "cost_center_id", None)
+                )
+                db.add(tx)
+
     else:
-        # Se mudando para outro status, limpar dados de pagamento
-        payable.paid_date = None
-        payable.paid_amount = None
-    
+        # Reversão: se voltando para pendente, limpar dados e estornar eventual transação associada
+        if new_status == "pending":
+            # Limpar dados de pagamento
+            payable.paid_date = None
+            payable.paid_amount = None
+
+            # Estornar transação de referência, se existir
+            existing_tx = db.query(FinancialTransaction).filter(
+                FinancialTransaction.company_id == company_id,
+                FinancialTransaction.reference_type == "payable",
+                FinancialTransaction.reference_id == str(payable.id)
+            ).first()
+            if existing_tx and existing_tx.account_id:
+                account = db.query(FinancialAccount).filter(
+                    FinancialAccount.id == existing_tx.account_id,
+                    FinancialAccount.company_id == company_id
+                ).first()
+                if account:
+                    # Estorna saldo (entrada)
+                    account.current_balance = float(account.current_balance or 0) + float(existing_tx.amount or 0)
+                # Remove transação
+                db.delete(existing_tx)
+        else:
+            # Outros status: apenas limpar datas/valores se não for pago
+            payable.paid_date = None
+            payable.paid_amount = None
+
     db.commit()
-    
+
     logger.info(f"✅ Status da conta a pagar atualizado: {payable.description} -> {new_status} (ID: {payable_id})")
     return {"message": f"Status atualizado para {new_status} com sucesso"}
 
