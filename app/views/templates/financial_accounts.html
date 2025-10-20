@@ -243,7 +243,7 @@
                             <div class="mb-3">
                                 <label for="initialBalance" class="form-label">Saldo Inicial</label>
                                 <input type="number" class="form-control" id="initialBalance" step="0.01" placeholder="0.00">
-                                <div class="form-text">Saldo atual da conta</div>
+                                <div class="form-text" id="initialBalanceHelp">Saldo atual da conta</div>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -317,7 +317,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="saveAccount()">Salvar</button>
+                <button type="button" id="saveAccountBtn" class="btn btn-primary" onclick="saveAccount()">Salvar</button>
             </div>
         </div>
     </div>
@@ -476,8 +476,13 @@ function updateStats() {
 function toggleCreditCardFields() {
     const type = document.getElementById('accountType').value;
     const extra = document.getElementById('creditCardExtraFields');
+    const help = document.getElementById('initialBalanceHelp');
     if (!extra) return;
-    extra.style.display = (type === 'credit') ? 'flex' : 'none';
+    const isCredit = (type === 'credit');
+    extra.style.display = isCredit ? 'flex' : 'none';
+    if (help) {
+        help.textContent = isCredit ? 'Valor atual da fatura' : 'Saldo atual da conta';
+    }
 }
 
 function setStatsLoading(isLoading) {
@@ -609,6 +614,13 @@ function editAccount(id) {
 
 // Função para salvar conta bancária
 async function saveAccount() {
+    // Desabilitar botão para evitar duplo clique
+    const btn = document.getElementById('saveAccountBtn');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Salvando...';
+    }
     const formData = {
         bank_name: document.getElementById('bankName').value,
         account_name: document.getElementById('accountName').value,
@@ -651,6 +663,11 @@ async function saveAccount() {
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao salvar conta bancária', 'danger');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     }
 }
 
