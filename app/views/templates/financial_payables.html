@@ -89,7 +89,10 @@
                             <div class="d-flex justify-content-between">
                                 <div>
                                     <h6 class="card-title">Total a Pagar</h6>
-                                    <h4 class="mb-0" id="totalAmount">R$ 0,00</h4>
+                                    <div class="d-flex align-items-center">
+                                        <div id="totalAmountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                                        <h4 class="mb-0 d-none" id="totalAmount">R$ 0,00</h4>
+                                    </div>
                                 </div>
                                 <div class="align-self-center">
                                     <i class="bi bi-arrow-up-circle fs-1"></i>
@@ -104,7 +107,10 @@
                             <div class="d-flex justify-content-between">
                                 <div>
                                     <h6 class="card-title">Pago</h6>
-                                    <h4 class="mb-0" id="paidAmount">R$ 0,00</h4>
+                                    <div class="d-flex align-items-center">
+                                        <div id="paidAmountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                                        <h4 class="mb-0 d-none" id="paidAmount">R$ 0,00</h4>
+                                    </div>
                                 </div>
                                 <div class="align-self-center">
                                     <i class="bi bi-check-circle fs-1"></i>
@@ -119,7 +125,10 @@
                             <div class="d-flex justify-content-between">
                                 <div>
                                     <h6 class="card-title">Vencido</h6>
-                                    <h4 class="mb-0" id="overdueAmount">R$ 0,00</h4>
+                                    <div class="d-flex align-items-center">
+                                        <div id="overdueAmountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                                        <h4 class="mb-0 d-none" id="overdueAmount">R$ 0,00</h4>
+                                    </div>
                                 </div>
                                 <div class="align-self-center">
                                     <i class="bi bi-exclamation-triangle fs-1"></i>
@@ -134,7 +143,10 @@
                             <div class="d-flex justify-content-between">
                                 <div>
                                     <h6 class="card-title">Pendente</h6>
-                                    <h4 class="mb-0" id="pendingAmount">R$ 0,00</h4>
+                                    <div class="d-flex align-items-center">
+                                        <div id="pendingAmountSpinner" class="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                                        <h4 class="mb-0 d-none" id="pendingAmount">R$ 0,00</h4>
+                                    </div>
                                 </div>
                                 <div class="align-self-center">
                                     <i class="bi bi-clock fs-1"></i>
@@ -402,6 +414,8 @@ function filterPayables() {
     const dueDateFrom = document.getElementById('dueDateFrom').value;
     const dueDateTo = document.getElementById('dueDateTo').value;
     
+    // Mostrar spinners enquanto filtramos e recalculamos
+    setStatsLoading(true);
     filteredPayables = payables.filter(payable => {
         // Filtro de busca
         const matchesSearch = !searchTerm || 
@@ -490,6 +504,28 @@ function clearFilters() {
     document.getElementById('customPeriodRow').style.display = 'none';
     
     filterPayables();
+}
+
+// Controla exibição de spinners nos cards de estatísticas
+function setStatsLoading(isLoading) {
+    const pairs = [
+        { spinner: 'totalAmountSpinner', value: 'totalAmount' },
+        { spinner: 'paidAmountSpinner', value: 'paidAmount' },
+        { spinner: 'overdueAmountSpinner', value: 'overdueAmount' },
+        { spinner: 'pendingAmountSpinner', value: 'pendingAmount' },
+    ];
+    pairs.forEach(p => {
+        const sp = document.getElementById(p.spinner);
+        const val = document.getElementById(p.value);
+        if (!sp || !val) return;
+        if (isLoading) {
+            sp.classList.remove('d-none');
+            val.classList.add('d-none');
+        } else {
+            sp.classList.add('d-none');
+            val.classList.remove('d-none');
+        }
+    });
 }
 
 // Função para obter classe do badge de status
@@ -697,10 +733,8 @@ function updateStats() {
     const dataToUse = filteredPayables;
     
     if (!dataToUse || dataToUse.length === 0) {
-        document.getElementById('totalAmount').textContent = 'R$ 0,00';
-        document.getElementById('paidAmount').textContent = 'R$ 0,00';
-        document.getElementById('overdueAmount').textContent = 'R$ 0,00';
-        document.getElementById('pendingAmount').textContent = 'R$ 0,00';
+    // Mostrar spinners e ocultar valores
+    setStatsLoading(true);
         return;
     }
     
@@ -729,6 +763,8 @@ function updateStats() {
     document.getElementById('paidAmount').textContent = `R$ ${paidAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
     document.getElementById('overdueAmount').textContent = `R$ ${overdueAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
     document.getElementById('pendingAmount').textContent = `R$ ${pendingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+    // Esconder spinners e mostrar valores
+    setStatsLoading(false);
 }
 </script>
 {% endblock %}
