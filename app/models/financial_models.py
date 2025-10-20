@@ -72,6 +72,7 @@ class FinancialAccount(Base):
     # Configurações
     description = Column(Text)
     is_active = Column(Boolean, default=True, index=True)
+    is_main_account = Column(Boolean, default=False, index=True)
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())

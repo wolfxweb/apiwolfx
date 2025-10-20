@@ -711,6 +711,7 @@ async def get_bank_accounts(
             "initial_balance": float(acc.initial_balance),
             "current_balance": float(acc.current_balance),
             "is_active": acc.is_active,
+            "is_main_account": acc.is_main_account,  # Adicionado campo is_main_account
             "description": acc.description,
             "created_at": acc.created_at,
             "company_id": acc.company_id
@@ -1082,6 +1083,10 @@ async def create_bank_account(
     if not account_data.get("account_type"):
         raise HTTPException(status_code=400, detail="Tipo da conta é obrigatório")
     
+    # Log dos dados recebidos
+    logger.info(f"🔍 Dados recebidos para criação de conta: {account_data}")
+    logger.info(f"🔍 Campo is_main_account: {account_data.get('is_main_account')}")
+    
     # Criar nova conta bancária no banco
     new_account = FinancialAccount(
         company_id=company_id,
@@ -1093,8 +1098,11 @@ async def create_bank_account(
         initial_balance=float(account_data.get("initial_balance", 0)),
         current_balance=float(account_data.get("initial_balance", 0)), # Saldo atual começa com o saldo inicial
         is_active=account_data.get("is_active", True),
+        is_main_account=account_data.get("is_main_account", False),
         description=account_data.get("description")
     )
+    
+    logger.info(f"✅ Nova conta criada com is_main_account: {new_account.is_main_account}")
     
     db.add(new_account)
     db.commit()
@@ -1130,6 +1138,10 @@ async def update_bank_account(
     if not account:
         raise HTTPException(status_code=404, detail="Conta bancária não encontrada")
     
+    # Log dos dados recebidos
+    logger.info(f"🔍 Dados recebidos para atualização da conta {account_id}: {account_data}")
+    logger.info(f"🔍 Campo is_main_account: {account_data.get('is_main_account')}")
+    
     # Atualizar campos
     if account_data.get("bank_name"):
         account.bank_name = account_data.get("bank_name")
@@ -1147,6 +1159,12 @@ async def update_bank_account(
         account.current_balance = float(account_data.get("current_balance"))
     if account_data.get("is_active") is not None:
         account.is_active = account_data.get("is_active")
+    # Sempre atualizar is_main_account (mesmo se for False)
+    if "is_main_account" in account_data:
+        account.is_main_account = account_data.get("is_main_account", False)
+        logger.info(f"✅ Campo is_main_account atualizado para: {account.is_main_account}")
+    else:
+        logger.warning("⚠️ Campo is_main_account não encontrado nos dados recebidos")
     if account_data.get("description") is not None:
         account.description = account_data.get("description")
     
