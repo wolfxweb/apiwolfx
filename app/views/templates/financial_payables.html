@@ -285,6 +285,7 @@ async function loadPayables() {
             filteredPayables = [...payables];
             
             // Aplicar filtro do mês atual automaticamente
+            console.log('🔍 Aplicando filtro automático do mês atual...');
             filterPayables();
         } else {
             showAlert('Erro ao carregar contas a pagar', 'danger');
@@ -424,6 +425,14 @@ function filterPayables() {
     const periodFilter = document.getElementById('periodFilter').value;
     const dueDateFrom = document.getElementById('dueDateFrom').value;
     const dueDateTo = document.getElementById('dueDateTo').value;
+    
+    console.log('🔍 Filtros aplicados:', {
+        searchTerm,
+        statusFilter,
+        periodFilter,
+        dueDateFrom,
+        dueDateTo
+    });
     
     // Mostrar spinners enquanto filtramos e recalculamos
     setStatsLoading(true);
