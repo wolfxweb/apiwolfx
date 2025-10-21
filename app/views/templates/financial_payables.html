@@ -295,33 +295,73 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para carregar categorias
 async function loadCategories() {
     try {
+        console.log('🔍 Carregando categorias...');
         const response = await fetch('/api/financial/categories', {
             credentials: 'include'
         });
+        
+        console.log('📡 Resposta da API categorias:', response.status, response.statusText);
+        
         if (response.ok) {
-            const categories = await response.json();
+            const data = await response.json();
+            console.log('📂 Dados recebidos da API categorias:', data);
+            console.log('📂 Tipo dos dados:', typeof data);
+            console.log('📂 É array?', Array.isArray(data));
+            console.log('📂 Propriedades do objeto:', data ? Object.keys(data) : 'null');
+            
+            // Verificar se é um array ou se tem uma propriedade categories
+            let categories = [];
+            if (Array.isArray(data)) {
+                categories = data;
+            } else if (data && data.categories) {
+                categories = data.categories;
+            } else if (data && Array.isArray(data.data)) {
+                categories = data.data;
+            } else {
+                console.warn('⚠️ Formato inesperado dos dados:', data);
+            }
+            
+            console.log('📂 Categorias processadas:', categories);
+            console.log('📂 É array final?', Array.isArray(categories));
+            
             const categoryFilter = document.getElementById('categoryFilter');
             categoryFilter.innerHTML = '<option value="">Todas</option>';
-            categories.forEach(category => {
-                const option = document.createElement('option');
-                option.value = category.id;
-                option.textContent = category.name;
-                categoryFilter.appendChild(option);
-            });
+            
+            if (Array.isArray(categories)) {
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    categoryFilter.appendChild(option);
+                });
+            } else {
+                console.warn('⚠️ Categorias não é um array:', categories);
+            }
+        } else if (response.status === 401) {
+            console.log('🔐 Sessão expirada, redirecionando para login...');
+            window.location.href = '/auth/login';
+        } else {
+            const errorText = await response.text();
+            console.error('❌ Erro ao carregar categorias:', response.status, errorText);
         }
     } catch (error) {
-        console.error('Erro ao carregar categorias:', error);
+        console.error('❌ Erro ao carregar categorias:', error);
     }
 }
 
 // Função para carregar centros de custo
 async function loadCostCenters() {
     try {
+        console.log('🔍 Carregando centros de custo...');
         const response = await fetch('/api/financial/cost-centers', {
             credentials: 'include'
         });
+        
+        console.log('📡 Resposta da API centros de custo:', response.status, response.statusText);
+        
         if (response.ok) {
             const costCenters = await response.json();
+            console.log('🏢 Centros de custo carregados:', costCenters);
             const costCenterFilter = document.getElementById('costCenterFilter');
             costCenterFilter.innerHTML = '<option value="">Todos</option>';
             costCenters.forEach(costCenter => {
@@ -330,9 +370,15 @@ async function loadCostCenters() {
                 option.textContent = costCenter.name;
                 costCenterFilter.appendChild(option);
             });
+        } else if (response.status === 401) {
+            console.log('🔐 Sessão expirada, redirecionando para login...');
+            window.location.href = '/auth/login';
+        } else {
+            const errorText = await response.text();
+            console.error('❌ Erro ao carregar centros de custo:', response.status, errorText);
         }
     } catch (error) {
-        console.error('Erro ao carregar centros de custo:', error);
+        console.error('❌ Erro ao carregar centros de custo:', error);
     }
 }
 
@@ -349,6 +395,9 @@ async function loadPayables() {
             // Aplicar filtro do mês atual automaticamente
             console.log('🔍 Aplicando filtro automático do mês atual...');
             filterPayables();
+        } else if (response.status === 401) {
+            console.log('🔐 Sessão expirada, redirecionando para login...');
+            window.location.href = '/auth/login';
         } else {
             showAlert('Erro ao carregar contas a pagar', 'danger');
         }
