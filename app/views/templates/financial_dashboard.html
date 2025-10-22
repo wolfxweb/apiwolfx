@@ -196,19 +196,19 @@
             <div class="card-body">
                 <!-- Filtros -->
                 <div class="row mb-3">
-                    <div class="col-md-3">
+                    <div class="col-6 col-md-3">
                         <label for="categoryCostCenterFilter" class="form-label">Centro de Custo</label>
                         <select class="form-select" id="categoryCostCenterFilter" onchange="loadExpensesByCategory()">
                             <option value="">Todos os centros de custo</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-6 col-md-3">
                         <label for="categoryMonthFilter" class="form-label">Mês</label>
                         <select class="form-select" id="categoryMonthFilter" onchange="loadExpensesByCategory()">
                             <option value="">Todos os meses</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-6 col-md-3">
                         <label for="categoryTypeFilter" class="form-label">Tipo</label>
                         <select class="form-select" id="categoryTypeFilter" onchange="loadExpensesByCategory()">
                             <option value="">Todos os tipos</option>
@@ -216,7 +216,7 @@
                             <option value="pending">Pendentes</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-6 col-md-3">
                         <label for="comparisonMode" class="form-label">Modo</label>
                         <select class="form-select" id="comparisonMode" onchange="toggleComparisonMode()">
                             <option value="single">Período Único</option>
@@ -227,13 +227,13 @@
                 
                 <!-- Filtros de Comparação (ocultos por padrão) -->
                 <div id="comparisonFilters" class="row mb-3" style="display: none;">
-                    <div class="col-12 col-md-6">
+                    <div class="col-6 col-md-6">
                         <label for="period1Filter" class="form-label">Período 1</label>
                         <select class="form-select" id="period1Filter" onchange="loadExpensesByCategory()">
                             <option value="">Selecione o período</option>
                         </select>
                     </div>
-                    <div class="col-12 col-md-6">
+                    <div class="col-6 col-md-6">
                         <label for="period2Filter" class="form-label">Período 2</label>
                         <select class="form-select" id="period2Filter" onchange="loadExpensesByCategory()">
                             <option value="">Selecione o período</option>
@@ -835,14 +835,14 @@ function toggleComparisonMode() {
     
     if (comparisonMode === 'compare') {
         comparisonFilters.style.display = 'block';
+        // Não carregar dados ainda, aguardar seleção dos períodos
     } else {
         comparisonFilters.style.display = 'none';
         // Limpar dados de comparação
         expensesByCategoryData2 = null;
+        // Carregar dados do modo único
+        loadExpensesByCategory();
     }
-    
-    // Recarregar gráfico
-    loadExpensesByCategory();
 }
 
 // Função para carregar dados de despesas por categoria
@@ -856,6 +856,12 @@ async function loadExpensesByCategory() {
         if (comparisonMode === 'compare') {
             // Modo comparação - carregar dois períodos
             await loadComparisonData();
+            
+            // Se não há dados de comparação, não criar gráfico
+            if (!expensesByCategoryData || !expensesByCategoryData2) {
+                document.getElementById('category-loading').style.display = 'none';
+                return;
+            }
         } else {
             // Modo único - carregar período único
             await loadSinglePeriodData();
@@ -905,7 +911,8 @@ async function loadComparisonData() {
     const period2 = document.getElementById('period2Filter').value;
 
     if (!period1 || !period2) {
-        throw new Error('Selecione ambos os períodos para comparação');
+        console.log('Aguardando seleção dos períodos para comparação...');
+        return; // Não fazer nada se os períodos não estão selecionados
     }
 
     // Carregar período 1
