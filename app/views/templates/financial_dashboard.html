@@ -187,6 +187,54 @@
     </div>
 </div>
 
+<!-- Seção DRE -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-line"></i> DRE - Demonstração do Resultado do Exercício</h5>
+                <div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadDreData()">
+                        <i class="fas fa-sync-alt"></i> Atualizar
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" onclick="exportDreToExcel()">
+                        <i class="fas fa-file-excel"></i> Exportar
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="dre-loading" class="text-center py-3" style="display: none;">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2">Carregando dados do DRE...</p>
+                </div>
+                
+                <div id="dre-error" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Erro ao carregar dados do DRE
+                </div>
+                
+                <div id="dre-content" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-sm">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th class="text-start">Descrição</th>
+                                    <th class="text-center" id="months-header">
+                                        <!-- Cabeçalhos dos meses serão inseridos aqui -->
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="dre-tbody">
+                                <!-- Dados serão inseridos aqui via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Seções removidas: Gráfico de Receitas vs Despesas e Top Categorias -->
 
 <!-- Seções removidas: Contas a Receber e Contas a Pagar -->
@@ -433,5 +481,168 @@ function showAlert(message, type) {
         }
     }, 5000);
 }
+
+// Funções para DRE
+let dreData = null;
+
+async function loadDreData() {
+    try {
+        document.getElementById('dre-loading').style.display = 'block';
+        document.getElementById('dre-error').style.display = 'none';
+        document.getElementById('dre-content').style.display = 'none';
+
+        const response = await fetch('/api/financial/dre', {
+            credentials: 'include'
+        });
+        if (!response.ok) {
+            throw new Error('Erro ao carregar dados do DRE');
+        }
+
+        dreData = await response.json();
+        renderDreTable();
+        
+        document.getElementById('dre-loading').style.display = 'none';
+        document.getElementById('dre-content').style.display = 'block';
+    } catch (error) {
+        console.error('Erro ao carregar DRE:', error);
+        document.getElementById('dre-loading').style.display = 'none';
+        document.getElementById('dre-error').style.display = 'block';
+    }
+}
+
+function renderDreTable() {
+    if (!dreData || !dreData.data) return;
+
+    const tbody = document.getElementById('dre-tbody');
+    const monthsHeader = document.getElementById('months-header');
+    tbody.innerHTML = '';
+
+    // Criar cabeçalhos dos meses
+    const monthsHeaderRow = monthsHeader.parentElement;
+    monthsHeaderRow.innerHTML = `
+        <th class="text-start">Descrição</th>
+        ${dreData.months.map(month => 
+            `<th class="text-center">${month}</th>`
+        ).join('')}
+    `;
+
+    // Dados já estão consolidados na nova estrutura
+    const data = dreData.data;
+
+    // Criar linhas de receitas e despesas
+    const revenueRow = document.createElement('tr');
+    revenueRow.innerHTML = `
+        <td class="fw-bold text-success">RECEITAS</td>
+        ${dreData.months.map(month => 
+            `<td class="text-end text-success fw-bold">${formatCurrency(data.RECEITAS.total[month])}</td>`
+        ).join('')}
+    `;
+    tbody.appendChild(revenueRow);
+
+    const receivablesRow = document.createElement('tr');
+    receivablesRow.innerHTML = `
+        <td style="padding-left: 2rem;">- Contas a Receber</td>
+        ${dreData.months.map(month => 
+            `<td class="text-end">${formatCurrency(data.RECEITAS['Contas a Receber'][month])}</td>`
+        ).join('')}
+    `;
+    tbody.appendChild(receivablesRow);
+
+    const mlRow = document.createElement('tr');
+    mlRow.innerHTML = `
+        <td style="padding-left: 2rem;">- Mercado Livre</td>
+        ${dreData.months.map(month => 
+            `<td class="text-end">${formatCurrency(data.RECEITAS['Mercado Livre'][month])}</td>`
+        ).join('')}
+    `;
+    tbody.appendChild(mlRow);
+
+    // Linha em branco
+    const blankRow = document.createElement('tr');
+    blankRow.innerHTML = `
+        <td></td>
+        ${dreData.months.map(() => `<td></td>`).join('')}
+    `;
+    tbody.appendChild(blankRow);
+
+    const expensesRow = document.createElement('tr');
+    expensesRow.innerHTML = `
+        <td class="fw-bold text-danger">DESPESAS</td>
+        ${dreData.months.map(month => 
+            `<td class="text-end text-danger fw-bold">${formatCurrency(data.DESPESAS.total[month])}</td>`
+        ).join('')}
+    `;
+    tbody.appendChild(expensesRow);
+
+    // Linha em branco
+    const blankRow2 = document.createElement('tr');
+    blankRow2.innerHTML = `
+        <td></td>
+        ${dreData.months.map(() => `<td></td>`).join('')}
+    `;
+    tbody.appendChild(blankRow2);
+
+    const resultRow = document.createElement('tr');
+    resultRow.className = 'table-dark';
+    resultRow.innerHTML = `
+        <td class="fw-bold">RESULTADO</td>
+        ${dreData.months.map(month => {
+            const result = data.RESULTADO.total[month];
+            const colorClass = result >= 0 ? 'text-success' : 'text-danger';
+            return `<td class="text-end fw-bold ${colorClass}">${formatCurrency(result)}</td>`;
+        }).join('')}
+    `;
+    tbody.appendChild(resultRow);
+}
+
+function formatCurrency(value) {
+    if (value === 0) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value);
+}
+
+function exportDreToExcel() {
+    if (!dreData) {
+        alert('Nenhum dado disponível para exportar');
+        return;
+    }
+
+    // Preparar dados para Excel
+    const excelData = [];
+    
+    // Cabeçalho
+    excelData.push(['Centro de Custo', 'Mês', 'Receitas - Contas a Receber', 'Receitas - Mercado Livre', 'Total Receitas', 'Despesas', 'Resultado']);
+    
+    // Dados
+    dreData.dre_data.forEach(center => {
+        center.months.forEach(monthData => {
+            excelData.push([
+                center.cost_center_name,
+                monthData.name,
+                monthData.receivables_revenue,
+                monthData.ml_revenue,
+                monthData.total_revenue,
+                monthData.expenses,
+                monthData.result
+            ]);
+        });
+    });
+
+    // Criar workbook
+    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DRE');
+
+    // Exportar
+    XLSX.writeFile(wb, `DRE_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// Carregar DRE automaticamente quando a página carregar
+document.addEventListener('DOMContentLoaded', function() {
+    // Carregar DRE após um pequeno delay para não sobrecarregar
+    setTimeout(loadDreData, 1000);
+});
 </script>
 {% endblock %}

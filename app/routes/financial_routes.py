@@ -17,7 +17,7 @@ from app.models.financial_models import (
     FinancialAccount, FinancialCategory, CostCenter, FinancialCustomer,
     AccountReceivable, FinancialSupplier, AccountPayable, FinancialTransaction
 )
-from app.models.saas_models import Fornecedor, OrdemCompra
+from app.models.saas_models import Fornecedor, OrdemCompra, MLOrder
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -2859,3 +2859,207 @@ async def get_dashboard_data(
             "date_to": date_to
         }
     }
+
+@financial_router.get("/financial/dre")
+async def dre_report_page():
+    """Página do relatório DRE"""
+    from app.views.template_renderer import render_template
+    return render_template("dre_report.html", {})
+
+@financial_router.get("/api/financial/dre")
+async def get_dre_report(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Gera relatório DRE agrupado por centro de custo com 12 meses"""
+    try:
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Token de sessão necessário")
+        
+        result = auth_controller.get_user_by_session(session_token, db)
+        if result.get("error"):
+            raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+        
+        user_data = result["user"]
+        company_id = get_company_id_from_user(user_data)
+        
+        # Calcular período dos últimos 12 meses
+        from datetime import timedelta
+        today = datetime.now()
+        
+        # Gerar lista dos últimos 12 meses + próximos 3 meses
+        months_data = []
+        
+        # Últimos 12 meses (histórico)
+        for i in range(12):
+            # Calcular mês atual - i meses
+            current_month = today.month - i
+            current_year = today.year
+            
+            if current_month <= 0:
+                current_month += 12
+                current_year -= 1
+            
+            month_date = datetime(current_year, current_month, 1)
+            
+            # Calcular o último dia do mês
+            if current_month == 12:
+                next_month = datetime(current_year + 1, 1, 1)
+            else:
+                next_month = datetime(current_year, current_month + 1, 1)
+            
+            last_day = next_month - timedelta(days=1)
+            
+            months_data.append({
+                'year': current_year,
+                'month': current_month,
+                'name': month_date.strftime('%m/%Y'),
+                'start_date': month_date,
+                'end_date': last_day,
+                'is_future': False
+            })
+        
+        # Próximos 3 meses (futuro)
+        for i in range(1, 4):
+            future_month = today.month + i
+            future_year = today.year
+            
+            if future_month > 12:
+                future_month -= 12
+                future_year += 1
+            
+            month_date = datetime(future_year, future_month, 1)
+            
+            # Calcular o último dia do mês
+            if future_month == 12:
+                next_month = datetime(future_year + 1, 1, 1)
+            else:
+                next_month = datetime(future_year, future_month + 1, 1)
+            
+            last_day = next_month - timedelta(days=1)
+            
+            months_data.append({
+                'year': future_year,
+                'month': future_month,
+                'name': month_date.strftime('%m/%Y'),
+                'start_date': month_date,
+                'end_date': last_day,
+                'is_future': True
+            })
+        
+        # Inicializar estrutura de dados para o DRE consolidado
+        dre_report = {
+            'months': [m['name'] for m in months_data],
+            'data': {
+                'RECEITAS': {
+                    'total': {m['name']: 0.0 for m in months_data},
+                    'Contas a Receber': {m['name']: 0.0 for m in months_data},
+                    'Mercado Livre': {m['name']: 0.0 for m in months_data},
+                },
+                'DESPESAS': {
+                    'total': {m['name']: 0.0 for m in months_data},
+                },
+                'RESULTADO': {
+                    'total': {m['name']: 0.0 for m in months_data},
+                }
+            }
+        }
+
+        # Iterar sobre cada mês para coletar os dados consolidados
+        for month_info in months_data:
+            month_name = month_info['name']
+            month_start = month_info['start_date']
+            month_end = month_info['end_date']
+            is_future = month_info.get('is_future', False)
+
+            print(f"DEBUG DRE - Processando mês: {month_name}, Início: {month_start}, Fim: {month_end}, Futuro: {is_future}")
+
+            # RECEITAS - Contas a Receber (somar de todos os centros de custo)
+            receivables_revenue = 0.0
+            if not is_future:  # Só buscar receitas para meses passados/atuais
+                try:
+                    receivables_revenue = db.query(func.sum(AccountReceivable.amount)).filter(
+                        AccountReceivable.company_id == company_id,
+                        AccountReceivable.status.in_(['paid', 'received', 'completed']),
+                        AccountReceivable.paid_date >= month_start,
+                        AccountReceivable.paid_date <= month_end
+                    ).scalar() or 0.0
+                    receivables_revenue = float(receivables_revenue)
+                except Exception as e:
+                    print(f"Erro ao buscar receitas: {e}")
+                    receivables_revenue = 0.0
+            
+            print(f"DEBUG DRE - {month_name} - Receitas Contas a Receber: {receivables_revenue}")
+
+            # RECEITAS - Mercado Livre (somar de todos os pedidos)
+            ml_revenue = 0.0
+            if not is_future:  # Só buscar receitas ML para meses passados/atuais
+                try:
+                    # Buscar pedidos ML do período com status válidos
+                    ml_orders = db.query(MLOrder).filter(
+                        MLOrder.company_id == company_id,
+                        MLOrder.date_created >= month_start,
+                        MLOrder.date_created <= month_end,
+                        MLOrder.status.in_(['PAID', 'DELIVERED', 'SHIPPED'])
+                    ).all()
+                    
+                    for order in ml_orders:
+                        # Aplicar regra dos 7 dias para determinar se é recebido ou pendente
+                        if order.date_closed:
+                            days_since_closed = (today - order.date_closed).days
+                            if days_since_closed >= 7:
+                                ml_revenue += float(order.total_amount or 0)
+                except Exception as e:
+                    print(f"Erro ao calcular receitas ML: {e}")
+            
+            ml_revenue = float(ml_revenue)
+            print(f"DEBUG DRE - {month_name} - Receitas Mercado Livre: {ml_revenue}")
+
+            total_revenue_month = receivables_revenue + ml_revenue
+            print(f"DEBUG DRE - {month_name} - Total Receitas: {total_revenue_month}")
+
+            # DESPESAS - Contas a Pagar (somar de todos os centros de custo)
+            payables_expenses = 0.0
+            try:
+                if is_future:
+                    # Para meses futuros, buscar despesas pendentes que vencem nesse período
+                    payables_expenses = db.query(func.sum(AccountPayable.amount)).filter(
+                        AccountPayable.company_id == company_id,
+                        AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
+                        AccountPayable.due_date >= month_start,
+                        AccountPayable.due_date <= month_end
+                    ).scalar() or 0.0
+                else:
+                    # Para meses passados/atuais, buscar despesas pagas
+                    payables_expenses = db.query(func.sum(AccountPayable.amount)).filter(
+                        AccountPayable.company_id == company_id,
+                        AccountPayable.status.in_(['paid', 'received', 'completed']),
+                        AccountPayable.paid_date >= month_start,
+                        AccountPayable.paid_date <= month_end
+                    ).scalar() or 0.0
+                
+                payables_expenses = float(payables_expenses)
+            except Exception as e:
+                print(f"Erro ao buscar despesas: {e}")
+                payables_expenses = 0.0
+            
+            print(f"DEBUG DRE - {month_name} - Despesas Contas a Pagar: {payables_expenses}")
+
+            # Calcular Resultado
+            result_month = total_revenue_month - payables_expenses
+            print(f"DEBUG DRE - {month_name} - Resultado: {result_month}")
+
+            # Preencher o relatório DRE
+            dre_report['data']['RECEITAS']['Contas a Receber'][month_name] = receivables_revenue
+            dre_report['data']['RECEITAS']['Mercado Livre'][month_name] = ml_revenue
+            dre_report['data']['RECEITAS']['total'][month_name] = total_revenue_month
+            dre_report['data']['DESPESAS']['total'][month_name] = payables_expenses
+            dre_report['data']['RESULTADO']['total'][month_name] = result_month
+
+        return dre_report
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Erro ao gerar DRE: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        raise HTTPException(status_code=500, detail=str(e))
