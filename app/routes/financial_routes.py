@@ -17,6 +17,7 @@ from app.models.financial_models import (
     FinancialAccount, FinancialCategory, CostCenter, FinancialCustomer,
     AccountReceivable, FinancialSupplier, AccountPayable, FinancialTransaction
 )
+from app.models.database_models import Category
 from app.models.saas_models import Fornecedor, OrdemCompra, MLOrder
 
 # Configurar logging
@@ -2962,7 +2963,9 @@ async def get_dre_report(
                 'RESULTADO': {
                     'total': {m['name']: 0.0 for m in months_data},
                 }
-            }
+            },
+            'cost_centers': {},
+            'categories': {}
         }
 
         # Iterar sobre cada mês para coletar os dados consolidados
@@ -3055,6 +3058,80 @@ async def get_dre_report(
             dre_report['data']['RECEITAS']['total'][month_name] = total_revenue_month
             dre_report['data']['DESPESAS']['total'][month_name] = payables_expenses
             dre_report['data']['RESULTADO']['total'][month_name] = result_month
+
+            # Coletar dados por centro de custo para despesas
+            try:
+                if is_future:
+                    # Para meses futuros, buscar despesas pendentes por centro de custo
+                    cost_center_expenses = db.query(
+                        CostCenter.name,
+                        func.sum(AccountPayable.amount).label('total')
+                    ).join(
+                        AccountPayable, CostCenter.id == AccountPayable.cost_center_id
+                    ).filter(
+                        AccountPayable.company_id == company_id,
+                        AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
+                        AccountPayable.due_date >= month_start,
+                        AccountPayable.due_date <= month_end
+                    ).group_by(CostCenter.id, CostCenter.name).all()
+                else:
+                    # Para meses passados/atuais, buscar despesas pagas por centro de custo
+                    cost_center_expenses = db.query(
+                        CostCenter.name,
+                        func.sum(AccountPayable.amount).label('total')
+                    ).join(
+                        AccountPayable, CostCenter.id == AccountPayable.cost_center_id
+                    ).filter(
+                        AccountPayable.company_id == company_id,
+                        AccountPayable.status.in_(['paid', 'received', 'completed']),
+                        AccountPayable.paid_date >= month_start,
+                        AccountPayable.paid_date <= month_end
+                    ).group_by(CostCenter.id, CostCenter.name).all()
+
+                for cc_name, total in cost_center_expenses:
+                    if cc_name not in dre_report['cost_centers']:
+                        dre_report['cost_centers'][cc_name] = {m['name']: 0.0 for m in months_data}
+                    dre_report['cost_centers'][cc_name][month_name] = float(total or 0)
+
+            except Exception as e:
+                print(f"Erro ao buscar despesas por centro de custo: {e}")
+
+            # Coletar dados por categoria para despesas
+            try:
+                if is_future:
+                    # Para meses futuros, buscar despesas pendentes por categoria
+                    category_expenses = db.query(
+                        Category.name,
+                        func.sum(AccountPayable.amount).label('total')
+                    ).join(
+                        AccountPayable, Category.id == AccountPayable.category_id
+                    ).filter(
+                        AccountPayable.company_id == company_id,
+                        AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
+                        AccountPayable.due_date >= month_start,
+                        AccountPayable.due_date <= month_end
+                    ).group_by(Category.id, Category.name).all()
+                else:
+                    # Para meses passados/atuais, buscar despesas pagas por categoria
+                    category_expenses = db.query(
+                        Category.name,
+                        func.sum(AccountPayable.amount).label('total')
+                    ).join(
+                        AccountPayable, Category.id == AccountPayable.category_id
+                    ).filter(
+                        AccountPayable.company_id == company_id,
+                        AccountPayable.status.in_(['paid', 'received', 'completed']),
+                        AccountPayable.paid_date >= month_start,
+                        AccountPayable.paid_date <= month_end
+                    ).group_by(Category.id, Category.name).all()
+
+                for cat_name, total in category_expenses:
+                    if cat_name not in dre_report['categories']:
+                        dre_report['categories'][cat_name] = {m['name']: 0.0 for m in months_data}
+                    dre_report['categories'][cat_name][month_name] = float(total or 0)
+
+            except Exception as e:
+                print(f"Erro ao buscar despesas por categoria: {e}")
 
         return dre_report
         

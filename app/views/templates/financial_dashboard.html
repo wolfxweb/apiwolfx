@@ -577,6 +577,34 @@ function renderDreTable() {
     `;
     tbody.appendChild(expensesRow);
 
+    // Adicionar linhas por centro de custo
+    if (dreData.cost_centers) {
+        Object.keys(dreData.cost_centers).forEach(ccName => {
+            const ccRow = document.createElement('tr');
+            ccRow.innerHTML = `
+                <td style="padding-left: 2rem;">- ${ccName}</td>
+                ${dreData.months.map(month => 
+                    `<td class="text-end">${formatCurrency(dreData.cost_centers[ccName][month] || 0)}</td>`
+                ).join('')}
+            `;
+            tbody.appendChild(ccRow);
+        });
+    }
+
+    // Adicionar linhas por categoria
+    if (dreData.categories) {
+        Object.keys(dreData.categories).forEach(catName => {
+            const catRow = document.createElement('tr');
+            catRow.innerHTML = `
+                <td style="padding-left: 2rem;">- ${catName}</td>
+                ${dreData.months.map(month => 
+                    `<td class="text-end">${formatCurrency(dreData.categories[catName][month] || 0)}</td>`
+                ).join('')}
+            `;
+            tbody.appendChild(catRow);
+        });
+    }
+
     // Linha em branco
     const blankRow2 = document.createElement('tr');
     blankRow2.innerHTML = `
