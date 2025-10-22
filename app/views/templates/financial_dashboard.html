@@ -544,7 +544,7 @@ function renderDreTable() {
 
     const receivablesRow = document.createElement('tr');
     receivablesRow.innerHTML = `
-        <td style="padding-left: 2rem;">- Contas a Receber</td>
+        <td style="padding-left: 2rem;">Contas a Receber</td>
         ${dreData.months.map(month => 
             `<td class="text-end">${formatCurrency(data.RECEITAS['Contas a Receber'][month])}</td>`
         ).join('')}
@@ -553,7 +553,7 @@ function renderDreTable() {
 
     const mlRow = document.createElement('tr');
     mlRow.innerHTML = `
-        <td style="padding-left: 2rem;">- Mercado Livre</td>
+        <td style="padding-left: 2rem;">Mercado Livre</td>
         ${dreData.months.map(month => 
             `<td class="text-end">${formatCurrency(data.RECEITAS['Mercado Livre'][month])}</td>`
         ).join('')}
@@ -582,7 +582,7 @@ function renderDreTable() {
         Object.keys(dreData.cost_centers).forEach(ccName => {
             const ccRow = document.createElement('tr');
             ccRow.innerHTML = `
-                <td style="padding-left: 2rem;">- ${ccName}</td>
+                <td style="padding-left: 2rem;">${ccName}</td>
                 ${dreData.months.map(month => 
                     `<td class="text-end">${formatCurrency(dreData.cost_centers[ccName][month] || 0)}</td>`
                 ).join('')}
@@ -596,7 +596,7 @@ function renderDreTable() {
         Object.keys(dreData.categories).forEach(catName => {
             const catRow = document.createElement('tr');
             catRow.innerHTML = `
-                <td style="padding-left: 2rem;">- ${catName}</td>
+                <td style="padding-left: 2rem;">${catName}</td>
                 ${dreData.months.map(month => 
                     `<td class="text-end">${formatCurrency(dreData.categories[catName][month] || 0)}</td>`
                 ).join('')}
