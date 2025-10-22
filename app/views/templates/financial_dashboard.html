@@ -196,24 +196,47 @@
             <div class="card-body">
                 <!-- Filtros -->
                 <div class="row mb-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="categoryCostCenterFilter" class="form-label">Centro de Custo</label>
                         <select class="form-select" id="categoryCostCenterFilter" onchange="loadExpensesByCategory()">
                             <option value="">Todos os centros de custo</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="categoryMonthFilter" class="form-label">Mês</label>
                         <select class="form-select" id="categoryMonthFilter" onchange="loadExpensesByCategory()">
                             <option value="">Todos os meses</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="categoryTypeFilter" class="form-label">Tipo</label>
                         <select class="form-select" id="categoryTypeFilter" onchange="loadExpensesByCategory()">
                             <option value="">Todos os tipos</option>
                             <option value="paid">Pagas</option>
                             <option value="pending">Pendentes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="comparisonMode" class="form-label">Modo</label>
+                        <select class="form-select" id="comparisonMode" onchange="toggleComparisonMode()">
+                            <option value="single">Período Único</option>
+                            <option value="compare">Comparar Períodos</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Filtros de Comparação (ocultos por padrão) -->
+                <div id="comparisonFilters" class="row mb-3" style="display: none;">
+                    <div class="col-12 col-md-6">
+                        <label for="period1Filter" class="form-label">Período 1</label>
+                        <select class="form-select" id="period1Filter" onchange="loadExpensesByCategory()">
+                            <option value="">Selecione o período</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label for="period2Filter" class="form-label">Período 2</label>
+                        <select class="form-select" id="period2Filter" onchange="loadExpensesByCategory()">
+                            <option value="">Selecione o período</option>
                         </select>
                     </div>
                 </div>
@@ -729,6 +752,7 @@ function exportDreToExcel() {
 // Variáveis para gráfico de despesas por categoria
 let expensesByCategoryChart = null;
 let expensesByCategoryData = null;
+let expensesByCategoryData2 = null; // Para comparação
 let filtersData = null;
 
 // Função para carregar filtros disponíveis
@@ -771,9 +795,54 @@ async function loadExpensesFilters() {
             monthSelect.appendChild(option);
         });
         
+        // Popular combos de comparação
+        populateComparisonFilters();
+        
     } catch (error) {
         console.error('Erro ao carregar filtros:', error);
     }
+}
+
+// Função para popular filtros de comparação
+function populateComparisonFilters() {
+    if (!filtersData) return;
+    
+    const period1Select = document.getElementById('period1Filter');
+    const period2Select = document.getElementById('period2Filter');
+    
+    // Limpar opções
+    period1Select.innerHTML = '<option value="">Selecione o período</option>';
+    period2Select.innerHTML = '<option value="">Selecione o período</option>';
+    
+    // Adicionar meses disponíveis
+    filtersData.months.forEach(month => {
+        const option1 = document.createElement('option');
+        option1.value = month;
+        option1.textContent = month;
+        period1Select.appendChild(option1);
+        
+        const option2 = document.createElement('option');
+        option2.value = month;
+        option2.textContent = month;
+        period2Select.appendChild(option2);
+    });
+}
+
+// Função para alternar modo de comparação
+function toggleComparisonMode() {
+    const comparisonMode = document.getElementById('comparisonMode').value;
+    const comparisonFilters = document.getElementById('comparisonFilters');
+    
+    if (comparisonMode === 'compare') {
+        comparisonFilters.style.display = 'block';
+    } else {
+        comparisonFilters.style.display = 'none';
+        // Limpar dados de comparação
+        expensesByCategoryData2 = null;
+    }
+    
+    // Recarregar gráfico
+    loadExpensesByCategory();
 }
 
 // Função para carregar dados de despesas por categoria
@@ -782,37 +851,107 @@ async function loadExpensesByCategory() {
         document.getElementById('category-loading').style.display = 'block';
         document.getElementById('category-error').style.display = 'none';
 
-        const costCenter = document.getElementById('categoryCostCenterFilter').value;
-        const month = document.getElementById('categoryMonthFilter').value;
-        const type = document.getElementById('categoryTypeFilter').value;
-
-        const params = new URLSearchParams();
-        if (costCenter) params.append('cost_center', costCenter);
-        if (month) params.append('month', month);
-        if (type) params.append('type', type);
-
-        const response = await fetch(`/api/financial/expenses-by-category?${params}`, {
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
+        const comparisonMode = document.getElementById('comparisonMode').value;
         
-        if (!response.ok) {
-            throw new Error('Erro ao carregar dados por categoria');
+        if (comparisonMode === 'compare') {
+            // Modo comparação - carregar dois períodos
+            await loadComparisonData();
+        } else {
+            // Modo único - carregar período único
+            await loadSinglePeriodData();
         }
-
-        expensesByCategoryData = await response.json();
-        console.log('Dados por categoria recebidos:', expensesByCategoryData);
         
         createExpensesByCategoryChart();
-        
         document.getElementById('category-loading').style.display = 'none';
     } catch (error) {
         console.error('Erro ao carregar dados por categoria:', error);
         document.getElementById('category-loading').style.display = 'none';
         document.getElementById('category-error').style.display = 'block';
     }
+}
+
+// Função para carregar dados de período único
+async function loadSinglePeriodData() {
+    const costCenter = document.getElementById('categoryCostCenterFilter').value;
+    const month = document.getElementById('categoryMonthFilter').value;
+    const type = document.getElementById('categoryTypeFilter').value;
+
+    const params = new URLSearchParams();
+    if (costCenter) params.append('cost_center', costCenter);
+    if (month) params.append('month', month);
+    if (type) params.append('type', type);
+
+    const response = await fetch(`/api/financial/expenses-by-category?${params}`, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response.ok) {
+        throw new Error('Erro ao carregar dados por categoria');
+    }
+
+    expensesByCategoryData = await response.json();
+    expensesByCategoryData2 = null; // Limpar dados de comparação
+    console.log('Dados por categoria recebidos:', expensesByCategoryData);
+}
+
+// Função para carregar dados de comparação
+async function loadComparisonData() {
+    const costCenter = document.getElementById('categoryCostCenterFilter').value;
+    const type = document.getElementById('categoryTypeFilter').value;
+    const period1 = document.getElementById('period1Filter').value;
+    const period2 = document.getElementById('period2Filter').value;
+
+    if (!period1 || !period2) {
+        throw new Error('Selecione ambos os períodos para comparação');
+    }
+
+    // Carregar período 1
+    const params1 = new URLSearchParams();
+    if (costCenter) params1.append('cost_center', costCenter);
+    if (period1) params1.append('month', period1);
+    if (type) params1.append('type', type);
+
+    const response1 = await fetch(`/api/financial/expenses-by-category?${params1}`, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response1.ok) {
+        throw new Error('Erro ao carregar dados do período 1');
+    }
+
+    expensesByCategoryData = await response1.json();
+    expensesByCategoryData.period = period1;
+
+    // Carregar período 2
+    const params2 = new URLSearchParams();
+    if (costCenter) params2.append('cost_center', costCenter);
+    if (period2) params2.append('month', period2);
+    if (type) params2.append('type', type);
+
+    const response2 = await fetch(`/api/financial/expenses-by-category?${params2}`, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response2.ok) {
+        throw new Error('Erro ao carregar dados do período 2');
+    }
+
+    expensesByCategoryData2 = await response2.json();
+    expensesByCategoryData2.period = period2;
+    
+    console.log('Dados de comparação carregados:', {
+        periodo1: expensesByCategoryData,
+        periodo2: expensesByCategoryData2
+    });
 }
 
 // Função para criar gráfico de rosca das despesas por categoria
@@ -826,11 +965,22 @@ function createExpensesByCategoryChart() {
         expensesByCategoryChart.destroy();
     }
 
+    const comparisonMode = document.getElementById('comparisonMode').value;
+    
+    if (comparisonMode === 'compare' && expensesByCategoryData2) {
+        // Modo comparação - gráfico de barras
+        createComparisonChart(ctx);
+    } else {
+        // Modo único - gráfico de rosca
+        createSingleChart(ctx);
+    }
+}
+
+// Função para criar gráfico único (rosca)
+function createSingleChart(ctx) {
     const categories = expensesByCategoryData.categories;
     const labels = Object.keys(categories);
     const data = Object.values(categories);
-    
-    // Gerar cores dinamicamente
     const colors = generateColors(labels.length);
     
     const legendHtml = labels.map((label, index) => `
@@ -873,6 +1023,104 @@ function createExpensesByCategoryChart() {
             }
         }
     });
+}
+
+// Função para criar gráfico de comparação (barras)
+function createComparisonChart(ctx) {
+    const categories1 = expensesByCategoryData.categories;
+    const categories2 = expensesByCategoryData2.categories;
+    const total1 = expensesByCategoryData.total;
+    const total2 = expensesByCategoryData2.total;
+    
+    // Combinar todas as categorias
+    const allCategories = new Set([...Object.keys(categories1), ...Object.keys(categories2)]);
+    const labels = Array.from(allCategories);
+    
+    // Preparar dados
+    const data1 = labels.map(cat => categories1[cat] || 0);
+    const data2 = labels.map(cat => categories2[cat] || 0);
+    
+    expensesByCategoryChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: `Período 1 (${expensesByCategoryData.period})`,
+                    data: data1,
+                    backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: `Período 2 (${expensesByCategoryData2.period})`,
+                    data: data2,
+                    backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            const total = context.dataset.label.includes('Período 1') ? total1 : total2;
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${context.dataset.label}: ${context.label} - ${formatCurrency(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Criar legenda de comparação
+    createComparisonLegend(labels, data1, data2, total1, total2);
+}
+
+// Função para criar legenda de comparação
+function createComparisonLegend(labels, data1, data2, total1, total2) {
+    const legendHtml = labels.map((label, index) => {
+        const value1 = data1[index];
+        const value2 = data2[index];
+        const diff = value2 - value1;
+        const diffPercent = value1 > 0 ? ((diff / value1) * 100).toFixed(1) : 0;
+        const diffClass = diff > 0 ? 'text-danger' : diff < 0 ? 'text-success' : '';
+        const diffIcon = diff > 0 ? '↗️' : diff < 0 ? '↘️' : '➡️';
+        
+        return `
+            <div class="d-flex align-items-center mb-2">
+                <div class="me-2" style="width: 12px; height: 12px; background-color: rgba(54, 162, 235, 0.8); border-radius: 2px;"></div>
+                <div class="me-2" style="width: 12px; height: 12px; background-color: rgba(255, 99, 132, 0.8); border-radius: 2px;"></div>
+                <small>
+                    <strong>${label}:</strong><br>
+                    P1: ${formatCurrency(value1)} | P2: ${formatCurrency(value2)}<br>
+                    <span class="${diffClass}">${diffIcon} ${formatCurrency(Math.abs(diff))} (${diffPercent}%)</span>
+                </small>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('category-legend').innerHTML = legendHtml;
 }
 
 // Função para gerar cores dinamicamente
