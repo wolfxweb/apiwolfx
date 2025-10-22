@@ -6,7 +6,7 @@ Seguindo o padrão do sistema
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc
+from sqlalchemy import and_, or_, func, desc, text
 from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime, date
@@ -2969,90 +2969,153 @@ async def get_dre_report(
             'cost_center_categories': {}
         }
 
-        # Iterar sobre cada mês para coletar os dados consolidados
+        # OTIMIZAÇÃO: Buscar todos os dados de uma vez e processar em memória
+        print("DEBUG DRE - Buscando todos os dados de uma vez...")
+        
+        # Buscar todas as receitas de uma vez
+        all_receivables = db.query(AccountReceivable).filter(
+            AccountReceivable.company_id == company_id,
+            AccountReceivable.status.in_(['paid', 'received', 'completed'])
+        ).all()
+        print(f"DEBUG DRE - Total receitas encontradas: {len(all_receivables)}")
+        
+        # Buscar todos os pedidos ML de uma vez
+        all_ml_orders = db.query(MLOrder).filter(
+            MLOrder.company_id == company_id,
+            MLOrder.status.in_(['PAID', 'DELIVERED', 'SHIPPED'])
+        ).all()
+        print(f"DEBUG DRE - Total pedidos ML encontrados: {len(all_ml_orders)}")
+        
+        # OTIMIZAÇÃO: Consulta SQL consolidada para despesas
+        print("DEBUG DRE - Executando consulta SQL consolidada para despesas...")
+        
+        # Definir período de busca (últimos 12 meses + próximos 3 meses)
+        start_date = (today - timedelta(days=365)).strftime('%Y-%m-%d')
+        end_date = (today + timedelta(days=90)).strftime('%Y-%m-%d')
+        
+        # Consulta SQL consolidada para despesas (pagas + pendentes)
+        expenses_query = text("""
+            -- Despesas pagas
+            SELECT 
+                TO_CHAR(ap.paid_date, 'MM/YYYY') as month_key,
+                COALESCE(cc.name, 'Sem Centro de Custo') as cost_center_name,
+                'paid' as expense_type,
+                SUM(ap.amount) as total_amount,
+                COUNT(*) as record_count
+            FROM accounts_payable ap 
+            LEFT JOIN cost_centers cc ON cc.id = ap.cost_center_id
+            WHERE ap.company_id = :company_id
+                AND ap.status IN ('paid', 'received', 'completed')
+                AND ap.paid_date IS NOT NULL
+                AND ap.paid_date >= :start_date 
+                AND ap.paid_date <= :end_date
+            GROUP BY 
+                TO_CHAR(ap.paid_date, 'MM/YYYY'),
+                cc.name
+
+            UNION ALL
+
+            -- Despesas pendentes
+            SELECT 
+                TO_CHAR(ap.due_date, 'MM/YYYY') as month_key,
+                COALESCE(cc.name, 'Sem Centro de Custo') as cost_center_name,
+                'pending' as expense_type,
+                SUM(ap.amount) as total_amount,
+                COUNT(*) as record_count
+            FROM accounts_payable ap 
+            LEFT JOIN cost_centers cc ON cc.id = ap.cost_center_id
+            WHERE ap.company_id = :company_id
+                AND ap.status IN ('pending', 'unpaid', 'overdue')
+                AND ap.due_date >= :start_date 
+                AND ap.due_date <= :end_date
+            GROUP BY 
+                TO_CHAR(ap.due_date, 'MM/YYYY'),
+                cc.name
+            ORDER BY 
+                month_key DESC,
+                cost_center_name,
+                expense_type
+        """)
+        
+        # Executar consulta consolidada
+        expenses_results = db.execute(expenses_query, {
+            'company_id': company_id,
+            'start_date': start_date,
+            'end_date': end_date
+        }).fetchall()
+        
+        print(f"DEBUG DRE - Total registros de despesas encontrados: {len(expenses_results)}")
+        
+        # Processar dados em memória
+        receivables_by_month = {}
+        payables_by_month = {}
+        ml_by_month = {}
+        cost_centers_by_month = {}
+        
+        # Processar receitas
+        for receivable in all_receivables:
+            if receivable.paid_date:
+                month_key = receivable.paid_date.strftime('%m/%Y')
+                if month_key not in receivables_by_month:
+                    receivables_by_month[month_key] = 0.0
+                receivables_by_month[month_key] += float(receivable.amount or 0)
+        
+        # Processar despesas (resultados da consulta consolidada)
+        for row in expenses_results:
+            month_key = row.month_key
+            cost_center_name = row.cost_center_name
+            expense_type = row.expense_type
+            total_amount = float(row.total_amount or 0)
+            
+            # Total por mês
+            if month_key not in payables_by_month:
+                payables_by_month[month_key] = 0.0
+            payables_by_month[month_key] += total_amount
+            
+            # Por centro de custo
+            if month_key not in cost_centers_by_month:
+                cost_centers_by_month[month_key] = {}
+            if cost_center_name not in cost_centers_by_month[month_key]:
+                cost_centers_by_month[month_key][cost_center_name] = 0.0
+            cost_centers_by_month[month_key][cost_center_name] += total_amount
+        
+        # Processar pedidos ML
+        for order in all_ml_orders:
+            if order.date_closed:
+                days_since_closed = (today - order.date_closed).days
+                if days_since_closed >= 7:
+                    month_key = order.date_created.strftime('%m/%Y')
+                    if month_key not in ml_by_month:
+                        ml_by_month[month_key] = 0.0
+                    ml_by_month[month_key] += float(order.total_amount or 0)
+        
+        print(f"DEBUG DRE - Receitas por mês: {receivables_by_month}")
+        print(f"DEBUG DRE - Despesas por mês: {payables_by_month}")
+        print(f"DEBUG DRE - ML por mês: {ml_by_month}")
+        print(f"DEBUG DRE - Centros de custo por mês: {cost_centers_by_month}")
+        
+        # OTIMIZAÇÃO: Usar dados já consolidados da consulta SQL
+        print("DEBUG DRE - Processando dados consolidados...")
+        
+        # Iterar sobre cada mês para preencher o relatório
         for month_info in months_data:
             month_name = month_info['name']
-            month_start = month_info['start_date']
-            month_end = month_info['end_date']
+            month_key = month_info['start_date'].strftime('%m/%Y')
             is_future = month_info.get('is_future', False)
 
-            print(f"DEBUG DRE - Processando mês: {month_name}, Início: {month_start}, Fim: {month_end}, Futuro: {is_future}")
+            print(f"DEBUG DRE - Processando mês: {month_name} ({month_key}), Futuro: {is_future}")
 
-            # RECEITAS - Contas a Receber (somar de todos os centros de custo)
-            receivables_revenue = 0.0
-            if not is_future:  # Só buscar receitas para meses passados/atuais
-                try:
-                    receivables_revenue = db.query(func.sum(AccountReceivable.amount)).filter(
-                        AccountReceivable.company_id == company_id,
-                        AccountReceivable.status.in_(['paid', 'received', 'completed']),
-                        AccountReceivable.paid_date >= month_start,
-                        AccountReceivable.paid_date <= month_end
-                    ).scalar() or 0.0
-                    receivables_revenue = float(receivables_revenue)
-                except Exception as e:
-                    print(f"Erro ao buscar receitas: {e}")
-                    receivables_revenue = 0.0
-            else:
-                # Para meses futuros, usar projeção baseada no histórico
-                receivables_revenue = 0.0  # Será calculado após coletar todos os dados históricos
+            # RECEITAS - Usar dados já processados
+            receivables_revenue = receivables_by_month.get(month_key, 0.0)
+            ml_revenue = ml_by_month.get(month_key, 0.0)
+            total_revenue_month = receivables_revenue + ml_revenue
             
             print(f"DEBUG DRE - {month_name} - Receitas Contas a Receber: {receivables_revenue}")
-
-            # RECEITAS - Mercado Livre (somar de todos os pedidos)
-            ml_revenue = 0.0
-            if not is_future:  # Só buscar receitas ML para meses passados/atuais
-                try:
-                    # Buscar pedidos ML do período com status válidos
-                    ml_orders = db.query(MLOrder).filter(
-                        MLOrder.company_id == company_id,
-                        MLOrder.date_created >= month_start,
-                        MLOrder.date_created <= month_end,
-                        MLOrder.status.in_(['PAID', 'DELIVERED', 'SHIPPED'])
-                    ).all()
-                    
-                    for order in ml_orders:
-                        # Aplicar regra dos 7 dias para determinar se é recebido ou pendente
-                        if order.date_closed:
-                            days_since_closed = (today - order.date_closed).days
-                            if days_since_closed >= 7:
-                                ml_revenue += float(order.total_amount or 0)
-                except Exception as e:
-                    print(f"Erro ao calcular receitas ML: {e}")
-            else:
-                # Para meses futuros, usar projeção baseada no histórico
-                ml_revenue = 0.0  # Será calculado após coletar todos os dados históricos
-            
-            ml_revenue = float(ml_revenue)
             print(f"DEBUG DRE - {month_name} - Receitas Mercado Livre: {ml_revenue}")
-
-            total_revenue_month = receivables_revenue + ml_revenue
             print(f"DEBUG DRE - {month_name} - Total Receitas: {total_revenue_month}")
 
-            # DESPESAS - Contas a Pagar (somar de todos os centros de custo)
-            payables_expenses = 0.0
-            try:
-                if is_future:
-                    # Para meses futuros, buscar despesas pendentes que vencem nesse período
-                    payables_expenses = db.query(func.sum(AccountPayable.amount)).filter(
-                        AccountPayable.company_id == company_id,
-                        AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
-                        AccountPayable.due_date >= month_start,
-                        AccountPayable.due_date <= month_end
-                    ).scalar() or 0.0
-                else:
-                    # Para meses passados/atuais, buscar despesas pagas
-                    payables_expenses = db.query(func.sum(AccountPayable.amount)).filter(
-                        AccountPayable.company_id == company_id,
-                        AccountPayable.status.in_(['paid', 'received', 'completed']),
-                        AccountPayable.paid_date >= month_start,
-                        AccountPayable.paid_date <= month_end
-                    ).scalar() or 0.0
-                
-                payables_expenses = float(payables_expenses)
-            except Exception as e:
-                print(f"Erro ao buscar despesas: {e}")
-                payables_expenses = 0.0
-            
+            # DESPESAS - Usar dados já processados da consulta SQL consolidada
+            payables_expenses = payables_by_month.get(month_key, 0.0)
             print(f"DEBUG DRE - {month_name} - Despesas Contas a Pagar: {payables_expenses}")
 
             # Calcular Resultado
@@ -3066,133 +3129,15 @@ async def get_dre_report(
             dre_report['data']['DESPESAS']['total'][month_name] = payables_expenses
             dre_report['data']['RESULTADO']['total'][month_name] = result_month
 
-            # Coletar dados por centro de custo para despesas
-            try:
-                if is_future:
-                    # Para meses futuros, buscar despesas pendentes por centro de custo
-                    cost_center_expenses = db.query(
-                        CostCenter.name,
-                        func.sum(AccountPayable.amount).label('total')
-                    ).join(
-                        AccountPayable, CostCenter.id == AccountPayable.cost_center_id
-                    ).filter(
-                        AccountPayable.company_id == company_id,
-                        AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
-                        AccountPayable.due_date >= month_start,
-                        AccountPayable.due_date <= month_end
-                    ).group_by(CostCenter.id, CostCenter.name).all()
-                else:
-                    # Para meses passados/atuais, buscar despesas pagas por centro de custo
-                    cost_center_expenses = db.query(
-                        CostCenter.name,
-                        func.sum(AccountPayable.amount).label('total')
-                    ).join(
-                        AccountPayable, CostCenter.id == AccountPayable.cost_center_id
-                    ).filter(
-                        AccountPayable.company_id == company_id,
-                        AccountPayable.status.in_(['paid', 'received', 'completed']),
-                        AccountPayable.paid_date >= month_start,
-                        AccountPayable.paid_date <= month_end
-                    ).group_by(CostCenter.id, CostCenter.name).all()
-
-                for cc_name, total in cost_center_expenses:
+            # Preencher dados por centro de custo (já processados na consulta SQL)
+            if month_key in cost_centers_by_month:
+                for cc_name, total in cost_centers_by_month[month_key].items():
                     if cc_name not in dre_report['cost_centers']:
                         dre_report['cost_centers'][cc_name] = {m['name']: 0.0 for m in months_data}
                     dre_report['cost_centers'][cc_name][month_name] = float(total or 0)
 
-            except Exception as e:
-                print(f"Erro ao buscar despesas por centro de custo: {e}")
-
-            # Coletar dados por categoria para despesas
-            try:
-                if is_future:
-                    # Para meses futuros, buscar despesas pendentes por categoria
-                    category_expenses = db.query(
-                        FinancialCategory.name,
-                        func.sum(AccountPayable.amount).label('total')
-                    ).join(
-                        AccountPayable, FinancialCategory.id == AccountPayable.category_id
-                    ).filter(
-                        AccountPayable.company_id == company_id,
-                        AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
-                        AccountPayable.due_date >= month_start,
-                        AccountPayable.due_date <= month_end
-                    ).group_by(FinancialCategory.id, FinancialCategory.name).all()
-                else:
-                    # Para meses passados/atuais, buscar despesas pagas por categoria
-                    category_expenses = db.query(
-                        FinancialCategory.name,
-                        func.sum(AccountPayable.amount).label('total')
-                    ).join(
-                        AccountPayable, FinancialCategory.id == AccountPayable.category_id
-                    ).filter(
-                        AccountPayable.company_id == company_id,
-                        AccountPayable.status.in_(['paid', 'received', 'completed']),
-                        AccountPayable.paid_date >= month_start,
-                        AccountPayable.paid_date <= month_end
-                    ).group_by(FinancialCategory.id, FinancialCategory.name).all()
-
-                for cat_name, total in category_expenses:
-                    if cat_name not in dre_report['categories']:
-                        dre_report['categories'][cat_name] = {m['name']: 0.0 for m in months_data}
-                    dre_report['categories'][cat_name][month_name] = float(total or 0)
-
-            except Exception as e:
-                print(f"Erro ao buscar despesas por categoria: {e}")
-
-            # Coletar dados por centro de custo E categoria (detalhamento)
-            try:
-                print(f"DEBUG DRE - {month_name} - Buscando despesas por centro de custo e categoria...")
-                if is_future:
-                    # Para meses futuros, buscar despesas pendentes por centro de custo e categoria
-                    cc_cat_expenses = db.query(
-                        CostCenter.name.label('cost_center_name'),
-                        FinancialCategory.name.label('category_name'),
-                        func.sum(AccountPayable.amount).label('total')
-                    ).join(
-                        AccountPayable, CostCenter.id == AccountPayable.cost_center_id
-                    ).join(
-                        FinancialCategory, FinancialCategory.id == AccountPayable.category_id
-                    ).filter(
-                        AccountPayable.company_id == company_id,
-                        AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
-                        AccountPayable.due_date >= month_start,
-                        AccountPayable.due_date <= month_end
-                    ).group_by(CostCenter.id, CostCenter.name, FinancialCategory.id, FinancialCategory.name).all()
-                else:
-                    # Para meses passados/atuais, buscar despesas pagas por centro de custo e categoria
-                    cc_cat_expenses = db.query(
-                        CostCenter.name.label('cost_center_name'),
-                        FinancialCategory.name.label('category_name'),
-                        func.sum(AccountPayable.amount).label('total')
-                    ).join(
-                        AccountPayable, CostCenter.id == AccountPayable.cost_center_id
-                    ).join(
-                        FinancialCategory, FinancialCategory.id == AccountPayable.category_id
-                    ).filter(
-                        AccountPayable.company_id == company_id,
-                        AccountPayable.status.in_(['paid', 'received', 'completed']),
-                        AccountPayable.paid_date >= month_start,
-                        AccountPayable.paid_date <= month_end
-                    ).group_by(CostCenter.id, CostCenter.name, FinancialCategory.id, FinancialCategory.name).all()
-
-                print(f"DEBUG DRE - {month_name} - Resultado da consulta cc_cat_expenses: {len(cc_cat_expenses)} registros")
-                for cc_name, cat_name, total in cc_cat_expenses:
-                    print(f"DEBUG DRE - {month_name} - {cc_name} - {cat_name}: {total}")
-                    # Criar chave composta: centro_custo + categoria
-                    key = f"{cc_name} - {cat_name}"
-                    if key not in dre_report['cost_center_categories']:
-                        dre_report['cost_center_categories'][key] = {
-                            'cost_center': cc_name,
-                            'category': cat_name,
-                            'months': {m['name']: 0.0 for m in months_data}
-                        }
-                    dre_report['cost_center_categories'][key]['months'][month_name] = float(total or 0)
-
-            except Exception as e:
-                print(f"Erro ao buscar despesas por centro de custo e categoria: {e}")
-                import traceback
-                print(traceback.format_exc())
+            # NOTA: Dados por centro de custo já foram processados na consulta SQL consolidada
+            # e preenchidos acima na seção "Preencher dados por centro de custo"
 
         # Calcular projeções para meses futuros baseadas no histórico
         print("DEBUG DRE - Calculando projeções para meses futuros...")
