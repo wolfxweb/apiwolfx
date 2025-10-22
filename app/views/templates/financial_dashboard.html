@@ -499,6 +499,9 @@ async function loadDreData() {
         }
 
         dreData = await response.json();
+        console.log('DRE Data recebida:', dreData);
+        console.log('Meses:', dreData.months);
+        console.log('Dados:', dreData.data);
         renderDreTable();
         
         document.getElementById('dre-loading').style.display = 'none';
@@ -583,7 +586,7 @@ function renderDreTable() {
     tbody.appendChild(blankRow2);
 
     const resultRow = document.createElement('tr');
-    resultRow.className = 'table-dark';
+    resultRow.className = '';
     resultRow.innerHTML = `
         <td class="fw-bold">RESULTADO</td>
         ${dreData.months.map(month => {

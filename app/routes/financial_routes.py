@@ -2887,11 +2887,39 @@ async def get_dre_report(
         from datetime import timedelta
         today = datetime.now()
         
-        # Gerar lista dos últimos 12 meses + próximos 3 meses
+        # Gerar lista dos próximos 3 meses + últimos 12 meses
         months_data = []
         
-        # Últimos 12 meses (histórico)
-        for i in range(12):
+        # Próximos 3 meses (futuro) - PRIMEIRO (do mais próximo para o mais distante)
+        for i in range(3, 0, -1):
+            future_month = today.month + i
+            future_year = today.year
+            
+            if future_month > 12:
+                future_month -= 12
+                future_year += 1
+            
+            month_date = datetime(future_year, future_month, 1)
+            
+            # Calcular o último dia do mês
+            if future_month == 12:
+                next_month = datetime(future_year + 1, 1, 1)
+            else:
+                next_month = datetime(future_year, future_month + 1, 1)
+            
+            last_day = next_month - timedelta(days=1)
+            
+            months_data.append({
+                'year': future_year,
+                'month': future_month,
+                'name': month_date.strftime('%m/%Y'),
+                'start_date': month_date,
+                'end_date': last_day,
+                'is_future': True
+            })
+        
+        # Últimos 12 meses (histórico) - do mais recente para o mais antigo
+        for i in range(12):  # 0, 1, 2, ..., 11
             # Calcular mês atual - i meses
             current_month = today.month - i
             current_year = today.year
@@ -2917,34 +2945,6 @@ async def get_dre_report(
                 'start_date': month_date,
                 'end_date': last_day,
                 'is_future': False
-            })
-        
-        # Próximos 3 meses (futuro)
-        for i in range(1, 4):
-            future_month = today.month + i
-            future_year = today.year
-            
-            if future_month > 12:
-                future_month -= 12
-                future_year += 1
-            
-            month_date = datetime(future_year, future_month, 1)
-            
-            # Calcular o último dia do mês
-            if future_month == 12:
-                next_month = datetime(future_year + 1, 1, 1)
-            else:
-                next_month = datetime(future_year, future_month + 1, 1)
-            
-            last_day = next_month - timedelta(days=1)
-            
-            months_data.append({
-                'year': future_year,
-                'month': future_month,
-                'name': month_date.strftime('%m/%Y'),
-                'start_date': month_date,
-                'end_date': last_day,
-                'is_future': True
             })
         
         # Inicializar estrutura de dados para o DRE consolidado
