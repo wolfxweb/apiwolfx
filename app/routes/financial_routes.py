@@ -2888,7 +2888,7 @@ async def get_dre_report(
         from datetime import timedelta
         today = datetime.now()
         
-        # Gerar lista dos próximos 3 meses + últimos 12 meses
+        # Gerar lista dos próximos 3 meses + últimos 12 meses (total: 15 meses)
         months_data = []
         
         # Próximos 3 meses (futuro) - PRIMEIRO (do mais próximo para o mais distante)
