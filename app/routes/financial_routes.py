@@ -17,7 +17,7 @@ from app.models.financial_models import (
     FinancialAccount, FinancialCategory, CostCenter, FinancialCustomer,
     AccountReceivable, FinancialSupplier, AccountPayable, FinancialTransaction
 )
-from app.models.database_models import Category
+# Removido - usando FinancialCategory de financial_models
 from app.models.saas_models import Fornecedor, OrdemCompra, MLOrder
 
 # Configurar logging
@@ -2965,7 +2965,8 @@ async def get_dre_report(
                 }
             },
             'cost_centers': {},
-            'categories': {}
+            'categories': {},
+            'cost_center_categories': {}
         }
 
         # Iterar sobre cada mês para coletar os dados consolidados
@@ -2991,6 +2992,9 @@ async def get_dre_report(
                 except Exception as e:
                     print(f"Erro ao buscar receitas: {e}")
                     receivables_revenue = 0.0
+            else:
+                # Para meses futuros, usar projeção baseada no histórico
+                receivables_revenue = 0.0  # Será calculado após coletar todos os dados históricos
             
             print(f"DEBUG DRE - {month_name} - Receitas Contas a Receber: {receivables_revenue}")
 
@@ -3014,6 +3018,9 @@ async def get_dre_report(
                                 ml_revenue += float(order.total_amount or 0)
                 except Exception as e:
                     print(f"Erro ao calcular receitas ML: {e}")
+            else:
+                # Para meses futuros, usar projeção baseada no histórico
+                ml_revenue = 0.0  # Será calculado após coletar todos os dados históricos
             
             ml_revenue = float(ml_revenue)
             print(f"DEBUG DRE - {month_name} - Receitas Mercado Livre: {ml_revenue}")
@@ -3101,29 +3108,29 @@ async def get_dre_report(
                 if is_future:
                     # Para meses futuros, buscar despesas pendentes por categoria
                     category_expenses = db.query(
-                        Category.name,
+                        FinancialCategory.name,
                         func.sum(AccountPayable.amount).label('total')
                     ).join(
-                        AccountPayable, Category.id == AccountPayable.category_id
+                        AccountPayable, FinancialCategory.id == AccountPayable.category_id
                     ).filter(
                         AccountPayable.company_id == company_id,
                         AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
                         AccountPayable.due_date >= month_start,
                         AccountPayable.due_date <= month_end
-                    ).group_by(Category.id, Category.name).all()
+                    ).group_by(FinancialCategory.id, FinancialCategory.name).all()
                 else:
                     # Para meses passados/atuais, buscar despesas pagas por categoria
                     category_expenses = db.query(
-                        Category.name,
+                        FinancialCategory.name,
                         func.sum(AccountPayable.amount).label('total')
                     ).join(
-                        AccountPayable, Category.id == AccountPayable.category_id
+                        AccountPayable, FinancialCategory.id == AccountPayable.category_id
                     ).filter(
                         AccountPayable.company_id == company_id,
                         AccountPayable.status.in_(['paid', 'received', 'completed']),
                         AccountPayable.paid_date >= month_start,
                         AccountPayable.paid_date <= month_end
-                    ).group_by(Category.id, Category.name).all()
+                    ).group_by(FinancialCategory.id, FinancialCategory.name).all()
 
                 for cat_name, total in category_expenses:
                     if cat_name not in dre_report['categories']:
@@ -3132,6 +3139,99 @@ async def get_dre_report(
 
             except Exception as e:
                 print(f"Erro ao buscar despesas por categoria: {e}")
+
+            # Coletar dados por centro de custo E categoria (detalhamento)
+            try:
+                print(f"DEBUG DRE - {month_name} - Buscando despesas por centro de custo e categoria...")
+                if is_future:
+                    # Para meses futuros, buscar despesas pendentes por centro de custo e categoria
+                    cc_cat_expenses = db.query(
+                        CostCenter.name.label('cost_center_name'),
+                        FinancialCategory.name.label('category_name'),
+                        func.sum(AccountPayable.amount).label('total')
+                    ).join(
+                        AccountPayable, CostCenter.id == AccountPayable.cost_center_id
+                    ).join(
+                        FinancialCategory, FinancialCategory.id == AccountPayable.category_id
+                    ).filter(
+                        AccountPayable.company_id == company_id,
+                        AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
+                        AccountPayable.due_date >= month_start,
+                        AccountPayable.due_date <= month_end
+                    ).group_by(CostCenter.id, CostCenter.name, FinancialCategory.id, FinancialCategory.name).all()
+                else:
+                    # Para meses passados/atuais, buscar despesas pagas por centro de custo e categoria
+                    cc_cat_expenses = db.query(
+                        CostCenter.name.label('cost_center_name'),
+                        FinancialCategory.name.label('category_name'),
+                        func.sum(AccountPayable.amount).label('total')
+                    ).join(
+                        AccountPayable, CostCenter.id == AccountPayable.cost_center_id
+                    ).join(
+                        FinancialCategory, FinancialCategory.id == AccountPayable.category_id
+                    ).filter(
+                        AccountPayable.company_id == company_id,
+                        AccountPayable.status.in_(['paid', 'received', 'completed']),
+                        AccountPayable.paid_date >= month_start,
+                        AccountPayable.paid_date <= month_end
+                    ).group_by(CostCenter.id, CostCenter.name, FinancialCategory.id, FinancialCategory.name).all()
+
+                print(f"DEBUG DRE - {month_name} - Resultado da consulta cc_cat_expenses: {len(cc_cat_expenses)} registros")
+                for cc_name, cat_name, total in cc_cat_expenses:
+                    print(f"DEBUG DRE - {month_name} - {cc_name} - {cat_name}: {total}")
+                    # Criar chave composta: centro_custo + categoria
+                    key = f"{cc_name} - {cat_name}"
+                    if key not in dre_report['cost_center_categories']:
+                        dre_report['cost_center_categories'][key] = {
+                            'cost_center': cc_name,
+                            'category': cat_name,
+                            'months': {m['name']: 0.0 for m in months_data}
+                        }
+                    dre_report['cost_center_categories'][key]['months'][month_name] = float(total or 0)
+
+            except Exception as e:
+                print(f"Erro ao buscar despesas por centro de custo e categoria: {e}")
+                import traceback
+                print(traceback.format_exc())
+
+        # Calcular projeções para meses futuros baseadas no histórico
+        print("DEBUG DRE - Calculando projeções para meses futuros...")
+        
+        # Calcular médias históricas
+        historical_receivables = []
+        historical_ml = []
+        
+        for month_info in months_data:
+            if not month_info.get('is_future', False):
+                month_name = month_info['name']
+                receivables_val = dre_report['data']['RECEITAS']['Contas a Receber'][month_name]
+                ml_val = dre_report['data']['RECEITAS']['Mercado Livre'][month_name]
+                
+                if receivables_val > 0:
+                    historical_receivables.append(receivables_val)
+                if ml_val > 0:
+                    historical_ml.append(ml_val)
+        
+        # Calcular médias
+        avg_receivables = sum(historical_receivables) / len(historical_receivables) if historical_receivables else 0
+        avg_ml = sum(historical_ml) / len(historical_ml) if historical_ml else 0
+        
+        print(f"DEBUG DRE - Média histórica Contas a Receber: {avg_receivables}")
+        print(f"DEBUG DRE - Média histórica Mercado Livre: {avg_ml}")
+        
+        # Aplicar projeções nos meses futuros
+        for month_info in months_data:
+            if month_info.get('is_future', False):
+                month_name = month_info['name']
+                print(f"DEBUG DRE - Aplicando projeção para {month_name}")
+                
+                # Aplicar projeções
+                dre_report['data']['RECEITAS']['Contas a Receber'][month_name] = avg_receivables
+                dre_report['data']['RECEITAS']['Mercado Livre'][month_name] = avg_ml
+                dre_report['data']['RECEITAS']['total'][month_name] = avg_receivables + avg_ml
+                
+                # Recalcular resultado para meses futuros
+                dre_report['data']['RESULTADO']['total'][month_name] = dre_report['data']['RECEITAS']['total'][month_name] - dre_report['data']['DESPESAS']['total'][month_name]
 
         return dre_report
         

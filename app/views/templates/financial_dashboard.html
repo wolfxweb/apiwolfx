@@ -536,27 +536,33 @@ function renderDreTable() {
     const revenueRow = document.createElement('tr');
     revenueRow.innerHTML = `
         <td class="fw-bold text-success">RECEITAS</td>
-        ${dreData.months.map(month => 
-            `<td class="text-end text-success fw-bold">${formatCurrency(data.RECEITAS.total[month])}</td>`
-        ).join('')}
+        ${dreData.months.map((month, index) => {
+            const isFuture = index < 3; // Primeiros 3 meses são futuros
+            const bgClass = isFuture ? 'bg-warning' : '';
+            return `<td class="text-end text-success fw-bold ${bgClass}">${formatCurrency(data.RECEITAS.total[month])}</td>`;
+        }).join('')}
     `;
     tbody.appendChild(revenueRow);
 
     const receivablesRow = document.createElement('tr');
     receivablesRow.innerHTML = `
         <td style="padding-left: 2rem;">Contas a Receber</td>
-        ${dreData.months.map(month => 
-            `<td class="text-end">${formatCurrency(data.RECEITAS['Contas a Receber'][month])}</td>`
-        ).join('')}
+        ${dreData.months.map((month, index) => {
+            const isFuture = index < 3; // Primeiros 3 meses são futuros
+            const bgClass = isFuture ? 'bg-warning' : '';
+            return `<td class="text-end ${bgClass}">${formatCurrency(data.RECEITAS['Contas a Receber'][month])}</td>`;
+        }).join('')}
     `;
     tbody.appendChild(receivablesRow);
 
     const mlRow = document.createElement('tr');
     mlRow.innerHTML = `
         <td style="padding-left: 2rem;">Mercado Livre</td>
-        ${dreData.months.map(month => 
-            `<td class="text-end">${formatCurrency(data.RECEITAS['Mercado Livre'][month])}</td>`
-        ).join('')}
+        ${dreData.months.map((month, index) => {
+            const isFuture = index < 3; // Primeiros 3 meses são futuros
+            const bgClass = isFuture ? 'bg-warning' : '';
+            return `<td class="text-end ${bgClass}">${formatCurrency(data.RECEITAS['Mercado Livre'][month])}</td>`;
+        }).join('')}
     `;
     tbody.appendChild(mlRow);
 
@@ -591,20 +597,6 @@ function renderDreTable() {
         });
     }
 
-    // Adicionar linhas por categoria
-    if (dreData.categories) {
-        Object.keys(dreData.categories).forEach(catName => {
-            const catRow = document.createElement('tr');
-            catRow.innerHTML = `
-                <td style="padding-left: 2rem;">${catName}</td>
-                ${dreData.months.map(month => 
-                    `<td class="text-end">${formatCurrency(dreData.categories[catName][month] || 0)}</td>`
-                ).join('')}
-            `;
-            tbody.appendChild(catRow);
-        });
-    }
-
     // Linha em branco
     const blankRow2 = document.createElement('tr');
     blankRow2.innerHTML = `
@@ -617,10 +609,12 @@ function renderDreTable() {
     resultRow.className = '';
     resultRow.innerHTML = `
         <td class="fw-bold">RESULTADO</td>
-        ${dreData.months.map(month => {
+        ${dreData.months.map((month, index) => {
             const result = data.RESULTADO.total[month];
+            const isFuture = index < 3; // Primeiros 3 meses são futuros
             const colorClass = result >= 0 ? 'text-success' : 'text-danger';
-            return `<td class="text-end fw-bold ${colorClass}">${formatCurrency(result)}</td>`;
+            const bgClass = isFuture ? 'bg-warning' : '';
+            return `<td class="text-end fw-bold ${colorClass} ${bgClass}">${formatCurrency(result)}</td>`;
         }).join('')}
     `;
     tbody.appendChild(resultRow);
