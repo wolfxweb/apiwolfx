@@ -203,6 +203,15 @@
                 </div>
             </div>
             <div class="card-body">
+                <!-- Gráfico de linha -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div style="height: 400px;">
+                            <canvas id="dreChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
                 <div id="dre-loading" class="text-center py-3" style="display: none;">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
                     <p class="mt-2">Carregando dados do DRE...</p>
@@ -503,6 +512,7 @@ async function loadDreData() {
         console.log('Meses:', dreData.months);
         console.log('Dados:', dreData.data);
         renderDreTable();
+        createDreChart();
         
         document.getElementById('dre-loading').style.display = 'none';
         document.getElementById('dre-content').style.display = 'block';
@@ -669,5 +679,98 @@ document.addEventListener('DOMContentLoaded', function() {
     // Carregar DRE após um pequeno delay para não sobrecarregar
     setTimeout(loadDreData, 1000);
 });
+</script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+let dreChart = null;
+
+function createDreChart() {
+    if (!dreData || !dreData.data) return;
+
+    const ctx = document.getElementById('dreChart').getContext('2d');
+    
+    // Destruir gráfico anterior se existir
+    if (dreChart) {
+        dreChart.destroy();
+    }
+
+    const data = dreData.data;
+    const months = dreData.months;
+    
+    // Preparar dados para o gráfico
+    const receitasData = months.map(month => data.RECEITAS.total[month] || 0);
+    const despesasData = months.map(month => data.DESPESAS.total[month] || 0);
+    const saldoData = months.map(month => data.RESULTADO.total[month] || 0);
+
+    dreChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [
+                {
+                    label: 'Receitas',
+                    data: receitasData,
+                    borderColor: 'rgb(40, 167, 69)',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Despesas',
+                    data: despesasData,
+                    borderColor: 'rgb(220, 53, 69)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Saldo',
+                    data: saldoData,
+                    borderColor: 'rgb(0, 123, 255)',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.1,
+                    fill: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Evolução Financeira - Receitas, Despesas e Saldo'
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                        }
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Meses'
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+}
 </script>
 {% endblock %}
