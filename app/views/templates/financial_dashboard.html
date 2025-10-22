@@ -10,9 +10,9 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row g-3 justify-content-md-end">
+        <div class="row  justify-content-md-end">
             <!-- Período -->
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-3">
                 <label for="periodFilter" class="form-label">Período</label>
                 <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); loadDashboardData();">
                     <option value="">Todos os períodos</option>
@@ -28,6 +28,8 @@
                     <option value="custom">Período personalizado</option>
                 </select>
             </div>
+            
+            <!-- Filtros de categoria e centro de custo removidos -->
             
             <!-- Período personalizado (oculto por padrão) -->
             <div class="col-12 col-md-3" id="customPeriodRow" style="display: none;">
@@ -185,132 +187,11 @@
     </div>
 </div>
 
-<!-- Gráficos e Análises -->
-<div class="row mb-4">
-    <!-- Gráfico de Receitas vs Despesas -->
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Receitas vs Despesas (Últimos 6 meses)</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="revenueExpensesChart" height="200"></canvas>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Top Categorias -->
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Top Categorias (Este Mês)</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="categoriesChart" height="200"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Seções removidas: Gráfico de Receitas vs Despesas e Top Categorias -->
 
-<!-- Tabelas de Resumo -->
-<div class="row mb-4">
-    <!-- Contas a Receber -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-arrow-down-circle"></i> Contas a Receber</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Cliente</th>
-                                <th>Valor</th>
-                                <th>Vencimento</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="receivablesTable">
-                            <!-- Dados carregados via JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-                <div class="text-center mt-2">
-                    <a href="/financial/receivables" class="btn btn-sm btn-outline-primary">Ver Todas</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Contas a Pagar -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-arrow-up-circle"></i> Contas a Pagar</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Fornecedor</th>
-                                <th>Valor</th>
-                                <th>Vencimento</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="payablesTable">
-                            <!-- Dados carregados via JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-                <div class="text-center mt-2">
-                    <a href="/financial/payables" class="btn btn-sm btn-outline-primary">Ver Todas</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Seções removidas: Contas a Receber e Contas a Pagar -->
 
-<!-- Ações Rápidas -->
-<div class="row">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-lightning"></i> Ações Rápidas</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3">
-                        <a href="/financial/receivables" class="btn btn-outline-success w-100 mb-2">
-                            <i class="bi bi-plus-circle"></i><br>
-                            Nova Conta a Receber
-                        </a>
-                    </div>
-                    <div class="col-md-3">
-                        <a href="/financial/payables" class="btn btn-outline-danger w-100 mb-2">
-                            <i class="bi bi-plus-circle"></i><br>
-                            Nova Conta a Pagar
-                        </a>
-                    </div>
-                    <div class="col-md-3">
-                        <a href="/financial/cashflow" class="btn btn-outline-primary w-100 mb-2">
-                            <i class="bi bi-graph-up"></i><br>
-                            Fluxo de Caixa
-                        </a>
-                    </div>
-                    <div class="col-md-3">
-                        <a href="/financial/categories" class="btn btn-outline-info w-100 mb-2">
-                            <i class="bi bi-tags"></i><br>
-                            Categorias
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Seção removida: Ações Rápidas -->
 
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -323,7 +204,7 @@ let categoriesChart = null;
 
 // Carregar dados ao inicializar
 document.addEventListener('DOMContentLoaded', function() {
-    // Carregar dados (sem spinner inicial para evitar problemas)
+    // Carregar dados do dashboard
     loadDashboardData();
     
     // Inicializar tooltips do Bootstrap
@@ -384,6 +265,8 @@ async function loadDashboardData() {
         if (dateFrom) params.append('date_from', dateFrom);
         if (dateTo) params.append('date_to', dateTo);
         
+        // Filtros de categoria e centro de custo removidos
+        
         const response = await fetch(`/api/financial/dashboard?${params.toString()}`, {
             credentials: 'include'
         });
@@ -391,8 +274,6 @@ async function loadDashboardData() {
             dashboardData = await response.json();
             hideLoadingSpinner(); // Esconder spinner antes de atualizar
             updateDashboardStats();
-            createCharts();
-            updateTables();
         } else {
             hideLoadingSpinner(); // Esconder spinner mesmo em caso de erro
             showAlert('Erro ao carregar dados do dashboard', 'danger');
@@ -454,168 +335,15 @@ function updateCardColors(data) {
     }
 }
 
-// Função para criar gráficos
-function createCharts() {
-    createRevenueExpensesChart();
-    createCategoriesChart();
-}
+// Função removida: createCharts
 
-// Gráfico de Receitas vs Despesas
-function createRevenueExpensesChart() {
-    const ctx = document.getElementById('revenueExpensesChart').getContext('2d');
-    
-    // Destruir gráfico anterior se existir
-    if (revenueExpensesChart) {
-        revenueExpensesChart.destroy();
-    }
-    
-    const data = dashboardData.monthly_data || [];
-    
-    revenueExpensesChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.map(item => item.month),
-            datasets: [{
-                label: 'Receitas',
-                data: data.map(item => item.revenue),
-                backgroundColor: 'rgba(40, 167, 69, 0.8)',
-                borderColor: 'rgba(40, 167, 69, 1)',
-                borderWidth: 1
-            }, {
-                label: 'Despesas',
-                data: data.map(item => item.expenses),
-                backgroundColor: 'rgba(220, 53, 69, 0.8)',
-                borderColor: 'rgba(220, 53, 69, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return 'R$ ' + value.toLocaleString('pt-BR');
-                        }
-                    }
-                }
-            },
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.dataset.label + ': R$ ' + context.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2});
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
+// Função removida: createRevenueExpensesChart
 
-// Gráfico de Categorias
-function createCategoriesChart() {
-    const ctx = document.getElementById('categoriesChart').getContext('2d');
-    
-    // Destruir gráfico anterior se existir
-    if (categoriesChart) {
-        categoriesChart.destroy();
-    }
-    
-    const data = dashboardData.top_categories || [];
-    
-    categoriesChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: data.map(item => item.name),
-            datasets: [{
-                data: data.map(item => item.amount),
-                backgroundColor: [
-                    '#FF6384',
-                    '#36A2EB',
-                    '#FFCE56',
-                    '#4BC0C0',
-                    '#9966FF',
-                    '#FF9F40'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = ((context.parsed / total) * 100).toFixed(1);
-                            return context.label + ': R$ ' + context.parsed.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + ' (' + percentage + '%)';
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
+// Função removida: createCategoriesChart
 
-// Função para atualizar tabelas
-function updateTables() {
-    updateReceivablesTable();
-    updatePayablesTable();
-}
+// Função removida: updateTables
 
-// Atualizar tabela de contas a receber
-function updateReceivablesTable() {
-    const tbody = document.getElementById('receivablesTable');
-    const data = dashboardData.recent_receivables || [];
-    
-    tbody.innerHTML = '';
-    
-    if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhuma conta a receber</td></tr>';
-        return;
-    }
-    
-    data.forEach(item => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${item.customer_name || '-'}</td>
-            <td>R$ ${parseFloat(item.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-            <td>${formatDate(item.due_date)}</td>
-            <td><span class="badge ${getStatusBadgeClass(item.status)}">${getStatusLabel(item.status)}</span></td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Atualizar tabela de contas a pagar
-function updatePayablesTable() {
-    const tbody = document.getElementById('payablesTable');
-    const data = dashboardData.recent_payables || [];
-    
-    tbody.innerHTML = '';
-    
-    if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhuma conta a pagar</td></tr>';
-        return;
-    }
-    
-    data.forEach(item => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${item.supplier_name || '-'}</td>
-            <td>R$ ${parseFloat(item.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-            <td>${formatDate(item.due_date)}</td>
-            <td><span class="badge ${getStatusBadgeClass(item.status)}">${getStatusLabel(item.status)}</span></td>
-        `;
-        tbody.appendChild(row);
-    });
-}
+// Funções removidas: updateReceivablesTable, updatePayablesTable
 
 // Funções auxiliares
 function formatDate(dateString) {
