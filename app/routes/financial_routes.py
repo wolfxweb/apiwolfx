@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc, text
 from typing import Dict, Any, List, Optional
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from app.config.database import get_db
 from app.controllers.auth_controller import AuthController
@@ -3183,5 +3183,200 @@ async def get_dre_report(
     except Exception as e:
         import traceback
         error_msg = f"Erro ao gerar DRE: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@financial_router.get("/api/financial/expenses-by-category")
+async def get_expenses_by_category(
+    cost_center: Optional[str] = None,
+    month: Optional[str] = None,
+    type: Optional[str] = None,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Retorna despesas agrupadas por categoria com filtros opcionais"""
+    try:
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Token de sessão necessário")
+        
+        result = auth_controller.get_user_by_session(session_token, db)
+        print(f"DEBUG - Resultado da autenticação: {result}")
+        if result.get("error"):
+            raise HTTPException(status_code=401, detail=result["error"])
+        
+        user_data = result.get('user', {})
+        company_id = user_data.get('company_id')
+        print(f"DEBUG - Company ID encontrado: {company_id}")
+        if not company_id:
+            raise HTTPException(status_code=400, detail="Company ID não encontrado")
+        
+        print(f"DEBUG - Buscando despesas por categoria - Company: {company_id}")
+        print(f"DEBUG - Filtros - Centro de custo: {cost_center}, Mês: {month}, Tipo: {type}")
+        
+        # Construir consulta base
+        query = db.query(
+            FinancialCategory.name.label('category_name'),
+            func.sum(AccountPayable.amount).label('total_amount')
+        ).join(
+            AccountPayable, FinancialCategory.id == AccountPayable.category_id
+        ).filter(
+            AccountPayable.company_id == company_id
+        )
+        
+        # Aplicar filtros
+        if cost_center:
+            query = query.join(CostCenter, CostCenter.id == AccountPayable.cost_center_id).filter(
+                CostCenter.name == cost_center
+            )
+        
+        if type == 'paid':
+            query = query.filter(
+                AccountPayable.status.in_(['paid', 'received', 'completed']),
+                AccountPayable.paid_date.isnot(None)
+            )
+            if month:
+                # Para despesas pagas, filtrar por data de pagamento
+                month_date = datetime.strptime(month, '%m/%Y')
+                month_start = month_date.replace(day=1)
+                if month_date.month == 12:
+                    month_end = month_date.replace(year=month_date.year + 1, month=1, day=1) - timedelta(days=1)
+                else:
+                    month_end = month_date.replace(month=month_date.month + 1, day=1) - timedelta(days=1)
+                query = query.filter(
+                    AccountPayable.paid_date >= month_start,
+                    AccountPayable.paid_date <= month_end
+                )
+        elif type == 'pending':
+            query = query.filter(
+                AccountPayable.status.in_(['pending', 'unpaid', 'overdue'])
+            )
+            if month:
+                # Para despesas pendentes, filtrar por data de vencimento
+                month_date = datetime.strptime(month, '%m/%Y')
+                month_start = month_date.replace(day=1)
+                if month_date.month == 12:
+                    month_end = month_date.replace(year=month_date.year + 1, month=1, day=1) - timedelta(days=1)
+                else:
+                    month_end = month_date.replace(month=month_date.month + 1, day=1) - timedelta(days=1)
+                query = query.filter(
+                    AccountPayable.due_date >= month_start,
+                    AccountPayable.due_date <= month_end
+                )
+        else:
+            # Sem filtro de tipo - incluir todas as despesas
+            if month:
+                month_date = datetime.strptime(month, '%m/%Y')
+                month_start = month_date.replace(day=1)
+                if month_date.month == 12:
+                    month_end = month_date.replace(year=month_date.year + 1, month=1, day=1) - timedelta(days=1)
+                else:
+                    month_end = month_date.replace(month=month_date.month + 1, day=1) - timedelta(days=1)
+                query = query.filter(
+                    or_(
+                        and_(
+                            AccountPayable.status.in_(['paid', 'received', 'completed']),
+                            AccountPayable.paid_date >= month_start,
+                            AccountPayable.paid_date <= month_end
+                        ),
+                        and_(
+                            AccountPayable.status.in_(['pending', 'unpaid', 'overdue']),
+                            AccountPayable.due_date >= month_start,
+                            AccountPayable.due_date <= month_end
+                        )
+                    )
+                )
+        
+        # Executar consulta
+        results = query.group_by(FinancialCategory.id, FinancialCategory.name).all()
+        
+        print(f"DEBUG - Resultados encontrados: {len(results)}")
+        
+        # Processar resultados
+        categories = {}
+        for category_name, total_amount in results:
+            categories[category_name] = float(total_amount or 0)
+        
+        print(f"DEBUG - Categorias processadas: {categories}")
+        
+        return {
+            'categories': categories,
+            'total': sum(categories.values()),
+            'filters': {
+                'cost_center': cost_center,
+                'month': month,
+                'type': type
+            }
+        }
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Erro ao buscar despesas por categoria: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@financial_router.get("/api/financial/expenses-filters")
+async def get_expenses_filters(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Retorna filtros disponíveis para despesas (centros de custo e meses)"""
+    try:
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Token de sessão necessário")
+        
+        result = auth_controller.get_user_by_session(session_token, db)
+        if result.get("error"):
+            raise HTTPException(status_code=401, detail=result["error"])
+        
+        user_data = result.get('user', {})
+        company_id = user_data.get('company_id')
+        if not company_id:
+            raise HTTPException(status_code=400, detail="Company ID não encontrado")
+        
+        print(f"DEBUG - Buscando filtros para Company: {company_id}")
+        
+        # Buscar centros de custo
+        cost_centers = db.query(CostCenter.name).filter(
+            CostCenter.company_id == company_id
+        ).order_by(CostCenter.name).all()
+        
+        cost_center_list = [cc.name for cc in cost_centers]
+        print(f"DEBUG - Centros de custo encontrados: {cost_center_list}")
+        
+        # Gerar lista de meses: últimos 6 meses + próximos 6 meses
+        today = datetime.now()
+        month_list = []
+        
+        # Últimos 6 meses
+        for i in range(6, 0, -1):
+            month_date = today - timedelta(days=30*i)
+            month_key = month_date.strftime('%m/%Y')
+            month_list.append(month_key)
+        
+        # Mês atual
+        current_month = today.strftime('%m/%Y')
+        month_list.append(current_month)
+        
+        # Próximos 6 meses
+        for i in range(1, 7):
+            if today.month + i > 12:
+                month_date = today.replace(year=today.year + 1, month=today.month + i - 12)
+            else:
+                month_date = today.replace(month=today.month + i)
+            month_key = month_date.strftime('%m/%Y')
+            month_list.append(month_key)
+        
+        print(f"DEBUG - Meses gerados: {month_list}")
+        print(f"DEBUG - Mês atual: {current_month}")
+        
+        return {
+            'cost_centers': cost_center_list,
+            'months': month_list,
+            'current_month': current_month
+        }
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Erro ao buscar filtros: {str(e)}\n{traceback.format_exc()}"
         print(error_msg)
         raise HTTPException(status_code=500, detail=str(e))
