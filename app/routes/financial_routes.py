@@ -2689,83 +2689,33 @@ async def get_dashboard_data(
         month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     
-    # Consultas simples para obter dados reais
+    # CONSULTA ÚNICA: Receitas (normais + Mercado Livre) com regra dos 7 dias
     from app.models.financial_models import AccountReceivable, AccountPayable, FinancialAccount
+    from app.models.saas_models import Company, MLOrder, OrderStatus
+    from sqlalchemy import text
     
-    # Receitas pagas no período
-    receivables_paid_query = db.query(func.sum(AccountReceivable.paid_amount)).filter(
+    # 1. Receitas normais pagas no período
+    receivables_paid = db.query(func.sum(AccountReceivable.paid_amount)).filter(
         AccountReceivable.company_id == company_id,
         AccountReceivable.status.in_(['paid', 'received']),
         AccountReceivable.paid_date >= month_start,
         AccountReceivable.paid_date <= month_end
-    )
+    ).scalar() or 0
     
-    # Filtros de categoria e centro de custo removidos
-    
-    receivables_paid = receivables_paid_query.scalar() or 0
-    
-    # Receitas pendentes no período
-    receivables_pending_query = db.query(func.sum(AccountReceivable.amount)).filter(
+    # 2. Receitas normais pendentes no período
+    receivables_pending = db.query(func.sum(AccountReceivable.amount)).filter(
         AccountReceivable.company_id == company_id,
         AccountReceivable.status == 'pending',
         AccountReceivable.due_date >= month_start,
         AccountReceivable.due_date <= month_end
-    )
-    
-    # Filtros removidos
-    
-    receivables_pending = receivables_pending_query.scalar() or 0
-    
-    # Despesas pagas no período
-    payables_paid_query = db.query(func.sum(AccountPayable.paid_amount)).filter(
-        AccountPayable.company_id == company_id,
-        AccountPayable.status == 'paid',
-        AccountPayable.paid_date >= month_start,
-        AccountPayable.paid_date <= month_end
-    )
-    
-    # Filtros removidos
-    
-    payables_paid = payables_paid_query.scalar() or 0
-    
-    # Despesas pendentes no período
-    payables_pending_query = db.query(func.sum(AccountPayable.amount)).filter(
-        AccountPayable.company_id == company_id,
-        AccountPayable.status == 'pending',
-        AccountPayable.due_date >= month_start,
-        AccountPayable.due_date <= month_end
-    )
-    
-    # Filtros removidos
-    
-    payables_pending = payables_pending_query.scalar() or 0
-    
-    # Saldo das contas bancárias
-    current_balance = db.query(func.sum(FinancialAccount.current_balance)).filter(
-        FinancialAccount.company_id == company_id,
-        FinancialAccount.is_active == True
     ).scalar() or 0
     
-    # Calcular totais
-    monthly_revenue = receivables_paid + receivables_pending
-    monthly_expenses = payables_paid + payables_pending
-    monthly_profit = monthly_revenue - monthly_expenses
-    cash_projection = current_balance + receivables_pending - payables_pending
-    cash_flow = receivables_paid - payables_paid
-    
-    # Definir variáveis para o retorno
-    received_revenue = receivables_paid
-    pending_revenue = receivables_pending
-    paid_expenses = payables_paid
-    pending_expenses = payables_pending
+    # 3. Pedidos ML com regra dos 7 dias
     ml_received_revenue = 0
     ml_pending_revenue = 0
     
-    # Seção removida: Pedidos ML (simplificado)
-    
-    # Código dos pedidos ML removido para evitar erros
-    # Código dos pedidos ML completamente removido
-    if False:  # Desabilitado
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if company and company.ml_orders_as_receivables:
         # Buscar pedidos ML do período
         ml_orders = db.query(MLOrder).filter(
             MLOrder.company_id == company_id,
@@ -2805,15 +2755,61 @@ async def get_dashboard_data(
             else:
                 ml_pending_revenue += net_amount
     
-    # Ajustar totais com pedidos ML
-    received_revenue = receivables_paid + ml_received_revenue
-    pending_revenue = receivables_pending + ml_pending_revenue
-    monthly_revenue = received_revenue + pending_revenue
-    monthly_profit = monthly_revenue - monthly_expenses
-    cash_projection = current_balance + pending_revenue - payables_pending
-    cash_flow = received_revenue - payables_paid
+    # 4. Totais combinados (normais + ML) - convertendo para float
+    total_received_revenue = float(receivables_paid) + float(ml_received_revenue)
+    total_pending_revenue = float(receivables_pending) + float(ml_pending_revenue)
     
-    # Totais já calculados na consulta única acima
+    # Despesas pagas no período - incluindo diferentes status
+    try:
+        payables_paid = db.query(func.sum(AccountPayable.paid_amount)).filter(
+            AccountPayable.company_id == company_id,
+            AccountPayable.status.in_(['paid', 'received', 'completed']),
+            AccountPayable.paid_date >= month_start,
+            AccountPayable.paid_date <= month_end
+        ).scalar() or 0
+    except Exception as e:
+        print(f"Erro ao consultar despesas pagas: {e}")
+        payables_paid = 0
+    
+    # Despesas pendentes no período - incluindo diferentes status
+    try:
+        payables_pending = db.query(func.sum(AccountPayable.amount)).filter(
+            AccountPayable.company_id == company_id,
+            AccountPayable.status.in_(['pending', 'overdue', 'unpaid']),
+            AccountPayable.due_date >= month_start,
+            AccountPayable.due_date <= month_end
+        ).scalar() or 0
+    except Exception as e:
+        print(f"Erro ao consultar despesas pendentes: {e}")
+        payables_pending = 0
+    
+    # Debug: Log dos valores
+    print(f"DEBUG - Despesas pagas: {payables_paid}")
+    print(f"DEBUG - Despesas pendentes: {payables_pending}")
+    print(f"DEBUG - Company ID: {company_id}")
+    print(f"DEBUG - Período: {month_start} a {month_end}")
+    
+    # Saldo das contas bancárias
+    current_balance = db.query(func.sum(FinancialAccount.current_balance)).filter(
+        FinancialAccount.company_id == company_id,
+        FinancialAccount.is_active == True
+    ).scalar() or 0
+    
+    # Calcular totais finais (incluindo ML) - convertendo tudo para float
+    monthly_revenue = float(total_received_revenue) + float(total_pending_revenue)
+    monthly_expenses = float(payables_paid) + float(payables_pending)
+    monthly_profit = float(monthly_revenue) - float(monthly_expenses)
+    cash_projection = float(current_balance) + float(total_pending_revenue) - float(payables_pending)
+    cash_flow = float(total_received_revenue) - float(payables_paid)
+    
+    # Definir variáveis para o retorno (convertendo para float)
+    received_revenue = float(total_received_revenue)
+    pending_revenue = float(total_pending_revenue)
+    paid_expenses = float(payables_paid)
+    pending_expenses = float(payables_pending)
+    
+    # Seção removida: Código duplicado dos pedidos ML
+    # Código duplicado removido
     
     # Seção removida: Dados históricos (últimos 6 meses)
     
