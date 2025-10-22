@@ -2761,11 +2761,9 @@ async def get_dashboard_data(
     
     # Despesas pagas no período - incluindo diferentes status
     try:
-        payables_paid = db.query(func.sum(AccountPayable.paid_amount)).filter(
+        payables_paid = db.query(func.sum(AccountPayable.amount)).filter(
             AccountPayable.company_id == company_id,
-            AccountPayable.status.in_(['paid', 'received', 'completed']),
-            AccountPayable.paid_date >= month_start,
-            AccountPayable.paid_date <= month_end
+            AccountPayable.status.in_(['paid', 'received', 'completed'])
         ).scalar() or 0
     except Exception as e:
         print(f"Erro ao consultar despesas pagas: {e}")
@@ -2788,6 +2786,34 @@ async def get_dashboard_data(
     print(f"DEBUG - Despesas pendentes: {payables_pending}")
     print(f"DEBUG - Company ID: {company_id}")
     print(f"DEBUG - Período: {month_start} a {month_end}")
+    
+    # Debug: Verificar todos os status das despesas
+    all_status = db.query(AccountPayable.status, func.count(AccountPayable.id)).filter(
+        AccountPayable.company_id == company_id
+    ).group_by(AccountPayable.status).all()
+    print(f"DEBUG - Status das despesas: {all_status}")
+    
+    # Debug: Verificar despesas com paid_date no período
+    paid_in_period = db.query(func.count(AccountPayable.id), func.sum(AccountPayable.paid_amount)).filter(
+        AccountPayable.company_id == company_id,
+        AccountPayable.paid_date >= month_start,
+        AccountPayable.paid_date <= month_end
+    ).first()
+    print(f"DEBUG - Despesas com paid_date no período: {paid_in_period}")
+    
+    # Debug: Verificar despesas pagas - detalhes
+    paid_details = db.query(AccountPayable.id, AccountPayable.amount, AccountPayable.paid_amount, AccountPayable.status).filter(
+        AccountPayable.company_id == company_id,
+        AccountPayable.status.in_(['paid', 'received', 'completed'])
+    ).all()
+    print(f"DEBUG - Detalhes das despesas pagas: {paid_details}")
+    
+    # Debug: Verificar se paid_amount está NULL
+    paid_amount_check = db.query(func.count(AccountPayable.id), func.sum(AccountPayable.amount)).filter(
+        AccountPayable.company_id == company_id,
+        AccountPayable.status.in_(['paid', 'received', 'completed'])
+    ).first()
+    print(f"DEBUG - Despesas pagas (usando amount): {paid_amount_check}")
     
     # Saldo das contas bancárias
     current_balance = db.query(func.sum(FinancialAccount.current_balance)).filter(
