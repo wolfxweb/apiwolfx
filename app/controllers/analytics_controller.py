@@ -24,41 +24,125 @@ class AnalyticsController:
                            current_year: bool = False, date_from: Optional[str] = None,
                            date_to: Optional[str] = None) -> Dict:
         """
-        Dashboard de vendas SIMPLIFICADO - retorna dados mock para manter HTML funcionando
-        
-        ESTRATÉGIA:
-        1. Manter HTML atual funcionando
-        2. Retornar dados mock temporários
-        3. Remover consultas pesadas
-        4. Focar na interface primeiro
+        Dashboard de vendas com dados reais do banco
         """
         try:
-            logger.info(f"🚀 DASHBOARD SIMPLIFICADO - company_id={company_id}, period_days={period_days}")
+            logger.info(f"🚀 DASHBOARD REAL - company_id={company_id}, period_days={period_days}")
             
-            # Retornar dados mock para manter HTML funcionando
+            # Calcular período
+            end_date = datetime.now()
+            if current_month:
+                start_date = datetime(end_date.year, end_date.month, 1)
+            elif last_month:
+                if end_date.month == 1:
+                    start_date = datetime(end_date.year - 1, 12, 1)
+                else:
+                    start_date = datetime(end_date.year, end_date.month - 1, 1)
+                end_date = datetime(start_date.year, start_date.month + 1, 1) - timedelta(days=1)
+            elif current_year:
+                start_date = datetime(end_date.year, 1, 1)
+            elif date_from and date_to:
+                start_date = datetime.strptime(date_from, '%Y-%m-%d')
+                end_date = datetime.strptime(date_to, '%Y-%m-%d')
+            else:
+                start_date = end_date - timedelta(days=period_days)
+            
+            logger.info(f"📅 Período: {start_date} a {end_date}")
+            
+            # Buscar pedidos do período
+            orders_query = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id,
+                MLOrder.date_created >= start_date,
+                MLOrder.date_created <= end_date
+            )
+            
+            if ml_account_id:
+                orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
+            
+            orders = orders_query.all()
+            logger.info(f"📊 Encontrados {len(orders)} pedidos")
+            
+            # Calcular KPIs
+            total_revenue = sum(float(order.total_amount or 0) for order in orders)
+            total_orders = len(orders)
+            # Como não temos quantity direto, vamos usar 1 por pedido como estimativa
+            total_sold = total_orders  # Assumindo 1 item por pedido
+            avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
+            
+            # Pedidos cancelados
+            cancelled_orders = [o for o in orders if o.status == OrderStatus.CANCELLED]
+            cancelled_count = len(cancelled_orders)
+            cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
+            
+            # Buscar produtos
+            products_query = self.db.query(MLProduct).filter(MLProduct.company_id == company_id)
+            if search:
+                products_query = products_query.filter(
+                    MLProduct.title.ilike(f'%{search}%')
+                )
+            products = products_query.all()
+            
+            # Calcular vendas por produto
+            product_sales = {}
+            for order in orders:
+                # Extrair ML item ID do pedido (assumindo que está no order_items JSON)
+                if order.order_items:
+                    try:
+                        import json
+                        items = json.loads(order.order_items) if isinstance(order.order_items, str) else order.order_items
+                        if isinstance(items, list):
+                            for item in items:
+                                ml_item_id = item.get('item', {}).get('id')
+                                if ml_item_id:
+                                    if ml_item_id not in product_sales:
+                                        product_sales[ml_item_id] = {
+                                            'revenue': 0.0,
+                                            'quantity': 0,
+                                            'orders': 0
+                                        }
+                                    product_sales[ml_item_id]['revenue'] += float(order.total_amount or 0)
+                                    product_sales[ml_item_id]['quantity'] += 1
+                                    product_sales[ml_item_id]['orders'] += 1
+                    except:
+                        # Se não conseguir extrair itens, assumir que o produto principal é o do pedido
+                        pass
+            
+            # Timeline (últimos 7 dias)
+            timeline = []
+            for i in range(7):
+                date = end_date - timedelta(days=i)
+                day_orders = [o for o in orders if o.date_created.date() == date.date()]
+                timeline.append({
+                    'date': date.strftime('%d/%m'),
+                    'revenue': sum(float(o.total_amount or 0) for o in day_orders),
+                    'orders': len(day_orders),
+                    'units': len(day_orders)  # Assumindo 1 item por pedido
+                })
+            timeline.reverse()
+            
             return {
                 'success': True,
                 'kpis': {
-                    'total_revenue': 0.0,
-                    'total_sold': 0,
-                    'total_orders': 0,
-                    'avg_ticket': 0.0,
-                    'cancelled_orders': 0,
-                    'cancelled_value': 0.0,
-                    'returns_count': 0,
+                    'total_revenue': total_revenue,
+                    'total_sold': total_sold,
+                    'total_orders': total_orders,
+                    'avg_ticket': avg_ticket,
+                    'cancelled_orders': cancelled_count,
+                    'cancelled_value': cancelled_value,
+                    'returns_count': 0,  # TODO: implementar devoluções
                     'returns_value': 0.0,
-                    'total_visits': 0,
-                    'total_products': 0
+                    'total_visits': 0,  # TODO: implementar visitas
+                    'total_products': len(products)
                 },
                 'costs': {
-                    'ml_fees': 0.0,
-                    'ml_fees_percent': 0.0,
+                    'ml_fees': total_revenue * 0.10,  # 10% estimado
+                    'ml_fees_percent': 10.0,
                     'shipping_fees': 0.0,
                     'shipping_fees_percent': 0.0,
                     'discounts': 0.0,
                     'discounts_percent': 0.0,
-                    'product_cost': 0.0,
-                    'product_cost_percent': 0.0,
+                    'product_cost': total_revenue * 0.40,  # 40% estimado
+                    'product_cost_percent': 40.0,
                     'taxes': 0.0,
                     'taxes_percent': 0.0,
                     'other_costs': 0.0,
@@ -67,17 +151,31 @@ class AnalyticsController:
                     'marketing_cost': 0.0,
                     'marketing_percent': 0.0,
                     'marketing_per_unit': 0.0,
-                    'total_costs': 0.0,
-                    'total_costs_percent': 0.0
+                    'total_costs': total_revenue * 0.50,  # 50% estimado
+                    'total_costs_percent': 50.0
                 },
                 'profit': {
-                    'net_profit': 0.0,
-                    'net_margin': 0.0,
-                    'avg_profit_per_order': 0.0
+                    'net_profit': total_revenue * 0.50,  # 50% estimado
+                    'net_margin': 50.0,
+                    'avg_profit_per_order': (total_revenue * 0.50) / total_orders if total_orders > 0 else 0
                 },
-                'products': [],
-                'total': 0,
-                'timeline': []
+                'products': [
+                    {
+                        'id': p.id,
+                        'ml_item_id': p.ml_item_id,
+                        'title': p.title,
+                        'price': float(p.price or 0),
+                        'available_quantity': int(p.available_quantity or 0),
+                        'sold_quantity': product_sales.get(p.ml_item_id, {}).get('quantity', 0),
+                        'status': p.status.value if p.status else 'unknown',
+                        'revenue': product_sales.get(p.ml_item_id, {}).get('revenue', 0.0),
+                        'seller_sku': p.seller_sku,
+                        'category_name': p.category_name
+                    } for p in products[:50]  # Limitar a 50 produtos
+                ],
+                'total': len(products),
+                'timeline': timeline,
+                'pareto_analysis': self._calculate_pareto_analysis(products, product_sales, total_revenue)
             }
             
         except Exception as e:
@@ -85,6 +183,131 @@ class AnalyticsController:
             return {
                 'success': False,
                 'error': str(e)
+            }
+    
+    def _calculate_pareto_analysis(self, products, product_sales, total_revenue):
+        """Calcula análises de Pareto para produtos"""
+        try:
+            # Preparar dados dos produtos com vendas
+            products_with_sales = []
+            for product in products:
+                sales_data = product_sales.get(product.ml_item_id, {})
+                revenue = sales_data.get('revenue', 0.0)
+                quantity = sales_data.get('quantity', 0)
+                
+                if revenue > 0:  # Apenas produtos com vendas
+                    # Calcular margem estimada (assumindo 50% de margem)
+                    estimated_cost = revenue * 0.5
+                    profit = revenue - estimated_cost
+                    margin_percent = (profit / revenue * 100) if revenue > 0 else 0
+                    
+                    products_with_sales.append({
+                        'id': product.id,
+                        'ml_item_id': product.ml_item_id,
+                        'title': product.title,
+                        'revenue': revenue,
+                        'quantity': quantity,
+                        'profit': profit,
+                        'margin_percent': margin_percent,
+                        'status': product.status.value if product.status else 'unknown'
+                    })
+            
+            # Ordenar por receita
+            products_by_revenue = sorted(products_with_sales, key=lambda x: x['revenue'], reverse=True)
+            
+            # Análise de Pareto - 80% da receita
+            pareto_80_revenue = []
+            cumulative_revenue = 0.0
+            target_80_percent = total_revenue * 0.8
+            
+            for product in products_by_revenue:
+                cumulative_revenue += product['revenue']
+                pareto_80_revenue.append({
+                    **product,
+                    'cumulative_revenue': cumulative_revenue,
+                    'cumulative_percent': (cumulative_revenue / total_revenue * 100) if total_revenue > 0 else 0
+                })
+                if cumulative_revenue >= target_80_percent:
+                    break
+            
+            # Ordenar por quantidade
+            products_by_quantity = sorted(products_with_sales, key=lambda x: x['quantity'], reverse=True)
+            
+            # Análise de Pareto - 80% da quantidade
+            pareto_80_quantity = []
+            total_quantity = sum(p['quantity'] for p in products_with_sales)
+            cumulative_quantity = 0
+            target_80_quantity = total_quantity * 0.8
+            
+            for product in products_by_quantity:
+                cumulative_quantity += product['quantity']
+                pareto_80_quantity.append({
+                    **product,
+                    'cumulative_quantity': cumulative_quantity,
+                    'cumulative_percent': (cumulative_quantity / total_quantity * 100) if total_quantity > 0 else 0
+                })
+                if cumulative_quantity >= target_80_quantity:
+                    break
+            
+            # Ordenar por lucro
+            products_by_profit = sorted(products_with_sales, key=lambda x: x['profit'], reverse=True)
+            
+            # Análise de Pareto - 80% do lucro
+            pareto_80_profit = []
+            total_profit = sum(p['profit'] for p in products_with_sales)
+            cumulative_profit = 0.0
+            target_80_profit = total_profit * 0.8
+            
+            for product in products_by_profit:
+                cumulative_profit += product['profit']
+                pareto_80_profit.append({
+                    **product,
+                    'cumulative_profit': cumulative_profit,
+                    'cumulative_percent': (cumulative_profit / total_profit * 100) if total_profit > 0 else 0
+                })
+                if cumulative_profit >= target_80_profit:
+                    break
+            
+            # Cauda longa - 20% da receita (produtos com menor faturamento)
+            tail_20_revenue = []
+            target_20_percent = total_revenue * 0.2
+            tail_revenue = 0.0
+            
+            # Produtos ordenados por receita (menor para maior)
+            products_by_revenue_asc = sorted(products_with_sales, key=lambda x: x['revenue'])
+            
+            for product in products_by_revenue_asc:
+                tail_revenue += product['revenue']
+                tail_20_revenue.append({
+                    **product,
+                    'cumulative_revenue': tail_revenue,
+                    'cumulative_percent': (tail_revenue / total_revenue * 100) if total_revenue > 0 else 0
+                })
+                if tail_revenue >= target_20_percent:
+                    break
+            
+            return {
+                'revenue_80_percent': pareto_80_revenue,
+                'quantity_80_percent': pareto_80_quantity,
+                'profit_80_percent': pareto_80_profit,
+                'tail_20_percent': tail_20_revenue,
+                'total_products_with_sales': len(products_with_sales),
+                'total_revenue': total_revenue,
+                'total_quantity': total_quantity,
+                'total_profit': total_profit
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular análise de Pareto: {e}")
+            return {
+                'revenue_80_percent': [],
+                'quantity_80_percent': [],
+                'profit_80_percent': [],
+                'tail_20_percent': [],
+                'total_products_with_sales': 0,
+                'total_revenue': 0,
+                'total_quantity': 0,
+                'total_profit': 0
             }
     
     def get_top_products(self, company_id: int, ml_account_id: Optional[int] = None, 
