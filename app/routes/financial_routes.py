@@ -2997,6 +2997,7 @@ async def get_dre_report(
                 },
                 'DESPESAS': {
                     'total': {m['name']: 0.0 for m in months_data},
+                    'Taxas Mercado Livre': {m['name']: 0.0 for m in months_data},
                 },
                 'RESULTADO': {
                     'total': {m['name']: 0.0 for m in months_data},
@@ -3116,16 +3117,25 @@ async def get_dre_report(
             cost_centers_by_month[month_key][cost_center_name] += total_amount
         
         # Processar pedidos ML - usar date_created para faturamento correto
+        ml_fees_by_month = {}  # Nova variável para taxas do ML
         for order in all_ml_orders:
             if order.date_created:  # Mudança: usar date_created e remover regra dos 7 dias
                 month_key = order.date_created.strftime('%m/%Y')
                 if month_key not in ml_by_month:
                     ml_by_month[month_key] = 0.0
+                if month_key not in ml_fees_by_month:
+                    ml_fees_by_month[month_key] = 0.0
+                
+                # Faturamento BRUTO (valor total pago pelo cliente)
                 ml_by_month[month_key] += float(order.total_amount or 0)
+                
+                # Taxas do ML como despesa separada
+                ml_fees_by_month[month_key] += float(order.total_fees or 0)
         
         print(f"DEBUG DRE - Receitas por mês: {receivables_by_month}")
         print(f"DEBUG DRE - Despesas por mês: {payables_by_month}")
         print(f"DEBUG DRE - ML por mês: {ml_by_month}")
+        print(f"DEBUG DRE - Taxas ML por mês: {ml_fees_by_month}")
         print(f"DEBUG DRE - Centros de custo por mês: {cost_centers_by_month}")
         
         # OTIMIZAÇÃO: Usar dados já consolidados da consulta SQL
@@ -3150,17 +3160,23 @@ async def get_dre_report(
 
             # DESPESAS - Usar dados já processados da consulta SQL consolidada
             payables_expenses = payables_by_month.get(month_key, 0.0)
+            ml_fees_expenses = ml_fees_by_month.get(month_key, 0.0)
+            total_expenses_month = payables_expenses + ml_fees_expenses
+            
             print(f"DEBUG DRE - {month_name} - Despesas Contas a Pagar: {payables_expenses}")
+            print(f"DEBUG DRE - {month_name} - Taxas Mercado Livre: {ml_fees_expenses}")
+            print(f"DEBUG DRE - {month_name} - Total Despesas: {total_expenses_month}")
 
             # Calcular Resultado
-            result_month = total_revenue_month - payables_expenses
+            result_month = total_revenue_month - total_expenses_month
             print(f"DEBUG DRE - {month_name} - Resultado: {result_month}")
 
             # Preencher o relatório DRE
             dre_report['data']['RECEITAS']['Contas a Receber'][month_name] = receivables_revenue
             dre_report['data']['RECEITAS']['Mercado Livre'][month_name] = ml_revenue
             dre_report['data']['RECEITAS']['total'][month_name] = total_revenue_month
-            dre_report['data']['DESPESAS']['total'][month_name] = payables_expenses
+            dre_report['data']['DESPESAS']['Taxas Mercado Livre'][month_name] = ml_fees_expenses
+            dre_report['data']['DESPESAS']['total'][month_name] = total_expenses_month
             dre_report['data']['RESULTADO']['total'][month_name] = result_month
 
             # Preencher dados por centro de custo (já processados na consulta SQL)

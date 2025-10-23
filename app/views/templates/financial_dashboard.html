@@ -948,6 +948,18 @@ function renderDreTable() {
     `;
     tbody.appendChild(expensesRow);
 
+    // Adicionar linha específica para Taxas Mercado Livre
+    if (data.DESPESAS['Taxas Mercado Livre']) {
+        const mlFeesRow = document.createElement('tr');
+        mlFeesRow.innerHTML = `
+            <td style="padding-left: 2rem;">Taxas Mercado Livre</td>
+            ${dreData.months.map(month => 
+                `<td class="text-end">${formatCurrency(data.DESPESAS['Taxas Mercado Livre'][month] || 0)}</td>`
+            ).join('')}
+        `;
+        tbody.appendChild(mlFeesRow);
+    }
+
     // Adicionar linhas por centro de custo
     if (dreData.cost_centers) {
         Object.keys(dreData.cost_centers).forEach(ccName => {
