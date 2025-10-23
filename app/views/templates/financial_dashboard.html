@@ -207,16 +207,14 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-chart-line"></i> Demonstração de Resultados</h5>
-            </div>
+  
             <div class="card-body">
                 <!-- Texto informativo sobre DRE -->
                 <div class="alert alert-success mb-3" id="dre-info" style="cursor: pointer;" onclick="this.style.display='none'">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <i class="bi bi-graph-up"></i>
-                            <strong>Demonstração de Resultados (DRE):</strong> Mostra o <strong>faturamento</strong> baseado nas datas de vencimento das contas a receber e na <strong>data de emissão dos pedidos do Mercado Livre</strong>. 
+                            <strong>Demonstração de Resultados:</strong> Mostra o <strong>faturamento</strong> baseado nas datas de vencimento das contas a receber e na <strong>data de emissão dos pedidos do Mercado Livre</strong>. 
                             As <strong>despesas</strong> são baseadas nas datas de vencimento (quando deveriam ser pagas). Esta é a visão contábil do negócio, não o fluxo de caixa.
                         </div>
                         <i class="bi bi-x-circle ms-2"></i>
@@ -269,9 +267,7 @@
     <!-- Receitas por Categoria -->
     <div class="col-12 col-lg-6">
         <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Receitas por Categoria</h5>
-            </div>
+
             <div class="card-body">
                 <!-- Filtros -->
                 <div class="row mb-3">
@@ -354,9 +350,7 @@
     <!-- Despesas por Categoria -->
     <div class="col-12 col-lg-6">
         <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Despesas por Categoria</h5>
-            </div>
+
             <div class="card-body">
                 <!-- Filtros -->
                 <div class="row mb-3">
@@ -1138,6 +1132,15 @@ function createSingleChart(ctx) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
+                title: {
+                    display: true,
+                    text: 'Despesas por Categoria',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    },
+                    color: '#333'
+                },
                 legend: {
                     display: false // Usamos nossa própria legenda
                 },
@@ -1196,6 +1199,15 @@ function createComparisonChart(ctx) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
+                title: {
+                    display: true,
+                    text: 'Comparação de Despesas por Categoria',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    },
+                    color: '#333'
+                },
                 legend: {
                     display: true,
                     position: 'top'
@@ -1539,6 +1551,15 @@ function createSingleRevenueChart(ctx) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
+                title: {
+                    display: true,
+                    text: 'Receitas por Categoria',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    },
+                    color: '#333'
+                },
                 legend: {
                     display: false
                 },
@@ -1598,6 +1619,15 @@ function createRevenueComparisonChart(ctx) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
+                title: {
+                    display: true,
+                    text: 'Comparação de Receitas por Categoria',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    },
+                    color: '#333'
+                },
                 legend: {
                     display: true,
                     position: 'top'
