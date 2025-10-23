@@ -2071,10 +2071,80 @@ function clearFilters() {
     loadTopProducts(); // Atualizar Top 10 sem filtros
 }
 
+// Renderizar top produtos
+function renderTopProductsReal(topSold, topRevenue) {
+    // Renderizar top mais vendidos
+    const topSoldContainer = document.getElementById('top-sold-products');
+    if (topSold && topSold.length > 0) {
+        topSoldContainer.innerHTML = topSold.map((product, index) => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-${index < 3 ? 'warning' : 'secondary'} me-2">#${index + 1}</span>
+                            <div>
+                                <div class="fw-bold">${product.title}</div>
+                                <small class="text-muted">
+                                    ${formatNumber(product.quantity)} unidades vendidas
+                                    ${product.cumulative_percent ? ` • ${product.cumulative_percent.toFixed(1)}% acum.` : ''}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold text-success">${formatBRL(product.revenue)}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        topSoldContainer.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-inbox display-4"></i>
+                <p class="mt-2">Nenhum produto vendido</p>
+            </div>
+        `;
+    }
+    
+    // Renderizar top maior receita
+    const topRevenueContainer = document.getElementById('top-revenue-products');
+    if (topRevenue && topRevenue.length > 0) {
+        topRevenueContainer.innerHTML = topRevenue.map((product, index) => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-${index < 3 ? 'success' : 'secondary'} me-2">#${index + 1}</span>
+                            <div>
+                                <div class="fw-bold">${product.title}</div>
+                                <small class="text-muted">
+                                    ${formatNumber(product.quantity)} unidades
+                                    ${product.cumulative_percent ? ` • ${product.cumulative_percent.toFixed(1)}% acum.` : ''}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold text-success">${formatBRL(product.revenue)}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        topRevenueContainer.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-inbox display-4"></i>
+                <p class="mt-2">Nenhuma receita gerada</p>
+            </div>
+        `;
+    }
+}
+
 // Atualizar dados
 function refreshData() {
     showAlert('info', '🔄 Atualizando dados...');
     loadDashboardData(currentPage);
+    loadTopProducts();
 }
 
 // Inicializar
@@ -2092,6 +2162,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     restoreFiltersFromURL();
     loadDashboardData(1);
+    loadTopProducts(); // Carregar top produtos
 });
 </script>
 

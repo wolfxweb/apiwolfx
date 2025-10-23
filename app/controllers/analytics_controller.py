@@ -312,12 +312,35 @@ class AnalyticsController:
     
     def get_top_products(self, company_id: int, ml_account_id: Optional[int] = None, 
                         limit: int = 10, period_days: int = 30, search: Optional[str] = None) -> Dict:
-        """Top produtos - VERSÃO SIMPLIFICADA"""
+        """Top produtos por quantidade e receita"""
         try:
+            # Buscar dados do dashboard para obter análise de vendas
+            dashboard_data = self.get_sales_dashboard(
+                company_id=company_id,
+                ml_account_id=ml_account_id,
+                period_days=period_days,
+                search=search
+            )
+            
+            if not dashboard_data.get('success'):
+                return {
+                    'success': False,
+                    'error': 'Erro ao buscar dados do dashboard'
+                }
+            
+            # Extrair análise de Pareto
+            pareto = dashboard_data.get('pareto_analysis', {})
+            
+            # Top por quantidade vendida (80% da quantidade)
+            top_sold = pareto.get('quantity_80_percent', [])[:limit]
+            
+            # Top por receita (80% da receita)
+            top_revenue = pareto.get('revenue_80_percent', [])[:limit]
+            
             return {
                 'success': True,
-                'top_sold': [],
-                'top_revenue': []
+                'top_sold': top_sold,
+                'top_revenue': top_revenue
             }
             
         except Exception as e:
