@@ -59,10 +59,11 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <i class="bi bi-info-circle"></i>
-                    <strong>Fluxo de Caixa:</strong> Estes indicadores mostram o movimento real de dinheiro (entradas e saídas) no período selecionado. 
-                    <strong>Receitas Recebidas</strong> = dinheiro que realmente entrou no caixa. 
-                    <strong>Despesas Pagas</strong> = dinheiro que realmente saiu do caixa.
+                    <strong>Fluxo de Caixa:</strong> Estes indicadores representam o movimento real de dinheiro (entradas e saídas) no período selecionado. 
+                    <strong>Receitas Recebidas</strong>: valores que realmente entraram no caixa. 
+                    <strong>Despesas Pagas</strong>: valores que realmente saíram do caixa.
                 </div>
+                
                 <i class="bi bi-x-circle ms-2"></i>
             </div>
         </div>
@@ -214,9 +215,11 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <i class="bi bi-graph-up"></i>
-                            <strong>Demonstração de Resultados:</strong> Mostra o <strong>faturamento</strong> baseado nas datas de vencimento das contas a receber e na <strong>data de emissão dos pedidos do Mercado Livre</strong>. 
-                            As <strong>despesas</strong> são baseadas nas datas de vencimento (quando deveriam ser pagas). Esta é a visão contábil do negócio, não o fluxo de caixa.
+                            <strong>Demonstração de Resultados:</strong> Apresenta o <strong>faturamento</strong> com base nas datas de vencimento das contas a receber e na <strong>data de emissão dos pedidos do Mercado Livre</strong>. 
+                            As <strong>despesas</strong> são consideradas de acordo com suas datas de vencimento (quando deveriam ser pagas). 
+                            Esta é uma visão contábil do negócio, diferente do fluxo de caixa.
                         </div>
+                        
                         <i class="bi bi-x-circle ms-2"></i>
                     </div>
                 </div>
@@ -839,9 +842,10 @@ let dreData = null;
 // Função para carregar dados do DRE (SEM FILTRO DE PERÍODO - TODOS OS DADOS)
 async function loadDreData() {
     try {
-        // REMOVIDO: Loading do gráfico DRE
+        // Mostrar loading do DRE
+        document.getElementById('dre-loading').style.display = 'block';
         document.getElementById('dre-error').style.display = 'none';
-        // CORRIGIDO: Não esconder o conteúdo do DRE
+        document.getElementById('dre-content').style.display = 'none';
 
         // DRE sempre carrega TODOS os dados (sem filtro de período)
         const response = await fetch('/api/financial/dre', {
@@ -855,6 +859,8 @@ async function loadDreData() {
         console.log('DRE Data recebida (TODOS OS DADOS):', dreData);
         console.log('Meses:', dreData.months);
         console.log('Dados:', dreData.data);
+        document.getElementById('dre-loading').style.display = 'none';
+        document.getElementById('dre-content').style.display = 'block';
         renderDreTable();
         createDreChart();
         
@@ -1236,7 +1242,8 @@ function toggleComparisonMode() {
 // Função para carregar dados de despesas por categoria (SEM FILTRO DE PERÍODO - TODOS OS DADOS)
 async function loadExpensesByCategory() {
     try {
-        // REMOVIDO: Loading do gráfico de despesas
+        // Mostrar loading das despesas
+        document.getElementById('category-loading').style.display = 'block';
         document.getElementById('category-error').style.display = 'none';
 
         const comparisonMode = document.getElementById('comparisonMode').value;
@@ -1256,10 +1263,13 @@ async function loadExpensesByCategory() {
         }
         
         createExpensesByCategoryChart();
-        // REMOVIDO: Loading do gráfico de despesas
+        // Esconder loading e mostrar gráfico
+        document.getElementById('category-loading').style.display = 'none';
+        document.getElementById('expensesByCategoryChart').parentElement.style.display = 'block';
     } catch (error) {
         console.error('Erro ao carregar dados por categoria:', error);
-        // REMOVIDO: Loading do gráfico de despesas
+        // Esconder loading e mostrar erro
+        document.getElementById('category-loading').style.display = 'none';
         document.getElementById('category-error').style.display = 'block';
     }
 }
@@ -1652,10 +1662,11 @@ function toggleRevenueComparisonMode() {
 async function loadRevenuesByCategory() {
     console.log('🚀 Iniciando carregamento de Receitas por Categoria (TODOS OS DADOS)...');
     try {
-        // REMOVIDO: Loading do gráfico de receitas
+        // Mostrar loading das receitas
+        document.getElementById('revenue-loading').style.display = 'block';
         document.getElementById('revenue-legend').innerHTML = '';
         document.getElementById('revenue-error').style.display = 'none';
-        // CORRIGIDO: Não esconder o gráfico de receitas
+        document.getElementById('revenue-initial').style.display = 'none';
         
         const comparisonMode = document.getElementById('revenueComparisonMode').value;
         
@@ -1665,7 +1676,8 @@ async function loadRevenuesByCategory() {
             await loadSingleRevenueData();
         }
         
-        // REMOVIDO: Loading do gráfico de receitas
+        // Esconder loading e mostrar gráfico
+        document.getElementById('revenue-loading').style.display = 'none';
         document.getElementById('revenuesByCategoryChart').parentElement.style.display = 'block';
         
         console.log('✅ Receitas por Categoria carregado com sucesso (TODOS OS DADOS)!');
@@ -1982,20 +1994,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // 1. KPIs (loadDashboardData) - COM filtro de período
     // 2. Gráficos (loadDreData, loadExpensesByCategory, loadRevenuesByCategory) - SEM filtro de período
     
-    // Carregar DRE (gráfico) - SEM filtro de período
-    setTimeout(loadDreData, 1000);
+    // Carregar todos os gráficos em paralelo - SEM filtro de período
+    loadDreData();
     
-    // Carregar filtros primeiro, depois dados por categoria (gráfico) - SEM filtro de período
-    setTimeout(async () => {
-        await loadExpensesFilters();
-        loadExpensesByCategory();
-    }, 1500);
+    // Carregar dados por categoria imediatamente (sem esperar filtros)
+    loadExpensesByCategory();
+    loadRevenuesByCategory();
     
-    // Carregar receitas por categoria (gráfico) - SEM filtro de período
-    setTimeout(async () => {
-        await loadRevenueFilters();
-        loadRevenuesByCategory();
-    }, 2000);
+    // Carregar filtros em paralelo (não bloqueia os gráficos)
+    loadExpensesFilters();
+    loadRevenueFilters();
     
     // Carregar análise de planejamento após um delay
     setTimeout(() => {
