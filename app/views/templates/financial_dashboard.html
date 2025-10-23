@@ -1403,7 +1403,11 @@ async function loadRevenueComparisonData() {
     
     if (!period1 || !period2) {
         console.log('Períodos não selecionados para comparação');
-        return; // Não fazer nada se os períodos não estão selecionados
+        // Limpar dados e mostrar mensagem
+        revenuesByCategoryData = null;
+        revenuesByCategoryData2 = null;
+        document.getElementById('revenue-legend').innerHTML = '<p class="text-muted text-center">Selecione ambos os períodos para comparação</p>';
+        return;
     }
     
     // Carregar período 1
@@ -1448,6 +1452,9 @@ async function loadRevenueComparisonData() {
         periodo1: revenuesByCategoryData,
         periodo2: revenuesByCategoryData2
     });
+    
+    // Criar gráfico de comparação
+    createRevenuesByCategoryChart();
 }
 
 // Função para criar gráfico de receitas por categoria
