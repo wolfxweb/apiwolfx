@@ -398,3 +398,393 @@ class FinancialPlanningController:
                 "success": False,
                 "error": str(e)
             }
+
+    def get_planning_analysis(self, company_id: int, year: int, month: Optional[str] = None, metric: str = "revenue") -> Dict:
+        """Análise de evolução: Planejamento vs Real"""
+        try:
+            # Buscar planejamento do ano
+            planning = self.db.query(FinancialPlanning).filter(
+                FinancialPlanning.company_id == company_id,
+                FinancialPlanning.year == year
+            ).first()
+            
+            if not planning:
+                return {
+                    "success": False,
+                    "error": f"Nenhum planejamento encontrado para {year}"
+                }
+            
+            # Buscar dados reais do período
+            real_data = self._get_real_financial_data(company_id, year, month, metric)
+            
+            # Buscar dados planejados
+            planned_data = self._get_planned_financial_data(planning.id, month, metric)
+            
+            # Comparar e gerar análise
+            analysis = self._compare_planning_vs_real(planned_data, real_data, metric)
+            
+            return {
+                "success": True,
+                "data": analysis
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao gerar análise de planejamento: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def _get_real_financial_data(self, company_id: int, year: int, month: Optional[str], metric: str) -> Dict:
+        """Busca dados financeiros reais"""
+        try:
+            from datetime import datetime, timedelta
+            from sqlalchemy import and_, extract
+            
+            # Definir período
+            if month:
+                start_date = datetime(year, int(month), 1)
+                if int(month) == 12:
+                    end_date = datetime(year + 1, 1, 1)
+                else:
+                    end_date = datetime(year, int(month) + 1, 1)
+            else:
+                start_date = datetime(year, 1, 1)
+                end_date = datetime(year + 1, 1, 1)
+            
+            real_data = {}
+            
+            if metric == "revenue":
+                # Buscar receitas reais separadas: Mercado Livre e Contas a Receber
+                from app.models.saas_models import MLOrder
+                from app.models.financial_models import AccountReceivable
+                
+                logger.info(f"🔍 DEBUG - Buscando dados reais para company_id={company_id}, período={start_date} a {end_date}")
+                logger.info(f"🔍 DEBUG - Tipo do company_id: {type(company_id)}, Valor: {company_id}")
+                
+                # 1. Mercado Livre - Pedidos pagos/confirmados
+                from app.models.saas_models import OrderStatus
+                orders = self.db.query(MLOrder).filter(
+                    and_(
+                        MLOrder.company_id == company_id,
+                        MLOrder.date_created >= start_date,
+                        MLOrder.date_created < end_date,
+                        MLOrder.status.in_([OrderStatus.PAID, OrderStatus.PENDING])
+                    )
+                ).all()
+                
+                logger.info(f"🔍 DEBUG - Encontrados {len(orders)} pedidos ML")
+                for order in orders[:3]:  # Log dos primeiros 3 pedidos
+                    logger.info(f"🔍 DEBUG - Pedido ML: {order.id}, status={order.status}, amount={order.total_amount}, date={order.date_created}")
+                
+                # 2. Contas a Receber - Receivables
+                receivables = self.db.query(AccountReceivable).filter(
+                    and_(
+                        AccountReceivable.company_id == company_id,
+                        AccountReceivable.due_date >= start_date,
+                        AccountReceivable.due_date < end_date,
+                        AccountReceivable.status.in_(['pending', 'paid'])
+                    )
+                ).all()
+                
+                logger.info(f"🔍 DEBUG - Encontradas {len(receivables)} contas a receber")
+                for receivable in receivables[:3]:  # Log das primeiras 3 contas
+                    logger.info(f"🔍 DEBUG - Conta a receber: {receivable.id}, status={receivable.status}, amount={receivable.amount}, date={receivable.due_date}")
+                
+                # Agrupar por mês - Mercado Livre
+                ml_data = {}
+                for order in orders:
+                    order_month = order.date_created.strftime('%m/%Y')
+                    if order_month not in ml_data:
+                        ml_data[order_month] = 0.0
+                    ml_data[order_month] += float(order.total_amount or 0)
+                
+                # Agrupar por mês - Contas a Receber
+                receivables_data = {}
+                for receivable in receivables:
+                    receivable_month = receivable.due_date.strftime('%m/%Y')
+                    if receivable_month not in receivables_data:
+                        receivables_data[receivable_month] = 0.0
+                    receivables_data[receivable_month] += float(receivable.amount or 0)
+                
+                logger.info(f"🔍 DEBUG - ML data: {ml_data}")
+                logger.info(f"🔍 DEBUG - Receivables data: {receivables_data}")
+                
+                # Retornar dados separados
+                real_data = {
+                    'ml': ml_data,
+                    'receivables': receivables_data
+                }
+                
+            elif metric == "expenses":
+                # Buscar despesas reais
+                from app.models.database_models import FinancialTransaction
+                
+                expenses = self.db.query(FinancialTransaction).filter(
+                    and_(
+                        FinancialTransaction.company_id == company_id,
+                        FinancialTransaction.date >= start_date,
+                        FinancialTransaction.date < end_date,
+                        FinancialTransaction.type == 'expense'
+                    )
+                ).all()
+                
+                # Agrupar por mês
+                monthly_data = {}
+                for expense in expenses:
+                    expense_month = expense.date.strftime('%m/%Y')
+                    if expense_month not in monthly_data:
+                        monthly_data[expense_month] = 0.0
+                    monthly_data[expense_month] += float(expense.amount or 0)
+                
+                real_data = monthly_data
+                
+            elif metric == "profit":
+                # Calcular resultado (receitas - despesas)
+                revenue_data = self._get_real_financial_data(company_id, year, month, "revenue")
+                expense_data = self._get_real_financial_data(company_id, year, month, "expenses")
+                
+                # Combinar dados
+                all_months = set(revenue_data.keys()) | set(expense_data.keys())
+                real_data = {}
+                for month_key in all_months:
+                    revenue = revenue_data.get(month_key, 0.0)
+                    expense = expense_data.get(month_key, 0.0)
+                    real_data[month_key] = revenue - expense
+            
+            return real_data
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados reais: {e}")
+            return {}
+    
+    def _get_planned_financial_data(self, planning_id: int, month: Optional[str], metric: str) -> Dict:
+        """Busca dados planejados"""
+        try:
+            from app.models.financial_planning_models import MonthlyPlanning, CostCenterPlanning, CategoryPlanning
+            
+            # Buscar planejamento mensal
+            query = self.db.query(MonthlyPlanning).filter(
+                MonthlyPlanning.planning_id == planning_id
+            )
+            
+            if month:
+                query = query.filter(MonthlyPlanning.month == int(month))
+            
+            monthly_plans = query.all()
+            
+            planned_data = {}
+            
+            for monthly_plan in monthly_plans:
+                month_key = f"{monthly_plan.month:02d}/{monthly_plan.year}"
+                
+                if metric == "revenue":
+                    planned_data[month_key] = float(monthly_plan.expected_revenue or 0)
+                    
+                elif metric == "expenses":
+                    # Somar gastos planejados dos centros de custo
+                    cost_centers = self.db.query(CostCenterPlanning).filter(
+                        CostCenterPlanning.monthly_planning_id == monthly_plan.id
+                    ).all()
+                    
+                    total_expenses = 0.0
+                    for cost_center in cost_centers:
+                        # Somar apenas categorias do tipo "expense"
+                        categories = self.db.query(CategoryPlanning).filter(
+                            CategoryPlanning.cost_center_planning_id == cost_center.id
+                        ).all()
+                        
+                        for category in categories:
+                            # Verificar se a categoria é do tipo "expense"
+                            if category.category and category.category.type.value == 'expense':
+                                total_expenses += float(category.max_spending or 0)
+                    
+                    planned_data[month_key] = total_expenses
+                    
+                elif metric == "profit":
+                    # Resultado planejado = receita - despesas
+                    revenue = float(monthly_plan.expected_revenue or 0)
+                    expenses = 0.0
+                    
+                    # Calcular despesas planejadas
+                    cost_centers = self.db.query(CostCenterPlanning).filter(
+                        CostCenterPlanning.monthly_planning_id == monthly_plan.id
+                    ).all()
+                    
+                    for cost_center in cost_centers:
+                        categories = self.db.query(CategoryPlanning).filter(
+                            CategoryPlanning.cost_center_planning_id == cost_center.id
+                        ).all()
+                        
+                        for category in categories:
+                            if category.category and category.category.type.value == 'expense':
+                                expenses += float(category.max_spending or 0)
+                    
+                    planned_data[month_key] = revenue - expenses
+            
+            return planned_data
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados planejados: {e}")
+            return {}
+    
+    def _compare_planning_vs_real(self, planned_data: Dict, real_data: Dict, metric: str) -> Dict:
+        """Compara dados planejados vs reais"""
+        try:
+            if metric == "revenue" and isinstance(real_data, dict) and 'ml' in real_data:
+                # Para receitas, temos dados separados (ML + Receivables)
+                return self._compare_revenue_detailed(planned_data, real_data)
+            else:
+                # Para outras métricas, usar lógica original
+                return self._compare_standard(planned_data, real_data)
+            
+        except Exception as e:
+            logger.error(f"Erro ao comparar dados: {e}")
+            return {
+                "summary": {"total_planned": 0, "total_real": 0, "difference": 0, "percentage_achieved": 0},
+                "chart": {"labels": [], "planned": [], "ml": [], "receivables": []},
+                "table": []
+            }
+    
+    def _compare_revenue_detailed(self, planned_data: Dict, real_data: Dict) -> Dict:
+        """Compara receitas com dados detalhados (ML + Receivables)"""
+        try:
+            ml_data = real_data.get('ml', {})
+            receivables_data = real_data.get('receivables', {})
+            
+            # Combinar todos os meses
+            all_months = set(planned_data.keys()) | set(ml_data.keys()) | set(receivables_data.keys())
+            all_months = sorted(all_months)
+            
+            # Preparar dados para comparação
+            comparison_data = []
+            chart_data = {
+                "labels": [],
+                "planned": [],
+                "ml": [],
+                "receivables": []
+            }
+            
+            total_planned = 0.0
+            total_ml = 0.0
+            total_receivables = 0.0
+            
+            for month_key in all_months:
+                planned_value = planned_data.get(month_key, 0.0)
+                ml_value = ml_data.get(month_key, 0.0)
+                receivables_value = receivables_data.get(month_key, 0.0)
+                total_real = ml_value + receivables_value
+                
+                difference = total_real - planned_value
+                percentage_achieved = (total_real / planned_value * 100) if planned_value > 0 else 0.0
+                
+                comparison_data.append({
+                    "month": month_key,
+                    "planned": planned_value,
+                    "ml": ml_value,
+                    "receivables": receivables_value,
+                    "total_real": total_real,
+                    "difference": difference,
+                    "percentage_achieved": percentage_achieved
+                })
+                
+                chart_data["labels"].append(month_key)
+                chart_data["planned"].append(planned_value)
+                chart_data["ml"].append(ml_value)
+                chart_data["receivables"].append(receivables_value)
+                
+                total_planned += planned_value
+                total_ml += ml_value
+                total_receivables += receivables_value
+            
+            # Calcular resumo
+            total_real = total_ml + total_receivables
+            total_difference = total_real - total_planned
+            total_percentage_achieved = (total_real / total_planned * 100) if total_planned > 0 else 0.0
+            
+            summary = {
+                "total_planned": total_planned,
+                "total_ml": total_ml,
+                "total_receivables": total_receivables,
+                "total_real": total_real,
+                "difference": total_difference,
+                "percentage_achieved": total_percentage_achieved
+            }
+            
+            return {
+                "summary": summary,
+                "chart": chart_data,
+                "table": comparison_data
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao comparar receitas detalhadas: {e}")
+            return {
+                "summary": {"total_planned": 0, "total_ml": 0, "total_receivables": 0, "total_real": 0, "difference": 0, "percentage_achieved": 0},
+                "chart": {"labels": [], "planned": [], "ml": [], "receivables": []},
+                "table": []
+            }
+    
+    def _compare_standard(self, planned_data: Dict, real_data: Dict) -> Dict:
+        """Comparação padrão para outras métricas"""
+        try:
+            # Combinar todos os meses
+            all_months = set(planned_data.keys()) | set(real_data.keys())
+            all_months = sorted(all_months)
+            
+            # Preparar dados para comparação
+            comparison_data = []
+            chart_data = {
+                "labels": [],
+                "planned": [],
+                "real": []
+            }
+            
+            total_planned = 0.0
+            total_real = 0.0
+            
+            for month_key in all_months:
+                planned_value = planned_data.get(month_key, 0.0)
+                real_value = real_data.get(month_key, 0.0)
+                difference = real_value - planned_value
+                percentage_achieved = (real_value / planned_value * 100) if planned_value > 0 else 0.0
+                
+                comparison_data.append({
+                    "month": month_key,
+                    "planned": planned_value,
+                    "real": real_value,
+                    "difference": difference,
+                    "percentage_achieved": percentage_achieved
+                })
+                
+                chart_data["labels"].append(month_key)
+                chart_data["planned"].append(planned_value)
+                chart_data["real"].append(real_value)
+                
+                total_planned += planned_value
+                total_real += real_value
+            
+            # Calcular resumo
+            total_difference = total_real - total_planned
+            total_percentage_achieved = (total_real / total_planned * 100) if total_planned > 0 else 0.0
+            
+            summary = {
+                "total_planned": total_planned,
+                "total_real": total_real,
+                "difference": total_difference,
+                "percentage_achieved": total_percentage_achieved
+            }
+            
+            return {
+                "summary": summary,
+                "chart": chart_data,
+                "table": comparison_data
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao comparar dados: {e}")
+            return {
+                "summary": {"total_planned": 0, "total_real": 0, "difference": 0, "percentage_achieved": 0},
+                "chart": {"labels": [], "planned": [], "real": []},
+                "table": []
+            }

@@ -3,7 +3,7 @@ Rotas para o módulo financeiro SaaS
 Seguindo o padrão do sistema
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc, text, literal
@@ -3815,3 +3815,27 @@ async def update_annual_planning(
     controller = FinancialPlanningController(db)
     
     return controller.update_annual_planning(company_id, year, months_data)
+
+@financial_router.get("/api/financial/planning-analysis")
+async def get_planning_analysis(
+    year: int = Query(..., description="Ano do planejamento"),
+    month: Optional[str] = Query(None, description="Mês específico (01-12)"),
+    metric: str = Query("revenue", description="Métrica: revenue, expenses, profit"),
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Análise de evolução: Planejamento vs Real"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.get_planning_analysis(company_id, year, month, metric)
