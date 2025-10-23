@@ -2313,8 +2313,6 @@ function renderPlanningChart(chartData) {
         let totalReceivables = 0;
         let totalReal = 0;
         let totalDifference = 0;
-        let totalPercentage = 0;
-        
         tableData.forEach(row => {
             totalPlanned += row.planned || 0;
             if (hasDetailedData) {
@@ -2325,11 +2323,10 @@ function renderPlanningChart(chartData) {
                 totalReal += row.real || 0;
             }
             totalDifference += row.difference || 0;
-            totalPercentage += row.percentage_achieved || 0;
         });
         
-        // Calcular percentual médio
-        const averagePercentage = tableData.length > 0 ? totalPercentage / tableData.length : 0;
+        // Calcular percentual total (Total Real / Total Planejado)
+        const totalPercentage = totalPlanned > 0 ? (totalReal / totalPlanned) * 100 : 0;
         
         let tableHtml = '';
         tableData.forEach(row => {
@@ -2388,10 +2385,10 @@ function renderPlanningChart(chartData) {
                     <td class="text-end"><strong>${formatCurrency(totalML)}</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalReceivables)}</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalReal)}</strong></td>
-                    <td class="text-end ${totalDifference >= 0 ? 'text-success' : 'text-danger'}">
+                    <td class="text-end text-white">
                         <strong>${formatCurrency(totalDifference)}</strong>
                     </td>
-                    <td class="text-end"><strong>${averagePercentage.toFixed(1)}%</strong></td>
+                    <td class="text-end"><strong>${totalPercentage.toFixed(1)}%</strong></td>
                     <td class="text-center">
                         <span class="badge bg-dark">
                             <i class="bi bi-calculator"></i>
@@ -2405,10 +2402,10 @@ function renderPlanningChart(chartData) {
                     <td><strong>TOTAL</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalPlanned)}</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalReal)}</strong></td>
-                    <td class="text-end ${totalDifference >= 0 ? 'text-success' : 'text-danger'}">
+                    <td class="text-end text-white">
                         <strong>${formatCurrency(totalDifference)}</strong>
                     </td>
-                    <td class="text-end"><strong>${averagePercentage.toFixed(1)}%</strong></td>
+                    <td class="text-end"><strong>${totalPercentage.toFixed(1)}%</strong></td>
                     <td class="text-center">
                         <span class="badge bg-dark">
                             <i class="bi bi-calculator"></i>
