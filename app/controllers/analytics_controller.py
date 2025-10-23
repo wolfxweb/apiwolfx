@@ -18,7 +18,7 @@ class AnalyticsController:
     def __init__(self, db: Session):
         self.db = db
     
-    def get_sales_dashboard(self, company_id: int, ml_account_id: Optional[int] = None, 
+    def get_sales_dashboard(self, company_id: int, user_id: int, ml_account_id: Optional[int] = None, 
                            period_days: int = 30, search: Optional[str] = None, 
                            current_month: bool = False, last_month: bool = False,
                            current_year: bool = False, date_from: Optional[str] = None,
@@ -73,6 +73,57 @@ class AnalyticsController:
             cancelled_orders = [o for o in orders if o.status == OrderStatus.CANCELLED]
             cancelled_count = len(cancelled_orders)
             cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
+            
+            # Devoluções (mediations/claims)
+            returns_orders = []
+            returns_count = 0
+            returns_value = 0.0
+            for order in orders:
+                if order.mediations:
+                    try:
+                        import json
+                        mediations = json.loads(order.mediations) if isinstance(order.mediations, str) else order.mediations
+                        if isinstance(mediations, list) and len(mediations) > 0:
+                            returns_orders.append(order)
+                            returns_count += 1
+                            returns_value += float(order.total_amount or 0)
+                    except:
+                        pass
+            
+            # Visitas (buscar da API do Mercado Livre usando TokenManager)
+            total_visits = 0
+            try:
+                from app.services.token_manager import TokenManager
+                from app.services.ml_visits_service import MLVisitsService
+                from app.models.saas_models import MLAccount
+                
+                # Usar TokenManager para obter token válido do usuário logado
+                token_manager = TokenManager(self.db)
+                access_token = token_manager.get_valid_token(user_id)
+                
+                if access_token:
+                    # Buscar conta ML do usuário
+                    ml_account = self.db.query(MLAccount).filter(
+                        MLAccount.company_id == company_id
+                    ).first()
+                    
+                    if ml_account:
+                        visits_service = MLVisitsService()
+                        visits_data = visits_service.get_user_visits(
+                            user_id=ml_account.ml_user_id,
+                            access_token=access_token,
+                            date_from=start_date,
+                            date_to=end_date
+                        )
+                        total_visits = visits_data.get('total_visits', 0)
+                        logger.info(f"👁️  Visitas obtidas da API: {total_visits}")
+                    else:
+                        logger.warning(f"Nenhuma conta ML encontrada para company_id: {company_id}")
+                else:
+                    logger.warning(f"Nenhum token válido encontrado para user_id: {user_id}")
+            except Exception as e:
+                logger.error(f"Erro ao buscar visitas: {e}")
+                total_visits = 0
             
             # Buscar produtos
             products_query = self.db.query(MLProduct).filter(MLProduct.company_id == company_id)
@@ -129,9 +180,9 @@ class AnalyticsController:
                     'avg_ticket': avg_ticket,
                     'cancelled_orders': cancelled_count,
                     'cancelled_value': cancelled_value,
-                    'returns_count': 0,  # TODO: implementar devoluções
-                    'returns_value': 0.0,
-                    'total_visits': 0,  # TODO: implementar visitas
+                    'returns_count': returns_count,
+                    'returns_value': returns_value,
+                    'total_visits': total_visits,
                     'total_products': len(products)
                 },
                 'costs': {

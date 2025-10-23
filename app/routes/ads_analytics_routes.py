@@ -64,6 +64,7 @@ async def get_sales_dashboard_data(
         controller = AnalyticsController(db)
         data = controller.get_sales_dashboard(
             company_id=company_id,
+            user_id=user_data["id"],
             ml_account_id=ml_account_id,
             period_days=period_days,
             search=search,
