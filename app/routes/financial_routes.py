@@ -2971,17 +2971,15 @@ async def get_dre_report(
         # OTIMIZAÇÃO: Buscar todos os dados de uma vez e processar em memória
         print("DEBUG DRE - Buscando todos os dados de uma vez...")
         
-        # Buscar todas as receitas de uma vez
+        # Buscar todas as receitas de uma vez (sem filtro de status para incluir todas)
         all_receivables = db.query(AccountReceivable).filter(
-            AccountReceivable.company_id == company_id,
-            AccountReceivable.status.in_(['paid', 'received', 'completed'])
+            AccountReceivable.company_id == company_id
         ).all()
         print(f"DEBUG DRE - Total receitas encontradas: {len(all_receivables)}")
         
-        # Buscar todos os pedidos ML de uma vez
+        # Buscar todos os pedidos ML de uma vez (sem filtro de status para incluir todos)
         all_ml_orders = db.query(MLOrder).filter(
-            MLOrder.company_id == company_id,
-            MLOrder.status.in_(['PAID', 'DELIVERED', 'SHIPPED'])
+            MLOrder.company_id == company_id
         ).all()
         print(f"DEBUG DRE - Total pedidos ML encontrados: {len(all_ml_orders)}")
         
@@ -3051,10 +3049,10 @@ async def get_dre_report(
         ml_by_month = {}
         cost_centers_by_month = {}
         
-        # Processar receitas
+        # Processar receitas - usar due_date para faturamento correto
         for receivable in all_receivables:
-            if receivable.paid_date:
-                month_key = receivable.paid_date.strftime('%m/%Y')
+            if receivable.due_date:  # Mudança: usar due_date em vez de paid_date
+                month_key = receivable.due_date.strftime('%m/%Y')
                 if month_key not in receivables_by_month:
                     receivables_by_month[month_key] = 0.0
                 receivables_by_month[month_key] += float(receivable.amount or 0)
@@ -3078,15 +3076,13 @@ async def get_dre_report(
                 cost_centers_by_month[month_key][cost_center_name] = 0.0
             cost_centers_by_month[month_key][cost_center_name] += total_amount
         
-        # Processar pedidos ML
+        # Processar pedidos ML - usar date_created para faturamento correto
         for order in all_ml_orders:
-            if order.date_closed:
-                days_since_closed = (today - order.date_closed).days
-                if days_since_closed >= 7:
-                    month_key = order.date_created.strftime('%m/%Y')
-                    if month_key not in ml_by_month:
-                        ml_by_month[month_key] = 0.0
-                    ml_by_month[month_key] += float(order.total_amount or 0)
+            if order.date_created:  # Mudança: usar date_created e remover regra dos 7 dias
+                month_key = order.date_created.strftime('%m/%Y')
+                if month_key not in ml_by_month:
+                    ml_by_month[month_key] = 0.0
+                ml_by_month[month_key] += float(order.total_amount or 0)
         
         print(f"DEBUG DRE - Receitas por mês: {receivables_by_month}")
         print(f"DEBUG DRE - Despesas por mês: {payables_by_month}")
