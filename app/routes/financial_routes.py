@@ -6,7 +6,7 @@ Seguindo o padrão do sistema
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc, text
+from sqlalchemy import and_, or_, func, desc, text, literal
 from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime, date, timedelta
@@ -17,8 +17,7 @@ from app.models.financial_models import (
     FinancialAccount, FinancialCategory, CostCenter, FinancialCustomer,
     AccountReceivable, FinancialSupplier, AccountPayable, FinancialTransaction
 )
-# Removido - usando FinancialCategory de financial_models
-from app.models.saas_models import Fornecedor, OrdemCompra, MLOrder
+from app.models.saas_models import MLOrder, Fornecedor, OrdemCompra
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -3380,3 +3379,167 @@ async def get_expenses_filters(
         error_msg = f"Erro ao buscar filtros: {str(e)}\n{traceback.format_exc()}"
         print(error_msg)
         raise HTTPException(status_code=500, detail=str(e))
+
+@financial_router.get("/api/financial/revenues-by-category")
+async def get_revenues_by_category(
+    month: Optional[str] = None,
+    type: Optional[str] = None,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Retorna receitas agrupadas por categoria com filtros opcionais"""
+    try:
+        print("DEBUG RECEITAS - Iniciando endpoint")
+        
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Token de sessão necessário")
+        
+        result = auth_controller.get_user_by_session(session_token, db)
+        user_data = result.get('user', {})
+        company_id = user_data.get('company_id')
+        if not company_id:
+            raise HTTPException(status_code=400, detail="Company ID não encontrado")
+        
+        print(f"DEBUG RECEITAS - Company ID: {company_id}")
+        
+        # Construir filtros de data se mês foi especificado
+        date_filter = ""
+        if month and month != "":
+            month_parts = month.split('/')
+            if len(month_parts) == 2:
+                month_num = int(month_parts[0])
+                year_num = int(month_parts[1])
+                start_date = datetime(year_num, month_num, 1)
+                if month_num == 12:
+                    end_date = datetime(year_num + 1, 1, 1) - timedelta(days=1)
+                else:
+                    end_date = datetime(year_num, month_num + 1, 1) - timedelta(days=1)
+                
+                date_filter = f"AND DATE(ar.due_date) >= '{start_date.date()}' AND DATE(ar.due_date) <= '{end_date.date()}'"
+                ml_date_filter = f"AND DATE(ml.date_created) >= '{start_date.date()}' AND DATE(ml.date_created) <= '{end_date.date()}'"
+            else:
+                date_filter = ""
+                ml_date_filter = ""
+        else:
+            date_filter = ""
+            ml_date_filter = ""
+        
+        # Construir filtros de tipo
+        type_filter = ""
+        ml_type_filter = ""
+        if type == 'paid':
+            type_filter = "AND ar.status IN ('paid', 'received', 'completed') AND ar.paid_date IS NOT NULL"
+            ml_type_filter = "AND ml.status IN ('PAID', 'SHIPPED', 'DELIVERED')"
+        elif type == 'pending':
+            type_filter = "AND ar.status IN ('pending', 'unpaid', 'overdue')"
+            ml_type_filter = "AND ml.status IN ('PENDING', 'CONFIRMED')"
+        
+        # Consulta SQL única com UNION ALL
+        revenues_query = text(f"""
+            SELECT 
+                fc.name AS category_name,
+                SUM(ar.amount) AS total_amount
+            FROM financial_categories fc
+            LEFT JOIN accounts_receivable ar ON fc.id = ar.category_id
+            WHERE ar.company_id = :company_id
+            {date_filter}
+            {type_filter}
+            GROUP BY fc.id, fc.name
+            
+            UNION ALL
+            
+            SELECT 
+                'Vendas Mercado Livre' AS category_name,
+                SUM(ml.total_amount) AS total_amount
+            FROM ml_orders ml
+            WHERE ml.company_id = :company_id
+            {ml_date_filter}
+            {ml_type_filter}
+            GROUP BY 1
+        """)
+        
+        print(f"DEBUG RECEITAS - SQL Query: {revenues_query}")
+        
+        # Executar consulta SQL
+        results = db.execute(revenues_query, {'company_id': company_id}).fetchall()
+        
+        print(f"DEBUG RECEITAS - Results: {results}")
+        
+        # Processar resultados
+        categories = {}
+        for category_name, total_amount in results:
+            if category_name and total_amount:
+                if category_name in categories:
+                    categories[category_name] += float(total_amount or 0)
+                else:
+                    categories[category_name] = float(total_amount or 0)
+        
+        print(f"DEBUG RECEITAS - Categories: {categories}")
+        
+        return {
+            'categories': categories,
+            'total': sum(categories.values()),
+            'filters': {
+                'month': month,
+                'type': type
+            }
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"Erro ao carregar receitas por categoria: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+@financial_router.get("/api/financial/revenues-filters")
+async def get_revenues_filters(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Retorna filtros disponíveis para receitas (centros de custo e meses)"""
+    try:
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Token de sessão necessário")
+        
+        result = auth_controller.get_user_by_session(session_token, db)
+        user_data = result.get('user', {})
+        company_id = user_data.get('company_id')
+        if not company_id:
+            raise HTTPException(status_code=400, detail="Company ID não encontrado")
+        
+        # Buscar centros de custo
+        cost_centers = db.query(CostCenter.name).filter(
+            CostCenter.company_id == company_id
+        ).order_by(CostCenter.name).all()
+        cost_center_list = [cc.name for cc in cost_centers]
+        
+        # Gerar lista de meses (últimos 6 meses + mês atual + próximos 6 meses)
+        today = datetime.now()
+        month_list = []
+        
+        # Últimos 6 meses
+        for i in range(6, 0, -1):
+            month_date = today - timedelta(days=30*i)
+            month_list.append(month_date.strftime('%m/%Y'))
+        
+        # Mês atual
+        current_month = today.strftime('%m/%Y')
+        month_list.append(current_month)
+        
+        # Próximos 6 meses
+        for i in range(1, 7):
+            if today.month + i > 12:
+                month_date = today.replace(year=today.year + 1, month=today.month + i - 12)
+            else:
+                month_date = today.replace(month=today.month + i)
+            month_list.append(month_date.strftime('%m/%Y'))
+        
+        return {
+            'cost_centers': cost_center_list,
+            'months': month_list,
+            'current_month': current_month
+        }
+        
+    except Exception as e:
+        print(f"Erro ao carregar filtros de receitas: {e}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")

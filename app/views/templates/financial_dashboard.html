@@ -185,89 +185,6 @@
     </div>
 </div>
 
-<!-- Gráfico de Despesas por Categoria -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Despesas por Categoria</h5>
-            
-            </div>
-            <div class="card-body">
-                <!-- Filtros -->
-                <div class="row mb-3">
-                    <div class="col-6 col-md-3">
-                        <label for="categoryCostCenterFilter" class="form-label">Centro de Custo</label>
-                        <select class="form-select" id="categoryCostCenterFilter" onchange="loadExpensesByCategory()">
-                            <option value="">Todos os centros de custo</option>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <label for="categoryMonthFilter" class="form-label">Mês</label>
-                        <select class="form-select" id="categoryMonthFilter" onchange="loadExpensesByCategory()">
-                            <option value="">Todos os meses</option>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <label for="categoryTypeFilter" class="form-label">Tipo</label>
-                        <select class="form-select" id="categoryTypeFilter" onchange="loadExpensesByCategory()">
-                            <option value="">Todos os tipos</option>
-                            <option value="paid">Pagas</option>
-                            <option value="pending">Pendentes</option>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <label for="comparisonMode" class="form-label">Modo</label>
-                        <select class="form-select" id="comparisonMode" onchange="toggleComparisonMode()">
-                            <option value="single">Período Único</option>
-                            <option value="compare">Comparar Períodos</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <!-- Filtros de Comparação (ocultos por padrão) -->
-                <div id="comparisonFilters" class="row mb-3" style="display: none;">
-                    <div class="col-6 col-md-6">
-                        <label for="period1Filter" class="form-label">Período 1</label>
-                        <select class="form-select" id="period1Filter" onchange="loadExpensesByCategory()">
-                            <option value="">Selecione o período</option>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-6">
-                        <label for="period2Filter" class="form-label">Período 2</label>
-                        <select class="form-select" id="period2Filter" onchange="loadExpensesByCategory()">
-                            <option value="">Selecione o período</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <!-- Gráfico de rosca -->
-                <div class="row">
-                    <div class="col-md-8">
-                        <div style="height: 400px;">
-                            <canvas id="expensesByCategoryChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div id="category-legend" class="mt-3">
-                            <!-- Legenda será inserida aqui -->
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="category-loading" class="text-center py-3" style="display: none;">
-                    <i class="fas fa-spinner fa-spin fa-2x"></i>
-                    <p class="mt-2">Carregando dados por categoria...</p>
-                </div>
-                
-                <div id="category-error" class="alert alert-danger" style="display: none;">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    Erro ao carregar dados por categoria
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Seção DRE -->
 <div class="row mt-4">
@@ -319,6 +236,179 @@
     </div>
 </div>
 
+<!-- Seção Receitas e Despesas por Categoria - Lado a Lado -->
+<div class="row mt-4">
+    <!-- Receitas por Categoria -->
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Receitas por Categoria</h5>
+            </div>
+            <div class="card-body">
+                <!-- Filtros -->
+                <div class="row mb-3">
+                    <div class="col-6 col-md-4">
+                        <label for="revenueMonthFilter" class="form-label">Mês</label>
+                        <select class="form-select" id="revenueMonthFilter" onchange="loadRevenuesByCategory()">
+                            <option value="">Todos os meses</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label for="revenueTypeFilter" class="form-label">Tipo</label>
+                        <select class="form-select" id="revenueTypeFilter" onchange="loadRevenuesByCategory()">
+                            <option value="">Todos os tipos</option>
+                            <option value="paid">Recebidas</option>
+                            <option value="pending">Pendentes</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label for="revenueComparisonMode" class="form-label">Modo</label>
+                        <select class="form-select" id="revenueComparisonMode" onchange="toggleRevenueComparisonMode()">
+                            <option value="single">Período Único</option>
+                            <option value="compare">Comparar Períodos</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Filtros de Comparação -->
+                <div id="revenueComparisonFilters" class="row mb-3" style="display: none;">
+                    <div class="col-6 col-md-6">
+                        <label for="revenuePeriod1Filter" class="form-label">Período 1</label>
+                        <select class="form-select" id="revenuePeriod1Filter" onchange="loadRevenuesByCategory()">
+                            <option value="">Selecione o período</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-6">
+                        <label for="revenuePeriod2Filter" class="form-label">Período 2</label>
+                        <select class="form-select" id="revenuePeriod2Filter" onchange="loadRevenuesByCategory()">
+                            <option value="">Selecione o período</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Gráfico -->
+                <div class="row">
+                    <div class="col-12">
+                        <div style="height: 350px;">
+                            <canvas id="revenuesByCategoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Legenda -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div id="revenue-legend">
+                            <!-- Legenda será inserida aqui -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="revenue-loading" class="text-center py-3" style="display: none;">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2">Carregando dados por categoria...</p>
+                </div>
+                
+                <div id="revenue-initial" class="text-center py-5" style="display: none;">
+                    <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Selecione os filtros para visualizar o gráfico</h5>
+                    <p class="text-muted">Escolha o centro de custo, mês e tipo para começar</p>
+                </div>
+                
+                <div id="revenue-error" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Erro ao carregar dados por categoria
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Despesas por Categoria -->
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Despesas por Categoria</h5>
+            </div>
+            <div class="card-body">
+                <!-- Filtros -->
+                <div class="row mb-3">
+                    <div class="col-6 col-md-3">
+                        <label for="categoryCostCenterFilter" class="form-label">Centro de Custo</label>
+                        <select class="form-select" id="categoryCostCenterFilter" onchange="loadExpensesByCategory()">
+                            <option value="">Todos os centros de custo</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label for="categoryMonthFilter" class="form-label">Mês</label>
+                        <select class="form-select" id="categoryMonthFilter" onchange="loadExpensesByCategory()">
+                            <option value="">Todos os meses</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label for="categoryTypeFilter" class="form-label">Tipo</label>
+                        <select class="form-select" id="categoryTypeFilter" onchange="loadExpensesByCategory()">
+                            <option value="">Todos os tipos</option>
+                            <option value="paid">Pagas</option>
+                            <option value="pending">Pendentes</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label for="comparisonMode" class="form-label">Modo</label>
+                        <select class="form-select" id="comparisonMode" onchange="toggleComparisonMode()">
+                            <option value="single">Período Único</option>
+                            <option value="compare">Comparar Períodos</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Filtros de Comparação (ocultos por padrão) -->
+                <div id="comparisonFilters" class="row mb-3" style="display: none;">
+                    <div class="col-6 col-md-6">
+                        <label for="period1Filter" class="form-label">Período 1</label>
+                        <select class="form-select" id="period1Filter" onchange="loadExpensesByCategory()">
+                            <option value="">Selecione o período</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-6">
+                        <label for="period2Filter" class="form-label">Período 2</label>
+                        <select class="form-select" id="period2Filter" onchange="loadExpensesByCategory()">
+                            <option value="">Selecione o período</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Gráfico de rosca -->
+                <div class="row">
+                    <div class="col-12">
+                        <div style="height: 350px;">
+                            <canvas id="expensesByCategoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Legenda -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div id="category-legend">
+                            <!-- Legenda será inserida aqui -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="category-loading" class="text-center py-3" style="display: none;">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2">Carregando dados por categoria...</p>
+                </div>
+                
+                <div id="category-error" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Erro ao carregar dados por categoria
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Seções removidas: Gráfico de Receitas vs Despesas e Top Categorias -->
 
 <!-- Seções removidas: Contas a Receber e Contas a Pagar -->
@@ -333,6 +423,12 @@
 let dashboardData = {};
 let revenueExpensesChart = null;
 let categoriesChart = null;
+
+// Variáveis para receitas por categoria
+let revenuesByCategoryChart = null;
+let revenuesByCategoryData = null;
+let revenuesByCategoryData2 = null; // Para comparação
+let revenueFiltersData = null;
 
 // Carregar dados ao inicializar
 document.addEventListener('DOMContentLoaded', function() {
@@ -1145,6 +1241,406 @@ function generateColors(count) {
     return colors;
 }
 
+// ==================== FUNÇÕES PARA RECEITAS POR CATEGORIA ====================
+
+// Função para carregar filtros de receitas
+async function loadRevenueFilters() {
+    console.log('🚀 Carregando filtros de Receitas por Categoria...');
+    try {
+        const response = await fetch('/api/financial/revenues-filters', {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao carregar filtros');
+        }
+
+        revenueFiltersData = await response.json();
+        console.log('Filtros de receitas carregados:', revenueFiltersData);
+        
+        // Desabilitar eventos onchange temporariamente para evitar duplo carregamento
+        const monthSelect = document.getElementById('revenueMonthFilter');
+        const typeSelect = document.getElementById('revenueTypeFilter');
+        
+        // Remover onchange temporariamente
+        monthSelect.removeAttribute('onchange');
+        typeSelect.removeAttribute('onchange');
+        
+        // Popular combo de meses
+        monthSelect.innerHTML = '<option value="">Todos os meses</option>';
+        revenueFiltersData.months.forEach(month => {
+            const option = document.createElement('option');
+            option.value = month;
+            option.textContent = month;
+            if (month === revenueFiltersData.current_month) {
+                option.selected = true;
+            }
+            monthSelect.appendChild(option);
+        });
+        
+        // Popular combos de comparação
+        populateRevenueComparisonFilters();
+        
+        // Reabilitar eventos onchange após um pequeno delay
+        setTimeout(() => {
+            monthSelect.setAttribute('onchange', 'loadRevenuesByCategory()');
+            typeSelect.setAttribute('onchange', 'loadRevenuesByCategory()');
+        }, 100);
+        
+        console.log('✅ Filtros de receitas carregados com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao carregar filtros de receitas:', error);
+    }
+}
+
+// Função para popular filtros de comparação de receitas
+function populateRevenueComparisonFilters() {
+    if (!revenueFiltersData) return;
+    
+    const period1Select = document.getElementById('revenuePeriod1Filter');
+    const period2Select = document.getElementById('revenuePeriod2Filter');
+    
+    // Limpar opções existentes
+    period1Select.innerHTML = '<option value="">Selecione o período</option>';
+    period2Select.innerHTML = '<option value="">Selecione o período</option>';
+    
+    // Adicionar meses disponíveis
+    revenueFiltersData.months.forEach(month => {
+        const option1 = document.createElement('option');
+        option1.value = month;
+        option1.textContent = month;
+        period1Select.appendChild(option1);
+        
+        const option2 = document.createElement('option');
+        option2.value = month;
+        option2.textContent = month;
+        period2Select.appendChild(option2);
+    });
+}
+
+// Função para alternar modo de comparação de receitas
+function toggleRevenueComparisonMode() {
+    const comparisonMode = document.getElementById('revenueComparisonMode').value;
+    const comparisonFilters = document.getElementById('revenueComparisonFilters');
+    
+    if (comparisonMode === 'compare') {
+        comparisonFilters.style.display = 'block';
+    } else {
+        comparisonFilters.style.display = 'none';
+        // Limpar dados de comparação
+        revenuesByCategoryData2 = null;
+        // Carregar dados do modo único
+        loadRevenuesByCategory();
+    }
+}
+
+// Função para carregar dados de receitas por categoria
+async function loadRevenuesByCategory() {
+    console.log('🚀 Iniciando carregamento de Receitas por Categoria...');
+    try {
+        // Mostrar spinner e esconder outros elementos
+        document.getElementById('revenue-loading').style.display = 'block';
+        document.getElementById('revenue-legend').innerHTML = '';
+        document.getElementById('revenue-error').style.display = 'none';
+        document.getElementById('revenuesByCategoryChart').parentElement.style.display = 'none';
+        
+        const comparisonMode = document.getElementById('revenueComparisonMode').value;
+        
+        if (comparisonMode === 'compare') {
+            await loadRevenueComparisonData();
+        } else {
+            await loadSingleRevenueData();
+        }
+        
+        // Esconder spinner e mostrar gráfico
+        document.getElementById('revenue-loading').style.display = 'none';
+        document.getElementById('revenuesByCategoryChart').parentElement.style.display = 'block';
+        
+        console.log('✅ Receitas por Categoria carregado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados por categoria:', error);
+        document.getElementById('revenue-loading').style.display = 'none';
+        document.getElementById('revenue-error').style.display = 'block';
+    }
+}
+
+// Função para carregar dados de um período único
+async function loadSingleRevenueData() {
+    const month = document.getElementById('revenueMonthFilter').value;
+    const type = document.getElementById('revenueTypeFilter').value;
+    
+    const params = new URLSearchParams();
+    if (month) params.append('month', month);
+    if (type) params.append('type', type);
+    
+    const response = await fetch(`/api/financial/revenues-by-category?${params}`, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response.ok) {
+        throw new Error('Erro ao carregar dados');
+    }
+    
+    revenuesByCategoryData = await response.json();
+    revenuesByCategoryData2 = null; // Limpar dados de comparação
+    
+    createRevenuesByCategoryChart();
+}
+
+// Função para carregar dados de comparação
+async function loadRevenueComparisonData() {
+    const type = document.getElementById('revenueTypeFilter').value;
+    const period1 = document.getElementById('revenuePeriod1Filter').value;
+    const period2 = document.getElementById('revenuePeriod2Filter').value;
+    
+    if (!period1 || !period2) {
+        console.log('Períodos não selecionados para comparação');
+        return; // Não fazer nada se os períodos não estão selecionados
+    }
+    
+    // Carregar período 1
+    const params1 = new URLSearchParams();
+    if (period1) params1.append('month', period1);
+    if (type) params1.append('type', type);
+    
+    const response1 = await fetch(`/api/financial/revenues-by-category?${params1}`, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response1.ok) {
+        throw new Error('Erro ao carregar dados do período 1');
+    }
+    
+    revenuesByCategoryData = await response1.json();
+    revenuesByCategoryData.period = period1;
+    
+    // Carregar período 2
+    const params2 = new URLSearchParams();
+    if (period2) params2.append('month', period2);
+    if (type) params2.append('type', type);
+    
+    const response2 = await fetch(`/api/financial/revenues-by-category?${params2}`, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response2.ok) {
+        throw new Error('Erro ao carregar dados do período 2');
+    }
+    
+    revenuesByCategoryData2 = await response2.json();
+    revenuesByCategoryData2.period = period2;
+    
+    console.log('Dados de comparação de receitas carregados:', {
+        periodo1: revenuesByCategoryData,
+        periodo2: revenuesByCategoryData2
+    });
+}
+
+// Função para criar gráfico de receitas por categoria
+function createRevenuesByCategoryChart() {
+    const canvas = document.getElementById('revenuesByCategoryChart');
+    if (!canvas) {
+        console.error('Canvas revenuesByCategoryChart não encontrado');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Destruir gráfico existente
+    if (revenuesByCategoryChart) {
+        revenuesByCategoryChart.destroy();
+    }
+    
+    const comparisonMode = document.getElementById('revenueComparisonMode').value;
+    
+    if (comparisonMode === 'compare' && revenuesByCategoryData && revenuesByCategoryData2) {
+        createRevenueComparisonChart(ctx);
+    } else if (revenuesByCategoryData) {
+        createSingleRevenueChart(ctx);
+    }
+}
+
+// Função para criar gráfico único (rosca)
+function createSingleRevenueChart(ctx) {
+    const categories = revenuesByCategoryData.categories;
+    const total = revenuesByCategoryData.total;
+    
+    if (total === 0) {
+        // Mostrar mensagem quando não há dados
+        document.getElementById('revenue-legend').innerHTML = '<p class="text-muted text-center">Nenhuma receita encontrada para os filtros selecionados</p>';
+        return;
+    }
+    
+    const labels = Object.keys(categories);
+    const data = Object.values(categories);
+    const colors = generateColors(labels.length);
+    
+    revenuesByCategoryChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed;
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Criar legenda personalizada
+    createRevenueLegend(labels, data, total);
+}
+
+// Função para criar gráfico de comparação (barras)
+function createRevenueComparisonChart(ctx) {
+    const categories1 = revenuesByCategoryData.categories;
+    const categories2 = revenuesByCategoryData2.categories;
+    const total1 = revenuesByCategoryData.total;
+    const total2 = revenuesByCategoryData2.total;
+    
+    // Combinar todas as categorias
+    const allCategories = new Set([...Object.keys(categories1), ...Object.keys(categories2)]);
+    const labels = Array.from(allCategories);
+    
+    const data1 = labels.map(cat => categories1[cat] || 0);
+    const data2 = labels.map(cat => categories2[cat] || 0);
+    
+    revenuesByCategoryChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: `Período 1 (${revenuesByCategoryData.period})`,
+                    data: data1,
+                    backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: `Período 2 (${revenuesByCategoryData2.period})`,
+                    data: data2,
+                    backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            const total = context.dataset.label.includes('Período 1') ? total1 : total2;
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${context.dataset.label}: ${context.label} - ${formatCurrency(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Criar legenda de comparação
+    createRevenueComparisonLegend(labels, data1, data2, total1, total2);
+}
+
+// Função para criar legenda de receitas
+function createRevenueLegend(labels, data, total) {
+    const legendHtml = labels.map((label, index) => {
+        const value = data[index];
+        const percentage = ((value / total) * 100).toFixed(1);
+        const color = generateColors(labels.length)[index];
+        
+        return `
+            <div class="d-flex align-items-center mb-2">
+                <div class="me-2" style="width: 12px; height: 12px; background-color: ${color}; border-radius: 2px;"></div>
+                <small>
+                    <strong>${label}:</strong> ${formatCurrency(value)} (${percentage}%)
+                </small>
+            </div>
+        `;
+    }).join('');
+    
+    document.getElementById('revenue-legend').innerHTML = legendHtml;
+}
+
+// Função para criar legenda de comparação de receitas
+function createRevenueComparisonLegend(labels, data1, data2, total1, total2) {
+    const legendHtml = labels.map((label, index) => {
+        const value1 = data1[index];
+        const value2 = data2[index];
+        const diff = value2 - value1;
+        const diffPercent = value1 > 0 ? ((diff / value1) * 100).toFixed(1) : 0;
+        const diffClass = diff > 0 ? 'text-success' : diff < 0 ? 'text-danger' : '';
+        const diffIcon = diff > 0 ? '↗️' : diff < 0 ? '↘️' : '➡️';
+        
+        return `
+            <div class="d-flex align-items-center mb-2">
+                <div class="me-2" style="width: 12px; height: 12px; background-color: rgba(54, 162, 235, 0.8); border-radius: 2px;"></div>
+                <div class="me-2" style="width: 12px; height: 12px; background-color: rgba(255, 99, 132, 0.8); border-radius: 2px;"></div>
+                <small>
+                    <strong>${label}:</strong><br>
+                    P1: ${formatCurrency(value1)} | P2: ${formatCurrency(value2)}<br>
+                    <span class="${diffClass}">${diffIcon} ${formatCurrency(Math.abs(diff))} (${diffPercent}%)</span>
+                </small>
+            </div>
+        `;
+    }).join('');
+    
+    document.getElementById('revenue-legend').innerHTML = legendHtml;
+}
+
 // Carregar DRE automaticamente quando a página carregar
 document.addEventListener('DOMContentLoaded', function() {
     // Carregar DRE após um pequeno delay para não sobrecarregar
@@ -1155,6 +1651,12 @@ document.addEventListener('DOMContentLoaded', function() {
         await loadExpensesFilters();
         loadExpensesByCategory();
     }, 1500);
+    
+    // Carregar receitas por categoria
+    setTimeout(async () => {
+        await loadRevenueFilters();
+        loadRevenuesByCategory();
+    }, 2000);
 });
 </script>
 
