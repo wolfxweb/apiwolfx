@@ -14,7 +14,7 @@
             <!-- Período -->
             <div class="col-12 col-md-4">
                 <label for="periodFilter" class="form-label">Período</label>
-                <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); loadDashboardData();">
+                <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); loadKPIsOnly();">
                     <option value="">Todos os períodos</option>
                     <option value="today">Hoje</option>
                     <option value="this_week">Esta semana</option>
@@ -34,11 +34,11 @@
             <!-- Período personalizado (oculto por padrão) -->
             <div class="col-12 col-md-3" id="customPeriodRow" style="display: none;">
                 <label for="dateFrom" class="form-label">Data inicial</label>
-                <input type="date" class="form-control" id="dateFrom" onchange="loadDashboardData()">
+                <input type="date" class="form-control" id="dateFrom" onchange="loadKPIsOnly()">
             </div>
             <div class="col-12 col-md-3" id="customPeriodRow2" style="display: none;">
                 <label for="dateTo" class="form-label">Data final</label>
-                <input type="date" class="form-control" id="dateTo" onchange="loadDashboardData()">
+                <input type="date" class="form-control" id="dateTo" onchange="loadKPIsOnly()">
             </div>
             
             <!-- Ações -->
@@ -492,42 +492,68 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Função para mostrar spinner de loading
+// Função para mostrar spinner de loading (APENAS NOS KPIs)
 function showLoadingSpinner() {
+    console.log('🔄 Mostrando spinner APENAS nos KPIs...');
+    
     // Mostrar spinner apenas nos valores dos cards (não quebrar a estrutura)
     const cardValues = ['receivedRevenue', 'pendingRevenue', 'paidExpenses', 'pendingExpenses', 'monthlyProfit', 'currentBalance', 'cashFlow'];
     cardValues.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
+            console.log(`🔄 Mostrando spinner para: ${id}`);
             element.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Carregando...</span></div>';
         }
     });
     
-    // Mostrar spinner nos gráficos apenas se existirem
-    const chartContainers = document.querySelectorAll('canvas');
-    chartContainers.forEach(container => {
-        if (container.parentElement) {
-            const originalContent = container.parentElement.innerHTML;
-            container.parentElement.setAttribute('data-original-content', originalContent);
-            container.parentElement.innerHTML = '<div class="d-flex justify-content-center align-items-center" style="height: 300px;"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
-        }
-    });
+    // GARANTIR: Não afetar gráficos de forma alguma
+    console.log('✅ Spinner mostrado apenas nos KPIs - gráficos não afetados');
 }
 
-// Função para esconder spinner de loading
+// Função para esconder spinner de loading (APENAS NOS KPIs)
 function hideLoadingSpinner() {
-    // Restaurar conteúdo original dos gráficos
-    const chartContainers = document.querySelectorAll('[data-original-content]');
-    chartContainers.forEach(container => {
-        const originalContent = container.getAttribute('data-original-content');
-        if (originalContent) {
-            container.innerHTML = originalContent;
-            container.removeAttribute('data-original-content');
-        }
-    });
+    // Os valores dos KPIs serão atualizados pela função updateDashboardStats()
+    // Não precisa fazer nada aqui, pois os spinners serão substituídos pelos valores reais
 }
 
-// Função para carregar dados do dashboard
+// Função para carregar APENAS KPIs (sem afetar gráficos)
+async function loadKPIsOnly() {
+    try {
+        console.log('🔄 Atualizando APENAS KPIs (gráficos permanecem)...');
+        
+        // Mostrar spinner apenas nos KPIs
+        showLoadingSpinner();
+        
+        const periodFilter = document.getElementById('periodFilter').value;
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+        
+        // Construir parâmetros da URL - APENAS PARA KPIs
+        const params = new URLSearchParams();
+        params.append('period', periodFilter);
+        if (dateFrom) params.append('date_from', dateFrom);
+        if (dateTo) params.append('date_to', dateTo);
+        
+        const response = await fetch(`/api/financial/dashboard?${params.toString()}`, {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            dashboardData = await response.json();
+            hideLoadingSpinner();
+            updateDashboardStats();
+            console.log('✅ KPIs atualizados - gráficos mantidos');
+        } else {
+            hideLoadingSpinner();
+            showAlert('Erro ao carregar dados do dashboard', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        hideLoadingSpinner();
+        showAlert('Erro ao carregar dados do dashboard', 'danger');
+    }
+}
+
+// Função para carregar dados do dashboard (APENAS KPIs - COM FILTRO DE PERÍODO)
 async function loadDashboardData() {
     try {
         // Mostrar spinner
@@ -537,7 +563,7 @@ async function loadDashboardData() {
         const dateFrom = document.getElementById('dateFrom').value;
         const dateTo = document.getElementById('dateTo').value;
         
-        // Construir parâmetros da URL
+        // Construir parâmetros da URL - APENAS PARA KPIs
         const params = new URLSearchParams();
         params.append('period', periodFilter);
         if (dateFrom) params.append('date_from', dateFrom);
@@ -565,6 +591,7 @@ async function loadDashboardData() {
 
 // Função para atualizar estatísticas do dashboard
 function updateDashboardStats() {
+    console.log('📊 Atualizando estatísticas dos KPIs...');
     const data = dashboardData;
     
     // Receitas
@@ -582,6 +609,8 @@ function updateDashboardStats() {
     
     // Mudar cores dinamicamente baseado nos valores
     updateCardColors(data);
+    
+    console.log('✅ KPIs atualizados com sucesso');
 }
 
 function updateCardColors(data) {
@@ -715,12 +744,14 @@ function showAlert(message, type) {
 // Funções para DRE
 let dreData = null;
 
+// Função para carregar dados do DRE (SEM FILTRO DE PERÍODO - TODOS OS DADOS)
 async function loadDreData() {
     try {
-        document.getElementById('dre-loading').style.display = 'block';
+        // REMOVIDO: Loading do gráfico DRE
         document.getElementById('dre-error').style.display = 'none';
-        document.getElementById('dre-content').style.display = 'none';
+        // CORRIGIDO: Não esconder o conteúdo do DRE
 
+        // DRE sempre carrega TODOS os dados (sem filtro de período)
         const response = await fetch('/api/financial/dre', {
             credentials: 'include'
         });
@@ -729,20 +760,20 @@ async function loadDreData() {
         }
 
         dreData = await response.json();
-        console.log('DRE Data recebida:', dreData);
+        console.log('DRE Data recebida (TODOS OS DADOS):', dreData);
         console.log('Meses:', dreData.months);
         console.log('Dados:', dreData.data);
         renderDreTable();
         createDreChart();
         
-        document.getElementById('dre-loading').style.display = 'none';
+        // REMOVIDO: Loading do gráfico DRE
         document.getElementById('dre-content').style.display = 'block';
         
         // Carregar contas financeiras
         await loadFinancialAccounts();
     } catch (error) {
         console.error('Erro ao carregar DRE:', error);
-        document.getElementById('dre-loading').style.display = 'none';
+        // REMOVIDO: Loading do gráfico DRE
         document.getElementById('dre-error').style.display = 'block';
     }
 }
@@ -1094,10 +1125,10 @@ function toggleComparisonMode() {
     }
 }
 
-// Função para carregar dados de despesas por categoria
+// Função para carregar dados de despesas por categoria (SEM FILTRO DE PERÍODO - TODOS OS DADOS)
 async function loadExpensesByCategory() {
     try {
-        document.getElementById('category-loading').style.display = 'block';
+        // REMOVIDO: Loading do gráfico de despesas
         document.getElementById('category-error').style.display = 'none';
 
         const comparisonMode = document.getElementById('comparisonMode').value;
@@ -1108,19 +1139,19 @@ async function loadExpensesByCategory() {
             
             // Se não há dados de comparação, não criar gráfico
             if (!expensesByCategoryData || !expensesByCategoryData2) {
-                document.getElementById('category-loading').style.display = 'none';
+                // REMOVIDO: Loading do gráfico de despesas
                 return;
             }
         } else {
-            // Modo único - carregar período único
+            // Modo único - carregar TODOS os dados (sem filtro de período)
             await loadSinglePeriodData();
         }
         
         createExpensesByCategoryChart();
-        document.getElementById('category-loading').style.display = 'none';
+        // REMOVIDO: Loading do gráfico de despesas
     } catch (error) {
         console.error('Erro ao carregar dados por categoria:', error);
-        document.getElementById('category-loading').style.display = 'none';
+        // REMOVIDO: Loading do gráfico de despesas
         document.getElementById('category-error').style.display = 'block';
     }
 }
@@ -1509,15 +1540,14 @@ function toggleRevenueComparisonMode() {
     }
 }
 
-// Função para carregar dados de receitas por categoria
+// Função para carregar dados de receitas por categoria (SEM FILTRO DE PERÍODO - TODOS OS DADOS)
 async function loadRevenuesByCategory() {
-    console.log('🚀 Iniciando carregamento de Receitas por Categoria...');
+    console.log('🚀 Iniciando carregamento de Receitas por Categoria (TODOS OS DADOS)...');
     try {
-        // Mostrar spinner e esconder outros elementos
-        document.getElementById('revenue-loading').style.display = 'block';
+        // REMOVIDO: Loading do gráfico de receitas
         document.getElementById('revenue-legend').innerHTML = '';
         document.getElementById('revenue-error').style.display = 'none';
-        document.getElementById('revenuesByCategoryChart').parentElement.style.display = 'none';
+        // CORRIGIDO: Não esconder o gráfico de receitas
         
         const comparisonMode = document.getElementById('revenueComparisonMode').value;
         
@@ -1527,15 +1557,14 @@ async function loadRevenuesByCategory() {
             await loadSingleRevenueData();
         }
         
-        // Esconder spinner e mostrar gráfico
-        document.getElementById('revenue-loading').style.display = 'none';
+        // REMOVIDO: Loading do gráfico de receitas
         document.getElementById('revenuesByCategoryChart').parentElement.style.display = 'block';
         
-        console.log('✅ Receitas por Categoria carregado com sucesso!');
+        console.log('✅ Receitas por Categoria carregado com sucesso (TODOS OS DADOS)!');
         
     } catch (error) {
         console.error('Erro ao carregar dados por categoria:', error);
-        document.getElementById('revenue-loading').style.display = 'none';
+        // REMOVIDO: Loading do gráfico de receitas
         document.getElementById('revenue-error').style.display = 'block';
     }
 }
@@ -1837,18 +1866,24 @@ function createRevenueComparisonLegend(labels, data1, data2, total1, total2) {
     document.getElementById('revenue-legend').innerHTML = legendHtml;
 }
 
-// Carregar DRE automaticamente quando a página carregar
+// Carregar dados automaticamente quando a página carregar
 document.addEventListener('DOMContentLoaded', function() {
-    // Carregar DRE após um pequeno delay para não sobrecarregar
+    // ========================================
+    // SEPARAÇÃO DE RESPONSABILIDADES:
+    // ========================================
+    // 1. KPIs (loadDashboardData) - COM filtro de período
+    // 2. Gráficos (loadDreData, loadExpensesByCategory, loadRevenuesByCategory) - SEM filtro de período
+    
+    // Carregar DRE (gráfico) - SEM filtro de período
     setTimeout(loadDreData, 1000);
     
-    // Carregar filtros primeiro, depois dados por categoria
+    // Carregar filtros primeiro, depois dados por categoria (gráfico) - SEM filtro de período
     setTimeout(async () => {
         await loadExpensesFilters();
         loadExpensesByCategory();
     }, 1500);
     
-    // Carregar receitas por categoria
+    // Carregar receitas por categoria (gráfico) - SEM filtro de período
     setTimeout(async () => {
         await loadRevenueFilters();
         loadRevenuesByCategory();
