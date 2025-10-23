@@ -522,7 +522,7 @@
                     </div>
 
                     <!-- Tabela Detalhada -->
-                    <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
                         <h6 class="mb-0"><i class="bi bi-table"></i> Comparação Detalhada</h6>
                         <small class="text-muted">Dados mensais detalhados</small>
                     </div>
@@ -2300,63 +2300,126 @@ function renderPlanningChart(chartData) {
     });
 }
 
-// Função para renderizar tabela detalhada
-function renderPlanningTable(tableData) {
-    const tbody = document.getElementById('planning-comparison-table');
-    
-    // Verificar se temos dados detalhados (ML + Receivables)
-    const hasDetailedData = tableData.length > 0 && tableData[0].ml !== undefined;
-    
-    let tableHtml = '';
-    tableData.forEach(row => {
-        const statusClass = row.percentage_achieved >= 100 ? 'success' : 
-                           row.percentage_achieved >= 80 ? 'warning' : 'danger';
-        const statusIcon = row.percentage_achieved >= 100 ? 'bi-check-circle' : 
-                          row.percentage_achieved >= 80 ? 'bi-exclamation-triangle' : 'bi-x-circle';
+    // Função para renderizar tabela detalhada
+    function renderPlanningTable(tableData) {
+        const tbody = document.getElementById('planning-comparison-table');
         
+        // Verificar se temos dados detalhados (ML + Receivables)
+        const hasDetailedData = tableData.length > 0 && tableData[0].ml !== undefined;
+        
+        // Calcular totais
+        let totalPlanned = 0;
+        let totalML = 0;
+        let totalReceivables = 0;
+        let totalReal = 0;
+        let totalDifference = 0;
+        let totalPercentage = 0;
+        
+        tableData.forEach(row => {
+            totalPlanned += row.planned || 0;
+            if (hasDetailedData) {
+                totalML += row.ml || 0;
+                totalReceivables += row.receivables || 0;
+                totalReal += row.total_real || 0;
+            } else {
+                totalReal += row.real || 0;
+            }
+            totalDifference += row.difference || 0;
+            totalPercentage += row.percentage_achieved || 0;
+        });
+        
+        // Calcular percentual médio
+        const averagePercentage = tableData.length > 0 ? totalPercentage / tableData.length : 0;
+        
+        let tableHtml = '';
+        tableData.forEach(row => {
+            const statusClass = row.percentage_achieved >= 100 ? 'success' : 
+                               row.percentage_achieved >= 80 ? 'warning' : 'danger';
+            const statusIcon = row.percentage_achieved >= 100 ? 'bi-check-circle' : 
+                              row.percentage_achieved >= 80 ? 'bi-exclamation-triangle' : 'bi-x-circle';
+            
+            if (hasDetailedData) {
+                // Tabela com colunas separadas para ML e Contas a Receber
+                tableHtml += `
+                    <tr>
+                        <td>${row.month}</td>
+                        <td class="text-end">${formatCurrency(row.planned)}</td>
+                        <td class="text-end">${formatCurrency(row.ml || 0)}</td>
+                        <td class="text-end">${formatCurrency(row.receivables || 0)}</td>
+                        <td class="text-end">${formatCurrency(row.total_real || 0)}</td>
+                        <td class="text-end ${row.difference >= 0 ? 'text-success' : 'text-danger'}">
+                            ${formatCurrency(row.difference)}
+                        </td>
+                        <td class="text-end">${row.percentage_achieved.toFixed(1)}%</td>
+                        <td class="text-center">
+                            <span class="badge bg-${statusClass}">
+                                <i class="bi ${statusIcon}"></i>
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                // Tabela padrão
+                tableHtml += `
+                    <tr>
+                        <td>${row.month}</td>
+                        <td class="text-end">${formatCurrency(row.planned)}</td>
+                        <td class="text-end">${formatCurrency(row.real)}</td>
+                        <td class="text-end ${row.difference >= 0 ? 'text-success' : 'text-danger'}">
+                            ${formatCurrency(row.difference)}
+                        </td>
+                        <td class="text-end">${row.percentage_achieved.toFixed(1)}%</td>
+                        <td class="text-center">
+                            <span class="badge bg-${statusClass}">
+                                <i class="bi ${statusIcon}"></i>
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+        
+        // Adicionar linha de totais
         if (hasDetailedData) {
-            // Tabela com colunas separadas para ML e Contas a Receber
             tableHtml += `
-                <tr>
-                    <td>${row.month}</td>
-                    <td class="text-end">${formatCurrency(row.planned)}</td>
-                    <td class="text-end">${formatCurrency(row.ml || 0)}</td>
-                    <td class="text-end">${formatCurrency(row.receivables || 0)}</td>
-                    <td class="text-end">${formatCurrency(row.total_real || 0)}</td>
-                    <td class="text-end ${row.difference >= 0 ? 'text-success' : 'text-danger'}">
-                        ${formatCurrency(row.difference)}
+                <tr class="table-dark fw-bold">
+                    <td><strong>TOTAL</strong></td>
+                    <td class="text-end"><strong>${formatCurrency(totalPlanned)}</strong></td>
+                    <td class="text-end"><strong>${formatCurrency(totalML)}</strong></td>
+                    <td class="text-end"><strong>${formatCurrency(totalReceivables)}</strong></td>
+                    <td class="text-end"><strong>${formatCurrency(totalReal)}</strong></td>
+                    <td class="text-end ${totalDifference >= 0 ? 'text-success' : 'text-danger'}">
+                        <strong>${formatCurrency(totalDifference)}</strong>
                     </td>
-                    <td class="text-end">${row.percentage_achieved.toFixed(1)}%</td>
+                    <td class="text-end"><strong>${averagePercentage.toFixed(1)}%</strong></td>
                     <td class="text-center">
-                        <span class="badge bg-${statusClass}">
-                            <i class="bi ${statusIcon}"></i>
+                        <span class="badge bg-dark">
+                            <i class="bi bi-calculator"></i>
                         </span>
                     </td>
                 </tr>
             `;
         } else {
-            // Tabela padrão
             tableHtml += `
-                <tr>
-                    <td>${row.month}</td>
-                    <td class="text-end">${formatCurrency(row.planned)}</td>
-                    <td class="text-end">${formatCurrency(row.real)}</td>
-                    <td class="text-end ${row.difference >= 0 ? 'text-success' : 'text-danger'}">
-                        ${formatCurrency(row.difference)}
+                <tr class="table-dark fw-bold">
+                    <td><strong>TOTAL</strong></td>
+                    <td class="text-end"><strong>${formatCurrency(totalPlanned)}</strong></td>
+                    <td class="text-end"><strong>${formatCurrency(totalReal)}</strong></td>
+                    <td class="text-end ${totalDifference >= 0 ? 'text-success' : 'text-danger'}">
+                        <strong>${formatCurrency(totalDifference)}</strong>
                     </td>
-                    <td class="text-end">${row.percentage_achieved.toFixed(1)}%</td>
+                    <td class="text-end"><strong>${averagePercentage.toFixed(1)}%</strong></td>
                     <td class="text-center">
-                        <span class="badge bg-${statusClass}">
-                            <i class="bi ${statusIcon}"></i>
+                        <span class="badge bg-dark">
+                            <i class="bi bi-calculator"></i>
                         </span>
                     </td>
                 </tr>
             `;
         }
-    });
-    
-    tbody.innerHTML = tableHtml;
-}
+        
+        tbody.innerHTML = tableHtml;
+    }
 </script>
 
 <!-- Chart.js -->
