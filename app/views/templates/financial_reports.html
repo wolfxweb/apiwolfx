@@ -5,90 +5,688 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="bi bi-calendar-check"></i> Planejamento Financeiro</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-primary" onclick="createNewPlanning()">
+                <i class="bi bi-plus-circle"></i> Criar Novo Planejamento
+            </button>
+        </div>
+    </div>
 </div>
 
-<!-- Card de desenvolvimento -->
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card border-warning">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-tools"></i> Funcionalidade em Desenvolvimento
+<!-- Seleção de Ano -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <label for="yearSelector" class="form-label">Ano do Planejamento:</label>
+                        <div class="input-group">
+                            <select class="form-select" id="yearSelector" onchange="loadPlanning()">
+                                <option value="2024">2024</option>
+                                <option value="2025" selected>2025</option>
+                                <option value="2026">2026</option>
+                            </select>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-primary" onclick="editMonthPlanning(1)" title="Editar Planejamento">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" onclick="deleteMonthPlanning(1)" title="Excluir Planejamento">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading -->
+<div id="planning-loading" class="text-center py-5" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Carregando...</span>
+    </div>
+    <p class="mt-2">Carregando planejamento financeiro...</p>
+</div>
+
+<!-- Erro -->
+<div id="planning-error" class="alert alert-danger" style="display: none;">
+    <i class="bi bi-exclamation-triangle"></i>
+    <span id="error-message">Erro ao carregar planejamento</span>
+</div>
+
+<!-- Lista de Planejamentos -->
+<div id="planning-content" style="display: none;">
+    <!-- Resumo Anual -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+    
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card border-primary">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-primary">Faturamento Total</h6>
+                                    <h4 class="text-primary" id="total-revenue">R$ 0,00</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-success">Margem Total</h6>
+                                    <h4 class="text-success" id="total-margin">R$ 0,00</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-warning">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-warning">Gastos Planejados</h6>
+                                    <h4 class="text-warning" id="total-expenses">R$ 0,00</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-info">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-info">Margem %</h6>
+                                    <h4 class="text-info" id="margin-percent">0%</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Planejamentos Mensais -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+      
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Mês</th>
+                                    <th>Faturamento Esperado</th>
+                                    <th>Margem Esperada</th>
+                                    <th>Gastos Planejados</th>
+                                </tr>
+                            </thead>
+                            <tbody id="planningTableBody">
+                                <!-- Os dados serão carregados dinamicamente aqui -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+let planningData = null;
+let currentYear = new Date().getFullYear();
+
+// Carregar planejamento ao inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadPlanning();
+});
+
+// Função para carregar planejamento
+async function loadPlanning() {
+    const year = document.getElementById('yearSelector').value;
+    
+    try {
+        showLoading();
+        
+        const response = await fetch(`/api/financial/planning/${year}`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            planningData = await response.json();
+            
+            if (planningData.success) {
+                renderPlanning(planningData.planning);
+                hideLoading();
+            } else {
+                showError(planningData.error);
+            }
+        } else {
+            showError('Erro ao carregar planejamento');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showError('Erro ao carregar planejamento');
+    }
+}
+
+// Função para criar novo planejamento
+function createNewPlanning() {
+    // Redirecionar para tela de criação
+    window.location.href = '/financial/planning/create';
+}
+
+// Função para limpar todos os planejamentos
+async function clearAllPlanning() {
+    const year = document.getElementById('yearSelector').value;
+    
+    if (!confirm(`Tem certeza que deseja limpar TODOS os planejamentos de ${year}?\n\nEsta ação não pode ser desfeita!`)) {
+        return;
+    }
+    
+    try {
+        showLoading();
+        
+        const response = await fetch(`/api/financial/planning/clear/${year}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('Planejamento limpo com sucesso!');
+                loadPlanning();
+            } else {
+                showError(result.error);
+            }
+        } else {
+            showError('Erro ao limpar planejamento');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showError('Erro ao limpar planejamento');
+    }
+}
+
+// Função para renderizar planejamento
+function renderPlanning(planning) {
+    if (!planning || !planning.months) {
+        showError('Nenhum planejamento encontrado');
+        return;
+    }
+    
+    // Calcular totais anuais
+    let totalRevenue = 0;
+    let totalMargin = 0;
+    let totalExpenses = 0;
+    
+    planning.months.forEach(month => {
+        totalRevenue += month.expected_revenue || 0;
+        totalMargin += month.expected_margin_value || 0;
+        
+        // Calcular gastos totais dos centros de custo (apenas categorias de despesas)
+        month.cost_centers.forEach(cc => {
+            // Somar apenas as categorias de despesas
+            const expenseCategories = cc.categories ? 
+                cc.categories.filter(cat => cat.type === 'expense') : [];
+            const categoryExpenses = expenseCategories.reduce((catSum, cat) => 
+                catSum + (cat.max_spending || 0), 0);
+            totalExpenses += categoryExpenses;
+        });
+    });
+    
+    // Atualizar resumo anual
+    document.getElementById('total-revenue').textContent = formatCurrency(totalRevenue);
+    document.getElementById('total-margin').textContent = formatCurrency(totalMargin);
+    document.getElementById('total-expenses').textContent = formatCurrency(totalExpenses);
+    document.getElementById('margin-percent').textContent = totalRevenue > 0 ? 
+        ((totalMargin / totalRevenue) * 100).toFixed(1) + '%' : '0%';
+    
+    // Renderizar tabela de meses
+    const tableBody = document.getElementById('planningTableBody');
+    tableBody.innerHTML = '';
+    
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    planning.months.forEach((month, index) => {
+        const monthName = monthNames[month.month - 1];
+        const totalCostCenters = month.cost_centers ? month.cost_centers.length : 0;
+        // Calcular gastos planejados (apenas categorias de despesas)
+        const totalExpenses = month.cost_centers ? 
+            month.cost_centers.reduce((sum, cc) => {
+                // Somar apenas as categorias de despesas
+                const expenseCategories = cc.categories ? 
+                    cc.categories.filter(cat => cat.type === 'expense') : [];
+                const categoryExpenses = expenseCategories.reduce((catSum, cat) => 
+                    catSum + (cat.max_spending || 0), 0);
+                return sum + categoryExpenses;
+            }, 0) : 0;
+        
+        const monthRow = `
+            <tr>
+                <td><strong>${monthName} ${month.year}</strong></td>
+                <td>${formatCurrency(month.expected_revenue || 0)}</td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <span class="fw-bold me-2">${formatCurrency(month.expected_margin_value || 0)}</span>
+                        <small class="text-muted">(${(month.expected_margin_percent || 0).toFixed(1)}%)</small>
+                    </div>
+                </td>
+                <td>${formatCurrency(totalExpenses)}</td>
+            </tr>
+        `;
+        
+        tableBody.innerHTML += monthRow;
+    });
+    
+    document.getElementById('planning-content').style.display = 'block';
+}
+
+// Função para renderizar planejamento do mês
+function renderMonthPlanning(month) {
+    let html = `
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Faturamento Esperado:</label>
+                <div class="input-group">
+                    <span class="input-group-text">R$</span>
+                    <input type="number" class="form-control" id="revenue-${month.month}" 
+                           value="${month.expected_revenue || 0}" step="0.01" 
+                           onchange="updateMonthlyPlanning(${month.month}, 'expected_revenue', this.value)">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Margem Esperada (%):</label>
+                <div class="input-group">
+                    <input type="number" class="form-control" id="margin-percent-${month.month}" 
+                           value="${month.expected_margin_percent || 0}" step="0.01" 
+                           onchange="updateMonthlyPlanning(${month.month}, 'expected_margin_percent', this.value)">
+                    <span class="input-group-text">%</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Margem Esperada (R$):</label>
+                <div class="input-group">
+                    <span class="input-group-text">R$</span>
+                    <input type="number" class="form-control" id="margin-value-${month.month}" 
+                           value="${month.expected_margin_value || 0}" step="0.01" 
+                           onchange="updateMonthlyPlanning(${month.month}, 'expected_margin_value', this.value)">
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Renderizar centros de custo com flexibilidade (iniciar vazio)
+    html += `
+        <div class="mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Centros de Custo:</h6>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCostCenter(${month.month})">
+                    <i class="bi bi-plus-circle"></i> Adicionar Centro de Custo
+                </button>
+            </div>
+            <div id="cost-centers-${month.month}">
+                <!-- Iniciar vazio - usuário adiciona conforme necessário -->
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+// Função para renderizar centro de custo
+function renderCostCenter(month, costCenter) {
+    const costCenterId = costCenter.id || `new-${Date.now()}`;
+    const isNew = costCenterId.toString().startsWith('new-');
+    
+    return `
+        <div class="card mb-3" id="cost-center-${month}-${costCenterId}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <select class="form-select me-3" style="width: 200px;" 
+                            onchange="updateCostCenterSelection(${month}, '${costCenterId}', this.value)">
+                        <option value="">Selecione um centro de custo</option>
+                        ${getCostCenterOptions(costCenter.id)}
+                    </select>
+                    <span class="fw-bold">${costCenter.name || 'Novo Centro de Custo'}</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" 
+                        onclick="removeCostCenter(${month}, '${costCenterId}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Valor Máximo de Gasto:</label>
+                        <div class="input-group">
+                            <span class="input-group-text">R$</span>
+                            <input type="number" class="form-control" 
+                                   value="${costCenter.max_spending || 0}" step="0.01" 
+                                   onchange="updateCostCenterPlanning(${month}, '${costCenterId}', 'max_spending', this.value)">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Observações:</label>
+                        <input type="text" class="form-control" 
+                               value="${costCenter.notes || ''}" 
+                               onchange="updateCostCenterPlanning(${month}, '${costCenterId}', 'notes', this.value)">
+                    </div>
+                </div>
+                
+                <!-- Categorias -->
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Categorias:</h6>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                onclick="addCategory(${month}, '${costCenterId}')">
+                            <i class="bi bi-plus-circle"></i> Adicionar Categoria
+                        </button>
+                    </div>
+                    <div id="categories-${month}-${costCenterId}">
+                        ${renderCategories(month, costCenterId, costCenter.categories || [])}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Função para renderizar categorias
+function renderCategories(month, costCenterId, categories) {
+    let html = '';
+    categories.forEach(category => {
+        html += renderCategory(month, costCenterId, category);
+    });
+    return html;
+}
+
+// Função para renderizar categoria individual
+function renderCategory(month, costCenterId, category) {
+    const categoryId = category.id || `new-${Date.now()}`;
+    
+    return `
+        <div class="row mb-2" id="category-${month}-${costCenterId}-${categoryId}">
+            <div class="col-md-4">
+                <select class="form-select" onchange="updateCategorySelection(${month}, '${costCenterId}', '${categoryId}', this.value)">
+                    <option value="">Selecione uma categoria</option>
+                    ${getCategoryOptions(category.id)}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text">R$</span>
+                    <input type="number" class="form-control" 
+                           value="${category.max_spending || 0}" step="0.01" 
+                           onchange="updateCategoryPlanning(${month}, '${costCenterId}', '${categoryId}', 'max_spending', this.value)">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" 
+                       value="${category.notes || ''}" 
+                       placeholder="Observações"
+                       onchange="updateCategoryPlanning(${month}, '${costCenterId}', '${categoryId}', 'notes', this.value)">
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-sm btn-outline-danger" 
+                        onclick="removeCategory(${month}, '${costCenterId}', '${categoryId}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Função para obter opções de centros de custo
+function getCostCenterOptions(selectedId) {
+    if (!planningData || !planningData.cost_centers) return '';
+    
+    let options = '';
+    planningData.cost_centers.forEach(cc => {
+        const selected = cc.id == selectedId ? 'selected' : '';
+        options += `<option value="${cc.id}" ${selected}>${cc.name}</option>`;
+    });
+    return options;
+}
+
+// Função para obter opções de categorias
+function getCategoryOptions(selectedId) {
+    if (!planningData || !planningData.categories) return '';
+    
+    let options = '';
+    planningData.categories.forEach(cat => {
+        const selected = cat.id == selectedId ? 'selected' : '';
+        options += `<option value="${cat.id}" ${selected}>${cat.name}</option>`;
+    });
+    return options;
+}
+
+// Função para adicionar centro de custo
+function addCostCenter(month) {
+    const container = document.getElementById(`cost-centers-${month}`);
+    const newCostCenter = {
+        id: `new-${Date.now()}`,
+        name: 'Novo Centro de Custo',
+        max_spending: 0,
+        notes: '',
+        categories: []
+    };
+    
+    const costCenterHtml = renderCostCenter(month, newCostCenter);
+    container.insertAdjacentHTML('beforeend', costCenterHtml);
+}
+
+// Função para remover centro de custo
+function removeCostCenter(month, costCenterId) {
+    const element = document.getElementById(`cost-center-${month}-${costCenterId}`);
+    if (element) {
+        element.remove();
+    }
+}
+
+// Função para adicionar categoria
+function addCategory(month, costCenterId) {
+    const container = document.getElementById(`categories-${month}-${costCenterId}`);
+    const newCategory = {
+        id: `new-${Date.now()}`,
+        name: 'Nova Categoria',
+        max_spending: 0,
+        notes: ''
+    };
+    
+    const categoryHtml = renderCategory(month, costCenterId, newCategory);
+    container.insertAdjacentHTML('beforeend', categoryHtml);
+}
+
+// Função para remover categoria
+function removeCategory(month, costCenterId, categoryId) {
+    const element = document.getElementById(`category-${month}-${costCenterId}-${categoryId}`);
+    if (element) {
+        element.remove();
+    }
+}
+
+// Função para atualizar seleção de centro de custo
+function updateCostCenterSelection(month, costCenterId, selectedId) {
+    const element = document.getElementById(`cost-center-${month}-${costCenterId}`);
+    if (element && selectedId) {
+        const nameElement = element.querySelector('.fw-bold');
+        if (nameElement) {
+            const selectedOption = element.querySelector(`option[value="${selectedId}"]`);
+            if (selectedOption) {
+                nameElement.textContent = selectedOption.textContent;
+            }
+        }
+    }
+}
+
+// Função para atualizar seleção de categoria
+function updateCategorySelection(month, costCenterId, categoryId, selectedId) {
+    // Implementar lógica de atualização se necessário
+    console.log(`Atualizando categoria ${categoryId} para ${selectedId}`);
+}
+
+// Funções de atualização
+async function updateMonthlyPlanning(month, field, value) {
+    // Implementar atualização via API
+    console.log(`Atualizando mês ${month}, campo ${field}, valor ${value}`);
+}
+
+async function updateCostCenterPlanning(month, costCenterId, field, value) {
+    // Implementar atualização via API
+    console.log(`Atualizando centro de custo ${costCenterId}, campo ${field}, valor ${value}`);
+}
+
+async function updateCategoryPlanning(month, costCenterId, categoryId, field, value) {
+    // Implementar atualização via API
+    console.log(`Atualizando categoria ${categoryId}, campo ${field}, valor ${value}`);
+}
+
+// Funções para ações da tabela
+function editMonthPlanning(month) {
+    // Redirecionar para tela de edição com o ano atual
+    const currentYear = document.getElementById('yearSelector').value;
+    window.location.href = `/financial/planning/edit/${currentYear}`;
+}
+
+function viewMonthDetails(month) {
+    // Implementar visualização de detalhes do mês
+    alert(`Ver detalhes de ${month} - Funcionalidade em desenvolvimento`);
+}
+
+function deleteMonthPlanning(month) {
+    // Mostrar modal de confirmação
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    const messageElement = document.getElementById('deleteConfirmMessage');
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    
+    // Configurar mensagem
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const monthName = monthNames[month - 1];
+    const currentYear = document.getElementById('yearSelector').value;
+    
+    messageElement.textContent = `Tem certeza que deseja excluir o planejamento de ${monthName} ${currentYear}?`;
+    
+    // Configurar ação do botão de confirmação
+    confirmBtn.onclick = function() {
+        modal.hide();
+        executeDeleteMonthPlanning(month);
+    };
+    
+    // Mostrar modal
+    modal.show();
+}
+
+// Função para executar a exclusão
+function executeDeleteMonthPlanning(month) {
+    // Implementar exclusão do planejamento mensal
+    showToast(`Excluir planejamento de ${month} - Funcionalidade em desenvolvimento`, 'info');
+}
+
+// Funções auxiliares
+function showLoading() {
+    document.getElementById('planning-loading').style.display = 'block';
+    document.getElementById('planning-error').style.display = 'none';
+    document.getElementById('planning-content').style.display = 'none';
+}
+
+function hideLoading() {
+    document.getElementById('planning-loading').style.display = 'none';
+}
+
+function showError(message) {
+    document.getElementById('planning-loading').style.display = 'none';
+    document.getElementById('planning-content').style.display = 'none';
+    document.getElementById('planning-error').style.display = 'block';
+    document.getElementById('error-message').textContent = message;
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value);
+}
+
+// Função para mostrar toast
+function showToast(message, type = 'info') {
+    // Remover toasts existentes
+    const existingToasts = document.querySelectorAll('.toast-container');
+    existingToasts.forEach(toast => toast.remove());
+    
+    // Criar container de toast
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+    toastContainer.style.zIndex = '9999';
+    
+    // Determinar cor do toast
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    
+    // Criar toast
+    const toastHtml = `
+        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : 'Informação'}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.innerHTML = toastHtml;
+    document.body.appendChild(toastContainer);
+    
+    // Auto-remover após 5 segundos
+    setTimeout(() => {
+        if (toastContainer.parentNode) {
+            toastContainer.remove();
+        }
+    }, 5000);
+}
+</script>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">
+                    <i class="bi bi-exclamation-triangle text-warning"></i>
+                    Confirmar Exclusão
                 </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="card-body text-center">
-                <div class="mb-4">
-                    <i class="bi bi-gear-fill display-1 text-warning"></i>
+            <div class="modal-body">
+                <p id="deleteConfirmMessage">Tem certeza que deseja excluir este item?</p>
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Atenção:</strong> Esta ação não pode ser desfeita.
                 </div>
-                <h4 class="text-warning mb-3">Planejamento Financeiro</h4>
-                <p class="lead mb-4">
-                    Esta funcionalidade está sendo desenvolvida e estará disponível em breve.
-                </p>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card border-0 bg-light">
-                            <div class="card-body">
-                                <i class="bi bi-graph-up text-primary fs-1"></i>
-                                <h6 class="mt-2">Projeções Financeiras</h6>
-                                <small class="text-muted">Análise de tendências e previsões</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card border-0 bg-light">
-                            <div class="card-body">
-                                <i class="bi bi-calendar-month text-success fs-1"></i>
-                                <h6 class="mt-2">Orçamento Mensal</h6>
-                                <small class="text-muted">Controle de receitas e despesas</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col-md-6">
-                        <div class="card border-0 bg-light">
-                            <div class="card-body">
-                                <i class="bi bi-pie-chart text-info fs-1"></i>
-                                <h6 class="mt-2">Análise de Categorias</h6>
-                                <small class="text-muted">Distribuição de gastos por categoria</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card border-0 bg-light">
-                            <div class="card-body">
-                                <i class="bi bi-target text-danger fs-1"></i>
-                                <h6 class="mt-2">Metas Financeiras</h6>
-                                <small class="text-muted">Definição e acompanhamento de objetivos</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-4">
-                    <a href="/financial/dashboard" class="btn btn-primary me-2">
-                        <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
-                    </a>
-                    <a href="/financial/receivables" class="btn btn-outline-primary">
-                        <i class="bi bi-arrow-down-circle"></i> Contas a Receber
-                    </a>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="bi bi-trash"></i> Excluir
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Informações adicionais -->
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="alert alert-info">
-            <h6><i class="bi bi-info-circle"></i> O que você pode fazer enquanto isso:</h6>
-            <ul class="mb-0">
-                <li>Gerenciar suas <strong>Contas a Receber</strong> e <strong>Contas a Pagar</strong></li>
-                <li>Organizar <strong>Categorias</strong> e <strong>Centros de Custo</strong></li>
-                <li>Configurar suas <strong>Contas Bancárias</strong></li>
-                <li>Acompanhar o <strong>Fluxo de Caixa</strong> atual</li>
-            </ul>
-        </div>
-    </div>
-</div>
 {% endblock %}

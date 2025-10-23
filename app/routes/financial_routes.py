@@ -290,7 +290,7 @@ async def financial_reports(
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """Página de planejamento financeiro (em desenvolvimento)"""
+    """Página de planejamento financeiro"""
     if not session_token:
         return RedirectResponse(url="/auth/login", status_code=302)
     
@@ -302,6 +302,45 @@ async def financial_reports(
     
     from app.views.template_renderer import render_template
     return render_template("financial_reports.html", user=user_data)
+
+@financial_router.get("/financial/planning/create", response_class=HTMLResponse)
+async def create_planning_page(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página para criar novo planejamento financeiro"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    
+    from app.views.template_renderer import render_template
+    return render_template("create_planning.html", user=user_data)
+
+@financial_router.get("/financial/planning/edit/{year}", response_class=HTMLResponse)
+async def edit_planning_page(
+    year: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página para editar planejamento financeiro existente"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    
+    from app.views.template_renderer import render_template
+    return render_template("edit_planning.html", user=user_data, year=year)
 
 # =====================================================
 # ROTAS DE API
@@ -3539,3 +3578,224 @@ async def get_revenues_filters(
     except Exception as e:
         print(f"Erro ao carregar filtros de receitas: {e}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+# =====================================================
+# ROTAS DE API - PLANEJAMENTO FINANCEIRO
+# =====================================================
+
+@financial_router.post("/api/financial/planning/create")
+async def create_annual_planning(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Cria planejamento financeiro anual"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Obter dados do body da requisição
+    try:
+        body = await request.json()
+        year = body.get("year")
+        months_data = body.get("months", [])
+        
+        # Se não informar ano, usar ano atual
+        if not year:
+            from datetime import datetime
+            year = datetime.now().year
+    except Exception as e:
+        # Se não conseguir fazer parse do JSON, usar ano atual
+        from datetime import datetime
+        year = datetime.now().year
+        months_data = []
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.create_annual_planning(company_id, year, months_data)
+
+@financial_router.post("/api/financial/planning/create-current")
+async def create_current_year_planning(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Cria planejamento financeiro para o ano atual"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Usar ano atual
+    from datetime import datetime
+    year = datetime.now().year
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.create_annual_planning(company_id, year)
+
+@financial_router.get("/api/financial/planning/{year}")
+async def get_annual_planning(
+    year: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Busca planejamento financeiro anual"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.get_annual_planning(company_id, year)
+
+@financial_router.put("/api/financial/planning/monthly/{monthly_planning_id}")
+async def update_monthly_planning(
+    monthly_planning_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Atualiza planejamento mensal"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    # Obter dados do body da requisição
+    try:
+        data = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="Dados inválidos")
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.update_monthly_planning(monthly_planning_id, data)
+
+@financial_router.put("/api/financial/planning/cost-center/{monthly_planning_id}/{cost_center_id}")
+async def update_cost_center_planning(
+    monthly_planning_id: int,
+    cost_center_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Atualiza planejamento por centro de custo"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    # Obter dados do body da requisição
+    try:
+        data = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="Dados inválidos")
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.update_cost_center_planning(monthly_planning_id, cost_center_id, data)
+
+@financial_router.put("/api/financial/planning/category/{cost_center_planning_id}/{category_id}")
+async def update_category_planning(
+    cost_center_planning_id: int,
+    category_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Atualiza planejamento por categoria"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    # Obter dados do body da requisição
+    try:
+        data = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="Dados inválidos")
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.update_category_planning(cost_center_planning_id, category_id, data)
+
+@financial_router.delete("/api/financial/planning/clear/{year}")
+async def clear_annual_planning(
+    year: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Remove todos os planejamentos de um ano"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.clear_annual_planning(company_id, year)
+
+@financial_router.put("/api/financial/planning/update/{year}")
+async def update_annual_planning(
+    year: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Atualiza planejamento financeiro anual"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = get_company_id_from_user(user_data)
+    
+    # Obter dados do body da requisição
+    try:
+        data = await request.json()
+        months_data = data.get("months", [])
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="Dados inválidos")
+    
+    from app.controllers.financial_planning_controller import FinancialPlanningController
+    controller = FinancialPlanningController(db)
+    
+    return controller.update_annual_planning(company_id, year, months_data)

@@ -1,0 +1,794 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Planejamento Financeiro - GIVM{% endblock %}
+
+{% block content %}
+<style>
+/* Estilo customizado para accordion ativo */
+.accordion-button:not(.collapsed) {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    border-color: #000000 !important;
+}
+
+.accordion-button:not(.collapsed)::after {
+    filter: brightness(0) invert(1);
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(0, 0, 0, 0.25);
+}
+
+.accordion-button:hover {
+    background-color: #333333 !important;
+    color: #ffffff !important;
+}
+</style>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-pencil-square"></i> Editar Planejamento {{ year }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="/financial/reports" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Informações do Ano -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <label class="form-label">Ano do Planejamento:</label>
+                        <div class="form-control-plaintext fw-bold">{{ year }}</div>
+                    </div>
+                    <div class="col-md-8">
+                        <!-- Mensagem de dica removida -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading -->
+<div id="planning-loading" class="text-center py-5" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Carregando...</span>
+    </div>
+    <p class="mt-2">Carregando planejamento financeiro...</p>
+</div>
+
+<!-- Erro -->
+<div id="planning-error" class="alert alert-danger" style="display: none;">
+    <i class="bi bi-exclamation-triangle"></i>
+    <span id="planning-error-message"></span>
+</div>
+
+<!-- Conteúdo Principal -->
+<div id="planning-content">
+    <!-- Accordion dos Meses -->
+    <div class="accordion" id="monthsAccordion">
+        <!-- Os meses serão carregados dinamicamente -->
+    </div>
+    
+    <!-- Botões de Ação -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <a href="/financial/reports" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancelar
+                        </a>
+                        <button type="button" class="btn btn-success" onclick="savePlanning()">
+                            <i class="bi bi-check-circle"></i> Salvar Alterações
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais
+let planningData = {};
+let availableCostCenters = [];
+let availableCategories = [];
+
+// Carregar dados quando a página carrega
+document.addEventListener('DOMContentLoaded', async function() {
+    // Primeiro carregar centros de custo e categorias
+    await loadCostCentersAndCategories();
+    // Depois carregar dados do planejamento
+    await loadPlanningData();
+});
+
+// Função para carregar dados do planejamento existente
+async function loadPlanningData() {
+    console.log('🔄 Carregando dados do planejamento...');
+    showLoading();
+    
+    try {
+        const response = await fetch(`/api/financial/planning/{{ year }}`, {
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            
+            if (result.success) {
+                planningData = result.planning;
+                console.log('📊 Dados do planejamento carregados:', planningData);
+                console.log('📊 Centros de custo disponíveis:', availableCostCenters.length);
+                console.log('📊 Categorias disponíveis:', availableCategories.length);
+                renderMonths();
+                hideLoading();
+            } else {
+                showError(result.error);
+            }
+        } else {
+            showError('Erro ao carregar planejamento');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showError('Erro ao carregar planejamento');
+    }
+}
+
+// Função para renderizar os meses
+function renderMonths() {
+    const accordion = document.getElementById('monthsAccordion');
+    accordion.innerHTML = '';
+    
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    for (let i = 1; i <= 12; i++) {
+        const month = planningData.months.find(m => m.month === i) || {
+            month: i,
+            expected_revenue: 0,
+            expected_margin_percent: 0,
+            expected_margin_value: 0,
+            cost_centers: []
+        };
+        
+        const monthHtml = `
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="heading${i}">
+                    <button class="accordion-button ${i === 1 ? '' : 'collapsed'}" type="button" 
+                            data-bs-toggle="collapse" data-bs-target="#collapse${i}" 
+                            aria-expanded="${i === 1 ? 'true' : 'false'}" aria-controls="collapse${i}">
+                        <i class="bi bi-calendar-month"></i> ${monthNames[i-1]} ${planningData.year}
+                    </button>
+                </h2>
+                <div id="collapse${i}" class="accordion-collapse collapse ${i === 1 ? 'show' : ''}" 
+                     aria-labelledby="heading${i}" data-bs-parent="#monthsAccordion">
+                    <div class="accordion-body">
+                        ${renderMonthContent(month)}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        accordion.innerHTML += monthHtml;
+    }
+}
+
+// Função para renderizar conteúdo do mês
+function renderMonthContent(month) {
+    console.log(`🔍 Renderizando conteúdo do mês ${month.month}:`, month);
+    console.log(`🔍 Centros de custo do mês ${month.month}:`, month.cost_centers);
+    
+    let html = `
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Faturamento Esperado:</label>
+                <div class="input-group">
+                    <span class="input-group-text">R$</span>
+                    <input type="number" class="form-control" id="revenue-${month.month}" 
+                           value="${month.expected_revenue || 0}" step="0.01" 
+                           onchange="calculateMarginValue(${month.month})">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Margem Esperada (%):</label>
+                <div class="input-group">
+                    <input type="number" class="form-control" id="margin-percent-${month.month}" 
+                           value="${month.expected_margin_percent || 0}" step="0.01" 
+                           onchange="calculateMarginValue(${month.month})">
+                    <span class="input-group-text">%</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Margem Esperada (R$):</label>
+                <div class="input-group">
+                    <span class="input-group-text">R$</span>
+                    <input type="number" class="form-control" id="margin-value-${month.month}" 
+                           value="${month.expected_margin_value || 0}" step="0.01" 
+                           onchange="updateMonthlyPlanning(${month.month}, 'expected_margin_value', this.value)">
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">Centros de Custo:</h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCostCenter(${month.month})">
+                        <i class="bi bi-plus-circle"></i> Adicionar Centro de Custo
+                    </button>
+                </div>
+                <div id="cost-centers-${month.month}">
+                    ${renderCostCenters(month.cost_centers || [], month.month)}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+// Função para renderizar centros de custo
+function renderCostCenters(costCenters, month) {
+    console.log(`🔍 Renderizando centros de custo para mês ${month}:`, costCenters);
+    
+    if (!costCenters || costCenters.length === 0) {
+        console.log(`⚠️ Nenhum centro de custo encontrado para mês ${month}`);
+        return `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Nenhum centro de custo adicionado ainda.</strong><br>
+                <small>Clique em "Adicionar Centro de Custo" para começar a planejar os gastos deste mês.</small>
+            </div>
+        `;
+    }
+    
+    let html = '';
+    costCenters.forEach((cc, index) => {
+        const costCenterId = `cc-${month}-${index}`;
+        console.log(`🔧 Renderizando centro de custo ${costCenterId}:`, cc);
+        html += renderCostCenter(cc, costCenterId, month);
+    });
+    
+    return html;
+}
+
+// Função para renderizar um centro de custo
+function renderCostCenter(cc, costCenterId, month) {
+    console.log(`🔧 Renderizando centro de custo ${costCenterId}:`, cc);
+    console.log(`🔧 Cost center ID: ${cc.cost_center_id}, Name: ${cc.name}`);
+    
+    const costCenterOptions = availableCostCenters.map(center => 
+        `<option value="${center.id}" ${center.id === cc.cost_center_id ? 'selected' : ''}>${center.name}</option>`
+    ).join('');
+    
+    const categoryOptions = availableCategories.map(cat => 
+        `<option value="${cat.id}">${cat.name}</option>`
+    ).join('');
+    
+    let html = `
+        <div class="border rounded p-3 mb-3" id="${costCenterId}">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Centro de Custo</h6>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCostCenter('${costCenterId}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Centro de Custo:</label>
+                    <select class="form-select" onchange="updateCostCenterData('${costCenterId}', 'cost_center_id', this.value)">
+                        <option value="">Selecione um centro de custo...</option>
+                        ${costCenterOptions}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Valor Máximo (R$):</label>
+                    <div class="input-group">
+                        <span class="input-group-text">R$</span>
+                        <input type="number" class="form-control" step="0.01" 
+                               value="${cc.max_spending || 0}"
+                               onchange="updateCostCenterData('${costCenterId}', 'max_spending', this.value)">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <label class="form-label">Observações:</label>
+                    <textarea class="form-control" rows="2" placeholder="Observações sobre este centro de custo..."
+                             onchange="updateCostCenterData('${costCenterId}', 'notes', this.value)">${cc.notes || ''}</textarea>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Categorias:</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCategory('${costCenterId}')">
+                            <i class="bi bi-plus-circle"></i> Adicionar Categoria
+                        </button>
+                    </div>
+                    <div id="categories-${costCenterId}">
+                        ${renderCategories(cc.categories || [], costCenterId)}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+// Função para renderizar categorias
+function renderCategories(categories, costCenterId) {
+    console.log(`🔍 Renderizando categorias para centro de custo ${costCenterId}:`, categories);
+    
+    if (!categories || categories.length === 0) {
+        console.log(`⚠️ Nenhuma categoria encontrada para centro de custo ${costCenterId}`);
+        return '<p class="text-muted small">Nenhuma categoria adicionada ainda.</p>';
+    }
+    
+    let html = '';
+    categories.forEach((cat, index) => {
+        const categoryId = `cat-${costCenterId}-${index}`;
+        console.log(`🔧 Renderizando categoria ${categoryId}:`, cat);
+        html += renderCategory(cat, categoryId, costCenterId);
+    });
+    
+    return html;
+}
+
+// Função para renderizar uma categoria
+function renderCategory(cat, categoryId, costCenterId) {
+    const categoryOptions = availableCategories.map(c => 
+        `<option value="${c.id}" ${c.id === cat.category_id ? 'selected' : ''}>${c.name}</option>`
+    ).join('');
+    
+    // Determinar cor do badge baseado no tipo
+    const badgeClass = cat.type === 'revenue' ? 'bg-success' : 'bg-warning';
+    const badgeText = cat.type === 'revenue' ? 'Receita' : 'Despesa';
+    
+    let html = `
+        <div class="row mb-2 align-items-center" id="${categoryId}">
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" onchange="updateCategoryData('${categoryId}', 'category_id', this.value)">
+                    <option value="">Selecione uma categoria...</option>
+                    ${categoryOptions}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <span class="badge ${badgeClass}">${badgeText}</span>
+            </div>
+            <div class="col-md-2">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">R$</span>
+                    <input type="number" class="form-control" step="0.01" placeholder="Valor"
+                           value="${cat.max_spending || 0}"
+                           onchange="updateCategoryData('${categoryId}', 'max_spending', this.value)">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <input type="text" class="form-control form-control-sm" placeholder="Observações"
+                       value="${cat.notes || ''}"
+                       onchange="updateCategoryData('${categoryId}', 'notes', this.value)">
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCategory('${categoryId}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+// Função para carregar centros de custo e categorias
+async function loadCostCentersAndCategories() {
+    console.log('🔄 Carregando centros de custo e categorias...');
+    
+    try {
+        // Carregar centros de custo
+        const costCentersResponse = await fetch('/api/financial/cost-centers', {
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (costCentersResponse.ok) {
+            const costCentersResult = await costCentersResponse.json();
+            if (Array.isArray(costCentersResult)) {
+                availableCostCenters = costCentersResult;
+                console.log('✅ Centros de custo carregados:', availableCostCenters.length);
+            }
+        } else if (costCentersResponse.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        // Carregar categorias
+        const categoriesResponse = await fetch('/api/financial/categories', {
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (categoriesResponse.ok) {
+            const categoriesResult = await categoriesResponse.json();
+            if (categoriesResult.categories && Array.isArray(categoriesResult.categories)) {
+                availableCategories = categoriesResult.categories;
+                console.log('✅ Categorias carregadas:', availableCategories.length);
+            }
+        } else if (categoriesResponse.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar centros de custo e categorias:', error);
+    }
+}
+
+// Função para adicionar centro de custo
+function addCostCenter(month) {
+    const costCenterId = `cc-${month}-${Date.now()}`;
+    const costCenterOptions = availableCostCenters.map(cc => 
+        `<option value="${cc.id}">${cc.name}</option>`
+    ).join('');
+    
+    const costCenterHtml = `
+        <div class="border rounded p-3 mb-3" id="${costCenterId}">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Centro de Custo</h6>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCostCenter('${costCenterId}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Centro de Custo:</label>
+                    <select class="form-select" onchange="updateCostCenterData('${costCenterId}', 'cost_center_id', this.value)">
+                        <option value="">Selecione um centro de custo...</option>
+                        ${costCenterOptions}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Valor Máximo (R$):</label>
+                    <div class="input-group">
+                        <span class="input-group-text">R$</span>
+                        <input type="number" class="form-control" step="0.01" 
+                               onchange="updateCostCenterData('${costCenterId}', 'max_spending', this.value)">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <label class="form-label">Observações:</label>
+                    <textarea class="form-control" rows="2" placeholder="Observações sobre este centro de custo..."
+                             onchange="updateCostCenterData('${costCenterId}', 'notes', this.value)"></textarea>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Categorias:</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCategory('${costCenterId}')">
+                            <i class="bi bi-plus-circle"></i> Adicionar Categoria
+                        </button>
+                    </div>
+                    <div id="categories-${costCenterId}">
+                        <!-- Categorias serão adicionadas aqui -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const container = document.getElementById(`cost-centers-${month}`);
+    const div = document.createElement('div');
+    div.innerHTML = costCenterHtml;
+    container.appendChild(div.firstElementChild);
+}
+
+// Função para remover centro de custo
+function removeCostCenter(costCenterId) {
+    const element = document.getElementById(costCenterId);
+    if (element) {
+        element.remove();
+    }
+}
+
+// Função para adicionar categoria
+function addCategory(costCenterId) {
+    const categoryId = `cat-${costCenterId}-${Date.now()}`;
+    const categoryOptions = availableCategories.map(cat => 
+        `<option value="${cat.id}">${cat.name}</option>`
+    ).join('');
+    
+    const categoryHtml = `
+        <div class="row mb-2 align-items-center" id="${categoryId}">
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" onchange="updateCategoryData('${categoryId}', 'category_id', this.value)">
+                    <option value="">Selecione uma categoria...</option>
+                    ${categoryOptions}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <span class="badge bg-secondary" id="badge-${categoryId}">Tipo</span>
+            </div>
+            <div class="col-md-2">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">R$</span>
+                    <input type="number" class="form-control" step="0.01" placeholder="Valor"
+                           onchange="updateCategoryData('${categoryId}', 'max_spending', this.value)">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <input type="text" class="form-control form-control-sm" placeholder="Observações"
+                       onchange="updateCategoryData('${categoryId}', 'notes', this.value)">
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCategory('${categoryId}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    const container = document.getElementById(`categories-${costCenterId}`);
+    const div = document.createElement('div');
+    div.innerHTML = categoryHtml;
+    container.appendChild(div.firstElementChild);
+}
+
+// Função para remover categoria
+function removeCategory(categoryId) {
+    const element = document.getElementById(categoryId);
+    if (element) {
+        element.remove();
+    }
+}
+
+// Função para atualizar dados do centro de custo
+function updateCostCenterData(costCenterId, field, value) {
+    console.log(`Atualizando centro de custo ${costCenterId}, campo ${field}, valor ${value}`);
+}
+
+// Função para atualizar dados da categoria
+function updateCategoryData(categoryId, field, value) {
+    console.log(`Atualizando categoria ${categoryId}, campo ${field}, valor ${value}`);
+    
+    // Se for seleção de categoria, atualizar o badge
+    if (field === 'category_id' && value) {
+        const selectedCategory = availableCategories.find(cat => cat.id == value);
+        if (selectedCategory) {
+            const badge = document.getElementById(`badge-${categoryId}`);
+            if (badge) {
+                const badgeClass = selectedCategory.type === 'revenue' ? 'bg-success' : 'bg-warning';
+                const badgeText = selectedCategory.type === 'revenue' ? 'Receita' : 'Despesa';
+                badge.className = `badge ${badgeClass}`;
+                badge.textContent = badgeText;
+            }
+        }
+    }
+}
+
+// Função para calcular margem em reais automaticamente
+function calculateMarginValue(month) {
+    const revenue = parseFloat(document.getElementById(`revenue-${month}`)?.value || 0);
+    const marginPercent = parseFloat(document.getElementById(`margin-percent-${month}`)?.value || 0);
+    
+    // Calcular margem em reais: (faturamento * margem%) / 100
+    const marginValue = (revenue * marginPercent) / 100;
+    
+    // Atualizar o campo de margem em reais
+    const marginValueField = document.getElementById(`margin-value-${month}`);
+    if (marginValueField) {
+        marginValueField.value = marginValue.toFixed(2);
+        console.log(`💰 Mês ${month}: Faturamento R$ ${revenue} × ${marginPercent}% = Margem R$ ${marginValue.toFixed(2)}`);
+    }
+}
+
+// Função para atualizar planejamento mensal
+function updateMonthlyPlanning(month, field, value) {
+    console.log(`Atualizando mês ${month}, campo ${field}, valor ${value}`);
+}
+
+// Função para salvar planejamento
+async function savePlanning() {
+    console.log('💾 Salvando planejamento...');
+    
+    // Desabilitar botão para evitar duplo clique
+    const saveButton = document.querySelector('button[onclick="savePlanning()"]');
+    if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Salvando...';
+    }
+    
+    showLoading();
+    
+    try {
+        // Coletar dados de todos os meses
+        const monthsData = [];
+        for (let i = 1; i <= 12; i++) {
+            const revenue = document.getElementById(`revenue-${i}`)?.value || 0;
+            const marginPercent = document.getElementById(`margin-percent-${i}`)?.value || 0;
+            const marginValue = document.getElementById(`margin-value-${i}`)?.value || 0;
+            
+            // Coletar dados dos centros de custo do mês
+            const costCenters = [];
+            const costCentersContainer = document.getElementById(`cost-centers-${i}`);
+            if (costCentersContainer) {
+                const costCenterElements = costCentersContainer.querySelectorAll('[id^="cc-"]');
+                costCenterElements.forEach(ccElement => {
+                    const costCenterId = ccElement.id;
+                    const costCenterSelect = ccElement.querySelector('select[onchange*="cost_center_id"]');
+                    const maxSpendingInput = ccElement.querySelector('input[onchange*="max_spending"]');
+                    const notesTextarea = ccElement.querySelector('textarea[onchange*="notes"]');
+                    
+                    if (costCenterSelect && costCenterSelect.value) {
+                        const costCenterData = {
+                            cost_center_id: parseInt(costCenterSelect.value),
+                            max_spending: parseFloat(maxSpendingInput?.value || 0),
+                            notes: notesTextarea?.value || '',
+                            categories: []
+                        };
+                        
+                        // Coletar dados das categorias deste centro de custo
+                        const categoriesContainer = ccElement.querySelector(`#categories-${costCenterId}`);
+                        if (categoriesContainer) {
+                            const categoryElements = categoriesContainer.querySelectorAll('[id^="cat-"]');
+                            categoryElements.forEach(catElement => {
+                                const categorySelect = catElement.querySelector('select[onchange*="category_id"]');
+                                const categoryMaxSpendingInput = catElement.querySelector('input[onchange*="max_spending"]');
+                                const categoryNotesInput = catElement.querySelector('input[onchange*="notes"]');
+                                
+                                if (categorySelect && categorySelect.value) {
+                                    costCenterData.categories.push({
+                                        category_id: parseInt(categorySelect.value),
+                                        max_spending: parseFloat(categoryMaxSpendingInput?.value || 0),
+                                        notes: categoryNotesInput?.value || ''
+                                    });
+                                }
+                            });
+                        }
+                        
+                        costCenters.push(costCenterData);
+                    }
+                });
+            }
+            
+            monthsData.push({
+                month: i,
+                expected_revenue: parseFloat(revenue),
+                expected_margin_percent: parseFloat(marginPercent),
+                expected_margin_value: parseFloat(marginValue),
+                cost_centers: costCenters
+            });
+        }
+        
+        // Atualizar planejamento via API
+        const response = await fetch(`/api/financial/planning/update/{{ year }}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ 
+                months: monthsData
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast('Planejamento atualizado com sucesso!', 'success');
+                setTimeout(() => {
+                    window.location.href = '/financial/reports';
+                }, 1500);
+            } else {
+                showToast(result.error, 'error');
+                reenableSaveButton();
+            }
+        } else {
+            showToast('Erro ao salvar planejamento', 'error');
+            reenableSaveButton();
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showToast('Erro ao salvar planejamento', 'error');
+        reenableSaveButton();
+    }
+}
+
+// Funções auxiliares
+function showLoading() {
+    document.getElementById('planning-loading').style.display = 'block';
+    document.getElementById('planning-content').style.display = 'none';
+}
+
+function hideLoading() {
+    document.getElementById('planning-loading').style.display = 'none';
+    document.getElementById('planning-content').style.display = 'block';
+}
+
+function showError(message) {
+    const errorDiv = document.getElementById('planning-error');
+    const errorMessage = document.getElementById('planning-error-message');
+    errorMessage.textContent = message;
+    errorDiv.style.display = 'block';
+    hideLoading();
+}
+
+// Função para mostrar toast
+function showToast(message, type = 'info') {
+    // Remover toasts existentes
+    const existingToasts = document.querySelectorAll('.toast-container');
+    existingToasts.forEach(toast => toast.remove());
+    
+    // Criar container de toast
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+    toastContainer.style.zIndex = '9999';
+    
+    // Determinar cor do toast
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    
+    // Criar toast
+    const toastHtml = `
+        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : 'Informação'}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.innerHTML = toastHtml;
+    document.body.appendChild(toastContainer);
+    
+    // Auto-remover após 5 segundos
+    setTimeout(() => {
+        if (toastContainer.parentNode) {
+            toastContainer.remove();
+        }
+    }, 5000);
+}
+
+// Função para reabilitar botão de salvar
+function reenableSaveButton() {
+    const saveButton = document.querySelector('button[onclick="savePlanning()"]');
+    if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.innerHTML = '<i class="bi bi-check-circle"></i> Salvar Alterações';
+    }
+    hideLoading();
+}
+</script>
+{% endblock %}
