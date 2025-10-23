@@ -53,6 +53,23 @@
 
 <!-- Resumo Financeiro -->
 <div class="row mb-4">
+    <!-- Texto informativo sobre Fluxo de Caixa -->
+    <div class="col-12">
+        <div class="alert alert-info mb-3" id="cashflow-info" style="cursor: pointer;" onclick="this.style.display='none'">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Fluxo de Caixa:</strong> Estes indicadores mostram o movimento real de dinheiro (entradas e saídas) no período selecionado. 
+                    <strong>Receitas Recebidas</strong> = dinheiro que realmente entrou no caixa. 
+                    <strong>Despesas Pagas</strong> = dinheiro que realmente saiu do caixa.
+                </div>
+                <i class="bi bi-x-circle ms-2"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
     <div class="col-md-3">
         <div class="card text-white bg-success">
             <div class="card-body">
@@ -154,7 +171,7 @@
                     <div>
                         <h6 class="card-title">
                             Resultado Real
-                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Diferença entre o que realmente entrou no caixa (receitas recebidas) e o que saiu (despesas pagas)"></i>
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="FLUXO DE CAIXA REAL: Mostra a diferença entre o dinheiro que realmente entrou (receitas recebidas) e o que realmente saiu (despesas pagas) do caixa no período. Este é o movimento efetivo de dinheiro, não o faturamento."></i>
                         </h6>
                         <h4 class="mb-0" id="cashFlow">R$ 0,00</h4>
                     </div>
@@ -172,7 +189,7 @@
                     <div>
                         <h6 class="card-title">
                             Projeção de Caixa
-                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Saldo atual + receitas pendentes - despesas pendentes. Mostra quanto você terá no caixa considerando as movimentações futuras"></i>
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="PROJEÇÃO DE CAIXA: Calcula quanto você terá no caixa considerando: Saldo atual + Receitas pendentes - Despesas pendentes. Mostra a situação futura do seu fluxo de caixa."></i>
                         </h6>
                         <h4 class="mb-0" id="currentBalance">R$ 0,00</h4>
                     </div>
@@ -192,9 +209,20 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-chart-line"></i> Demonstração de Resultados</h5>
-
             </div>
             <div class="card-body">
+                <!-- Texto informativo sobre DRE -->
+                <div class="alert alert-success mb-3" id="dre-info" style="cursor: pointer;" onclick="this.style.display='none'">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-graph-up"></i>
+                            <strong>Demonstração de Resultados (DRE):</strong> Mostra o <strong>faturamento</strong> baseado nas datas de vencimento das contas a receber e na <strong>data de emissão dos pedidos do Mercado Livre</strong>. 
+                            As <strong>despesas</strong> são baseadas nas datas de vencimento (quando deveriam ser pagas). Esta é a visão contábil do negócio, não o fluxo de caixa.
+                        </div>
+                        <i class="bi bi-x-circle ms-2"></i>
+                    </div>
+                </div>
+                
                 <!-- Gráfico de linha -->
                 <div class="row mb-4">
                     <div class="col-12">
