@@ -256,6 +256,30 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Tabela de Contas Financeiras -->
+                    <div class="mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0"><i class="bi bi-credit-card"></i> Contas Financeiras</h6>
+                            <small class="text-muted">Resumo das contas da empresa</small>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped table-sm mb-0">
+                                <thead class="table-primary">
+                                    <tr>
+                                        <th class="text-start">Conta</th>
+                                        <th class="text-center">Saldo/Fatura</th>
+                                        <th class="text-center">Limite</th>
+                                        <th class="text-center">Vencimento</th>
+                                        <th class="text-center">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="financial-accounts-tbody">
+                                    <!-- Dados serão inseridos aqui via JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -709,11 +733,115 @@ async function loadDreData() {
         
         document.getElementById('dre-loading').style.display = 'none';
         document.getElementById('dre-content').style.display = 'block';
+        
+        // Carregar contas financeiras
+        await loadFinancialAccounts();
     } catch (error) {
         console.error('Erro ao carregar DRE:', error);
         document.getElementById('dre-loading').style.display = 'none';
         document.getElementById('dre-error').style.display = 'block';
     }
+}
+
+// Função para carregar contas financeiras
+async function loadFinancialAccounts() {
+    try {
+        console.log('🚀 Carregando contas financeiras...');
+        const response = await fetch('/api/financial/accounts', {
+            credentials: 'include'
+        });
+        
+        console.log('📡 Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`Erro ao carregar contas financeiras: ${response.status}`);
+        }
+        
+        const accountsData = await response.json();
+        console.log('📊 Dados das contas recebidos:', accountsData);
+        renderFinancialAccountsTable(accountsData);
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar contas financeiras:', error);
+    }
+}
+
+// Função para renderizar tabela de contas financeiras
+function renderFinancialAccountsTable(accounts) {
+    const tbody = document.getElementById('financial-accounts-tbody');
+    tbody.innerHTML = '';
+    
+    if (!accounts || accounts.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    <i class="bi bi-info-circle"></i> Nenhuma conta financeira encontrada
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    accounts.forEach(account => {
+        const row = document.createElement('tr');
+        
+        // Determinar se é cartão de crédito
+        const isCreditCard = account.account_type && 
+            account.account_type.toLowerCase().includes('credit') ||
+            account.account_type.toLowerCase().includes('cartão') ||
+            account.account_type.toLowerCase().includes('cartao');
+        
+        // Determinar cor do saldo
+        let balanceClass = '';
+        if (isCreditCard) {
+            balanceClass = account.current_balance > 0 ? 'text-danger' : 'text-success';
+        } else {
+            balanceClass = account.current_balance >= 0 ? 'text-success' : 'text-danger';
+        }
+        
+        // Formatar limite
+        const limitText = account.limit_amount && account.limit_amount > 0 ? 
+            formatCurrency(account.limit_amount) : '-';
+        
+        // Data de vencimento (para cartões)
+        let dueDateText = '-';
+        if (isCreditCard && account.invoice_due_day) {
+            const today = new Date();
+            const dueDay = account.invoice_due_day;
+            let dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay);
+            if (dueDate < today) {
+                dueDate = new Date(today.getFullYear(), today.getMonth() + 1, dueDay);
+            }
+            dueDateText = dueDate.toLocaleDateString('pt-BR');
+        }
+        
+        // Nome da conta
+        const accountName = account.account_name || account.bank_name || 'Conta';
+        const accountType = account.account_type || 'Conta Corrente';
+        
+        row.innerHTML = `
+            <td>
+                <strong>${accountName}</strong>
+                <br><small class="text-muted">${accountType}</small>
+                ${isCreditCard ? '<br><small class="text-muted">Cartão de Crédito</small>' : ''}
+            </td>
+            <td class="text-center ${balanceClass}">
+                <strong>${formatCurrency(account.current_balance)}</strong>
+                ${isCreditCard ? '<br><small class="text-muted">Fatura Atual</small>' : ''}
+            </td>
+            <td class="text-center">${limitText}</td>
+            <td class="text-center">${dueDateText}</td>
+            <td class="text-center">
+                <a href="/financial/account-transactions/${account.id}" 
+                   class="btn btn-sm btn-outline-primary" 
+                   target="_blank">
+                    <i class="bi bi-eye"></i> Ver Transações
+                </a>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
 }
 
 function renderDreTable() {
