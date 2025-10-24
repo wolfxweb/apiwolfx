@@ -2755,16 +2755,17 @@ async def get_dashboard_data(
     
     company = db.query(Company).filter(Company.id == company_id).first()
     if company and company.ml_orders_as_receivables:
-        # Buscar pedidos ML do período
+        # Buscar pedidos ML do período (usando data de criação)
         ml_orders = db.query(MLOrder).filter(
             MLOrder.company_id == company_id,
             MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED]),
-            MLOrder.date_closed >= month_start,
-            MLOrder.date_closed <= month_end
+            MLOrder.date_created >= month_start,
+            MLOrder.date_created <= month_end
         ).all()
         
         for order in ml_orders:
-            net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
+            # Usar receita BRUTA (sem desconto das taxas)
+            gross_amount = float(order.total_amount or 0)
             
             # Aplicar regra dos 7 dias
             is_delivered = (
@@ -2786,13 +2787,13 @@ async def get_dashboard_data(
                 if delivery_date:
                     days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
                     if days_since_delivery >= 7:
-                        ml_received_revenue += net_amount
+                        ml_received_revenue += gross_amount
                     else:
-                        ml_pending_revenue += net_amount
+                        ml_pending_revenue += gross_amount
                 else:
-                    ml_pending_revenue += net_amount
+                    ml_pending_revenue += gross_amount
             else:
-                ml_pending_revenue += net_amount
+                ml_pending_revenue += gross_amount
     
     # 4. Totais combinados (normais + ML) - convertendo para float
     total_received_revenue = float(receivables_paid) + float(ml_received_revenue)

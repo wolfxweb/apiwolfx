@@ -49,22 +49,52 @@ class AnalyticsController:
             
             logger.info(f"📅 Período: {start_date} a {end_date}")
             
-            # Buscar pedidos do período
+            # Buscar pedidos do período (mesmo filtro do dashboard financeiro)
             orders_query = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
                 MLOrder.date_created >= start_date,
-                MLOrder.date_created <= end_date
+                MLOrder.date_created <= end_date,
+                MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED])
             )
             
-            if ml_account_id:
-                orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
+            # Remover filtro de ml_account_id para pegar todas as contas (igual ao financeiro)
+            # if ml_account_id:
+            #     orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
             
             orders = orders_query.all()
             logger.info(f"📊 Encontrados {len(orders)} pedidos")
             
-            # Calcular KPIs
-            total_revenue = sum(float(order.total_amount or 0) for order in orders)
+            # Calcular KPIs aplicando a mesma regra dos 7 dias do dashboard financeiro
+            total_revenue = 0
             total_orders = len(orders)
+            
+            for order in orders:
+                # Aplicar regra dos 7 dias (igual ao dashboard financeiro)
+                is_delivered = (
+                    order.status == OrderStatus.DELIVERED or 
+                    (order.shipping_status and order.shipping_status.lower() == "delivered")
+                )
+                
+                if is_delivered:
+                    delivery_date = None
+                    if order.shipping_details and isinstance(order.shipping_details, dict):
+                        status_history = order.shipping_details.get('status_history', {})
+                        if status_history and 'date_delivered' in status_history:
+                            try:
+                                delivery_date_str = status_history['date_delivered']
+                                delivery_date = datetime.fromisoformat(delivery_date_str.replace('Z', '+00:00'))
+                            except:
+                                pass
+                    
+                    if delivery_date:
+                        days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
+                        if days_since_delivery >= 7:
+                            total_revenue += float(order.total_amount or 0)
+                    # Se entregue há menos de 7 dias, não conta como receita ainda
+                else:
+                    # Se não foi entregue, não conta como receita ainda
+                    pass
+            
             # Como não temos quantity direto, vamos usar 1 por pedido como estimativa
             total_sold = total_orders  # Assumindo 1 item por pedido
             avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
