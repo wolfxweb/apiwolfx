@@ -89,6 +89,10 @@ class Company(Base):
     aliquota_icms_real = Column(Numeric(5, 2))
     aliquota_iss_real = Column(Numeric(5, 2))
     
+    # Campos de marketing e custos
+    percentual_marketing = Column(Numeric(5, 2))  # Percentual de marketing sobre receita
+    custo_adicional_por_pedido = Column(Numeric(10, 2))  # Custo adicional por pedido em R$
+    
     # Relacionamentos
     users = relationship("User", back_populates="company", cascade="all, delete-orphan")
     ml_accounts = relationship("MLAccount", back_populates="company", cascade="all, delete-orphan")

@@ -289,7 +289,9 @@ async def edit_company_page(
         "aliquota_pis_real": getattr(result, 'aliquota_pis_real', None),
         "aliquota_cofins_real": getattr(result, 'aliquota_cofins_real', None),
         "aliquota_icms_real": getattr(result, 'aliquota_icms_real', None),
-        "aliquota_iss_real": getattr(result, 'aliquota_iss_real', None)
+        "aliquota_iss_real": getattr(result, 'aliquota_iss_real', None),
+        "percentual_marketing": getattr(result, 'percentual_marketing', None),
+        "custo_adicional_por_pedido": getattr(result, 'custo_adicional_por_pedido', None)
     }
     
     from app.views.template_renderer import render_template
@@ -422,6 +424,14 @@ async def api_update_company(
             company.aliquota_icms_real = float(company_data['aliquota_icms_real']) if company_data['aliquota_icms_real'] else None
         if 'aliquota_iss_real' in company_data:
             company.aliquota_iss_real = float(company_data['aliquota_iss_real']) if company_data['aliquota_iss_real'] else None
+        
+        # Campos de marketing e custos
+        if 'percentual_marketing' in company_data:
+            company.percentual_marketing = float(company_data['percentual_marketing']) if company_data['percentual_marketing'] else None
+            print(f"DEBUG: Percentual Marketing atualizado para: {company.percentual_marketing}")
+        if 'custo_adicional_por_pedido' in company_data:
+            company.custo_adicional_por_pedido = float(company_data['custo_adicional_por_pedido']) if company_data['custo_adicional_por_pedido'] else None
+            print(f"DEBUG: Custo Adicional por Pedido atualizado para: {company.custo_adicional_por_pedido}")
         
         if 'trial_ends_at' in company_data and company_data['trial_ends_at']:
             from datetime import datetime

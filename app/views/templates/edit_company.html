@@ -224,6 +224,34 @@
             </div>
         </div>
         
+        <!-- Seção: Marketing e Custos -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up text-info"></i>
+                    Marketing e Custos
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="percentualMarketing" class="form-label">Percentual Marketing (%)</label>
+                            <input type="number" class="form-control" id="percentualMarketing" step="0.01" min="0" max="100" value="{{ company.percentual_marketing or '' }}">
+                            <div class="form-text">Percentual de marketing sobre a receita total</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="custoAdicionalPorPedido" class="form-label">Custo Adicional por Pedido (R$)</label>
+                            <input type="number" class="form-control" id="custoAdicionalPorPedido" step="0.01" min="0" value="{{ company.custo_adicional_por_pedido or '' }}">
+                            <div class="form-text">Custo adicional fixo por pedido processado</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Seção: Endereço da Empresa -->
         <div class="card mb-4">
             <div class="card-header">
@@ -465,7 +493,9 @@ async function saveCompany() {
             aliquota_pis_real: document.getElementById('aliquotaPISReal').value,
             aliquota_cofins_real: document.getElementById('aliquotaCOFINSReal').value,
             aliquota_icms_real: document.getElementById('aliquotaICMSReal').value,
-            aliquota_iss_real: document.getElementById('aliquotaISSReal').value
+            aliquota_iss_real: document.getElementById('aliquotaISSReal').value,
+            percentual_marketing: document.getElementById('percentualMarketing').value,
+            custo_adicional_por_pedido: document.getElementById('custoAdicionalPorPedido').value
         };
         
         // Validar dados obrigatórios
