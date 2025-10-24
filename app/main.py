@@ -139,18 +139,20 @@ async def startup_event():
         Base.metadata.create_all(bind=engine)
         print("✅ Banco de dados inicializado")
         
-        # Iniciar scheduler
-        print(f"🔧 [STARTUP] Scheduler rodando antes: {scheduler.running}")
-        if not scheduler.running:
-            print("🔧 [STARTUP] Iniciando scheduler...")
-            scheduler.start()
-            print(f"🔧 [STARTUP] Scheduler rodando depois: {scheduler.running}")
-            print(f"🔧 [STARTUP] Jobs ativos: {len(scheduler.get_jobs())}")
-            print("   📦 JOB 1: Pedidos novos - A cada 30 minutos")
-            print("   🌙 JOB 2: Últimos 7 dias completos - INATIVO")
-            print("   📊 JOB 3: Monitoramento de Catálogo - A cada 12 horas")
-        else:
-            print("🔄 Scheduler já está rodando")
+        # Scheduler comentado - Webhook orders_v2 mantém pedidos atualizados automaticamente
+        # print(f"🔧 [STARTUP] Scheduler rodando antes: {scheduler.running}")
+        # if not scheduler.running:
+        #     print("🔧 [STARTUP] Iniciando scheduler...")
+        #     scheduler.start()
+        #     print(f"🔧 [STARTUP] Scheduler rodando depois: {scheduler.running}")
+        #     print(f"🔧 [STARTUP] Jobs ativos: {len(scheduler.get_jobs())}")
+        #     print("   📦 JOB 1: Pedidos novos - A cada 30 minutos")
+        #     print("   🌙 JOB 2: Últimos 7 dias completos - INATIVO")
+        #     print("   📊 JOB 3: Monitoramento de Catálogo - A cada 12 horas")
+        # else:
+        #     print("🔄 Scheduler já está rodando")
+        
+        print("🔄 [STARTUP] Scheduler desabilitado - Webhook orders_v2 ativo")
         
         print("✅ [STARTUP] Aplicação inicializada com sucesso!")
         

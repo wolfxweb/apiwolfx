@@ -7,6 +7,8 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 from datetime import datetime
 
+from app.utils.notification_logger import global_logger
+
 logger = logging.getLogger(__name__)
 
 class MLNotificationsController:
@@ -31,112 +33,193 @@ class MLNotificationsController:
             "received": "2024-01-01T12:00:00.000Z"
         }
         """
+        topic = notification_data.get("topic")
+        resource = notification_data.get("resource")
+        ml_user_id = notification_data.get("user_id")
+        
         try:
-            topic = notification_data.get("topic")
-            resource = notification_data.get("resource")
-            user_id = notification_data.get("user_id")
+            logger.info(f"🔄 Processando notificação: topic={topic}, resource={resource}, ml_user_id={ml_user_id}")
             
-            logger.info(f"🔄 Processando notificação: topic={topic}, resource={resource}, user_id={user_id}")
+            # 1. Determinar company_id a partir do ml_user_id
+            company_id = self._get_company_id_from_ml_user(ml_user_id, db)
+            if not company_id:
+                logger.warning(f"⚠️ Company não encontrada para ml_user_id: {ml_user_id}")
+                global_logger.log_notification_processed(
+                    notification_data, 
+                    None, 
+                    False, 
+                    f"Company não encontrada para ml_user_id: {ml_user_id}"
+                )
+                return
+            
+            # Log da notificação recebida
+            global_logger.log_notification_received(notification_data, company_id)
+            
+            logger.info(f"🏢 Processando notificação para company_id: {company_id}")
             
             # Roteamento por tipo de notificação
-            if topic == "orders_v2":
-                await self._process_order_notification(resource, user_id, db)
-            elif topic == "items":
-                await self._process_item_notification(resource, user_id, db)
-            elif topic == "messages":
-                await self._process_message_notification(resource, user_id, db)
-            elif topic == "questions":
-                await self._process_question_notification(resource, user_id, db)
-            elif topic == "payments":
-                await self._process_payment_notification(resource, user_id, db)
-            elif topic == "shipments":
-                await self._process_shipment_notification(resource, user_id, db)
-            elif topic == "claims" or topic == "post_purchase":
-                await self._process_claim_notification(resource, user_id, db)
-            else:
-                logger.warning(f"⚠️ Tipo de notificação não suportado: {topic}")
+            success = True
+            error_message = None
             
-            logger.info(f"✅ Notificação processada: {topic}")
+            try:
+                if topic == "orders_v2":
+                    await self._process_order_notification(resource, ml_user_id, company_id, db)
+                elif topic == "items":
+                    await self._process_item_notification(resource, ml_user_id, company_id, db)
+                elif topic == "messages":
+                    await self._process_message_notification(resource, ml_user_id, company_id, db)
+                elif topic == "questions":
+                    await self._process_question_notification(resource, ml_user_id, company_id, db)
+                elif topic == "payments":
+                    await self._process_payment_notification(resource, ml_user_id, company_id, db)
+                elif topic == "shipments":
+                    await self._process_shipment_notification(resource, ml_user_id, company_id, db)
+                elif topic == "claims" or topic == "post_purchase":
+                    await self._process_claim_notification(resource, ml_user_id, company_id, db)
+                else:
+                    logger.warning(f"⚠️ Tipo de notificação não suportado: {topic}")
+                    success = False
+                    error_message = f"Tipo de notificação não suportado: {topic}"
+                
+            except Exception as e:
+                success = False
+                error_message = str(e)
+                logger.error(f"❌ Erro ao processar {topic}: {e}")
+            
+            # Log do resultado do processamento
+            global_logger.log_notification_processed(
+                notification_data, 
+                company_id, 
+                success, 
+                error_message
+            )
+            
+            if success:
+                logger.info(f"✅ Notificação processada: {topic} para company_id: {company_id}")
+            else:
+                logger.error(f"❌ Falha ao processar notificação: {topic} para company_id: {company_id}")
             
         except Exception as e:
-            logger.error(f"❌ Erro ao processar notificação: {e}")
+            logger.error(f"❌ Erro geral ao processar notificação: {e}")
+            global_logger.log_notification_processed(
+                notification_data, 
+                None, 
+                False, 
+                f"Erro geral: {str(e)}"
+            )
     
-    async def _process_order_notification(self, resource: str, ml_user_id: int, db: Session):
+    async def _process_order_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de pedido (orders_v2)"""
+        order_id = resource.split("/")[-1]
+        
         try:
-            # Extrair order_id do resource
-            order_id = resource.split("/")[-1]
-            logger.info(f"📦 Processando pedido: {order_id}")
+            logger.info(f"📦 Processando pedido: {order_id} para company_id: {company_id}")
             
             # Buscar token do usuário ML
             access_token = self._get_user_token(ml_user_id, db)
             if not access_token:
-                logger.warning(f"⚠️ Token não encontrado para user_id: {ml_user_id}")
+                error_msg = f"Token não encontrado para ml_user_id: {ml_user_id}"
+                logger.warning(f"⚠️ {error_msg}")
+                global_logger.log_order_processed(order_id, company_id, False, "error", error_msg)
                 return
             
             # Buscar detalhes do pedido na API do ML
             order_data = await self._fetch_order_details(order_id, access_token)
             if not order_data:
+                error_msg = f"Não foi possível buscar dados do pedido {order_id} na API"
+                logger.warning(f"⚠️ {error_msg}")
+                global_logger.log_order_processed(order_id, company_id, False, "error", error_msg)
                 return
             
-            # Atualizar ou criar pedido no banco
-            await self._upsert_order(order_data, db)
+            # Atualizar ou criar pedido no banco com company_id
+            await self._upsert_order(order_data, company_id, db)
             
-            logger.info(f"✅ Pedido {order_id} atualizado com sucesso")
+            logger.info(f"✅ Pedido {order_id} atualizado com sucesso para company_id: {company_id}")
+            global_logger.log_order_processed(order_id, company_id, True, "updated")
             
         except Exception as e:
-            logger.error(f"❌ Erro ao processar notificação de pedido: {e}")
+            error_msg = f"Erro ao processar pedido {order_id}: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            global_logger.log_order_processed(order_id, company_id, False, "error", error_msg)
     
-    async def _process_item_notification(self, resource: str, ml_user_id: int, db: Session):
+    async def _process_item_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de produto (items)"""
+        item_id = resource.split("/")[-1]
+        
         try:
-            item_id = resource.split("/")[-1]
-            logger.info(f"🏷️ Processando produto: {item_id}")
+            logger.info(f"🏷️ Processando produto: {item_id} para company_id: {company_id}")
             
             # Buscar token
             access_token = self._get_user_token(ml_user_id, db)
             if not access_token:
-                logger.warning(f"⚠️ Token não encontrado para user_id: {ml_user_id}")
+                error_msg = f"Token não encontrado para ml_user_id: {ml_user_id}"
+                logger.warning(f"⚠️ {error_msg}")
+                global_logger.log_product_processed(item_id, company_id, False, "error", error_msg)
                 return
             
             # Buscar detalhes do produto
             item_data = await self._fetch_item_details(item_id, access_token)
             if not item_data:
+                error_msg = f"Não foi possível buscar dados do produto {item_id} na API"
+                logger.warning(f"⚠️ {error_msg}")
+                global_logger.log_product_processed(item_id, company_id, False, "error", error_msg)
                 return
             
             # Atualizar produto no banco
-            await self._upsert_item(item_data, ml_user_id, db)
+            await self._upsert_item(item_data, company_id, db)
             
-            logger.info(f"✅ Produto {item_id} atualizado com sucesso")
+            logger.info(f"✅ Produto {item_id} atualizado com sucesso para company_id: {company_id}")
+            global_logger.log_product_processed(item_id, company_id, True, "updated")
             
         except Exception as e:
-            logger.error(f"❌ Erro ao processar notificação de produto: {e}")
+            error_msg = f"Erro ao processar produto {item_id}: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            global_logger.log_product_processed(item_id, company_id, False, "error", error_msg)
     
-    async def _process_message_notification(self, resource: str, ml_user_id: int, db: Session):
+    async def _process_message_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de mensagem"""
-        logger.info(f"💬 Notificação de mensagem recebida: {resource}")
+        logger.info(f"💬 Notificação de mensagem recebida: {resource} para company_id: {company_id}")
         # TODO: Implementar processamento de mensagens
     
-    async def _process_question_notification(self, resource: str, ml_user_id: int, db: Session):
+    async def _process_question_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de pergunta"""
-        logger.info(f"❓ Notificação de pergunta recebida: {resource}")
+        logger.info(f"❓ Notificação de pergunta recebida: {resource} para company_id: {company_id}")
         # TODO: Implementar processamento de perguntas
     
-    async def _process_payment_notification(self, resource: str, ml_user_id: int, db: Session):
+    async def _process_payment_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de pagamento"""
-        logger.info(f"💰 Notificação de pagamento recebida: {resource}")
+        logger.info(f"💰 Notificação de pagamento recebida: {resource} para company_id: {company_id}")
         # TODO: Implementar processamento de pagamentos
     
-    async def _process_shipment_notification(self, resource: str, ml_user_id: int, db: Session):
+    async def _process_shipment_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de envio"""
-        logger.info(f"🚚 Notificação de envio recebida: {resource}")
+        logger.info(f"🚚 Notificação de envio recebida: {resource} para company_id: {company_id}")
         # TODO: Implementar processamento de envios
     
-    async def _process_claim_notification(self, resource: str, ml_user_id: int, db: Session):
+    async def _process_claim_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de reclamação"""
-        logger.info(f"⚠️ Notificação de reclamação recebida: {resource}")
+        logger.info(f"⚠️ Notificação de reclamação recebida: {resource} para company_id: {company_id}")
         # TODO: Implementar processamento de reclamações
     
+    def _get_company_id_from_ml_user(self, ml_user_id: int, db: Session) -> int:
+        """Busca company_id a partir do ml_user_id do Mercado Livre"""
+        try:
+            from sqlalchemy import text
+            
+            query = text("""
+                SELECT ma.company_id 
+                FROM ml_accounts ma 
+                WHERE ma.ml_user_id = :ml_user_id
+                AND ma.status = 'ACTIVE'
+            """)
+            
+            result = db.execute(query, {"ml_user_id": str(ml_user_id)}).fetchone()
+            return result[0] if result else None
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar company_id: {e}")
+            return None
+
     def _get_user_token(self, ml_user_id: int, db: Session) -> str:
         """Busca o token de acesso do usuário ML"""
         try:
@@ -201,7 +284,7 @@ class MLNotificationsController:
             logger.error(f"❌ Erro ao buscar detalhes do produto: {e}")
             return None
     
-    async def _upsert_order(self, order_data: Dict[str, Any], db: Session):
+    async def _upsert_order(self, order_data: Dict[str, Any], company_id: int, db: Session):
         """Atualiza ou cria pedido no banco de dados"""
         try:
             from sqlalchemy import text
@@ -209,9 +292,9 @@ class MLNotificationsController:
             
             order_id = order_data.get("id")
             
-            # Verificar se o pedido já existe
-            check_query = text("SELECT id FROM ml_orders WHERE ml_order_id = :order_id")
-            existing = db.execute(check_query, {"order_id": str(order_id)}).fetchone()
+            # Verificar se o pedido já existe para esta empresa
+            check_query = text("SELECT id FROM ml_orders WHERE ml_order_id = :order_id AND company_id = :company_id")
+            existing = db.execute(check_query, {"order_id": str(order_id), "company_id": company_id}).fetchone()
             
             # Extrair dados principais
             buyer = order_data.get("buyer", {})
@@ -238,7 +321,7 @@ class MLNotificationsController:
                         paid_amount = :paid_amount,
                         shipping_cost = :shipping_cost,
                         updated_at = NOW()
-                    WHERE ml_order_id = :order_id
+                    WHERE ml_order_id = :order_id AND company_id = :company_id
                 """)
                 
                 # Mapear status para o formato do enum
@@ -259,6 +342,7 @@ class MLNotificationsController:
                 
                 db.execute(update_query, {
                     "order_id": str(order_id),
+                    "company_id": company_id,
                     "status": db_status,
                     "status_detail": order_data.get("status_detail", {}).get("code") if order_data.get("status_detail") else None,
                     "date_closed": order_data.get("date_closed"),
@@ -278,32 +362,33 @@ class MLNotificationsController:
             logger.error(f"❌ Erro ao salvar pedido: {e}")
             db.rollback()
     
-    async def _upsert_item(self, item_data: Dict[str, Any], ml_user_id: int, db: Session):
+    async def _upsert_item(self, item_data: Dict[str, Any], company_id: int, db: Session):
         """Atualiza produto no banco de dados"""
         try:
             from sqlalchemy import text
             
             item_id = item_data.get("id")
             
-            # Verificar se o produto existe
-            check_query = text("SELECT id FROM products WHERE ml_item_id = :item_id")
-            existing = db.execute(check_query, {"item_id": item_id}).fetchone()
+            # Verificar se o produto existe para esta empresa
+            check_query = text("SELECT id FROM ml_products WHERE ml_item_id = :item_id AND company_id = :company_id")
+            existing = db.execute(check_query, {"item_id": item_id, "company_id": company_id}).fetchone()
             
             if existing:
                 # Atualizar produto
                 update_query = text("""
-                    UPDATE products SET
+                    UPDATE ml_products SET
                         title = :title,
                         price = :price,
                         available_quantity = :available_quantity,
                         sold_quantity = :sold_quantity,
                         status = :status,
                         updated_at = NOW()
-                    WHERE ml_item_id = :item_id
+                    WHERE ml_item_id = :item_id AND company_id = :company_id
                 """)
                 
                 db.execute(update_query, {
                     "item_id": item_id,
+                    "company_id": company_id,
                     "title": item_data.get("title"),
                     "price": item_data.get("price"),
                     "available_quantity": item_data.get("available_quantity"),

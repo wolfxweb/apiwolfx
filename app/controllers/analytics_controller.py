@@ -49,12 +49,11 @@ class AnalyticsController:
             
             logger.info(f"📅 Período: {start_date} a {end_date}")
             
-            # Buscar pedidos do período (mesmo filtro do dashboard financeiro)
+            # Buscar pedidos do período (incluindo cancelados para análise completa)
             orders_query = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
                 MLOrder.date_created >= start_date,
-                MLOrder.date_created <= end_date,
-                MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED])
+                MLOrder.date_created <= end_date
             )
             
             # Remover filtro de ml_account_id para pegar todas as contas (igual ao financeiro)
@@ -64,45 +63,40 @@ class AnalyticsController:
             orders = orders_query.all()
             logger.info(f"📊 Encontrados {len(orders)} pedidos")
             
-            # Calcular KPIs aplicando a mesma regra dos 7 dias do dashboard financeiro
-            total_revenue = 0
+            # Calcular KPIs baseado no status do pedido (sem regra dos 7 dias)
+            vendas_brutas = 0  # Vendas sem descontar cancelamentos
             total_orders = len(orders)
+            total_sold = 0  # Contar unidades reais
             
             for order in orders:
-                # Aplicar regra dos 7 dias (igual ao dashboard financeiro)
-                is_delivered = (
-                    order.status == OrderStatus.DELIVERED or 
-                    (order.shipping_status and order.shipping_status.lower() == "delivered")
-                )
-                
-                if is_delivered:
-                    delivery_date = None
-                    if order.shipping_details and isinstance(order.shipping_details, dict):
-                        status_history = order.shipping_details.get('status_history', {})
-                        if status_history and 'date_delivered' in status_history:
-                            try:
-                                delivery_date_str = status_history['date_delivered']
-                                delivery_date = datetime.fromisoformat(delivery_date_str.replace('Z', '+00:00'))
-                            except:
-                                pass
+                # Contar vendas brutas (pedidos válidos)
+                if order.status in [OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.SHIPPED, OrderStatus.DELIVERED]:
+                    vendas_brutas += float(order.total_amount or 0)
                     
-                    if delivery_date:
-                        days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
-                        if days_since_delivery >= 7:
-                            total_revenue += float(order.total_amount or 0)
-                    # Se entregue há menos de 7 dias, não conta como receita ainda
-                else:
-                    # Se não foi entregue, não conta como receita ainda
-                    pass
-            
-            # Como não temos quantity direto, vamos usar 1 por pedido como estimativa
-            total_sold = total_orders  # Assumindo 1 item por pedido
-            avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
+                    # Contar unidades reais dos itens do pedido
+                    if order.order_items:
+                        try:
+                            import json
+                            order_items = json.loads(order.order_items) if isinstance(order.order_items, str) else order.order_items
+                            if isinstance(order_items, list):
+                                for item in order_items:
+                                    quantity = item.get('quantity', 0)
+                                    total_sold += int(quantity)
+                        except:
+                            # Se não conseguir parsear, assumir 1 item por pedido
+                            total_sold += 1
+                    else:
+                        # Se não tem order_items, assumir 1 item por pedido
+                        total_sold += 1
             
             # Pedidos cancelados
             cancelled_orders = [o for o in orders if o.status == OrderStatus.CANCELLED]
             cancelled_count = len(cancelled_orders)
             cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
+            
+            # Receita total = Vendas brutas - Cancelamentos - Devoluções (como no Mercado Livre)
+            total_revenue = vendas_brutas - cancelled_value - returns_value
+            avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
             
             # Devoluções (mediations/claims)
             returns_orders = []
@@ -372,13 +366,14 @@ class AnalyticsController:
                 'total_profit': 0
             }
     
-    def get_top_products(self, company_id: int, ml_account_id: Optional[int] = None, 
+    def get_top_products(self, company_id: int, user_id: int, ml_account_id: Optional[int] = None, 
                         limit: int = 10, period_days: int = 30, search: Optional[str] = None) -> Dict:
         """Top produtos por quantidade e receita"""
         try:
             # Buscar dados do dashboard para obter análise de vendas
             dashboard_data = self.get_sales_dashboard(
                 company_id=company_id,
+                user_id=user_id,
                 ml_account_id=ml_account_id,
                 period_days=period_days,
                 search=search

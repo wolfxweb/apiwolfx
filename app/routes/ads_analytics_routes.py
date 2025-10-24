@@ -58,7 +58,9 @@ async def get_sales_dashboard_data(
         
         # Converter period para int se não for um período especial
         period_days = 30  # padrão
-        if period.isdigit():
+        if period == "last_30_days":
+            period_days = 30  # Últimos 30 dias
+        elif period.isdigit():
             period_days = int(period)
         
         controller = AnalyticsController(db)
@@ -108,6 +110,7 @@ async def get_top_products_data(
         controller = AnalyticsController(db)
         data = controller.get_top_products(
             company_id=company_id,
+            user_id=user_data["id"],
             ml_account_id=ml_account_id,
             limit=limit,
             period_days=period,
