@@ -887,6 +887,12 @@ async function saveCompany() {
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
+        } else if (response.status === 401) {
+            // Sessão expirada - redirecionar para login
+            showNotification('Sessão expirada. Redirecionando para login...', 'warning');
+            setTimeout(() => {
+                window.location.href = '/auth/login';
+            }, 2000);
         } else {
             showNotification(data.error || 'Erro ao salvar empresa', 'error');
         }
