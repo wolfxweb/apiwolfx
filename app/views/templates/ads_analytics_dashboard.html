@@ -283,6 +283,19 @@
                                 </div>
                                 <div class="text-end">
                                     <strong class="text-danger" id="taxes-value">R$ 0,00</strong>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#taxes-breakdown" aria-expanded="false" aria-controls="taxes-breakdown">
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Detalhamento dos Impostos (Collapsible) -->
+                            <div class="collapse" id="taxes-breakdown">
+                                <div class="card card-body bg-light mb-3">
+                                    <h6 class="text-muted mb-3">Detalhamento dos Impostos</h6>
+                                    <div id="taxes-breakdown-content">
+                                        <!-- Conteúdo será preenchido via JavaScript -->
+                                    </div>
                                 </div>
                             </div>
                             
@@ -971,6 +984,9 @@ function updateCostsAndMargins(costs, profit, kpis) {
     
     document.getElementById('taxes-value').textContent = formatBRL(costs.taxes);
     document.getElementById('taxes-percent').textContent = `${costs.taxes_percent.toFixed(1)}%`;
+    
+    // Atualizar detalhamento dos impostos
+    updateTaxesBreakdown(costs.taxes_breakdown);
     
     document.getElementById('other-costs-value').textContent = formatBRL(costs.other_costs);
     document.getElementById('other-costs-detail').textContent = `${formatBRL(costs.other_costs_per_unit)}/un (${costs.other_costs_percent.toFixed(1)}%)`;
@@ -2205,6 +2221,37 @@ document.addEventListener('DOMContentLoaded', function() {
     loadDashboardData(1);
     loadTopProducts(); // Carregar top produtos
 });
+
+// Função para atualizar detalhamento dos impostos
+function updateTaxesBreakdown(taxesBreakdown) {
+    const container = document.getElementById('taxes-breakdown-content');
+    
+    if (!taxesBreakdown || Object.keys(taxesBreakdown).length === 0) {
+        container.innerHTML = '<p class="text-muted mb-0">Nenhum imposto configurado</p>';
+        return;
+    }
+    
+    let html = '';
+    
+    // Ordenar impostos por valor (maior para menor)
+    const sortedTaxes = Object.values(taxesBreakdown).sort((a, b) => b.valor - a.valor);
+    
+    sortedTaxes.forEach(tax => {
+        html += `
+            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                <div>
+                    <div class="text-danger small">${tax.name}</div>
+                    <small class="text-muted">${tax.aliquota.toFixed(2)}%</small>
+                </div>
+                <div class="text-end">
+                    <strong class="text-danger">${formatBRL(tax.valor)}</strong>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
 </script>
 
 {% endblock %}

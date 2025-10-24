@@ -215,26 +215,7 @@ class AnalyticsController:
                     'total_visits': total_visits,
                     'total_products': len(products)
                 },
-                'costs': {
-                    'ml_fees': total_revenue * 0.10,  # 10% estimado
-                    'ml_fees_percent': 10.0,
-                    'shipping_fees': 0.0,
-                    'shipping_fees_percent': 0.0,
-                    'discounts': 0.0,
-                    'discounts_percent': 0.0,
-                    'product_cost': total_revenue * 0.40,  # 40% estimado
-                    'product_cost_percent': 40.0,
-                    'taxes': 0.0,
-                    'taxes_percent': 0.0,
-                    'other_costs': 0.0,
-                    'other_costs_percent': 0.0,
-                    'other_costs_per_unit': 0.0,
-                    'marketing_cost': 0.0,
-                    'marketing_percent': 0.0,
-                    'marketing_per_unit': 0.0,
-                    'total_costs': total_revenue * 0.50,  # 50% estimado
-                    'total_costs_percent': 50.0
-                },
+                'costs': self._calculate_costs_with_taxes(company_id, total_revenue, total_orders),
                 'profit': {
                     'net_profit': total_revenue * 0.50,  # 50% estimado
                     'net_margin': 50.0,
@@ -445,3 +426,470 @@ class AnalyticsController:
                 'success': False,
                 'error': str(e)
             }
+    
+    def _calculate_costs_with_taxes(self, company_id: int, total_revenue: float, total_orders: int) -> Dict:
+        """Calcula custos incluindo impostos baseados no cadastro da empresa"""
+        try:
+            # Buscar dados da empresa
+            from app.models.saas_models import Company
+            company = self.db.query(Company).filter(Company.id == company_id).first()
+            
+            if not company:
+                logger.warning(f"Empresa {company_id} não encontrada")
+                return self._get_default_costs(total_revenue, total_orders)
+            
+            logger.info(f"🏢 Empresa encontrada: {company.name}")
+            logger.info(f"📊 Regime tributário: {company.regime_tributario}")
+            logger.info(f"💰 Alíquota Simples: {company.aliquota_simples}")
+            logger.info(f"📈 Alíquota IR: {company.aliquota_ir}")
+            logger.info(f"📈 Alíquota CSLL: {company.aliquota_csll}")
+            logger.info(f"📈 Alíquota PIS: {company.aliquota_pis}")
+            logger.info(f"📈 Alíquota COFINS: {company.aliquota_cofins}")
+            logger.info(f"📈 Alíquota ICMS: {company.aliquota_icms}")
+            logger.info(f"📈 Alíquota ISS: {company.aliquota_iss}")
+            
+            # Calcular impostos baseado no regime tributário
+            taxes_amount = 0.0
+            taxes_percent = 0.0
+            
+            if company.regime_tributario == 'simples_nacional':
+                # Simples Nacional - usar alíquota do Simples
+                if company.aliquota_simples:
+                    taxes_amount = total_revenue * (float(company.aliquota_simples) / 100)
+                    taxes_percent = float(company.aliquota_simples)
+                else:
+                    # Alíquota padrão do Simples Nacional (6%)
+                    taxes_amount = total_revenue * 0.06
+                    taxes_percent = 6.0
+                    
+            elif company.regime_tributario == 'lucro_real':
+                # Lucro Real - somar todos os impostos
+                taxes_amount = self._calculate_lucro_real_taxes(company, total_revenue)
+                taxes_percent = (taxes_amount / total_revenue * 100) if total_revenue > 0 else 0
+                
+            elif company.regime_tributario == 'lucro_presumido':
+                # Lucro Presumido - somar impostos do regime
+                taxes_amount = self._calculate_lucro_presumido_taxes(company, total_revenue)
+                taxes_percent = (taxes_amount / total_revenue * 100) if total_revenue > 0 else 0
+            
+            # Calcular outros custos
+            ml_fees = total_revenue * 0.10  # 10% estimado para comissões ML
+            product_cost = total_revenue * 0.40  # 40% estimado para custo dos produtos
+            other_costs = 0.0  # Outros custos (fretes, descontos, etc.)
+            marketing_cost = 0.0  # Marketing (Product Ads)
+            
+            # Total de custos
+            total_costs = ml_fees + product_cost + taxes_amount + other_costs + marketing_cost
+            total_costs_percent = (total_costs / total_revenue * 100) if total_revenue > 0 else 0
+            
+            # Calcular detalhamento dos impostos
+            taxes_breakdown = self._calculate_taxes_breakdown(company, total_revenue)
+            
+            return {
+                'ml_fees': ml_fees,
+                'ml_fees_percent': 10.0,
+                'shipping_fees': 0.0,
+                'shipping_fees_percent': 0.0,
+                'discounts': 0.0,
+                'discounts_percent': 0.0,
+                'product_cost': product_cost,
+                'product_cost_percent': 40.0,
+                'taxes': taxes_amount,
+                'taxes_percent': taxes_percent,
+                'taxes_breakdown': taxes_breakdown,
+                'other_costs': other_costs,
+                'other_costs_percent': 0.0,
+                'other_costs_per_unit': 0.0,
+                'marketing_cost': marketing_cost,
+                'marketing_percent': 0.0,
+                'marketing_per_unit': 0.0,
+                'total_costs': total_costs,
+                'total_costs_percent': total_costs_percent
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular custos com impostos: {e}")
+            return self._get_default_costs(total_revenue, total_orders)
+    
+    def _calculate_lucro_real_taxes(self, company, total_revenue: float) -> float:
+        """Calcula impostos para regime de Lucro Real"""
+        taxes = 0.0
+        
+        # IR (Imposto de Renda)
+        if company.aliquota_ir_real:
+            taxes += total_revenue * (float(company.aliquota_ir_real) / 100)
+        elif company.aliquota_ir:
+            taxes += total_revenue * (float(company.aliquota_ir) / 100)
+            
+        # CSLL (Contribuição Social sobre o Lucro Líquido)
+        if company.aliquota_csll_real:
+            taxes += total_revenue * (float(company.aliquota_csll_real) / 100)
+        elif company.aliquota_csll:
+            taxes += total_revenue * (float(company.aliquota_csll) / 100)
+            
+        # PIS
+        if company.aliquota_pis_real:
+            taxes += total_revenue * (float(company.aliquota_pis_real) / 100)
+        elif company.aliquota_pis:
+            taxes += total_revenue * (float(company.aliquota_pis) / 100)
+            
+        # COFINS
+        if company.aliquota_cofins_real:
+            taxes += total_revenue * (float(company.aliquota_cofins_real) / 100)
+        elif company.aliquota_cofins:
+            taxes += total_revenue * (float(company.aliquota_cofins) / 100)
+            
+        # ICMS
+        if company.aliquota_icms_real:
+            taxes += total_revenue * (float(company.aliquota_icms_real) / 100)
+        elif company.aliquota_icms:
+            taxes += total_revenue * (float(company.aliquota_icms) / 100)
+            
+        # ISS
+        if company.aliquota_iss_real:
+            taxes += total_revenue * (float(company.aliquota_iss_real) / 100)
+        elif company.aliquota_iss:
+            taxes += total_revenue * (float(company.aliquota_iss) / 100)
+            
+        return taxes
+    
+    def _calculate_lucro_presumido_taxes(self, company, total_revenue: float) -> float:
+        """Calcula impostos para regime de Lucro Presumido"""
+        taxes = 0.0
+        
+        # IR (Imposto de Renda) - padrão 15%
+        if company.aliquota_ir:
+            taxes += total_revenue * (float(company.aliquota_ir) / 100)
+        else:
+            taxes += total_revenue * 0.15  # 15% padrão
+            
+        # CSLL (Contribuição Social) - padrão 9%
+        if company.aliquota_csll:
+            taxes += total_revenue * (float(company.aliquota_csll) / 100)
+        else:
+            taxes += total_revenue * 0.09  # 9% padrão
+            
+        # PIS - padrão 1.65%
+        if company.aliquota_pis:
+            taxes += total_revenue * (float(company.aliquota_pis) / 100)
+        else:
+            taxes += total_revenue * 0.0165  # 1.65% padrão
+            
+        # COFINS - padrão 7.6%
+        if company.aliquota_cofins:
+            taxes += total_revenue * (float(company.aliquota_cofins) / 100)
+        else:
+            taxes += total_revenue * 0.076  # 7.6% padrão
+            
+        # ICMS - padrão 18%
+        if company.aliquota_icms:
+            taxes += total_revenue * (float(company.aliquota_icms) / 100)
+        else:
+            taxes += total_revenue * 0.18  # 18% padrão
+            
+        # ISS - padrão 5%
+        if company.aliquota_iss:
+            taxes += total_revenue * (float(company.aliquota_iss) / 100)
+        else:
+            taxes += total_revenue * 0.05  # 5% padrão
+            
+        return taxes
+    
+    def _calculate_taxes_breakdown(self, company, total_revenue: float) -> Dict:
+        """Calcula o detalhamento de cada imposto"""
+        breakdown = {}
+        
+        if company.regime_tributario == 'simples_nacional':
+            # Simples Nacional - apenas um imposto
+            if company.aliquota_simples:
+                aliquota = float(company.aliquota_simples)
+                valor = total_revenue * (aliquota / 100)
+                breakdown['simples_nacional'] = {
+                    'name': 'Simples Nacional',
+                    'aliquota': aliquota,
+                    'valor': valor,
+                    'percent': aliquota
+                }
+        elif company.regime_tributario == 'lucro_real':
+            # Lucro Real - todos os impostos
+            breakdown = self._get_lucro_real_breakdown(company, total_revenue)
+        elif company.regime_tributario == 'lucro_presumido':
+            # Lucro Presumido - impostos do regime
+            breakdown = self._get_lucro_presumido_breakdown(company, total_revenue)
+        
+        return breakdown
+    
+    def _get_lucro_real_breakdown(self, company, total_revenue: float) -> Dict:
+        """Detalhamento para Lucro Real"""
+        breakdown = {}
+        
+        # IR (Imposto de Renda)
+        if company.aliquota_ir_real:
+            aliquota = float(company.aliquota_ir_real)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['ir'] = {
+                'name': 'Imposto de Renda (IR)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        elif company.aliquota_ir:
+            aliquota = float(company.aliquota_ir)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['ir'] = {
+                'name': 'Imposto de Renda (IR)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # CSLL
+        if company.aliquota_csll_real:
+            aliquota = float(company.aliquota_csll_real)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['csll'] = {
+                'name': 'Contribuição Social (CSLL)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        elif company.aliquota_csll:
+            aliquota = float(company.aliquota_csll)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['csll'] = {
+                'name': 'Contribuição Social (CSLL)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # PIS
+        if company.aliquota_pis_real:
+            aliquota = float(company.aliquota_pis_real)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['pis'] = {
+                'name': 'Programa de Integração Social (PIS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        elif company.aliquota_pis:
+            aliquota = float(company.aliquota_pis)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['pis'] = {
+                'name': 'Programa de Integração Social (PIS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # COFINS
+        if company.aliquota_cofins_real:
+            aliquota = float(company.aliquota_cofins_real)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['cofins'] = {
+                'name': 'Contribuição para Financiamento (COFINS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        elif company.aliquota_cofins:
+            aliquota = float(company.aliquota_cofins)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['cofins'] = {
+                'name': 'Contribuição para Financiamento (COFINS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # ICMS
+        if company.aliquota_icms_real:
+            aliquota = float(company.aliquota_icms_real)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['icms'] = {
+                'name': 'Imposto sobre Circulação (ICMS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        elif company.aliquota_icms:
+            aliquota = float(company.aliquota_icms)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['icms'] = {
+                'name': 'Imposto sobre Circulação (ICMS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # ISS
+        if company.aliquota_iss_real:
+            aliquota = float(company.aliquota_iss_real)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['iss'] = {
+                'name': 'Imposto sobre Serviços (ISS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        elif company.aliquota_iss:
+            aliquota = float(company.aliquota_iss)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['iss'] = {
+                'name': 'Imposto sobre Serviços (ISS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        return breakdown
+    
+    def _get_lucro_presumido_breakdown(self, company, total_revenue: float) -> Dict:
+        """Detalhamento para Lucro Presumido"""
+        breakdown = {}
+        
+        # IR (Imposto de Renda)
+        if company.aliquota_ir:
+            aliquota = float(company.aliquota_ir)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['ir'] = {
+                'name': 'Imposto de Renda (IR)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        else:
+            aliquota = 15.0  # Padrão
+            valor = total_revenue * 0.15
+            breakdown['ir'] = {
+                'name': 'Imposto de Renda (IR)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # CSLL
+        if company.aliquota_csll:
+            aliquota = float(company.aliquota_csll)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['csll'] = {
+                'name': 'Contribuição Social (CSLL)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        else:
+            aliquota = 9.0  # Padrão
+            valor = total_revenue * 0.09
+            breakdown['csll'] = {
+                'name': 'Contribuição Social (CSLL)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # PIS
+        if company.aliquota_pis:
+            aliquota = float(company.aliquota_pis)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['pis'] = {
+                'name': 'Programa de Integração Social (PIS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        else:
+            aliquota = 1.65  # Padrão
+            valor = total_revenue * 0.0165
+            breakdown['pis'] = {
+                'name': 'Programa de Integração Social (PIS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # COFINS
+        if company.aliquota_cofins:
+            aliquota = float(company.aliquota_cofins)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['cofins'] = {
+                'name': 'Contribuição para Financiamento (COFINS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        else:
+            aliquota = 7.6  # Padrão
+            valor = total_revenue * 0.076
+            breakdown['cofins'] = {
+                'name': 'Contribuição para Financiamento (COFINS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # ICMS
+        if company.aliquota_icms:
+            aliquota = float(company.aliquota_icms)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['icms'] = {
+                'name': 'Imposto sobre Circulação (ICMS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        else:
+            aliquota = 18.0  # Padrão
+            valor = total_revenue * 0.18
+            breakdown['icms'] = {
+                'name': 'Imposto sobre Circulação (ICMS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        # ISS
+        if company.aliquota_iss:
+            aliquota = float(company.aliquota_iss)
+            valor = total_revenue * (aliquota / 100)
+            breakdown['iss'] = {
+                'name': 'Imposto sobre Serviços (ISS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+        else:
+            aliquota = 5.0  # Padrão
+            valor = total_revenue * 0.05
+            breakdown['iss'] = {
+                'name': 'Imposto sobre Serviços (ISS)',
+                'aliquota': aliquota,
+                'valor': valor,
+                'percent': aliquota
+            }
+            
+        return breakdown
+    
+    def _get_default_costs(self, total_revenue: float, total_orders: int) -> Dict:
+        """Retorna custos padrão quando não há dados da empresa"""
+        return {
+            'ml_fees': total_revenue * 0.10,
+            'ml_fees_percent': 10.0,
+            'shipping_fees': 0.0,
+            'shipping_fees_percent': 0.0,
+            'discounts': 0.0,
+            'discounts_percent': 0.0,
+            'product_cost': total_revenue * 0.40,
+            'product_cost_percent': 40.0,
+            'taxes': 0.0,
+            'taxes_percent': 0.0,
+            'other_costs': 0.0,
+            'other_costs_percent': 0.0,
+            'other_costs_per_unit': 0.0,
+            'marketing_cost': 0.0,
+            'marketing_percent': 0.0,
+            'marketing_per_unit': 0.0,
+            'total_costs': total_revenue * 0.50,
+            'total_costs_percent': 50.0
+        }
