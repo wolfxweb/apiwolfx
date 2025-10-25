@@ -888,7 +888,7 @@ function renderProducts(products) {
     
     tbody.innerHTML = products.map(product => {
         const price = parseFloat(product.price) || 0;
-        const soldQty = product.sold_quantity || 0;
+        const soldQty = product.quantity || 0;
         const revenue = price * soldQty;
         
         const statusClass = product.status === 'active' ? 'success' : 
@@ -1341,7 +1341,7 @@ function renderParetoChart(paretoProducts) {
 // Renderizar análise de Pareto por quantidade (80/20)
 function renderParetoQuantityAnalysis(products) {
     // Filtrar apenas produtos com vendas
-    const productsWithSales = products.filter(p => p.sold_quantity > 0);
+    const productsWithSales = products.filter(p => p.quantity > 0);
     
     if (productsWithSales.length === 0) {
         document.getElementById('pareto-quantity-table-body').innerHTML = `
@@ -1357,17 +1357,17 @@ function renderParetoQuantityAnalysis(products) {
     }
     
     // Ordenar por quantidade vendida (maior para menor)
-    const sortedProducts = [...productsWithSales].sort((a, b) => b.sold_quantity - a.sold_quantity);
+    const sortedProducts = [...productsWithSales].sort((a, b) => b.quantity - a.quantity);
     
     // Calcular quantidade total
-    const totalQuantity = sortedProducts.reduce((sum, p) => sum + p.sold_quantity, 0);
+    const totalQuantity = sortedProducts.reduce((sum, p) => sum + p.quantity, 0);
     
     // Calcular percentual acumulado e encontrar produtos que representam 80%
     let accumulatedPercentage = 0;
     const paretoProducts = [];
     
     for (const product of sortedProducts) {
-        const productPercentage = (product.sold_quantity / totalQuantity) * 100;
+        const productPercentage = (product.quantity / totalQuantity) * 100;
         accumulatedPercentage += productPercentage;
         
         paretoProducts.push({
@@ -1394,7 +1394,7 @@ function renderParetoQuantityAnalysis(products) {
                 <small class="text-muted">${product.ml_item_id}</small>
             </td>
             <td class="text-end">
-                <strong>${formatNumber(product.sold_quantity)} un</strong>
+                <strong>${formatNumber(product.quantity)} un</strong>
                 <br><small class="text-muted">${product.percentage.toFixed(1)}%</small>
             </td>
             <td class="text-end">
@@ -1423,7 +1423,7 @@ function renderParetoQuantityChart(paretoProducts) {
     
     // Dados para o gráfico
     const labels = paretoProducts.map((p, i) => `#${i + 1}`);
-    const quantities = paretoProducts.map(p => p.sold_quantity);
+    const quantities = paretoProducts.map(p => p.quantity);
     const accumulatedPercentages = paretoProducts.map(p => p.accumulatedPercentage);
     
     paretoQuantityChart = new Chart(ctx, {
@@ -1549,7 +1549,7 @@ function renderParetoProfitAnalysis(products, kpis, costs) {
     // Calcular lucro para cada produto
     const productsWithProfit = productsWithSales.map(product => {
         const productRevenue = product.revenue;
-        const productQuantity = product.sold_quantity;
+        const productQuantity = product.quantity;
         
         // Calcular custos proporcionais
         const mlFees = (costs.ml_fees / totalRevenue) * productRevenue;
@@ -1775,7 +1775,7 @@ function renderLowProfitAnalysis(products, kpis, costs) {
     // Calcular lucro para cada produto
     const productsWithProfit = productsWithSales.map(product => {
         const productRevenue = product.revenue;
-        const productQuantity = product.sold_quantity;
+        const productQuantity = product.quantity;
         
         // Calcular custos proporcionais
         const mlFees = (costs.ml_fees / totalRevenue) * productRevenue;
@@ -1851,7 +1851,7 @@ function renderLowProfitAnalysis(products, kpis, costs) {
                     ${product.title}
                 </div>
                 <small class="text-muted">${product.ml_item_id}</small>
-                <br><small class="text-info">${formatNumber(product.sold_quantity)} vendidos</small>
+                <br><small class="text-info">${formatNumber(product.quantity)} vendidos</small>
             </td>
             <td class="text-end">
                 <strong class="${profitClass}">${formatBRL(product.profit)}</strong>
@@ -2016,7 +2016,7 @@ function renderTopProductsReal(topSold, topRevenue) {
                     </div>
                 </div>
                 <div class="text-end">
-                    <div class="fw-bold text-primary">${formatNumber(product.sold_quantity)} un</div>
+                    <div class="fw-bold text-primary">${formatNumber(product.quantity)} un</div>
                     <small class="text-muted">${formatBRL(product.price)}</small>
                 </div>
             </div>
@@ -2034,7 +2034,7 @@ function renderTopProductsReal(topSold, topRevenue) {
                     </span>
                     <div>
                         <div class="fw-medium">${product.title.substring(0, 40)}...</div>
-                        <small class="text-muted">${product.sold_quantity} vendidos</small>
+                        <small class="text-muted">${product.quantity} vendidos</small>
                     </div>
                 </div>
                 <div class="text-end">
@@ -2090,8 +2090,8 @@ function renderAccountsSummaryReal(accounts) {
 function renderTopProducts(products) {
     // Top vendidos
     const topSold = [...products]
-        .filter(p => p.sold_quantity > 0)
-        .sort((a, b) => b.sold_quantity - a.sold_quantity)
+        .filter(p => p.quantity > 0)
+        .sort((a, b) => b.quantity - a.quantity)
         .slice(0, 10);
     
     const topSoldContainer = document.getElementById('top-sold-products');
@@ -2108,7 +2108,7 @@ function renderTopProducts(products) {
                     </div>
                 </div>
                 <div class="text-end">
-                    <div class="fw-bold text-primary">${product.sold_quantity} un</div>
+                    <div class="fw-bold text-primary">${product.quantity} un</div>
                     <small class="text-muted">R$ ${parseFloat(product.price).toFixed(2)}</small>
                 </div>
             </div>
@@ -2119,7 +2119,7 @@ function renderTopProducts(products) {
     const topRevenue = [...products]
         .map(p => ({
             ...p,
-            revenue: (parseFloat(p.price) || 0) * (p.sold_quantity || 0)
+            revenue: (parseFloat(p.price) || 0) * (p.quantity || 0)
         }))
         .filter(p => p.revenue > 0)
         .sort((a, b) => b.revenue - a.revenue)
@@ -2135,7 +2135,7 @@ function renderTopProducts(products) {
                     </span>
                     <div>
                         <div class="fw-medium">${product.title.substring(0, 40)}...</div>
-                        <small class="text-muted">${product.sold_quantity} vendidos</small>
+                        <small class="text-muted">${product.quantity} vendidos</small>
                     </div>
                 </div>
                 <div class="text-end">
