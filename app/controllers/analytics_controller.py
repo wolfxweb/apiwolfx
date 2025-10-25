@@ -624,8 +624,18 @@ class AnalyticsController:
             # Top por quantidade vendida (80% da quantidade)
             top_sold = pareto.get('quantity_80_percent', [])[:limit]
             
-            # Top por receita (80% da receita)
-            top_revenue = pareto.get('revenue_80_percent', [])[:limit]
+            # Top 10 produtos com MENOR receita (inverter a ordem)
+            # Usar tail_20_percent (cauda longa) que já tem produtos com menor receita
+            # Se não existir, usar revenue_80_percent invertido
+            tail_products = pareto.get('tail_20_percent', [])
+            if tail_products and len(tail_products) > 0:
+                # Usar produtos da cauda longa (já são os com menor receita)
+                top_revenue = tail_products[:limit]
+            else:
+                # Fallback: inverter produtos de maior receita
+                revenue_products = pareto.get('revenue_80_percent', [])
+                # Ordenar por receita (menor primeiro)
+                top_revenue = sorted(revenue_products, key=lambda x: x.get('revenue', 0))[:limit]
             
             return {
                 'success': True,
