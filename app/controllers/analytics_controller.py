@@ -290,9 +290,14 @@ class AnalyticsController:
                                             'quantity': 0,
                                             'orders': 0
                                         }
-                                    product_sales[ml_item_id]['revenue'] += float(order.total_amount or 0)
-                                    product_sales[ml_item_id]['quantity'] += 1
-                                    product_sales[ml_item_id]['orders'] += 1
+                                    # Somar receita proporcional do item no pedido
+                                    item_quantity = item.get('quantity', 1)
+                                    item_unit_price = item.get('unit_price', 0)
+                                    item_revenue = item_quantity * item_unit_price
+                                    
+                                    product_sales[ml_item_id]['revenue'] += float(item_revenue)
+                                    product_sales[ml_item_id]['quantity'] += item_quantity
+                                    product_sales[ml_item_id]['orders'] += 1  # 1 pedido por item
                     except:
                         # Se não conseguir extrair itens, assumir que o produto principal é o do pedido
                         pass
@@ -347,7 +352,7 @@ class AnalyticsController:
                 ],
                 'total': len(products),
                 'timeline': timeline,
-                'pareto_analysis': self._calculate_pareto_analysis(products, product_sales, total_revenue)
+                'pareto_analysis': self._calculate_pareto_analysis(products, product_sales, total_revenue, company_id)
             }
             
         except Exception as e:
@@ -357,21 +362,105 @@ class AnalyticsController:
                 'error': str(e)
             }
     
-    def _calculate_pareto_analysis(self, products, product_sales, total_revenue):
+    def _calculate_pareto_analysis(self, products, product_sales, total_revenue, company_id):
         """Calcula análises de Pareto para produtos"""
         try:
+            from app.models.saas_models import InternalProduct, Company
+            
+            # Buscar dados da empresa
+            company = self.db.query(Company).filter(Company.id == company_id).first()
+            cost_per_order = float(company.custo_adicional_por_pedido or 0) if company and company.custo_adicional_por_pedido else 0.0
+            
             # Preparar dados dos produtos com vendas
             products_with_sales = []
             for product in products:
                 sales_data = product_sales.get(product.ml_item_id, {})
                 revenue = sales_data.get('revenue', 0.0)
                 quantity = sales_data.get('quantity', 0)
+                orders = sales_data.get('orders', 1)
                 
                 if revenue > 0:  # Apenas produtos com vendas
-                    # Calcular margem estimada (assumindo 50% de margem)
-                    estimated_cost = revenue * 0.5
-                    profit = revenue - estimated_cost
-                    margin_percent = (profit / revenue * 100) if revenue > 0 else 0
+                    # Buscar produto interno pelo SKU
+                    internal_product = None
+                    if product.seller_sku:
+                        internal_product = self.db.query(InternalProduct).filter(
+                            InternalProduct.company_id == company_id,
+                            InternalProduct.internal_sku == product.seller_sku,
+                            InternalProduct.status == 'active'
+                        ).first()
+                    
+                    if internal_product and company:
+                        # Usar custos reais do produto interno
+                        # Custo do produto: POR UNIDADE, multiplicar pela quantidade
+                        product_cost_per_unit = float(internal_product.cost_price or 0)
+                        product_cost = product_cost_per_unit * quantity if quantity > 0 else product_cost_per_unit
+                        
+                        # Marketing: usar percentual da EMPRESA (não do produto)
+                        marketing_percent = float(company.percentual_marketing or 0) if company.percentual_marketing else 0
+                        # Se não tiver na empresa, usar do produto como fallback
+                        if marketing_percent == 0:
+                            marketing_percent = float(internal_product.marketing_cost or 0)
+                        marketing_cost = revenue * (marketing_percent / 100)
+                        
+                        # Outros custos: R$ 0,50 fixo por unidade vendida
+                        other_costs_per_unit = float(internal_product.other_costs or 0)
+                        other_costs = other_costs_per_unit * quantity if quantity > 0 else other_costs_per_unit
+                        
+                        # Custo adicional por pedido (fixo por pedido)
+                        total_cost_per_order = cost_per_order * orders
+                        
+                        # Calcular impostos baseado no regime tributário da empresa
+                        taxes_amount = 0.0
+                        if company.regime_tributario == 'simples_nacional':
+                            if company.aliquota_simples:
+                                taxes_amount = revenue * (float(company.aliquota_simples) / 100)
+                        elif company.regime_tributario == 'lucro_real':
+                            if company.aliquota_ir_real:
+                                taxes_amount += revenue * (float(company.aliquota_ir_real) / 100)
+                            if company.aliquota_csll_real:
+                                taxes_amount += revenue * (float(company.aliquota_csll_real) / 100)
+                            if company.aliquota_pis_real:
+                                taxes_amount += revenue * (float(company.aliquota_pis_real) / 100)
+                            if company.aliquota_cofins_real:
+                                taxes_amount += revenue * (float(company.aliquota_cofins_real) / 100)
+                        elif company.regime_tributario == 'lucro_presumido':
+                            if company.aliquota_ir_real:
+                                taxes_amount += revenue * (float(company.aliquota_ir_real) / 100)
+                            if company.aliquota_csll_real:
+                                taxes_amount += revenue * (float(company.aliquota_csll_real) / 100)
+                            if company.aliquota_pis_real:
+                                taxes_amount += revenue * (float(company.aliquota_pis_real) / 100)
+                            if company.aliquota_cofins_real:
+                                taxes_amount += revenue * (float(company.aliquota_cofins_real) / 100)
+                        
+                        # Total de custos
+                        total_costs = product_cost + marketing_cost + other_costs + total_cost_per_order + taxes_amount
+                        
+                        # Lucro bruto
+                        profit = revenue - total_costs
+                        margin_percent = (profit / revenue * 100) if revenue > 0 else 0
+                        
+                        # Adicionar custos detalhados para o frontend
+                        cost_details = {
+                            'product_cost': product_cost,
+                            'marketing_cost': marketing_cost,
+                            'other_costs': other_costs,
+                            'cost_per_order': total_cost_per_order,
+                            'taxes': taxes_amount,
+                            'total_costs': total_costs
+                        }
+                    else:
+                        # Fallback: None para indicar que não foi calculado
+                        profit = None
+                        margin_percent = None
+                        cost_details = {
+                            'product_cost': 0,
+                            'marketing_cost': 0,
+                            'other_costs': 0,
+                            'cost_per_order': 0,
+                            'taxes': 0,
+                            'total_costs': 0
+                        }
                     
                     products_with_sales.append({
                         'id': product.id,
@@ -381,7 +470,8 @@ class AnalyticsController:
                         'quantity': quantity,
                         'profit': profit,
                         'margin_percent': margin_percent,
-                        'status': product.status.value if product.status else 'unknown'
+                        'status': product.status.value if product.status else 'unknown',
+                        **cost_details  # Incluir custos detalhados
                     })
             
             # Ordenar por receita
@@ -421,12 +511,16 @@ class AnalyticsController:
                 if cumulative_quantity >= target_80_quantity:
                     break
             
-            # Ordenar por lucro
-            products_by_profit = sorted(products_with_sales, key=lambda x: x['profit'], reverse=True)
+            # Ordenar por lucro (ignorar None)
+            products_by_profit = sorted(
+                [p for p in products_with_sales if p['profit'] is not None],
+                key=lambda x: x['profit'],
+                reverse=True
+            )
             
             # Análise de Pareto - 80% do lucro
             pareto_80_profit = []
-            total_profit = sum(p['profit'] for p in products_with_sales)
+            total_profit = sum(p['profit'] for p in products_with_sales if p['profit'] is not None)
             cumulative_profit = 0.0
             target_80_profit = total_profit * 0.8
             

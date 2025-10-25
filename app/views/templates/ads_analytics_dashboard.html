@@ -1661,8 +1661,19 @@ function renderParetoProfitAnalysis(products, kpis, costs) {
     
     const totalRevenue = kpis.total_revenue;
     
-    // Calcular lucro para cada produto
+    // Usar lucro calculado no backend (prioridade) ou calcular no frontend (fallback)
     const productsWithProfit = productsWithSales.map(product => {
+        // Se o backend já calculou lucro e margem, usar esses valores
+        if (product.profit !== null && product.profit !== undefined && 
+            product.margin_percent !== null && product.margin_percent !== undefined) {
+            return {
+                ...product,
+                profit: product.profit,
+                margin: product.margin_percent
+            };
+        }
+        
+        // Fallback: calcular no frontend se não houver dados do backend
         const productRevenue = product.revenue;
         const productQuantity = product.quantity;
         
@@ -1687,17 +1698,28 @@ function renderParetoProfitAnalysis(products, kpis, costs) {
         };
     });
     
-    // Ordenar por lucro (maior para menor)
-    const sortedProducts = productsWithProfit.sort((a, b) => b.profit - a.profit);
+    // Filtrar produtos com lucro calculado e ordenar por lucro (maior para menor)
+    const productsWithCalculatedProfit = productsWithProfit.filter(p => 
+        p.profit !== null && p.profit !== undefined && p.margin !== null && p.margin !== undefined
+    );
+    const sortedProducts = productsWithCalculatedProfit.sort((a, b) => {
+        if (a.profit === null || a.profit === undefined) return 1;
+        if (b.profit === null || b.profit === undefined) return -1;
+        return b.profit - a.profit;
+    });
     
-    // Calcular lucro total
-    const totalProfit = sortedProducts.reduce((sum, p) => sum + p.profit, 0);
+    // Calcular lucro total (apenas produtos com lucro calculado)
+    const totalProfit = sortedProducts.reduce((sum, p) => {
+        if (p.profit === null || p.profit === undefined) return sum;
+        return sum + p.profit;
+    }, 0);
     
     // Calcular percentual acumulado e encontrar produtos que representam 80%
     let accumulatedPercentage = 0;
     const paretoProducts = [];
     
     for (const product of sortedProducts) {
+        if (product.profit === null || product.profit === undefined || totalProfit === 0) continue;
         const productPercentage = (product.profit / totalProfit) * 100;
         accumulatedPercentage += productPercentage;
         
@@ -1719,6 +1741,38 @@ function renderParetoProfitAnalysis(products, kpis, costs) {
         const profitClass = product.profit >= 0 ? 'text-success' : 'text-danger';
         const marginClass = product.margin >= 0 ? 'text-success' : 'text-danger';
         
+        // Verificar se lucro e margem são None
+        const profitDisplay = (product.profit === null || product.profit === undefined) ? '-' : formatBRL(product.profit);
+        const marginDisplay = (product.margin === null || product.margin === undefined) ? '-' : `${product.margin.toFixed(1)}%`;
+        const profitClassDisplay = (product.profit === null || product.profit === undefined) ? '' : profitClass;
+        const marginClassDisplay = (product.margin === null || product.margin === undefined) ? '' : 
+            (product.margin >= 30 ? 'bg-success' : product.margin >= 15 ? 'bg-warning' : 'bg-danger');
+        
+        // Calcular custos detalhados para o tooltip
+        const quantity = product.quantity || 0;
+        const revenue = product.revenue || 0;
+        const productCost = product.product_cost || 0;
+        const marketingCost = product.marketing_cost || 0;
+        const otherCosts = product.other_costs || 0;
+        const taxesCost = product.taxes || 0;
+        const ordersCost = product.cost_per_order || 0;
+        const totalCosts = productCost + marketingCost + otherCosts + taxesCost + ordersCost;
+        
+        // Criar tooltip com detalhamento dos custos
+        const costTooltip = (product.profit !== null && product.profit !== undefined) ? 
+            `CUSTOS TOTAIS:\n` +
+            `1. Custo Produto: ${formatBRL(productCost)}\n` +
+            `2. Impostos: ${formatBRL(taxesCost)}\n` +
+            `3. Marketing: ${formatBRL(marketingCost)}\n` +
+            `4. Outros Custos: ${formatBRL(otherCosts)}\n` +
+            `5. Custo por Pedido: ${formatBRL(ordersCost)}\n` +
+            `───────────────────\n` +
+            `TOTAL: ${formatBRL(totalCosts)}\n\n` +
+            `Receita: ${formatBRL(revenue)}\n` +
+            `Lucro: ${formatBRL(product.profit)}\n` +
+            `Margem: ${marginDisplay}` : 
+            'Custos não disponíveis';
+        
         return `
         <tr class="${product.accumulatedPercentage <= 80 ? 'table-success' : ''}">
             <td><span class="badge bg-success">${index + 1}</span></td>
@@ -1729,13 +1783,19 @@ function renderParetoProfitAnalysis(products, kpis, costs) {
                 <small class="text-muted">${product.ml_item_id}</small>
             </td>
             <td class="text-end">
-                <strong class="${profitClass}">${formatBRL(product.profit)}</strong>
+                <strong class="${profitClassDisplay}">${profitDisplay}</strong>
                 <br><small class="text-muted">${formatBRL(product.revenue)} receita</small>
             </td>
             <td class="text-end">
-                <span class="badge ${product.margin >= 30 ? 'bg-success' : product.margin >= 15 ? 'bg-warning' : 'bg-danger'}">
-                    ${product.margin.toFixed(1)}%
+                <span class="badge ${marginClassDisplay}">
+                    ${marginDisplay}
                 </span>
+                <i class="bi bi-info-circle ms-1 text-primary" 
+                   style="cursor: help;" 
+                   data-bs-toggle="tooltip" 
+                   data-bs-placement="left"
+                   data-bs-html="true"
+                   title="${costTooltip.replace(/\n/g, '<br>')}"></i>
             </td>
             <td class="text-end">
                 <span class="badge ${product.accumulatedPercentage >= 80 ? 'bg-success' : 'bg-info'}">
@@ -1748,6 +1808,12 @@ function renderParetoProfitAnalysis(products, kpis, costs) {
     
     // Atualizar contador
     document.getElementById('pareto-profit-count').textContent = `${paretoProducts.length} produtos (${(paretoProducts.length / sortedProducts.length * 100).toFixed(0)}% do total)`;
+    
+    // Inicializar tooltips Bootstrap
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
     
     // Renderizar gráfico
     renderParetoProfitChart(paretoProducts);
@@ -1887,8 +1953,19 @@ function renderLowProfitAnalysis(products, kpis, costs) {
     
     const totalRevenue = kpis.total_revenue;
     
-    // Calcular lucro para cada produto
+    // Usar lucro calculado no backend (prioridade) ou calcular no frontend (fallback)
     const productsWithProfit = productsWithSales.map(product => {
+        // Se o backend já calculou lucro e margem, usar esses valores
+        if (product.profit !== null && product.profit !== undefined && 
+            product.margin_percent !== null && product.margin_percent !== undefined) {
+            return {
+                ...product,
+                profit: product.profit,
+                margin: product.margin_percent
+            };
+        }
+        
+        // Fallback: calcular no frontend se não houver dados do backend
         const productRevenue = product.revenue;
         const productQuantity = product.quantity;
         
