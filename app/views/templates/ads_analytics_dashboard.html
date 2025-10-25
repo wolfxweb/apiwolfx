@@ -48,48 +48,102 @@
         <!-- Alerts serão inseridos aqui dinamicamente -->
     </div>
 
-    <!-- Filtros -->
+    <!-- Filtros de Período Intuitivos -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    <div class="row align-items-end">
-                        <!-- Período -->
-                        <div class="col-12 col-md-3">
-                            <label for="periodFilter" class="form-label">Período</label>
-                            <select class="form-select" id="periodFilter" onchange="toggleCustomPeriod(); applyFilters();">
-                                <option value="">Todos os períodos</option>
-                                <option value="today">Hoje</option>
-                                <option value="7">Últimos 7 dias</option>
-                                <option value="15">Últimos 15 dias</option>
-                                <option value="30" selected>Últimos 30 dias</option>
-                                <option value="60">Últimos 60 dias</option>
-                                <option value="90">Últimos 90 dias</option>
-                                <option value="custom">Período personalizado</option>
-                            </select>
+                    <!-- Filtros Rápidos -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold mb-2">📅 Filtros Rápidos:</label>
+                            <div class="btn-group" role="group" aria-label="Filtros rápidos">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('current_month')">
+                                    📅 Este Mês
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('last_month')">
+                                    ⬅️ Mês Passado
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('last_3_months')">
+                                    📊 Últimos 3 Meses
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('last_6_months')">
+                                    📈 Últimos 6 Meses
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('current_year')">
+                                    🗓️ Este Ano
+                                </button>
+                            </div>
                         </div>
-                        
-                        <!-- Período personalizado (oculto por padrão) -->
-                        <div class="col-12 col-md-2" id="customPeriodRow" style="display: none;">
-                            <label for="dateFrom" class="form-label">Data inicial</label>
-                            <input type="date" class="form-control" id="dateFrom" onchange="applyFilters()">
+                    </div>
+                    
+                    <!-- Seletor de Mês/Ano -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold mb-2">🎯 Mês/Ano Específico:</label>
+                            <div class="row g-2">
+                                <div class="col-auto">
+                                    <select class="form-select form-select-sm" id="month-selector" onchange="applyMonthYearFilter()">
+                                        <option value="">Selecione o mês</option>
+                                        <option value="01">Janeiro</option>
+                                        <option value="02">Fevereiro</option>
+                                        <option value="03">Março</option>
+                                        <option value="04">Abril</option>
+                                        <option value="05">Maio</option>
+                                        <option value="06">Junho</option>
+                                        <option value="07">Julho</option>
+                                        <option value="08">Agosto</option>
+                                        <option value="09">Setembro</option>
+                                        <option value="10">Outubro</option>
+                                        <option value="11">Novembro</option>
+                                        <option value="12">Dezembro</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto">
+                                    <select class="form-select form-select-sm" id="year-selector" onchange="applyMonthYearFilter()">
+                                        <option value="">Selecione o ano</option>
+                                        <option value="2023">2023</option>
+                                        <option value="2024">2024</option>
+                                        <option value="2025" selected>2025</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="applyMonthYearFilter()">
+                                        🔍 Aplicar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-12 col-md-2" id="customPeriodRow2" style="display: none;">
-                            <label for="dateTo" class="form-label">Data final</label>
-                            <input type="date" class="form-control" id="dateTo" onchange="applyFilters()">
+                    </div>
+                    
+                    <!-- Filtros Personalizados -->
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="form-label fw-bold mb-2">🎯 Período Personalizado:</label>
+                            <div class="row g-2">
+                                <div class="col-auto">
+                                    <label class="form-label mb-0 small">De:</label>
+                                    <input type="date" class="form-control form-control-sm" id="dateFrom" onchange="applyCustomRange()">
+                                </div>
+                                <div class="col-auto">
+                                    <label class="form-label mb-0 small">Até:</label>
+                                    <input type="date" class="form-control form-control-sm" id="dateTo" onchange="applyCustomRange()">
+                                </div>
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-success btn-sm" onclick="applyCustomRange()">
+                                        🔍 Aplicar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <!-- Buscar Produto -->
-                        <div class="col-12 col-md-3">
-                            <label for="search_filter" class="form-label">Buscar Produto</label>
-                            <input type="text" id="search_filter" class="form-control" placeholder="Nome ou SKU..." oninput="applyFilters()">
-                        </div>
-                        
-                        <!-- Ações -->
-                        <div class="col-12 col-md-2">
-                            <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
-                                Limpar
-                            </button>
+                    </div>
+                    
+                    <!-- Período Atual Selecionado -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="alert alert-info mb-0" id="current-period-info">
+                                <strong>📅 Período Atual:</strong> <span id="period-display">Últimos 30 dias</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -98,8 +152,8 @@
     </div>
 
     <!-- KPIs -->
-    <div class="row mb-4">
-        <div class="col-md-3">
+    <div class="row mb-4 g-3">
+        <div class="col-12 col-sm-6 col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
                     <div class="mb-2">
@@ -117,7 +171,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-12 col-sm-6 col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
                     <div class="mb-2">
@@ -129,7 +183,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-12 col-sm-6 col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
                     <div class="mb-2">
@@ -141,7 +195,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-12 col-sm-6 col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
                     <div class="mb-2">
@@ -156,8 +210,8 @@
     </div>
 
     <!-- KPIs Adicionais -->
-    <div class="row mb-4" id="additional-kpis-section">
-        <div class="col-md-3">
+    <div class="row mb-4 g-3" id="additional-kpis-section">
+        <div class="col-12 col-sm-6 col-md-3">
             <div class="card border-warning">
                 <div class="card-body text-center">
                     <i class="bi bi-x-circle text-warning display-6"></i>
@@ -176,7 +230,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-12 col-sm-6 col-md-3">
             <div class="card border-danger">
                 <div class="card-body text-center">
                     <i class="bi bi-arrow-return-left text-danger display-6"></i>
@@ -195,7 +249,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-12 col-sm-6 col-md-3">
             <div class="card border-info">
                 <div class="card-body text-center">
                     <i class="bi bi-eye text-info display-6"></i>
@@ -207,7 +261,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-12 col-sm-6 col-md-3">
             <div class="card border-success">
                 <div class="card-body text-center">
                     <i class="bi bi-graph-up text-success display-6"></i>
@@ -2255,6 +2309,48 @@ function updateTaxesBreakdown(taxesBreakdown) {
     
     container.innerHTML = html;
 }
+
+// CSS específico para garantir layout responsivo dos KPIs
+const style = document.createElement('style');
+style.textContent = `
+    /* KPIs em grid responsivo */
+    .row.g-3 > [class*="col-"] {
+        margin-bottom: 1rem;
+    }
+    
+    /* Em telas pequenas, KPIs ficam em 2 colunas */
+    @media (max-width: 767.98px) {
+        .row.g-3 > .col-12.col-sm-6 {
+            flex: 0 0 50%;
+            max-width: 50%;
+        }
+    }
+    
+    /* Em telas médias e grandes, KPIs ficam em 4 colunas */
+    @media (min-width: 768px) {
+        .row.g-3 > .col-12.col-sm-6.col-md-3 {
+            flex: 0 0 25%;
+            max-width: 25%;
+        }
+    }
+    
+    /* Garantir que os cards não estourem */
+    .card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+`;
+document.head.appendChild(style);
 </script>
+
+</div> <!-- Fechamento do container-fluid -->
 
 {% endblock %}

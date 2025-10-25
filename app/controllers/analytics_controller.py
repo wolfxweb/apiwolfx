@@ -210,6 +210,7 @@ class AnalyticsController:
                     'total_products': len(products)
                 },
                 'costs': self._calculate_costs_with_taxes(company_id, total_revenue, total_orders),
+                'billing': self._get_billing_data(company_id, start_date, end_date) or {},
                 'profit': {
                     'net_profit': total_revenue * 0.50,  # 50% estimado
                     'net_margin': 50.0,
@@ -467,36 +468,60 @@ class AnalyticsController:
                 taxes_amount = self._calculate_lucro_presumido_taxes(company, total_revenue)
                 taxes_percent = (taxes_amount / total_revenue * 100) if total_revenue > 0 else 0
             
-            # Calcular custos reais dos pedidos
-            from app.models.saas_models import MLOrder, OrderStatus
+            # Buscar dados reais de billing do Mercado Livre
             from datetime import datetime, timedelta
-            
-            # Buscar pedidos do período (últimos 30 dias)
             end_date = datetime.now()
             start_date = end_date - timedelta(days=30)
+            billing_data = self._get_billing_data(company_id, start_date, end_date)
             
-            orders = self.db.query(MLOrder).filter(
-                and_(
-                    MLOrder.company_id == company_id,
-                    MLOrder.date_created >= start_date,
-                    MLOrder.date_created <= end_date,
-                    MLOrder.status.in_([OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
-                )
-            ).all()
-            
-            # Calcular custos reais
-            ml_fees = sum(float(order.sale_fees or 0) for order in orders)
-            shipping_fees = sum(float(order.shipping_fees or 0) for order in orders)
-            discounts = sum(float(order.coupon_amount or 0) for order in orders)
-            marketing_cost = sum(float(order.advertising_cost or 0) for order in orders)
-            
-            # Custos estimados (quando não há dados reais)
-            if ml_fees == 0:
-                ml_fees = total_revenue * 0.10  # 10% estimado
-            if shipping_fees == 0:
-                shipping_fees = total_revenue * 0.05  # 5% estimado
-            if marketing_cost == 0:
-                marketing_cost = total_revenue * 0.03  # 3% estimado
+            # Usar dados de billing se disponíveis, senão usar dados dos pedidos
+            if billing_data and billing_data.get('total_advertising_cost', 0) > 0:
+                # Usar dados reais de billing
+                ml_fees = billing_data.get('total_sale_fees', 0)
+                shipping_fees = billing_data.get('total_shipping_fees', 0)
+                marketing_cost = billing_data.get('total_advertising_cost', 0)
+                discounts = 0  # Descontos não estão no billing
+                
+                logger.info(f"💰 Usando dados reais de billing:")
+                logger.info(f"   🎯 Marketing: R$ {marketing_cost:.2f}")
+                logger.info(f"   💳 Sale Fees: R$ {ml_fees:.2f}")
+                logger.info(f"   🚚 Shipping: R$ {shipping_fees:.2f}")
+            else:
+                # Fallback: calcular custos reais dos pedidos
+                from app.models.saas_models import MLOrder, OrderStatus
+                from datetime import datetime, timedelta
+                
+                # Buscar pedidos do período (últimos 30 dias)
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=30)
+                
+                orders = self.db.query(MLOrder).filter(
+                    and_(
+                        MLOrder.company_id == company_id,
+                        MLOrder.date_created >= start_date,
+                        MLOrder.date_created <= end_date,
+                        MLOrder.status.in_([OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
+                    )
+                ).all()
+                
+                # Calcular custos reais
+                ml_fees = sum(float(order.sale_fees or 0) for order in orders)
+                shipping_fees = sum(float(order.shipping_fees or 0) for order in orders)
+                discounts = sum(float(order.coupon_amount or 0) for order in orders)
+                marketing_cost = sum(float(order.advertising_cost or 0) for order in orders)
+                
+                # Custos estimados (quando não há dados reais)
+                if ml_fees == 0:
+                    ml_fees = total_revenue * 0.10  # 10% estimado
+                if shipping_fees == 0:
+                    shipping_fees = total_revenue * 0.05  # 5% estimado
+                if marketing_cost == 0:
+                    marketing_cost = total_revenue * 0.03  # 3% estimado
+                
+                logger.info(f"💰 Usando dados dos pedidos (fallback):")
+                logger.info(f"   🎯 Marketing: R$ {marketing_cost:.2f}")
+                logger.info(f"   💳 Sale Fees: R$ {ml_fees:.2f}")
+                logger.info(f"   🚚 Shipping: R$ {shipping_fees:.2f}")
             
             # Custo dos produtos (estimado)
             product_cost = total_revenue * 0.40  # 40% estimado
@@ -925,3 +950,45 @@ class AnalyticsController:
             'total_costs': total_revenue * 0.50,
             'total_costs_percent': 50.0
         }
+    
+    def _get_billing_data(self, company_id: int, start_date, end_date) -> Dict:
+        """Busca dados reais de billing do Mercado Livre"""
+        try:
+            from sqlalchemy import text
+            
+            # Buscar dados de billing que se sobrepõem ao período
+            result = self.db.execute(text("""
+                SELECT 
+                    SUM(advertising_cost) as total_advertising_cost,
+                    SUM(sale_fees) as total_sale_fees,
+                    SUM(shipping_fees) as total_shipping_fees,
+                    COUNT(*) as periods_count
+                FROM ml_billing_periods 
+                WHERE company_id = :company_id
+                AND (
+                    (period_from <= :end_date AND period_to >= :start_date)
+                    OR (period_from >= :start_date AND period_from <= :end_date)
+                    OR (period_to >= :start_date AND period_to <= :end_date)
+                )
+            """), {
+                "company_id": company_id,
+                "start_date": start_date,
+                "end_date": end_date
+            })
+            
+            billing_data = result.fetchone()
+            
+            if billing_data and billing_data.periods_count > 0:
+                return {
+                    'total_advertising_cost': float(billing_data.total_advertising_cost or 0),
+                    'total_sale_fees': float(billing_data.total_sale_fees or 0),
+                    'total_shipping_fees': float(billing_data.total_shipping_fees or 0),
+                    'periods_count': billing_data.periods_count
+                }
+            else:
+                logger.info(f"📊 Nenhum dado de billing encontrado para empresa {company_id} no período")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar dados de billing: {e}")
+            return None
