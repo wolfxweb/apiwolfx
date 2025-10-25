@@ -41,6 +41,8 @@ async def get_sales_dashboard_data(
     current_year: Optional[bool] = Query(False),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    month: Optional[int] = Query(None),
+    year: Optional[int] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -74,7 +76,9 @@ async def get_sales_dashboard_data(
             last_month=last_month,
             current_year=current_year,
             date_from=date_from,
-            date_to=date_to
+            date_to=date_to,
+            specific_month=month,
+            specific_year=year
         )
         
         return JSONResponse(content=data)

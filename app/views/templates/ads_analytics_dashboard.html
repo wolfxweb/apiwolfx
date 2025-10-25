@@ -48,101 +48,46 @@
         <!-- Alerts serão inseridos aqui dinamicamente -->
     </div>
 
-    <!-- Filtros de Período Intuitivos -->
+    <!-- Filtro de Período -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    <!-- Filtros Rápidos -->
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <label class="form-label fw-bold mb-2">📅 Filtros Rápidos:</label>
-                            <div class="btn-group" role="group" aria-label="Filtros rápidos">
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('current_month')">
-                                    📅 Este Mês
-                                </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('last_month')">
-                                    ⬅️ Mês Passado
-                                </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('last_3_months')">
-                                    📊 Últimos 3 Meses
-                                </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('last_6_months')">
-                                    📈 Últimos 6 Meses
-                                </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyQuickFilter('current_year')">
-                                    🗓️ Este Ano
-                                </button>
-                            </div>
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <label class="form-label mb-0 fw-bold">Período:</label>
                         </div>
-                    </div>
-                    
-                    <!-- Seletor de Mês/Ano -->
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <label class="form-label fw-bold mb-2">🎯 Mês/Ano Específico:</label>
-                            <div class="row g-2">
-                                <div class="col-auto">
-                                    <select class="form-select form-select-sm" id="month-selector" onchange="applyMonthYearFilter()">
-                                        <option value="">Selecione o mês</option>
-                                        <option value="01">Janeiro</option>
-                                        <option value="02">Fevereiro</option>
-                                        <option value="03">Março</option>
-                                        <option value="04">Abril</option>
-                                        <option value="05">Maio</option>
-                                        <option value="06">Junho</option>
-                                        <option value="07">Julho</option>
-                                        <option value="08">Agosto</option>
-                                        <option value="09">Setembro</option>
-                                        <option value="10">Outubro</option>
-                                        <option value="11">Novembro</option>
-                                        <option value="12">Dezembro</option>
-                                    </select>
-                                </div>
-                                <div class="col-auto">
-                                    <select class="form-select form-select-sm" id="year-selector" onchange="applyMonthYearFilter()">
-                                        <option value="">Selecione o ano</option>
-                                        <option value="2023">2023</option>
-                                        <option value="2024">2024</option>
-                                        <option value="2025" selected>2025</option>
-                                    </select>
-                                </div>
-                                <div class="col-auto">
-                                    <button type="button" class="btn btn-primary btn-sm" onclick="applyMonthYearFilter()">
-                                        🔍 Aplicar
-                                    </button>
-                                </div>
-                            </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="period-selector" onchange="handlePeriodChange()">
+                                <optgroup label="📅 Períodos Específicos">
+                                    <option value="1">Hoje</option>
+                                    <option value="current_month">Mês Atual</option>
+                                    <option value="last_month">Mês Anterior</option>
+                                    <option value="current_year">Ano Atual</option>
+                                </optgroup>
+                                <optgroup label="📊 Últimos Dias">
+                                    <option value="7">Últimos 7 dias</option>
+                                    <option value="15">Últimos 15 dias</option>
+                                    <option value="30" selected>Últimos 30 dias</option>
+                                    <option value="60">Últimos 60 dias</option>
+                                    <option value="90">Últimos 90 dias</option>
+                                </optgroup>
+                                <optgroup label="🎯 Personalizado">
+                                    <option value="custom">Período Personalizado</option>
+                                </optgroup>
+                            </select>
                         </div>
-                    </div>
-                    
-                    <!-- Filtros Personalizados -->
-                    <div class="row">
-                        <div class="col-12">
-                            <label class="form-label fw-bold mb-2">🎯 Período Personalizado:</label>
+                        <!-- Campos de data personalizada (inicialmente ocultos) -->
+                        <div class="col-auto" id="custom-date-fields" style="display: none;">
                             <div class="row g-2">
                                 <div class="col-auto">
                                     <label class="form-label mb-0 small">De:</label>
-                                    <input type="date" class="form-control form-control-sm" id="dateFrom" onchange="applyCustomRange()">
+                                    <input type="date" class="form-control form-control-sm" id="date-from" onchange="loadDashboard()">
                                 </div>
                                 <div class="col-auto">
                                     <label class="form-label mb-0 small">Até:</label>
-                                    <input type="date" class="form-control form-control-sm" id="dateTo" onchange="applyCustomRange()">
+                                    <input type="date" class="form-control form-control-sm" id="date-to" onchange="loadDashboard()">
                                 </div>
-                                <div class="col-auto">
-                                    <button type="button" class="btn btn-success btn-sm" onclick="applyCustomRange()">
-                                        🔍 Aplicar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Período Atual Selecionado -->
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <div class="alert alert-info mb-0" id="current-period-info">
-                                <strong>📅 Período Atual:</strong> <span id="period-display">Últimos 30 dias</span>
                             </div>
                         </div>
                     </div>
@@ -778,49 +723,42 @@ function showAlert(type, message) {
 
 // Lidar com mudança de período
 function handlePeriodChange() {
-    const period = document.getElementById('period_filter').value;
-    const dateFromContainer = document.getElementById('date_from_container');
-    const dateToContainer = document.getElementById('date_to_container');
+    const period = document.getElementById('period-selector').value;
+    const customDateFields = document.getElementById('custom-date-fields');
     
     if (period === 'custom') {
-        dateFromContainer.style.display = 'block';
-        dateToContainer.style.display = 'block';
+        customDateFields.style.display = 'block';
     } else {
-        dateFromContainer.style.display = 'none';
-        dateToContainer.style.display = 'none';
+        customDateFields.style.display = 'none';
+        loadDashboard();
     }
 }
 
 // Carregar dados do dashboard
-function loadDashboardData(page = 1) {
-    currentPage = page;
+function loadDashboard() {
+    const period = document.getElementById('period-selector').value;
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
     
     // Mostrar loading
     showLoading();
     showLoadingSkeleton();
     
-    const urlParams = new URLSearchParams(window.location.search);
+    let apiUrl = '/api/analytics/sales-dashboard';
     
-    const filters = {
-        period: urlParams.get('period') || '30',
-        search: urlParams.get('search') || ''
-    };
-    
-    currentFilters = filters;
-    
-    // Construir URL da API de analytics
-    let apiUrl = `/api/analytics/sales-dashboard?period=${filters.period}`;
-    if (filters.search) apiUrl += `&search=${encodeURIComponent(filters.search)}`;
-    
-    console.log('📊 Carregando dados do dashboard:', apiUrl);
-    
+    if (period === 'custom' && dateFrom && dateTo) {
+        apiUrl += `?date_from=${dateFrom}&date_to=${dateTo}`;
+    } else {
+        apiUrl += `?period=${period}`;
+    }
+
     fetch(apiUrl, {
         credentials: 'include'
     })
     .then(response => {
         // Verificar se não está autenticado
         if (response.status === 401) {
-            console.warn('⚠️ Não autenticado, redirecionando para login...');
+            
             window.location.href = '/login';
             return Promise.reject('not_authenticated');
         }
@@ -830,8 +768,7 @@ function loadDashboardData(page = 1) {
     })
     .then(data => {
         if (data.success) {
-            console.log('✅ Dados carregados:', data);
-            
+
             // Atualizar KPIs com dados reais
             document.getElementById('kpi-revenue').textContent = formatBRL(data.kpis.total_revenue);
             document.getElementById('kpi-quantity').textContent = formatNumber(data.kpis.total_sold);
@@ -876,7 +813,7 @@ function loadDashboardData(page = 1) {
             // Resumo de contas removido - funcionalidade não implementada
             
         } else {
-            console.error('Erro ao carregar dados:', data.error);
+            
             showAlert('danger', 'Erro ao carregar dados do dashboard');
         }
         
@@ -891,8 +828,7 @@ function loadDashboardData(page = 1) {
         if (error === 'not_authenticated') {
             return;
         }
-        
-        console.error('Erro:', error);
+
         showAlert('danger', 'Erro ao carregar dados');
     });
 }
@@ -924,7 +860,7 @@ function loadTopProducts() {
     })
     .catch(error => {
         if (error !== 'not_authenticated') {
-            console.error('Erro ao carregar top produtos:', error);
+            
         }
     });
 }
@@ -948,7 +884,7 @@ function loadAccountsSummary() {
     })
     .catch(error => {
         if (error !== 'not_authenticated') {
-            console.error('Erro ao carregar resumo de contas:', error);
+            
         }
     });
 }
@@ -1024,44 +960,139 @@ function renderProducts(products) {
 // Atualizar custos e margens
 function updateCostsAndMargins(costs, profit, kpis) {
     // Receita Bruta
-    document.getElementById('gross-revenue').textContent = formatBRL(kpis.total_revenue);
+    const grossRevenueEl = document.getElementById('gross-revenue');
+    if (grossRevenueEl) {
+        grossRevenueEl.textContent = formatBRL(kpis.total_revenue);
+    }
     
     // Custos individuais
-    document.getElementById('ml-fees-value').textContent = formatBRL(costs.ml_fees);
-    document.getElementById('ml-fees-percent').textContent = `${costs.ml_fees_percent.toFixed(1)}%`;
+    const mlFeesEl = document.getElementById('ml-fees-value');
+    if (mlFeesEl) {
+        mlFeesEl.textContent = formatBRL(costs.ml_fees);
+    }
     
-    document.getElementById('shipping-fees-value').textContent = formatBRL(costs.shipping_fees);
-    document.getElementById('shipping-fees-percent').textContent = `${costs.shipping_fees_percent.toFixed(1)}%`;
+    const mlFeesPercentEl = document.getElementById('ml-fees-percent');
+    if (mlFeesPercentEl) {
+        mlFeesPercentEl.textContent = `${costs.ml_fees_percent.toFixed(1)}%`;
+    }
     
-    document.getElementById('discounts-value').textContent = formatBRL(costs.discounts);
-    document.getElementById('discounts-percent').textContent = `${costs.discounts_percent.toFixed(1)}%`;
+    const shippingFeesEl = document.getElementById('shipping-fees-value');
+    if (shippingFeesEl) {
+        shippingFeesEl.textContent = formatBRL(costs.shipping_fees);
+    }
     
-    document.getElementById('product-cost-value').textContent = formatBRL(costs.product_cost);
-    document.getElementById('product-cost-percent').textContent = `${costs.product_cost_percent.toFixed(1)}%`;
+    const shippingFeesPercentEl = document.getElementById('shipping-fees-percent');
+    if (shippingFeesPercentEl) {
+        shippingFeesPercentEl.textContent = `${costs.shipping_fees_percent.toFixed(1)}%`;
+    }
     
-    document.getElementById('taxes-value').textContent = formatBRL(costs.taxes);
-    document.getElementById('taxes-percent').textContent = `${costs.taxes_percent.toFixed(1)}%`;
+    const discountsEl = document.getElementById('discounts-value');
+    if (discountsEl) {
+        discountsEl.textContent = formatBRL(costs.discounts);
+    }
+    
+    const discountsPercentEl = document.getElementById('discounts-percent');
+    if (discountsPercentEl) {
+        discountsPercentEl.textContent = `${costs.discounts_percent.toFixed(1)}%`;
+    }
+    
+    const productCostEl = document.getElementById('product-cost-value');
+    if (productCostEl) {
+        productCostEl.textContent = formatBRL(costs.product_cost);
+        console.log('✅ Custo Produtos atualizado:', formatBRL(costs.product_cost));
+    } else {
+        
+    }
+    
+    const productCostPercentEl = document.getElementById('product-cost-percent');
+    if (productCostPercentEl) {
+        productCostPercentEl.textContent = `${costs.product_cost_percent.toFixed(1)}%`;
+    }
+    
+    const taxesEl = document.getElementById('taxes-value');
+    if (taxesEl) {
+        taxesEl.textContent = formatBRL(costs.taxes);
+        console.log('✅ Impostos atualizado:', formatBRL(costs.taxes));
+    } else {
+        
+    }
+    
+    const taxesPercentEl = document.getElementById('taxes-percent');
+    if (taxesPercentEl) {
+        taxesPercentEl.textContent = `${costs.taxes_percent.toFixed(1)}%`;
+    }
     
     // Atualizar detalhamento dos impostos
     updateTaxesBreakdown(costs.taxes_breakdown);
     
-    document.getElementById('other-costs-value').textContent = formatBRL(costs.other_costs);
-    document.getElementById('other-costs-detail').textContent = `${formatBRL(costs.other_costs_per_unit)}/un (${costs.other_costs_percent.toFixed(1)}%)`;
+    const otherCostsEl = document.getElementById('other-costs-value');
+    if (otherCostsEl) {
+        otherCostsEl.textContent = formatBRL(costs.other_costs);
+        console.log('✅ Outros Custos atualizado:', formatBRL(costs.other_costs));
+    } else {
+        
+    }
     
-    document.getElementById('marketing-value').textContent = formatBRL(costs.marketing_cost);
-    document.getElementById('marketing-percent').textContent = `${costs.marketing_percent.toFixed(1)}%`;
+    const otherCostsDetailEl = document.getElementById('other-costs-detail');
+    if (otherCostsDetailEl) {
+        otherCostsDetailEl.textContent = `${formatBRL(costs.other_costs_per_unit)}/un (${costs.other_costs_percent.toFixed(1)}%)`;
+    }
+    
+    const marketingEl = document.getElementById('marketing-value');
+    if (marketingEl) {
+        marketingEl.textContent = formatBRL(costs.marketing_cost);
+        console.log('✅ Marketing atualizado:', formatBRL(costs.marketing_cost));
+    } else {
+        
+    }
+    
+    const marketingPercentEl = document.getElementById('marketing-percent');
+    if (marketingPercentEl) {
+        marketingPercentEl.textContent = `${costs.marketing_percent.toFixed(1)}%`;
+    }
     
     // Total de custos
-    document.getElementById('total-costs-value').textContent = formatBRL(costs.total_costs);
-    document.getElementById('total-costs-percent').textContent = `${costs.total_costs_percent.toFixed(1)}%`;
+    const totalCostsEl = document.getElementById('total-costs-value');
+    if (totalCostsEl) {
+        totalCostsEl.textContent = formatBRL(costs.total_costs);
+        console.log('✅ Total Custos atualizado:', formatBRL(costs.total_costs));
+    } else {
+        
+    }
+    
+    const totalCostsPercentEl = document.getElementById('total-costs-percent');
+    if (totalCostsPercentEl) {
+        totalCostsPercentEl.textContent = `${costs.total_costs_percent.toFixed(1)}%`;
+    }
     
     // Lucro Líquido
-    document.getElementById('net-profit-value').textContent = formatBRL(profit.net_profit);
-    document.getElementById('net-profit-margin').textContent = `${profit.net_margin.toFixed(1)}% margem líquida`;
+    const netProfitEl = document.getElementById('net-profit-value');
+    if (netProfitEl) {
+        netProfitEl.textContent = formatBRL(profit.net_profit);
+        console.log('✅ Lucro Líquido atualizado:', formatBRL(profit.net_profit));
+    } else {
+        
+    }
+    
+    const netProfitMarginEl = document.getElementById('net-profit-margin');
+    if (netProfitMarginEl) {
+        netProfitMarginEl.textContent = `${profit.net_margin.toFixed(1)}% margem líquida`;
+    }
     
     // Lucro Médio por Pedido
-    document.getElementById('avg-profit-value').textContent = formatBRL(profit.avg_profit_per_order);
-    document.getElementById('avg-profit-detail').textContent = `${formatNumber(kpis.total_orders)} pedidos`;
+    const avgProfitEl = document.getElementById('avg-profit-value');
+    if (avgProfitEl) {
+        avgProfitEl.textContent = formatBRL(profit.avg_profit_per_order);
+        console.log('✅ Lucro Médio atualizado:', formatBRL(profit.avg_profit_per_order));
+    } else {
+        
+    }
+    
+    const avgProfitDetailEl = document.getElementById('avg-profit-detail');
+    if (avgProfitDetailEl) {
+        avgProfitDetailEl.textContent = `${formatNumber(kpis.total_orders)} pedidos`;
+    }
+
 }
 
 // Atualizar KPIs
@@ -2020,7 +2051,7 @@ function renderAccountsSummaryReal(accounts) {
         </tr>
     `).join('');
     } catch (error) {
-        console.log('ℹ️ Erro ao renderizar resumo de contas:', error.message);
+        
     }
 }
 
@@ -2088,7 +2119,7 @@ function renderTopProducts(products) {
 // Função antiga de renderizar resumo por conta (mantida para compatibilidade)
 function renderAccountsSummary() {
     // Removida - agora usa renderAccountsSummaryReal
-    console.log('✅ Usando renderAccountsSummaryReal ao invés desta função');
+    
 }
 
 // Atualizar paginação (removida - dashboard mostra todos os produtos filtrados)
@@ -2263,8 +2294,7 @@ function refreshData() {
 
 // Inicializar
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ Dashboard de Vendas carregado');
-    
+
     // Inicializar tooltips do Bootstrap
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -2311,8 +2341,8 @@ function updateTaxesBreakdown(taxesBreakdown) {
 }
 
 // CSS específico para garantir layout responsivo dos KPIs
-const style = document.createElement('style');
-style.textContent = `
+const kpiStyle = document.createElement('style');
+kpiStyle.textContent = `
     /* KPIs em grid responsivo */
     .row.g-3 > [class*="col-"] {
         margin-bottom: 1rem;
@@ -2348,7 +2378,121 @@ style.textContent = `
         justify-content: center;
     }
 `;
-document.head.appendChild(style);
+document.head.appendChild(kpiStyle);
+
+// Configurar mês atual como padrão
+document.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const currentYear = now.getFullYear();
+    
+    // Definir valores padrão
+    document.getElementById('month-selector').value = currentMonth;
+    document.getElementById('year-selector').value = currentYear;
+    
+    // Carregar dashboard inicial
+    loadDashboard();
+});
+
+// Função para aplicar filtros rápidos
+function applyQuickFilter(filterType) {
+    const now = new Date();
+    let days = 30; // Padrão
+    let periodDisplay = 'Últimos 30 dias';
+    
+    switch(filterType) {
+        case 'current_month':
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            days = Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1;
+            periodDisplay = `Este Mês (${now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })})`;
+            break;
+        case 'last_month':
+            const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastMonthLastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+            days = Math.ceil((lastMonthLastDay - lastMonth) / (1000 * 60 * 60 * 24)) + 1;
+            periodDisplay = `Mês Passado (${lastMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })})`;
+            break;
+        case 'last_3_months':
+            days = 90;
+            periodDisplay = 'Últimos 3 Meses';
+            break;
+        case 'last_6_months':
+            days = 180;
+            periodDisplay = 'Últimos 6 Meses';
+            break;
+        case 'current_year':
+            const yearStart = new Date(now.getFullYear(), 0, 1);
+            days = Math.ceil((now - yearStart) / (1000 * 60 * 60 * 24)) + 1;
+            periodDisplay = `Este Ano (${now.getFullYear()})`;
+            break;
+    }
+    
+    // Atualizar display do período
+    document.getElementById('period-display').textContent = periodDisplay;
+    
+    // Carregar dados do dashboard com período customizado
+    loadDashboardData(1, days);
+}
+
+// Função para aplicar filtro de mês/ano
+function applyMonthYearFilter() {
+    const month = document.getElementById('month-selector').value;
+    const year = document.getElementById('year-selector').value;
+    
+    if (!month || !year) {
+        alert('Por favor, selecione o mês e o ano.');
+        return;
+    }
+    
+    // Calcular período do mês selecionado
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0); // Último dia do mês
+    
+    // Atualizar display do período
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    const periodDisplay = `${monthNames[month - 1]} de ${year}`;
+    document.getElementById('period-display').textContent = periodDisplay;
+    
+    // Calcular dias do período
+    const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Carregar dados do dashboard com período customizado
+    loadDashboardData(1, daysDiff, month, year);
+}
+
+// Função para aplicar filtro personalizado
+function applyCustomRange() {
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    
+    if (!dateFrom || !dateTo) {
+        alert('Por favor, selecione as datas de início e fim.');
+        return;
+    }
+    
+    const startDate = new Date(dateFrom);
+    const endDate = new Date(dateTo);
+    
+    if (startDate > endDate) {
+        alert('A data de início deve ser anterior à data de fim.');
+        return;
+    }
+    
+    // Atualizar display do período
+    const periodDisplay = `${startDate.toLocaleDateString('pt-BR')} a ${endDate.toLocaleDateString('pt-BR')}`;
+    document.getElementById('period-display').textContent = periodDisplay;
+    
+    // Calcular dias do período
+    const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Carregar dados do dashboard com período customizado
+    loadDashboardData(1, daysDiff);
+}
 </script>
 
 </div> <!-- Fechamento do container-fluid -->

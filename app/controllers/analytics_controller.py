@@ -22,7 +22,8 @@ class AnalyticsController:
                            period_days: int = 30, search: Optional[str] = None, 
                            current_month: bool = False, last_month: bool = False,
                            current_year: bool = False, date_from: Optional[str] = None,
-                           date_to: Optional[str] = None) -> Dict:
+                           date_to: Optional[str] = None, specific_month: Optional[int] = None,
+                           specific_year: Optional[int] = None) -> Dict:
         """
         Dashboard de vendas com dados reais do banco
         """
@@ -31,7 +32,24 @@ class AnalyticsController:
             
             # Calcular período
             end_date = datetime.now()
-            if current_month:
+            if specific_month and specific_year:
+                # Usar mês e ano específicos
+                if specific_month in [1, 3, 5, 7, 8, 10, 12]:
+                    # Mês com 31 dias
+                    start_date = datetime(specific_year, specific_month, 1)
+                    end_date = datetime(specific_year, specific_month, 31, 23, 59, 59)
+                elif specific_month in [4, 6, 9, 11]:
+                    # Mês com 30 dias
+                    start_date = datetime(specific_year, specific_month, 1)
+                    end_date = datetime(specific_year, specific_month, 30, 23, 59, 59)
+                elif specific_month == 2:
+                    # Fevereiro (28 dias)
+                    start_date = datetime(specific_year, 2, 1)
+                    end_date = datetime(specific_year, 2, 28, 23, 59, 59)
+                else:
+                    start_date = end_date - timedelta(days=period_days)
+                logger.info(f"🎯 Usando mês/ano específico {specific_month}/{specific_year}: {start_date} a {end_date}")
+            elif current_month:
                 start_date = datetime(end_date.year, end_date.month, 1)
             elif last_month:
                 if end_date.month == 1:
@@ -44,24 +62,112 @@ class AnalyticsController:
             elif date_from and date_to:
                 start_date = datetime.strptime(date_from, '%Y-%m-%d')
                 end_date = datetime.strptime(date_to, '%Y-%m-%d')
+            elif period_days in [28, 29, 30, 31]:
+                # Se for um mês completo (28-31 dias), verificar se é um mês específico
+                # Para qualquer mês de 2025, usar datas específicas
+                if end_date.year == 2025:
+                    # Calcular o mês baseado no período
+                    if period_days == 31:
+                        # Mês com 31 dias (Janeiro, Março, Maio, Julho, Agosto, Outubro, Dezembro)
+                        if end_date.month in [1, 3, 5, 7, 8, 10, 12]:
+                            start_date = datetime(2025, end_date.month, 1)
+                            end_date = datetime(2025, end_date.month, 31, 23, 59, 59)
+                            logger.info(f"🎯 Usando datas específicas do mês {end_date.month}/2025: {start_date} a {end_date}")
+                        else:
+                            start_date = end_date - timedelta(days=period_days)
+                            logger.info(f"📅 Usando últimos {period_days} dias: {start_date} a {end_date}")
+                    elif period_days == 30:
+                        # Mês com 30 dias (Abril, Junho, Setembro, Novembro)
+                        if end_date.month in [4, 6, 9, 11]:
+                            start_date = datetime(2025, end_date.month, 1)
+                            end_date = datetime(2025, end_date.month, 30, 23, 59, 59)
+                            logger.info(f"🎯 Usando datas específicas do mês {end_date.month}/2025: {start_date} a {end_date}")
+                        else:
+                            start_date = end_date - timedelta(days=period_days)
+                            logger.info(f"📅 Usando últimos {period_days} dias: {start_date} a {end_date}")
+                    elif period_days == 28:
+                        # Fevereiro (28 dias)
+                        if end_date.month == 2:
+                            start_date = datetime(2025, 2, 1)
+                            end_date = datetime(2025, 2, 28, 23, 59, 59)
+                            logger.info(f"🎯 Usando datas específicas de Fevereiro/2025: {start_date} a {end_date}")
+                        else:
+                            start_date = end_date - timedelta(days=period_days)
+                            logger.info(f"📅 Usando últimos {period_days} dias: {start_date} a {end_date}")
+                    else:
+                        start_date = end_date - timedelta(days=period_days)
+                        logger.info(f"📅 Usando últimos {period_days} dias: {start_date} a {end_date}")
+                else:
+                    start_date = end_date - timedelta(days=period_days)
+                    logger.info(f"📅 Usando últimos {period_days} dias: {start_date} a {end_date}")
             else:
                 start_date = end_date - timedelta(days=period_days)
             
             logger.info(f"📅 Período: {start_date} a {end_date}")
             
-            # Buscar pedidos do período (incluindo cancelados para análise completa)
-            orders_query = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id,
-                MLOrder.date_created >= start_date,
-                MLOrder.date_created <= end_date
-            )
+            # Buscar pedidos do período usando date_approved do pagamento (CORREÇÃO CRÍTICA)
+            from sqlalchemy import text
             
-            # Remover filtro de ml_account_id para pegar todas as contas (igual ao financeiro)
-            # if ml_account_id:
-            #     orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
+            # Consulta otimizada que extrai date_approved do JSON de payments
+            orders_result = self.db.execute(text("""
+                SELECT 
+                    id,
+                    ml_order_id,
+                    order_id,
+                    status,
+                    total_amount,
+                    paid_amount,
+                    date_created,
+                    date_closed,
+                    order_items,
+                    payments
+                FROM ml_orders 
+                WHERE company_id = :company_id
+                AND status IN ('PAID', 'CONFIRMED', 'SHIPPED', 'DELIVERED')
+                AND payments IS NOT NULL
+                AND payments::text != '[]'
+                AND payments::text != '{}'
+                AND (
+                    -- Extrair date_approved do primeiro pagamento e converter para datetime
+                    (payments->0->>'date_approved')::timestamp AT TIME ZONE 'UTC-4' >= :start_date
+                    AND (payments->0->>'date_approved')::timestamp AT TIME ZONE 'UTC-4' <= :end_date
+                )
+                ORDER BY date_created DESC
+            """), {
+                "company_id": company_id,
+                "start_date": start_date,
+                "end_date": end_date
+            })
             
-            orders = orders_query.all()
-            logger.info(f"📊 Encontrados {len(orders)} pedidos")
+            orders_data = orders_result.fetchall()
+            logger.info(f"📊 Encontrados {len(orders_data)} pedidos (usando date_approved)")
+            
+            # Converter para lista de objetos similares ao ORM
+            orders = []
+            for row in orders_data:
+                # Criar um objeto similar ao MLOrder para compatibilidade
+                class OrderData:
+                    def __init__(self, row):
+                        self.id = row.id
+                        self.ml_order_id = row.ml_order_id
+                        self.order_id = row.order_id
+                        self.status = row.status
+                        self.total_amount = row.total_amount
+                        self.paid_amount = row.paid_amount
+                        self.date_created = row.date_created
+                        self.date_closed = row.date_closed
+                        self.order_items = row.order_items
+                        self.payments = row.payments
+                        # Adicionar atributos necessários para compatibilidade
+                        self.mediations = None  # Será preenchido se necessário
+                        self.shipping_cost = 0.0
+                        self.ml_fees = 0.0
+                        self.shipping_fees = 0.0
+                        self.discounts = 0.0
+                        self.marketing_cost = 0.0
+                        self.advertising_cost = 0.0
+                
+                orders.append(OrderData(row))
             
             # Calcular KPIs baseado no status do pedido (sem regra dos 7 dias)
             vendas_brutas = 0  # Vendas sem descontar cancelamentos
@@ -70,7 +176,9 @@ class AnalyticsController:
             
             for order in orders:
                 # Contar vendas brutas (pedidos válidos)
-                if order.status in [OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.SHIPPED, OrderStatus.DELIVERED]:
+                # Verificar se o status é válido (string ou enum)
+                valid_statuses = ['PAID', 'CONFIRMED', 'SHIPPED', 'DELIVERED']
+                if order.status in valid_statuses or str(order.status) in valid_statuses:
                     vendas_brutas += float(order.total_amount or 0)
                     
                     # Contar unidades reais dos itens do pedido
@@ -209,7 +317,7 @@ class AnalyticsController:
                     'total_visits': total_visits,
                     'total_products': len(products)
                 },
-                'costs': self._calculate_costs_with_taxes(company_id, total_revenue, total_orders),
+                'costs': self._calculate_costs_with_taxes(company_id, total_revenue, total_orders, start_date, end_date),
                 'billing': self._get_billing_data(company_id, start_date, end_date) or {},
                 'profit': {
                     'net_profit': total_revenue * 0.50,  # 50% estimado
@@ -423,7 +531,7 @@ class AnalyticsController:
                 'error': str(e)
             }
     
-    def _calculate_costs_with_taxes(self, company_id: int, total_revenue: float, total_orders: int) -> Dict:
+    def _calculate_costs_with_taxes(self, company_id: int, total_revenue: float, total_orders: int, start_date=None, end_date=None) -> Dict:
         """Calcula custos incluindo impostos baseados no cadastro da empresa"""
         try:
             # Buscar dados da empresa
@@ -468,10 +576,14 @@ class AnalyticsController:
                 taxes_amount = self._calculate_lucro_presumido_taxes(company, total_revenue)
                 taxes_percent = (taxes_amount / total_revenue * 100) if total_revenue > 0 else 0
             
-            # Buscar dados reais de billing do Mercado Livre
+            # Buscar dados reais de billing do Mercado Livre para o período específico
             from datetime import datetime, timedelta
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
+            
+            # Usar as datas passadas como parâmetro, ou padrão de 30 dias
+            if start_date is None or end_date is None:
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=30)
+            
             billing_data = self._get_billing_data(company_id, start_date, end_date)
             
             # Usar dados de billing se disponíveis, senão usar dados dos pedidos
@@ -481,6 +593,7 @@ class AnalyticsController:
                 shipping_fees = billing_data.get('total_shipping_fees', 0)
                 marketing_cost = billing_data.get('total_advertising_cost', 0)
                 discounts = 0  # Descontos não estão no billing
+                orders = []  # Inicializar orders como lista vazia
                 
                 logger.info(f"💰 Usando dados reais de billing:")
                 logger.info(f"   🎯 Marketing: R$ {marketing_cost:.2f}")
@@ -491,9 +604,10 @@ class AnalyticsController:
                 from app.models.saas_models import MLOrder, OrderStatus
                 from datetime import datetime, timedelta
                 
-                # Buscar pedidos do período (últimos 30 dias)
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=30)
+                # Buscar pedidos do período (usar as datas passadas como parâmetro)
+                if start_date is None or end_date is None:
+                    end_date = datetime.now()
+                    start_date = end_date - timedelta(days=30)
                 
                 orders = self.db.query(MLOrder).filter(
                     and_(
@@ -965,11 +1079,8 @@ class AnalyticsController:
                     COUNT(*) as periods_count
                 FROM ml_billing_periods 
                 WHERE company_id = :company_id
-                AND (
-                    (period_from <= :end_date AND period_to >= :start_date)
-                    OR (period_from >= :start_date AND period_from <= :end_date)
-                    OR (period_to >= :start_date AND period_to <= :end_date)
-                )
+                AND period_from <= :end_date 
+                AND period_to >= :start_date
             """), {
                 "company_id": company_id,
                 "start_date": start_date,
