@@ -109,6 +109,7 @@ class AnalyticsController:
             from sqlalchemy import text
             
             # Consulta otimizada que extrai date_approved do JSON de payments
+            # Incluir TODOS os pedidos (válidos, cancelados, etc.) para análise completa
             orders_result = self.db.execute(text("""
                 SELECT 
                     id,
@@ -120,17 +121,23 @@ class AnalyticsController:
                     date_created,
                     date_closed,
                     order_items,
-                    payments
+                    payments,
+                    mediations
                 FROM ml_orders 
                 WHERE company_id = :company_id
-                AND status IN ('PAID', 'CONFIRMED', 'SHIPPED', 'DELIVERED')
-                AND payments IS NOT NULL
-                AND payments::text != '[]'
-                AND payments::text != '{}'
                 AND (
-                    -- Extrair date_approved do primeiro pagamento e converter para datetime
-                    (payments->0->>'date_approved')::timestamp AT TIME ZONE 'UTC-4' >= :start_date
-                    AND (payments->0->>'date_approved')::timestamp AT TIME ZONE 'UTC-4' <= :end_date
+                    -- Para pedidos válidos, usar date_approved do pagamento
+                    (status IN ('PAID', 'CONFIRMED', 'SHIPPED', 'DELIVERED') 
+                     AND payments IS NOT NULL 
+                     AND payments::text != '[]' 
+                     AND payments::text != '{}'
+                     AND (payments->0->>'date_approved')::timestamp AT TIME ZONE 'UTC-4' >= :start_date
+                     AND (payments->0->>'date_approved')::timestamp AT TIME ZONE 'UTC-4' <= :end_date)
+                    OR
+                    -- Para pedidos cancelados e outros, usar date_created
+                    (status NOT IN ('PAID', 'CONFIRMED', 'SHIPPED', 'DELIVERED')
+                     AND date_created >= :start_date
+                     AND date_created <= :end_date)
                 )
                 ORDER BY date_created DESC
             """), {
@@ -158,8 +165,8 @@ class AnalyticsController:
                         self.date_closed = row.date_closed
                         self.order_items = row.order_items
                         self.payments = row.payments
+                        self.mediations = row.mediations  # Incluir mediations
                         # Adicionar atributos necessários para compatibilidade
-                        self.mediations = None  # Será preenchido se necessário
                         self.shipping_cost = 0.0
                         self.ml_fees = 0.0
                         self.shipping_fees = 0.0
@@ -198,7 +205,7 @@ class AnalyticsController:
                         total_sold += 1
             
             # Pedidos cancelados
-            cancelled_orders = [o for o in orders if o.status == OrderStatus.CANCELLED]
+            cancelled_orders = [o for o in orders if str(o.status) == 'CANCELLED']
             cancelled_count = len(cancelled_orders)
             cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
             
@@ -1071,6 +1078,7 @@ class AnalyticsController:
             from sqlalchemy import text
             
             # Buscar dados de billing que se sobrepõem ao período
+            # CORREÇÃO: Usar lógica mais simples para encontrar períodos que se sobrepõem
             result = self.db.execute(text("""
                 SELECT 
                     SUM(advertising_cost) as total_advertising_cost,

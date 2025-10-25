@@ -48,7 +48,7 @@
         <!-- Alerts serão inseridos aqui dinamicamente -->
     </div>
 
-    <!-- Filtro de Período -->
+    <!-- Filtro de Mês e Ano -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
@@ -58,37 +58,31 @@
                             <label class="form-label mb-0 fw-bold">Período:</label>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select form-select-sm" id="period-selector" onchange="handlePeriodChange()">
-                                <optgroup label="📅 Períodos Específicos">
-                                    <option value="1">Hoje</option>
-                                    <option value="current_month">Mês Atual</option>
-                                    <option value="last_month">Mês Anterior</option>
-                                    <option value="current_year">Ano Atual</option>
-                                </optgroup>
-                                <optgroup label="📊 Últimos Dias">
-                                    <option value="7">Últimos 7 dias</option>
-                                    <option value="15">Últimos 15 dias</option>
-                                    <option value="30" selected>Últimos 30 dias</option>
-                                    <option value="60">Últimos 60 dias</option>
-                                    <option value="90">Últimos 90 dias</option>
-                                </optgroup>
-                                <optgroup label="🎯 Personalizado">
-                                    <option value="custom">Período Personalizado</option>
-                                </optgroup>
+                            <select class="form-select form-select-sm" id="month-selector" onchange="applyMonthYearFilter()">
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
                             </select>
                         </div>
-                        <!-- Campos de data personalizada (inicialmente ocultos) -->
-                        <div class="col-auto" id="custom-date-fields" style="display: none;">
-                            <div class="row g-2">
-                                <div class="col-auto">
-                                    <label class="form-label mb-0 small">De:</label>
-                                    <input type="date" class="form-control form-control-sm" id="date-from" onchange="loadDashboard()">
-                                </div>
-                                <div class="col-auto">
-                                    <label class="form-label mb-0 small">Até:</label>
-                                    <input type="date" class="form-control form-control-sm" id="date-to" onchange="loadDashboard()">
-                                </div>
-                            </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="year-selector" onchange="applyMonthYearFilter()">
+                                <option value="2023">2023</option>
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026">2026</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <span class="badge bg-primary" id="period-display">Mês Atual</span>
                         </div>
                     </div>
                 </div>
@@ -678,6 +672,30 @@ function showLoadingSkeleton() {
         }
     });
 }
+
+// Função para esconder loading skeleton
+function hideLoadingSkeleton() {
+    // Remover skeleton dos campos de valores
+    const valueFields = [
+        'kpi-revenue', 'kpi-quantity', 
+        'kpi-orders', 'kpi-avg-ticket', 'kpi-visits', 'kpi-conversion',
+        'kpi-cancelled-value', 'kpi-cancelled-count', 'kpi-returns-value', 'kpi-returns-count',
+        // Campos de Custos e Margens
+        'ml-fees-value', 'ml-fees-percent', 'shipping-fees-value', 'shipping-fees-percent',
+        'discounts-value', 'discounts-percent', 'product-cost-value', 'product-cost-percent',
+        'taxes-value', 'taxes-percent', 'other-costs-value', 'other-costs-detail',
+        'marketing-value', 'marketing-percent', 'gross-revenue', 'total-costs-value',
+        'total-costs-percent', 'net-profit-value', 'net-profit-margin', 'avg-profit-value', 'avg-profit-detail'
+    ];
+    
+    // Limpar skeleton dos campos
+    valueFields.forEach(id => {
+        const element = document.getElementById(id);
+        if (element && element.innerHTML.includes('loading-skeleton')) {
+            element.innerHTML = ''; // Será preenchido pelas funções de update
+        }
+    });
+}
 let dashboardCosts = {}; // Armazenar custos do dashboard
 
 // Função para formatar valores em reais (padrão brasileiro)
@@ -721,117 +739,79 @@ function showAlert(type, message) {
 // Carregar contas ML
 // Função loadMLAccounts removida - não é mais necessária
 
-// Lidar com mudança de período
-function handlePeriodChange() {
-    const period = document.getElementById('period-selector').value;
-    const customDateFields = document.getElementById('custom-date-fields');
+// Aplicar filtro de mês e ano
+function applyMonthYearFilter() {
+    const month = document.getElementById('month-selector').value;
+    const year = document.getElementById('year-selector').value;
     
-    if (period === 'custom') {
-        customDateFields.style.display = 'block';
-    } else {
-        customDateFields.style.display = 'none';
-        loadDashboard();
+    if (!month || !year) {
+        alert('Por favor, selecione o mês e o ano.');
+        return;
     }
+    
+    // Atualizar display do período
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    const periodDisplay = `${monthNames[month - 1]} de ${year}`;
+    document.getElementById('period-display').textContent = periodDisplay;
+    
+    // Carregar dados do dashboard com período específico
+    loadDashboardWithMonthYear(month, year);
 }
 
-// Carregar dados do dashboard
-function loadDashboard() {
-    const period = document.getElementById('period-selector').value;
-    const dateFrom = document.getElementById('date-from').value;
-    const dateTo = document.getElementById('date-to').value;
-    
+// Carregar dados do dashboard com mês e ano específicos
+function loadDashboardWithMonthYear(month, year) {
     // Mostrar loading
     showLoading();
     showLoadingSkeleton();
     
-    let apiUrl = '/api/analytics/sales-dashboard';
+    // Construir URL da API com mês e ano
+    const apiUrl = `/api/analytics/sales-dashboard?month=${month}&year=${year}`;
     
-    if (period === 'custom' && dateFrom && dateTo) {
-        apiUrl += `?date_from=${dateFrom}&date_to=${dateTo}`;
-    } else {
-        apiUrl += `?period=${period}`;
-    }
-
     fetch(apiUrl, {
         credentials: 'include'
     })
     .then(response => {
         // Verificar se não está autenticado
         if (response.status === 401) {
-            
             window.location.href = '/login';
             return Promise.reject('not_authenticated');
         }
         
-        // Se não for 401, continuar normalmente
         return response.json();
     })
     .then(data => {
         if (data.success) {
-
-            // Atualizar KPIs com dados reais
-            document.getElementById('kpi-revenue').textContent = formatBRL(data.kpis.total_revenue);
-            document.getElementById('kpi-quantity').textContent = formatNumber(data.kpis.total_sold);
-            document.getElementById('kpi-orders').textContent = formatNumber(data.kpis.total_orders);
-            document.getElementById('kpi-avg-ticket').textContent = formatBRL(data.kpis.avg_ticket);
-            
-            // Atualizar KPIs adicionais
-            document.getElementById('kpi-cancelled-value').textContent = formatBRL(data.kpis.cancelled_value || 0);
-            document.getElementById('kpi-cancelled-count').textContent = formatNumber(data.kpis.cancelled_orders || 0);
-            document.getElementById('kpi-returns-value').textContent = formatBRL(data.kpis.returns_value || 0);
-            document.getElementById('kpi-returns-count').textContent = formatNumber(data.kpis.returns_count || 0);
-            document.getElementById('kpi-visits').textContent = formatNumber(data.kpis.total_visits || 0);
-            
-            // Calcular e exibir taxa de conversão
-            const conversionRate = data.kpis.total_visits > 0 
-                ? ((data.kpis.total_sold / data.kpis.total_visits) * 100).toFixed(2)
-                : 0;
-            document.getElementById('kpi-conversion').textContent = conversionRate + '%';
-            
-            // Atualizar custos e margens
+            updateKPIs(data.kpis);
             updateCostsAndMargins(data.costs, data.profit, data.kpis);
-            
-            // Armazenar custos para cálculo de lucro por produto
-            dashboardCosts = data.costs;
-            
-            // Renderizar análise de Pareto por receita (80/20)
-            renderParetoAnalysis(data.products);
-            
-            // Renderizar análise de Pareto por quantidade (80/20)
-            renderParetoQuantityAnalysis(data.products);
-            
-            // Renderizar análise de Pareto por lucro (80/20)
-            renderParetoProfitAnalysis(data.products, data.kpis, data.costs);
-            
-            // Renderizar análise de produtos com MENOR lucro
-            renderLowProfitAnalysis(data.products, data.kpis, data.costs);
-            
-            // Renderizar top produtos com dados reais
-            loadTopProducts();
-            
-            // Renderizar resumo de contas
-            // Resumo de contas removido - funcionalidade não implementada
-            
+            updateTopProducts(data.top_products);
+            updateCurvaABC(data.curva_abc);
+            hideLoadingSkeleton();
         } else {
-            
-            showAlert('danger', 'Erro ao carregar dados do dashboard');
+            showAlert('error', `Erro ao carregar dados: ${data.error || 'Erro desconhecido'}`);
+            hideLoadingSkeleton();
         }
-        
-        // Esconder loading após processar dados
-        hideLoading();
     })
     .catch(error => {
-        // Esconder loading em caso de erro
-        hideLoading();
-        
-        // Ignorar erro se foi redirecionamento para login
-        if (error === 'not_authenticated') {
-            return;
+        if (error !== 'not_authenticated') {
+            console.error('Erro ao carregar dados:', error);
+            showAlert('error', 'Erro ao carregar dados do dashboard');
         }
-
-        showAlert('danger', 'Erro ao carregar dados');
+        hideLoadingSkeleton();
     });
 }
+
+// Carregar dados do dashboard (função genérica)
+function loadDashboard() {
+    // Usar mês e ano atuais como padrão
+    const month = document.getElementById('month-selector').value;
+    const year = document.getElementById('year-selector').value;
+    loadDashboardWithMonthYear(month, year);
+}
+
 
 // Carregar top produtos com filtros
 function loadTopProducts() {
@@ -1096,26 +1076,66 @@ function updateCostsAndMargins(costs, profit, kpis) {
 }
 
 // Atualizar KPIs
-function updateKPIs(products) {
-    let totalRevenue = 0;
-    let totalSold = 0;
-    let productsWithSales = 0;
+function updateKPIs(kpis) {
+    // Atualizar KPIs com dados já calculados
+    document.getElementById('kpi-revenue').textContent = formatBRL(kpis.total_revenue || 0);
+    document.getElementById('kpi-quantity').textContent = formatNumber(kpis.total_sold || 0);
+    document.getElementById('kpi-orders').textContent = formatNumber(kpis.total_orders || 0);
+    document.getElementById('kpi-avg-ticket').textContent = formatBRL(kpis.avg_ticket || 0);
     
-    products.forEach(product => {
-        const price = parseFloat(product.price) || 0;
-        const soldQty = product.sold_quantity || 0;
-        
-        totalRevenue += price * soldQty;
-        totalSold += soldQty;
-        if (soldQty > 0) productsWithSales++;
-    });
+    // Atualizar KPIs adicionais
+    document.getElementById('kpi-cancelled-value').textContent = formatBRL(kpis.cancelled_value || 0);
+    document.getElementById('kpi-cancelled-count').textContent = formatNumber(kpis.cancelled_orders || 0);
+    document.getElementById('kpi-returns-value').textContent = formatBRL(kpis.returns_value || 0);
+    document.getElementById('kpi-returns-count').textContent = formatNumber(kpis.returns_count || 0);
+    document.getElementById('kpi-visits').textContent = formatNumber(kpis.total_visits || 0);
     
-    const avgTicket = productsWithSales > 0 ? totalRevenue / productsWithSales : 0;
+    // Calcular e exibir taxa de conversão
+    const conversionRate = kpis.total_visits > 0 
+        ? ((kpis.total_sold / kpis.total_visits) * 100).toFixed(2)
+        : 0;
+    document.getElementById('kpi-conversion').textContent = conversionRate + '%';
+}
+
+// Atualizar top produtos
+function updateTopProducts(topProducts) {
+    if (!topProducts) {
+        console.log('updateTopProducts: Nenhum dado de top produtos recebido');
+        return;
+    }
     
-    document.getElementById('kpi-revenue').textContent = formatBRL(totalRevenue);
-    document.getElementById('kpi-quantity').textContent = formatNumber(totalSold);
-    document.getElementById('kpi-orders').textContent = formatNumber(productsWithSales);
-    document.getElementById('kpi-avg-ticket').textContent = formatBRL(avgTicket);
+    // Se topProducts é um array de produtos, usar renderTopProducts
+    if (Array.isArray(topProducts)) {
+        renderTopProducts(topProducts);
+    } 
+    // Se topProducts tem estrutura {top_sold, top_revenue}, usar renderTopProductsReal
+    else if (topProducts.top_sold && topProducts.top_revenue) {
+        renderTopProductsReal(topProducts.top_sold, topProducts.top_revenue);
+    }
+    else {
+        console.log('updateTopProducts: Estrutura de dados não reconhecida:', topProducts);
+    }
+}
+
+// Atualizar curva ABC
+function updateCurvaABC(curvaABC) {
+    if (!curvaABC) {
+        console.log('updateCurvaABC: Nenhum dado de curva ABC recebido');
+        return;
+    }
+    
+    // Se curvaABC tem dados, renderizar análise de Pareto
+    if (curvaABC.pareto_80_revenue && curvaABC.pareto_80_revenue.length > 0) {
+        renderParetoAnalysis(curvaABC.pareto_80_revenue);
+    }
+    
+    if (curvaABC.pareto_80_quantity && curvaABC.pareto_80_quantity.length > 0) {
+        renderParetoQuantityAnalysis(curvaABC.pareto_80_quantity);
+    }
+    
+    if (curvaABC.pareto_80_profit && curvaABC.pareto_80_profit.length > 0) {
+        renderParetoProfitAnalysis(curvaABC.pareto_80_profit);
+    }
 }
 
 // Renderizar top produtos com dados reais da API
@@ -2146,12 +2166,12 @@ function restoreFiltersFromURL() {
     
     const dateFrom = urlParams.get('date_from');
     if (dateFrom) {
-        document.getElementById('dateFrom').value = dateFrom;
+        document.getElementById('date-from').value = dateFrom;
     }
     
     const dateTo = urlParams.get('date_to');
     if (dateTo) {
-        document.getElementById('dateTo').value = dateTo;
+        document.getElementById('date-to').value = dateTo;
     }
 }
 
@@ -2178,8 +2198,8 @@ function applyFilters() {
     };
     
     if (filters.period === 'custom') {
-        filters.date_from = document.getElementById('dateFrom').value;
-        filters.date_to = document.getElementById('dateTo').value;
+        filters.date_from = document.getElementById('date-from').value;
+        filters.date_to = document.getElementById('date-to').value;
     }
     
     // Atualizar URL sem recarregar
@@ -2193,7 +2213,7 @@ function applyFilters() {
     });
     
     window.history.pushState({}, '', url);
-    loadDashboardData(1);
+    loadDashboard();
     loadTopProducts(); // Atualizar Top 10 com os novos filtros
 }
 
@@ -2201,8 +2221,8 @@ function applyFilters() {
 function clearFilters() {
     document.getElementById('periodFilter').value = '30';
     document.getElementById('search_filter').value = '';
-    document.getElementById('dateFrom').value = '';
-    document.getElementById('dateTo').value = '';
+    document.getElementById('date-from').value = '';
+    document.getElementById('date-to').value = '';
     
     // Ocultar período personalizado
     document.getElementById('customPeriodRow').style.display = 'none';
@@ -2212,7 +2232,7 @@ function clearFilters() {
     url.search = '';
     window.history.pushState({}, '', url);
     
-    loadDashboardData(1);
+    loadDashboard();
     loadTopProducts(); // Atualizar Top 10 sem filtros
 }
 
@@ -2288,7 +2308,7 @@ function renderTopProductsReal(topSold, topRevenue) {
 // Atualizar dados
 function refreshData() {
     showAlert('info', '🔄 Atualizando dados...');
-    loadDashboardData(currentPage);
+    loadDashboard();
     loadTopProducts();
 }
 
@@ -2305,7 +2325,7 @@ document.addEventListener('DOMContentLoaded', function() {
     showLoadingSkeleton();
     
     restoreFiltersFromURL();
-    loadDashboardData(1);
+    loadDashboard();
     loadTopProducts(); // Carregar top produtos
 });
 
@@ -2383,12 +2403,20 @@ document.head.appendChild(kpiStyle);
 // Configurar mês atual como padrão
 document.addEventListener('DOMContentLoaded', function() {
     const now = new Date();
-    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const currentMonth = now.getMonth() + 1; // 1-12
     const currentYear = now.getFullYear();
     
     // Definir valores padrão
     document.getElementById('month-selector').value = currentMonth;
     document.getElementById('year-selector').value = currentYear;
+    
+    // Atualizar display do período
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const periodDisplay = `${monthNames[currentMonth - 1]} de ${currentYear}`;
+    document.getElementById('period-display').textContent = periodDisplay;
     
     // Carregar dashboard inicial
     loadDashboard();
@@ -2432,43 +2460,19 @@ function applyQuickFilter(filterType) {
     document.getElementById('period-display').textContent = periodDisplay;
     
     // Carregar dados do dashboard com período customizado
-    loadDashboardData(1, days);
+    loadDashboard();
 }
 
-// Função para aplicar filtro de mês/ano
+// Função para aplicar filtro de mês/ano (simplificada)
 function applyMonthYearFilter() {
-    const month = document.getElementById('month-selector').value;
-    const year = document.getElementById('year-selector').value;
-    
-    if (!month || !year) {
-        alert('Por favor, selecione o mês e o ano.');
-        return;
-    }
-    
-    // Calcular período do mês selecionado
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // Último dia do mês
-    
-    // Atualizar display do período
-    const monthNames = [
-        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-    
-    const periodDisplay = `${monthNames[month - 1]} de ${year}`;
-    document.getElementById('period-display').textContent = periodDisplay;
-    
-    // Calcular dias do período
-    const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-    
-    // Carregar dados do dashboard com período customizado
-    loadDashboardData(1, daysDiff, month, year);
+    // Usar filtro padrão do período
+    loadDashboard();
 }
 
 // Função para aplicar filtro personalizado
 function applyCustomRange() {
-    const dateFrom = document.getElementById('dateFrom').value;
-    const dateTo = document.getElementById('dateTo').value;
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
     
     if (!dateFrom || !dateTo) {
         alert('Por favor, selecione as datas de início e fim.');
@@ -2491,7 +2495,7 @@ function applyCustomRange() {
     const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
     
     // Carregar dados do dashboard com período customizado
-    loadDashboardData(1, daysDiff);
+    loadDashboard();
 }
 </script>
 
