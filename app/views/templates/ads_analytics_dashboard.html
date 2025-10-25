@@ -1752,20 +1752,24 @@ function renderParetoProfitAnalysis(products, kpis, costs) {
         const quantity = product.quantity || 0;
         const revenue = product.revenue || 0;
         const productCost = product.product_cost || 0;
+        const mlFees = product.ml_fees || 0;
+        const shippingCost = product.shipping_cost || 0;
         const marketingCost = product.marketing_cost || 0;
         const otherCosts = product.other_costs || 0;
         const taxesCost = product.taxes || 0;
         const ordersCost = product.cost_per_order || 0;
-        const totalCosts = productCost + marketingCost + otherCosts + taxesCost + ordersCost;
+        const totalCosts = productCost + mlFees + shippingCost + marketingCost + otherCosts + taxesCost + ordersCost;
         
         // Criar tooltip com detalhamento dos custos
         const costTooltip = (product.profit !== null && product.profit !== undefined) ? 
             `CUSTOS TOTAIS:\n` +
             `1. Custo Produto: ${formatBRL(productCost)}\n` +
-            `2. Impostos: ${formatBRL(taxesCost)}\n` +
-            `3. Marketing: ${formatBRL(marketingCost)}\n` +
-            `4. Outros Custos: ${formatBRL(otherCosts)}\n` +
-            `5. Custo por Pedido: ${formatBRL(ordersCost)}\n` +
+            `2. Comissão ML: ${formatBRL(mlFees)}\n` +
+            `3. Frete: ${formatBRL(shippingCost)}\n` +
+            `4. Impostos: ${formatBRL(taxesCost)}\n` +
+            `5. Marketing: ${formatBRL(marketingCost)}\n` +
+            `6. Outros Custos: ${formatBRL(otherCosts)}\n` +
+            `7. Custo por Pedido: ${formatBRL(ordersCost)}\n` +
             `───────────────────\n` +
             `TOTAL: ${formatBRL(totalCosts)}\n\n` +
             `Receita: ${formatBRL(revenue)}\n` +

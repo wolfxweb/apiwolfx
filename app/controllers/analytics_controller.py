@@ -122,7 +122,9 @@ class AnalyticsController:
                     date_closed,
                     order_items,
                     payments,
-                    mediations
+                    mediations,
+                    sale_fees,
+                    shipping_cost
                 FROM ml_orders 
                 WHERE company_id = :company_id
                 AND (
@@ -166,9 +168,10 @@ class AnalyticsController:
                         self.order_items = row.order_items
                         self.payments = row.payments
                         self.mediations = row.mediations  # Incluir mediations
-                        # Adicionar atributos necessários para compatibilidade
-                        self.shipping_cost = 0.0
-                        self.ml_fees = 0.0
+                        # Usar valores reais dos campos do banco (sale_fees é o nome correto no DB)
+                        self.ml_fees = float(row.sale_fees or 0.0)
+                        self.shipping_cost = float(row.shipping_cost or 0.0)
+                        # Adicionar atributos zerados para compatibilidade
                         self.shipping_fees = 0.0
                         self.discounts = 0.0
                         self.marketing_cost = 0.0
@@ -281,6 +284,11 @@ class AnalyticsController:
                         import json
                         items = json.loads(order.order_items) if isinstance(order.order_items, str) else order.order_items
                         if isinstance(items, list):
+                            # Custos do pedido para distribuir proporcionalmente
+                            order_ml_fees = float(order.ml_fees or 0)
+                            order_shipping = float(order.shipping_cost or 0)
+                            order_total_revenue = sum(item.get('quantity', 1) * item.get('unit_price', 0) for item in items)
+                            
                             for item in items:
                                 ml_item_id = item.get('item', {}).get('id')
                                 if ml_item_id:
@@ -288,16 +296,25 @@ class AnalyticsController:
                                         product_sales[ml_item_id] = {
                                             'revenue': 0.0,
                                             'quantity': 0,
-                                            'orders': 0
+                                            'orders': 0,
+                                            'ml_fees': 0.0,
+                                            'shipping_cost': 0.0
                                         }
                                     # Somar receita proporcional do item no pedido
                                     item_quantity = item.get('quantity', 1)
                                     item_unit_price = item.get('unit_price', 0)
                                     item_revenue = item_quantity * item_unit_price
                                     
+                                    # Distribuir custos proporcionalmente pela receita do item
+                                    item_proportion = item_revenue / order_total_revenue if order_total_revenue > 0 else 0
+                                    item_ml_fees = order_ml_fees * item_proportion
+                                    item_shipping = order_shipping * item_proportion
+                                    
                                     product_sales[ml_item_id]['revenue'] += float(item_revenue)
                                     product_sales[ml_item_id]['quantity'] += item_quantity
                                     product_sales[ml_item_id]['orders'] += 1  # 1 pedido por item
+                                    product_sales[ml_item_id]['ml_fees'] += item_ml_fees
+                                    product_sales[ml_item_id]['shipping_cost'] += item_shipping
                     except:
                         # Se não conseguir extrair itens, assumir que o produto principal é o do pedido
                         pass
@@ -378,6 +395,8 @@ class AnalyticsController:
                 revenue = sales_data.get('revenue', 0.0)
                 quantity = sales_data.get('quantity', 0)
                 orders = sales_data.get('orders', 1)
+                ml_fees = sales_data.get('ml_fees', 0.0)
+                shipping_cost = sales_data.get('shipping_cost', 0.0)
                 
                 if revenue > 0:  # Apenas produtos com vendas
                     # Buscar produto interno pelo SKU
@@ -433,8 +452,8 @@ class AnalyticsController:
                             if company.aliquota_cofins_real:
                                 taxes_amount += revenue * (float(company.aliquota_cofins_real) / 100)
                         
-                        # Total de custos
-                        total_costs = product_cost + marketing_cost + other_costs + total_cost_per_order + taxes_amount
+                        # Total de custos (incluindo ML fees e frete)
+                        total_costs = product_cost + ml_fees + shipping_cost + marketing_cost + other_costs + total_cost_per_order + taxes_amount
                         
                         # Lucro bruto
                         profit = revenue - total_costs
@@ -443,6 +462,8 @@ class AnalyticsController:
                         # Adicionar custos detalhados para o frontend
                         cost_details = {
                             'product_cost': product_cost,
+                            'ml_fees': ml_fees,
+                            'shipping_cost': shipping_cost,
                             'marketing_cost': marketing_cost,
                             'other_costs': other_costs,
                             'cost_per_order': total_cost_per_order,
@@ -455,11 +476,13 @@ class AnalyticsController:
                         margin_percent = None
                         cost_details = {
                             'product_cost': 0,
+                            'ml_fees': ml_fees,
+                            'shipping_cost': shipping_cost,
                             'marketing_cost': 0,
                             'other_costs': 0,
                             'cost_per_order': 0,
                             'taxes': 0,
-                            'total_costs': 0
+                            'total_costs': ml_fees + shipping_cost
                         }
                     
                     products_with_sales.append({
