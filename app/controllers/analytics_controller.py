@@ -1078,17 +1078,58 @@ class AnalyticsController:
             from sqlalchemy import text
             
             # Buscar dados de billing que se sobrepõem ao período
-            # CORREÇÃO: Usar lógica mais simples para encontrar períodos que se sobrepõem
+            # CORREÇÃO: Priorizar período mais específico para cada mês
             result = self.db.execute(text("""
+                WITH period_candidates AS (
+                    SELECT 
+                        id,
+                        period_from,
+                        period_to,
+                        advertising_cost,
+                        sale_fees,
+                        shipping_fees,
+                        -- Calcular sobreposição em dias
+                        GREATEST(0, EXTRACT(EPOCH FROM (LEAST(period_to, :end_date) - GREATEST(period_from, :start_date)))) / 86400 as overlap_days,
+                        -- Calcular duração total do período
+                        EXTRACT(EPOCH FROM (period_to - period_from)) / 86400 as total_days,
+                        -- Priorizar períodos que terminam no mês solicitado
+                        CASE 
+                            WHEN EXTRACT(MONTH FROM period_to) = EXTRACT(MONTH FROM :end_date) 
+                                 AND EXTRACT(YEAR FROM period_to) = EXTRACT(YEAR FROM :end_date)
+                            THEN 1 ELSE 0 
+                        END as ends_in_target_month,
+                        -- Priorizar períodos que começam no mês solicitado
+                        CASE 
+                            WHEN EXTRACT(MONTH FROM period_from) = EXTRACT(MONTH FROM :start_date) 
+                                 AND EXTRACT(YEAR FROM period_from) = EXTRACT(YEAR FROM :start_date)
+                            THEN 1 ELSE 0 
+                        END as starts_in_target_month
+                    FROM ml_billing_periods 
+                    WHERE company_id = :company_id
+                    AND period_from <= :end_date 
+                    AND period_to >= :start_date
+                ),
+                ranked_periods AS (
+                    SELECT 
+                        *,
+                        -- Calcular score de prioridade
+                        (ends_in_target_month * 3 + starts_in_target_month * 2 + 
+                         (overlap_days / NULLIF(total_days, 0)) * 1) as priority_score,
+                        ROW_NUMBER() OVER (ORDER BY 
+                            ends_in_target_month DESC,
+                            starts_in_target_month DESC,
+                            overlap_days DESC,
+                            total_days ASC
+                        ) as rn
+                    FROM period_candidates
+                )
                 SELECT 
                     SUM(advertising_cost) as total_advertising_cost,
                     SUM(sale_fees) as total_sale_fees,
                     SUM(shipping_fees) as total_shipping_fees,
                     COUNT(*) as periods_count
-                FROM ml_billing_periods 
-                WHERE company_id = :company_id
-                AND period_from <= :end_date 
-                AND period_to >= :start_date
+                FROM ranked_periods 
+                WHERE rn = 1  -- Apenas o período com maior prioridade
             """), {
                 "company_id": company_id,
                 "start_date": start_date,

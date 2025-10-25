@@ -687,7 +687,7 @@ class AIAnalysisService:
 - (-) Marketing (diluído): R$ {metricas.get('marketing_total', 0):.2f} ({metricas.get('percentual_marketing', 0):.1f}% da receita)
 
 💚 RESULTADO FINAL:
-- Lucro Líquido Final: R$ {metricas.get('lucro_liquido_final', 0):.2f}
+- Lucro Líquido: R$ {metricas.get('lucro_liquido_final', 0):.2f}
 - Margem Líquida: {metricas.get('margem_liquida_percentual', 0):.1f}%
 - Lucro Médio por Pedido: R$ {metricas.get('lucro_medio_por_pedido', 0):.2f}
 
