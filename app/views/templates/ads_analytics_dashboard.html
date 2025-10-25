@@ -385,7 +385,7 @@
             <div class="card">
                 <div class="card-header bg-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">📊 Análise de Pareto - Produtos que Representam 80% do Faturamento</h5>
+                        <h5 class="mb-0">📊 Produtos que Representam 80% do Faturamento</h5>
                         <span class="badge bg-info" id="pareto-products-count">0 produtos</span>
                     </div>
                     <small class="text-muted">Princípio 80/20: poucos produtos geralmente representam a maior parte da receita</small>
@@ -401,7 +401,8 @@
                                             <th>#</th>
                                             <th>Produto</th>
                                             <th class="text-end">Receita</th>
-                                            <th class="text-end">% Acum.</th>
+                                            <th class="text-end">% <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Percentual individual que este produto representa do faturamento total"></i></th>
+                                            <th class="text-end">% Acum. <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Percentual acumulado: soma de todos os produtos anteriores + este produto"></i></th>
                                         </tr>
                                     </thead>
                                     <tbody id="pareto-table-body">
@@ -432,7 +433,7 @@
             <div class="card">
                 <div class="card-header bg-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">📊 Análise de Pareto - Produtos que Representam 15% do Faturamento</h5>
+                        <h5 class="mb-0">📊 Produtos que Representam 15% do Faturamento</h5>
                         <span class="badge bg-warning" id="pareto-15-products-count">0 produtos</span>
                     </div>
                     <small class="text-muted">Produtos de média importância: representam 15% do faturamento total</small>
@@ -481,7 +482,7 @@
             <div class="card">
                 <div class="card-header bg-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">📊 Análise de Pareto - Produtos que Representam 5% do Faturamento</h5>
+                        <h5 class="mb-0">📊 Produtos que Representam 5% do Faturamento</h5>
                         <span class="badge bg-danger" id="pareto-5-products-count">0 produtos</span>
                     </div>
                     <small class="text-muted">Produtos de baixa importância: representam 5% do faturamento total</small>
@@ -530,7 +531,7 @@
             <div class="card">
                 <div class="card-header bg-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">📦 Análise de Pareto - Produtos que Representam 80% da Quantidade Vendida</h5>
+                        <h5 class="mb-0">📦 Produtos que Representam 80% da Quantidade Vendida</h5>
                         <span class="badge bg-success" id="pareto-quantity-count">0 produtos</span>
                     </div>
                     <small class="text-muted">Princípio 80/20: poucos produtos geralmente representam a maior parte das vendas em quantidade</small>
@@ -577,7 +578,7 @@
             <div class="card border-success">
                 <div class="card-header bg-success text-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">💰 Análise de Pareto - Produtos que Mais Geraram Lucro (80%)</h5>
+                        <h5 class="mb-0">💰 Produtos que Mais Geraram Lucro (80%)</h5>
                         <span class="badge bg-light text-success" id="pareto-profit-count">0 produtos</span>
                     </div>
                     <small>Produtos ordenados por lucro líquido (receita - custos)</small>
@@ -1287,16 +1288,19 @@ function renderParetoAnalysis(products) {
     
     for (const product of sortedProducts) {
         const productPercentage = (product.revenue / totalRevenue) * 100;
-        accumulatedPercentage += productPercentage;
+        const newAccumulatedPercentage = accumulatedPercentage + productPercentage;
         
-        paretoProducts.push({
-            ...product,
-            percentage: productPercentage,
-            accumulatedPercentage: accumulatedPercentage
-        });
-        
-        // Parar quando atingir 80%
-        if (accumulatedPercentage >= 80) {
+        // Incluir apenas produtos que NÃO ultrapassam 80%
+        if (newAccumulatedPercentage <= 80) {
+            accumulatedPercentage = newAccumulatedPercentage;
+            paretoProducts.push({
+                ...product,
+                percentage: productPercentage,
+                accumulatedPercentage: accumulatedPercentage
+            });
+        } else {
+            // Se este produto ultrapassar 80%, parar aqui
+            // O produto que ultrapassa vai para o card de 15%
             break;
         }
     }
@@ -1314,7 +1318,11 @@ function renderParetoAnalysis(products) {
             </td>
             <td class="text-end">
                 <strong>${formatBRL(product.revenue)}</strong>
-                <br><small class="text-muted">${product.percentage.toFixed(1)}%</small>
+            </td>
+            <td class="text-end">
+                <span class="badge bg-secondary">
+                    ${product.percentage.toFixed(1)}%
+                </span>
             </td>
             <td class="text-end">
                 <span class="badge ${product.accumulatedPercentage >= 80 ? 'bg-success' : 'bg-info'}">
