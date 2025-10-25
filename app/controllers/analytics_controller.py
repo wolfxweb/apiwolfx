@@ -94,11 +94,7 @@ class AnalyticsController:
             cancelled_count = len(cancelled_orders)
             cancelled_value = sum(float(order.total_amount or 0) for order in cancelled_orders)
             
-            # Receita total = Vendas brutas - Cancelamentos - Devoluções (como no Mercado Livre)
-            total_revenue = vendas_brutas - cancelled_value - returns_value
-            avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
-            
-            # Devoluções (mediations/claims)
+            # Devoluções (mediations/claims) - inicializar antes de usar
             returns_orders = []
             returns_count = 0
             returns_value = 0.0
@@ -113,6 +109,10 @@ class AnalyticsController:
                             returns_value += float(order.total_amount or 0)
                     except:
                         pass
+            
+            # Receita total = Vendas brutas - Cancelamentos - Devoluções (como no Mercado Livre)
+            total_revenue = vendas_brutas - cancelled_value - returns_value
+            avg_ticket = total_revenue / total_orders if total_orders > 0 else 0
             
             # Visitas (buscar da API do Mercado Livre usando TokenManager)
             total_visits = 0
@@ -467,11 +467,40 @@ class AnalyticsController:
                 taxes_amount = self._calculate_lucro_presumido_taxes(company, total_revenue)
                 taxes_percent = (taxes_amount / total_revenue * 100) if total_revenue > 0 else 0
             
-            # Calcular outros custos
-            ml_fees = total_revenue * 0.10  # 10% estimado para comissões ML
-            product_cost = total_revenue * 0.40  # 40% estimado para custo dos produtos
-            other_costs = 0.0  # Outros custos (fretes, descontos, etc.)
-            marketing_cost = 0.0  # Marketing (Product Ads)
+            # Calcular custos reais dos pedidos
+            from app.models.saas_models import MLOrder, OrderStatus
+            from datetime import datetime, timedelta
+            
+            # Buscar pedidos do período (últimos 30 dias)
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)
+            
+            orders = self.db.query(MLOrder).filter(
+                and_(
+                    MLOrder.company_id == company_id,
+                    MLOrder.date_created >= start_date,
+                    MLOrder.date_created <= end_date,
+                    MLOrder.status.in_([OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
+                )
+            ).all()
+            
+            # Calcular custos reais
+            ml_fees = sum(float(order.sale_fees or 0) for order in orders)
+            shipping_fees = sum(float(order.shipping_fees or 0) for order in orders)
+            discounts = sum(float(order.coupon_amount or 0) for order in orders)
+            marketing_cost = sum(float(order.advertising_cost or 0) for order in orders)
+            
+            # Custos estimados (quando não há dados reais)
+            if ml_fees == 0:
+                ml_fees = total_revenue * 0.10  # 10% estimado
+            if shipping_fees == 0:
+                shipping_fees = total_revenue * 0.05  # 5% estimado
+            if marketing_cost == 0:
+                marketing_cost = total_revenue * 0.03  # 3% estimado
+            
+            # Custo dos produtos (estimado)
+            product_cost = total_revenue * 0.40  # 40% estimado
+            other_costs = 0.0  # Outros custos
             
             # Total de custos
             total_costs = ml_fees + product_cost + taxes_amount + other_costs + marketing_cost
@@ -480,23 +509,31 @@ class AnalyticsController:
             # Calcular detalhamento dos impostos
             taxes_breakdown = self._calculate_taxes_breakdown(company, total_revenue)
             
+            # Calcular percentuais
+            ml_fees_percent = (ml_fees / total_revenue * 100) if total_revenue > 0 else 0
+            shipping_fees_percent = (shipping_fees / total_revenue * 100) if total_revenue > 0 else 0
+            discounts_percent = (discounts / total_revenue * 100) if total_revenue > 0 else 0
+            product_cost_percent = (product_cost / total_revenue * 100) if total_revenue > 0 else 0
+            other_costs_percent = (other_costs / total_revenue * 100) if total_revenue > 0 else 0
+            marketing_percent = (marketing_cost / total_revenue * 100) if total_revenue > 0 else 0
+            
             return {
                 'ml_fees': ml_fees,
-                'ml_fees_percent': 10.0,
-                'shipping_fees': 0.0,
-                'shipping_fees_percent': 0.0,
-                'discounts': 0.0,
-                'discounts_percent': 0.0,
+                'ml_fees_percent': ml_fees_percent,
+                'shipping_fees': shipping_fees,
+                'shipping_fees_percent': shipping_fees_percent,
+                'discounts': discounts,
+                'discounts_percent': discounts_percent,
                 'product_cost': product_cost,
-                'product_cost_percent': 40.0,
+                'product_cost_percent': product_cost_percent,
                 'taxes': taxes_amount,
                 'taxes_percent': taxes_percent,
                 'taxes_breakdown': taxes_breakdown,
                 'other_costs': other_costs,
-                'other_costs_percent': 0.0,
-                'other_costs_per_unit': 0.0,
+                'other_costs_percent': other_costs_percent,
+                'other_costs_per_unit': other_costs / len(orders) if orders else 0,
                 'marketing_cost': marketing_cost,
-                'marketing_percent': 0.0,
+                'marketing_percent': marketing_percent,
                 'marketing_per_unit': 0.0,
                 'total_costs': total_costs,
                 'total_costs_percent': total_costs_percent

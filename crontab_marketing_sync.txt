@@ -1,0 +1,22 @@
+# Configuração de cron para sincronização automática de custos de marketing
+# 
+# Para instalar, execute:
+# crontab crontab_marketing_sync.txt
+#
+# Para verificar, execute:
+# crontab -l
+#
+# Para remover, execute:
+# crontab -r
+
+# Sincronização diária - todos os dias às 2h da manhã
+0 2 * * * cd /Users/wolfx/Documents/wolfx/apiwolfx && python scripts/marketing_sync_cron.py daily >> logs/marketing_sync_daily.log 2>&1
+
+# Sincronização semanal - domingos às 3h da manhã (últimos 3 meses)
+0 3 * * 0 cd /Users/wolfx/Documents/wolfx/apiwolfx && python scripts/marketing_sync_cron.py weekly >> logs/marketing_sync_weekly.log 2>&1
+
+# Sincronização mensal - dia 1 de cada mês às 4h da manhã (últimos 6 meses)
+0 4 1 * * cd /Users/wolfx/Documents/wolfx/apiwolfx && python scripts/marketing_sync_cron.py monthly >> logs/marketing_sync_monthly.log 2>&1
+
+# Limpeza de logs antigos - todo dia 1 do mês às 5h
+0 5 1 * * find /Users/wolfx/Documents/wolfx/apiwolfx/logs -name "marketing_sync_*.log" -mtime +30 -delete
