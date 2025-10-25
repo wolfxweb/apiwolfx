@@ -81,9 +81,6 @@
                                 <option value="2026">2026</option>
                             </select>
                         </div>
-                        <div class="col-auto">
-                            <span class="badge bg-primary" id="period-display">Mês Atual</span>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -755,8 +752,6 @@ function applyMonthYearFilter() {
         'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
     ];
     
-    const periodDisplay = `${monthNames[month - 1]} de ${year}`;
-    document.getElementById('period-display').textContent = periodDisplay;
     
     // Carregar dados do dashboard com período específico
     loadDashboardWithMonthYear(month, year);
@@ -2426,8 +2421,6 @@ document.addEventListener('DOMContentLoaded', function() {
         'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
         'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
     ];
-    const periodDisplay = `${monthNames[currentMonth - 1]} de ${currentYear}`;
-    document.getElementById('period-display').textContent = periodDisplay;
     
     // Carregar dashboard inicial
     loadDashboard();
@@ -2467,8 +2460,6 @@ function applyQuickFilter(filterType) {
             break;
     }
     
-    // Atualizar display do período
-    document.getElementById('period-display').textContent = periodDisplay;
     
     // Carregar dados do dashboard com período customizado
     loadDashboard();
@@ -2498,9 +2489,6 @@ function applyCustomRange() {
         return;
     }
     
-    // Atualizar display do período
-    const periodDisplay = `${startDate.toLocaleDateString('pt-BR')} a ${endDate.toLocaleDateString('pt-BR')}`;
-    document.getElementById('period-display').textContent = periodDisplay;
     
     // Calcular dias do período
     const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
