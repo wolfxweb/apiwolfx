@@ -788,7 +788,7 @@ function loadDashboardWithMonthYear(month, year) {
             updateKPIs(data.kpis);
             updateCostsAndMargins(data.costs, data.profit, data.kpis);
             updateTopProducts(data.top_products);
-            updateCurvaABC(data.curva_abc);
+            updateCurvaABC(data.pareto_analysis, data.kpis, data.costs);
             hideLoadingSkeleton();
         } else {
             showAlert('error', `Erro ao carregar dados: ${data.error || 'Erro desconhecido'}`);
@@ -1118,23 +1118,34 @@ function updateTopProducts(topProducts) {
 }
 
 // Atualizar curva ABC
-function updateCurvaABC(curvaABC) {
-    if (!curvaABC) {
-        console.log('updateCurvaABC: Nenhum dado de curva ABC recebido');
+function updateCurvaABC(paretoAnalysis, kpis, costs) {
+    if (!paretoAnalysis) {
+        console.log('updateCurvaABC: Nenhum dado de análise de Pareto recebido');
         return;
     }
     
-    // Se curvaABC tem dados, renderizar análise de Pareto
-    if (curvaABC.pareto_80_revenue && curvaABC.pareto_80_revenue.length > 0) {
-        renderParetoAnalysis(curvaABC.pareto_80_revenue);
+    console.log('updateCurvaABC: Dados recebidos:', paretoAnalysis);
+    
+    // Se paretoAnalysis tem dados, renderizar análise de Pareto
+    if (paretoAnalysis.revenue_80_percent && paretoAnalysis.revenue_80_percent.length > 0) {
+        console.log('updateCurvaABC: Renderizando análise de receita (80%)');
+        renderParetoAnalysis(paretoAnalysis.revenue_80_percent);
     }
     
-    if (curvaABC.pareto_80_quantity && curvaABC.pareto_80_quantity.length > 0) {
-        renderParetoQuantityAnalysis(curvaABC.pareto_80_quantity);
+    if (paretoAnalysis.quantity_80_percent && paretoAnalysis.quantity_80_percent.length > 0) {
+        console.log('updateCurvaABC: Renderizando análise de quantidade (80%)');
+        renderParetoQuantityAnalysis(paretoAnalysis.quantity_80_percent);
     }
     
-    if (curvaABC.pareto_80_profit && curvaABC.pareto_80_profit.length > 0) {
-        renderParetoProfitAnalysis(curvaABC.pareto_80_profit);
+    if (paretoAnalysis.profit_80_percent && paretoAnalysis.profit_80_percent.length > 0) {
+        console.log('updateCurvaABC: Renderizando análise de lucro (80%)');
+        renderParetoProfitAnalysis(paretoAnalysis.profit_80_percent, kpis, costs);
+    }
+    
+    // Renderizar cauda longa (20%)
+    if (paretoAnalysis.tail_20_percent && paretoAnalysis.tail_20_percent.length > 0) {
+        console.log('updateCurvaABC: Renderizando cauda longa (20%)');
+        renderLowProfitAnalysis(paretoAnalysis.tail_20_percent, kpis, costs);
     }
 }
 

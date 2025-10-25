@@ -887,7 +887,7 @@ Por favor, forneça uma análise estruturada DIRETAMENTE EM HTML PURO (sem bloco
       <td><small class="text-muted">{metricas.get('percentual_marketing', 0):.1f}%</small></td>
     </tr>
     <tr class="table-success">
-      <td><strong>(=) Lucro Líquido Final:</strong></td>
+      <td><strong>(=) Lucro Líquido:</strong></td>
       <td><strong>R$ {metricas.get('lucro_liquido_final', 0):.2f}</strong></td>
       <td><strong>{metricas.get('margem_liquida_percentual', 0):.1f}% margem</strong></td>
     </tr>
