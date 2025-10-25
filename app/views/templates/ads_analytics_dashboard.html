@@ -29,9 +29,9 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h1 class="h3 mb-1">📊 Dashboard de Vendas</h1>
+                    <h1 class="h3 mb-1">📊 Dashboard  Mercado Livre </h1>
                     <p class="text-muted mb-0">
-                        Análise completa de performance de todos os produtos
+                        Análise completa de performance de todos os produtos do Mercado Livre
                     </p>
                 </div>
                 <div>
@@ -688,12 +688,13 @@
         <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-header bg-white">
-                    <h5 class="mb-0">💰 Top 10 Maior Receita</h5>
+                    <h5 class="mb-0">⚠️ Top 10 Produtos com Menor Venda</h5>
+                    <small class="text-muted">Produtos com menor receita no período (incluindo produtos sem venda)</small>
                 </div>
                 <div class="card-body">
                     <div class="list-group list-group-flush" id="top-revenue-products">
                         <div class="text-center text-muted py-4">
-                            <i class="bi bi-cash-stack display-4"></i>
+                            <i class="bi bi-exclamation-triangle display-4"></i>
                             <p class="mt-2">Carregando ranking...</p>
                         </div>
                     </div>
@@ -2039,6 +2040,35 @@ function renderLowProfitAnalysis(products, kpis, costs) {
             statusText = 'BAIXO';
         }
         
+        // Calcular custos detalhados para o tooltip
+        const quantity = product.quantity || 0;
+        const revenue = product.revenue || 0;
+        const productCost = product.product_cost || 0;
+        const mlFees = product.ml_fees || 0;
+        const shippingCost = product.shipping_cost || 0;
+        const marketingCost = product.marketing_cost || 0;
+        const otherCosts = product.other_costs || 0;
+        const taxesCost = product.taxes || 0;
+        const ordersCost = product.cost_per_order || 0;
+        const totalCosts = productCost + mlFees + shippingCost + marketingCost + otherCosts + taxesCost + ordersCost;
+        
+        // Criar tooltip com detalhamento dos custos
+        const costTooltip = (product.profit !== null && product.profit !== undefined) ? 
+            `CUSTOS TOTAIS:\n` +
+            `1. Custo Produto: ${formatBRL(productCost)}\n` +
+            `2. Comissão ML: ${formatBRL(mlFees)}\n` +
+            `3. Frete: ${formatBRL(shippingCost)}\n` +
+            `4. Impostos: ${formatBRL(taxesCost)}\n` +
+            `5. Marketing: ${formatBRL(marketingCost)}\n` +
+            `6. Outros Custos: ${formatBRL(otherCosts)}\n` +
+            `7. Custo por Pedido: ${formatBRL(ordersCost)}\n` +
+            `───────────────────\n` +
+            `TOTAL: ${formatBRL(totalCosts)}\n\n` +
+            `Receita: ${formatBRL(revenue)}\n` +
+            `Lucro: ${formatBRL(product.profit)}\n` +
+            `Margem: ${product.margin.toFixed(1)}%` : 
+            'Custos não disponíveis';
+        
         return `
         <tr class="${product.profit < 0 ? 'table-danger' : product.accumulatedPercentage <= 80 ? 'table-warning' : ''}">
             <td><span class="badge ${statusBadge}">${index + 1}</span></td>
@@ -2057,6 +2087,12 @@ function renderLowProfitAnalysis(products, kpis, costs) {
                 <span class="badge ${product.margin < 10 ? 'bg-danger' : 'bg-warning'}">
                     ${product.margin.toFixed(1)}%
                 </span>
+                <i class="bi bi-info-circle ms-1 text-primary" 
+                   style="cursor: help;" 
+                   data-bs-toggle="tooltip" 
+                   data-bs-placement="left"
+                   data-bs-html="true"
+                   title="${costTooltip.replace(/\n/g, '<br>')}"></i>
             </td>
             <td class="text-center">
                 <span class="badge ${statusBadge}">
@@ -2078,6 +2114,12 @@ function renderLowProfitAnalysis(products, kpis, costs) {
     // Atualizar contador
     let countText = `${lowRevenueProducts.length} produtos (${percentOfTotal}% do total - representam 20% do faturamento)`;
     document.getElementById('low-profit-count').textContent = countText;
+    
+    // Inicializar tooltips Bootstrap
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
     
     // Renderizar gráfico
     renderLowProfitChart(lowRevenueProducts);
@@ -2219,27 +2261,33 @@ function renderTopProductsReal(topSold, topRevenue) {
         </div>
     `).join('') : '<div class="text-center text-muted py-3">Nenhum produto vendido</div>';
     
-    // Top receita
+    // Top 10 produtos com MENOR receita (incluindo produtos sem venda)
     const topRevenueContainer = document.getElementById('top-revenue-products');
-    topRevenueContainer.innerHTML = topRevenue.length > 0 ? topRevenue.map((product, index) => `
+    topRevenueContainer.innerHTML = topRevenue.length > 0 ? topRevenue.map((product, index) => {
+        const statusBadge = product.revenue === 0 ? 'bg-danger' : product.revenue < 50 ? 'bg-warning' : 'bg-secondary';
+        const statusText = product.revenue === 0 ? 'SEM VENDA' : 'BAIXA VENDA';
+        
+        return `
         <div class="list-group-item">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
-                    <span class="badge bg-success rounded-circle me-2" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+                    <span class="badge ${statusBadge} rounded-circle me-2" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
                         ${index + 1}
                     </span>
                     <div>
                         <div class="fw-medium">${product.title.substring(0, 40)}...</div>
-                        <small class="text-muted">${product.quantity} vendidos</small>
+                        <small class="text-muted">${product.ml_item_id}</small>
+                        <br><span class="badge ${statusBadge} badge-sm">${statusText}</span>
                     </div>
                 </div>
                 <div class="text-end">
-                    <div class="fw-bold text-success">${formatBRL(product.revenue)}</div>
-                    <small class="text-muted">@ ${formatBRL(product.price)}</small>
+                    <div class="fw-bold ${product.revenue === 0 ? 'text-danger' : 'text-warning'}">${formatBRL(product.revenue)}</div>
+                    <small class="text-muted">${product.quantity} vendidos @ ${formatBRL(product.price)}</small>
                 </div>
             </div>
         </div>
-    `).join('') : '<div class="text-center text-muted py-3">Nenhuma receita gerada</div>';
+        `;
+    }).join('') : '<div class="text-center text-muted py-3">Todos os produtos tiveram vendas!</div>';
 }
 
 // Renderizar resumo de contas com dados reais
@@ -2311,36 +2359,42 @@ function renderTopProducts(products) {
         </div>
     `).join('') : '<div class="text-center text-muted py-3">Nenhum produto vendido</div>';
     
-    // Top receita
+    // Top 10 produtos com MENOR receita (incluindo produtos sem venda)
     const topRevenue = [...products]
         .map(p => ({
             ...p,
             revenue: (parseFloat(p.price) || 0) * (p.quantity || 0)
         }))
-        .filter(p => p.revenue > 0)
-        .sort((a, b) => b.revenue - a.revenue)
+        // NÃO filtrar produtos com receita zero - queremos incluí-los!
+        .sort((a, b) => a.revenue - b.revenue) // Ordenar do MENOR para o MAIOR
         .slice(0, 10);
     
     const topRevenueContainer = document.getElementById('top-revenue-products');
-    topRevenueContainer.innerHTML = topRevenue.length > 0 ? topRevenue.map((product, index) => `
+    topRevenueContainer.innerHTML = topRevenue.length > 0 ? topRevenue.map((product, index) => {
+        const statusBadge = product.revenue === 0 ? 'bg-danger' : product.revenue < 50 ? 'bg-warning' : 'bg-secondary';
+        const statusText = product.revenue === 0 ? 'SEM VENDA' : 'BAIXA VENDA';
+        
+        return `
         <div class="list-group-item">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
-                    <span class="badge bg-success rounded-circle me-2" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+                    <span class="badge ${statusBadge} rounded-circle me-2" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
                         ${index + 1}
                     </span>
                     <div>
                         <div class="fw-medium">${product.title.substring(0, 40)}...</div>
-                        <small class="text-muted">${product.quantity} vendidos</small>
+                        <small class="text-muted">${product.ml_item_id || 'N/A'}</small>
+                        <br><span class="badge ${statusBadge} badge-sm">${statusText}</span>
                     </div>
                 </div>
                 <div class="text-end">
-                    <div class="fw-bold text-success">R$ ${product.revenue.toFixed(2)}</div>
-                    <small class="text-muted">@ R$ ${parseFloat(product.price).toFixed(2)}</small>
+                    <div class="fw-bold ${product.revenue === 0 ? 'text-danger' : 'text-warning'}">R$ ${product.revenue.toFixed(2)}</div>
+                    <small class="text-muted">${product.quantity} vendidos @ R$ ${parseFloat(product.price).toFixed(2)}</small>
                 </div>
             </div>
         </div>
-    `).join('') : '<div class="text-center text-muted py-3">Nenhuma receita gerada</div>';
+        `;
+    }).join('') : '<div class="text-center text-muted py-3">Todos os produtos tiveram vendas!</div>';
 }
 
 // Renderizar análise de Pareto 15%
