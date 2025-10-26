@@ -151,10 +151,12 @@
 7. ✅ Formatação de moeda brasileira
 8. ✅ Auto-refresh a cada 5 minutos
 
-### FASE 4: Gráficos (30 min) - PENDENTE
-1. ❌ Adicionar Chart.js
-2. ❌ Gráfico de investimento mensal
-3. ❌ Gráfico de ROAS por campanha
+### ✅ FASE 4: Gráficos (CONCLUÍDO - 26/10/2025)
+1. ✅ Adicionar Chart.js
+2. ✅ Gráfico de investimento vs retorno (com filtro de período)
+3. ✅ Gráfico de ROAS por campanha (top 5)
+4. ✅ Correção: barras lado a lado (não empilhadas)
+5. ✅ Sincronização com filtros de período
 
 ### FASE 5: Alertas (20 min) - PENDENTE
 1. ✅ Service de alertas (já existe)
@@ -165,15 +167,49 @@
 
 ## 📈 PROGRESSO ATUALIZADO
 
-**Total concluído:** ~70%
+**Total concluído:** ~85%
 
 ```
 Backend:        ████████████████████ 100% ✅
 API Routes:     ████████████████████ 100% ✅
 Database:       ████████████████████ 100% ✅
 Frontend JS:    ████████████████████ 100% ✅
-Gráficos:       ░░░░░░░░░░░░░░░░░░░░   0% ⏳
+Gráficos:       ████████████████████ 100% ✅ (26/10/2025)
+Filtros:        ████████████████████ 100% ✅ (26/10/2025)
 Alertas:        ██████████░░░░░░░░░░  50% ⏳
 ```
 
-## 📋 TEMPO ESTIMADO RESTANTE: ~50 min
+## 📋 TEMPO ESTIMADO RESTANTE: ~20 min (apenas alertas)
+
+---
+
+## 🐛 CORREÇÕES APLICADAS
+
+### 🔧 Correção #1: Gráfico "Investimento vs Retorno" não exibia barra de receita
+**Data:** 26/10/2025  
+**Problema:** Ao acessar a página de publicidade, o gráfico mostrava apenas a barra de investimento, mas a barra de retorno (receita) não aparecia.
+
+**Causa Raiz:**
+1. Função `updateCharts()` não usava filtros de período (sempre buscava padrão)
+2. Gráfico somava `total_spent` e `total_revenue` das campanhas (totais acumulados)
+3. Não estava sincronizado com os filtros de período selecionados
+4. Faltava configuração explícita `stacked: false` no Chart.js
+
+**Solução:**
+```javascript
+// Antes:
+fetch('/ml/advertising/metrics') // sem parâmetros
+totalInvestment += c.total_spent // somava das campanhas
+
+// Depois:
+const { dateFrom, dateTo } = getPeriodParams();
+fetch(`/ml/advertising/metrics?date_from=${dateFrom}&date_to=${dateTo}`)
+investmentChart.data.datasets[0].data = [metrics.total_investment]
+investmentChart.data.datasets[1].data = [metrics.total_revenue]
+```
+
+**Arquivos modificados:**
+- `app/views/templates/ml_advertising.html` (updateCharts e initCharts)
+
+**Status:** ✅ Resolvido  
+**Resultado:** Gráfico agora exibe ambas as barras lado a lado, sincronizado com filtros de período

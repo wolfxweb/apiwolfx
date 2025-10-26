@@ -571,33 +571,41 @@ function initCharts() {
         investmentChart = new Chart(investmentCtx, {
             type: 'bar',
             data: {
-                labels: [],
+                labels: ['Período'],
                 datasets: [
                     {
                         label: 'Investimento',
-                        data: [],
-                        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                        data: [0],
+                        backgroundColor: 'rgba(255, 99, 132, 0.7)',
                         borderColor: 'rgba(255, 99, 132, 1)',
-                        borderWidth: 1
+                        borderWidth: 2
                     },
                     {
-                        label: 'Retorno',
-                        data: [],
-                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        label: 'Retorno (Receita)',
+                        data: [0],
+                        backgroundColor: 'rgba(75, 192, 192, 0.7)',
                         borderColor: 'rgba(75, 192, 192, 1)',
-                        borderWidth: 1
+                        borderWidth: 2
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 scales: {
+                    x: {
+                        stacked: false,
+                    },
                     y: {
+                        stacked: false,
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return 'R$ ' + value.toFixed(2);
+                                return 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                             }
                         }
                     }
@@ -680,10 +688,11 @@ function initCharts() {
 async function updateCharts() {
     try {
         const token = getCookie('session_token');
+        const { dateFrom, dateTo } = getPeriodParams();
         
-        // Buscar dados de métricas e campanhas
+        // Buscar dados de métricas com filtro de período
         const [metricsRes, campaignsRes] = await Promise.all([
-            fetch('/ml/advertising/metrics', {
+            fetch(`/ml/advertising/metrics?date_from=${dateFrom}&date_to=${dateTo}`, {
                 headers: { 'Cookie': `session_token=${token}` }
             }),
             fetch('/ml/advertising/campaigns', {
@@ -694,37 +703,35 @@ async function updateCharts() {
         const metricsData = await metricsRes.json();
         const campaignsData = await campaignsRes.json();
         
-        // Atualizar gráfico de Investimento vs Retorno com dados das campanhas
-        if (campaignsData.success && campaignsData.campaigns && investmentChart) {
-            const campaigns = campaignsData.campaigns;
+        // Atualizar gráfico de Investimento vs Retorno com dados agregados do período
+        if (metricsData.success && metricsData.metrics && investmentChart) {
+            const metrics = metricsData.metrics;
+            const periodLabel = document.getElementById('period-display').textContent || 'Período selecionado';
             
-            // Somar investimento e retorno de todas as campanhas
-            let totalInvestment = 0;
-            let totalRevenue = 0;
-            
-            campaigns.forEach(c => {
-                totalInvestment += c.total_spent || 0;
-                totalRevenue += c.total_revenue || 0;
-            });
-            
-            investmentChart.data.labels = ['Últimos 30 dias'];
-            investmentChart.data.datasets[0].data = [totalInvestment];
-            investmentChart.data.datasets[1].data = [totalRevenue];
+            investmentChart.data.labels = [periodLabel];
+            investmentChart.data.datasets[0].data = [metrics.total_investment || 0];
+            investmentChart.data.datasets[1].data = [metrics.total_revenue || 0];
             investmentChart.update();
+            
+            console.log('📊 Gráfico atualizado:', {
+                periodo: periodLabel,
+                investimento: metrics.total_investment,
+                receita: metrics.total_revenue
+            });
         }
         
-        // Atualizar gráfico de ROAS por campanha
-        if (campaignsData.success && campaignsData.campaigns) {
+        // Atualizar gráfico de ROAS por campanha (usa dados completos das campanhas)
+        if (campaignsData.success && campaignsData.campaigns && roasChart) {
             const campaigns = campaignsData.campaigns
                 .filter(c => c.roas && c.roas > 0)
                 .sort((a, b) => b.roas - a.roas)
                 .slice(0, 5); // Top 5 campanhas
             
-            if (roasChart && campaigns.length > 0) {
+            if (campaigns.length > 0) {
                 roasChart.data.labels = campaigns.map(c => c.name || 'N/A');
                 roasChart.data.datasets[0].data = campaigns.map(c => c.roas || 0);
                 roasChart.update();
-            } else if (roasChart) {
+            } else {
                 // Se não houver campanhas com ROAS, mostrar mensagem
                 roasChart.data.labels = ['Sem dados'];
                 roasChart.data.datasets[0].data = [0];
