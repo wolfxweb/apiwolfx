@@ -651,6 +651,15 @@ class MLOrder(Base):
     cash_entry_amount = Column(Numeric(10, 2))  # Valor lançado no caixa
     cash_entry_account_id = Column(Integer, ForeignKey("financial_accounts.id"))  # Conta onde foi lançado
     
+    # === NOTA FISCAL ===
+    invoice_emitted = Column(Boolean, default=False, index=True)  # Se a NF foi emitida
+    invoice_emitted_at = Column(DateTime)  # Data de emissão da NF
+    invoice_number = Column(String(50))  # Número da NF
+    invoice_series = Column(String(10))  # Série da NF
+    invoice_key = Column(String(44))  # Chave de acesso da NF
+    invoice_xml_url = Column(String(500))  # URL do XML da NF
+    invoice_pdf_url = Column(String(500))  # URL do PDF da NF (DANFE)
+    
     # === TIMESTAMPS ===
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

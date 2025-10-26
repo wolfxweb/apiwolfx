@@ -1,0 +1,778 @@
+{% extends "base.html" %}
+
+{% block title %}Expedição de Produtos{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">
+                    <i class="bi bi-box-seam"></i> Expedição de Produtos
+                </h1>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" onclick="loadStats()">
+                        <i class="bi bi-arrow-clockwise"></i> Atualizar Stats
+                    </button>
+                    <button class="btn btn-primary" onclick="syncInvoices()">
+                        <i class="bi bi-arrow-clockwise"></i> Sincronizar Notas Fiscais
+                    </button>
+                </div>
+            </div>
+
+            <!-- Estatísticas -->
+            <div class="row mb-4" id="stats-container">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Total de Pedidos</h6>
+                                    <h3 class="mb-0" id="total-orders">-</h3>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-box-seam fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Com Nota Fiscal</h6>
+                                    <h3 class="mb-0" id="orders-with-invoice">-</h3>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-file-earmark-text fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Sem Nota Fiscal</h6>
+                                    <h3 class="mb-0" id="orders-without-invoice">-</h3>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-file-earmark-x fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">% Emitidas</h6>
+                                    <h3 class="mb-0" id="invoice-percentage">-</h3>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-percent fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label">Empresa</label>
+                            <select class="form-select" id="company-filter">
+                                <option value="">Todas as empresas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Status da Nota Fiscal</label>
+                            <select class="form-select" id="invoice-status-filter">
+                                <option value="">Todas</option>
+                                <option value="emitted">Com Nota</option>
+                                <option value="pending">Sem Nota</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Buscar</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="search-input" placeholder="ID do pedido, comprador...">
+                                <button class="btn btn-outline-secondary" onclick="loadOrders()">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs por Status -->
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" id="status-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab">
+                                Pendentes <span class="badge bg-secondary ms-1" id="pending-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed" type="button" role="tab">
+                                Confirmados <span class="badge bg-secondary ms-1" id="confirmed-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="paid-tab" data-bs-toggle="tab" data-bs-target="#paid" type="button" role="tab">
+                                Pagos <span class="badge bg-secondary ms-1" id="paid-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="shipped-tab" data-bs-toggle="tab" data-bs-target="#shipped" type="button" role="tab">
+                                Enviados <span class="badge bg-secondary ms-1" id="shipped-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="delivered-tab" data-bs-toggle="tab" data-bs-target="#delivered" type="button" role="tab">
+                                Entregues <span class="badge bg-secondary ms-1" id="delivered-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="cancelled-tab" data-bs-toggle="tab" data-bs-target="#cancelled" type="button" role="tab">
+                                Cancelados <span class="badge bg-secondary ms-1" id="cancelled-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="refunded-tab" data-bs-toggle="tab" data-bs-target="#refunded" type="button" role="tab">
+                                Reembolsados <span class="badge bg-secondary ms-1" id="refunded-count">0</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content" id="status-tab-content">
+                        <!-- Tab Pendentes -->
+                        <div class="tab-pane fade show active" id="pending" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID ML</th>
+                                            <th>Comprador</th>
+                                            <th>Data</th>
+                                            <th>Valor</th>
+                                            <th>Nota Fiscal</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pending-orders">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="bi bi-hourglass-split"></i> Carregando...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Tab Confirmados -->
+                        <div class="tab-pane fade" id="confirmed" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID ML</th>
+                                            <th>Comprador</th>
+                                            <th>Data</th>
+                                            <th>Valor</th>
+                                            <th>Nota Fiscal</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="confirmed-orders">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="bi bi-hourglass-split"></i> Carregando...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Tab Pagos -->
+                        <div class="tab-pane fade" id="paid" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID ML</th>
+                                            <th>Comprador</th>
+                                            <th>Data</th>
+                                            <th>Valor</th>
+                                            <th>Nota Fiscal</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paid-orders">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="bi bi-hourglass-split"></i> Carregando...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Tab Enviados -->
+                        <div class="tab-pane fade" id="shipped" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID ML</th>
+                                            <th>Comprador</th>
+                                            <th>Data</th>
+                                            <th>Valor</th>
+                                            <th>Nota Fiscal</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="shipped-orders">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="bi bi-hourglass-split"></i> Carregando...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Tab Entregues -->
+                        <div class="tab-pane fade" id="delivered" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID ML</th>
+                                            <th>Comprador</th>
+                                            <th>Data</th>
+                                            <th>Valor</th>
+                                            <th>Nota Fiscal</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="delivered-orders">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="bi bi-hourglass-split"></i> Carregando...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Tab Cancelados -->
+                        <div class="tab-pane fade" id="cancelled" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID ML</th>
+                                            <th>Comprador</th>
+                                            <th>Data</th>
+                                            <th>Valor</th>
+                                            <th>Nota Fiscal</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cancelled-orders">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="bi bi-hourglass-split"></i> Carregando...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Tab Reembolsados -->
+                        <div class="tab-pane fade" id="refunded" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID ML</th>
+                                            <th>Comprador</th>
+                                            <th>Data</th>
+                                            <th>Valor</th>
+                                            <th>Nota Fiscal</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="refunded-orders">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="bi bi-hourglass-split"></i> Carregando...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Progresso -->
+<div class="modal fade" id="progressModal" tabindex="-1" aria-labelledby="progressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="progressModalLabel">Sincronizando Notas Fiscais</h5>
+            </div>
+            <div class="modal-body">
+                <div class="progress mb-3">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" id="progress-bar"></div>
+                </div>
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+                <p class="text-center mt-3 mb-0" id="progress-text">Iniciando sincronização...</p>
+                <div class="mt-3" id="progress-details" style="display: none;">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="text-success">
+                                <i class="bi bi-check-circle"></i>
+                                <div class="fw-bold" id="updated-count">0</div>
+                                <small>Atualizados</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-info">
+                                <i class="bi bi-info-circle"></i>
+                                <div class="fw-bold" id="synced-count">0</div>
+                                <small>Já Sincronizados</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-primary">
+                                <i class="bi bi-list"></i>
+                                <div class="fw-bold" id="total-count">0</div>
+                                <small>Total</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentCompanyId = null;
+
+// Carregar dados iniciais
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadOrders();
+});
+
+// Carregar estatísticas
+async function loadStats() {
+    try {
+        const response = await fetch('/api/shipments/stats', {
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('total-orders').textContent = data.total_orders;
+            document.getElementById('orders-with-invoice').textContent = data.orders_with_invoice;
+            document.getElementById('orders-without-invoice').textContent = data.orders_without_invoice;
+            document.getElementById('invoice-percentage').textContent = data.invoice_percentage + '%';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar estatísticas:', error);
+    }
+}
+
+// Carregar pedidos
+async function loadOrders() {
+    console.log('🔄 Carregando pedidos...');
+    
+    try {
+        const url = `/api/shipments/pending?invoice_status=all&search=&page=1&limit=1000`;
+        console.log('📡 URL:', url);
+        
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        console.log('📊 Status:', response.status);
+        
+        if (response.status === 401) {
+            console.log('🔒 Usuário não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        console.log('📦 Dados recebidos:', data);
+        
+        if (data.success) {
+            console.log('✅ Sucesso! Total de pedidos:', data.orders.length);
+            
+            // Separar pedidos por status
+            const ordersByStatus = {
+                'PENDING': [],
+                'CONFIRMED': [],
+                'PAID': [],
+                'SHIPPED': [],
+                'DELIVERED': [],
+                'CANCELLED': [],
+                'REFUNDED': []
+            };
+            
+            data.orders.forEach(order => {
+                console.log('📋 Pedido:', order.order_id, 'Status:', order.status);
+                
+                // Mapear status para as tabs
+                let tabKey = null;
+                switch(order.status) {
+                    case 'PENDING':
+                        tabKey = 'PENDING';
+                        break;
+                    case 'CONFIRMED':
+                        tabKey = 'CONFIRMED';
+                        break;
+                    case 'PAID':
+                        tabKey = 'PAID';
+                        break;
+                    case 'SHIPPED':
+                        tabKey = 'SHIPPED';
+                        break;
+                    case 'DELIVERED':
+                        tabKey = 'DELIVERED';
+                        break;
+                    case 'CANCELLED':
+                        tabKey = 'CANCELLED';
+                        break;
+                    case 'REFUNDED':
+                        tabKey = 'REFUNDED';
+                        break;
+                    default:
+                        console.log('⚠️ Status não mapeado:', order.status);
+                        tabKey = 'PENDING';
+                }
+                
+                if (tabKey && ordersByStatus[tabKey]) {
+                    ordersByStatus[tabKey].push(order);
+                }
+            });
+            
+            // Log de todos os status únicos encontrados
+            const uniqueStatuses = [...new Set(data.orders.map(o => o.status))];
+            console.log('📊 Status únicos encontrados:', uniqueStatuses);
+            
+            console.log('📊 Pedidos por status:', ordersByStatus);
+            
+            // Renderizar cada tab
+            renderOrdersByStatus('pending', ordersByStatus['PENDING']);
+            renderOrdersByStatus('confirmed', ordersByStatus['CONFIRMED']);
+            renderOrdersByStatus('paid', ordersByStatus['PAID']);
+            renderOrdersByStatus('shipped', ordersByStatus['SHIPPED']);
+            renderOrdersByStatus('delivered', ordersByStatus['DELIVERED']);
+            renderOrdersByStatus('cancelled', ordersByStatus['CANCELLED']);
+            renderOrdersByStatus('refunded', ordersByStatus['REFUNDED']);
+            
+            // Atualizar contadores das tabs
+            updateStatusCounts(ordersByStatus);
+            
+        } else {
+            console.error('❌ Erro na API:', data.error);
+            showError('Erro ao carregar pedidos: ' + data.error);
+        }
+    } catch (error) {
+        console.error('❌ Erro ao carregar pedidos:', error);
+        showError('Erro ao carregar pedidos: ' + error.message);
+    }
+}
+
+// Renderizar pedidos por status
+function renderOrdersByStatus(status, orders) {
+    const tbody = document.getElementById(`${status}-orders`);
+    
+    if (orders.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted">
+                    <i class="bi bi-inbox"></i> Nenhum pedido encontrado
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = orders.map(order => `
+        <tr>
+            <td>
+                <div class="d-flex align-items-center">
+                    <span class="fw-bold">${order.ml_order_id}</span>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard('${order.ml_order_id}')" title="Copiar ID">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
+            </td>
+            <td>
+                <div>
+                    <div class="fw-bold">${order.buyer_name || order.buyer_nickname || 'N/A'}</div>
+                    <small class="text-muted">${order.buyer_nickname || ''}</small>
+                </div>
+            </td>
+            <td>
+                <div>
+                    <div>${formatDate(order.date_created)}</div>
+                    <small class="text-muted">${formatTime(order.date_created)}</small>
+                </div>
+            </td>
+            <td>
+                <span class="fw-bold text-success">R$ ${order.total_amount.toFixed(2)}</span>
+            </td>
+            <td>
+                ${order.invoice_emitted ? `
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        <div>
+                            <div class="fw-bold">${order.invoice_number || 'N/A'}</div>
+                            <small class="text-muted">${order.invoice_series || ''}</small>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-x-circle text-warning me-2"></i>
+                        <span class="text-muted">Sem nota</span>
+                    </div>
+                `}
+            </td>
+            <td>
+                <div class="btn-group" role="group">
+                    ${!order.invoice_emitted ? `
+                        <button class="btn btn-sm btn-outline-primary" onclick="syncSingleInvoice('${order.ml_order_id}')" title="Sincronizar Nota Fiscal">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-sm btn-outline-info" onclick="showInfo('${order.ml_order_id}')" title="Ver Detalhes">
+                        <i class="bi bi-info-circle"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Atualizar contadores das tabs
+function updateStatusCounts(ordersByStatus) {
+    document.getElementById('pending-count').textContent = ordersByStatus['PENDING'].length;
+    document.getElementById('confirmed-count').textContent = ordersByStatus['CONFIRMED'].length;
+    document.getElementById('paid-count').textContent = ordersByStatus['PAID'].length;
+    document.getElementById('shipped-count').textContent = ordersByStatus['SHIPPED'].length;
+    document.getElementById('delivered-count').textContent = ordersByStatus['DELIVERED'].length;
+    document.getElementById('cancelled-count').textContent = ordersByStatus['CANCELLED'].length;
+    document.getElementById('refunded-count').textContent = ordersByStatus['REFUNDED'].length;
+}
+
+// Sincronizar notas fiscais
+async function syncInvoices() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    
+    try {
+        button.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Sincronizando...';
+        button.disabled = true;
+        
+        // Mostrar modal de progresso
+        showProgressModal();
+        
+        const response = await fetch('/api/shipments/sync-invoices', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            console.log('🔒 Usuário não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const message = `Sincronização concluída! 
+                - ${data.updated} pedidos atualizados
+                - ${data.already_synced} já sincronizados
+                - ${data.total_processed} processados no total`;
+            
+            hideProgressModal();
+            showSuccess(message);
+            
+            setTimeout(() => {
+                loadStats();
+                loadOrders();
+            }, 1000);
+        } else {
+            hideProgressModal();
+            showError('Erro na sincronização: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Erro na sincronização:', error);
+        hideProgressModal();
+        showError('Erro na sincronização: ' + error.message);
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Sincronizar nota fiscal individual
+async function syncSingleInvoice(orderId) {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    
+    try {
+        button.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i>';
+        button.disabled = true;
+        
+        const response = await fetch(`/api/shipments/sync-single-invoice/${orderId}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(`Nota fiscal sincronizada para pedido ${orderId}!`);
+            setTimeout(() => {
+                loadStats();
+                loadOrders();
+            }, 1000);
+        } else {
+            showError('Erro: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Erro na sincronização individual:', error);
+        showError('Erro na sincronização: ' + error.message);
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Mostrar modal de progresso
+function showProgressModal() {
+    const modal = new bootstrap.Modal(document.getElementById('progressModal'));
+    modal.show();
+    
+    // Simular progresso
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        
+        document.getElementById('progress-bar').style.width = progress + '%';
+        document.getElementById('progress-text').textContent = 'Processando pedidos...';
+    }, 500);
+    
+    // Salvar interval para limpar depois
+    window.progressInterval = interval;
+}
+
+// Esconder modal de progresso
+function hideProgressModal() {
+    if (window.progressInterval) {
+        clearInterval(window.progressInterval);
+        window.progressInterval = null;
+    }
+    
+    document.getElementById('progress-bar').style.width = '100%';
+    document.getElementById('progress-text').textContent = 'Concluído!';
+    
+    setTimeout(() => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('progressModal'));
+        if (modal) modal.hide();
+    }, 1000);
+}
+
+// Copiar para clipboard
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showSuccess('ID copiado: ' + text);
+    }).catch(() => {
+        showError('Erro ao copiar ID');
+    });
+}
+
+// Mostrar informações
+function showInfo(orderId) {
+    showInfo(`Detalhes do pedido ${orderId}`);
+}
+
+// Formatar data
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+}
+
+// Formatar hora
+function formatTime(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Mostrar mensagem de sucesso
+function showSuccess(message) {
+    // Implementar toast de sucesso
+    console.log('✅', message);
+}
+
+// Mostrar mensagem de erro
+function showError(message) {
+    // Implementar toast de erro
+    console.error('❌', message);
+}
+</script>
+{% endblock %}
+

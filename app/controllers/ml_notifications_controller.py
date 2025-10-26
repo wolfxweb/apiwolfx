@@ -3,7 +3,7 @@ Controller para processar notificações do Mercado Livre
 """
 import logging
 import httpx
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -324,8 +324,23 @@ class MLNotificationsController:
                     WHERE ml_order_id = :order_id AND company_id = :company_id
                 """)
                 
-                # Mapear status para o formato do enum
-                status_mapping = {
+                # Verificar status de envio (shipping status) - campo correto para entregas
+                shipping = order_data.get("shipping", {})
+                shipping_status = shipping.get("status")
+                
+                # Mapear status de envio para o formato do enum
+                shipping_status_mapping = {
+                    "pending": "PENDING",
+                    "handling": "CONFIRMED",
+                    "ready_to_ship": "PAID",
+                    "shipped": "SHIPPED",
+                    "delivered": "DELIVERED",
+                    "not_delivered": "CANCELLED",
+                    "cancelled": "CANCELLED"
+                }
+                
+                # Status geral do pedido (fallback)
+                order_status_mapping = {
                     "confirmed": "CONFIRMED",
                     "payment_required": "PENDING",
                     "payment_in_process": "PENDING",
@@ -336,9 +351,21 @@ class MLNotificationsController:
                     "cancelled": "CANCELLED",
                     "refunded": "REFUNDED"
                 }
+                
                 api_status = order_data.get("status", "pending")
-                db_status = status_mapping.get(api_status, "PENDING")
-                logger.info(f"🔄 Atualizando pedido {order_id}: status API='{api_status}' -> DB='{db_status}'")
+                shipping_db_status = shipping_status_mapping.get(shipping_status)
+                order_db_status = order_status_mapping.get(api_status, "PENDING")
+                
+                # Usar shipping_status como prioridade, fallback para order_status
+                db_status = shipping_db_status or order_db_status
+                
+                # Log detalhado para debug
+                logger.info(f"🔄 [WEBHOOK] Atualizando pedido {order_id}:")
+                logger.info(f"   📦 Shipping Status: '{shipping_status}' -> '{shipping_db_status}'")
+                logger.info(f"   📋 Order Status: '{api_status}' -> '{order_db_status}'")
+                logger.info(f"   🎯 Final Status: '{db_status}'")
+                logger.info(f"   📅 Data fechamento: {order_data.get('date_closed')}")
+                logger.info(f"   💰 Total: {total_amount}")
                 
                 db.execute(update_query, {
                     "order_id": str(order_id),
@@ -352,7 +379,12 @@ class MLNotificationsController:
                     "shipping_cost": shipping.get("cost", 0) if shipping else 0
                 })
                 
-                logger.info(f"✅ Pedido {order_id} atualizado")
+                logger.info(f"✅ [WEBHOOK] Pedido {order_id} atualizado com status: {db_status}")
+                
+                # Verificar nota fiscal automaticamente para pedidos pagos
+                if db_status in ["PAID", "CONFIRMED"]:
+                    await self._check_invoice_for_order(order_id, company_id, db)
+                    
             else:
                 logger.info(f"ℹ️ Pedido {order_id} não existe no banco, será sincronizado na próxima sync completa")
             
@@ -361,6 +393,104 @@ class MLNotificationsController:
         except Exception as e:
             logger.error(f"❌ Erro ao salvar pedido: {e}")
             db.rollback()
+    
+    async def _check_invoice_for_order(self, order_id: str, company_id: int, db: Session):
+        """
+        Verifica automaticamente se um pedido tem nota fiscal emitida
+        Chamado quando um pedido é atualizado via webhook
+        """
+        try:
+            from sqlalchemy import text
+            
+            # Buscar dados do pedido incluindo pack_id
+            order_query = text("""
+                SELECT id, ml_order_id, pack_id, invoice_emitted 
+                FROM ml_orders 
+                WHERE ml_order_id = :order_id AND company_id = :company_id
+            """)
+            
+            order_result = db.execute(order_query, {"order_id": str(order_id), "company_id": company_id}).fetchone()
+            
+            if not order_result:
+                logger.warning(f"⚠️ Pedido {order_id} não encontrado para verificação de NF")
+                return
+            
+            order_db_id, ml_order_id, pack_id, current_invoice_status = order_result
+            
+            # Só verificar se tem pack_id e ainda não tem NF marcada
+            if not pack_id:
+                logger.info(f"ℹ️ Pedido {order_id} sem pack_id - não é possível verificar NF")
+                return
+            
+            if current_invoice_status:
+                logger.info(f"ℹ️ Pedido {order_id} já tem NF marcada - pulando verificação")
+                return
+            
+            # Buscar token de acesso para esta empresa
+            access_token = self._get_user_token_by_company(company_id, db)
+            if not access_token:
+                logger.warning(f"⚠️ Token não encontrado para company_id: {company_id}")
+                return
+            
+            # Verificar NF no ML usando ShipmentService
+            from app.services.shipment_service import ShipmentService
+            shipment_service = ShipmentService(db)
+            
+            invoice_data = shipment_service._check_pack_invoice(pack_id, access_token)
+            
+            if invoice_data and invoice_data.get('has_invoice'):
+                # Atualizar pedido com dados da NF
+                update_invoice_query = text("""
+                    UPDATE ml_orders SET
+                        invoice_emitted = true,
+                        invoice_emitted_at = NOW(),
+                        invoice_number = :invoice_number,
+                        invoice_series = :invoice_series,
+                        invoice_key = :invoice_key,
+                        invoice_xml_url = :invoice_xml_url,
+                        invoice_pdf_url = :invoice_pdf_url,
+                        updated_at = NOW()
+                    WHERE id = :order_db_id
+                """)
+                
+                db.execute(update_invoice_query, {
+                    "order_db_id": order_db_id,
+                    "invoice_number": invoice_data.get('number'),
+                    "invoice_series": invoice_data.get('series'),
+                    "invoice_key": invoice_data.get('key'),
+                    "invoice_xml_url": invoice_data.get('xml_url'),
+                    "invoice_pdf_url": invoice_data.get('pdf_url')
+                })
+                
+                logger.info(f"✅ [AUTO-NF] Nota fiscal detectada e atualizada para pedido {order_id}")
+                
+            else:
+                logger.info(f"ℹ️ [AUTO-NF] Pedido {order_id} ainda não tem nota fiscal emitida")
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao verificar NF do pedido {order_id}: {e}")
+    
+    def _get_user_token_by_company(self, company_id: int, db: Session) -> Optional[str]:
+        """Busca token de acesso para uma empresa específica"""
+        try:
+            from app.services.token_manager import TokenManager
+            from app.models.saas_models import User
+            
+            # Buscar um usuário ativo da empresa
+            user = db.query(User).filter(
+                User.company_id == company_id,
+                User.is_active == True
+            ).first()
+            
+            if not user:
+                return None
+            
+            token_manager = TokenManager(db)
+            return token_manager.get_valid_token(user.id)
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar token para company_id {company_id}: {e}")
+            return None
     
     async def _upsert_item(self, item_data: Dict[str, Any], company_id: int, db: Session):
         """Atualiza produto no banco de dados"""
