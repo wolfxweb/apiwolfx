@@ -93,16 +93,34 @@
             <div class="card-body">
                 <h6 class="text-muted">
                     📈 ROAS 
-                    <i class="bi bi-info-circle" style="cursor: help;" title="Return On Ad Spend - Retorno sobre o investimento publicitário. Quanto você ganha para cada R$ 1 investido. Ex: ROAS 5x = R$ 5 de receita para cada R$ 1 investido."></i>
+                    <i class="bi bi-info-circle text-primary" style="cursor: pointer;" 
+                       data-bs-toggle="popover" 
+                       data-bs-trigger="click"
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       data-bs-title="📈 ROAS (Return On Ad Spend)"
+                       data-bs-content="<strong>Retorno sobre investimento publicitário</strong><br><br>💰 Quanto você ganha para cada R$ 1 investido<br><br><strong>Exemplo:</strong> ROAS 5x = R$ 5 de receita para cada R$ 1 investido<br><br><strong>Cálculo:</strong> Receita com Anúncio ÷ Investimento"></i>
                 </h6>
                 <h3 id="kpi-roas">0.00x</h3>
                 <small class="text-muted d-block">
                     ACOS: <span id="kpi-acos">0%</span>
-                    <i class="bi bi-info-circle" style="cursor: help; font-size: 10px;" title="Advertising Cost of Sales - Percentual do custo de publicidade sobre a receita gerada pelos anúncios. Ex: ACOS 20% = R$ 20 gastos para cada R$ 100 de receita com anúncios."></i>
+                    <i class="bi bi-info-circle text-primary" style="cursor: pointer; font-size: 10px;" 
+                       data-bs-toggle="popover" 
+                       data-bs-trigger="click"
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       data-bs-title="💰 ACOS (Advertising Cost of Sales)"
+                       data-bs-content="<strong>Custo de publicidade sobre vendas com anúncio</strong><br><br>📊 Percentual do custo sobre receita gerada pelos anúncios<br><br><strong>Exemplo:</strong> ACOS 20% = R$ 20 gastos para cada R$ 100 de receita com anúncios<br><br><strong>Cálculo:</strong> (Investimento ÷ Receita com Anúncio) × 100"></i>
                 </small>
                 <small class="text-muted d-block">
                     TACOS: <span id="kpi-tacos">0%</span>
-                    <i class="bi bi-info-circle" style="cursor: help; font-size: 10px;" title="Total Advertising Cost of Sales - Percentual do custo de publicidade sobre a receita TOTAL (incluindo vendas orgânicas). Mostra o impacto real dos anúncios no negócio. Ex: TACOS 10% = R$ 10 gastos para cada R$ 100 de receita total."></i>
+                    <i class="bi bi-info-circle text-primary" style="cursor: pointer; font-size: 10px;" 
+                       data-bs-toggle="popover" 
+                       data-bs-trigger="click"
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       data-bs-title="🎯 TACOS (Total Advertising Cost of Sales)"
+                       data-bs-content="<strong>Custo de publicidade sobre receita TOTAL</strong><br><br>📈 Percentual do custo sobre receita TOTAL (incluindo vendas orgânicas)<br><br>✅ Mostra o impacto real dos anúncios no negócio<br><br><strong>Exemplo:</strong> TACOS 10% = R$ 10 gastos para cada R$ 100 de receita total<br><br><strong>Cálculo:</strong> (Investimento ÷ Receita Total) × 100"></i>
                 </small>
             </div>
         </div>
@@ -140,18 +158,56 @@
     <div class="col-md-3 mb-3">
         <div class="card">
             <div class="card-body">
-                <h6 class="text-muted">✅ Taxa de Conversão</h6>
+                <h6 class="text-muted">
+                    ✅ Taxa de Conversão 
+                    <i class="bi bi-info-circle text-primary" style="cursor: pointer;" 
+                       data-bs-toggle="popover" 
+                       data-bs-trigger="click"
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       data-bs-title="✅ CVR (Conversion Rate)"
+                       data-bs-content="<strong>Taxa de Conversão de Cliques</strong><br><br>🎯 Percentual de cliques que viraram vendas<br><br><strong>Diretas:</strong> Cliente clicou e comprou o produto anunciado<br><br><strong>Indiretas:</strong> Cliente clicou e comprou outro produto seu<br><br><strong>CVR Total = Diretas + Indiretas</strong><br><br><strong>Cálculo:</strong> (Vendas com Anúncio ÷ Cliques) × 100"></i>
+                </h6>
                 <h3 id="kpi-cvr">0%</h3>
-                <small class="text-muted">CVR</small>
+                <small class="text-muted d-block">Diretas: <span id="kpi-cvr-direct">0%</span></small>
+                <small class="text-muted d-block">Indiretas: <span id="kpi-cvr-indirect">0%</span></small>
             </div>
         </div>
     </div>
     <div class="col-md-3 mb-3">
         <div class="card">
             <div class="card-body">
-                <h6 class="text-muted">📊 Imp. Share</h6>
+                <h6 class="text-muted">
+                    📊 Imp. Share 
+                    <i class="bi bi-info-circle text-primary" style="cursor: pointer;" 
+                       data-bs-toggle="popover" 
+                       data-bs-trigger="click"
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       data-bs-title="📊 Impression Share"
+                       data-bs-content="<strong>Percentual de impressões capturadas</strong><br><br>📈 Suas Impressões ÷ Total Disponível × 100<br><br><strong>Exemplo:</strong> 40% = você teve 40% das impressões possíveis<br><br>✅ Quanto maior, melhor sua presença no mercado"></i>
+                </h6>
                 <h3 id="kpi-impression-share">0%</h3>
-                <small class="text-muted">Top: <span id="kpi-top-impression">0%</span></small>
+                <small class="text-muted d-block">
+                    Top: <span id="kpi-top-impression">0%</span>
+                    <i class="bi bi-info-circle text-primary" style="cursor: pointer; font-size: 10px;" 
+                       data-bs-toggle="popover" 
+                       data-bs-trigger="click"
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       data-bs-title="🏆 Top Impression Share"
+                       data-bs-content="<strong>Impressões em posições TOP</strong><br><br>🎯 Percentual de impressões nas primeiras posições (mais visíveis)<br><br>✅ Quanto maior, melhor a visibilidade dos seus anúncios"></i>
+                </small>
+                <small class="text-muted d-block text-danger">
+                    ⚠️ Perdido: <span id="kpi-lost-impression">0%</span>
+                    <i class="bi bi-info-circle text-primary" style="cursor: pointer; font-size: 10px;" 
+                       data-bs-toggle="popover" 
+                       data-bs-trigger="click"
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       data-bs-title="⚠️ Impressões Perdidas"
+                       data-bs-content="<strong>Oportunidades não capturadas</strong><br><br>📉 Total de impressões perdidas por:<br><br>💰 Orçamento insuficiente<br>📊 Ranking/Lance baixo<br><br>🔧 Aumente orçamento ou lance para reduzir"></i>
+                </small>
             </div>
         </div>
     </div>
@@ -299,6 +355,35 @@
     </div>
 </div>
 
+<style>
+/* Estilo dos popovers de ajuda */
+.popover {
+    max-width: 350px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.popover-header {
+    background-color: #0d6efd;
+    color: white;
+    font-weight: 600;
+    border-radius: 8px 8px 0 0;
+    padding: 12px 14px;
+}
+
+.popover-body {
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* Ícone de info mais visível */
+.bi-info-circle.text-primary:hover {
+    transform: scale(1.2);
+    transition: transform 0.2s ease;
+}
+</style>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 // ============================================================================
@@ -319,6 +404,27 @@ let salesBreakdownChart = null;
 // INICIALIZAÇÃO
 // ============================================================================
 document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar popovers do Bootstrap
+    const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+    popoverTriggerList.map(function (popoverTriggerEl) {
+        return new bootstrap.Popover(popoverTriggerEl, {
+            container: 'body',
+            sanitize: false
+        });
+    });
+    
+    // Fechar popover ao clicar fora
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('[data-bs-toggle="popover"]')) {
+            popoverTriggerList.forEach(function(popoverTriggerEl) {
+                const popoverInstance = bootstrap.Popover.getInstance(popoverTriggerEl);
+                if (popoverInstance) {
+                    popoverInstance.hide();
+                }
+            });
+        }
+    });
+    
     initCharts();
     loadData();
 });
@@ -461,9 +567,33 @@ function updateKPIs(metrics) {
     document.getElementById('kpi-sov').textContent = (metrics.sov || 0).toFixed(2) + '%';
     document.getElementById('kpi-clicks').textContent = (metrics.clicks || 0).toLocaleString('pt-BR');
     document.getElementById('kpi-ctr').textContent = (metrics.ctr || 0).toFixed(2) + '%';
-    document.getElementById('kpi-cvr').textContent = (metrics.cvr || 0).toFixed(2) + '%';
+    
+    // CVR - Taxa de Conversão
+    const clicks = metrics.clicks || 0;
+    const directSales = metrics.direct_items_quantity || 0;
+    const indirectSales = metrics.indirect_items_quantity || 0;
+    const totalAdSales = directSales + indirectSales;
+    
+    // CVR Total (vendas com anúncio / cliques)
+    const cvrTotal = clicks > 0 ? (totalAdSales / clicks) * 100 : 0;
+    document.getElementById('kpi-cvr').textContent = cvrTotal.toFixed(2) + '%';
+    
+    // CVR Diretas (apenas vendas do produto anunciado)
+    const cvrDirect = clicks > 0 ? (directSales / clicks) * 100 : 0;
+    document.getElementById('kpi-cvr-direct').textContent = cvrDirect.toFixed(2) + '%';
+    
+    // CVR Indiretas (vendas de outros produtos após clicar no anúncio)
+    const cvrIndirect = clicks > 0 ? (indirectSales / clicks) * 100 : 0;
+    document.getElementById('kpi-cvr-indirect').textContent = cvrIndirect.toFixed(2) + '%';
+    
     document.getElementById('kpi-impression-share').textContent = (metrics.impression_share || 0).toFixed(2) + '%';
     document.getElementById('kpi-top-impression').textContent = (metrics.top_impression_share || 0).toFixed(2) + '%';
+    
+    // Impressões perdidas = perdidas por orçamento + perdidas por ranking
+    const lostByBudget = metrics.lost_impression_share_by_budget || 0;
+    const lostByRank = metrics.lost_impression_share_by_ad_rank || 0;
+    const totalLost = lostByBudget + lostByRank;
+    document.getElementById('kpi-lost-impression').textContent = totalLost.toFixed(2) + '%';
     
     // Share of Voice
     updateShareOfVoice(metrics);
