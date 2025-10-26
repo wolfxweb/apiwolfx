@@ -115,3 +115,48 @@ async def get_alerts(user = Depends(get_current_user), db: Session = Depends(get
     from app.services.advertising_alerts_service import AdvertisingAlertsService
     service = AdvertisingAlertsService(db)
     return {"success": True, "data": service.get_all_alerts(user["company"]["id"])}
+
+@router.get("/campaigns/{campaign_id}/details")
+async def campaign_details_page(
+    campaign_id: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página HTML com detalhes e dashboard da campanha"""
+    user_or_redirect = get_current_user_or_redirect(request, db)
+    
+    if isinstance(user_or_redirect, RedirectResponse):
+        return user_or_redirect
+    
+    user = user_or_redirect
+    
+    return templates.TemplateResponse("ml_campaign_details.html", {
+        "request": request,
+        "user": user,
+        "campaign_id": campaign_id
+    })
+
+@router.get("/campaigns/{campaign_id}")
+async def get_campaign_details(
+    campaign_id: str,
+    date_from: str = None,
+    date_to: str = None,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca detalhes e métricas de uma campanha específica"""
+    controller = AdvertisingFullController(db)
+    return controller.get_campaign_details(user["company"]["id"], campaign_id, date_from, date_to)
+
+@router.get("/campaigns/{campaign_id}/ads")
+async def get_campaign_ads(
+    campaign_id: str,
+    date_from: str = None,
+    date_to: str = None,
+    limit: int = 100,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca anúncios/produtos de uma campanha com métricas"""
+    controller = AdvertisingFullController(db)
+    return controller.get_campaign_ads(user["company"]["id"], campaign_id, date_from, date_to, limit)

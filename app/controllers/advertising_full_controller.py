@@ -300,3 +300,166 @@ class AdvertisingFullController:
         except Exception as e:
             logger.error(f"❌ Erro ao buscar métricas: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+    
+    def get_campaign_details(self, company_id: int, campaign_id: str, date_from: str = None, date_to: str = None):
+        """Busca detalhes completos de uma campanha com métricas (incluindo diárias e resumo)"""
+        try:
+            from datetime import datetime, timedelta
+            import requests
+            
+            # Se não forneceu datas, usar últimos 30 dias por padrão
+            if not date_to:
+                date_to = datetime.now().date()
+            else:
+                date_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+            
+            if not date_from:
+                date_from = date_to - timedelta(days=30)
+            else:
+                date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+            
+            logger.info(f"📊 Buscando detalhes da campanha {campaign_id} - período: {date_from} a {date_to}")
+            
+            # Buscar conta e token
+            account = self.db.query(MLAccount).filter(MLAccount.company_id == company_id).first()
+            if not account:
+                return {"success": False, "error": "Conta ML não encontrada"}
+            
+            user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
+            if not user_ml:
+                return {"success": False, "error": "Usuário não associado à conta ML"}
+            
+            access_token = self.token_manager.get_valid_token(user_ml.user_id)
+            if not access_token:
+                return {"success": False, "error": "Não foi possível obter token válido"}
+            
+            # Buscar advertiser_id
+            advertiser_id = self._get_advertiser_id(access_token)
+            if not advertiser_id:
+                return {"success": False, "error": "Advertiser ID não encontrado"}
+            
+            # Buscar detalhes da campanha com métricas agregadas
+            metrics_list = "clicks,prints,ctr,cost,cpc,acos,organic_units_quantity,organic_units_amount,organic_items_quantity,direct_items_quantity,indirect_items_quantity,advertising_items_quantity,cvr,roas,sov,direct_units_quantity,indirect_units_quantity,units_quantity,direct_amount,indirect_amount,total_amount,impression_share,top_impression_share,lost_impression_share_by_budget,lost_impression_share_by_ad_rank,acos_benchmark"
+            
+            url = f"https://api.mercadolibre.com/advertising/{account.site_id}/product_ads/campaigns/{campaign_id}"
+            params = {
+                "date_from": date_from.strftime("%Y-%m-%d"),
+                "date_to": date_to.strftime("%Y-%m-%d"),
+                "metrics": metrics_list
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "Api-Version": "2"
+            }
+            
+            response = requests.get(url, params=params, headers=headers, timeout=30)
+            
+            if response.status_code != 200:
+                logger.error(f"❌ Erro ao buscar detalhes da campanha: {response.status_code} - {response.text[:200]}")
+                return {"success": False, "error": f"API error: {response.status_code}"}
+            
+            campaign_data = response.json()
+            
+            # Buscar métricas diárias
+            params["aggregation_type"] = "DAILY"
+            response_daily = requests.get(url, params=params, headers=headers, timeout=30)
+            daily_metrics = []
+            
+            if response_daily.status_code == 200:
+                daily_data = response_daily.json()
+                if isinstance(daily_data, list):
+                    daily_metrics = daily_data
+                elif isinstance(daily_data, dict) and "results" in daily_data:
+                    daily_metrics = daily_data["results"]
+            
+            logger.info(f"✅ Detalhes da campanha obtidos com sucesso - {len(daily_metrics)} métricas diárias")
+            
+            return {
+                "success": True,
+                "campaign": campaign_data,
+                "daily_metrics": daily_metrics
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar detalhes da campanha: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
+    def get_campaign_ads(self, company_id: int, campaign_id: str, date_from: str = None, date_to: str = None, limit: int = 100):
+        """Busca anúncios/produtos de uma campanha com suas métricas"""
+        try:
+            from datetime import datetime, timedelta
+            import requests
+            
+            # Se não forneceu datas, usar últimos 30 dias por padrão
+            if not date_to:
+                date_to = datetime.now().date()
+            else:
+                date_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+            
+            if not date_from:
+                date_from = date_to - timedelta(days=30)
+            else:
+                date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+            
+            logger.info(f"📦 Buscando anúncios da campanha {campaign_id} - período: {date_from} a {date_to}")
+            
+            # Buscar conta e token
+            account = self.db.query(MLAccount).filter(MLAccount.company_id == company_id).first()
+            if not account:
+                return {"success": False, "error": "Conta ML não encontrada"}
+            
+            user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
+            if not user_ml:
+                return {"success": False, "error": "Usuário não associado à conta ML"}
+            
+            access_token = self.token_manager.get_valid_token(user_ml.user_id)
+            if not access_token:
+                return {"success": False, "error": "Não foi possível obter token válido"}
+            
+            # Buscar advertiser_id
+            advertiser_id = self._get_advertiser_id(access_token)
+            if not advertiser_id:
+                return {"success": False, "error": "Advertiser ID não encontrado"}
+            
+            # Buscar anúncios da campanha
+            metrics_list = "clicks,prints,ctr,cost,cpc,acos,organic_units_quantity,organic_units_amount,organic_items_quantity,direct_items_quantity,indirect_items_quantity,advertising_items_quantity,cvr,roas,sov,direct_units_quantity,indirect_units_quantity,units_quantity,direct_amount,indirect_amount,total_amount"
+            
+            url = f"https://api.mercadolibre.com/advertising/{account.site_id}/advertisers/{advertiser_id}/product_ads/ads/search"
+            params = {
+                "filters[campaign_id]": campaign_id,
+                "date_from": date_from.strftime("%Y-%m-%d"),
+                "date_to": date_to.strftime("%Y-%m-%d"),
+                "metrics": metrics_list,
+                "limit": limit,
+                "offset": 0
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "Api-Version": "2"
+            }
+            
+            response = requests.get(url, params=params, headers=headers, timeout=30)
+            
+            if response.status_code != 200:
+                logger.error(f"❌ Erro ao buscar anúncios: {response.status_code} - {response.text[:200]}")
+                return {"success": False, "error": f"API error: {response.status_code}"}
+            
+            data = response.json()
+            ads = data.get("results", [])
+            paging = data.get("paging", {})
+            
+            logger.info(f"✅ {len(ads)} anúncios obtidos com sucesso")
+            
+            return {
+                "success": True,
+                "ads": ads,
+                "paging": paging
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar anúncios da campanha: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}

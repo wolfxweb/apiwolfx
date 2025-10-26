@@ -1,0 +1,961 @@
+{% extends "base.html" %}
+
+{% block title %}Detalhes da Campanha - Product Ads{% endblock %}
+
+{% block content %}
+<!-- Header da Campanha -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2">
+            <a href="/ml/advertising" class="text-decoration-none text-muted">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <span id="campaign-name">Carregando...</span>
+        </h1>
+        <p class="text-muted mb-0">
+            <span class="badge bg-secondary" id="campaign-status">-</span>
+            <span class="ms-2">Estratégia: <strong id="campaign-strategy">-</strong></span>
+            <span class="ms-2">Orçamento Diário: <strong id="campaign-budget">R$ 0,00</strong></span>
+            <span class="ms-2">ACOS Objetivo: <strong id="campaign-acos-target">-</strong></span>
+        </p>
+    </div>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.history.back()">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </button>
+    </div>
+</div>
+
+<!-- Filtros de Período -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="period-filter" class="form-label">Período de Análise</label>
+                        <select class="form-select" id="period-filter" onchange="handlePeriodChange()">
+                            <option value="current-month" selected>Mês Atual</option>
+                            <option value="30">Últimos 30 dias</option>
+                            <option value="60">Últimos 60 dias</option>
+                            <option value="90">Últimos 90 dias</option>
+                            <option value="custom">Período personalizado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-primary w-100" onclick="loadData()">
+                            <i class="bi bi-arrow-clockwise"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Campos de data personalizada (oculto por padrão) -->
+                <div class="row g-3 mt-2" id="custom-date-fields" style="display: none;">
+                    <div class="col-md-4">
+                        <label for="custom-date-from" class="form-label">Data Inicial</label>
+                        <input type="date" class="form-control" id="custom-date-from">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="custom-date-to" class="form-label">Data Final</label>
+                        <input type="date" class="form-control" id="custom-date-to">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary w-100" onclick="applyCustomPeriod()">
+                            <i class="bi bi-check-circle"></i> Aplicar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KPIs Principais -->
+<div class="row mb-4">
+    <!-- Linha 1 - Métricas de Investimento e Retorno -->
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">💰 Investimento</h6>
+                <h3 id="kpi-cost">R$ 0,00</h3>
+                <small class="text-muted">CPC: <span id="kpi-cpc">R$ 0,00</span></small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">💵 Receita Total</h6>
+                <h3 id="kpi-revenue">R$ 0,00</h3>
+                <small class="text-muted">Direta: <span id="kpi-direct-revenue">R$ 0,00</span></small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">📈 ROAS</h6>
+                <h3 id="kpi-roas">0.00x</h3>
+                <small class="text-muted">ACOS: <span id="kpi-acos">0%</span></small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">🛒 Vendas</h6>
+                <h3 id="kpi-sales">0</h3>
+                <small class="text-muted">Diretas: <span id="kpi-direct-sales">0</span></small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Linha 2 - Métricas de Engajamento -->
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">👁️ Impressões</h6>
+                <h3 id="kpi-impressions">0</h3>
+                <small class="text-muted">SOV: <span id="kpi-sov">0%</span></small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">🖱️ Cliques</h6>
+                <h3 id="kpi-clicks">0</h3>
+                <small class="text-muted">CTR: <span id="kpi-ctr">0%</span></small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">✅ Taxa de Conversão</h6>
+                <h3 id="kpi-cvr">0%</h3>
+                <small class="text-muted">CVR</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">📊 Imp. Share</h6>
+                <h3 id="kpi-impression-share">0%</h3>
+                <small class="text-muted">Top: <span id="kpi-top-impression">0%</span></small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos -->
+<div class="row mb-4">
+    <!-- Evolução Temporal -->
+    <div class="col-md-8 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <canvas id="timelineChart" height="350"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Breakdown de Vendas -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <canvas id="salesBreakdownChart" height="350"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Share of Voice e Benchmark -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">📊 Share of Voice</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Impression Share</span>
+                        <strong id="sov-impression-share">0%</strong>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-success" id="sov-impression-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Top Impression Share</span>
+                        <strong id="sov-top-impression-share">0%</strong>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-primary" id="sov-top-impression-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <hr>
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Perdido por Orçamento</span>
+                        <strong class="text-warning" id="sov-lost-budget">0%</strong>
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Perdido por Ranking</span>
+                        <strong class="text-danger" id="sov-lost-rank">0%</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">🎯 Performance vs Benchmark</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>ACOS</h6>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Seu ACOS: <strong id="bench-your-acos">0%</strong></span>
+                        <span>Benchmark: <strong id="bench-target-acos">0%</strong></span>
+                    </div>
+                    <div class="progress" style="height: 30px;">
+                        <div class="progress-bar" id="bench-acos-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div>
+                    <h6>ROAS</h6>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Atual: <strong id="bench-your-roas">0.00x</strong></span>
+                    </div>
+                    <p class="text-muted mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        <span id="bench-performance-message">Carregando análise...</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Anúncios/Produtos -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    🎯 Anúncios da Campanha
+                    <span class="badge bg-primary ms-2" id="ads-count">0</span>
+                </h5>
+                <div class="input-group" style="width: 300px;">
+                    <input type="text" class="form-control" id="ads-search" placeholder="Buscar anúncio..." onkeyup="filterAds()">
+                    <button class="btn btn-outline-secondary" type="button">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 60px;"></th>
+                                <th>Produto</th>
+                                <th>Status</th>
+                                <th>Preço</th>
+                                <th>Investimento</th>
+                                <th>Receita</th>
+                                <th>ROAS</th>
+                                <th>Cliques</th>
+                                <th>Vendas</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ads-table-body">
+                            <tr>
+                                <td colspan="10" class="text-center">
+                                    <div class="spinner-border spinner-border-sm"></div> Carregando...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ============================================================================
+// VARIÁVEIS GLOBAIS
+// ============================================================================
+const CAMPAIGN_ID = "{{ campaign_id }}";
+let currentPeriod = { type: 'current-month' };
+let campaignData = null;
+let dailyMetrics = [];
+let adsData = [];
+let allAds = [];
+
+// Charts
+let timelineChart = null;
+let salesBreakdownChart = null;
+
+// ============================================================================
+// INICIALIZAÇÃO
+// ============================================================================
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+    loadData();
+});
+
+// ============================================================================
+// CARREGAMENTO DE DADOS
+// ============================================================================
+async function loadData() {
+    try {
+        await Promise.all([
+            loadCampaignDetails(),
+            loadCampaignAds()
+        ]);
+        
+        updateCharts();
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+    }
+}
+
+async function loadCampaignDetails() {
+    try {
+        const token = getCookie('session_token');
+        const { dateFrom, dateTo } = getPeriodParams();
+        
+        const response = await fetch(`/ml/advertising/campaigns/${CAMPAIGN_ID}?date_from=${dateFrom}&date_to=${dateTo}`, {
+            headers: {
+                'Cookie': `session_token=${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            campaignData = data.campaign;
+            dailyMetrics = data.daily_metrics || [];
+            
+            updateCampaignHeader(campaignData);
+            updateKPIs(campaignData.metrics || {});
+        } else {
+            showToast('Erro ao carregar detalhes da campanha', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar detalhes:', error);
+        showToast('Erro ao carregar detalhes da campanha', 'error');
+    }
+}
+
+async function loadCampaignAds() {
+    const tbody = document.getElementById('ads-table-body');
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center"><div class="spinner-border spinner-border-sm"></div> Carregando...</td></tr>';
+    
+    try {
+        const token = getCookie('session_token');
+        const { dateFrom, dateTo } = getPeriodParams();
+        
+        const response = await fetch(`/ml/advertising/campaigns/${CAMPAIGN_ID}/ads?date_from=${dateFrom}&date_to=${dateTo}&limit=100`, {
+            headers: {
+                'Cookie': `session_token=${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            allAds = data.ads || [];
+            adsData = allAds;
+            displayAds(adsData);
+            document.getElementById('ads-count').textContent = adsData.length;
+        } else {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Erro: ${data.error}</td></tr>`;
+        }
+    } catch (error) {
+        console.error('Erro ao carregar anúncios:', error);
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Erro ao carregar anúncios</td></tr>';
+    }
+}
+
+// ============================================================================
+// ATUALIZAÇÃO DA INTERFACE
+// ============================================================================
+function updateCampaignHeader(campaign) {
+    document.getElementById('campaign-name').textContent = campaign.name || 'Campanha';
+    
+    const statusBadge = document.getElementById('campaign-status');
+    if (campaign.status === 'active') {
+        statusBadge.className = 'badge bg-success';
+        statusBadge.textContent = 'Ativa';
+    } else if (campaign.status === 'paused') {
+        statusBadge.className = 'badge bg-warning';
+        statusBadge.textContent = 'Pausada';
+    } else {
+        statusBadge.className = 'badge bg-secondary';
+        statusBadge.textContent = campaign.status;
+    }
+    
+    document.getElementById('campaign-strategy').textContent = campaign.strategy || '-';
+    document.getElementById('campaign-budget').textContent = formatCurrency(campaign.budget || 0);
+    document.getElementById('campaign-acos-target').textContent = campaign.acos_target ? campaign.acos_target.toFixed(2) + '%' : '-';
+}
+
+function updateKPIs(metrics) {
+    // Linha 1 - Investimento e Retorno
+    document.getElementById('kpi-cost').textContent = formatCurrency(metrics.cost || 0);
+    document.getElementById('kpi-cpc').textContent = formatCurrency(metrics.cpc || 0);
+    document.getElementById('kpi-revenue').textContent = formatCurrency(metrics.total_amount || 0);
+    document.getElementById('kpi-direct-revenue').textContent = formatCurrency(metrics.direct_amount || 0);
+    document.getElementById('kpi-roas').textContent = (metrics.roas || 0).toFixed(2) + 'x';
+    document.getElementById('kpi-acos').textContent = (metrics.acos || 0).toFixed(2) + '%';
+    document.getElementById('kpi-sales').textContent = metrics.advertising_items_quantity || 0;
+    document.getElementById('kpi-direct-sales').textContent = metrics.direct_items_quantity || 0;
+    
+    // Linha 2 - Engajamento
+    document.getElementById('kpi-impressions').textContent = (metrics.prints || 0).toLocaleString('pt-BR');
+    document.getElementById('kpi-sov').textContent = (metrics.sov || 0).toFixed(2) + '%';
+    document.getElementById('kpi-clicks').textContent = (metrics.clicks || 0).toLocaleString('pt-BR');
+    document.getElementById('kpi-ctr').textContent = (metrics.ctr || 0).toFixed(2) + '%';
+    document.getElementById('kpi-cvr').textContent = (metrics.cvr || 0).toFixed(2) + '%';
+    document.getElementById('kpi-impression-share').textContent = (metrics.impression_share || 0).toFixed(2) + '%';
+    document.getElementById('kpi-top-impression').textContent = (metrics.top_impression_share || 0).toFixed(2) + '%';
+    
+    // Share of Voice
+    updateShareOfVoice(metrics);
+    
+    // Benchmark
+    updateBenchmark(metrics);
+}
+
+function updateShareOfVoice(metrics) {
+    const impressionShare = metrics.impression_share || 0;
+    const topImpressionShare = metrics.top_impression_share || 0;
+    const lostByBudget = metrics.lost_impression_share_by_budget || 0;
+    const lostByRank = metrics.lost_impression_share_by_ad_rank || 0;
+    
+    document.getElementById('sov-impression-share').textContent = impressionShare.toFixed(2) + '%';
+    document.getElementById('sov-impression-bar').style.width = impressionShare + '%';
+    
+    document.getElementById('sov-top-impression-share').textContent = topImpressionShare.toFixed(2) + '%';
+    document.getElementById('sov-top-impression-bar').style.width = topImpressionShare + '%';
+    
+    document.getElementById('sov-lost-budget').textContent = lostByBudget.toFixed(2) + '%';
+    document.getElementById('sov-lost-rank').textContent = lostByRank.toFixed(2) + '%';
+}
+
+function updateBenchmark(metrics) {
+    const yourAcos = metrics.acos || 0;
+    const benchmarkAcos = metrics.acos_benchmark || 0;
+    const yourRoas = metrics.roas || 0;
+    
+    document.getElementById('bench-your-acos').textContent = yourAcos.toFixed(2) + '%';
+    document.getElementById('bench-target-acos').textContent = benchmarkAcos ? benchmarkAcos.toFixed(2) + '%' : 'N/A';
+    document.getElementById('bench-your-roas').textContent = yourRoas.toFixed(2) + 'x';
+    
+    // Barra de progresso do ACOS
+    if (benchmarkAcos > 0) {
+        const acosPercentage = Math.min((yourAcos / benchmarkAcos) * 100, 100);
+        const acosBar = document.getElementById('bench-acos-bar');
+        acosBar.style.width = acosPercentage + '%';
+        
+        if (yourAcos <= benchmarkAcos) {
+            acosBar.className = 'progress-bar bg-success';
+        } else if (yourAcos <= benchmarkAcos * 1.2) {
+            acosBar.className = 'progress-bar bg-warning';
+        } else {
+            acosBar.className = 'progress-bar bg-danger';
+        }
+    }
+    
+    // Mensagem de performance
+    let message = '';
+    if (yourAcos <= benchmarkAcos) {
+        message = '✅ Excelente! Seu ACOS está abaixo do benchmark.';
+    } else if (yourAcos <= benchmarkAcos * 1.2) {
+        message = '⚠️ Atenção! Seu ACOS está um pouco acima do benchmark.';
+    } else {
+        message = '❌ Seu ACOS está muito acima do benchmark. Considere ajustar a estratégia.';
+    }
+    document.getElementById('bench-performance-message').textContent = message;
+}
+
+function displayAds(ads) {
+    const tbody = document.getElementById('ads-table-body');
+    
+    if (!ads || ads.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Nenhum anúncio encontrado</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = ads.map(ad => {
+        const metrics = ad.metrics || {};
+        const statusBadge = ad.status === 'active' ? 
+            '<span class="badge bg-success">Ativo</span>' : 
+            '<span class="badge bg-secondary">Pausado</span>';
+        
+        const roas = metrics.total_amount && metrics.cost ? 
+            (metrics.total_amount / metrics.cost).toFixed(2) : 
+            '0.00';
+        
+        return `
+            <tr>
+                <td><img src="${ad.thumbnail || ''}" alt="${ad.title}" class="img-thumbnail" style="width: 50px; height: 50px; object-fit: cover;"></td>
+                <td>
+                    <a href="${ad.permalink || '#'}" target="_blank" class="text-decoration-none">
+                        ${ad.title || 'N/A'}
+                    </a>
+                    <br>
+                    <small class="text-muted">${ad.item_id}</small>
+                </td>
+                <td>${statusBadge}</td>
+                <td>${formatCurrency(ad.price || 0)}</td>
+                <td>${formatCurrency(metrics.cost || 0)}</td>
+                <td>${formatCurrency(metrics.total_amount || 0)}</td>
+                <td><strong>${roas}x</strong></td>
+                <td>${(metrics.clicks || 0).toLocaleString('pt-BR')}</td>
+                <td>${metrics.advertising_items_quantity || 0}</td>
+                <td>
+                    <a href="${ad.permalink || '#'}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver no ML">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterAds() {
+    const searchTerm = document.getElementById('ads-search').value.toLowerCase();
+    
+    if (!searchTerm) {
+        adsData = allAds;
+    } else {
+        adsData = allAds.filter(ad => {
+            return (ad.title && ad.title.toLowerCase().includes(searchTerm)) ||
+                   (ad.item_id && ad.item_id.toLowerCase().includes(searchTerm));
+        });
+    }
+    
+    displayAds(adsData);
+    document.getElementById('ads-count').textContent = adsData.length;
+}
+
+// ============================================================================
+// GRÁFICOS
+// ============================================================================
+function initCharts() {
+    // Gráfico de Evolução Temporal
+    const timelineCtx = document.getElementById('timelineChart');
+    if (timelineCtx) {
+        timelineChart = new Chart(timelineCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '💰 Investimento',
+                        data: [],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        yAxisID: 'y',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: '💵 Receita Total',
+                        data: [],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        yAxisID: 'y',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: '📈 ROAS (Retorno)',
+                        data: [],
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                        yAxisID: 'y1',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '📈 Evolução Temporal das Métricas',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 20
+                        }
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            font: {
+                                size: 12
+                            },
+                            padding: 15,
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        callbacks: {
+                            title: function(context) {
+                                return 'Data: ' + context[0].label;
+                            },
+                            label: function(context) {
+                                const datasetIndex = context.datasetIndex;
+                                let label = context.dataset.label || '';
+                                let value = '';
+                                let explanation = '';
+                                
+                                if (datasetIndex === 0) {
+                                    // Investimento
+                                    value = formatCurrency(context.parsed.y);
+                                    explanation = 'Quanto foi investido em anúncios';
+                                } else if (datasetIndex === 1) {
+                                    // Receita
+                                    value = formatCurrency(context.parsed.y);
+                                    explanation = 'Receita gerada pelos anúncios';
+                                } else if (datasetIndex === 2) {
+                                    // ROAS
+                                    value = context.parsed.y.toFixed(2) + 'x';
+                                    explanation = 'R$ ganhos por cada R$ 1,00 investido';
+                                }
+                                
+                                return [
+                                    label + ': ' + value,
+                                    '→ ' + explanation
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$ ' + value.toLocaleString('pt-BR', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0
+                                });
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '💰 Valores em Reais (R$)',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: true,
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(1) + 'x';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '📈 ROAS (Retorno sobre Investimento)',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '📅 Período',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Gráfico de Breakdown de Vendas
+    const salesCtx = document.getElementById('salesBreakdownChart');
+    if (salesCtx) {
+        salesBreakdownChart = new Chart(salesCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['🎯 Vendas Diretas', '🔄 Vendas Indiretas', '🌱 Vendas Orgânicas'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: [
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 206, 86, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '🎯 Composição das Vendas',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 20
+                        }
+                    },
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                size: 11
+                            },
+                            padding: 10,
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        callbacks: {
+                            title: function(context) {
+                                return 'Tipo de Venda';
+                            },
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                
+                                let explanation = '';
+                                if (context.dataIndex === 0) {
+                                    explanation = 'Cliente clicou no anúncio e comprou este produto';
+                                } else if (context.dataIndex === 1) {
+                                    explanation = 'Cliente clicou no anúncio e comprou outro produto';
+                                } else if (context.dataIndex === 2) {
+                                    explanation = 'Cliente comprou sem clicar em anúncios';
+                                }
+                                
+                                return [
+                                    label,
+                                    `Quantidade: ${value} vendas (${percentage}%)`,
+                                    `→ ${explanation}`
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function updateCharts() {
+    if (!campaignData || !dailyMetrics) return;
+    
+    // Atualizar gráfico de evolução temporal
+    if (timelineChart && dailyMetrics.length > 0) {
+        const labels = dailyMetrics.map(d => {
+            const date = new Date(d.date);
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        });
+        
+        const costs = dailyMetrics.map(d => d.cost || 0);
+        const revenues = dailyMetrics.map(d => d.total_amount || 0);
+        const roas = dailyMetrics.map(d => {
+            const cost = d.cost || 0;
+            const revenue = d.total_amount || 0;
+            return cost > 0 ? revenue / cost : 0;
+        });
+        
+        timelineChart.data.labels = labels;
+        timelineChart.data.datasets[0].data = costs;
+        timelineChart.data.datasets[1].data = revenues;
+        timelineChart.data.datasets[2].data = roas;
+        timelineChart.update();
+    }
+    
+    // Atualizar gráfico de breakdown de vendas
+    if (salesBreakdownChart && campaignData.metrics) {
+        const metrics = campaignData.metrics;
+        salesBreakdownChart.data.datasets[0].data = [
+            metrics.direct_items_quantity || 0,
+            metrics.indirect_items_quantity || 0,
+            metrics.organic_items_quantity || 0
+        ];
+        salesBreakdownChart.update();
+    }
+}
+
+// ============================================================================
+// FILTROS DE PERÍODO
+// ============================================================================
+function handlePeriodChange() {
+    const periodFilter = document.getElementById('period-filter');
+    const period = periodFilter.value;
+    const customFields = document.getElementById('custom-date-fields');
+    
+    if (period === 'custom') {
+        customFields.style.display = 'block';
+        currentPeriod = { type: 'custom' };
+    } else {
+        customFields.style.display = 'none';
+        
+        if (period === 'current-month') {
+            currentPeriod = { type: 'current-month' };
+        } else {
+            currentPeriod = { type: parseInt(period) };
+        }
+        
+        loadData();
+    }
+}
+
+function applyCustomPeriod() {
+    const dateFrom = document.getElementById('custom-date-from').value;
+    const dateTo = document.getElementById('custom-date-to').value;
+    
+    if (!dateFrom || !dateTo) {
+        showToast('Por favor, selecione ambas as datas', 'warning');
+        return;
+    }
+    
+    if (dateFrom > dateTo) {
+        showToast('Data inicial não pode ser maior que a data final', 'warning');
+        return;
+    }
+    
+    currentPeriod = { type: 'custom', dateFrom, dateTo };
+    loadData();
+}
+
+function getPeriodParams() {
+    const today = new Date();
+    let dateFrom, dateTo;
+    
+    if (currentPeriod.type === 'custom') {
+        dateFrom = currentPeriod.dateFrom;
+        dateTo = currentPeriod.dateTo;
+    } else if (currentPeriod.type === 'current-month') {
+        // Mês atual: do dia 1 até hoje
+        dateTo = today.toISOString().split('T')[0];
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        dateFrom = firstDayOfMonth.toISOString().split('T')[0];
+    } else {
+        // Últimos X dias
+        dateTo = today.toISOString().split('T')[0];
+        const fromDate = new Date(today);
+        fromDate.setDate(today.getDate() - currentPeriod.type);
+        dateFrom = fromDate.toISOString().split('T')[0];
+    }
+    
+    return { dateFrom, dateTo };
+}
+
+// ============================================================================
+// UTILITÁRIOS
+// ============================================================================
+function formatCurrency(value) {
+    return 'R$ ' + parseFloat(value).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function showToast(message, type = 'info') {
+    // Implementar toast notification
+    alert(message);
+}
+</script>
+
+{% endblock %}
+

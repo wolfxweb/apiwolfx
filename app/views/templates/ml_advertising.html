@@ -928,8 +928,7 @@ async function updateCharts() {
 // AÇÕES DE CAMPANHA
 // ============================================================================
 function viewCampaignDetails(campaignId) {
-    showToast('Detalhes da campanha (em desenvolvimento)', 'info');
-    console.log('Ver detalhes:', campaignId);
+    window.location.href = `/ml/advertising/campaigns/${campaignId}/details`;
 }
 
 async function deleteCampaign(campaignId) {
