@@ -332,26 +332,36 @@ class AnalyticsController:
                 })
             timeline.reverse()
             
+            # Preparar dados de KPIs
+            kpis_data = {
+                'total_revenue': total_revenue,
+                'total_sold': total_sold,
+                'total_orders': total_orders,
+                'avg_ticket': avg_ticket,
+                'cancelled_orders': cancelled_count,
+                'cancelled_value': cancelled_value,
+                'returns_count': returns_count,
+                'returns_value': returns_value,
+                'total_visits': total_visits,
+                'total_products': len(products)
+            }
+            
+            # Calcular custos e lucro
+            costs_data = self._calculate_costs_with_taxes(company_id, total_revenue, total_orders, start_date, end_date)
+            total_costs = costs_data.get('total_costs', 0)
+            net_profit = total_revenue - total_costs
+            net_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
+            avg_profit_per_order = net_profit / total_orders if total_orders > 0 else 0
+            
             return {
                 'success': True,
-                'kpis': {
-                    'total_revenue': total_revenue,
-                    'total_sold': total_sold,
-                    'total_orders': total_orders,
-                    'avg_ticket': avg_ticket,
-                    'cancelled_orders': cancelled_count,
-                    'cancelled_value': cancelled_value,
-                    'returns_count': returns_count,
-                    'returns_value': returns_value,
-                    'total_visits': total_visits,
-                    'total_products': len(products)
-                },
-                'costs': self._calculate_costs_with_taxes(company_id, total_revenue, total_orders, start_date, end_date),
+                'kpis': kpis_data,
+                'costs': costs_data,
                 'billing': self._get_billing_data(company_id, start_date, end_date) or {},
                 'profit': {
-                    'net_profit': total_revenue * 0.50,  # 50% estimado
-                    'net_margin': 50.0,
-                    'avg_profit_per_order': (total_revenue * 0.50) / total_orders if total_orders > 0 else 0
+                    'net_profit': net_profit,
+                    'net_margin': net_margin,
+                    'avg_profit_per_order': avg_profit_per_order
                 },
                 'products': [
                     {
@@ -775,8 +785,12 @@ class AnalyticsController:
             product_cost = total_revenue * 0.40  # 40% estimado
             other_costs = 0.0  # Outros custos
             
-            # Total de custos
-            total_costs = ml_fees + product_cost + taxes_amount + other_costs + marketing_cost
+            # Custo adicional por pedido
+            cost_per_order = float(company.custo_adicional_por_pedido or 0) if company and company.custo_adicional_por_pedido else 0.0
+            total_cost_per_order = cost_per_order * total_orders
+            
+            # Total de custos (incluindo TODOS os custos)
+            total_costs = ml_fees + shipping_fees + discounts + product_cost + taxes_amount + other_costs + marketing_cost + total_cost_per_order
             total_costs_percent = (total_costs / total_revenue * 100) if total_revenue > 0 else 0
             
             # Calcular detalhamento dos impostos
