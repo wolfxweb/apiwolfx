@@ -42,12 +42,6 @@
                             <option value="custom">Período personalizado</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">&nbsp;</label>
-                        <button type="button" class="btn btn-primary w-100" onclick="loadData()">
-                            <i class="bi bi-arrow-clockwise"></i> Atualizar
-                        </button>
-                    </div>
                 </div>
                 
                 <!-- Campos de data personalizada (oculto por padrão) -->
@@ -89,16 +83,27 @@
             <div class="card-body">
                 <h6 class="text-muted">💵 Receita Total</h6>
                 <h3 id="kpi-revenue">R$ 0,00</h3>
-                <small class="text-muted">Direta: <span id="kpi-direct-revenue">R$ 0,00</span></small>
+                <small class="text-muted d-block">Com anúncio: <span id="kpi-ad-revenue">R$ 0,00</span></small>
+                <small class="text-muted d-block">Sem anúncio: <span id="kpi-organic-revenue">R$ 0,00</span></small>
             </div>
         </div>
     </div>
     <div class="col-md-3 mb-3">
         <div class="card">
             <div class="card-body">
-                <h6 class="text-muted">📈 ROAS</h6>
+                <h6 class="text-muted">
+                    📈 ROAS 
+                    <i class="bi bi-info-circle" style="cursor: help;" title="Return On Ad Spend - Retorno sobre o investimento publicitário. Quanto você ganha para cada R$ 1 investido. Ex: ROAS 5x = R$ 5 de receita para cada R$ 1 investido."></i>
+                </h6>
                 <h3 id="kpi-roas">0.00x</h3>
-                <small class="text-muted">ACOS: <span id="kpi-acos">0%</span></small>
+                <small class="text-muted d-block">
+                    ACOS: <span id="kpi-acos">0%</span>
+                    <i class="bi bi-info-circle" style="cursor: help; font-size: 10px;" title="Advertising Cost of Sales - Percentual do custo de publicidade sobre a receita gerada pelos anúncios. Ex: ACOS 20% = R$ 20 gastos para cada R$ 100 de receita com anúncios."></i>
+                </small>
+                <small class="text-muted d-block">
+                    TACOS: <span id="kpi-tacos">0%</span>
+                    <i class="bi bi-info-circle" style="cursor: help; font-size: 10px;" title="Total Advertising Cost of Sales - Percentual do custo de publicidade sobre a receita TOTAL (incluindo vendas orgânicas). Mostra o impacto real dos anúncios no negócio. Ex: TACOS 10% = R$ 10 gastos para cada R$ 100 de receita total."></i>
+                </small>
             </div>
         </div>
     </div>
@@ -107,7 +112,8 @@
             <div class="card-body">
                 <h6 class="text-muted">🛒 Vendas</h6>
                 <h3 id="kpi-sales">0</h3>
-                <small class="text-muted">Diretas: <span id="kpi-direct-sales">0</span></small>
+                <small class="text-muted d-block">Com anúncio: <span id="kpi-ad-sales">0</span></small>
+                <small class="text-muted d-block">Sem anúncio: <span id="kpi-organic-sales">0</span></small>
             </div>
         </div>
     </div>
@@ -418,12 +424,37 @@ function updateKPIs(metrics) {
     // Linha 1 - Investimento e Retorno
     document.getElementById('kpi-cost').textContent = formatCurrency(metrics.cost || 0);
     document.getElementById('kpi-cpc').textContent = formatCurrency(metrics.cpc || 0);
-    document.getElementById('kpi-revenue').textContent = formatCurrency(metrics.total_amount || 0);
-    document.getElementById('kpi-direct-revenue').textContent = formatCurrency(metrics.direct_amount || 0);
+    
+    // Receita com anúncio = direta + indireta
+    const adRevenue = (metrics.direct_amount || 0) + (metrics.indirect_amount || 0);
+    
+    // Receita sem anúncio = orgânica
+    const organicRevenue = (metrics.organic_units_amount || 0);
+    
+    // Receita Total = Com anúncio + Sem anúncio
+    const totalRevenue = adRevenue + organicRevenue;
+    
+    document.getElementById('kpi-revenue').textContent = formatCurrency(totalRevenue);
+    document.getElementById('kpi-ad-revenue').textContent = formatCurrency(adRevenue);
+    document.getElementById('kpi-organic-revenue').textContent = formatCurrency(organicRevenue);
+    
     document.getElementById('kpi-roas').textContent = (metrics.roas || 0).toFixed(2) + 'x';
     document.getElementById('kpi-acos').textContent = (metrics.acos || 0).toFixed(2) + '%';
-    document.getElementById('kpi-sales').textContent = metrics.advertising_items_quantity || 0;
-    document.getElementById('kpi-direct-sales').textContent = metrics.direct_items_quantity || 0;
+    
+    // TACOS = (Custo / Receita Total) * 100
+    const tacos = (totalRevenue > 0) 
+        ? ((metrics.cost || 0) / totalRevenue) * 100 
+        : 0;
+    document.getElementById('kpi-tacos').textContent = tacos.toFixed(2) + '%';
+    
+    // Vendas
+    const adSales = (metrics.advertising_items_quantity || 0);
+    const organicSales = (metrics.organic_items_quantity || 0);
+    const totalSales = adSales + organicSales;
+    
+    document.getElementById('kpi-sales').textContent = totalSales;
+    document.getElementById('kpi-ad-sales').textContent = adSales;
+    document.getElementById('kpi-organic-sales').textContent = organicSales;
     
     // Linha 2 - Engajamento
     document.getElementById('kpi-impressions').textContent = (metrics.prints || 0).toLocaleString('pt-BR');
@@ -584,6 +615,28 @@ function initCharts() {
                         backgroundColor: 'rgba(75, 192, 192, 0.1)',
                         yAxisID: 'y',
                         tension: 0.4,
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    },
+                    {
+                        label: '🎯 Receita com Anúncio',
+                        data: [],
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        yAxisID: 'y',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: '🌱 Receita sem Anúncio',
+                        data: [],
+                        borderColor: 'rgba(75, 192, 75, 1)',
+                        backgroundColor: 'rgba(75, 192, 75, 0.1)',
+                        yAxisID: 'y',
+                        tension: 0.4,
                         borderWidth: 2,
                         pointRadius: 4,
                         pointHoverRadius: 6
@@ -656,10 +709,18 @@ function initCharts() {
                                     value = formatCurrency(context.parsed.y);
                                     explanation = 'Quanto foi investido em anúncios';
                                 } else if (datasetIndex === 1) {
-                                    // Receita
+                                    // Receita Total
                                     value = formatCurrency(context.parsed.y);
-                                    explanation = 'Receita gerada pelos anúncios';
+                                    explanation = 'Receita TOTAL do negócio (com + sem anúncio)';
                                 } else if (datasetIndex === 2) {
+                                    // Receita com Anúncio
+                                    value = formatCurrency(context.parsed.y);
+                                    explanation = 'Receita de vendas diretas + indiretas dos anúncios';
+                                } else if (datasetIndex === 3) {
+                                    // Receita sem Anúncio
+                                    value = formatCurrency(context.parsed.y);
+                                    explanation = 'Receita de vendas orgânicas (sem clique em anúncio)';
+                                } else if (datasetIndex === 4) {
                                     // ROAS
                                     value = context.parsed.y.toFixed(2) + 'x';
                                     explanation = 'R$ ganhos por cada R$ 1,00 investido';
@@ -835,7 +896,22 @@ function updateCharts() {
         });
         
         const costs = dailyMetrics.map(d => d.cost || 0);
-        const revenues = dailyMetrics.map(d => d.total_amount || 0);
+        
+        // Receita com anúncio = direta + indireta
+        const adRevenues = dailyMetrics.map(d => {
+            const direct = d.direct_amount || 0;
+            const indirect = d.indirect_amount || 0;
+            return direct + indirect;
+        });
+        
+        // Receita sem anúncio = orgânica
+        const organicRevenues = dailyMetrics.map(d => d.organic_units_amount || 0);
+        
+        // Receita total = com anúncio + sem anúncio
+        const totalRevenues = dailyMetrics.map((d, i) => {
+            return adRevenues[i] + organicRevenues[i];
+        });
+        
         const roas = dailyMetrics.map(d => {
             const cost = d.cost || 0;
             const revenue = d.total_amount || 0;
@@ -844,8 +920,10 @@ function updateCharts() {
         
         timelineChart.data.labels = labels;
         timelineChart.data.datasets[0].data = costs;
-        timelineChart.data.datasets[1].data = revenues;
-        timelineChart.data.datasets[2].data = roas;
+        timelineChart.data.datasets[1].data = totalRevenues;
+        timelineChart.data.datasets[2].data = adRevenues;
+        timelineChart.data.datasets[3].data = organicRevenues;
+        timelineChart.data.datasets[4].data = roas;
         timelineChart.update();
     }
     
