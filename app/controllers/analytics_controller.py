@@ -783,14 +783,53 @@ class AnalyticsController:
             
             # Custo dos produtos (estimado)
             product_cost = total_revenue * 0.40  # 40% estimado
-            other_costs = 0.0  # Outros custos
             
-            # Custo adicional por pedido
+            # Calcular "outros custos" dos produtos vendidos
+            from app.models.saas_models import InternalProduct, MLProduct
+            other_costs = 0.0
+            other_costs_units = 0  # Para calcular o custo médio por unidade
+            
+            if orders:
+                # Buscar produtos vendidos e seus custos
+                for order in orders:
+                    if hasattr(order, 'items') and order.items:
+                        for item in order.items:
+                            ml_item_id = item.get('item', {}).get('id') if isinstance(item, dict) else None
+                            if ml_item_id:
+                                # Buscar produto ML
+                                ml_product = self.db.query(MLProduct).filter(
+                                    and_(
+                                        MLProduct.ml_item_id == ml_item_id,
+                                        MLProduct.company_id == company_id
+                                    )
+                                ).first()
+                                
+                                if ml_product and ml_product.seller_sku:
+                                    # Buscar produto interno pelo SKU
+                                    internal_product = self.db.query(InternalProduct).filter(
+                                        and_(
+                                            InternalProduct.sku == ml_product.seller_sku,
+                                            InternalProduct.company_id == company_id
+                                        )
+                                    ).first()
+                                    
+                                    if internal_product and internal_product.other_costs:
+                                        quantity = item.get('quantity', 1) if isinstance(item, dict) else 1
+                                        other_costs += float(internal_product.other_costs or 0) * quantity
+                                        other_costs_units += quantity
+            
+            # Custo adicional por pedido (da empresa)
             cost_per_order = float(company.custo_adicional_por_pedido or 0) if company and company.custo_adicional_por_pedido else 0.0
             total_cost_per_order = cost_per_order * total_orders
             
+            # Outros custos TOTAL = outros custos dos produtos + custo adicional por pedido
+            total_other_costs = other_costs + total_cost_per_order
+            
+            # Calcular custo médio por unidade (considerando ambos)
+            other_costs_per_unit = (other_costs / other_costs_units) if other_costs_units > 0 else 0.0
+            
             # Total de custos (incluindo TODOS os custos)
-            total_costs = ml_fees + shipping_fees + discounts + product_cost + taxes_amount + other_costs + marketing_cost + total_cost_per_order
+            total_costs = ml_fees + shipping_fees + discounts + product_cost + taxes_amount + total_other_costs + marketing_cost
             total_costs_percent = (total_costs / total_revenue * 100) if total_revenue > 0 else 0
             
             # Calcular detalhamento dos impostos
@@ -816,9 +855,9 @@ class AnalyticsController:
                 'taxes': taxes_amount,
                 'taxes_percent': taxes_percent,
                 'taxes_breakdown': taxes_breakdown,
-                'other_costs': other_costs,
-                'other_costs_percent': other_costs_percent,
-                'other_costs_per_unit': other_costs / len(orders) if orders else 0,
+                'other_costs': total_other_costs,
+                'other_costs_percent': (total_other_costs / total_revenue * 100) if total_revenue > 0 else 0,
+                'other_costs_per_unit': other_costs_per_unit,
                 'marketing_cost': marketing_cost,
                 'marketing_percent': marketing_percent,
                 'marketing_per_unit': 0.0,
