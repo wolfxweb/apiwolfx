@@ -334,16 +334,16 @@ class AnalyticsController:
             
             # Preparar dados de KPIs
             kpis_data = {
-                'total_revenue': total_revenue,
-                'total_sold': total_sold,
-                'total_orders': total_orders,
-                'avg_ticket': avg_ticket,
-                'cancelled_orders': cancelled_count,
-                'cancelled_value': cancelled_value,
-                'returns_count': returns_count,
-                'returns_value': returns_value,
-                'total_visits': total_visits,
-                'total_products': len(products)
+                    'total_revenue': total_revenue,
+                    'total_sold': total_sold,
+                    'total_orders': total_orders,
+                    'avg_ticket': avg_ticket,
+                    'cancelled_orders': cancelled_count,
+                    'cancelled_value': cancelled_value,
+                    'returns_count': returns_count,
+                    'returns_value': returns_value,
+                    'total_visits': total_visits,
+                    'total_products': len(products)
             }
             
             # Calcular custos e lucro

@@ -25,6 +25,7 @@ from app.routes.fornecedores_routes import fornecedores_router
 from app.routes.ordem_compra_routes import ordem_compra_router
 from app.routes.ml_cash_routes import ml_cash_router
 from app.routes.marketing_costs_routes import router as marketing_costs_router
+from app.routes.advertising_full_routes import router as advertising_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -196,6 +197,7 @@ app.include_router(fornecedores_router)  # Para /fornecedores e /api/fornecedore
 app.include_router(ordem_compra_router)  # Para /ordem-compra e /api/ordem-compra
 app.include_router(ml_cash_router)  # Para /api/ml-cash
 app.include_router(marketing_costs_router)  # Para /marketing
+app.include_router(advertising_router)  # Para /ml/advertising
 # app.include_router(settings_router)  # Removido - usando /auth/profile
 
 # Rota específica para página de edição da empresa

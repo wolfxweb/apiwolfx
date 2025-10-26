@@ -76,7 +76,7 @@
                                 <option value="2026">2026</option>
                             </select>
                         </div>
-                    </div>
+                        </div>
                 </div>
             </div>
         </div>
@@ -1289,11 +1289,11 @@ function renderParetoAnalysis(products) {
         // Incluir apenas produtos que NÃO ultrapassam 80%
         if (newAccumulatedPercentage <= 80) {
             accumulatedPercentage = newAccumulatedPercentage;
-            paretoProducts.push({
-                ...product,
-                percentage: productPercentage,
-                accumulatedPercentage: accumulatedPercentage
-            });
+        paretoProducts.push({
+            ...product,
+            percentage: productPercentage,
+            accumulatedPercentage: accumulatedPercentage
+        });
         } else {
             // Se este produto ultrapassar 80%, parar aqui
             // O produto que ultrapassa vai para o card de 15%
@@ -2972,7 +2972,7 @@ function refreshData() {
 
 // Inicializar
 document.addEventListener('DOMContentLoaded', function() {
-
+    
     // Inicializar tooltips do Bootstrap
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {

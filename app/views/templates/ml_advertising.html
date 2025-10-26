@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Publicidade - Mercado Livre{% endblock %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h3 mb-3">📢 Publicidade - Product Ads</h1>
+            <p class="text-muted">Gerencie suas campanhas de publicidade no Mercado Livre</p>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted">Campanhas Ativas</h6>
+                    <h3 id="active-campaigns">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted">Investimento Total</h6>
+                    <h3 id="total-investment">R$ 0,00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted">ROAS Médio</h6>
+                    <h3 id="avg-roas">0.0x</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted">Receita Gerada</h6>
+                    <h3 id="total-revenue">R$ 0,00</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <button class="btn btn-primary" onclick="openCreateCampaignModal()">
+                <i class="bi bi-plus-circle"></i> Nova Campanha
+            </button>
+            <button class="btn btn-outline-secondary" onclick="loadCampaigns()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Lista de Campanhas -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Campanhas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Status</th>
+                                    <th>Orçamento Diário</th>
+                                    <th>Gasto</th>
+                                    <th>Cliques</th>
+                                    <th>ROAS</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="campaigns-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center">Carregando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nova Campanha -->
+<div class="modal fade" id="createCampaignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nova Campanha</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createCampaignForm">
+                    <div class="mb-3">
+                        <label class="form-label">Nome da Campanha</label>
+                        <input type="text" class="form-control" id="campaign-name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Orçamento Diário (R$)</label>
+                        <input type="number" class="form-control" id="campaign-budget" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Lance</label>
+                        <select class="form-select" id="campaign-bid-type">
+                            <option value="auto">Automático</option>
+                            <option value="manual">Manual</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status Inicial</label>
+                        <select class="form-select" id="campaign-status">
+                            <option value="paused">Pausada</option>
+                            <option value="active">Ativa</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="createCampaign()">Criar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadCampaigns();
+});
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+async function loadCampaigns() {
+    try {
+        const token = getCookie('session_token');
+        const response = await fetch('/ml/advertising/campaigns?session_token=' + token);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayCampaigns(data.campaigns);
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+    }
+}
+
+function displayCampaigns(campaigns) {
+    const tbody = document.getElementById('campaigns-table-body');
+    if (!campaigns || campaigns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhuma campanha encontrada</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = campaigns.map(c => `
+        <tr>
+            <td>${c.name || 'N/A'}</td>
+            <td><span class="badge bg-${c.status === 'active' ? 'success' : 'secondary'}">${c.status}</span></td>
+            <td>R$ ${(c.budget?.amount || 0).toFixed(2)}</td>
+            <td>R$ ${(c.spent || 0).toFixed(2)}</td>
+            <td>${c.clicks || 0}</td>
+            <td>${(c.roas || 0).toFixed(2)}x</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="editCampaign(${c.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteCampaign(${c.id})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openCreateCampaignModal() {
+    const modal = new bootstrap.Modal(document.getElementById('createCampaignModal'));
+    modal.show();
+}
+
+async function createCampaign() {
+    const token = getCookie('session_token');
+    const data = {
+        name: document.getElementById('campaign-name').value,
+        budget: parseFloat(document.getElementById('campaign-budget').value),
+        bid_type: document.getElementById('campaign-bid-type').value,
+        status: document.getElementById('campaign-status').value
+    };
+    
+    try {
+        const response = await fetch('/ml/advertising/campaigns?session_token=' + token, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('Campanha criada com sucesso!');
+            bootstrap.Modal.getInstance(document.getElementById('createCampaignModal')).hide();
+            loadCampaigns();
+        } else {
+            alert('Erro: ' + result.error);
+        }
+    } catch (error) {
+        alert('Erro ao criar campanha');
+    }
+}
+
+async function deleteCampaign(id) {
+    if (!confirm('Deseja deletar esta campanha?')) return;
+    
+    const token = getCookie('session_token');
+    try {
+        const response = await fetch(`/ml/advertising/campaigns/${id}?session_token=${token}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('Campanha deletada!');
+            loadCampaigns();
+        }
+    } catch (error) {
+        alert('Erro ao deletar');
+    }
+}
+</script>
+{% endblock %}
+
