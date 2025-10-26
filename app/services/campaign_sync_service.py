@@ -229,9 +229,8 @@ class CampaignSyncService:
     
     def _sync_campaign_products(self, campaign_id: str, site_id: str, access_token: str) -> int:
         """
-        Sincroniza produtos de uma campanha específica
-        NOTA: API pública do ML não expõe endpoint de produtos por campanha.
-        Esta função busca produtos ativos da empresa que provavelmente estão na campanha.
+        Sincroniza produtos de uma campanha específica da API do Mercado Livre
+        Busca os anúncios reais da campanha e salva com o status correto (active/paused)
         """
         try:
             # Buscar campanha no banco
@@ -243,33 +242,76 @@ class CampaignSyncService:
                 logger.warning(f"⚠️ Campanha {campaign_id} não encontrada no banco")
                 return 0
             
-            # Como a API não expõe os produtos por campanha, vamos buscar produtos ativos da empresa
-            from app.models.saas_models import MLProduct, MLProductStatus
-            products = self.db.query(MLProduct).filter(
-                MLProduct.company_id == campaign.company_id,
-                MLProduct.status == MLProductStatus.ACTIVE
-            ).limit(20).all()  # Limitar a 20 produtos
+            # Buscar advertiser_id da campanha
+            advertiser_id = campaign.advertiser_id
             
-            if not products:
-                logger.info(f"ℹ️ Nenhum produto ativo encontrado para a empresa")
+            # Buscar anúncios da campanha direto da API do ML
+            import requests
+            url = f"https://api.mercadolibre.com/advertising/{site_id}/advertisers/{advertiser_id}/product_ads/ads/search"
+            params = {
+                "filters[campaign_id]": campaign_id,
+                "limit": 200,
+                "offset": 0
+            }
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "Api-Version": "2"
+            }
+            
+            response = requests.get(url, params=params, headers=headers, timeout=30)
+            
+            if response.status_code != 200:
+                logger.error(f"❌ Erro ao buscar anúncios da campanha {campaign_id}: {response.status_code}")
                 return 0
             
-            products_saved = 0
+            ads_data = response.json()
+            ads = ads_data.get("results", [])
             
-            for ml_product in products:
+            if not ads:
+                logger.info(f"ℹ️ Nenhum anúncio encontrado na campanha {campaign_id}")
+                return 0
+            
+            from app.models.saas_models import MLProduct
+            products_saved = 0
+            products_updated = 0
+            
+            for ad in ads:
                 try:
+                    item_id = ad.get("item_id")
+                    ad_status = ad.get("status", "active")  # Status da API: active, paused, etc
+                    
+                    if not item_id:
+                        continue
+                    
+                    # Buscar produto no banco local pelo ml_item_id
+                    ml_product = self.db.query(MLProduct).filter(
+                        MLProduct.ml_item_id == item_id,
+                        MLProduct.company_id == campaign.company_id
+                    ).first()
+                    
+                    if not ml_product:
+                        logger.debug(f"⚠️ Produto {item_id} não encontrado no banco local")
+                        continue
+                    
                     # Verificar se já existe o relacionamento
                     existing_relation = self.db.query(MLCampaignProduct).filter(
                         MLCampaignProduct.campaign_id == campaign.id,
                         MLCampaignProduct.ml_product_id == ml_product.id
                     ).first()
                     
-                    if not existing_relation:
-                        # Criar novo relacionamento
+                    if existing_relation:
+                        # Atualizar status se mudou
+                        if existing_relation.status != ad_status:
+                            logger.info(f"📝 Atualizando status: {item_id} de {existing_relation.status} para {ad_status}")
+                            existing_relation.status = ad_status
+                            products_updated += 1
+                    else:
+                        # Criar novo relacionamento com o status correto da API
                         new_relation = MLCampaignProduct(
                             campaign_id=campaign.id,
                             ml_product_id=ml_product.id,
-                            status="active",
+                            status=ad_status,  # ✅ Usar status real da API
                             impressions=0,
                             clicks=0,
                             conversions=0,
@@ -278,16 +320,15 @@ class CampaignSyncService:
                         )
                         self.db.add(new_relation)
                         products_saved += 1
-                    else:
-                        existing_relation.last_sync_at = datetime.now()
+                        logger.info(f"✅ Produto {item_id} adicionado à campanha com status: {ad_status}")
                     
                 except Exception as e:
-                    logger.warning(f"⚠️ Erro ao processar produto {ml_product.ml_item_id}: {e}")
+                    logger.warning(f"⚠️ Erro ao processar anúncio: {e}")
                     continue
             
-            if products_saved > 0:
-                logger.info(f"✅ {products_saved} produtos associados à campanha {campaign_id}")
-            return products_saved
+            if products_saved > 0 or products_updated > 0:
+                logger.info(f"✅ Campanha {campaign_id}: {products_saved} produtos novos, {products_updated} atualizados")
+            return products_saved + products_updated
             
         except Exception as e:
             logger.error(f"❌ Erro ao sincronizar produtos da campanha {campaign_id}: {e}")

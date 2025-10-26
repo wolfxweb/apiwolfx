@@ -216,7 +216,7 @@
 <!-- Gráficos -->
 <div class="row mb-4">
     <!-- Evolução Temporal (Largura completa) -->
-    <div class="col-md-12 mb-4">
+    <div class="col-md-12">
         <div class="card">
             <div class="card-body">
                 <canvas id="timelineChart" height="350"></canvas>
@@ -225,7 +225,18 @@
     </div>
 </div>
 
-<!-- Composição de Vendas e Benchmark -->
+<!-- Evolução de Preços (Largura completa) -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <canvas id="priceEvolutionChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Composição de Vendas e Performance vs Objetivo -->
 <div class="row mb-4">
     <!-- Breakdown de Vendas -->
     <div class="col-md-6">
@@ -236,6 +247,7 @@
         </div>
     </div>
     
+    <!-- Benchmark -->
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-white">
@@ -339,6 +351,43 @@
     </div>
 </div>
 
+<!-- Tabela de Vendas Detalhadas (Debug) -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="text-center mb-3">🔍 Vendas Detalhadas (Debug)</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead style="background-color: #343a40; color: white;">
+                            <tr>
+                                <th>Data</th>
+                                <th>ID Produto</th>
+                                <th>Título</th>
+                                <th>Qtd</th>
+                                <th>Preço Unit.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sales-debug-table">
+                            <tr>
+                                <td colspan="6" class="text-center">
+                                    <div class="spinner-border spinner-border-sm"></div> Carregando vendas...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-end">
+                    <small class="text-muted">
+                        <strong>Total de vendas:</strong> <span id="total-sales-count">0</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 /* Estilo dos popovers de ajuda */
 .popover {
@@ -393,6 +442,7 @@ let adsData = [];
 // Charts
 let timelineChart = null;
 let salesBreakdownChart = null;
+let priceEvolutionChart = null;
 
 // ============================================================================
 // INICIALIZAÇÃO
@@ -1065,6 +1115,159 @@ function initCharts() {
             }
         });
     }
+    
+    // Gráfico de Evolução de Vendas e Preços
+    const priceCtx = document.getElementById('priceEvolutionChart');
+    if (priceCtx) {
+        priceEvolutionChart = new Chart(priceCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '📦 Quantidade de Vendas',
+                        data: [],
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y-sales',
+                        order: 2
+                    },
+                    {
+                        label: '💰 Preço de Cada Venda',
+                        data: [],
+                        type: 'scatter',
+                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        pointStyle: 'circle',
+                        yAxisID: 'y-price',
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '📊 Vendas e Dispersão de Preços (Pedidos Reais)',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 20
+                        }
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        callbacks: {
+                            title: function(context) {
+                                if (context[0].dataset.type === 'scatter') {
+                                    // Para scatter, pegar a data pelo índice x
+                                    const xIndex = Math.round(context[0].parsed.x);
+                                    const dateLabel = context[0].chart.data.labels[xIndex];
+                                    return '🛒 Venda - ' + dateLabel;
+                                }
+                                return '📅 Data: ' + context[0].label;
+                            },
+                            label: function(context) {
+                                const label = context.dataset.label || '';
+                                if (label.includes('Vendas')) {
+                                    return '📦 Total de Vendas: ' + context.parsed.y + ' unidades';
+                                } else {
+                                    return '💰 Preço: ' + formatCurrency(context.parsed.y);
+                                }
+                            },
+                            afterLabel: function(context) {
+                                if (context.dataset.type === 'scatter') {
+                                    return '→ Cada ponto é uma venda real';
+                                }
+                                return null;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    'y-sales': {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            callback: function(value) {
+                                return value + ' un';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '📦 Quantidade de Vendas',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    'y-price': {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: false,
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$ ' + value.toLocaleString('pt-BR', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                });
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '💰 Preço (R$)',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: '📅 Período',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
 }
 
 function updateCharts() {
@@ -1119,6 +1322,95 @@ function updateCharts() {
         ];
         salesBreakdownChart.update();
     }
+    
+    // Buscar e atualizar gráfico de evolução de preços com dados reais dos pedidos
+    loadPriceEvolution();
+}
+
+async function loadPriceEvolution() {
+    try {
+        const params = getPeriodParams();
+        const response = await fetch(`/ml/advertising/campaigns/${CAMPAIGN_ID}/price-evolution?${params}`);
+        const result = await response.json();
+        
+        if (!result.success) {
+            console.error('Erro ao buscar evolução de vendas e preços:', result.error);
+            return;
+        }
+        
+        const salesData = result.daily_sales || [];
+        const salesDetails = result.sales_details || [];
+        
+        // Atualizar gráfico
+        if (priceEvolutionChart && salesData.length > 0) {
+            const labels = salesData.map(d => {
+                const date = new Date(d.date);
+                return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            });
+            
+            const salesCounts = salesData.map(d => d.sales_count);
+            
+            // Criar pontos de dispersão para cada venda individual
+            const pricePoints = [];
+            salesData.forEach((dayData, dayIndex) => {
+                // Só plotar pontos se houver vendas no dia
+                if (dayData.sales_count > 0) {
+                    const prices = dayData.prices || [];
+                    prices.forEach(price => {
+                        if (price > 0) {
+                            pricePoints.push({
+                                x: dayIndex,  // Índice do dia
+                                y: price      // Preço da venda
+                            });
+                        }
+                    });
+                }
+            });
+            
+            priceEvolutionChart.data.labels = labels;
+            priceEvolutionChart.data.datasets[0].data = salesCounts;  // Barras: Quantidade de vendas
+            priceEvolutionChart.data.datasets[1].data = pricePoints;  // Pontos: Cada venda individual
+            priceEvolutionChart.update();
+        }
+        
+        // Popular tabela de debug com detalhes das vendas
+        updateSalesDebugTable(salesDetails);
+        
+    } catch (error) {
+        console.error('Erro ao carregar evolução de vendas e preços:', error);
+    }
+}
+
+function updateSalesDebugTable(salesDetails) {
+    const tbody = document.getElementById('sales-debug-table');
+    const totalCount = document.getElementById('total-sales-count');
+    
+    if (!salesDetails || salesDetails.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhuma venda encontrada no período</td></tr>';
+        totalCount.textContent = '0';
+        return;
+    }
+    
+    let html = '';
+    let totalQuantity = 0;
+    
+    salesDetails.forEach(sale => {
+        totalQuantity += sale.quantity;
+        
+        html += `
+            <tr>
+                <td>${new Date(sale.date).toLocaleDateString('pt-BR')}</td>
+                <td><small>${sale.item_id}</small></td>
+                <td title="${sale.title}">${sale.title}...</td>
+                <td class="text-center">${sale.quantity}</td>
+                <td class="text-end">${formatCurrency(sale.unit_price)}</td>
+                <td class="text-end"><strong>${formatCurrency(sale.total)}</strong></td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    totalCount.textContent = totalQuantity;
 }
 
 // ============================================================================

@@ -160,3 +160,15 @@ async def get_campaign_ads(
     """Busca anúncios/produtos de uma campanha com métricas"""
     controller = AdvertisingFullController(db)
     return controller.get_campaign_ads(user["company"]["id"], campaign_id, date_from, date_to, limit)
+
+@router.get("/campaigns/{campaign_id}/price-evolution")
+async def get_campaign_price_evolution(
+    campaign_id: str,
+    date_from: str = None,
+    date_to: str = None,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca evolução do preço médio de venda dos produtos da campanha baseado nos pedidos reais"""
+    controller = AdvertisingFullController(db)
+    return controller.get_campaign_price_evolution(user["company"]["id"], campaign_id, date_from, date_to)

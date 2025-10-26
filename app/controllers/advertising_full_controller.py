@@ -463,3 +463,229 @@ class AdvertisingFullController:
         except Exception as e:
             logger.error(f"❌ Erro ao buscar anúncios da campanha: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+    
+    def get_campaign_price_evolution(self, company_id: int, campaign_id: str, date_from: str = None, date_to: str = None):
+        """
+        Calcula a evolução do preço médio dos produtos da campanha baseado nos pedidos reais
+        
+        Args:
+            company_id: ID da empresa
+            campaign_id: ID da campanha
+            date_from: Data inicial (YYYY-MM-DD)
+            date_to: Data final (YYYY-MM-DD)
+        
+        Returns:
+            Dict com success e daily_prices (lista de datas e preços médios)
+        """
+        try:
+            from app.models.saas_models import MLOrder
+            from app.models.advertising_models import MLCampaignProduct
+            from sqlalchemy import func, cast, Date
+            from datetime import datetime, timedelta, date
+            
+            # Processar datas
+            if not date_to:
+                date_to = date.today()
+            else:
+                date_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+            
+            if not date_from:
+                date_from = date_to - timedelta(days=30)
+            else:
+                date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+            
+            logger.info(f"📊 Calculando evolução de preços - Campanha: {campaign_id}, Período: {date_from} a {date_to}")
+            
+            # Buscar conta e token para consultar a API do ML (mesma fonte da tabela "Anúncios da Campanha")
+            account = self.db.query(MLAccount).filter(MLAccount.company_id == company_id).first()
+            if not account:
+                return {"success": False, "error": "Conta ML não encontrada"}
+            
+            user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
+            if not user_ml:
+                return {"success": False, "error": "Usuário não associado à conta ML"}
+            
+            access_token = self.token_manager.get_valid_token(user_ml.user_id)
+            if not access_token:
+                return {"success": False, "error": "Não foi possível obter token válido"}
+            
+            # Buscar advertiser_id
+            advertiser_id = self._get_advertiser_id(access_token)
+            if not advertiser_id:
+                return {"success": False, "error": "Advertiser ID não encontrado"}
+            
+            # Buscar anúncios ATIVOS da campanha direto da API do ML (mesma fonte da tabela)
+            import requests
+            url = f"https://api.mercadolibre.com/advertising/{account.site_id}/advertisers/{advertiser_id}/product_ads/ads/search"
+            params = {
+                "filters[campaign_id]": campaign_id,
+                "limit": 200,
+                "offset": 0
+            }
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "Api-Version": "2"
+            }
+            
+            response = requests.get(url, params=params, headers=headers, timeout=30)
+            if response.status_code != 200:
+                logger.error(f"❌ Erro ao buscar anúncios da campanha: {response.status_code}")
+                return {"success": False, "error": f"API error: {response.status_code}"}
+            
+            ads_data = response.json()
+            ads = ads_data.get("results", [])
+            
+            # Criar set com APENAS os item_id dos anúncios ATIVOS na campanha
+            product_ids = set()
+            for ad in ads:
+                # Filtrar apenas anúncios com status "active" (mesmo filtro da tabela)
+                if ad.get("status") == "active":
+                    item_id = ad.get("item_id")
+                    if item_id:
+                        product_ids.add(item_id)
+                        logger.info(f"   ✅ Produto ATIVO: {item_id} - {ad.get('title', 'N/A')[:50]}")
+                else:
+                    logger.info(f"   ⏸️  Produto {ad.get('status', 'unknown').upper()}: {ad.get('item_id')} - {ad.get('title', 'N/A')[:50]}")
+            
+            logger.info(f"📦 {len(product_ids)} produtos ATIVOS na campanha (API DO MERCADO LIVRE): {product_ids}")
+            
+            # Buscar pedidos no período usando SQL direto com jsonb_array_elements
+            # Isso replica a query SQL que o usuário forneceu
+            from sqlalchemy import text
+            
+            # Converter product_ids para string SQL-safe
+            product_ids_str = ','.join([f"'{pid}'" for pid in product_ids])
+            
+            if not product_ids:
+                logger.warning("⚠️ Nenhum produto ATIVO encontrado na campanha")
+                return {
+                    "success": True,
+                    "daily_sales": [],
+                    "sales_details": []
+                }
+            
+            logger.info(f"📋 Buscando vendas para produtos: {product_ids}")
+            logger.info(f"🔍 product_ids_str: {product_ids_str}")
+            
+            # Query SQL EXATA que funciona no DBeaver
+            sql_query_str = f"""
+                SELECT 
+                    DATE(date_created) as data_venda,
+                    order_id,
+                    item_data->'item'->>'id' as item_id,
+                    item_data->'item'->>'title' as titulo,
+                    CAST(item_data->>'quantity' AS INTEGER) as quantidade,
+                    CAST(item_data->>'unit_price' AS NUMERIC) as preco_unitario
+                FROM ml_orders,
+                     jsonb_array_elements(order_items::jsonb) as item_data,
+                     jsonb_array_elements(catalog_products::jsonb) as catalog_products
+                WHERE company_id = :company_id
+                AND (
+                    catalog_products->>'item_id' IN ({product_ids_str})
+                    OR 
+                    item_data->'item'->>'id' IN ({product_ids_str})
+                )
+                AND status IN ('PAID', 'CONFIRMED', 'DELIVERED', 'SHIPPED')
+                AND date_created >= :date_from
+                AND date_created <= :date_to
+                ORDER BY date_created DESC
+            """
+            
+            logger.info(f"📝 SQL Query: {sql_query_str[:500]}...")
+            sql_query = text(sql_query_str)
+            
+            result = self.db.execute(sql_query, {
+                'company_id': company_id,
+                'date_from': date_from,
+                'date_to': date_to
+            })
+            
+            # Processar resultados
+            daily_data = {}
+            sales_details = []
+            
+            for row in result:
+                order_date = row.data_venda
+                item_id = row.item_id
+                titulo = row.titulo or 'N/A'
+                quantidade = row.quantidade
+                preco_unitario = float(row.preco_unitario)
+                total = quantidade * preco_unitario
+                
+                logger.debug(f"✅ Venda encontrada: {item_id} - {quantidade}x R$ {preco_unitario}")
+                
+                # Adicionar detalhes da venda para debug
+                sales_details.append({
+                    'date': order_date.strftime('%Y-%m-%d'),
+                    'item_id': item_id,
+                    'title': titulo[:50],
+                    'quantity': quantidade,
+                    'unit_price': preco_unitario,
+                    'total': round(total, 2)
+                })
+                
+                if order_date not in daily_data:
+                    daily_data[order_date] = {
+                        'sales_count': 0,
+                        'prices': [],
+                        'total_revenue': 0
+                    }
+                
+                # Adicionar cada unidade vendida individualmente
+                for _ in range(quantidade):
+                    daily_data[order_date]['prices'].append(preco_unitario)
+                
+                daily_data[order_date]['sales_count'] += quantidade
+                daily_data[order_date]['total_revenue'] += total
+            
+            # Log resumo de vendas encontradas
+            total_sales_found = sum(data['sales_count'] for data in daily_data.values())
+            logger.info(f"💰 Total de vendas encontradas: {total_sales_found} em {len(daily_data)} dias diferentes")
+            
+            # Formatar resultado com vendas e preços por dia
+            daily_sales = []
+            current_date = date_from
+            
+            while current_date <= date_to:
+                if current_date in daily_data:
+                    data = daily_data[current_date]
+                    # Calcular preço médio apenas para referência
+                    avg_price = data['total_revenue'] / data['sales_count'] if data['sales_count'] > 0 else 0
+                    min_price = min(data['prices']) if data['prices'] else 0
+                    max_price = max(data['prices']) if data['prices'] else 0
+                    # Só incluir preços se houver vendas
+                    prices_list = [round(p, 2) for p in data['prices'][:50]] if data['sales_count'] > 0 else []
+                else:
+                    avg_price = 0
+                    min_price = 0
+                    max_price = 0
+                    prices_list = []
+                    data = {'sales_count': 0, 'total_revenue': 0}
+                
+                daily_sales.append({
+                    'date': current_date.strftime('%Y-%m-%d'),
+                    'sales_count': data['sales_count'],
+                    'average_price': round(avg_price, 2),
+                    'min_price': round(min_price, 2),
+                    'max_price': round(max_price, 2),
+                    'total_revenue': round(data['total_revenue'], 2),
+                    'prices': prices_list  # Lista vazia se não houver vendas
+                })
+                
+                current_date += timedelta(days=1)
+            
+            logger.info(f"✅ Evolução de vendas calculada: {len(daily_sales)} dias")
+            
+            # Ordenar sales_details por data (mais recente primeiro)
+            sales_details.sort(key=lambda x: x['date'], reverse=True)
+            
+            return {
+                "success": True,
+                "daily_sales": daily_sales,
+                "sales_details": sales_details  # Detalhes individuais para debug
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao calcular evolução de preços: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
