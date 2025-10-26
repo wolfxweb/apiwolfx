@@ -382,6 +382,17 @@
     transform: scale(1.2);
     transition: transform 0.2s ease;
 }
+
+/* Padronizar altura dos KPIs */
+.row.mb-4 .card {
+    height: 100%;
+}
+
+.row.mb-4 .card .card-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 140px;
+}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -521,7 +532,18 @@ function updateCampaignHeader(campaign) {
         statusBadge.textContent = campaign.status;
     }
     
-    document.getElementById('campaign-strategy').textContent = campaign.strategy || '-';
+    // Traduzir estratégia para português
+    const strategyTranslations = {
+        'profitability': 'Lucratividade',
+        'growth': 'Crescimento',
+        'balanced': 'Equilibrado',
+        'awareness': 'Reconhecimento'
+    };
+    const strategyText = campaign.strategy ? 
+        (strategyTranslations[campaign.strategy.toLowerCase()] || campaign.strategy) : 
+        '-';
+    document.getElementById('campaign-strategy').textContent = strategyText;
+    
     document.getElementById('campaign-budget').textContent = formatCurrency(campaign.budget || 0);
     document.getElementById('campaign-acos-target').textContent = campaign.acos_target ? campaign.acos_target.toFixed(2) + '%' : '-';
 }
