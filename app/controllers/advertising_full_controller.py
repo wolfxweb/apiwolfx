@@ -164,8 +164,8 @@ class AdvertisingFullController:
             logger.error(f"Erro ao deletar campanha: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def get_metrics_summary(self, company_id: int, date_from: str = None, date_to: str = None):
-        """Busca métricas consolidadas de todas as campanhas sincronizadas (com filtro de período)"""
+    def get_metrics_summary(self, company_id: int, date_from: str = None, date_to: str = None, status: str = None):
+        """Busca métricas consolidadas de todas as campanhas sincronizadas (com filtro de período e status)"""
         try:
             from app.models.advertising_models import MLCampaign, MLCampaignMetrics
             from sqlalchemy import func
@@ -182,25 +182,41 @@ class AdvertisingFullController:
             else:
                 date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
             
-            logger.info(f"📊 Buscando métricas consolidadas - company_id: {company_id}, período: {date_from} a {date_to}")
+            logger.info(f"📊 Buscando métricas consolidadas - company_id: {company_id}, período: {date_from} a {date_to}, status: {status}")
             
-            # Buscar campanhas da empresa
-            campaign_ids = self.db.query(MLCampaign.id).filter(
+            # Buscar campanhas da empresa com filtro de status
+            query = self.db.query(MLCampaign.id).filter(
                 MLCampaign.company_id == company_id
-            ).all()
+            )
+            
+            # Aplicar filtro de status se fornecido
+            if status and status != 'all':
+                if status == 'active':
+                    query = query.filter(MLCampaign.status == 'active')
+                elif status == 'paused':
+                    query = query.filter(MLCampaign.status.in_(['paused', 'inactive']))
+            
+            campaign_ids = query.all()
             campaign_ids = [c[0] for c in campaign_ids]
             
-            # Contar campanhas ativas
-            active_campaigns = self.db.query(func.count(MLCampaign.id)).filter(
-                MLCampaign.company_id == company_id,
-                MLCampaign.status == 'active'
-            ).scalar()
+            # Contar campanhas conforme o filtro
+            campaigns_count = len(campaign_ids)
+            
+            # Definir label do contador baseado no filtro
+            if status == 'active':
+                campaigns_label = 'Campanhas Ativas'
+            elif status == 'paused':
+                campaigns_label = 'Campanhas Pausadas'
+            else:
+                campaigns_label = 'Total de Campanhas'
             
             if not campaign_ids:
                 return {
                     "success": True,
                     "metrics": {
-                        "active_campaigns": 0,
+                        "campaigns_count": 0,
+                        "campaigns_label": campaigns_label,
+                        "active_campaigns": 0,  # Mantido para compatibilidade
                         "total_spent": 0,
                         "total_investment": 0,
                         "total_revenue": 0,
@@ -233,18 +249,42 @@ class AdvertisingFullController:
             total_conversions = int(totals.total_conversions or 0)
             total_campaigns = len(campaign_ids)
             
+            # Se não houver métricas no período OU se for muito baixo, buscar totais acumulados das campanhas
+            # Isso garante que sempre mostre dados, mesmo que não haja métricas detalhadas do período
+            if total_spent == 0 or total_revenue == 0:
+                logger.info(f"⚠️ Métricas insuficientes no período {date_from} a {date_to}, buscando totais acumulados das campanhas")
+                campaigns_totals = self.db.query(
+                    func.sum(MLCampaign.total_spent).label('total_spent'),
+                    func.sum(MLCampaign.total_revenue).label('total_revenue'),
+                    func.sum(MLCampaign.total_clicks).label('total_clicks'),
+                    func.sum(MLCampaign.total_impressions).label('total_impressions'),
+                    func.sum(MLCampaign.total_conversions).label('total_conversions')
+                ).filter(
+                    MLCampaign.id.in_(campaign_ids)
+                ).first()
+                
+                if campaigns_totals and (campaigns_totals.total_spent or 0) > 0:
+                    total_spent = float(campaigns_totals.total_spent or 0)
+                    total_revenue = float(campaigns_totals.total_revenue or 0)
+                    total_clicks = int(campaigns_totals.total_clicks or 0)
+                    total_impressions = int(campaigns_totals.total_impressions or 0)
+                    total_conversions = int(campaigns_totals.total_conversions or 0)
+                    logger.info(f"✅ Usando totais acumulados das campanhas: R$ {total_spent} gasto, R$ {total_revenue} receita")
+            
             # Calcular ROAS médio
             avg_roas = (total_revenue / total_spent) if total_spent > 0 else 0
             
             # Calcular CTR
             ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
             
-            logger.info(f"✅ Métricas calculadas: {active_campaigns} ativas, R$ {total_spent} gasto, R$ {total_revenue} receita, ROAS {avg_roas:.2f}x")
+            logger.info(f"✅ Métricas calculadas: {campaigns_count} campanhas ({campaigns_label}), R$ {total_spent} gasto, R$ {total_revenue} receita, ROAS {avg_roas:.2f}x")
             
             return {
                 "success": True,
                 "metrics": {
-                    "active_campaigns": active_campaigns,
+                    "campaigns_count": campaigns_count,
+                    "campaigns_label": campaigns_label,
+                    "active_campaigns": campaigns_count,  # Mantido para compatibilidade
                     "total_spent": total_spent,
                     "total_investment": total_spent,  # Alias para compatibilidade
                     "total_revenue": total_revenue,

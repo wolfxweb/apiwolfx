@@ -39,46 +39,50 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    <h6 class="mb-3">📅 Período de Análise</h6>
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="btn-group" role="group">
-                                <button type="button" class="btn btn-outline-primary" onclick="setPeriod('current-month')" id="btn-current-month">
-                                    Mês Atual
-                                </button>
-                                <button type="button" class="btn btn-outline-primary active" onclick="setPeriod(30)" id="btn-30">
-                                    30 dias
-                                </button>
-                                <button type="button" class="btn btn-outline-primary" onclick="setPeriod(60)" id="btn-60">
-                                    60 dias
-                                </button>
-                                <button type="button" class="btn btn-outline-primary" onclick="setPeriod(90)" id="btn-90">
-                                    90 dias
-                                </button>
-                                <button type="button" class="btn btn-outline-primary" onclick="toggleCustomPeriod()" id="btn-custom">
-                                    Personalizado
-                                </button>
-                            </div>
+                    <div class="row g-3">
+                        <!-- Período de Análise -->
+                        <div class="col-md-6">
+                            <label for="period-filter" class="form-label">Período de Análise</label>
+                            <select class="form-select" id="period-filter" onchange="handlePeriodChange()">
+                                <option value="current-month" selected>Mês Atual</option>
+                                <option value="30">Últimos 30 dias</option>
+                                <option value="60">Últimos 60 dias</option>
+                                <option value="90">Últimos 90 dias</option>
+                                <option value="custom">Período personalizado</option>
+                            </select>
                         </div>
-                        <div class="col-md-4 text-end">
-                            <small class="text-muted">
-                                <i class="bi bi-calendar"></i>
-                                <span id="period-display">Últimos 30 dias</span>
-                            </small>
+                        
+                        <!-- Status das Campanhas -->
+                        <div class="col-md-3">
+                            <label for="campaign-status-filter" class="form-label">Status das Campanhas</label>
+                            <select class="form-select" id="campaign-status-filter" onchange="filterCampaigns()">
+                                <option value="active" selected>Somente Ativas</option>
+                                <option value="paused">Somente Pausadas</option>
+                                <option value="all">Todas</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Botão Limpar -->
+                        <div class="col-md-3">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                                <i class="bi bi-x-circle"></i> Limpar
+                            </button>
                         </div>
                     </div>
                     
                     <!-- Campos de data personalizada (oculto por padrão) -->
-                    <div class="row mt-3" id="custom-date-fields" style="display: none;">
+                    <div class="row g-3 mt-2" id="custom-date-fields" style="display: none;">
                         <div class="col-md-4">
-                            <label class="form-label">Data Inicial</label>
+                            <label for="custom-date-from" class="form-label">Data Inicial</label>
                             <input type="date" class="form-control" id="custom-date-from">
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Data Final</label>
+                            <label for="custom-date-to" class="form-label">Data Final</label>
                             <input type="date" class="form-control" id="custom-date-to">
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label">&nbsp;</label>
                             <button class="btn btn-primary w-100" onclick="applyCustomPeriod()">
                                 <i class="bi bi-check-circle"></i> Aplicar
                             </button>
@@ -94,7 +98,7 @@
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body">
-                    <h6 class="text-muted">Campanhas Ativas</h6>
+                    <h6 class="text-muted" id="campaigns-label">Campanhas Ativas</h6>
                     <h3 id="active-campaigns">0</h3>
                 </div>
             </div>
@@ -130,7 +134,6 @@
         <div class="col-md-6 mb-4 mb-md-0">
             <div class="card">
                 <div class="card-body">
-                    <h6 class="text-center mb-3 mt-3">📈 Investimento vs Retorno</h6>
                     <canvas id="investmentChart" height="200"></canvas>
                 </div>
             </div>
@@ -138,7 +141,6 @@
         <div class="col-md-6">
             <div class="card">
                 <div class="card-body">
-                    <h6 class="text-center mb-3 mt-3">📊 ROAS por Campanha</h6>
                     <canvas id="roasChart" height="200"></canvas>
                 </div>
             </div>
@@ -226,6 +228,7 @@
 let investmentChart = null;
 let roasChart = null;
 let currentPeriod = { type: 30 }; // Padrão: últimos 30 dias
+let allCampaigns = []; // Armazena todas as campanhas para filtro
 
 document.addEventListener('DOMContentLoaded', function() {
     initCharts();
@@ -238,48 +241,29 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================================================
 // FILTRO DE PERÍODO
 // ============================================================================
-function setPeriod(period) {
-    // Remover classe 'active' de todos os botões
-    document.querySelectorAll('.btn-group .btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    // Esconder campos de data customizada
-    document.getElementById('custom-date-fields').style.display = 'none';
-    
-    // Ativar botão clicado
-    let buttonId;
-    let displayText;
-    
-    if (period === 'current-month') {
-        buttonId = 'btn-current-month';
-        displayText = 'Mês Atual';
-        currentPeriod = { type: 'current-month' };
-    } else {
-        buttonId = `btn-${period}`;
-        displayText = `Últimos ${period} dias`;
-        currentPeriod = { type: period };
-    }
-    
-    document.getElementById(buttonId).classList.add('active');
-    document.getElementById('period-display').textContent = displayText;
-    
-    // Recarregar dados
-    loadData();
-}
-
-function toggleCustomPeriod() {
-    // Remover classe 'active' de todos os botões
-    document.querySelectorAll('.btn-group .btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    // Ativar botão de personalizado
-    document.getElementById('btn-custom').classList.add('active');
-    
-    // Mostrar campos de data
+function handlePeriodChange() {
+    const periodFilter = document.getElementById('period-filter');
+    const period = periodFilter.value;
     const customFields = document.getElementById('custom-date-fields');
-    customFields.style.display = customFields.style.display === 'none' ? 'flex' : 'none';
+    
+    if (period === 'custom') {
+        // Mostrar campos de data personalizada
+        customFields.style.display = 'block';
+        currentPeriod = { type: 'custom' };
+    } else {
+        // Esconder campos de data personalizada
+        customFields.style.display = 'none';
+        
+        // Definir período
+        if (period === 'current-month') {
+            currentPeriod = { type: 'current-month' };
+        } else {
+            currentPeriod = { type: parseInt(period) };
+        }
+        
+        // Recarregar dados
+        loadData();
+    }
 }
 
 function initDateFields() {
@@ -309,12 +293,6 @@ function applyCustomPeriod() {
     }
     
     currentPeriod = { type: 'custom', dateFrom, dateTo };
-    
-    // Atualizar texto de exibição
-    const from = new Date(dateFrom).toLocaleDateString('pt-BR');
-    const to = new Date(dateTo).toLocaleDateString('pt-BR');
-    const displayText = `${from} - ${to}`;
-    document.getElementById('period-display').textContent = displayText;
     
     // Recarregar dados
     loadData();
@@ -368,11 +346,9 @@ function showToast(message, type = 'info') {
 // CARREGAMENTO DE DADOS
 // ============================================================================
 async function loadData() {
-    await Promise.all([
-        loadMetrics(),
-        loadCampaigns()
-    ]);
-    updateCharts();
+    // Carregar campanhas primeiro
+    await loadCampaigns();
+    // Os KPIs e gráficos serão atualizados pelo filterCampaigns() que é chamado dentro de loadCampaigns()
 }
 
 async function loadMetrics() {
@@ -396,7 +372,12 @@ async function loadMetrics() {
 }
 
 function updateKPIs(metrics) {
-    document.getElementById('active-campaigns').textContent = metrics.active_campaigns || 0;
+    // Atualizar label e contagem de campanhas
+    if (metrics.campaigns_label) {
+        document.getElementById('campaigns-label').textContent = metrics.campaigns_label;
+    }
+    document.getElementById('active-campaigns').textContent = metrics.campaigns_count || metrics.active_campaigns || 0;
+    
     document.getElementById('total-investment').textContent = formatCurrency(metrics.total_investment);
     document.getElementById('avg-roas').textContent = (metrics.avg_roas || 0).toFixed(2) + 'x';
     document.getElementById('total-revenue').textContent = formatCurrency(metrics.total_revenue);
@@ -416,13 +397,189 @@ async function loadCampaigns() {
         const data = await response.json();
         
         if (data.success) {
-            displayCampaigns(data.campaigns || []);
+            allCampaigns = data.campaigns || []; // Salvar todas as campanhas
+            filterCampaigns(); // Aplicar filtro
         } else {
             tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Erro: ${data.error}</td></tr>`;
         }
     } catch (error) {
         console.error('Erro ao carregar campanhas:', error);
         tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Erro ao carregar campanhas</td></tr>';
+    }
+}
+
+function filterCampaigns() {
+    const filterValue = document.getElementById('campaign-status-filter').value;
+    let filteredCampaigns = [];
+    
+    if (filterValue === 'all') {
+        filteredCampaigns = allCampaigns;
+    } else if (filterValue === 'active') {
+        filteredCampaigns = allCampaigns.filter(c => c.status === 'active');
+    } else if (filterValue === 'paused') {
+        filteredCampaigns = allCampaigns.filter(c => c.status === 'paused' || c.status === 'inactive');
+    }
+    
+    // Atualizar tabela
+    displayCampaigns(filteredCampaigns);
+    
+    // Atualizar KPIs e gráficos com métricas do período
+    updateKPIsAndChartsForPeriod(filteredCampaigns);
+}
+
+async function updateKPIsAndChartsForPeriod(filteredCampaigns) {
+    try {
+        const token = getCookie('session_token');
+        const { dateFrom, dateTo } = getPeriodParams();
+        const statusFilter = document.getElementById('campaign-status-filter').value;
+        
+        // Buscar métricas agregadas do período com filtro de status
+        const response = await fetch(`/ml/advertising/metrics?date_from=${dateFrom}&date_to=${dateTo}&status=${statusFilter}`, {
+            headers: {
+                'Cookie': `session_token=${token}`
+            }
+        });
+        const data = await response.json();
+        
+        if (data.success && data.metrics) {
+            const metrics = data.metrics;
+            
+            // Atualizar KPIs (incluindo label dinâmico)
+            if (metrics.campaigns_label) {
+                document.getElementById('campaigns-label').textContent = metrics.campaigns_label;
+            }
+            document.getElementById('active-campaigns').textContent = metrics.campaigns_count || metrics.active_campaigns || 0;
+            document.getElementById('total-investment').textContent = formatCurrency(metrics.total_investment);
+            document.getElementById('avg-roas').textContent = (metrics.avg_roas || 0).toFixed(2) + 'x';
+            document.getElementById('total-revenue').textContent = formatCurrency(metrics.total_revenue);
+            
+            // Atualizar gráficos
+            updateChartsFromMetrics(metrics, filteredCampaigns);
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar KPIs e gráficos:', error);
+        // Fallback: usar dados das campanhas carregadas
+        updateKPIsFromCampaigns(filteredCampaigns);
+        updateChartsFromCampaigns(filteredCampaigns);
+    }
+}
+
+function updateChartsFromMetrics(metrics, filteredCampaigns) {
+    // Atualizar gráfico de Investimento vs Retorno
+    if (investmentChart) {
+        investmentChart.data.labels = ['Período'];
+        investmentChart.data.datasets[0].data = [metrics.total_investment || 0];
+        investmentChart.data.datasets[1].data = [metrics.total_revenue || 0];
+        investmentChart.update();
+    }
+    
+    // Atualizar gráfico de ROAS por campanha (usa dados das campanhas filtradas)
+    if (roasChart && filteredCampaigns.length > 0) {
+        const topCampaigns = filteredCampaigns
+            .filter(c => c.roas && c.roas > 0)
+            .sort((a, b) => b.roas - a.roas)
+            .slice(0, 5); // Top 5
+        
+        if (topCampaigns.length > 0) {
+            roasChart.data.labels = topCampaigns.map(c => c.name || 'N/A');
+            roasChart.data.datasets[0].data = topCampaigns.map(c => c.roas || 0);
+            roasChart.update();
+        } else {
+            roasChart.data.labels = ['Sem dados'];
+            roasChart.data.datasets[0].data = [0];
+            roasChart.update();
+        }
+    }
+}
+
+function clearFilters() {
+    // Resetar período para Mês Atual
+    document.getElementById('period-filter').value = 'current-month';
+    currentPeriod = { type: 'current-month' };
+    
+    // Resetar status para Somente Ativas
+    document.getElementById('campaign-status-filter').value = 'active';
+    
+    // Esconder campos de data personalizada
+    document.getElementById('custom-date-fields').style.display = 'none';
+    
+    // Limpar campos de data
+    document.getElementById('custom-date-from').value = '';
+    document.getElementById('custom-date-to').value = '';
+    
+    // Recarregar dados
+    loadData();
+}
+
+function updateKPIsFromCampaigns(campaigns) {
+    // Obter filtro atual
+    const statusFilter = document.getElementById('campaign-status-filter').value;
+    
+    // Contar campanhas conforme filtro
+    let campaignsCount = campaigns.length;
+    let campaignsLabel = 'Total de Campanhas';
+    
+    if (statusFilter === 'active') {
+        campaignsCount = campaigns.filter(c => c.status === 'active').length;
+        campaignsLabel = 'Campanhas Ativas';
+    } else if (statusFilter === 'paused') {
+        campaignsCount = campaigns.filter(c => c.status === 'paused' || c.status === 'inactive').length;
+        campaignsLabel = 'Campanhas Pausadas';
+    }
+    
+    // Somar métricas
+    let totalSpent = 0;
+    let totalRevenue = 0;
+    
+    campaigns.forEach(c => {
+        totalSpent += c.total_spent || 0;
+        totalRevenue += c.total_revenue || 0;
+    });
+    
+    // Calcular ROAS médio
+    const avgRoas = totalSpent > 0 ? totalRevenue / totalSpent : 0;
+    
+    // Atualizar interface
+    document.getElementById('campaigns-label').textContent = campaignsLabel;
+    document.getElementById('active-campaigns').textContent = campaignsCount;
+    document.getElementById('total-investment').textContent = formatCurrency(totalSpent);
+    document.getElementById('avg-roas').textContent = avgRoas.toFixed(2) + 'x';
+    document.getElementById('total-revenue').textContent = formatCurrency(totalRevenue);
+}
+
+function updateChartsFromCampaigns(campaigns) {
+    // Atualizar gráfico de Investimento vs Retorno
+    if (investmentChart && campaigns.length > 0) {
+        let totalInvestment = 0;
+        let totalRevenue = 0;
+        
+        campaigns.forEach(c => {
+            totalInvestment += c.total_spent || 0;
+            totalRevenue += c.total_revenue || 0;
+        });
+        
+        investmentChart.data.labels = ['Período'];
+        investmentChart.data.datasets[0].data = [totalInvestment];
+        investmentChart.data.datasets[1].data = [totalRevenue];
+        investmentChart.update();
+    }
+    
+    // Atualizar gráfico de ROAS por campanha
+    if (roasChart && campaigns.length > 0) {
+        const topCampaigns = campaigns
+            .filter(c => c.roas && c.roas > 0)
+            .sort((a, b) => b.roas - a.roas)
+            .slice(0, 5); // Top 5
+        
+        if (topCampaigns.length > 0) {
+            roasChart.data.labels = topCampaigns.map(c => c.name || 'N/A');
+            roasChart.data.datasets[0].data = topCampaigns.map(c => c.roas || 0);
+            roasChart.update();
+        } else {
+            roasChart.data.labels = ['Sem dados'];
+            roasChart.data.datasets[0].data = [0];
+            roasChart.update();
+        }
     }
 }
 
@@ -613,6 +770,18 @@ function initCharts() {
                     }
                 },
                 plugins: {
+                    title: {
+                        display: true,
+                        text: '📈 Investimento vs Retorno',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 20
+                        }
+                    },
                     legend: {
                         display: true,
                         position: 'top'
@@ -671,6 +840,18 @@ function initCharts() {
                     }
                 },
                 plugins: {
+                    title: {
+                        display: true,
+                        text: '📊 ROAS por Campanha',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 20
+                        }
+                    },
                     legend: {
                         display: false
                     },
@@ -708,15 +889,13 @@ async function updateCharts() {
         // Atualizar gráfico de Investimento vs Retorno com dados agregados do período
         if (metricsData.success && metricsData.metrics && investmentChart) {
             const metrics = metricsData.metrics;
-            const periodLabel = document.getElementById('period-display').textContent || 'Período selecionado';
             
-            investmentChart.data.labels = [periodLabel];
+            investmentChart.data.labels = ['Período'];
             investmentChart.data.datasets[0].data = [metrics.total_investment || 0];
             investmentChart.data.datasets[1].data = [metrics.total_revenue || 0];
             investmentChart.update();
             
             console.log('📊 Gráfico atualizado:', {
-                periodo: periodLabel,
                 investimento: metrics.total_investment,
                 receita: metrics.total_revenue
             });

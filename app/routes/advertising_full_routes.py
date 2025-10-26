@@ -15,12 +15,12 @@ def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db)
     """Obtém usuário atual ou redireciona para login (para páginas HTML)"""
     session_token = request.cookies.get('session_token')
     if not session_token:
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url="/auth/login", status_code=302)
     
     auth_controller = AuthController()
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url="/auth/login", status_code=302)
     
     return result["user"]
 
@@ -101,12 +101,13 @@ async def delete_campaign(
 async def get_metrics(
     date_from: str = None, 
     date_to: str = None,
+    status: str = None,
     user = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    """Busca métricas consolidadas de publicidade (com filtro de período)"""
+    """Busca métricas consolidadas de publicidade (com filtro de período e status)"""
     controller = AdvertisingFullController(db)
-    return controller.get_metrics_summary(user["company"]["id"], date_from, date_to)
+    return controller.get_metrics_summary(user["company"]["id"], date_from, date_to, status)
 
 @router.get("/alerts")
 async def get_alerts(user = Depends(get_current_user), db: Session = Depends(get_db)):
