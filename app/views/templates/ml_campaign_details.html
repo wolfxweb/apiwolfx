@@ -317,71 +317,89 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body">
-                <h5 class="text-center mb-3">
-                    🎯 Anúncios da Campanha
-                    <span class="badge bg-primary ms-2" id="ads-count">0</span>
-                </h5>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead style="background-color: #343a40; color: white;">
-                            <tr>
-                                <th style="width: 60px;"></th>
-                                <th>Produto</th>
-                                <th>Status</th>
-                                <th>Preço</th>
-                                <th>Investimento</th>
-                                <th>Receita</th>
-                                <th>ROAS</th>
-                                <th>Cliques</th>
-                                <th>Vendas</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ads-table-body">
-                            <tr>
-                                <td colspan="10" class="text-center">
-                                    <div class="spinner-border spinner-border-sm"></div> Carregando...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+                <!-- Tabs de Navegação -->
+                <ul class="nav nav-tabs mb-3" id="detailsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="ads-tab" data-bs-toggle="tab" data-bs-target="#ads-content" type="button" role="tab">
+                            🎯 Anúncios da Campanha <span class="badge bg-primary ms-2" id="ads-count">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="sales-tab" data-bs-toggle="tab" data-bs-target="#sales-content" type="button" role="tab">
+                            🔍 Vendas Detalhadas <span class="badge bg-secondary ms-2" id="sales-badge">0</span>
+                        </button>
+                    </li>
+                </ul>
 
-<!-- Tabela de Vendas Detalhadas (Debug) -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="text-center mb-3">🔍 Vendas Detalhadas (Debug)</h5>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead style="background-color: #343a40; color: white;">
-                            <tr>
-                                <th>Data</th>
-                                <th>ID Produto</th>
-                                <th>Título</th>
-                                <th>Qtd</th>
-                                <th>Preço Unit.</th>
-                                <th>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody id="sales-debug-table">
-                            <tr>
-                                <td colspan="6" class="text-center">
-                                    <div class="spinner-border spinner-border-sm"></div> Carregando vendas...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="text-end">
-                    <small class="text-muted">
-                        <strong>Total de vendas:</strong> <span id="total-sales-count">0</span>
-                    </small>
+                <!-- Conteúdo das Tabs -->
+                <div class="tab-content" id="detailsTabsContent">
+                    <!-- Tab: Anúncios da Campanha -->
+                    <div class="tab-pane fade show active" id="ads-content" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead style="background-color: #343a40; color: white;">
+                                    <tr>
+                                        <th style="width: 60px;"></th>
+                                        <th>Produto</th>
+                                        <th>Status</th>
+                                        <th>Preço</th>
+                                        <th>Investimento</th>
+                                        <th>Receita</th>
+                                        <th>ROAS</th>
+                                        <th>Cliques</th>
+                                        <th>Vendas</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ads-table-body">
+                                    <tr>
+                                        <td colspan="10" class="text-center">
+                                            <div class="spinner-border spinner-border-sm"></div> Carregando...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Vendas Detalhadas (Debug) com Paginação -->
+                    <div class="tab-pane fade" id="sales-content" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead style="background-color: #343a40; color: white;">
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>ID Produto</th>
+                                        <th>Título</th>
+                                        <th>Qtd</th>
+                                        <th>Preço Unit.</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sales-debug-table">
+                                    <tr>
+                                        <td colspan="6" class="text-center">
+                                            <div class="spinner-border spinner-border-sm"></div> Carregando vendas...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Paginação -->
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <small class="text-muted">
+                                    <strong>Total de vendas:</strong> <span id="total-sales-count">0</span>
+                                </small>
+                            </div>
+                            <nav aria-label="Paginação de vendas">
+                                <ul class="pagination pagination-sm mb-0" id="sales-pagination">
+                                    <!-- Paginação será gerada via JavaScript -->
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1120,30 +1138,23 @@ function initCharts() {
     const priceCtx = document.getElementById('priceEvolutionChart');
     if (priceCtx) {
         priceEvolutionChart = new Chart(priceCtx, {
-            type: 'bar',
+            type: 'line',
             data: {
                 labels: [],
                 datasets: [
                     {
-                        label: '📦 Quantidade de Vendas',
+                        label: '💰 Preço Médio de Venda',
                         data: [],
-                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1,
-                        yAxisID: 'y-sales',
-                        order: 2
-                    },
-                    {
-                        label: '💰 Preço de Cada Venda',
-                        data: [],
-                        type: 'scatter',
-                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        pointRadius: 6,
-                        pointHoverRadius: 8,
-                        pointStyle: 'circle',
-                        yAxisID: 'y-price',
-                        order: 1
+                        borderColor: 'rgba(255, 159, 64, 1)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: 'rgba(255, 159, 64, 1)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
                     }
                 ]
             },
@@ -1157,7 +1168,7 @@ function initCharts() {
                 plugins: {
                     title: {
                         display: true,
-                        text: '📊 Vendas e Dispersão de Preços (Pedidos Reais)',
+                        text: '💰 Evolução do Preço Médio de Venda',
                         font: {
                             size: 16,
                             weight: 'bold'
@@ -1182,60 +1193,24 @@ function initCharts() {
                         },
                         callbacks: {
                             title: function(context) {
-                                if (context[0].dataset.type === 'scatter') {
-                                    // Para scatter, pegar a data pelo índice x
-                                    const xIndex = Math.round(context[0].parsed.x);
-                                    const dateLabel = context[0].chart.data.labels[xIndex];
-                                    return '🛒 Venda - ' + dateLabel;
-                                }
                                 return '📅 Data: ' + context[0].label;
                             },
                             label: function(context) {
-                                const label = context.dataset.label || '';
-                                if (label.includes('Vendas')) {
-                                    return '📦 Total de Vendas: ' + context.parsed.y + ' unidades';
-                                } else {
-                                    return '💰 Preço: ' + formatCurrency(context.parsed.y);
+                                const value = context.parsed.y;
+                                if (value > 0) {
+                                    return '💰 Preço Médio: ' + formatCurrency(value);
                                 }
-                            },
-                            afterLabel: function(context) {
-                                if (context.dataset.type === 'scatter') {
-                                    return '→ Cada ponto é uma venda real';
-                                }
-                                return null;
+                                return '📊 Nenhuma venda neste dia';
                             }
                         }
                     }
                 },
                 scales: {
-                    'y-sales': {
+                    y: {
                         type: 'linear',
                         display: true,
                         position: 'left',
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1,
-                            callback: function(value) {
-                                return value + ' un';
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: '📦 Quantidade de Vendas',
-                            font: {
-                                size: 12,
-                                weight: 'bold'
-                            }
-                        }
-                    },
-                    'y-price': {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
                         beginAtZero: false,
-                        grid: {
-                            drawOnChartArea: false
-                        },
                         ticks: {
                             callback: function(value) {
                                 return 'R$ ' + value.toLocaleString('pt-BR', {
@@ -1246,7 +1221,7 @@ function initCharts() {
                         },
                         title: {
                             display: true,
-                            text: '💰 Preço (R$)',
+                            text: '💰 Preço Médio (R$)',
                             font: {
                                 size: 12,
                                 weight: 'bold'
@@ -1341,35 +1316,18 @@ async function loadPriceEvolution() {
         const salesData = result.daily_sales || [];
         const salesDetails = result.sales_details || [];
         
-        // Atualizar gráfico
+        // Atualizar gráfico de preço médio
         if (priceEvolutionChart && salesData.length > 0) {
             const labels = salesData.map(d => {
                 const date = new Date(d.date);
                 return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
             });
             
-            const salesCounts = salesData.map(d => d.sales_count);
-            
-            // Criar pontos de dispersão para cada venda individual
-            const pricePoints = [];
-            salesData.forEach((dayData, dayIndex) => {
-                // Só plotar pontos se houver vendas no dia
-                if (dayData.sales_count > 0) {
-                    const prices = dayData.prices || [];
-                    prices.forEach(price => {
-                        if (price > 0) {
-                            pricePoints.push({
-                                x: dayIndex,  // Índice do dia
-                                y: price      // Preço da venda
-                            });
-                        }
-                    });
-                }
-            });
+            // Usar o preço médio de cada dia
+            const avgPrices = salesData.map(d => d.average_price || 0);
             
             priceEvolutionChart.data.labels = labels;
-            priceEvolutionChart.data.datasets[0].data = salesCounts;  // Barras: Quantidade de vendas
-            priceEvolutionChart.data.datasets[1].data = pricePoints;  // Pontos: Cada venda individual
+            priceEvolutionChart.data.datasets[0].data = avgPrices;
             priceEvolutionChart.update();
         }
         
@@ -1381,22 +1339,45 @@ async function loadPriceEvolution() {
     }
 }
 
+// Variáveis de paginação
+let allSalesDetails = [];
+let currentSalesPage = 1;
+const salesPerPage = 100;
+
 function updateSalesDebugTable(salesDetails) {
-    const tbody = document.getElementById('sales-debug-table');
+    allSalesDetails = salesDetails || [];
     const totalCount = document.getElementById('total-sales-count');
+    const salesBadge = document.getElementById('sales-badge');
     
-    if (!salesDetails || salesDetails.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhuma venda encontrada no período</td></tr>';
+    if (allSalesDetails.length === 0) {
+        document.getElementById('sales-debug-table').innerHTML = 
+            '<tr><td colspan="6" class="text-center text-muted">Nenhuma venda encontrada no período</td></tr>';
         totalCount.textContent = '0';
+        salesBadge.textContent = '0';
+        document.getElementById('sales-pagination').innerHTML = '';
         return;
     }
     
-    let html = '';
-    let totalQuantity = 0;
+    // Calcular total de vendas (quantidade)
+    const totalQuantity = allSalesDetails.reduce((sum, sale) => sum + sale.quantity, 0);
+    totalCount.textContent = totalQuantity;
+    salesBadge.textContent = allSalesDetails.length;
     
-    salesDetails.forEach(sale => {
-        totalQuantity += sale.quantity;
-        
+    // Renderizar página atual
+    renderSalesPage(currentSalesPage);
+    
+    // Renderizar paginação
+    renderSalesPagination();
+}
+
+function renderSalesPage(page) {
+    const tbody = document.getElementById('sales-debug-table');
+    const start = (page - 1) * salesPerPage;
+    const end = start + salesPerPage;
+    const pageSales = allSalesDetails.slice(start, end);
+    
+    let html = '';
+    pageSales.forEach(sale => {
         html += `
             <tr>
                 <td>${new Date(sale.date).toLocaleDateString('pt-BR')}</td>
@@ -1410,7 +1391,76 @@ function updateSalesDebugTable(salesDetails) {
     });
     
     tbody.innerHTML = html;
-    totalCount.textContent = totalQuantity;
+}
+
+function renderSalesPagination() {
+    const pagination = document.getElementById('sales-pagination');
+    const totalPages = Math.ceil(allSalesDetails.length / salesPerPage);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    
+    // Botão Anterior
+    html += `
+        <li class="page-item ${currentSalesPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changeSalesPage(${currentSalesPage - 1}); return false;">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+    `;
+    
+    // Páginas
+    const startPage = Math.max(1, currentSalesPage - 2);
+    const endPage = Math.min(totalPages, currentSalesPage + 2);
+    
+    if (startPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changeSalesPage(1); return false;">1</a></li>`;
+        if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <li class="page-item ${i === currentSalesPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changeSalesPage(${i}); return false;">${i}</a>
+            </li>
+        `;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changeSalesPage(${totalPages}); return false;">${totalPages}</a></li>`;
+    }
+    
+    // Botão Próximo
+    html += `
+        <li class="page-item ${currentSalesPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changeSalesPage(${currentSalesPage + 1}); return false;">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    `;
+    
+    pagination.innerHTML = html;
+}
+
+function changeSalesPage(page) {
+    const totalPages = Math.ceil(allSalesDetails.length / salesPerPage);
+    if (page < 1 || page > totalPages) return;
+    
+    currentSalesPage = page;
+    renderSalesPage(page);
+    renderSalesPagination();
+    
+    // Scroll para o topo da tabela
+    document.getElementById('sales-content').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ============================================================================
