@@ -34,12 +34,23 @@
 - ✅ `ml_advertising.html` - Tela com KPIs e lista de campanhas
 - ✅ Modal para criar campanhas
 - ✅ Estrutura de tabela para exibir campanhas
-- ✅ **Filtros de Período** (novo 26/10/2025):
+- ✅ **Dropdown "Ações"** (26/10/2025):
+  - Nova Campanha
+  - Sincronizar do ML
+  - Atualizar
+  - Loading state durante sync
+  - Toasts informativos
+- ✅ **Filtros de Período** (26/10/2025):
   - Mês Atual
   - 30 dias
   - 60 dias
   - 90 dias
   - Personalizado (com seleção de datas)
+- ✅ **Filtro de Status de Campanhas** (26/10/2025):
+  - Somente Ativas (padrão)
+  - Somente Pausadas
+  - Todas
+  - Contador dinâmico: "X de Y campanhas"
 
 ### 5. **Banco de Dados**
 - ✅ `ml_billing_periods` - Períodos de faturamento (3 registros)
@@ -167,7 +178,7 @@
 
 ## 📈 PROGRESSO ATUALIZADO
 
-**Total concluído:** ~85%
+**Total concluído:** ~90%
 
 ```
 Backend:        ████████████████████ 100% ✅
@@ -176,10 +187,12 @@ Database:       ████████████████████ 100
 Frontend JS:    ████████████████████ 100% ✅
 Gráficos:       ████████████████████ 100% ✅ (26/10/2025)
 Filtros:        ████████████████████ 100% ✅ (26/10/2025)
+  - Período:    ████████████████████ 100% ✅
+  - Status:     ████████████████████ 100% ✅
 Alertas:        ██████████░░░░░░░░░░  50% ⏳
 ```
 
-## 📋 TEMPO ESTIMADO RESTANTE: ~20 min (apenas alertas)
+## 📋 TEMPO ESTIMADO RESTANTE: ~20 min (apenas alertas frontend)
 
 ---
 
@@ -213,3 +226,67 @@ investmentChart.data.datasets[1].data = [metrics.total_revenue]
 
 **Status:** ✅ Resolvido  
 **Resultado:** Gráfico agora exibe ambas as barras lado a lado, sincronizado com filtros de período
+
+---
+
+### 🔧 Melhoria #2: Filtro de Status de Campanhas
+**Data:** 26/10/2025  
+**Solicitação:** Adicionar combo para filtrar campanhas por status (ativa/inativa/ambas), com padrão "ativas"
+
+**Implementação:**
+1. Dropdown no canto superior direito da lista de campanhas
+2. Três opções:
+   - Somente Ativas (padrão) ✅
+   - Somente Pausadas
+   - Todas
+3. Filtro client-side (sem requisição adicional)
+4. Contador dinâmico mostrando resultados filtrados
+
+**JavaScript:**
+```javascript
+let allCampaigns = []; // Cache global
+
+function filterCampaigns() {
+    const filter = $('#campaign-status-filter').value;
+    let filtered = allCampaigns.filter(c => {
+        if (filter === 'all') return true;
+        if (filter === 'active') return c.status === 'active';
+        if (filter === 'paused') return c.status === 'paused';
+    });
+    displayCampaigns(filtered);
+}
+```
+
+**Arquivos modificados:**
+- `app/views/templates/ml_advertising.html` (UI + JavaScript)
+
+**Status:** ✅ Implementado  
+**Resultado:** Filtro funcional com contador dinâmico "X de Y campanhas"
+
+---
+
+### 🔧 Melhoria #3: Dropdown "Ações" (Reorganização da Interface)
+**Data:** 26/10/2025  
+**Solicitação:** Criar dropdown "Ações" similar à tela de Produtos, movendo botões para dentro dele
+
+**Implementação:**
+1. Dropdown Bootstrap 5 com ícone de engrenagem
+2. Menu com 3 itens:
+   - ✅ Nova Campanha (verde)
+   - 🔄 Sincronizar do ML (azul)
+   - ─────────────────
+   - 🔃 Atualizar (cinza)
+3. Loading state no botão durante sincronização
+4. Toasts informativos para feedback
+
+**Layout:**
+```
+ANTES: [+Nova] [Sincronizar] [Atualizar]  [Filtrar▼]
+DEPOIS: [⚙️ Ações▼]                       [Filtrar▼]
+```
+
+**Arquivos modificados:**
+- `app/views/templates/ml_advertising.html` (UI + JavaScript)
+
+**Status:** ✅ Implementado  
+**Resultado:** Interface mais limpa e consistente com outras telas do sistema

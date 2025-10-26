@@ -3,9 +3,34 @@
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="row mb-4">
-        <div class="col-12">
-            <h1 class="h3 mb-3">📢 Publicidade - Product Ads</h1>
-            <p class="text-muted">Gerencie suas campanhas de publicidade no Mercado Livre</p>
+        <div class="col-md-8">
+            <h1 class="h3 mb-2">📢 Publicidade - Product Ads</h1>
+            <p class="text-muted mb-0">Gerencie suas campanhas de publicidade no Mercado Livre</p>
+        </div>
+        <div class="col-md-4 text-end d-flex align-items-center justify-content-end">
+            <div class="dropdown">
+                <button class="btn btn-primary dropdown-toggle" type="button" id="acoesDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-gear-fill"></i> Ações
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="acoesDropdown">
+                    <li>
+                        <a class="dropdown-item" href="#" onclick="openCreateCampaignModal(); return false;">
+                            <i class="bi bi-plus-circle text-success"></i> Nova Campanha
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="#" onclick="syncCampaigns(); return false;">
+                            <i class="bi bi-cloud-download text-primary"></i> Sincronizar do ML
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" href="#" onclick="loadData(); return false;">
+                            <i class="bi bi-arrow-clockwise text-secondary"></i> Atualizar
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -102,21 +127,19 @@
 
     <!-- Gráficos -->
     <div class="row mb-4">
-        <div class="col-md-6">
+        <div class="col-md-6 mb-4 mb-md-0">
+          
             <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0">📈 Investimento vs Retorno (<span id="chart-period-text">Últimos 30 dias</span>)</h6>
-                </div>
+                <h6 class="mb-2">📈 Investimento vs Retorno</h6>
                 <div class="card-body">
                     <canvas id="investmentChart" height="200"></canvas>
                 </div>
             </div>
         </div>
         <div class="col-md-6">
+      
             <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0">📊 ROAS por Campanha</h6>
-                </div>
+                
                 <div class="card-body">
                     <canvas id="roasChart" height="200"></canvas>
                 </div>
@@ -124,32 +147,15 @@
         </div>
     </div>
 
-    <!-- Ações -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <button class="btn btn-primary" onclick="openCreateCampaignModal()">
-                <i class="bi bi-plus-circle"></i> Nova Campanha
-            </button>
-            <button class="btn btn-success" onclick="syncCampaigns()" id="sync-btn">
-                <i class="bi bi-cloud-download"></i> Sincronizar do ML
-            </button>
-            <button class="btn btn-outline-secondary" onclick="loadData()">
-                <i class="bi bi-arrow-clockwise"></i> Atualizar
-            </button>
-        </div>
-    </div>
-
     <!-- Lista de Campanhas -->
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Campanhas</h5>
-                </div>
+
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
-                            <thead>
+                            <thead class="table-dark">
                                 <tr>
                                     <th>Nome</th>
                                     <th>Status</th>
@@ -259,7 +265,6 @@ function setPeriod(period) {
     
     document.getElementById(buttonId).classList.add('active');
     document.getElementById('period-display').textContent = displayText;
-    document.getElementById('chart-period-text').textContent = displayText;
     
     // Recarregar dados
     loadData();
@@ -312,7 +317,6 @@ function applyCustomPeriod() {
     const to = new Date(dateTo).toLocaleDateString('pt-BR');
     const displayText = `${from} - ${to}`;
     document.getElementById('period-display').textContent = displayText;
-    document.getElementById('chart-period-text').textContent = displayText;
     
     // Recarregar dados
     loadData();
@@ -481,11 +485,13 @@ function displayCampaigns(campaigns) {
 // SINCRONIZAÇÃO
 // ============================================================================
 async function syncCampaigns() {
-    const btn = document.getElementById('sync-btn');
-    const originalHTML = btn.innerHTML;
+    const dropdown = document.getElementById('acoesDropdown');
+    const originalHTML = dropdown.innerHTML;
     
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    dropdown.disabled = true;
+    dropdown.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    
+    showToast('⏳ Iniciando sincronização com Mercado Livre...', 'info');
     
     try {
         const token = getCookie('session_token');
@@ -500,7 +506,8 @@ async function syncCampaigns() {
         if (data.success) {
             const campaignsMsg = `${data.campaigns_synced || 0} campanha(s)`;
             const productsMsg = data.products_synced ? `, ${data.products_synced} produto(s)` : '';
-            showToast(`✅ Sincronização concluída! ${campaignsMsg}${productsMsg} sincronizado(s).`, 'success');
+            const metricsMsg = data.metrics_synced ? `, ${data.metrics_synced} métrica(s)` : '';
+            showToast(`✅ Sincronização concluída! ${campaignsMsg}${productsMsg}${metricsMsg} sincronizado(s).`, 'success');
             await loadData();
         } else {
             showToast(`❌ Erro: ${data.error}`, 'error');
@@ -509,8 +516,8 @@ async function syncCampaigns() {
         console.error('Erro na sincronização:', error);
         showToast('❌ Erro ao sincronizar campanhas', 'error');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
+        dropdown.disabled = false;
+        dropdown.innerHTML = originalHTML;
     }
 }
 
