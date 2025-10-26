@@ -9,6 +9,61 @@
         </div>
     </div>
 
+    <!-- Filtro de Período -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="mb-3">📅 Período de Análise</h6>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-primary" onclick="setPeriod('current-month')" id="btn-current-month">
+                                    Mês Atual
+                                </button>
+                                <button type="button" class="btn btn-outline-primary active" onclick="setPeriod(30)" id="btn-30">
+                                    30 dias
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" onclick="setPeriod(60)" id="btn-60">
+                                    60 dias
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" onclick="setPeriod(90)" id="btn-90">
+                                    90 dias
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" onclick="toggleCustomPeriod()" id="btn-custom">
+                                    Personalizado
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i>
+                                <span id="period-display">Últimos 30 dias</span>
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <!-- Campos de data personalizada (oculto por padrão) -->
+                    <div class="row mt-3" id="custom-date-fields" style="display: none;">
+                        <div class="col-md-4">
+                            <label class="form-label">Data Inicial</label>
+                            <input type="date" class="form-control" id="custom-date-from">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Data Final</label>
+                            <input type="date" class="form-control" id="custom-date-to">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-primary w-100" onclick="applyCustomPeriod()">
+                                <i class="bi bi-check-circle"></i> Aplicar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- KPIs -->
     <div class="row mb-4">
         <div class="col-md-3">
@@ -50,7 +105,7 @@
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
-                    <h6 class="mb-0">📈 Investimento vs Retorno (Últimos 30 dias)</h6>
+                    <h6 class="mb-0">📈 Investimento vs Retorno (<span id="chart-period-text">Últimos 30 dias</span>)</h6>
                 </div>
                 <div class="card-body">
                     <canvas id="investmentChart" height="200"></canvas>
@@ -166,13 +221,124 @@
 // ============================================================================
 let investmentChart = null;
 let roasChart = null;
+let currentPeriod = { type: 30 }; // Padrão: últimos 30 dias
 
 document.addEventListener('DOMContentLoaded', function() {
     initCharts();
+    initDateFields();
     loadData();
     // Atualizar dados a cada 5 minutos
     setInterval(loadData, 300000);
 });
+
+// ============================================================================
+// FILTRO DE PERÍODO
+// ============================================================================
+function setPeriod(period) {
+    // Remover classe 'active' de todos os botões
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Esconder campos de data customizada
+    document.getElementById('custom-date-fields').style.display = 'none';
+    
+    // Ativar botão clicado
+    let buttonId;
+    let displayText;
+    
+    if (period === 'current-month') {
+        buttonId = 'btn-current-month';
+        displayText = 'Mês Atual';
+        currentPeriod = { type: 'current-month' };
+    } else {
+        buttonId = `btn-${period}`;
+        displayText = `Últimos ${period} dias`;
+        currentPeriod = { type: period };
+    }
+    
+    document.getElementById(buttonId).classList.add('active');
+    document.getElementById('period-display').textContent = displayText;
+    document.getElementById('chart-period-text').textContent = displayText;
+    
+    // Recarregar dados
+    loadData();
+}
+
+function toggleCustomPeriod() {
+    // Remover classe 'active' de todos os botões
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Ativar botão de personalizado
+    document.getElementById('btn-custom').classList.add('active');
+    
+    // Mostrar campos de data
+    const customFields = document.getElementById('custom-date-fields');
+    customFields.style.display = customFields.style.display === 'none' ? 'flex' : 'none';
+}
+
+function initDateFields() {
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    document.getElementById('custom-date-from').value = thirtyDaysAgo.toISOString().split('T')[0];
+    document.getElementById('custom-date-to').value = today.toISOString().split('T')[0];
+    
+    // Definir data máxima como hoje
+    document.getElementById('custom-date-to').max = today.toISOString().split('T')[0];
+}
+
+function applyCustomPeriod() {
+    const dateFrom = document.getElementById('custom-date-from').value;
+    const dateTo = document.getElementById('custom-date-to').value;
+    
+    if (!dateFrom || !dateTo) {
+        showToast('Por favor, selecione ambas as datas', 'warning');
+        return;
+    }
+    
+    if (dateFrom > dateTo) {
+        showToast('Data inicial não pode ser maior que a data final', 'warning');
+        return;
+    }
+    
+    currentPeriod = { type: 'custom', dateFrom, dateTo };
+    
+    // Atualizar texto de exibição
+    const from = new Date(dateFrom).toLocaleDateString('pt-BR');
+    const to = new Date(dateTo).toLocaleDateString('pt-BR');
+    const displayText = `${from} - ${to}`;
+    document.getElementById('period-display').textContent = displayText;
+    document.getElementById('chart-period-text').textContent = displayText;
+    
+    // Recarregar dados
+    loadData();
+}
+
+function getPeriodParams() {
+    const today = new Date();
+    let dateFrom, dateTo;
+    
+    if (currentPeriod.type === 'custom') {
+        dateFrom = currentPeriod.dateFrom;
+        dateTo = currentPeriod.dateTo;
+    } else if (currentPeriod.type === 'current-month') {
+        // Primeiro dia do mês atual
+        dateFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+        dateTo = today.toISOString().split('T')[0];
+    } else {
+        // Últimos N dias
+        const daysAgo = new Date();
+        daysAgo.setDate(today.getDate() - currentPeriod.type);
+        dateFrom = daysAgo.toISOString().split('T')[0];
+        dateTo = today.toISOString().split('T')[0];
+    }
+    
+    return { dateFrom, dateTo };
+}
 
 // ============================================================================
 // UTILITÁRIOS
@@ -210,7 +376,9 @@ async function loadData() {
 async function loadMetrics() {
     try {
         const token = getCookie('session_token');
-        const response = await fetch('/ml/advertising/metrics', {
+        const { dateFrom, dateTo } = getPeriodParams();
+        
+        const response = await fetch(`/ml/advertising/metrics?date_from=${dateFrom}&date_to=${dateTo}`, {
             headers: {
                 'Cookie': `session_token=${token}`
             }

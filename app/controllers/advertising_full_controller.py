@@ -164,25 +164,31 @@ class AdvertisingFullController:
             logger.error(f"Erro ao deletar campanha: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def get_metrics_summary(self, company_id: int):
-        """Busca métricas consolidadas de todas as campanhas sincronizadas"""
+    def get_metrics_summary(self, company_id: int, date_from: str = None, date_to: str = None):
+        """Busca métricas consolidadas de todas as campanhas sincronizadas (com filtro de período)"""
         try:
-            from app.models.advertising_models import MLCampaign
+            from app.models.advertising_models import MLCampaign, MLCampaignMetrics
             from sqlalchemy import func
+            from datetime import datetime, timedelta
             
-            logger.info(f"📊 Buscando métricas consolidadas - company_id: {company_id}")
+            # Se não forneceu datas, usar últimos 30 dias por padrão
+            if not date_to:
+                date_to = datetime.now().date()
+            else:
+                date_to = datetime.strptime(date_to, "%Y-%m-%d").date()
             
-            # Buscar totais agregados das campanhas
-            totals = self.db.query(
-                func.count(MLCampaign.id).label('total_campaigns'),
-                func.sum(MLCampaign.total_spent).label('total_spent'),
-                func.sum(MLCampaign.total_revenue).label('total_revenue'),
-                func.sum(MLCampaign.total_clicks).label('total_clicks'),
-                func.sum(MLCampaign.total_impressions).label('total_impressions'),
-                func.sum(MLCampaign.total_conversions).label('total_conversions')
-            ).filter(
+            if not date_from:
+                date_from = date_to - timedelta(days=30)
+            else:
+                date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+            
+            logger.info(f"📊 Buscando métricas consolidadas - company_id: {company_id}, período: {date_from} a {date_to}")
+            
+            # Buscar campanhas da empresa
+            campaign_ids = self.db.query(MLCampaign.id).filter(
                 MLCampaign.company_id == company_id
-            ).first()
+            ).all()
+            campaign_ids = [c[0] for c in campaign_ids]
             
             # Contar campanhas ativas
             active_campaigns = self.db.query(func.count(MLCampaign.id)).filter(
@@ -190,13 +196,42 @@ class AdvertisingFullController:
                 MLCampaign.status == 'active'
             ).scalar()
             
+            if not campaign_ids:
+                return {
+                    "success": True,
+                    "metrics": {
+                        "active_campaigns": 0,
+                        "total_spent": 0,
+                        "total_investment": 0,
+                        "total_revenue": 0,
+                        "avg_roas": 0,
+                        "total_clicks": 0,
+                        "total_impressions": 0,
+                        "total_conversions": 0,
+                        "ctr": 0
+                    }
+                }
+            
+            # Buscar totais agregados das métricas diárias no período especificado
+            totals = self.db.query(
+                func.sum(MLCampaignMetrics.spent).label('total_spent'),
+                func.sum(MLCampaignMetrics.total_amount).label('total_revenue'),
+                func.sum(MLCampaignMetrics.clicks).label('total_clicks'),
+                func.sum(MLCampaignMetrics.impressions).label('total_impressions'),
+                func.sum(MLCampaignMetrics.advertising_items_quantity).label('total_conversions')
+            ).filter(
+                MLCampaignMetrics.campaign_id.in_(campaign_ids),
+                MLCampaignMetrics.metric_date >= date_from,
+                MLCampaignMetrics.metric_date <= date_to
+            ).first()
+            
             # Extrair valores
             total_spent = float(totals.total_spent or 0)
             total_revenue = float(totals.total_revenue or 0)
             total_clicks = int(totals.total_clicks or 0)
             total_impressions = int(totals.total_impressions or 0)
             total_conversions = int(totals.total_conversions or 0)
-            total_campaigns = int(totals.total_campaigns or 0)
+            total_campaigns = len(campaign_ids)
             
             # Calcular ROAS médio
             avg_roas = (total_revenue / total_spent) if total_spent > 0 else 0

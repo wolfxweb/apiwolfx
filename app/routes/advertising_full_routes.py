@@ -98,10 +98,15 @@ async def delete_campaign(
     return controller.delete_campaign(user["company"]["id"], campaign_id)
 
 @router.get("/metrics")
-async def get_metrics(user = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Busca métricas consolidadas de publicidade"""
+async def get_metrics(
+    date_from: str = None, 
+    date_to: str = None,
+    user = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Busca métricas consolidadas de publicidade (com filtro de período)"""
     controller = AdvertisingFullController(db)
-    return controller.get_metrics_summary(user["company"]["id"])
+    return controller.get_metrics_summary(user["company"]["id"], date_from, date_to)
 
 @router.get("/alerts")
 async def get_alerts(user = Depends(get_current_user), db: Session = Depends(get_db)):

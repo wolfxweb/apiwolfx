@@ -34,6 +34,12 @@
 - ✅ `ml_advertising.html` - Tela com KPIs e lista de campanhas
 - ✅ Modal para criar campanhas
 - ✅ Estrutura de tabela para exibir campanhas
+- ✅ **Filtros de Período** (novo 26/10/2025):
+  - Mês Atual
+  - 30 dias
+  - 60 dias
+  - 90 dias
+  - Personalizado (com seleção de datas)
 
 ### 5. **Banco de Dados**
 - ✅ `ml_billing_periods` - Períodos de faturamento (3 registros)
