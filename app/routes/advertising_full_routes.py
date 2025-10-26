@@ -1,16 +1,31 @@
 """Rotas completas para publicidade"""
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.controllers.advertising_full_controller import AdvertisingFullController
 from app.controllers.auth_controller import AuthController
 from app.models.saas_models import User
-from app.views.template_renderer import render_template
 from typing import Optional
 
+templates = Jinja2Templates(directory="app/views/templates")
+
+def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db)):
+    """Obtém usuário atual ou redireciona para login (para páginas HTML)"""
+    session_token = request.cookies.get('session_token')
+    if not session_token:
+        return RedirectResponse(url="/login", status_code=302)
+    
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/login", status_code=302)
+    
+    return result["user"]
+
 def get_current_user(request: Request, db: Session = Depends(get_db)):
-    """Obtém usuário atual da sessão"""
+    """Obtém usuário atual da sessão (para APIs JSON)"""
     session_token = request.cookies.get('session_token')
     if not session_token:
         raise HTTPException(status_code=401, detail="Sessão não encontrada")
@@ -25,15 +40,31 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 router = APIRouter(prefix="/ml/advertising", tags=["Advertising"])
 
 @router.get("", response_class=HTMLResponse)
-async def advertising_page(request: Request, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def advertising_page(request: Request, db: Session = Depends(get_db)):
     """Página de publicidade"""
-    return render_template("ml_advertising.html", {"user": user})
+    # Verificar autenticação com redirect
+    user = get_current_user_or_redirect(request, db)
+    
+    # Se retornou RedirectResponse, retornar o redirect
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    return templates.TemplateResponse("ml_advertising.html", {
+        "request": request,
+        "user": user
+    })
 
 @router.get("/campaigns")
 async def get_campaigns(user = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Lista campanhas"""
+    """Lista campanhas locais (rápido)"""
     controller = AdvertisingFullController(db)
     return controller.get_campaigns(user["company"]["id"])
+
+@router.post("/campaigns/sync")
+async def sync_campaigns(user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Sincroniza campanhas do Mercado Livre"""
+    controller = AdvertisingFullController(db)
+    return controller.sync_campaigns(user["company"]["id"])
 
 @router.post("/campaigns")
 async def create_campaign(
@@ -65,3 +96,16 @@ async def delete_campaign(
     """Deleta campanha"""
     controller = AdvertisingFullController(db)
     return controller.delete_campaign(user["company"]["id"], campaign_id)
+
+@router.get("/metrics")
+async def get_metrics(user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Busca métricas consolidadas de publicidade"""
+    controller = AdvertisingFullController(db)
+    return controller.get_metrics_summary(user["company"]["id"])
+
+@router.get("/alerts")
+async def get_alerts(user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Busca alertas de publicidade (budget, performance)"""
+    from app.services.advertising_alerts_service import AdvertisingAlertsService
+    service = AdvertisingAlertsService(db)
+    return {"success": True, "data": service.get_all_alerts(user["company"]["id"])}

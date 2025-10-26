@@ -45,13 +45,40 @@
         </div>
     </div>
 
+    <!-- Gráficos -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">📈 Investimento vs Retorno (Últimos 30 dias)</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="investmentChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">📊 ROAS por Campanha</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="roasChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Ações -->
     <div class="row mb-4">
         <div class="col-12">
             <button class="btn btn-primary" onclick="openCreateCampaignModal()">
                 <i class="bi bi-plus-circle"></i> Nova Campanha
             </button>
-            <button class="btn btn-outline-secondary" onclick="loadCampaigns()">
+            <button class="btn btn-success" onclick="syncCampaigns()" id="sync-btn">
+                <i class="bi bi-cloud-download"></i> Sincronizar do ML
+            </button>
+            <button class="btn btn-outline-secondary" onclick="loadData()">
                 <i class="bi bi-arrow-clockwise"></i> Atualizar
             </button>
         </div>
@@ -134,10 +161,22 @@
 </div>
 
 <script>
+// ============================================================================
+// INICIALIZAÇÃO
+// ============================================================================
+let investmentChart = null;
+let roasChart = null;
+
 document.addEventListener('DOMContentLoaded', function() {
-    loadCampaigns();
+    initCharts();
+    loadData();
+    // Atualizar dados a cada 5 minutos
+    setInterval(loadData, 300000);
 });
 
+// ============================================================================
+// UTILITÁRIOS
+// ============================================================================
 function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -145,49 +184,174 @@ function getCookie(name) {
     return null;
 }
 
-async function loadCampaigns() {
+function formatCurrency(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value || 0);
+}
+
+function showToast(message, type = 'info') {
+    // Toast simples - pode ser melhorado com biblioteca
+    alert(message);
+}
+
+// ============================================================================
+// CARREGAMENTO DE DADOS
+// ============================================================================
+async function loadData() {
+    await Promise.all([
+        loadMetrics(),
+        loadCampaigns()
+    ]);
+    updateCharts();
+}
+
+async function loadMetrics() {
     try {
         const token = getCookie('session_token');
-        const response = await fetch('/ml/advertising/campaigns?session_token=' + token);
+        const response = await fetch('/ml/advertising/metrics', {
+            headers: {
+                'Cookie': `session_token=${token}`
+            }
+        });
+        const data = await response.json();
+        
+        if (data.success && data.metrics) {
+            updateKPIs(data.metrics);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar métricas:', error);
+    }
+}
+
+function updateKPIs(metrics) {
+    document.getElementById('active-campaigns').textContent = metrics.active_campaigns || 0;
+    document.getElementById('total-investment').textContent = formatCurrency(metrics.total_investment);
+    document.getElementById('avg-roas').textContent = (metrics.avg_roas || 0).toFixed(2) + 'x';
+    document.getElementById('total-revenue').textContent = formatCurrency(metrics.total_revenue);
+}
+
+async function loadCampaigns() {
+    const tbody = document.getElementById('campaigns-table-body');
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center"><div class="spinner-border spinner-border-sm"></div> Carregando...</td></tr>';
+    
+    try {
+        const token = getCookie('session_token');
+        const response = await fetch('/ml/advertising/campaigns', {
+            headers: {
+                'Cookie': `session_token=${token}`
+            }
+        });
         const data = await response.json();
         
         if (data.success) {
-            displayCampaigns(data.campaigns);
+            displayCampaigns(data.campaigns || []);
+        } else {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Erro: ${data.error}</td></tr>`;
         }
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('Erro ao carregar campanhas:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Erro ao carregar campanhas</td></tr>';
     }
 }
 
 function displayCampaigns(campaigns) {
     const tbody = document.getElementById('campaigns-table-body');
+    
     if (!campaigns || campaigns.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhuma campanha encontrada</td></tr>';
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                    <p class="mt-2">Nenhuma campanha encontrada</p>
+                    <button class="btn btn-sm btn-success" onclick="syncCampaigns()">
+                        <i class="bi bi-cloud-download"></i> Sincronizar do ML
+                    </button>
+                </td>
+            </tr>
+        `;
         return;
     }
     
-    tbody.innerHTML = campaigns.map(c => `
-        <tr>
-            <td>${c.name || 'N/A'}</td>
-            <td><span class="badge bg-${c.status === 'active' ? 'success' : 'secondary'}">${c.status}</span></td>
-            <td>R$ ${(c.budget?.amount || 0).toFixed(2)}</td>
-            <td>R$ ${(c.spent || 0).toFixed(2)}</td>
-            <td>${c.clicks || 0}</td>
-            <td>${(c.roas || 0).toFixed(2)}x</td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="editCampaign(${c.id})">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteCampaign(${c.id})">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = campaigns.map(c => {
+        const statusColor = c.status === 'active' ? 'success' : 
+                           c.status === 'paused' ? 'warning' : 'secondary';
+        const statusText = c.status === 'active' ? 'Ativa' : 
+                          c.status === 'paused' ? 'Pausada' : c.status;
+        
+        return `
+            <tr>
+                <td>
+                    <strong>${c.name || 'N/A'}</strong>
+                    <br><small class="text-muted">${c.id || ''}</small>
+                </td>
+                <td><span class="badge bg-${statusColor}">${statusText}</span></td>
+                <td>${formatCurrency(c.daily_budget)}</td>
+                <td>${formatCurrency(c.total_spent)}</td>
+                <td>${(c.total_clicks || 0).toLocaleString('pt-BR')}</td>
+                <td>
+                    <strong>${(c.roas || 0).toFixed(2)}x</strong>
+                    ${c.total_impressions ? `<br><small class="text-muted">${c.total_impressions.toLocaleString('pt-BR')} impressões</small>` : ''}
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="viewCampaignDetails('${c.id}')" title="Ver detalhes">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="deleteCampaign('${c.id}')" title="Deletar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
+// ============================================================================
+// SINCRONIZAÇÃO
+// ============================================================================
+async function syncCampaigns() {
+    const btn = document.getElementById('sync-btn');
+    const originalHTML = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    
+    try {
+        const token = getCookie('session_token');
+        const response = await fetch('/ml/advertising/campaigns/sync', {
+            method: 'POST',
+            headers: {
+                'Cookie': `session_token=${token}`
+            }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const campaignsMsg = `${data.campaigns_synced || 0} campanha(s)`;
+            const productsMsg = data.products_synced ? `, ${data.products_synced} produto(s)` : '';
+            showToast(`✅ Sincronização concluída! ${campaignsMsg}${productsMsg} sincronizado(s).`, 'success');
+            await loadData();
+        } else {
+            showToast(`❌ Erro: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Erro na sincronização:', error);
+        showToast('❌ Erro ao sincronizar campanhas', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+}
+
+// ============================================================================
+// MODAL CRIAR CAMPANHA
+// ============================================================================
 function openCreateCampaignModal() {
     const modal = new bootstrap.Modal(document.getElementById('createCampaignModal'));
+    document.getElementById('createCampaignForm').reset();
     modal.show();
 }
 
@@ -200,44 +364,243 @@ async function createCampaign() {
         status: document.getElementById('campaign-status').value
     };
     
+    if (!data.name || !data.budget) {
+        showToast('❌ Preencha todos os campos obrigatórios', 'error');
+        return;
+    }
+    
     try {
-        const response = await fetch('/ml/advertising/campaigns?session_token=' + token, {
+        const response = await fetch('/ml/advertising/campaigns', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'Cookie': `session_token=${token}`
+            },
             body: JSON.stringify(data)
         });
         
         const result = await response.json();
         if (result.success) {
-            alert('Campanha criada com sucesso!');
+            showToast('✅ Campanha criada com sucesso!', 'success');
             bootstrap.Modal.getInstance(document.getElementById('createCampaignModal')).hide();
-            loadCampaigns();
+            await loadData();
         } else {
-            alert('Erro: ' + result.error);
+            showToast(`❌ Erro: ${result.error}`, 'error');
         }
     } catch (error) {
-        alert('Erro ao criar campanha');
+        console.error('Erro ao criar campanha:', error);
+        showToast('❌ Erro ao criar campanha', 'error');
     }
 }
 
-async function deleteCampaign(id) {
-    if (!confirm('Deseja deletar esta campanha?')) return;
+// ============================================================================
+// GRÁFICOS COM CHART.JS
+// ============================================================================
+function initCharts() {
+    // Gráfico de Investimento vs Retorno
+    const investmentCtx = document.getElementById('investmentChart');
+    if (investmentCtx) {
+        investmentChart = new Chart(investmentCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Investimento',
+                        data: [],
+                        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Retorno',
+                        data: [],
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$ ' + value.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + formatCurrency(context.parsed.y);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Gráfico de ROAS por Campanha
+    const roasCtx = document.getElementById('roasChart');
+    if (roasCtx) {
+        roasChart = new Chart(roasCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'ROAS',
+                    data: [],
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.5)',
+                        'rgba(255, 206, 86, 0.5)',
+                        'rgba(75, 192, 192, 0.5)',
+                        'rgba(153, 102, 255, 0.5)',
+                        'rgba(255, 159, 64, 0.5)'
+                    ],
+                    borderColor: [
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(2) + 'x';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'ROAS: ' + context.parsed.x.toFixed(2) + 'x';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+async function updateCharts() {
+    try {
+        const token = getCookie('session_token');
+        
+        // Buscar dados de métricas e campanhas
+        const [metricsRes, campaignsRes] = await Promise.all([
+            fetch('/ml/advertising/metrics', {
+                headers: { 'Cookie': `session_token=${token}` }
+            }),
+            fetch('/ml/advertising/campaigns', {
+                headers: { 'Cookie': `session_token=${token}` }
+            })
+        ]);
+        
+        const metricsData = await metricsRes.json();
+        const campaignsData = await campaignsRes.json();
+        
+        // Atualizar gráfico de Investimento vs Retorno com dados das campanhas
+        if (campaignsData.success && campaignsData.campaigns && investmentChart) {
+            const campaigns = campaignsData.campaigns;
+            
+            // Somar investimento e retorno de todas as campanhas
+            let totalInvestment = 0;
+            let totalRevenue = 0;
+            
+            campaigns.forEach(c => {
+                totalInvestment += c.total_spent || 0;
+                totalRevenue += c.total_revenue || 0;
+            });
+            
+            investmentChart.data.labels = ['Últimos 30 dias'];
+            investmentChart.data.datasets[0].data = [totalInvestment];
+            investmentChart.data.datasets[1].data = [totalRevenue];
+            investmentChart.update();
+        }
+        
+        // Atualizar gráfico de ROAS por campanha
+        if (campaignsData.success && campaignsData.campaigns) {
+            const campaigns = campaignsData.campaigns
+                .filter(c => c.roas && c.roas > 0)
+                .sort((a, b) => b.roas - a.roas)
+                .slice(0, 5); // Top 5 campanhas
+            
+            if (roasChart && campaigns.length > 0) {
+                roasChart.data.labels = campaigns.map(c => c.name || 'N/A');
+                roasChart.data.datasets[0].data = campaigns.map(c => c.roas || 0);
+                roasChart.update();
+            } else if (roasChart) {
+                // Se não houver campanhas com ROAS, mostrar mensagem
+                roasChart.data.labels = ['Sem dados'];
+                roasChart.data.datasets[0].data = [0];
+                roasChart.update();
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar gráficos:', error);
+    }
+}
+
+// ============================================================================
+// AÇÕES DE CAMPANHA
+// ============================================================================
+function viewCampaignDetails(campaignId) {
+    showToast('Detalhes da campanha (em desenvolvimento)', 'info');
+    console.log('Ver detalhes:', campaignId);
+}
+
+async function deleteCampaign(campaignId) {
+    if (!confirm('⚠️ Deseja realmente deletar esta campanha?')) return;
     
     const token = getCookie('session_token');
     try {
-        const response = await fetch(`/ml/advertising/campaigns/${id}?session_token=${token}`, {
-            method: 'DELETE'
+        const response = await fetch(`/ml/advertising/campaigns/${campaignId}`, {
+            method: 'DELETE',
+            headers: {
+                'Cookie': `session_token=${token}`
+            }
         });
         
         const result = await response.json();
         if (result.success) {
-            alert('Campanha deletada!');
-            loadCampaigns();
+            showToast('✅ Campanha deletada com sucesso!', 'success');
+            await loadData();
+        } else {
+            showToast(`❌ Erro: ${result.error}`, 'error');
         }
     } catch (error) {
-        alert('Erro ao deletar');
+        console.error('Erro ao deletar:', error);
+        showToast('❌ Erro ao deletar campanha', 'error');
     }
 }
 </script>
 {% endblock %}
+
 

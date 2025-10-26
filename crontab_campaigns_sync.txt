@@ -1,0 +1,9 @@
+# Sincronização diária de campanhas de publicidade
+# Executa todos os dias às 02:00 da manhã
+
+# Sincronização diária de campanhas
+0 2 * * * cd /app && /usr/local/bin/python scripts/sync_campaigns_cron.py >> /app/logs/campaigns_sync.log 2>&1
+
+# Backup: sincronização adicional ao meio-dia (opcional)
+# 0 12 * * * cd /app && /usr/local/bin/python scripts/sync_campaigns_cron.py >> /app/logs/campaigns_sync.log 2>&1
+
