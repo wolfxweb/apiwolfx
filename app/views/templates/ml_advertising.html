@@ -128,19 +128,17 @@
     <!-- Gráficos -->
     <div class="row mb-4">
         <div class="col-md-6 mb-4 mb-md-0">
-          
             <div class="card">
-                <h6 class="mb-2">📈 Investimento vs Retorno</h6>
                 <div class="card-body">
+                    <h6 class="text-center mb-3 mt-3">📈 Investimento vs Retorno</h6>
                     <canvas id="investmentChart" height="200"></canvas>
                 </div>
             </div>
         </div>
         <div class="col-md-6">
-      
             <div class="card">
-                
                 <div class="card-body">
+                    <h6 class="text-center mb-3 mt-3">📊 ROAS por Campanha</h6>
                     <canvas id="roasChart" height="200"></canvas>
                 </div>
             </div>
@@ -485,13 +483,11 @@ function displayCampaigns(campaigns) {
 // SINCRONIZAÇÃO
 // ============================================================================
 async function syncCampaigns() {
-    const dropdown = document.getElementById('acoesDropdown');
-    const originalHTML = dropdown.innerHTML;
+    const btn = document.getElementById('sync-btn');
+    const originalHTML = btn.innerHTML;
     
-    dropdown.disabled = true;
-    dropdown.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
-    
-    showToast('⏳ Iniciando sincronização com Mercado Livre...', 'info');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
     
     try {
         const token = getCookie('session_token');
@@ -506,8 +502,7 @@ async function syncCampaigns() {
         if (data.success) {
             const campaignsMsg = `${data.campaigns_synced || 0} campanha(s)`;
             const productsMsg = data.products_synced ? `, ${data.products_synced} produto(s)` : '';
-            const metricsMsg = data.metrics_synced ? `, ${data.metrics_synced} métrica(s)` : '';
-            showToast(`✅ Sincronização concluída! ${campaignsMsg}${productsMsg}${metricsMsg} sincronizado(s).`, 'success');
+            showToast(`✅ Sincronização concluída! ${campaignsMsg}${productsMsg} sincronizado(s).`, 'success');
             await loadData();
         } else {
             showToast(`❌ Erro: ${data.error}`, 'error');
@@ -516,8 +511,8 @@ async function syncCampaigns() {
         console.error('Erro na sincronização:', error);
         showToast('❌ Erro ao sincronizar campanhas', 'error');
     } finally {
-        dropdown.disabled = false;
-        dropdown.innerHTML = originalHTML;
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
     }
 }
 
