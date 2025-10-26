@@ -304,22 +304,14 @@
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
+            <div class="card-body">
+                <h5 class="text-center mb-3">
                     🎯 Anúncios da Campanha
                     <span class="badge bg-primary ms-2" id="ads-count">0</span>
                 </h5>
-                <div class="input-group" style="width: 300px;">
-                    <input type="text" class="form-control" id="ads-search" placeholder="Buscar anúncio..." onkeyup="filterAds()">
-                    <button class="btn btn-outline-secondary" type="button">
-                        <i class="bi bi-search"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-hover">
-                        <thead class="table-light">
+                        <thead style="background-color: #343a40; color: white;">
                             <tr>
                                 <th style="width: 60px;"></th>
                                 <th>Produto</th>
@@ -397,7 +389,6 @@ let currentPeriod = { type: 'current-month' };
 let campaignData = null;
 let dailyMetrics = [];
 let adsData = [];
-let allAds = [];
 
 // Charts
 let timelineChart = null;
@@ -493,8 +484,7 @@ async function loadCampaignAds() {
         const data = await response.json();
         
         if (data.success) {
-            allAds = data.ads || [];
-            adsData = allAds;
+            adsData = data.ads || [];
             displayAds(adsData);
             document.getElementById('ads-count').textContent = adsData.length;
         } else {
@@ -775,22 +765,6 @@ function displayAds(ads) {
             </tr>
         `;
     }).join('');
-}
-
-function filterAds() {
-    const searchTerm = document.getElementById('ads-search').value.toLowerCase();
-    
-    if (!searchTerm) {
-        adsData = allAds;
-    } else {
-        adsData = allAds.filter(ad => {
-            return (ad.title && ad.title.toLowerCase().includes(searchTerm)) ||
-                   (ad.item_id && ad.item_id.toLowerCase().includes(searchTerm));
-        });
-    }
-    
-    displayAds(adsData);
-    document.getElementById('ads-count').textContent = adsData.length;
 }
 
 // ============================================================================
