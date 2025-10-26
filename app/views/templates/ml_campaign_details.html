@@ -239,28 +239,61 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-white">
-                <h5 class="mb-0">🎯 Performance vs Benchmark</h5>
+                <h5 class="mb-0">
+                    🎯 Performance vs Objetivo
+                    <i class="bi bi-info-circle text-primary" style="cursor: pointer; font-size: 14px;" 
+                       data-bs-toggle="popover" 
+                       data-bs-trigger="click"
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       data-bs-title="🎯 O que é Performance vs Objetivo?"
+                       data-bs-content="<strong>Benchmark = Referência de Performance</strong><br><br>📊 Compara sua performance ATUAL com o OBJETIVO definido na campanha<br><br><strong>ACOS Objetivo:</strong> Meta de custo de publicidade que você definiu ao criar a campanha<br><br><strong>ROAS Esperado:</strong> Calculado automaticamente baseado no ACOS objetivo<br><br><strong>Exemplo:</strong><br>• ACOS Objetivo: 20%<br>• ROAS Esperado: 5x (100÷20)<br><br>✅ Se você está no objetivo ou abaixo, está tendo lucro!<br>⚠️ Se está acima, precisa otimizar a campanha"></i>
+                </h5>
             </div>
             <div class="card-body">
-                <div class="mb-4">
-                    <h6>ACOS</h6>
-                    <div class="d-flex justify-content-between mb-1">
-                        <span>Seu ACOS: <strong id="bench-your-acos">0%</strong></span>
-                        <span>Benchmark: <strong id="bench-target-acos">0%</strong></span>
-                    </div>
-                    <div class="progress" style="height: 30px;">
-                        <div class="progress-bar" id="bench-acos-bar" role="progressbar" style="width: 0%"></div>
+                <!-- Estratégia da Campanha -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Estratégia:</span>
+                        <span class="badge bg-primary" id="bench-strategy-badge">-</span>
                     </div>
                 </div>
-                <div>
-                    <h6>ROAS</h6>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>Atual: <strong id="bench-your-roas">0.00x</strong></span>
+                
+                <hr>
+                
+                <!-- ACOS: Atual vs Objetivo -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">💰 ACOS</h6>
+                        <span id="bench-acos-status" class="badge">-</span>
                     </div>
-                    <p class="text-muted mb-0">
-                        <i class="bi bi-info-circle"></i>
-                        <span id="bench-performance-message">Carregando análise...</span>
-                    </p>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Atual: <strong id="bench-your-acos" class="text-primary">0%</strong></span>
+                        <span>Objetivo: <strong id="bench-target-acos" class="text-secondary">0%</strong></span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar" id="bench-acos-bar" role="progressbar" style="width: 0%">
+                            <span id="bench-acos-diff">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ROAS: Atual vs Esperado -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">📈 ROAS</h6>
+                        <span id="bench-roas-status" class="badge">-</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Atual: <strong id="bench-your-roas" class="text-primary">0.00x</strong></span>
+                        <span>Esperado: <strong id="bench-expected-roas" class="text-secondary">0.00x</strong></span>
+                    </div>
+                </div>
+                
+                <!-- Mensagem de Recomendação -->
+                <div class="alert alert-light mb-0" id="bench-recommendation" role="alert">
+                    <strong id="bench-rec-title">📊 Análise</strong>
+                    <p class="mb-0 mt-2" id="bench-rec-message">Carregando análise de performance...</p>
                 </div>
             </div>
         </div>
@@ -581,39 +614,122 @@ function updateKPIs(metrics) {
 }
 
 function updateBenchmark(metrics) {
+    if (!campaignData) return;
+    
+    // Dados atuais
     const yourAcos = metrics.acos || 0;
-    const benchmarkAcos = metrics.acos_benchmark || 0;
     const yourRoas = metrics.roas || 0;
     
+    // Objetivo da campanha
+    const targetAcos = campaignData.acos_target || 0;
+    const expectedRoas = targetAcos > 0 ? (100 / targetAcos) : 0;
+    
+    // Estratégia
+    const strategy = campaignData.strategy || 'profitability';
+    const strategyTranslations = {
+        'profitability': 'Lucratividade',
+        'growth': 'Crescimento',
+        'balanced': 'Equilibrado',
+        'awareness': 'Reconhecimento'
+    };
+    const strategyText = strategyTranslations[strategy.toLowerCase()] || strategy;
+    document.getElementById('bench-strategy-badge').textContent = strategyText;
+    
+    // Atualizar valores
     document.getElementById('bench-your-acos').textContent = yourAcos.toFixed(2) + '%';
-    document.getElementById('bench-target-acos').textContent = benchmarkAcos ? benchmarkAcos.toFixed(2) + '%' : 'N/A';
+    document.getElementById('bench-target-acos').textContent = targetAcos > 0 ? targetAcos.toFixed(2) + '%' : 'Não definido';
     document.getElementById('bench-your-roas').textContent = yourRoas.toFixed(2) + 'x';
+    document.getElementById('bench-expected-roas').textContent = expectedRoas > 0 ? expectedRoas.toFixed(2) + 'x' : 'N/A';
     
-    // Barra de progresso do ACOS
-    if (benchmarkAcos > 0) {
-        const acosPercentage = Math.min((yourAcos / benchmarkAcos) * 100, 100);
-        const acosBar = document.getElementById('bench-acos-bar');
-        acosBar.style.width = acosPercentage + '%';
+    // Análise de ACOS
+    let acosStatus, acosClass, acosMessage;
+    const acosDiff = targetAcos > 0 ? yourAcos - targetAcos : 0;
+    
+    if (targetAcos === 0) {
+        acosStatus = 'Sem meta';
+        acosClass = 'bg-secondary';
+        acosMessage = '⚠️ <strong>ACOS Objetivo não definido</strong><br>Defina um objetivo de ACOS na campanha para acompanhar a performance.';
+        document.getElementById('bench-acos-bar').style.width = '0%';
+        document.getElementById('bench-acos-bar').className = 'progress-bar bg-secondary';
+        document.getElementById('bench-acos-diff').textContent = 'N/A';
+    } else if (yourAcos <= targetAcos) {
+        acosStatus = '✅ No objetivo';
+        acosClass = 'bg-success';
+        const saving = Math.abs(acosDiff).toFixed(2);
+        acosMessage = `✅ <strong>Excelente!</strong><br>Seu ACOS está ${saving}% abaixo do objetivo. Continue assim!`;
         
-        if (yourAcos <= benchmarkAcos) {
-            acosBar.className = 'progress-bar bg-success';
-        } else if (yourAcos <= benchmarkAcos * 1.2) {
-            acosBar.className = 'progress-bar bg-warning';
-        } else {
-            acosBar.className = 'progress-bar bg-danger';
-        }
+        const acosPercentage = (yourAcos / targetAcos) * 100;
+        document.getElementById('bench-acos-bar').style.width = Math.min(acosPercentage, 100) + '%';
+        document.getElementById('bench-acos-bar').className = 'progress-bar bg-success';
+        document.getElementById('bench-acos-diff').textContent = `-${saving}%`;
+    } else if (yourAcos <= targetAcos * 1.15) {
+        acosStatus = '⚠️ Atenção';
+        acosClass = 'bg-warning';
+        const excess = acosDiff.toFixed(2);
+        acosMessage = `⚠️ <strong>Atenção</strong><br>Seu ACOS está ${excess}% acima do objetivo. Considere otimizar lances ou palavras-chave.`;
+        
+        const acosPercentage = (yourAcos / targetAcos) * 100;
+        document.getElementById('bench-acos-bar').style.width = Math.min(acosPercentage, 150) + '%';
+        document.getElementById('bench-acos-bar').className = 'progress-bar bg-warning';
+        document.getElementById('bench-acos-diff').textContent = `+${excess}%`;
+    } else {
+        acosStatus = '❌ Acima';
+        acosClass = 'bg-danger';
+        const excess = acosDiff.toFixed(2);
+        acosMessage = `❌ <strong>Urgente!</strong><br>Seu ACOS está ${excess}% acima do objetivo. Ajuste sua estratégia:<br>• Reduza lances<br>• Pause produtos com baixa performance<br>• Revise segmentação`;
+        
+        const acosPercentage = (yourAcos / targetAcos) * 100;
+        document.getElementById('bench-acos-bar').style.width = Math.min(acosPercentage, 150) + '%';
+        document.getElementById('bench-acos-bar').className = 'progress-bar bg-danger';
+        document.getElementById('bench-acos-diff').textContent = `+${excess}%`;
     }
     
-    // Mensagem de performance
-    let message = '';
-    if (yourAcos <= benchmarkAcos) {
-        message = '✅ Excelente! Seu ACOS está abaixo do benchmark.';
-    } else if (yourAcos <= benchmarkAcos * 1.2) {
-        message = '⚠️ Atenção! Seu ACOS está um pouco acima do benchmark.';
+    // Análise de ROAS
+    let roasStatus, roasClass;
+    if (expectedRoas === 0) {
+        roasStatus = '-';
+        roasClass = 'bg-secondary';
+    } else if (yourRoas >= expectedRoas) {
+        roasStatus = '✅ Atingido';
+        roasClass = 'bg-success';
+    } else if (yourRoas >= expectedRoas * 0.85) {
+        roasStatus = '⚠️ Próximo';
+        roasClass = 'bg-warning';
     } else {
-        message = '❌ Seu ACOS está muito acima do benchmark. Considere ajustar a estratégia.';
+        roasStatus = '❌ Abaixo';
+        roasClass = 'bg-danger';
     }
-    document.getElementById('bench-performance-message').textContent = message;
+    
+    // Atualizar badges
+    document.getElementById('bench-acos-status').textContent = acosStatus;
+    document.getElementById('bench-acos-status').className = `badge ${acosClass}`;
+    document.getElementById('bench-roas-status').textContent = roasStatus;
+    document.getElementById('bench-roas-status').className = `badge ${roasClass}`;
+    
+    // Recomendação baseada na estratégia
+    let recTitle = '📊 Análise de Performance';
+    let recommendation = acosMessage;
+    
+    if (strategy.toLowerCase() === 'profitability' && yourAcos > targetAcos) {
+        recommendation += '<br><br>💡 <strong>Sua estratégia é LUCRATIVIDADE</strong>: Priorize reduzir custos para maximizar lucro.';
+    } else if (strategy.toLowerCase() === 'growth' && yourAcos > targetAcos * 1.2) {
+        recommendation += '<br><br>💡 <strong>Sua estratégia é CRESCIMENTO</strong>: ACOS alto é aceitável, mas está muito acima do objetivo.';
+    }
+    
+    document.getElementById('bench-rec-title').textContent = recTitle;
+    document.getElementById('bench-rec-message').innerHTML = recommendation;
+    
+    // Cor do alert baseada na performance
+    const alertBox = document.getElementById('bench-recommendation');
+    if (targetAcos === 0) {
+        alertBox.className = 'alert alert-secondary mb-0';
+    } else if (yourAcos <= targetAcos) {
+        alertBox.className = 'alert alert-success mb-0';
+    } else if (yourAcos <= targetAcos * 1.15) {
+        alertBox.className = 'alert alert-warning mb-0';
+    } else {
+        alertBox.className = 'alert alert-danger mb-0';
+    }
 }
 
 function displayAds(ads) {
