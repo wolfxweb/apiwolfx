@@ -58,34 +58,84 @@ class ShipmentService:
 
     def sync_invoice_status(self, company_id: int, access_token: str) -> Dict:
         """
-        Sincroniza status das notas fiscais do Mercado Livre
+        Sincroniza STATUS e NOTAS FISCAIS do Mercado Livre
         
-        Busca TODOS os pedidos pagos e verifica se têm nota fiscal no ML
-        Atualiza os campos de invoice para pedidos que já têm NF emitida
+        Busca TODOS os pedidos e sincroniza:
+        - Status do pedido
+        - Status do shipping (fulfillment)
+        - Notas fiscais
         """
         try:
-            # Buscar TODOS os pedidos pagos que tenham pack_id (não apenas os sem NF)
+            import requests
+            
+            # Buscar TODOS os pedidos (não apenas PAID/CONFIRMED)
             orders = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id,
-                MLOrder.status.in_([OrderStatus.PAID, OrderStatus.CONFIRMED]),
-                MLOrder.pack_id.isnot(None)
+                MLOrder.company_id == company_id
             ).all()
             
-            logger.info(f"Sincronizando notas fiscais para {len(orders)} pedido(s)")
+            logger.info(f"Sincronizando status e notas fiscais para {len(orders)} pedido(s)")
             
             updated = 0
             already_synced = 0
+            status_updated = 0
+            invoice_updated = 0
             errors = []
             
             for order in orders:
                 try:
-                    # Consultar pack no ML para verificar se tem NF
-                    invoice_data = self._check_pack_invoice(order.pack_id, access_token)
+                    order_updated = False
+                    
+                    # 1. SINCRONIZAR STATUS DO PEDIDO
+                    try:
+                        order_url = f"{self.base_url}/orders/{order.ml_order_id}"
+                        headers = {"Authorization": f"Bearer {access_token}"}
+                        response = requests.get(order_url, headers=headers, timeout=30)
+                        
+                        if response.status_code == 200:
+                            order_data = response.json()
+                            
+                            # Mapear e atualizar status
+                            status_mapping = {
+                                "confirmed": OrderStatus.CONFIRMED,
+                                "payment_required": OrderStatus.PENDING,
+                                "payment_in_process": OrderStatus.PENDING,
+                                "paid": OrderStatus.PAID,
+                                "ready_to_ship": OrderStatus.PAID,
+                                "shipped": OrderStatus.SHIPPED,
+                                "delivered": OrderStatus.DELIVERED,
+                                "cancelled": OrderStatus.CANCELLED,
+                                "refunded": OrderStatus.REFUNDED
+                            }
+                            
+                            api_status = order_data.get("status", "pending")
+                            new_status = status_mapping.get(api_status, OrderStatus.PENDING)
+                            
+                            if order.status != new_status:
+                                order.status = new_status
+                                order_updated = True
+                                status_updated += 1
+                                logger.info(f"✅ Status do pedido {order.order_id} atualizado: {order.status} -> {new_status}")
+                            
+                            # Atualizar shipping info
+                            shipping = order_data.get("shipping", {})
+                            if shipping:
+                                order.shipping_status = shipping.get("status")
+                                order.shipping_id = str(shipping.get("id", order.shipping_id))
+                                order.last_updated = datetime.utcnow()
+                    except Exception as e:
+                        logger.warning(f"Erro ao sincronizar status do pedido {order.order_id}: {e}")
+                    
+                    # 2. SINCRONIZAR NOTA FISCAL
+                    invoice_data = None
+                    
+                    if order.pack_id:
+                        invoice_data = self._check_pack_invoice(order.pack_id, access_token)
+                    
+                    if not invoice_data and order.shipping_id:
+                        invoice_data = self._check_shipment_invoice(order.shipping_id, company_id, access_token)
                     
                     if invoice_data and invoice_data.get('has_invoice'):
-                        # Verificar se já está sincronizado
                         if not order.invoice_emitted:
-                            # Atualizar ordem com dados da NF
                             order.invoice_emitted = True
                             order.invoice_emitted_at = datetime.now()
                             order.invoice_number = invoice_data.get('number')
@@ -93,24 +143,14 @@ class ShipmentService:
                             order.invoice_key = invoice_data.get('key')
                             order.invoice_xml_url = invoice_data.get('xml_url')
                             order.invoice_pdf_url = invoice_data.get('pdf_url')
-                            
-                            updated += 1
+                            order_updated = True
+                            invoice_updated += 1
                             logger.info(f"✅ NF sincronizada para pedido {order.order_id}")
-                        else:
-                            already_synced += 1
-                            logger.debug(f"📋 NF já sincronizada para pedido {order.order_id}")
+                    
+                    if order_updated:
+                        updated += 1
                     else:
-                        # Se não tem NF no ML, garantir que está marcado como False
-                        if order.invoice_emitted:
-                            order.invoice_emitted = False
-                            order.invoice_emitted_at = None
-                            order.invoice_number = None
-                            order.invoice_series = None
-                            order.invoice_key = None
-                            order.invoice_xml_url = None
-                            order.invoice_pdf_url = None
-                            updated += 1
-                            logger.info(f"🔄 Status NF atualizado para pedido {order.order_id}")
+                        already_synced += 1
                 
                 except Exception as e:
                     error_msg = f"Erro ao sincronizar pedido {order.order_id}: {e}"
@@ -120,11 +160,13 @@ class ShipmentService:
             # Commit das alterações
             if updated > 0:
                 self.db.commit()
-                logger.info(f"✅ {updated} nota(s) fiscal(is) sincronizada(s)")
+                logger.info(f"✅ Sincronização concluída: {status_updated} status atualizados, {invoice_updated} notas fiscais atualizadas")
             
             return {
                 "success": True,
                 "updated": updated,
+                "status_updated": status_updated,
+                "invoice_updated": invoice_updated,
                 "already_synced": already_synced,
                 "total_processed": len(orders),
                 "errors": errors if errors else None

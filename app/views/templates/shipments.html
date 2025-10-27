@@ -544,7 +544,7 @@ function renderOrdersByStatus(status, orders) {
     }
     
     tbody.innerHTML = orders.map(order => `
-        <tr>
+        <tr data-order-id="${order.ml_order_id}">
             <td>
                 <div class="d-flex align-items-center">
                     <span class="fw-bold">${order.ml_order_id}</span>
@@ -711,8 +711,11 @@ async function syncSingleInvoice(orderId) {
 // Atualizar apenas um pedido específico na tabela
 function updateSingleOrder(orderId, needsReload = true) {
     if (!needsReload) {
+        console.log(`⚠️ Pedido ${orderId} não precisa atualizar (já está atualizado)`);
         return; // Se nada mudou, não precisa atualizar
     }
+    
+    console.log(`🔄 Atualizando pedido ${orderId}...`);
     
     // Buscar dados atualizados do pedido
     fetch(`/api/shipments/pending?search=${orderId}&page=1&limit=1`, {
@@ -720,40 +723,109 @@ function updateSingleOrder(orderId, needsReload = true) {
     })
     .then(response => response.json())
     .then(data => {
+        console.log('📦 Dados recebidos:', data);
         if (data.success && data.orders && data.orders.length > 0) {
             const updatedOrder = data.orders[0];
+            console.log('✅ Pedido atualizado encontrado:', updatedOrder);
+            console.log('📄 invoice_emitted:', updatedOrder.invoice_emitted);
+            console.log('📄 invoice_number:', updatedOrder.invoice_number);
+            console.log('📄 invoice_series:', updatedOrder.invoice_series);
             
-            // Atualizar a linha na tabela atual
+            // Buscar a linha na tabela atual
             const orderRow = document.querySelector(`tr[data-order-id="${orderId}"]`);
-            if (orderRow) {
-                // Atualizar coluna de status
-                const statusCell = orderRow.querySelector('.order-status');
-                if (statusCell) {
-                    statusCell.textContent = updatedOrder.status || 'N/A';
-                }
+            if (!orderRow) {
+                console.log('❌ Pedido não encontrado na tabela atual');
+                return;
+            }
+            
+            console.log('✅ Linha da tabela encontrada:', orderRow);
+            
+            // Obter o status atual (da tab ativa)
+            const currentTab = document.querySelector('.tab-pane.active').id;
+            const currentStatus = currentTab.replace('tab-', '').toUpperCase();
+            
+            // Atualizar coluna de status
+            const statusCell = orderRow.querySelector('.order-status');
+            const newStatus = updatedOrder.status ? updatedOrder.status.toUpperCase() : 'N/A';
+            
+            if (statusCell) {
+                statusCell.textContent = updatedOrder.status || 'N/A';
+            }
+            
+            // Atualizar coluna de nota fiscal completamente
+            const invoiceCell = orderRow.querySelector('td:nth-child(5)'); // 5ª coluna é a da nota fiscal
+            if (invoiceCell && updatedOrder.invoice_emitted) {
+                console.log(`📄 Atualizando coluna de NF com número: ${updatedOrder.invoice_number}`);
+                invoiceCell.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        <div>
+                            <div class="fw-bold">${updatedOrder.invoice_number || 'N/A'}</div>
+                            <small class="text-muted">${updatedOrder.invoice_series || ''}</small>
+                        </div>
+                    </div>
+                `;
+                console.log('✅ Coluna de NF atualizada');
+            } else if (invoiceCell && !updatedOrder.invoice_emitted) {
+                console.log('⚠️ Pedido ainda não tem nota fiscal');
+                invoiceCell.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-x-circle text-warning me-2"></i>
+                        <span class="text-muted">Sem nota</span>
+                    </div>
+                `;
+            }
+            
+            // Atualizar coluna de ações (remover botão "Sincronizar" se NF foi emitida)
+            const actionsCell = orderRow.querySelector('td:nth-child(6)'); // 6ª coluna é a de ações
+            if (actionsCell && updatedOrder.invoice_emitted) {
+                console.log('🔄 Atualizando coluna de ações (removendo botão Sincronizar)');
+                actionsCell.innerHTML = `
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-info" onclick="showInfo('${updatedOrder.ml_order_id}')" title="Ver Detalhes">
+                            <i class="bi bi-info-circle"></i>
+                        </button>
+                    </div>
+                `;
+            }
+            
+            // Se o status mudou e não corresponde mais à tab atual, remover da tab
+            if (newStatus !== 'N/A' && newStatus !== currentStatus && statusCell) {
+                console.log(`Status mudou de ${currentStatus} para ${newStatus}. Removendo da tab atual.`);
                 
-                // Atualizar ícone de nota fiscal
-                const invoiceIcon = orderRow.querySelector('.invoice-icon');
-                if (invoiceIcon) {
-                    if (updatedOrder.invoice_emitted) {
-                        invoiceIcon.innerHTML = '<i class="bi bi-file-earmark-check-fill text-success"></i>';
-                        invoiceIcon.title = 'Nota fiscal emitida';
-                    } else {
-                        invoiceIcon.innerHTML = '<i class="bi bi-file-earmark-x text-danger"></i>';
-                        invoiceIcon.title = 'Sem nota fiscal';
-                    }
-                }
+                // Remover a linha da tabela
+                orderRow.remove();
                 
-                // Atualizar número da nota fiscal se existir
-                const invoiceNumberCell = orderRow.querySelector('.invoice-number');
-                if (invoiceNumberCell) {
-                    invoiceNumberCell.textContent = updatedOrder.invoice_number || 'N/A';
-                }
+                // Atualizar contador da aba
+                updateTabCounts();
+                
+                // Mostrar mensagem informando que o pedido foi movido
+                showSuccess(`Pedido ${orderId} movido para a aba: ${newStatus}`);
             }
         }
     })
     .catch(error => {
         console.error('Erro ao atualizar pedido:', error);
+    });
+}
+
+// Atualizar contadores das abas
+function updateTabCounts() {
+    // Atualizar contador de cada aba
+    const tabs = ['pending', 'confirmed', 'paid', 'shipped', 'delivered', 'cancelled'];
+    tabs.forEach(tab => {
+        const tabPane = document.getElementById(`tab-${tab}`);
+        if (tabPane) {
+            const count = tabPane.querySelectorAll('tbody tr').length;
+            const tabLink = document.querySelector(`[href="#tab-${tab}"]`);
+            if (tabLink) {
+                // Atualizar badge com contador
+                const badge = tabLink.querySelector('.badge');
+                if (badge) {
+                    badge.textContent = count;
+                }
+            }
+        }
     });
 }
 
