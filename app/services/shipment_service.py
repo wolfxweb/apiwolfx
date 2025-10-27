@@ -299,27 +299,59 @@ class ShipmentService:
             # 2. SINCRONIZAR NOTA FISCAL
             invoice_updated = False
             
+            print(f"========== [INICIO] Buscando NF para pedido {order_id} ==========")
+            print(f"Pack ID: {order.pack_id}")
+            print(f"Shipping ID: {order.shipping_id}")
+            logger.info(f"[INICIO] Buscando NF para pedido {order_id}")
+            logger.info(f"Pack ID: {order.pack_id}")
+            logger.info(f"Shipping ID: {order.shipping_id}")
+            
             # Tentar buscar NF usando pack_id OU shipment_id (para fulfillment)
             invoice_data = None
             
             if order.pack_id:
+                print(f"Tentando buscar NF pelo pack_id: {order.pack_id}")
+                logger.info(f"📦 Tentando buscar NF pelo pack_id: {order.pack_id}")
                 # Buscar NF pelo pack_id
                 try:
                     invoice_data = self._check_pack_invoice(order.pack_id, access_token)
+                    print(f"Resultado pack_id: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
                 except Exception as e:
+                    print(f"ERRO ao buscar NF pelo pack_id: {e}")
                     logger.warning(f"Erro ao buscar NF pelo pack_id: {e}")
             
             # Se não encontrou pelo pack_id e tem shipment_id, tentar pelo shipment_id (fulfillment)
-            if not invoice_data and order.shipping_id:
+            if (not invoice_data or not invoice_data.get('has_invoice')) and order.shipping_id:
+                print(f"Tentando buscar NF pelo shipment_id {order.shipping_id}")
                 try:
                     logger.info(f"🔍 Buscando NF pelo shipment_id {order.shipping_id} para pedido {order_id}")
                     logger.info(f"   Company ID: {order.company_id}, Pack ID: {order.pack_id}")
                     invoice_data = self._check_shipment_invoice(order.shipping_id, order.company_id, access_token)
+                    print(f"Resultado shipment_id: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
                     logger.info(f"📄 Resultado busca NF: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
                 except Exception as e:
+                    print(f"ERRO ao buscar NF pelo shipment_id: {e}")
                     logger.error(f"❌ Erro ao buscar NF pelo shipment_id: {e}")
                     import traceback
                     logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Se ainda não encontrou, tentar buscar pelo order_id diretamente (documentação ML)
+            if not invoice_data or not invoice_data.get('has_invoice'):
+                print(f"Tentando buscar NF pelo order_id {order_id}")
+                try:
+                    logger.info(f"🔍 Buscando NF pelo order_id {order_id} (método direto)")
+                    invoice_data = self._check_order_invoice(order_id, company_id, access_token)
+                    print(f"Resultado order_id: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
+                    logger.info(f"📄 Resultado busca NF por order_id: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
+                except Exception as e:
+                    print(f"ERRO ao buscar NF pelo order_id: {e}")
+                    logger.error(f"❌ Erro ao buscar NF pelo order_id: {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Log para debug se não encontrou NF
+            if not invoice_data or not invoice_data.get('has_invoice'):
+                logger.warning(f"⚠️ Pedido {order_id} não tem NF disponível - Pack ID: {order.pack_id}, Shipping ID: {order.shipping_id}")
             
             # Se encontrou NF, atualizar o pedido
             if invoice_data and invoice_data.get('has_invoice'):
@@ -476,8 +508,10 @@ class ShipmentService:
             if response.status_code == 200:
                 invoice_data = response.json()
                 
-                # Verificar se a NF está autorizada
-                if invoice_data.get('status') == 'authorized':
+                logger.info(f"📄 Resposta do endpoint shipment invoice: {invoice_data}")
+                
+                # Verificar se a NF está autorizada e tem dados válidos
+                if invoice_data.get('status') == 'authorized' and invoice_data.get('invoice_number'):
                     attributes = invoice_data.get('attributes', {})
                     
                     # Construir URLs completas
@@ -497,10 +531,78 @@ class ShipmentService:
                         "pdf_url": pdf_url,
                         "status": invoice_data.get('status')
                     }
+                else:
+                    logger.warning(f"⚠️ Shipment {shipment_id} retornou dados inválidos: status={invoice_data.get('status')}, has_invoice_number={bool(invoice_data.get('invoice_number'))}")
             
             return {"has_invoice": False}
         
         except Exception as e:
             logger.warning(f"Erro ao consultar invoice do shipment {shipment_id}: {e}")
+            return {"has_invoice": False, "error": str(e)}
+    
+    def _check_order_invoice(self, order_id: str, company_id: int, access_token: str) -> Optional[Dict]:
+        """
+        Verifica se um order tem nota fiscal emitida
+        Usa endpoint: /users/{seller_id}/invoices/orders/{order_id}
+        Documentação: https://developers.mercadolibre.com/pt_br/notas-fiscais
+        """
+        try:
+            import requests
+            
+            # Buscar seller_id da empresa - filtrar por company_id específico
+            ml_account = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id
+            ).first()
+            
+            if not ml_account or not ml_account.seller_id:
+                logger.error(f"❌ Não encontrou seller_id para company_id {company_id}")
+                return {"has_invoice": False}
+            
+            seller_id = ml_account.seller_id
+            logger.info(f"🔑 Buscando NF para order {order_id} pelo seller_id {seller_id}")
+            
+            # Usar endpoint correto conforme documentação
+            headers = {"Authorization": f"Bearer {access_token}"}
+            invoice_url = f"https://api.mercadolibre.com/users/{seller_id}/invoices/orders/{order_id}"
+            response = requests.get(invoice_url, headers=headers, timeout=30)
+            
+            logger.info(f"📡 GET {invoice_url} - Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                invoice_data = response.json()
+                logger.info(f"📄 Resposta invoice por order: {invoice_data}")
+                
+                # Verificar se a NF está autorizada e tem dados válidos
+                if invoice_data.get('status') == 'authorized' and invoice_data.get('invoice_number'):
+                    attributes = invoice_data.get('attributes', {})
+                    
+                    # Construir URLs completas
+                    xml_path = attributes.get('xml_location')
+                    pdf_path = attributes.get('danfe_location')
+                    
+                    xml_url = f"https://api.mercadolibre.com{xml_path}" if xml_path else None
+                    pdf_url = f"https://api.mercadolibre.com{pdf_path}" if pdf_path else None
+                    
+                    logger.info(f"✅ Invoice encontrada para order {order_id}: número={invoice_data.get('invoice_number')}")
+                    
+                    return {
+                        "has_invoice": True,
+                        "source": "invoice_order_endpoint",
+                        "number": invoice_data.get('invoice_number'),
+                        "series": invoice_data.get('invoice_series'),
+                        "key": attributes.get('invoice_key'),
+                        "xml_url": xml_url,
+                        "pdf_url": pdf_url,
+                        "status": invoice_data.get('status')
+                    }
+                else:
+                    logger.warning(f"⚠️ Order {order_id} retornou dados inválidos: status={invoice_data.get('status')}, has_invoice_number={bool(invoice_data.get('invoice_number'))}")
+            
+            return {"has_invoice": False}
+        
+        except Exception as e:
+            logger.warning(f"Erro ao consultar invoice do order {order_id}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {"has_invoice": False, "error": str(e)}
 
