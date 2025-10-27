@@ -81,86 +81,104 @@ class ShipmentService:
             invoice_updated = 0
             errors = []
             
-            for order in orders:
-                try:
-                    order_updated = False
-                    
-                    # 1. SINCRONIZAR STATUS DO PEDIDO
-                    try:
-                        order_url = f"{self.base_url}/orders/{order.ml_order_id}"
-                        headers = {"Authorization": f"Bearer {access_token}"}
-                        response = requests.get(order_url, headers=headers, timeout=30)
-                        
-                        if response.status_code == 200:
-                            order_data = response.json()
-                            
-                            # Mapear e atualizar status
-                            status_mapping = {
-                                "confirmed": OrderStatus.CONFIRMED,
-                                "payment_required": OrderStatus.PENDING,
-                                "payment_in_process": OrderStatus.PENDING,
-                                "paid": OrderStatus.PAID,
-                                "ready_to_ship": OrderStatus.PAID,
-                                "shipped": OrderStatus.SHIPPED,
-                                "delivered": OrderStatus.DELIVERED,
-                                "cancelled": OrderStatus.CANCELLED,
-                                "refunded": OrderStatus.REFUNDED
-                            }
-                            
-                            api_status = order_data.get("status", "pending")
-                            new_status = status_mapping.get(api_status, OrderStatus.PENDING)
-                            
-                            if order.status != new_status:
-                                order.status = new_status
-                                order_updated = True
-                                status_updated += 1
-                                logger.info(f"✅ Status do pedido {order.order_id} atualizado: {order.status} -> {new_status}")
-                            
-                            # Atualizar shipping info
-                            shipping = order_data.get("shipping", {})
-                            if shipping:
-                                order.shipping_status = shipping.get("status")
-                                order.shipping_id = str(shipping.get("id", order.shipping_id))
-                                order.last_updated = datetime.utcnow()
-                    except Exception as e:
-                        logger.warning(f"Erro ao sincronizar status do pedido {order.order_id}: {e}")
-                    
-                    # 2. SINCRONIZAR NOTA FISCAL
-                    invoice_data = None
-                    
-                    if order.pack_id:
-                        invoice_data = self._check_pack_invoice(order.pack_id, access_token)
-                    
-                    if not invoice_data and order.shipping_id:
-                        invoice_data = self._check_shipment_invoice(order.shipping_id, company_id, access_token)
-                    
-                    if invoice_data and invoice_data.get('has_invoice'):
-                        if not order.invoice_emitted:
-                            order.invoice_emitted = True
-                            order.invoice_emitted_at = datetime.now()
-                            order.invoice_number = invoice_data.get('number')
-                            order.invoice_series = invoice_data.get('series')
-                            order.invoice_key = invoice_data.get('key')
-                            order.invoice_xml_url = invoice_data.get('xml_url')
-                            order.invoice_pdf_url = invoice_data.get('pdf_url')
-                            order_updated = True
-                            invoice_updated += 1
-                            logger.info(f"✅ NF sincronizada para pedido {order.order_id}")
-                    
-                    if order_updated:
-                        updated += 1
-                    else:
-                        already_synced += 1
+            # Processar em lotes de 10 para evitar deadlock
+            batch_size = 10
+            for i in range(0, len(orders), batch_size):
+                batch = orders[i:i + batch_size]
+                logger.info(f"Processando lote {i//batch_size + 1} de {(len(orders) + batch_size - 1)//batch_size}")
                 
+                for order in batch:
+                    try:
+                        order_updated = False
+                        
+                        # 1. SINCRONIZAR STATUS DO PEDIDO
+                        try:
+                            order_url = f"{self.base_url}/orders/{order.ml_order_id}"
+                            headers = {"Authorization": f"Bearer {access_token}"}
+                            response = requests.get(order_url, headers=headers, timeout=30)
+                            
+                            if response.status_code == 200:
+                                order_data = response.json()
+                                
+                                # Mapear e atualizar status
+                                status_mapping = {
+                                    "confirmed": OrderStatus.CONFIRMED,
+                                    "payment_required": OrderStatus.PENDING,
+                                    "payment_in_process": OrderStatus.PENDING,
+                                    "paid": OrderStatus.PAID,
+                                    "ready_to_ship": OrderStatus.PAID,
+                                    "shipped": OrderStatus.SHIPPED,
+                                    "delivered": OrderStatus.DELIVERED,
+                                    "cancelled": OrderStatus.CANCELLED,
+                                    "refunded": OrderStatus.REFUNDED,
+                                    "partially_refunded": OrderStatus.REFUNDED
+                                }
+                                
+                                # Verificar se tem a tag "delivered" mesmo com status de reembolso
+                                tags = order_data.get('tags', [])
+                                if 'delivered' in tags:
+                                    status_mapping["partially_refunded"] = OrderStatus.DELIVERED
+                                
+                                api_status = order_data.get("status", "pending")
+                                new_status = status_mapping.get(api_status, OrderStatus.PENDING)
+                                
+                                if order.status != new_status:
+                                    order.status = new_status
+                                    order_updated = True
+                                    status_updated += 1
+                                    logger.info(f"✅ Status do pedido {order.order_id} atualizado: {order.status} -> {new_status}")
+                                
+                                # Atualizar shipping info
+                                shipping = order_data.get("shipping", {})
+                                if shipping:
+                                    order.shipping_status = shipping.get("status")
+                                    order.shipping_id = str(shipping.get("id", order.shipping_id))
+                                    order.last_updated = datetime.utcnow()
+                        except Exception as e:
+                            logger.warning(f"Erro ao sincronizar status do pedido {order.order_id}: {e}")
+                        
+                        # 2. SINCRONIZAR NOTA FISCAL
+                        invoice_data = None
+                        
+                        if order.pack_id:
+                            invoice_data = self._check_pack_invoice(order.pack_id, access_token)
+                        
+                        if not invoice_data and order.shipping_id:
+                            invoice_data = self._check_shipment_invoice(order.shipping_id, company_id, access_token)
+                        
+                        if invoice_data and invoice_data.get('has_invoice'):
+                            if not order.invoice_emitted:
+                                order.invoice_emitted = True
+                                order.invoice_emitted_at = datetime.now()
+                                order.invoice_number = invoice_data.get('number')
+                                order.invoice_series = invoice_data.get('series')
+                                order.invoice_key = invoice_data.get('key')
+                                order.invoice_xml_url = invoice_data.get('xml_url')
+                                order.invoice_pdf_url = invoice_data.get('pdf_url')
+                                order_updated = True
+                                invoice_updated += 1
+                                logger.info(f"✅ NF sincronizada para pedido {order.order_id}")
+                        
+                        if order_updated:
+                            updated += 1
+                        else:
+                            already_synced += 1
+                    
+                    except Exception as e:
+                        error_msg = f"Erro ao sincronizar pedido {order.order_id}: {e}"
+                        logger.warning(error_msg)
+                        errors.append(error_msg)
+                
+                # Commit do lote para evitar deadlock
+                try:
+                    self.db.commit()
+                    logger.info(f"✅ Lote {i//batch_size + 1} commitado com sucesso")
                 except Exception as e:
-                    error_msg = f"Erro ao sincronizar pedido {order.order_id}: {e}"
-                    logger.warning(error_msg)
-                    errors.append(error_msg)
+                    logger.error(f"Erro ao commitar lote {i//batch_size + 1}: {e}")
+                    self.db.rollback()
+                    errors.append(f"Erro ao commitar lote {i//batch_size + 1}: {e}")
             
-            # Commit das alterações
-            if updated > 0:
-                self.db.commit()
-                logger.info(f"✅ Sincronização concluída: {status_updated} status atualizados, {invoice_updated} notas fiscais atualizadas")
+            logger.info(f"✅ Sincronização concluída: {status_updated} status atualizados, {invoice_updated} notas fiscais atualizadas")
             
             return {
                 "success": True,

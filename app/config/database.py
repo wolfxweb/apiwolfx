@@ -18,8 +18,14 @@ engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     echo=False,  # Mude para True para ver queries SQL
-    pool_size=10,
-    max_overflow=20
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=3600,  # Reciclar conexões a cada hora
+    connect_args={
+        "connect_timeout": 10,
+        "application_name": "apiwolfx"
+    }
 )
 
 # Criar sessão
