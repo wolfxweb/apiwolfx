@@ -219,8 +219,15 @@ class ShipmentService:
                         "shipped": OrderStatus.SHIPPED,
                         "delivered": OrderStatus.DELIVERED,
                         "cancelled": OrderStatus.CANCELLED,
-                        "refunded": OrderStatus.REFUNDED
+                        "refunded": OrderStatus.REFUNDED,
+                        "partially_refunded": OrderStatus.REFUNDED  # Reembolso parcial
                     }
+                    
+                    # Verificar se tem a tag "delivered" mesmo com status de reembolso
+                    tags = order_data.get('tags', [])
+                    if 'delivered' in tags:
+                        # Se foi entregue mas teve reembolso, considerar como entregue
+                        status_mapping["partially_refunded"] = OrderStatus.DELIVERED
                     
                     api_status = order_data.get("status", "pending")
                     new_status = status_mapping.get(api_status, OrderStatus.PENDING)

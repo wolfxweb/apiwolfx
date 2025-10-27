@@ -591,6 +591,9 @@ function renderOrdersByStatus(status, orders) {
                             <i class="bi bi-arrow-clockwise"></i>
                         </button>
                     ` : ''}
+                    <button class="btn btn-sm btn-outline-success" onclick="syncOrderStatus('${order.ml_order_id}')" title="Sincronizar Status">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-info" onclick="showInfo('${order.ml_order_id}')" title="Ver Detalhes">
                         <i class="bi bi-info-circle"></i>
                     </button>
@@ -702,6 +705,47 @@ async function syncSingleInvoice(orderId) {
     } catch (error) {
         console.error('Erro na sincronização individual:', error);
         showError('Erro na sincronização: ' + error.message);
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Sincronizar apenas o status do pedido (sem verificar NF)
+async function syncOrderStatus(orderId) {
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    
+    try {
+        button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i>';
+        button.disabled = true;
+        
+        const response = await fetch(`/api/shipments/sync-single-invoice/${orderId}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            console.log('🔒 Usuário não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        console.log('📦 Resposta da API:', data);
+        
+        if (data.success) {
+            showSuccess(`Status do pedido ${orderId} sincronizado com sucesso!`);
+            
+            // Atualizar apenas as estatísticas e o pedido
+            loadStats();
+            updateSingleOrder(orderId, data.status_updated);
+        } else {
+            showError('Erro: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Erro ao sincronizar status:', error);
+        showError('Erro ao sincronizar status: ' + error.message);
     } finally {
         button.innerHTML = originalText;
         button.disabled = false;
