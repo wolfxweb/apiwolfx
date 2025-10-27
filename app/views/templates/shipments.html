@@ -739,7 +739,8 @@ async function syncOrderStatus(orderId) {
             
             // Atualizar apenas as estatísticas e o pedido
             loadStats();
-            updateSingleOrder(orderId, data.status_updated);
+            // Atualizar se houve mudança no status OU na nota fiscal
+            updateSingleOrder(orderId, data.status_updated || data.invoice_updated);
         } else {
             showError('Erro: ' + data.error);
         }
