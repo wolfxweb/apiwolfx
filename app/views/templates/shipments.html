@@ -425,7 +425,11 @@ async function loadOrders() {
     console.log('🔄 Carregando pedidos...');
     
     try {
-        const url = `/api/shipments/pending?invoice_status=all&search=&page=1&limit=1000`;
+        // Obter valor do campo de busca
+        const searchValue = document.getElementById('search-input').value || '';
+        const invoiceStatus = document.getElementById('invoice-status-filter').value || '';
+        
+        const url = `/api/shipments/pending?invoice_status=${invoiceStatus}&search=${encodeURIComponent(searchValue)}&page=1&limit=3000`;
         console.log('📡 URL:', url);
         
         const response = await fetch(url, {
@@ -459,9 +463,12 @@ async function loadOrders() {
             data.orders.forEach(order => {
                 console.log('📋 Pedido:', order.order_id, 'Status:', order.status);
                 
+                // Normalizar status para maiúsculo
+                const normalizedStatus = order.status ? order.status.toUpperCase() : 'PENDING';
+                
                 // Mapear status para as tabs
                 let tabKey = null;
-                switch(order.status) {
+                switch(normalizedStatus) {
                     case 'PENDING':
                         tabKey = 'PENDING';
                         break;
@@ -682,11 +689,13 @@ async function syncSingleInvoice(orderId) {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess(`Nota fiscal sincronizada para pedido ${orderId}!`);
-            setTimeout(() => {
-                loadStats();
-                loadOrders();
-            }, 1000);
+            showSuccess(`Pedido ${orderId} sincronizado com sucesso!`);
+            
+            // Atualizar apenas as estatísticas sem recarregar tudo
+            loadStats();
+            
+            // Atualizar apenas o pedido específico na tabela
+            updateSingleOrder(orderId, data.invoice_updated || data.status_updated);
         } else {
             showError('Erro: ' + data.error);
         }
@@ -697,6 +706,55 @@ async function syncSingleInvoice(orderId) {
         button.innerHTML = originalText;
         button.disabled = false;
     }
+}
+
+// Atualizar apenas um pedido específico na tabela
+function updateSingleOrder(orderId, needsReload = true) {
+    if (!needsReload) {
+        return; // Se nada mudou, não precisa atualizar
+    }
+    
+    // Buscar dados atualizados do pedido
+    fetch(`/api/shipments/pending?search=${orderId}&page=1&limit=1`, {
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.orders && data.orders.length > 0) {
+            const updatedOrder = data.orders[0];
+            
+            // Atualizar a linha na tabela atual
+            const orderRow = document.querySelector(`tr[data-order-id="${orderId}"]`);
+            if (orderRow) {
+                // Atualizar coluna de status
+                const statusCell = orderRow.querySelector('.order-status');
+                if (statusCell) {
+                    statusCell.textContent = updatedOrder.status || 'N/A';
+                }
+                
+                // Atualizar ícone de nota fiscal
+                const invoiceIcon = orderRow.querySelector('.invoice-icon');
+                if (invoiceIcon) {
+                    if (updatedOrder.invoice_emitted) {
+                        invoiceIcon.innerHTML = '<i class="bi bi-file-earmark-check-fill text-success"></i>';
+                        invoiceIcon.title = 'Nota fiscal emitida';
+                    } else {
+                        invoiceIcon.innerHTML = '<i class="bi bi-file-earmark-x text-danger"></i>';
+                        invoiceIcon.title = 'Sem nota fiscal';
+                    }
+                }
+                
+                // Atualizar número da nota fiscal se existir
+                const invoiceNumberCell = orderRow.querySelector('.invoice-number');
+                if (invoiceNumberCell) {
+                    invoiceNumberCell.textContent = updatedOrder.invoice_number || 'N/A';
+                }
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao atualizar pedido:', error);
+    });
 }
 
 // Mostrar modal de progresso

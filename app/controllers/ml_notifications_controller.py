@@ -132,7 +132,7 @@ class MLNotificationsController:
                 return
             
             # Atualizar ou criar pedido no banco com company_id
-            await self._upsert_order(order_data, company_id, db)
+            await self._upsert_order(order_data, company_id, db, access_token)
             
             logger.info(f"✅ Pedido {order_id} atualizado com sucesso para company_id: {company_id}")
             global_logger.log_order_processed(order_id, company_id, True, "updated")
@@ -284,7 +284,7 @@ class MLNotificationsController:
             logger.error(f"❌ Erro ao buscar detalhes do produto: {e}")
             return None
     
-    async def _upsert_order(self, order_data: Dict[str, Any], company_id: int, db: Session):
+    async def _upsert_order(self, order_data: Dict[str, Any], company_id: int, db: Session, access_token: str = None):
         """Atualiza ou cria pedido no banco de dados"""
         try:
             from sqlalchemy import text
@@ -324,19 +324,67 @@ class MLNotificationsController:
                     WHERE ml_order_id = :order_id AND company_id = :company_id
                 """)
                 
-                # Verificar status de envio (shipping status) - campo correto para entregas
+                # Buscar detalhes completos do shipment para obter substatus (fulfillment)
                 shipping = order_data.get("shipping", {})
                 shipping_status = shipping.get("status")
+                shipping_id = shipping.get("id")
                 
-                # Mapear status de envio para o formato do enum
+                # Tentar buscar detalhes completos do shipment se tiver ID
+                shipment_substatus = None
+                logistic_type = None
+                if shipping_id and access_token:
+                    try:
+                        # Buscar detalhes completos do shipment com header x-format-new
+                        import httpx
+                        shipment_url = f"{self.api_base_url}/shipments/{shipping_id}"
+                        shipment_headers = {
+                            "Authorization": f"Bearer {access_token}",
+                            "x-format-new": "true"
+                        }
+                        
+                        async with httpx.AsyncClient() as client:
+                            shipment_response = await client.get(shipment_url, headers=shipment_headers, timeout=30)
+                            
+                            if shipment_response.status_code == 200:
+                                shipment_data = shipment_response.json()
+                                shipment_substatus = shipment_data.get("substatus")
+                                logistic = shipment_data.get("logistic", {})
+                                logistic_type = logistic.get("type")
+                                
+                                logger.info(f"📦 Shipment {shipping_id}: substatus={shipment_substatus}, type={logistic_type}")
+                    except Exception as e:
+                        logger.warning(f"Erro ao buscar detalhes do shipment {shipping_id}: {e}")
+                
+                # Mapear status de envio conforme documentação ML (shipment_statuses API)
+                # Priorizar status de shipment quando disponível (mais confiável)
                 shipping_status_mapping = {
+                    # Status de Shipment (MAIS PRECISOS)
                     "pending": "PENDING",
-                    "handling": "CONFIRMED",
+                    "handling": "CONFIRMED", 
                     "ready_to_ship": "PAID",
                     "shipped": "SHIPPED",
                     "delivered": "DELIVERED",
                     "not_delivered": "CANCELLED",
-                    "cancelled": "CANCELLED"
+                    "cancelled": "CANCELLED",
+                    "closed": "DELIVERED",  # Feito/entregue
+                    # Status adicionais de fulfillment
+                    "to_be_agreed": "PENDING",
+                    "active": "CONFIRMED",
+                    "error": "CANCELLED"
+                }
+                
+                # Mapeamento de substatus (fulfillment)
+                substatus_mapping = {
+                    "in_warehouse": "PAID",  # Processando no centro de distribuição
+                    "ready_to_print": "PAID",
+                    "printed": "PAID",
+                    "ready_to_pack": "PAID",
+                    "ready_to_ship": "PAID",
+                    "shipped": "SHIPPED",
+                    "in_transit": "SHIPPED",
+                    "delivered": "DELIVERED",
+                    "lost": "CANCELLED",
+                    "damaged": "CANCELLED"
                 }
                 
                 # Status geral do pedido (fallback)
@@ -353,17 +401,24 @@ class MLNotificationsController:
                 }
                 
                 api_status = order_data.get("status", "pending")
+                
+                # Prioridade: substatus > shipping_status > order_status
+                substatus_db_status = substatus_mapping.get(shipment_substatus) if shipment_substatus else None
                 shipping_db_status = shipping_status_mapping.get(shipping_status)
                 order_db_status = order_status_mapping.get(api_status, "PENDING")
                 
-                # Usar shipping_status como prioridade, fallback para order_status
-                db_status = shipping_db_status or order_db_status
+                # Usar substatus como prioridade máxima (fulfillment)
+                db_status = substatus_db_status or shipping_db_status or order_db_status
                 
                 # Log detalhado para debug
                 logger.info(f"🔄 [WEBHOOK] Atualizando pedido {order_id}:")
+                if shipment_substatus:
+                    logger.info(f"   🏭 Substatus (fulfillment): '{shipment_substatus}' -> '{substatus_db_status}'")
                 logger.info(f"   📦 Shipping Status: '{shipping_status}' -> '{shipping_db_status}'")
                 logger.info(f"   📋 Order Status: '{api_status}' -> '{order_db_status}'")
                 logger.info(f"   🎯 Final Status: '{db_status}'")
+                if logistic_type:
+                    logger.info(f"   📦 Logistics Type: '{logistic_type}'")
                 logger.info(f"   📅 Data fechamento: {order_data.get('date_closed')}")
                 logger.info(f"   💰 Total: {total_amount}")
                 
@@ -402,9 +457,9 @@ class MLNotificationsController:
         try:
             from sqlalchemy import text
             
-            # Buscar dados do pedido incluindo pack_id
+            # Buscar dados do pedido incluindo pack_id e shipping_id
             order_query = text("""
-                SELECT id, ml_order_id, pack_id, invoice_emitted 
+                SELECT id, ml_order_id, pack_id, shipping_id, invoice_emitted 
                 FROM ml_orders 
                 WHERE ml_order_id = :order_id AND company_id = :company_id
             """)
@@ -415,12 +470,7 @@ class MLNotificationsController:
                 logger.warning(f"⚠️ Pedido {order_id} não encontrado para verificação de NF")
                 return
             
-            order_db_id, ml_order_id, pack_id, current_invoice_status = order_result
-            
-            # Só verificar se tem pack_id e ainda não tem NF marcada
-            if not pack_id:
-                logger.info(f"ℹ️ Pedido {order_id} sem pack_id - não é possível verificar NF")
-                return
+            order_db_id, ml_order_id, pack_id, shipping_id, current_invoice_status = order_result
             
             if current_invoice_status:
                 logger.info(f"ℹ️ Pedido {order_id} já tem NF marcada - pulando verificação")
@@ -436,7 +486,16 @@ class MLNotificationsController:
             from app.services.shipment_service import ShipmentService
             shipment_service = ShipmentService(db)
             
-            invoice_data = shipment_service._check_pack_invoice(pack_id, access_token)
+            # Tentar buscar NF por pack_id primeiro
+            invoice_data = None
+            if pack_id:
+                logger.info(f"🔍 Buscando NF pelo pack_id {pack_id} para pedido {order_id}")
+                invoice_data = shipment_service._check_pack_invoice(pack_id, access_token)
+            
+            # Se não encontrou pelo pack_id e tem shipping_id, tentar pelo shipping_id (fulfillment)
+            if not invoice_data and shipping_id:
+                logger.info(f"🔍 Buscando NF pelo shipping_id {shipping_id} para pedido {order_id} (fulfillment)")
+                invoice_data = shipment_service._check_shipment_invoice(shipping_id, company_id, access_token)
             
             if invoice_data and invoice_data.get('has_invoice'):
                 # Atualizar pedido com dados da NF

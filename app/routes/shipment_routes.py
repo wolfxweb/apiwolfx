@@ -1,7 +1,7 @@
 """
 Rotas para expedição e notas fiscais
 """
-from fastapi import APIRouter, Depends, HTTPException, Request, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query
 from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -36,10 +36,14 @@ async def shipments_page(
 @router.get("/pending")
 async def list_pending_shipments(
     request: Request,
+    search: Optional[str] = Query(""),
+    invoice_status: Optional[str] = Query(""),
+    page: Optional[int] = Query(1, ge=1),
+    limit: Optional[int] = Query(100, ge=1, le=5000),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """Lista todos os pedidos para expedição"""
+    """Lista pedidos para expedição com filtros e paginação"""
     try:
         if not session_token:
             return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
@@ -52,7 +56,13 @@ async def list_pending_shipments(
         company_id = user_data["company"]["id"]
         
         controller = ShipmentController(db)
-        result = controller.list_pending_shipments(company_id)
+        result = controller.list_pending_shipments(
+            company_id, 
+            search=search, 
+            invoice_status=invoice_status,
+            page=page,
+            limit=limit
+        )
         
         return JSONResponse(content=result)
         

@@ -1069,8 +1069,8 @@ class MLOrdersService:
                 "ml_order_id": order_data.get("id"),
                 "order_id": str(order_data.get("id")),
                 
-                # Status e datas
-                "status": order_status,
+                # Status e datas - Converter string para Enum
+                "status": OrderStatus(order_status) if order_status in [s.value for s in OrderStatus] else OrderStatus.PENDING,
                 "status_detail": order_data.get("status_detail"),
                 "date_created": date_created,
                 "date_closed": date_closed,

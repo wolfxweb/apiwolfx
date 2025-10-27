@@ -4,6 +4,7 @@ Controller para expedição e notas fiscais
 import logging
 from typing import Dict, List
 from sqlalchemy.orm import Session
+from sqlalchemy import String
 
 from app.services.shipment_service import ShipmentService
 from app.models.saas_models import MLOrder, OrderStatus
@@ -15,20 +16,56 @@ class ShipmentController:
         self.db = db
         self.service = ShipmentService(db)
 
-    def list_pending_shipments(self, company_id: int) -> Dict:
+    def list_pending_shipments(self, company_id: int, search: str = "", invoice_status: str = "", 
+                               page: int = 1, limit: int = 100) -> Dict:
         """
-        Lista todos os pedidos para expedição
-        Retorna TODOS os pedidos pagos (com e sem nota fiscal)
+        Lista pedidos para expedição com paginação
+        Retorna pedidos paginados (todos os status) para exibir em todas as abas
         """
         try:
-            # Buscar TODOS os pedidos pagos (com e sem nota fiscal)
-            orders = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id,
-                MLOrder.status.in_([OrderStatus.PAID, OrderStatus.CONFIRMED])
-            ).order_by(MLOrder.date_created.desc()).all()
+            # Buscar TODOS os pedidos (todos os status)
+            query = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id
+            )
+            
+            # Aplicar filtro de busca
+            if search:
+                search_term = f"%{search}%"
+                query = query.filter(
+                    (MLOrder.ml_order_id.cast(String).ilike(search_term)) |
+                    (MLOrder.order_id.ilike(search_term)) |
+                    (MLOrder.buyer_nickname.ilike(search_term)) |
+                    (MLOrder.buyer_first_name.ilike(search_term))
+                )
+            
+            # Aplicar filtro de status da nota fiscal
+            if invoice_status == "emitted":
+                query = query.filter(MLOrder.invoice_emitted == True)
+            elif invoice_status == "pending":
+                query = query.filter(MLOrder.invoice_emitted == False)
+            
+            # Calcular offset
+            offset = (page - 1) * limit
+            
+            # Contar total de registros
+            total_count = query.count()
+            
+            # Buscar com paginação
+            orders = query.order_by(MLOrder.date_created.desc()).offset(offset).limit(limit).all()
+            
+            # Calcular total de páginas
+            total_pages = (total_count + limit - 1) // limit if total_count > 0 else 0
             
             result = []
             for order in orders:
+                # Converter status para string - garantir que seja maiúsculo
+                if order.status and hasattr(order.status, 'value'):
+                    status_str = str(order.status.value).upper()
+                elif order.status:
+                    status_str = str(order.status).upper()
+                else:
+                    status_str = None
+                
                 result.append({
                     "id": order.id,
                     "order_id": order.order_id,
@@ -36,7 +73,7 @@ class ShipmentController:
                     "buyer_name": order.buyer_first_name,
                     "buyer_nickname": order.buyer_nickname,
                     "total_amount": float(order.total_amount) if order.total_amount else 0,
-                    "status": order.status,
+                    "status": status_str,
                     "date_created": order.date_created.isoformat() if order.date_created else None,
                     "invoice_emitted": order.invoice_emitted if order.invoice_emitted else False,
                     "invoice_number": order.invoice_number if order.invoice_number else None,
@@ -51,6 +88,10 @@ class ShipmentController:
             return {
                 "success": True,
                 "count": len(result),
+                "total_count": total_count,
+                "page": page,
+                "limit": limit,
+                "total_pages": total_pages,
                 "orders": result
             }
         
