@@ -447,10 +447,11 @@ async function loadOrders() {
             };
             
             data.orders.forEach(order => {
-                console.log('📋 Pedido:', order.order_id, 'Status:', order.status);
+                console.log('📋 Pedido:', order.order_id, 'Status:', order.status, 'Tipo:', typeof order.status);
                 
                 // Normalizar status para maiúsculo
                 const normalizedStatus = order.status ? order.status.toUpperCase() : 'PENDING';
+                console.log('📋 Status normalizado:', normalizedStatus);
                 
                 // Mapear status para as tabs
                 let tabKey = null;
@@ -488,6 +489,9 @@ async function loadOrders() {
                 
                 if (tabKey && ordersByStatus[tabKey]) {
                     ordersByStatus[tabKey].push(order);
+                    console.log(`✅ Pedido ${order.order_id} adicionado à tab ${tabKey}`);
+                } else {
+                    console.error(`❌ TabKey inválido: ${tabKey} para pedido ${order.order_id}`);
                 }
             });
             
@@ -498,6 +502,7 @@ async function loadOrders() {
             console.log('📊 Pedidos por status:', ordersByStatus);
             
             // Renderizar cada tab
+            console.log('🔄 Renderizando tabs...');
             renderOrdersByStatus('pending', ordersByStatus['PENDING']);
             renderOrdersByStatus('confirmed', ordersByStatus['CONFIRMED']);
             renderOrdersByStatus('waiting-shipment', ordersByStatus['WAITING_SHIPMENT']);
@@ -521,12 +526,33 @@ async function loadOrders() {
 
 // Renderizar pedidos por status
 function renderOrdersByStatus(status, orders) {
+    console.log(`🔄 Renderizando tab ${status} com ${orders ? orders.length : 'undefined'} pedidos`);
+    
     const tbody = document.getElementById(`${status}-orders`);
+    
+    // Verificar se o tbody existe
+    if (!tbody) {
+        console.error(`❌ Tbody não encontrado para status ${status}. ID procurado: ${status}-orders`);
+        return;
+    }
+    
+    // Verificar se orders é válido
+    if (!orders || !Array.isArray(orders)) {
+        console.error(`❌ Orders inválido para status ${status}:`, orders);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> Erro ao carregar pedidos
+                </td>
+            </tr>
+        `;
+        return;
+    }
     
     if (orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center text-muted">
+                <td colspan="4" class="text-center text-muted">
                     <i class="bi bi-inbox"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -537,14 +563,30 @@ function renderOrdersByStatus(status, orders) {
     console.log('📋 Processando', orders.length, 'pedidos...');
     console.log('🔍 Primeiro pedido:', orders[0]);
     
-    tbody.innerHTML = orders.map(order => `
-        <tr data-order-id="${order.ml_order_id}">
+    // Verificar se todos os pedidos têm os campos necessários
+    orders.forEach((order, index) => {
+        if (!order) {
+            console.error(`❌ Pedido ${index} é null/undefined`);
+        } else if (!order.ml_order_id) {
+            console.error(`❌ Pedido ${index} não tem ml_order_id:`, order);
+        }
+    });
+    
+    tbody.innerHTML = orders.map(order => {
+        // Verificar se o pedido é válido
+        if (!order) {
+            console.error('❌ Pedido inválido encontrado:', order);
+            return '';
+        }
+        
+        return `
+        <tr data-order-id="${order.ml_order_id || 'N/A'}">
             <td>
                 <div class="d-flex flex-column">
                     <!-- ID do Pedido -->
                     <div class="d-flex align-items-center mb-2">
-                        <span class="fw-bold text-primary me-2">${order.ml_order_id}</span>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('${order.ml_order_id}')" title="Copiar ID">
+                        <span class="fw-bold text-primary me-2">${order.ml_order_id || 'N/A'}</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('${order.ml_order_id || ''}')" title="Copiar ID">
                             <i class="bi bi-clipboard"></i>
                         </button>
                     </div>
@@ -597,7 +639,7 @@ function renderOrdersByStatus(status, orders) {
             
             <td>
                 <div class="text-center">
-                    <div class="fw-bold text-success fs-5">R$ ${order.total_amount.toFixed(2)}</div>
+                    <div class="fw-bold text-success fs-5">R$ ${(order.total_amount || 0).toFixed(2)}</div>
                 </div>
             </td>
             
@@ -621,8 +663,8 @@ function renderOrdersByStatus(status, orders) {
                     
                     <!-- Status do Pedido -->
                     <div class="mt-2">
-                        <span class="badge ${getStatusBadgeClass(order.status)} fs-6">
-                            ${getStatusLabel(order.status)}
+                        <span class="badge ${getStatusBadgeClass(order.status || 'PENDING')} fs-6">
+                            ${getStatusLabel(order.status || 'PENDING')}
                         </span>
                     </div>
                 </div>
@@ -631,20 +673,21 @@ function renderOrdersByStatus(status, orders) {
             <td>
                 <div class="d-flex flex-column gap-1">
                     ${!order.invoice_emitted ? `
-                        <button class="btn btn-sm btn-outline-primary" onclick="syncSingleInvoice('${order.ml_order_id}')" title="Sincronizar Nota Fiscal">
+                        <button class="btn btn-sm btn-outline-primary" onclick="syncSingleInvoice('${order.ml_order_id || ''}')" title="Sincronizar Nota Fiscal">
                             <i class="bi bi-arrow-clockwise me-1"></i>NF
                         </button>
                     ` : ''}
-                    <button class="btn btn-sm btn-outline-success" onclick="syncOrderStatus('${order.ml_order_id}')" title="Sincronizar Status">
+                    <button class="btn btn-sm btn-outline-success" onclick="syncOrderStatus('${order.ml_order_id || ''}')" title="Sincronizar Status">
                         <i class="bi bi-arrow-repeat me-1"></i>Status
                     </button>
-                    <button class="btn btn-sm btn-outline-info" onclick="showInfo('${order.ml_order_id}')" title="Ver Detalhes">
+                    <button class="btn btn-sm btn-outline-info" onclick="showInfo('${order.ml_order_id || ''}')" title="Ver Detalhes">
                         <i class="bi bi-info-circle me-1"></i>Detalhes
                     </button>
                 </div>
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // Funções auxiliares para tipos de envio
