@@ -660,9 +660,6 @@ class MLOrder(Base):
     invoice_xml_url = Column(String(500))  # URL do XML da NF
     invoice_pdf_url = Column(String(500))  # URL do PDF da NF (DANFE)
     
-    # === FORMA DE ENVIO ===
-    shipping_type = Column(String(20), index=True)  # fulfillment, cross_docking, me2, etc.
-    
     # === TIMESTAMPS ===
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

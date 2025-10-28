@@ -320,6 +320,8 @@ class MLNotificationsController:
                         total_amount = :total_amount,
                         paid_amount = :paid_amount,
                         shipping_cost = :shipping_cost,
+                        shipping_type = :shipping_type,
+                        shipping_date = :shipping_date,
                         updated_at = NOW()
                     WHERE ml_order_id = :order_id AND company_id = :company_id
                 """)
@@ -350,8 +352,9 @@ class MLNotificationsController:
                                 shipment_substatus = shipment_data.get("substatus")
                                 logistic = shipment_data.get("logistic", {})
                                 logistic_type = logistic.get("type")
+                                shipping_date = shipment_data.get("date_created")
                                 
-                                logger.info(f"📦 Shipment {shipping_id}: substatus={shipment_substatus}, type={logistic_type}")
+                                logger.info(f"📦 Shipment {shipping_id}: substatus={shipment_substatus}, type={logistic_type}, date={shipping_date}")
                     except Exception as e:
                         logger.warning(f"Erro ao buscar detalhes do shipment {shipping_id}: {e}")
                 
@@ -431,7 +434,9 @@ class MLNotificationsController:
                     "last_updated": order_data.get("last_updated"),
                     "total_amount": total_amount,
                     "paid_amount": payments[0].get("total_paid_amount") if payments else 0,
-                    "shipping_cost": shipping.get("cost", 0) if shipping else 0
+                    "shipping_cost": shipping.get("cost", 0) if shipping else 0,
+                    "shipping_type": logistic_type,
+                    "shipping_date": shipping_date
                 })
                 
                 logger.info(f"✅ [WEBHOOK] Pedido {order_id} atualizado com status: {db_status}")

@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def sync_invoices_cron(batches_per_run=5, batch_size=50):
-    """Sincroniza algumas notas fiscais periodicamente"""
+    """Sincroniza TODAS as notas fiscais pendentes periodicamente"""
     
     db = SessionLocal()
     
@@ -39,14 +39,12 @@ def sync_invoices_cron(batches_per_run=5, batch_size=50):
         access_token = token.access_token
         service = ShipmentService(db)
         
-        cutoff_date = datetime.now() - timedelta(days=15)
         total_updated = 0
         
         for batch_num in range(batches_per_run):
             orders = db.query(MLOrder).filter(
                 MLOrder.company_id == 15,
-                MLOrder.date_created < cutoff_date,
-                MLOrder.invoice_emitted == False
+                MLOrder.invoice_emitted == False  # Todos os pedidos sem nota fiscal
             ).limit(batch_size).all()
             
             if not orders:

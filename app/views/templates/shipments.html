@@ -164,18 +164,15 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>ID ML</th>
-                                            <th>Comprador</th>
-                                            <th>Data</th>
+                                            <th>Pedido</th>
                                             <th>Valor</th>
-                                            <th>Nota Fiscal</th>
-                                            <th>Forma de Envio</th>
+                                            <th>Status</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="pending-orders">
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="4" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -190,18 +187,15 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>ID ML</th>
-                                            <th>Comprador</th>
-                                            <th>Data</th>
+                                            <th>Pedido</th>
                                             <th>Valor</th>
-                                            <th>Nota Fiscal</th>
-                                            <th>Forma de Envio</th>
+                                            <th>Status</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="confirmed-orders">
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="4" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -216,18 +210,15 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>ID ML</th>
-                                            <th>Comprador</th>
-                                            <th>Data</th>
+                                            <th>Pedido</th>
                                             <th>Valor</th>
-                                            <th>Nota Fiscal</th>
-                                            <th>Forma de Envio</th>
+                                            <th>Status</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="paid-orders">
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="4" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -242,18 +233,15 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>ID ML</th>
-                                            <th>Comprador</th>
-                                            <th>Data</th>
+                                            <th>Pedido</th>
                                             <th>Valor</th>
-                                            <th>Nota Fiscal</th>
-                                            <th>Forma de Envio</th>
+                                            <th>Status</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="shipped-orders">
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="4" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -268,18 +256,15 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>ID ML</th>
-                                            <th>Comprador</th>
-                                            <th>Data</th>
+                                            <th>Pedido</th>
                                             <th>Valor</th>
-                                            <th>Nota Fiscal</th>
-                                            <th>Forma de Envio</th>
+                                            <th>Status</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="delivered-orders">
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="4" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -294,18 +279,15 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>ID ML</th>
-                                            <th>Comprador</th>
-                                            <th>Data</th>
+                                            <th>Pedido</th>
                                             <th>Valor</th>
-                                            <th>Nota Fiscal</th>
-                                            <th>Forma de Envio</th>
+                                            <th>Status</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="cancelled-orders">
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="4" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -320,18 +302,15 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>ID ML</th>
-                                            <th>Comprador</th>
-                                            <th>Data</th>
+                                            <th>Pedido</th>
                                             <th>Valor</th>
-                                            <th>Nota Fiscal</th>
-                                            <th>Forma de Envio</th>
+                                            <th>Status</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="refunded-orders">
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="4" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -553,72 +532,120 @@ function renderOrdersByStatus(status, orders) {
     tbody.innerHTML = orders.map(order => `
         <tr data-order-id="${order.ml_order_id}">
             <td>
-                <div class="d-flex align-items-center">
-                    <span class="fw-bold">${order.ml_order_id}</span>
-                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard('${order.ml_order_id}')" title="Copiar ID">
-                        <i class="bi bi-clipboard"></i>
-                    </button>
+                <div class="d-flex flex-column">
+                    <!-- ID do Pedido -->
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="fw-bold text-primary me-2">${order.ml_order_id}</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('${order.ml_order_id}')" title="Copiar ID">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Comprador -->
+                    <div class="mb-2">
+                        <div class="fw-bold">${order.buyer_name || order.buyer_nickname || 'N/A'}</div>
+                        <small class="text-muted">${order.buyer_nickname || ''}</small>
+                    </div>
+                    
+                    <!-- Data da Compra -->
+                    <div class="mb-2">
+                        <small class="text-muted">
+                            <i class="bi bi-calendar me-1"></i>${formatDate(order.date_created)} ${formatTime(order.date_created)}
+                        </small>
+                    </div>
+                    
+                    <!-- Data de Envio -->
+                    <div class="mb-2">
+                        ${order.shipping_date ? `
+                            <small class="text-success">
+                                <i class="bi bi-truck me-1"></i>Enviado: ${formatDate(order.shipping_date)} ${formatTime(order.shipping_date)}
+                            </small>
+                        ` : `
+                            <small class="text-warning">
+                                <i class="bi bi-clock me-1"></i>Aguardando envio
+                            </small>
+                        `}
+                    </div>
                 </div>
             </td>
+            
             <td>
-                <div>
-                    <div class="fw-bold">${order.buyer_name || order.buyer_nickname || 'N/A'}</div>
-                    <small class="text-muted">${order.buyer_nickname || ''}</small>
+                <div class="text-center">
+                    <div class="fw-bold text-success fs-5">R$ ${order.total_amount.toFixed(2)}</div>
                 </div>
             </td>
+            
             <td>
-                <div>
-                    <div>${formatDate(order.date_created)}</div>
-                    <small class="text-muted">${formatTime(order.date_created)}</small>
-                </div>
-            </td>
-            <td>
-                <span class="fw-bold text-success">R$ ${order.total_amount.toFixed(2)}</span>
-            </td>
-            <td>
-                ${order.invoice_emitted ? `
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-check-circle text-success me-2"></i>
-                        <div>
-                            <div class="fw-bold">${order.invoice_number || 'N/A'}</div>
-                            <small class="text-muted">${order.invoice_series || ''}</small>
+                <div class="d-flex flex-column align-items-center">
+                    <!-- Status da Nota Fiscal -->
+                    ${order.invoice_emitted ? `
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            <div class="text-center">
+                                <div class="fw-bold text-success">NF: ${order.invoice_number || 'N/A'}</div>
+                                <small class="text-muted">Série: ${order.invoice_series || ''}</small>
+                            </div>
                         </div>
-                    </div>
-                ` : `
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-x-circle text-warning me-2"></i>
-                        <span class="text-muted">Sem nota</span>
-                    </div>
-                `}
-            </td>
-            <td>
-                <div class="d-flex align-items-center">
-                    ${order.shipping_type ? `
-                        <span class="badge ${order.shipping_type === 'fulfillment' ? 'bg-primary' : 'bg-secondary'}">
-                            ${order.shipping_type === 'fulfillment' ? 'Fulfillment' : order.shipping_type}
-                        </span>
                     ` : `
-                        <span class="text-muted">N/A</span>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-x-circle text-warning me-2"></i>
+                            <span class="text-warning fw-bold">Sem nota fiscal</span>
+                        </div>
                     `}
+                    
+                    <!-- Status do Pedido -->
+                    <div class="mt-2">
+                        <span class="badge ${getStatusBadgeClass(order.status)} fs-6">
+                            ${getStatusLabel(order.status)}
+                        </span>
+                    </div>
                 </div>
             </td>
+            
             <td>
-                <div class="btn-group" role="group">
+                <div class="d-flex flex-column gap-1">
                     ${!order.invoice_emitted ? `
                         <button class="btn btn-sm btn-outline-primary" onclick="syncSingleInvoice('${order.ml_order_id}')" title="Sincronizar Nota Fiscal">
-                            <i class="bi bi-arrow-clockwise"></i>
+                            <i class="bi bi-arrow-clockwise me-1"></i>NF
                         </button>
                     ` : ''}
                     <button class="btn btn-sm btn-outline-success" onclick="syncOrderStatus('${order.ml_order_id}')" title="Sincronizar Status">
-                        <i class="bi bi-arrow-repeat"></i>
+                        <i class="bi bi-arrow-repeat me-1"></i>Status
                     </button>
                     <button class="btn btn-sm btn-outline-info" onclick="showInfo('${order.ml_order_id}')" title="Ver Detalhes">
-                        <i class="bi bi-info-circle"></i>
+                        <i class="bi bi-info-circle me-1"></i>Detalhes
                     </button>
                 </div>
             </td>
         </tr>
     `).join('');
+}
+
+// Funções auxiliares para badges de status
+function getStatusLabel(status) {
+    const statusLabels = {
+        'PENDING': 'Pendente',
+        'CONFIRMED': 'Confirmado', 
+        'PAID': 'Pago',
+        'SHIPPED': 'Enviado',
+        'DELIVERED': 'Entregue',
+        'CANCELLED': 'Cancelado',
+        'REFUNDED': 'Reembolsado'
+    };
+    return statusLabels[status] || status || 'N/A';
+}
+
+function getStatusBadgeClass(status) {
+    const statusClasses = {
+        'PENDING': 'bg-warning',
+        'CONFIRMED': 'bg-info',
+        'PAID': 'bg-primary',
+        'SHIPPED': 'bg-secondary',
+        'DELIVERED': 'bg-success',
+        'CANCELLED': 'bg-danger',
+        'REFUNDED': 'bg-dark'
+    };
+    return statusClasses[status] || 'bg-secondary';
 }
 
 // Atualizar contadores das tabs
@@ -815,38 +842,50 @@ function updateSingleOrder(orderId, needsReload = true) {
                 statusCell.textContent = updatedOrder.status || 'N/A';
             }
             
-            // Atualizar coluna de nota fiscal completamente
-            const invoiceCell = orderRow.querySelector('td:nth-child(5)'); // 5ª coluna é a da nota fiscal
-            if (invoiceCell && updatedOrder.invoice_emitted) {
-                console.log(`📄 Atualizando coluna de NF com número: ${updatedOrder.invoice_number}`);
-                invoiceCell.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-check-circle text-success me-2"></i>
-                        <div>
-                            <div class="fw-bold">${updatedOrder.invoice_number || 'N/A'}</div>
-                            <small class="text-muted">${updatedOrder.invoice_series || ''}</small>
+            // Atualizar coluna de status (3ª coluna) - inclui NF e status do pedido
+            const statusCell = orderRow.querySelector('td:nth-child(3)'); // 3ª coluna é status
+            if (statusCell) {
+                console.log(`📄 Atualizando coluna de status com NF: ${updatedOrder.invoice_number}`);
+                statusCell.innerHTML = `
+                    <div class="d-flex flex-column align-items-center">
+                        <!-- Status da Nota Fiscal -->
+                        ${updatedOrder.invoice_emitted ? `
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-check-circle text-success me-2"></i>
+                                <div class="text-center">
+                                    <div class="fw-bold text-success">NF: ${updatedOrder.invoice_number || 'N/A'}</div>
+                                    <small class="text-muted">Série: ${updatedOrder.invoice_series || ''}</small>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-x-circle text-warning me-2"></i>
+                                <span class="text-warning fw-bold">Sem nota fiscal</span>
+                            </div>
+                        `}
+                        
+                        <!-- Status do Pedido -->
+                        <div class="mt-2">
+                            <span class="badge ${getStatusBadgeClass(updatedOrder.status)} fs-6">
+                                ${getStatusLabel(updatedOrder.status)}
+                            </span>
                         </div>
                     </div>
                 `;
-                console.log('✅ Coluna de NF atualizada');
-            } else if (invoiceCell && !updatedOrder.invoice_emitted) {
-                console.log('⚠️ Pedido ainda não tem nota fiscal');
-                invoiceCell.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-x-circle text-warning me-2"></i>
-                        <span class="text-muted">Sem nota</span>
-                    </div>
-                `;
+                console.log('✅ Coluna de status atualizada');
             }
             
-            // Atualizar coluna de ações (remover botão "Sincronizar" se NF foi emitida)
-            const actionsCell = orderRow.querySelector('td:nth-child(6)'); // 6ª coluna é a de ações
+            // Atualizar coluna de ações (4ª coluna) - remover botão "Sincronizar" se NF foi emitida
+            const actionsCell = orderRow.querySelector('td:nth-child(4)'); // 4ª coluna é a de ações
             if (actionsCell && updatedOrder.invoice_emitted) {
                 console.log('🔄 Atualizando coluna de ações (removendo botão Sincronizar)');
                 actionsCell.innerHTML = `
-                    <div class="btn-group" role="group">
+                    <div class="d-flex flex-column gap-1">
+                        <button class="btn btn-sm btn-outline-success" onclick="syncOrderStatus('${updatedOrder.ml_order_id}')" title="Sincronizar Status">
+                            <i class="bi bi-arrow-repeat me-1"></i>Status
+                        </button>
                         <button class="btn btn-sm btn-outline-info" onclick="showInfo('${updatedOrder.ml_order_id}')" title="Ver Detalhes">
-                            <i class="bi bi-info-circle"></i>
+                            <i class="bi bi-info-circle me-1"></i>Detalhes
                         </button>
                     </div>
                 `;

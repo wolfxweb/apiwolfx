@@ -82,8 +82,7 @@ class ShipmentController:
                     "invoice_pdf_url": order.invoice_pdf_url if order.invoice_pdf_url else None,
                     "invoice_xml_url": order.invoice_xml_url if order.invoice_xml_url else None,
                     "pack_id": order.pack_id,
-                    "shipping_id": order.shipping_id,
-                    "shipping_type": order.shipping_type if order.shipping_type else None
+                    "shipping_id": order.shipping_id
                 })
             
             return {
