@@ -81,8 +81,11 @@ class ShipmentController:
                     "invoice_key": order.invoice_key if order.invoice_key else None,
                     "invoice_pdf_url": order.invoice_pdf_url if order.invoice_pdf_url else None,
                     "invoice_xml_url": order.invoice_xml_url if order.invoice_xml_url else None,
-                    "pack_id": order.pack_id,
-                    "shipping_id": order.shipping_id
+                        "pack_id": order.pack_id,
+                        "shipping_id": order.shipping_id,
+                        "shipping_type": order.shipping_type if order.shipping_type else None,
+                        "shipping_date": order.shipping_date.isoformat() if order.shipping_date else None,
+                        "estimated_delivery_date": order.estimated_delivery_date.isoformat() if order.estimated_delivery_date else None
                 })
             
             return {

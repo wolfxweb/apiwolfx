@@ -322,6 +322,7 @@ class MLNotificationsController:
                         shipping_cost = :shipping_cost,
                         shipping_type = :shipping_type,
                         shipping_date = :shipping_date,
+                        estimated_delivery_date = :estimated_delivery_date,
                         updated_at = NOW()
                     WHERE ml_order_id = :order_id AND company_id = :company_id
                 """)
@@ -350,11 +351,15 @@ class MLNotificationsController:
                             if shipment_response.status_code == 200:
                                 shipment_data = shipment_response.json()
                                 shipment_substatus = shipment_data.get("substatus")
-                                logistic = shipment_data.get("logistic", {})
-                                logistic_type = logistic.get("type")
+                                logistic_type = shipment_data.get("logistic_type")  # Campo direto
                                 shipping_date = shipment_data.get("date_created")
                                 
-                                logger.info(f"📦 Shipment {shipping_id}: substatus={shipment_substatus}, type={logistic_type}, date={shipping_date}")
+                                # Buscar data estimada de entrega
+                                shipping_option = shipment_data.get("shipping_option", {})
+                                estimated_delivery = shipping_option.get("estimated_delivery_final", {})
+                                estimated_delivery_date = estimated_delivery.get("date")
+                                
+                                logger.info(f"📦 Shipment {shipping_id}: substatus={shipment_substatus}, type={logistic_type}, date={shipping_date}, estimated={estimated_delivery_date}")
                     except Exception as e:
                         logger.warning(f"Erro ao buscar detalhes do shipment {shipping_id}: {e}")
                 
@@ -436,7 +441,8 @@ class MLNotificationsController:
                     "paid_amount": payments[0].get("total_paid_amount") if payments else 0,
                     "shipping_cost": shipping.get("cost", 0) if shipping else 0,
                     "shipping_type": logistic_type,
-                    "shipping_date": shipping_date
+                    "shipping_date": shipping_date,
+                    "estimated_delivery_date": estimated_delivery_date
                 })
                 
                 logger.info(f"✅ [WEBHOOK] Pedido {order_id} atualizado com status: {db_status}")

@@ -130,8 +130,8 @@
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="paid-tab" data-bs-toggle="tab" data-bs-target="#paid" type="button" role="tab">
-                                Pagos <span class="badge bg-secondary ms-1" id="paid-count">0</span>
+                            <button class="nav-link" id="waiting-shipment-tab" data-bs-toggle="tab" data-bs-target="#waiting-shipment" type="button" role="tab">
+                                Aguardando Envio <span class="badge bg-secondary ms-1" id="waiting-shipment-count">0</span>
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -204,8 +204,8 @@
                             </div>
                         </div>
 
-                        <!-- Tab Pagos -->
-                        <div class="tab-pane fade" id="paid" role="tabpanel">
+                        <!-- Tab Aguardando Envio -->
+                        <div class="tab-pane fade" id="waiting-shipment" role="tabpanel">
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead>
@@ -216,7 +216,7 @@
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="paid-orders">
+                                    <tbody id="waiting-shipment-orders">
                                         <tr>
                                             <td colspan="4" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
@@ -439,7 +439,7 @@ async function loadOrders() {
             const ordersByStatus = {
                 'PENDING': [],
                 'CONFIRMED': [],
-                'PAID': [],
+                'WAITING_SHIPMENT': [],
                 'SHIPPED': [],
                 'DELIVERED': [],
                 'CANCELLED': [],
@@ -462,7 +462,12 @@ async function loadOrders() {
                         tabKey = 'CONFIRMED';
                         break;
                     case 'PAID':
-                        tabKey = 'PAID';
+                        // Pedidos pagos: se têm data de envio = enviados, senão = aguardando envio
+                        if (order.shipping_date) {
+                            tabKey = 'SHIPPED';  // Já foi enviado
+                        } else {
+                            tabKey = 'WAITING_SHIPMENT';  // Aguardando envio
+                        }
                         break;
                     case 'SHIPPED':
                         tabKey = 'SHIPPED';
@@ -495,7 +500,7 @@ async function loadOrders() {
             // Renderizar cada tab
             renderOrdersByStatus('pending', ordersByStatus['PENDING']);
             renderOrdersByStatus('confirmed', ordersByStatus['CONFIRMED']);
-            renderOrdersByStatus('paid', ordersByStatus['PAID']);
+            renderOrdersByStatus('waiting-shipment', ordersByStatus['WAITING_SHIPMENT']);
             renderOrdersByStatus('shipped', ordersByStatus['SHIPPED']);
             renderOrdersByStatus('delivered', ordersByStatus['DELIVERED']);
             renderOrdersByStatus('cancelled', ordersByStatus['CANCELLED']);
@@ -569,6 +574,24 @@ function renderOrdersByStatus(status, orders) {
                             </small>
                         `}
                     </div>
+                    
+                    <!-- Tipo de Envio -->
+                    <div class="mb-2">
+                        ${order.shipping_type ? `
+                            <span class="badge ${getShippingTypeBadgeClass(order.shipping_type)} me-1">
+                                ${getShippingTypeLabel(order.shipping_type)}
+                            </span>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Data Estimada de Entrega -->
+                    <div class="mb-2">
+                        ${order.estimated_delivery_date ? `
+                            <small class="text-info">
+                                <i class="bi bi-calendar-check me-1"></i>Previsto: ${formatDate(order.estimated_delivery_date)}
+                            </small>
+                        ` : ''}
+                    </div>
                 </div>
             </td>
             
@@ -624,6 +647,35 @@ function renderOrdersByStatus(status, orders) {
     `).join('');
 }
 
+// Funções auxiliares para tipos de envio
+function getShippingTypeLabel(shippingType) {
+    const typeLabels = {
+        'fulfillment': 'Fulfillment',
+        'me2': 'Mercado Envios',
+        'custom': 'Próprio',
+        'cross_docking': 'Coleta',
+        'drop_off': 'Correios',
+        'xd_drop_off': 'Ponto de Coleta',
+        'agencia': 'Agência',
+        'coleta': 'Coleta'
+    };
+    return typeLabels[shippingType] || shippingType;
+}
+
+function getShippingTypeBadgeClass(shippingType) {
+    const typeClasses = {
+        'fulfillment': 'bg-primary',      // Azul - Fulfillment
+        'me2': 'bg-info',                 // Azul claro - Mercado Envios
+        'custom': 'bg-secondary',          // Cinza - Próprio
+        'cross_docking': 'bg-warning',     // Amarelo - Coleta
+        'drop_off': 'bg-success',          // Verde - Correios
+        'xd_drop_off': 'bg-warning',       // Amarelo - Ponto de Coleta
+        'agencia': 'bg-success',           // Verde - Agência
+        'coleta': 'bg-warning'             // Amarelo - Coleta
+    };
+    return typeClasses[shippingType] || 'bg-secondary';
+}
+
 // Funções auxiliares para badges de status
 function getStatusLabel(status) {
     const statusLabels = {
@@ -655,7 +707,7 @@ function getStatusBadgeClass(status) {
 function updateStatusCounts(ordersByStatus) {
     document.getElementById('pending-count').textContent = ordersByStatus['PENDING'].length;
     document.getElementById('confirmed-count').textContent = ordersByStatus['CONFIRMED'].length;
-    document.getElementById('paid-count').textContent = ordersByStatus['PAID'].length;
+    document.getElementById('waiting-shipment-count').textContent = ordersByStatus['WAITING_SHIPMENT'].length;
     document.getElementById('shipped-count').textContent = ordersByStatus['SHIPPED'].length;
     document.getElementById('delivered-count').textContent = ordersByStatus['DELIVERED'].length;
     document.getElementById('cancelled-count').textContent = ordersByStatus['CANCELLED'].length;
@@ -910,12 +962,12 @@ function updateSingleOrder(orderId, needsReload = true) {
 // Atualizar contadores das abas
 function updateTabCounts() {
     // Atualizar contador de cada aba
-    const tabs = ['pending', 'confirmed', 'paid', 'shipped', 'delivered', 'cancelled'];
+    const tabs = ['pending', 'confirmed', 'waiting-shipment', 'shipped', 'delivered', 'cancelled', 'refunded'];
     tabs.forEach(tab => {
-        const tabPane = document.getElementById(`tab-${tab}`);
+        const tabPane = document.getElementById(tab);
         if (tabPane) {
             const count = tabPane.querySelectorAll('tbody tr').length;
-            const tabLink = document.querySelector(`[href="#tab-${tab}"]`);
+            const tabLink = document.querySelector(`[data-bs-target="#${tab}"]`);
             if (tabLink) {
                 // Atualizar badge com contador
                 const badge = tabLink.querySelector('.badge');
