@@ -56,7 +56,7 @@ class ShipmentService:
             not order.invoice_emitted
         )
 
-    def sync_invoice_status(self, company_id: int, access_token: str) -> Dict:
+    def sync_invoice_status(self, company_id: int, access_token: str, only_missing_invoices: bool = True) -> Dict:
         """
         Sincroniza STATUS e NOTAS FISCAIS do Mercado Livre
         
@@ -64,16 +64,27 @@ class ShipmentService:
         - Status do pedido
         - Status do shipping (fulfillment)
         - Notas fiscais
+        
+        Args:
+            company_id: ID da empresa
+            access_token: Token de acesso do ML
+            only_missing_invoices: Se True, processa apenas pedidos sem NF. Se False, processa todos.
         """
         try:
             import requests
             
-            # Buscar TODOS os pedidos (não apenas PAID/CONFIRMED)
-            orders = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id
-            ).all()
-            
-            logger.info(f"Sincronizando status e notas fiscais para {len(orders)} pedido(s)")
+            # Buscar pedidos - opcionalmente filtrar apenas os sem NF
+            if only_missing_invoices:
+                orders = self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.invoice_emitted == False
+                ).all()
+                logger.info(f"Sincronizando apenas pedidos SEM NF ({len(orders)} pedido(s))")
+            else:
+                orders = self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id
+                ).all()
+                logger.info(f"Sincronizando TODOS os pedidos ({len(orders)} pedido(s))")
             
             updated = 0
             already_synced = 0
@@ -114,13 +125,22 @@ class ShipmentService:
                                     "partially_refunded": OrderStatus.REFUNDED
                                 }
                                 
-                                # Verificar se tem a tag "delivered" mesmo com status de reembolso
+                                # Verificar tags para priorizar status correto
                                 tags = order_data.get('tags', [])
-                                if 'delivered' in tags:
-                                    status_mapping["partially_refunded"] = OrderStatus.DELIVERED
-                                
                                 api_status = order_data.get("status", "pending")
-                                new_status = status_mapping.get(api_status, OrderStatus.PENDING)
+                                
+                                # Se tem tag "delivered", sempre considerar como DELIVERED
+                                if 'delivered' in tags:
+                                    new_status = OrderStatus.DELIVERED
+                                # Se tem tag "cancelled", sempre considerar como CANCELLED
+                                elif 'cancelled' in tags:
+                                    new_status = OrderStatus.CANCELLED
+                                # Se tem tag "refunded", sempre considerar como REFUNDED
+                                elif 'refunded' in tags:
+                                    new_status = OrderStatus.REFUNDED
+                                # Caso contrário, usar mapeamento normal
+                                else:
+                                    new_status = status_mapping.get(api_status, OrderStatus.PENDING)
                                 
                                 if order.status != new_status:
                                     order.status = new_status
@@ -134,6 +154,25 @@ class ShipmentService:
                                     order.shipping_status = shipping.get("status")
                                     order.shipping_id = str(shipping.get("id", order.shipping_id))
                                     order.last_updated = datetime.utcnow()
+                                    
+                                    # Detectar tipo de envio se disponível
+                                    shipping_id = shipping.get("id")
+                                    if shipping_id:
+                                        try:
+                                            shipment_url = f"{self.base_url}/shipments/{shipping_id}"
+                                            shipment_headers = {"Authorization": f"Bearer {access_token}"}
+                                            shipment_response = requests.get(shipment_url, headers=shipment_headers, timeout=30)
+                                            
+                                            if shipment_response.status_code == 200:
+                                                shipment_data = shipment_response.json()
+                                                logistic = shipment_data.get("logistic", {})
+                                                logistic_type = logistic.get("type")
+                                                
+                                                if logistic_type:
+                                                    order.shipping_type = logistic_type
+                                                    logger.info(f"📦 Tipo de envio detectado para {order.order_id}: {logistic_type}")
+                                        except Exception as e:
+                                            logger.warning(f"Erro ao detectar tipo de envio para {order.order_id}: {e}")
                         except Exception as e:
                             logger.warning(f"Erro ao sincronizar status do pedido {order.order_id}: {e}")
                         
@@ -238,17 +277,25 @@ class ShipmentService:
                         "delivered": OrderStatus.DELIVERED,
                         "cancelled": OrderStatus.CANCELLED,
                         "refunded": OrderStatus.REFUNDED,
-                        "partially_refunded": OrderStatus.REFUNDED  # Reembolso parcial
+                        "partially_refunded": OrderStatus.REFUNDED
                     }
                     
-                    # Verificar se tem a tag "delivered" mesmo com status de reembolso
+                    # Verificar tags para priorizar status correto
                     tags = order_data.get('tags', [])
-                    if 'delivered' in tags:
-                        # Se foi entregue mas teve reembolso, considerar como entregue
-                        status_mapping["partially_refunded"] = OrderStatus.DELIVERED
-                    
                     api_status = order_data.get("status", "pending")
-                    new_status = status_mapping.get(api_status, OrderStatus.PENDING)
+                    
+                    # Se tem tag "delivered", sempre considerar como DELIVERED
+                    if 'delivered' in tags:
+                        new_status = OrderStatus.DELIVERED
+                    # Se tem tag "cancelled", sempre considerar como CANCELLED
+                    elif 'cancelled' in tags:
+                        new_status = OrderStatus.CANCELLED
+                    # Se tem tag "refunded", sempre considerar como REFUNDED
+                    elif 'refunded' in tags:
+                        new_status = OrderStatus.REFUNDED
+                    # Caso contrário, usar mapeamento normal
+                    else:
+                        new_status = status_mapping.get(api_status, OrderStatus.PENDING)
                     
                     if order.status != new_status:
                         order.status = new_status
@@ -291,8 +338,9 @@ class ShipmentService:
                                         logger.info(f"✅ Pedido {order_id} é FULFILLMENT - Processando no CD do ML")
                                         logger.info(f"   Mode: {logistic_mode}, Type: {logistic_type}, Substatus: {substatus}")
                                     
-                                    # Atualizar método de envio
+                                    # Atualizar método de envio e tipo de envio
                                     order.shipping_method = logistic_type or order.shipping_method
+                                    order.shipping_type = logistic_type or order.shipping_type
                                     
                                     # ATUALIZAR STATUS BASEADO NO SUBSTATUS (fulfillment)
                                     if substatus:

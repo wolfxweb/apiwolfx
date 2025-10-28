@@ -1,0 +1,6 @@
+
+# Sincronizar notas fiscais pendentes (a cada hora)
+0 * * * * docker exec apiwolfx-api python /app/scripts/sync_invoices_cron.py >> /app/logs/invoices_sync.log 2>&1
+
+# Ou rodar a cada 30 minutos (mais frequente)
+# */30 * * * * docker exec apiwolfx-api python /app/scripts/sync_invoices_cron.py >> /app/logs/invoices_sync.log 2>&1

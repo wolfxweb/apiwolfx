@@ -1059,6 +1059,26 @@ class MLOrdersService:
             shipping = order_data.get("shipping", {})
             shipping_details = order_data.get("shipping_details", {})
             
+            # Detectar tipo de envio se tiver shipping_id
+            shipping_type = None
+            shipping_id = shipping.get("id")
+            if shipping_id:
+                try:
+                    # Buscar token para fazer requisição adicional
+                    access_token = self._get_active_token(ml_account_id)
+                    if access_token:
+                        shipment_url = f"https://api.mercadolibre.com/shipments/{shipping_id}"
+                        headers = {"Authorization": f"Bearer {access_token}"}
+                        response = requests.get(shipment_url, headers=headers, timeout=30)
+                        
+                        if response.status_code == 200:
+                            shipment_data = response.json()
+                            logistic = shipment_data.get("logistic", {})
+                            shipping_type = logistic.get("type")
+                            logger.info(f"📦 Tipo de envio detectado para pedido {order_data.get('id')}: {shipping_type}")
+                except Exception as e:
+                    logger.warning(f"Erro ao detectar tipo de envio para pedido {order_data.get('id')}: {e}")
+            
             # Extrair cupom
             coupon = order_data.get("coupon", {})
             
@@ -1107,6 +1127,7 @@ class MLOrdersService:
                 "shipping_status": shipping.get("status") or shipping_details.get("status"),
                 "shipping_address": shipping.get("receiver_address") or shipping_details.get("receiver_address"),
                 "shipping_details": shipping_details,
+                "shipping_type": shipping_type,
                 
                 # === ITENS DO PEDIDO ===
                 "order_items": order_data.get("order_items"),

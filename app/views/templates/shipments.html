@@ -169,12 +169,13 @@
                                             <th>Data</th>
                                             <th>Valor</th>
                                             <th>Nota Fiscal</th>
+                                            <th>Forma de Envio</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="pending-orders">
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted">
+                                            <td colspan="7" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -194,12 +195,13 @@
                                             <th>Data</th>
                                             <th>Valor</th>
                                             <th>Nota Fiscal</th>
+                                            <th>Forma de Envio</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="confirmed-orders">
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted">
+                                            <td colspan="7" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -219,12 +221,13 @@
                                             <th>Data</th>
                                             <th>Valor</th>
                                             <th>Nota Fiscal</th>
+                                            <th>Forma de Envio</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="paid-orders">
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted">
+                                            <td colspan="7" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -244,12 +247,13 @@
                                             <th>Data</th>
                                             <th>Valor</th>
                                             <th>Nota Fiscal</th>
+                                            <th>Forma de Envio</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="shipped-orders">
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted">
+                                            <td colspan="7" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -269,12 +273,13 @@
                                             <th>Data</th>
                                             <th>Valor</th>
                                             <th>Nota Fiscal</th>
+                                            <th>Forma de Envio</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="delivered-orders">
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted">
+                                            <td colspan="7" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -294,12 +299,13 @@
                                             <th>Data</th>
                                             <th>Valor</th>
                                             <th>Nota Fiscal</th>
+                                            <th>Forma de Envio</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="cancelled-orders">
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted">
+                                            <td colspan="7" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -319,12 +325,13 @@
                                             <th>Data</th>
                                             <th>Valor</th>
                                             <th>Nota Fiscal</th>
+                                            <th>Forma de Envio</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="refunded-orders">
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted">
+                                            <td colspan="7" class="text-center text-muted">
                                                 <i class="bi bi-hourglass-split"></i> Carregando...
                                             </td>
                                         </tr>
@@ -583,6 +590,17 @@ function renderOrdersByStatus(status, orders) {
                         <span class="text-muted">Sem nota</span>
                     </div>
                 `}
+            </td>
+            <td>
+                <div class="d-flex align-items-center">
+                    ${order.shipping_type ? `
+                        <span class="badge ${order.shipping_type === 'fulfillment' ? 'bg-primary' : 'bg-secondary'}">
+                            ${order.shipping_type === 'fulfillment' ? 'Fulfillment' : order.shipping_type}
+                        </span>
+                    ` : `
+                        <span class="text-muted">N/A</span>
+                    `}
+                </div>
             </td>
             <td>
                 <div class="btn-group" role="group">
