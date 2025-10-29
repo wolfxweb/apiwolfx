@@ -7,25 +7,25 @@
     <div class="row">
         <div class="col-12">
             <h1 class="mb-4">
-                <i class="bi bi-box-seam"></i> Expedição de Produtos
-            </h1>
+                    <i class="bi bi-box-seam"></i> Expedição de Produtos
+                </h1>
 
             <!-- Tabs de Status com Scroll Horizontal -->
             <div class="tabs-scroll-container mb-4" style="overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;">
                 <ul class="nav nav-tabs mb-0 flex-nowrap" id="statusTabs" role="tablist" style="display: flex; flex-wrap: nowrap; white-space: nowrap;">
-                <li class="nav-item" role="presentation">
+                        <li class="nav-item" role="presentation">
                     <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab">
                         Pendentes
                         <span class="badge bg-secondary ms-1" id="pending-count">0</span>
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed" type="button" role="tab">
                         Confirmados
                         <span class="badge bg-secondary ms-1" id="confirmed-count">0</span>
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="ready-to-prepare-tab" data-bs-toggle="tab" data-bs-target="#ready-to-prepare" type="button" role="tab">
                         Pronto para Preparar
                         <span class="badge bg-secondary ms-1" id="ready-to-prepare-count">0</span>
@@ -41,34 +41,34 @@
                     <button class="nav-link" id="waiting-shipment-tab" data-bs-toggle="tab" data-bs-target="#waiting-shipment" type="button" role="tab">
                         Aguardando Envio
                         <span class="badge bg-secondary ms-1" id="waiting-shipment-count">0</span>
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="shipped-tab" data-bs-toggle="tab" data-bs-target="#shipped" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="shipped-tab" data-bs-toggle="tab" data-bs-target="#shipped" type="button" role="tab">
                         Enviados
                         <span class="badge bg-secondary ms-1" id="shipped-count">0</span>
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="delivered-tab" data-bs-toggle="tab" data-bs-target="#delivered" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="delivered-tab" data-bs-toggle="tab" data-bs-target="#delivered" type="button" role="tab">
                         Entregues
                         <span class="badge bg-secondary ms-1" id="delivered-count">0</span>
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="cancelled-tab" data-bs-toggle="tab" data-bs-target="#cancelled" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="cancelled-tab" data-bs-toggle="tab" data-bs-target="#cancelled" type="button" role="tab">
                         Cancelados
                         <span class="badge bg-secondary ms-1" id="cancelled-count">0</span>
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="refunded-tab" data-bs-toggle="tab" data-bs-target="#refunded" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="refunded-tab" data-bs-toggle="tab" data-bs-target="#refunded" type="button" role="tab">
                         Reembolsados
                         <span class="badge bg-secondary ms-1" id="refunded-count">0</span>
-                    </button>
-                </li>
-                </ul>
-            </div>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
 
             <style>
                 .tabs-scroll-container {
@@ -105,7 +105,7 @@
 
             <!-- Conteúdo das Tabs -->
             <div class="tab-content" id="statusTabsContent">
-                <!-- Tab Pendentes -->
+                        <!-- Tab Pendentes -->
                 <div class="tab-pane fade" id="pending" role="tabpanel" aria-labelledby="pending-tab">
                     <div class="card">
                         <div class="card-body">
@@ -137,10 +137,10 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
+                            </div>
+                        </div>
 
-                <!-- Tab Confirmados -->
+                        <!-- Tab Confirmados -->
                 <div class="tab-pane fade" id="confirmed" role="tabpanel" aria-labelledby="confirmed-tab">
                     <div class="card">
                         <div class="card-body">
@@ -194,8 +194,8 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
+                            </div>
+                        </div>
 
                 <!-- Tab Separar Pedidos (Manual Status) -->
                 <div class="tab-pane fade" id="manual-prepare" role="tabpanel" aria-labelledby="manual-prepare-tab">
@@ -265,10 +265,10 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
+                            </div>
+                        </div>
 
-                <!-- Tab Enviados -->
+                        <!-- Tab Enviados -->
                 <div class="tab-pane fade" id="shipped" role="tabpanel" aria-labelledby="shipped-tab">
                     <div class="card">
                         <div class="card-body">
@@ -300,10 +300,10 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
+                            </div>
+                        </div>
 
-                <!-- Tab Entregues -->
+                        <!-- Tab Entregues -->
                 <div class="tab-pane fade" id="delivered" role="tabpanel" aria-labelledby="delivered-tab">
                     <div class="card">
                         <div class="card-body">
@@ -335,10 +335,10 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
+                            </div>
+                        </div>
 
-                <!-- Tab Cancelados -->
+                        <!-- Tab Cancelados -->
                 <div class="tab-pane fade" id="cancelled" role="tabpanel" aria-labelledby="cancelled-tab">
                     <div class="card">
                         <div class="card-body">
@@ -370,10 +370,10 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
+                            </div>
+                        </div>
 
-                <!-- Tab Reembolsados -->
+                        <!-- Tab Reembolsados -->
                 <div class="tab-pane fade" id="refunded" role="tabpanel" aria-labelledby="refunded-tab">
                     <div class="card">
                         <div class="card-body">
@@ -492,11 +492,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!response.ok) {
                 throw new Error('Erro ao carregar contadores');
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
                 // Atualizar contadores de cada aba
                 document.getElementById('pending-count').textContent = data.counts?.PENDING || 0;
                 document.getElementById('confirmed-count').textContent = data.counts?.CONFIRMED || 0;
@@ -507,8 +507,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('delivered-count').textContent = data.counts?.DELIVERED || 0;
                 document.getElementById('cancelled-count').textContent = data.counts?.CANCELLED || 0;
                 document.getElementById('refunded-count').textContent = data.counts?.REFUNDED || 0;
-            }
-        } catch (error) {
+        }
+    } catch (error) {
             console.error('Erro ao carregar contadores:', error);
         }
     }
@@ -539,9 +539,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
                 if (!response.ok) {
                     throw new Error('Erro ao carregar pedidos');
-                }
-                
-                const data = await response.json();
+        }
+        
+        const data = await response.json();
                 
                 if (data.success && data.orders && data.orders.length > 0) {
                     allOrders = allOrders.concat(data.orders);
@@ -711,7 +711,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     allOrders = allOrders.concat(data.orders);
                     hasMore = data.total_pages > page;
                     page++;
-                } else {
+        } else {
                     hasMore = false;
                 }
                 
@@ -747,8 +747,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         </td>
                     </tr>
                 `;
-            }
-        } catch (error) {
+        }
+    } catch (error) {
             console.error('Erro ao carregar pedidos:', error);
             tbody.innerHTML = `
                 <tr>
@@ -765,16 +765,16 @@ document.addEventListener('DOMContentLoaded', function() {
         window.currentOrders = orders;
         
         if (!orders || orders.length === 0) {
-            tbody.innerHTML = `
-                <tr>
+        tbody.innerHTML = `
+            <tr>
                     <td colspan="5" class="text-center text-muted">
                         Nenhum pedido entregue encontrado.
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-        
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
         tbody.innerHTML = orders.map(order => {
             const orderId = order.ml_order_id || order.order_id || '-';
             const orderDate = order.date_created ? new Date(order.date_created).toLocaleDateString('pt-BR') : '-';
@@ -819,16 +819,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             return `
-                <tr>
-                    <td>
+        <tr>
+            <td>
                         <strong>${orderId}</strong><br>
                         <small class="text-muted">${orderDateTime}</small>
                         ${order.invoice_emitted ? 
                             `<br><span class="badge bg-success">NF: ${invoiceNumber}</span>` : 
                             `<br><span class="badge bg-secondary">Sem NF</span>`
                         }
-                    </td>
-                    <td>
+            </td>
+            <td>
                         ${order.buyer_first_name || order.buyer_nickname || '-'}
                         ${(() => {
                             // Tentar destination primeiro (formato novo do ML)
@@ -871,7 +871,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             return '';
                         })()}
-                    </td>
+            </td>
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
                     <td>
@@ -894,9 +894,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td colspan="5" class="text-center text-muted">
                     <div class="spinner-border spinner-border-sm" role="status">
                         <span class="visually-hidden">Carregando...</span>
-                    </div>
+                </div>
                     Carregando pedidos...
-                </td>
+            </td>
             </tr>
         `;
         
@@ -1048,8 +1048,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             `<br><span class="badge bg-success">NF: ${invoiceNumber}</span>` : 
                             `<br><span class="badge bg-secondary">Sem NF</span>`
                         }
-                    </td>
-                    <td>
+            </td>
+            <td>
                         ${order.buyer_first_name || order.buyer_nickname || '-'}
                         ${(() => {
                             const dest = order.shipping_details?.destination;
@@ -1091,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             return '';
                         })()}
-                    </td>
+            </td>
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
                     <td>
@@ -1114,10 +1114,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td colspan="5" class="text-center text-muted">
                     <div class="spinner-border spinner-border-sm" role="status">
                         <span class="visually-hidden">Carregando...</span>
-                    </div>
+                </div>
                     Carregando pedidos...
-                </td>
-            </tr>
+            </td>
+        </tr>
         `;
         
         try {
@@ -1263,12 +1263,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Buscar TODOS os pedidos com paginação
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
-                if (!response.ok) {
+        if (!response.ok) {
                     throw new Error('Erro ao carregar pedidos');
-                }
-                
-                const data = await response.json();
-                
+        }
+        
+        const data = await response.json();
+        
                 if (data.success && data.orders && data.orders.length > 0) {
                     allOrders = allOrders.concat(data.orders);
                     hasMore = data.total_pages > page;
@@ -1304,7 +1304,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (filteredOrders.length > 0) {
                 renderShippedOrders(tbody, filteredOrders);
-            } else {
+        } else {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="5" class="text-center text-muted">
@@ -1312,8 +1312,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         </td>
                     </tr>
                 `;
-            }
-        } catch (error) {
+        }
+    } catch (error) {
             console.error('Erro ao carregar pedidos:', error);
             tbody.innerHTML = `
                 <tr>
@@ -1628,14 +1628,14 @@ document.addEventListener('DOMContentLoaded', function() {
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
                 if (!response.ok) throw new Error('Erro ao carregar pedidos');
-                
-                const data = await response.json();
-                
+        
+        const data = await response.json();
+        
                 if (data.success && data.orders && data.orders.length > 0) {
                     allOrders = allOrders.concat(data.orders);
                     hasMore = data.total_pages > page;
                     page++;
-                } else {
+        } else {
                     hasMore = false;
                 }
                 
@@ -1656,8 +1656,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         </td>
                     </tr>
                 `;
-            }
-        } catch (error) {
+        }
+    } catch (error) {
             console.error('Erro ao carregar pedidos:', error);
             tbody.innerHTML = `
                 <tr>

@@ -460,7 +460,32 @@ class MLNotificationsController:
                     await self._check_invoice_for_order(order_id, company_id, db)
                     
             else:
-                logger.info(f"ℹ️ Pedido {order_id} não existe no banco, será sincronizado na próxima sync completa")
+                logger.info(f"🆕 Pedido {order_id} não existe no banco, criando novo pedido via webhook")
+                
+                # Criar novo pedido usando MLOrdersService
+                try:
+                    from app.services.ml_orders_service import MLOrdersService
+                    from app.models.saas_models import MLAccount
+                    
+                    # Buscar MLAccount da empresa
+                    ml_account = db.query(MLAccount).filter(
+                        MLAccount.company_id == company_id,
+                        MLAccount.is_active == True
+                    ).first()
+                    
+                    if ml_account:
+                        orders_service = MLOrdersService(db)
+                        result = orders_service._save_order_to_database(order_data, ml_account.id, company_id)
+                        
+                        if result.get("action") == "created":
+                            logger.info(f"✅ Novo pedido {order_id} criado com sucesso via webhook")
+                        elif result.get("action") == "updated":
+                            logger.info(f"✅ Pedido {order_id} atualizado via webhook")
+                    else:
+                        logger.warning(f"⚠️ MLAccount não encontrada para company_id {company_id}")
+                
+                except Exception as e:
+                    logger.error(f"❌ Erro ao criar pedido {order_id} via webhook: {e}")
             
             db.commit()
             

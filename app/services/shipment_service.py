@@ -321,6 +321,7 @@ class ShipmentService:
                 }
             
             logger.info(f"✅ [SYNC] Pedido {order_id} encontrado para company_id={company_id}")
+            logger.info(f"📋 [SYNC] Status atual: {order.status}, Shipping Status: {order.shipping_status}")
             
             # Usar order_id para buscar na API do Mercado Livre
             # O order_id é o ID que o ML espera (normalmente igual ao ml_order_id)
