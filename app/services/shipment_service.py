@@ -300,23 +300,27 @@ class ShipmentService:
         try:
             from sqlalchemy import or_
             
+            logger.info(f"🔍 [SYNC] Buscando pedido {order_id} para company_id={company_id}")
+            
             # Buscar o pedido específico - tentar múltiplos campos
-            # O order_id pode ser: ml_order_id, order_id, sale_id ou pack_id
+            # O order_id pode ser: ml_order_id, order_id ou pack_id
             order = self.db.query(MLOrder).filter(
                 MLOrder.company_id == company_id,
                 or_(
                     MLOrder.ml_order_id == order_id,
                     MLOrder.order_id == order_id,
-                    MLOrder.sale_id == order_id,
                     MLOrder.pack_id == order_id
                 )
             ).first()
             
             if not order:
+                logger.warning(f"⚠️ [SYNC] Pedido {order_id} não encontrado para company_id={company_id}")
                 return {
                     "success": False,
-                    "error": f"Pedido {order_id} não encontrado (busca por ml_order_id, order_id, sale_id ou pack_id)"
+                    "error": f"Pedido {order_id} não encontrado (busca por ml_order_id, order_id ou pack_id)"
                 }
+            
+            logger.info(f"✅ [SYNC] Pedido {order_id} encontrado para company_id={company_id}")
             
             # Usar order_id para buscar na API do Mercado Livre
             # O order_id é o ID que o ML espera (normalmente igual ao ml_order_id)
@@ -359,6 +363,11 @@ class ShipmentService:
                             order.paid_amount = paid_amount
                             status_updated = True
                             logger.info(f"💳 Valor pago atualizado: {order.paid_amount} -> {paid_amount}")
+                        
+                        # SALVAR JSON COMPLETO DE PAYMENTS
+                        order.payments = payments
+                        status_updated = True
+                        logger.info(f"💳 JSON payments salvo para pedido {order_id_for_logs}")
                     
                     # 3. Atualizar dados do comprador
                     buyer = order_data.get("buyer", {})
@@ -414,15 +423,7 @@ class ShipmentService:
                         except:
                             pass
                     
-                    # 6. Atualizar sale_id (número da venda real)
-                    # O sale_id pode estar em diferentes lugares na resposta
-                    sale_id = order_data.get("sale_id") or order_data.get("id")
-                    if sale_id and str(sale_id) != str(order.sale_id):
-                        order.sale_id = str(sale_id)
-                        status_updated = True
-                        logger.info(f"🆔 Sale ID atualizado: {order.sale_id} -> {sale_id}")
-                    
-                    # 7. Atualizar status_detail
+                    # 6. Atualizar status_detail
                     status_detail = order_data.get("status_detail", {})
                     if status_detail:
                         status_detail_code = status_detail.get("code")

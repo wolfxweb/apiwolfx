@@ -253,3 +253,73 @@ class ShipmentController:
                     "pending_invoice": 0
                 }
             }
+    
+    def get_tab_counts(self, company_id: int) -> Dict:
+        """
+        Retorna contadores de pedidos por status para as abas
+        """
+        try:
+            from app.models.saas_models import MLOrder, OrderStatus
+            
+            # Contar pedidos por status
+            counts = {
+                "PENDING": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status == OrderStatus.PENDING
+                ).count(),
+                "CONFIRMED": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status == OrderStatus.CONFIRMED
+                ).count(),
+                "PAID": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status == OrderStatus.PAID
+                ).count(),
+                "READY_TO_PREPARE": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status == OrderStatus.READY_TO_PREPARE
+                ).count(),
+                "WAITING_SHIPMENT": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status == OrderStatus.PAID
+                ).count(),
+                "SHIPPED": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status == OrderStatus.SHIPPED
+                ).count(),
+                "DELIVERED": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status == OrderStatus.DELIVERED
+                ).count(),
+                "CANCELLED": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status.in_([OrderStatus.CANCELLED, OrderStatus.PENDING_CANCEL])
+                ).count(),
+                "REFUNDED": self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.status.in_([OrderStatus.REFUNDED, OrderStatus.PARTIALLY_REFUNDED])
+                ).count()
+            }
+            
+            return {
+                "success": True,
+                "counts": counts
+            }
+        
+        except Exception as e:
+            logger.error(f"Erro ao buscar contadores das abas: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "counts": {
+                    "PENDING": 0,
+                    "CONFIRMED": 0,
+                    "PAID": 0,
+                    "READY_TO_PREPARE": 0,
+                    "WAITING_SHIPMENT": 0,
+                    "SHIPPED": 0,
+                    "DELIVERED": 0,
+                    "CANCELLED": 0,
+                    "REFUNDED": 0
+                }
+            }

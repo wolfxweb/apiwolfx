@@ -323,6 +323,8 @@ class MLNotificationsController:
                         shipping_type = :shipping_type,
                         shipping_date = :shipping_date,
                         estimated_delivery_date = :estimated_delivery_date,
+                        shipping_details = :shipping_details,
+                        payments = :payments,
                         updated_at = NOW()
                     WHERE ml_order_id = :order_id AND company_id = :company_id
                 """)
@@ -335,6 +337,7 @@ class MLNotificationsController:
                 # Tentar buscar detalhes completos do shipment se tiver ID
                 shipment_substatus = None
                 logistic_type = None
+                shipment_data_json = None
                 if shipping_id and access_token:
                     try:
                         # Buscar detalhes completos do shipment com header x-format-new
@@ -350,6 +353,7 @@ class MLNotificationsController:
                             
                             if shipment_response.status_code == 200:
                                 shipment_data = shipment_response.json()
+                                shipment_data_json = shipment_data  # Salvar JSON completo para salvar no banco
                                 shipment_substatus = shipment_data.get("substatus")
                                 logistic_type = shipment_data.get("logistic_type")  # Campo direto
                                 shipping_date = shipment_data.get("date_created")
@@ -430,6 +434,8 @@ class MLNotificationsController:
                 logger.info(f"   📅 Data fechamento: {order_data.get('date_closed')}")
                 logger.info(f"   💰 Total: {total_amount}")
                 
+                import json
+                
                 db.execute(update_query, {
                     "order_id": str(order_id),
                     "company_id": company_id,
@@ -442,7 +448,9 @@ class MLNotificationsController:
                     "shipping_cost": shipping.get("cost", 0) if shipping else 0,
                     "shipping_type": logistic_type,
                     "shipping_date": shipping_date,
-                    "estimated_delivery_date": estimated_delivery_date
+                    "estimated_delivery_date": estimated_delivery_date,
+                    "shipping_details": json.dumps(shipment_data_json) if shipment_data_json else None,
+                    "payments": json.dumps(payments) if payments else None
                 })
                 
                 logger.info(f"✅ [WEBHOOK] Pedido {order_id} atualizado com status: {db_status}")

@@ -273,3 +273,30 @@ async def get_stats(
             "error": f"Erro interno: {str(e)}"
         }, status_code=500)
 
+@router.get("/tab-counts")
+async def get_tab_counts(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Retorna contadores de pedidos por status para as abas"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        controller = ShipmentController(db)
+        result = controller.get_tab_counts(company_id)
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        return JSONResponse(content={
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+

@@ -111,7 +111,31 @@
                         <div class="card-body">
                             <h5 class="card-title">Pendentes</h5>
                             <p class="text-muted">Pedidos aguardando confirmação ou pagamento.</p>
-                            <!-- Tabela será adicionada aqui -->
+                            
+                            <!-- Tabela de Pedidos Pendentes -->
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Pedido</th>
+                                            <th>Comprador</th>
+                                            <th>Valor</th>
+                                            <th>Forma de Envio</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pending-orders">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                Carregando pedidos...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -217,8 +241,29 @@
                     <div class="card">
                         <div class="card-body">
                             <h5 class="card-title">Aguardando Envio</h5>
-                            <p class="text-muted">Pedidos pagos mas ainda não enviados.</p>
-                            <!-- Tabela será adicionada aqui -->
+                            <p class="text-muted">Pedidos pagos e prontos para envio.</p>
+                            
+                            <!-- Tabela de Pedidos Aguardando Envio -->
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Pedido</th>
+                                            <th>Comprador</th>
+                                            <th>Valor</th>
+                                            <th>Forma de Envio</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="waiting-shipment-orders">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                Carregando pedidos...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -229,7 +274,31 @@
                         <div class="card-body">
                             <h5 class="card-title">Enviados</h5>
                             <p class="text-muted">Pedidos que já foram enviados e estão em trânsito.</p>
-                            <!-- Tabela será adicionada aqui -->
+                            
+                            <!-- Tabela de Pedidos Enviados -->
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Pedido</th>
+                                            <th>Comprador</th>
+                                            <th>Valor</th>
+                                            <th>Forma de Envio</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="shipped-orders">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                Carregando pedidos...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -240,7 +309,31 @@
                         <div class="card-body">
                             <h5 class="card-title">Entregues</h5>
                             <p class="text-muted">Pedidos que foram entregues ao cliente.</p>
-                            <!-- Tabela será adicionada aqui -->
+                            
+                            <!-- Tabela de Pedidos Entregues -->
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Pedido</th>
+                                            <th>Comprador</th>
+                                            <th>Valor</th>
+                                            <th>Forma de Envio</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="delivered-orders">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                Carregando pedidos...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -251,7 +344,31 @@
                         <div class="card-body">
                             <h5 class="card-title">Cancelados</h5>
                             <p class="text-muted">Pedidos que foram cancelados.</p>
-                            <!-- Tabela será adicionada aqui -->
+                            
+                            <!-- Tabela de Pedidos Cancelados -->
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Pedido</th>
+                                            <th>Comprador</th>
+                                            <th>Valor</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cancelled-orders">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                Carregando pedidos...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -262,7 +379,31 @@
                         <div class="card-body">
                             <h5 class="card-title">Reembolsados</h5>
                             <p class="text-muted">Pedidos que foram reembolsados completamente ou parcialmente.</p>
-                            <!-- Tabela será adicionada aqui -->
+                            
+                            <!-- Tabela de Pedidos Reembolsados -->
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Pedido</th>
+                                            <th>Comprador</th>
+                                            <th>Valor</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="refunded-orders">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                Carregando pedidos...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -273,6 +414,9 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Carregar contadores de todas as abas ao iniciar
+    loadTabCounts();
+    
     // Carregar pedidos da aba "Pronto para Preparar" ao carregar a página
     loadReadyToPrepareOrders();
     
@@ -290,6 +434,83 @@ document.addEventListener('DOMContentLoaded', function() {
         manualPrepareTab.addEventListener('shown.bs.tab', function() {
             loadManualPrepareOrders();
         });
+    }
+    
+    // Carregar pedidos da aba Entregues
+    const deliveredTab = document.getElementById('delivered-tab');
+    if (deliveredTab) {
+        deliveredTab.addEventListener('shown.bs.tab', function() {
+            loadDeliveredOrders();
+        });
+    }
+    
+    // Carregar pedidos da aba Pendentes
+    const pendingTab = document.getElementById('pending-tab');
+    if (pendingTab) {
+        pendingTab.addEventListener('shown.bs.tab', function() {
+            loadPendingOrders();
+        });
+    }
+    
+    // Carregar pedidos da aba Aguardando Envio
+    const waitingShipmentTab = document.getElementById('waiting-shipment-tab');
+    if (waitingShipmentTab) {
+        waitingShipmentTab.addEventListener('shown.bs.tab', function() {
+            loadWaitingShipmentOrders();
+        });
+    }
+    
+    // Carregar pedidos da aba Enviados
+    const shippedTab = document.getElementById('shipped-tab');
+    if (shippedTab) {
+        shippedTab.addEventListener('shown.bs.tab', function() {
+            loadShippedOrders();
+        });
+    }
+    
+    // Carregar pedidos da aba Cancelados
+    const cancelledTab = document.getElementById('cancelled-tab');
+    if (cancelledTab) {
+        cancelledTab.addEventListener('shown.bs.tab', function() {
+            loadCancelledOrders();
+        });
+    }
+    
+    // Carregar pedidos da aba Reembolsados
+    const refundedTab = document.getElementById('refunded-tab');
+    if (refundedTab) {
+        refundedTab.addEventListener('shown.bs.tab', function() {
+            loadRefundedOrders();
+        });
+    }
+    
+    // Função para carregar contadores de todas as abas
+    async function loadTabCounts() {
+        try {
+            // Buscar contadores do backend
+            const response = await fetch('/api/shipments/tab-counts');
+            
+            if (!response.ok) {
+                throw new Error('Erro ao carregar contadores');
+            }
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Atualizar contadores de cada aba
+                document.getElementById('pending-count').textContent = data.counts?.PENDING || 0;
+                document.getElementById('confirmed-count').textContent = data.counts?.CONFIRMED || 0;
+                document.getElementById('ready-to-prepare-count').textContent = data.counts?.PAID || 0;
+                document.getElementById('manual-prepare-count').textContent = data.counts?.READY_TO_PREPARE || 0;
+                document.getElementById('waiting-shipment-count').textContent = data.counts?.WAITING_SHIPMENT || 0;
+                document.getElementById('shipped-count').textContent = data.counts?.SHIPPED || 0;
+                document.getElementById('delivered-count').textContent = data.counts?.DELIVERED || 0;
+                document.getElementById('cancelled-count').textContent = data.counts?.CANCELLED || 0;
+                document.getElementById('refunded-count').textContent = data.counts?.REFUNDED || 0;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar contadores:', error);
+        }
     }
     
     async function loadReadyToPrepareOrders() {
@@ -337,18 +558,50 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Filtrar pedidos: status = PAID AND não foi enviado
+            // Filtrar pedidos: status = PAID AND não foi enviado, entregue, pendente ou em trânsito
             const filteredOrders = allOrders.filter(order => {
-                // Verificar se já foi enviado
-                const hasTracking = order.shipping_status && order.shipping_status === 'shipped';
-                const hasShippingDate = order.shipping_date;
+                const shippingStatus = order.shipping_details?.status || order.shipping_status;
+                const substatus = order.shipping_details?.substatus;
                 
                 // Não mostrar se já foi enviado
+                const hasTracking = order.shipping_status && order.shipping_status === 'shipped';
+                const hasShippingDate = order.shipping_date;
                 if (hasTracking || hasShippingDate) {
                     return false;
                 }
                 
-                // Mostrar apenas pedidos PAID
+                // Não mostrar se está em trânsito (prioridade alta)
+                if (shippingStatus === 'shipped' || shippingStatus === 'in_transit' || shippingStatus === 'out_for_delivery' || shippingStatus === 'soon_deliver') {
+                    return false;
+                }
+                
+                // Não mostrar se foi entregue
+                if (shippingStatus === 'delivered' || shippingStatus === 'inferred' || order.status === 'DELIVERED') {
+                    return false;
+                }
+                
+                // Não mostrar se está pendente (shipping_status = pending)
+                if (shippingStatus === 'pending' || order.status === 'PENDING') {
+                    return false;
+                }
+                
+                // Não mostrar se status do pedido é SHIPPED
+                if (order.status === 'SHIPPED') {
+                    return false;
+                }
+                
+                // NÃO mostrar pedidos prontos para envio (estes vão para "Aguardando Envio")
+                if (substatus === 'ready_to_ship' || 
+                    substatus === 'ready_to_print' ||
+                    substatus === 'printed' ||
+                    substatus === 'ready_to_pack' ||
+                    substatus === 'packed' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff') {
+                    return false;
+                }
+                
+                // Mostrar apenas pedidos PAID que NÃO estão prontos para envio
                 return order.status === 'PAID';
             });
             
@@ -424,6 +677,790 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
+    async function loadDeliveredOrders() {
+        const tbody = document.getElementById('delivered-orders');
+        if (!tbody) return;
+        
+        // Mostrar loading
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    Carregando pedidos...
+                </td>
+            </tr>
+        `;
+        
+        try {
+            let allOrders = [];
+            let page = 1;
+            let hasMore = true;
+            
+            // Buscar TODOS os pedidos com paginação
+            while (hasMore) {
+                const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar pedidos');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrders = allOrders.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                } else {
+                    hasMore = false;
+                }
+                
+                if (page > 10) {
+                    hasMore = false;
+                }
+            }
+            
+            // Filtrar pedidos: status = DELIVERED ou shipping_status com valores de entregue
+            const filteredOrders = allOrders.filter(order => {
+                const shippingStatus = order.shipping_details?.status || order.shipping_status;
+                
+                // Mostrar pedidos com status DELIVERED
+                if (order.status === 'DELIVERED') {
+                    return true;
+                }
+                
+                // Também mostrar se shipping_status indica entregue
+                if (shippingStatus === 'delivered' || shippingStatus === 'inferred') {
+                    return true;
+                }
+                
+                return false;
+            });
+            
+            if (filteredOrders.length > 0) {
+                renderDeliveredOrders(tbody, filteredOrders);
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            Nenhum pedido entregue encontrado.
+                        </td>
+                    </tr>
+                `;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar pedidos:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        Erro ao carregar pedidos. Tente novamente.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function renderDeliveredOrders(tbody, orders) {
+        // Salvar pedidos globalmente para acesso no modal
+        window.currentOrders = orders;
+        
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Nenhum pedido entregue encontrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = orders.map(order => {
+            const orderId = order.ml_order_id || order.order_id || '-';
+            const orderDate = order.date_created ? new Date(order.date_created).toLocaleDateString('pt-BR') : '-';
+            const orderTime = order.date_created ? new Date(order.date_created).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : '-';
+            const orderDateTime = `${orderDate} ${orderTime}`;
+            const totalAmount = order.total_amount ? `R$ ${parseFloat(order.total_amount).toFixed(2).replace('.', ',')}` : '-';
+            const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
+            
+            let shippingInfo = '';
+            if (order.shipping_details) {
+                const status = order.shipping_details.status;
+                const substatus = order.shipping_details.substatus;
+                const logistic = order.shipping_details.logistic;
+                const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                const statusHistory = order.shipping_details.status_history || {};
+                const dateDelivered = statusHistory.date_delivered;
+                
+                // Badge do tipo de envio
+                if (logisticType === 'fulfillment') {
+                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                } else if (logisticType === 'cross_docking') {
+                    shippingInfo = '<span class="badge bg-info">Cross Docking</span>';
+                } else if (logisticType === 'xd_drop_off' || logisticType === 'drop_off') {
+                    shippingInfo = '<span class="badge bg-secondary">Ponto de Coleta</span>';
+                } else if (logisticType === 'me2') {
+                    shippingInfo = '<span class="badge bg-warning">Mercado Envios</span>';
+                } else {
+                    shippingInfo = `<span class="badge bg-secondary">${logisticType || 'N/A'}</span>`;
+                }
+                
+                // Status de entrega
+                if (status === 'delivered' || dateDelivered) {
+                    shippingInfo += `<br><small class="text-success"><strong>✓ Entregue</strong></small>`;
+                    if (dateDelivered) {
+                        const deliveredDate = new Date(dateDelivered).toLocaleDateString('pt-BR');
+                        shippingInfo += `<br><small class="text-muted">📅 ${deliveredDate}</small>`;
+                    }
+                }
+            } else {
+                shippingInfo = '<span class="badge bg-secondary">N/A</span>';
+            }
+            
+            return `
+                <tr>
+                    <td>
+                        <strong>${orderId}</strong><br>
+                        <small class="text-muted">${orderDateTime}</small>
+                        ${order.invoice_emitted ? 
+                            `<br><span class="badge bg-success">NF: ${invoiceNumber}</span>` : 
+                            `<br><span class="badge bg-secondary">Sem NF</span>`
+                        }
+                    </td>
+                    <td>
+                        ${order.buyer_first_name || order.buyer_nickname || '-'}
+                        ${(() => {
+                            // Tentar destination primeiro (formato novo do ML)
+                            const dest = order.shipping_details?.destination;
+                            if (dest) {
+                                let html = '';
+                                if (dest.receiver_name) {
+                                    html += `<br><small class="text-muted">${dest.receiver_name}</small>`;
+                                }
+                                const shippingAddr = dest.shipping_address;
+                                if (shippingAddr && shippingAddr.address_line) {
+                                    html += `<br><small class="text-muted">${shippingAddr.address_line}</small>`;
+                                }
+                                const city = shippingAddr?.city?.name || shippingAddr?.city;
+                                const state = shippingAddr?.state?.name || shippingAddr?.state;
+                                if (city && state) {
+                                    html += `<br><small class="text-muted">${city} - ${state}</small>`;
+                                } else if (city) {
+                                    html += `<br><small class="text-muted">${city}</small>`;
+                                }
+                                return html;
+                            }
+                            const fallback = order.shipping_details?.receiver_address || order.shipping_address;
+                            if (fallback) {
+                                let html = '';
+                                if (fallback.receiver_name) {
+                                    html += `<br><small class="text-muted">${fallback.receiver_name}</small>`;
+                                }
+                                if (fallback.address_line) {
+                                    html += `<br><small class="text-muted">${fallback.address_line}</small>`;
+                                }
+                                const city = fallback.city?.name || fallback.city;
+                                const state = fallback.state?.name || fallback.state;
+                                if (city && state) {
+                                    html += `<br><small class="text-muted">${city} - ${state}</small>`;
+                                } else if (city) {
+                                    html += `<br><small class="text-muted">${city}</small>`;
+                                }
+                                return html;
+                            }
+                            return '';
+                        })()}
+                    </td>
+                    <td>${totalAmount}</td>
+                    <td>${shippingInfo}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Detalhes
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    async function loadPendingOrders() {
+        const tbody = document.getElementById('pending-orders');
+        if (!tbody) return;
+        
+        // Mostrar loading
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    Carregando pedidos...
+                </td>
+            </tr>
+        `;
+        
+        try {
+            let allOrders = [];
+            let page = 1;
+            let hasMore = true;
+            
+            // Buscar TODOS os pedidos com paginação
+            while (hasMore) {
+                const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar pedidos');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrders = allOrders.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                } else {
+                    hasMore = false;
+                }
+                
+                if (page > 10) {
+                    hasMore = false;
+                }
+            }
+            
+            // Filtrar pedidos: status = PAID AND shipping_status = pending (ou não tem shipping_status)
+            const filteredOrders = allOrders.filter(order => {
+                // Verificar shipping_status
+                const shippingStatus = order.shipping_details?.status || order.shipping_status;
+                
+                // Mostrar apenas pedidos com status PAID e shipping_status = pending
+                if (order.status === 'PAID' && (shippingStatus === 'pending' || !shippingStatus)) {
+                    return true;
+                }
+                
+                // Também mostrar pedidos com status PENDING
+                if (order.status === 'PENDING') {
+                    return true;
+                }
+                
+                return false;
+            });
+            
+            if (filteredOrders.length > 0) {
+                renderPendingOrders(tbody, filteredOrders);
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            Nenhum pedido pendente encontrado.
+                        </td>
+                    </tr>
+                `;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar pedidos:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        Erro ao carregar pedidos. Tente novamente.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function renderPendingOrders(tbody, orders) {
+        // Salvar pedidos globalmente para acesso no modal
+        window.currentOrders = orders;
+        
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Nenhum pedido pendente encontrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = orders.map(order => {
+            const orderId = order.ml_order_id || order.order_id || '-';
+            const orderDate = order.date_created ? new Date(order.date_created).toLocaleDateString('pt-BR') : '-';
+            const orderTime = order.date_created ? new Date(order.date_created).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : '-';
+            const orderDateTime = `${orderDate} ${orderTime}`;
+            const totalAmount = order.total_amount ? `R$ ${parseFloat(order.total_amount).toFixed(2).replace('.', ',')}` : '-';
+            const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
+            
+            let shippingInfo = '';
+            if (order.shipping_details) {
+                const status = order.shipping_details.status;
+                const logistic = order.shipping_details.logistic;
+                const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                const statusHistory = order.shipping_details.status_history || {};
+                const estimatedDelivery = order.shipping_details.shipping_option?.estimated_delivery_final?.date 
+                                       || order.shipping_details.shipping_option?.estimated_delivery_limit?.date
+                                       || order.shipping_details.estimated_delivery
+                                       || order.estimated_delivery_date;
+                
+                const deliveryDate = estimatedDelivery ? new Date(estimatedDelivery).toLocaleDateString('pt-BR') : null;
+                
+                // Badge do tipo de envio
+                if (logisticType === 'fulfillment') {
+                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                } else if (logisticType === 'cross_docking') {
+                    shippingInfo = '<span class="badge bg-info">Cross Docking</span>';
+                } else if (logisticType === 'xd_drop_off' || logisticType === 'drop_off') {
+                    shippingInfo = '<span class="badge bg-secondary">Ponto de Coleta</span>';
+                } else if (logisticType === 'me2') {
+                    shippingInfo = '<span class="badge bg-warning">Mercado Envios</span>';
+                } else {
+                    shippingInfo = `<span class="badge bg-secondary">${logisticType || 'N/A'}</span>`;
+                }
+                
+                // Status de envio
+                if (status === 'pending') {
+                    shippingInfo += `<br><small class="text-secondary">⏳ Pendente</small>`;
+                    if (deliveryDate) {
+                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
+                    }
+                } else if (status === 'ready_to_ship' || status === 'ready_to_print' || status === 'printed' || status === 'packed') {
+                    shippingInfo += `<br><small class="text-warning">📦 Pronto para Envio</small>`;
+                    if (deliveryDate) {
+                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
+                    }
+                } else {
+                    shippingInfo += `<br><small class="text-muted">${status}</small>`;
+                    if (deliveryDate) {
+                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
+                    }
+                }
+            } else {
+                shippingInfo = '<span class="badge bg-secondary">N/A</span>';
+            }
+            
+            return `
+                <tr>
+                    <td>
+                        <strong>${orderId}</strong><br>
+                        <small class="text-muted">${orderDateTime}</small>
+                        ${order.invoice_emitted ? 
+                            `<br><span class="badge bg-success">NF: ${invoiceNumber}</span>` : 
+                            `<br><span class="badge bg-secondary">Sem NF</span>`
+                        }
+                    </td>
+                    <td>
+                        ${order.buyer_first_name || order.buyer_nickname || '-'}
+                        ${(() => {
+                            const dest = order.shipping_details?.destination;
+                            if (dest) {
+                                let html = '';
+                                if (dest.receiver_name) {
+                                    html += `<br><small class="text-muted">${dest.receiver_name}</small>`;
+                                }
+                                const shippingAddr = dest.shipping_address;
+                                if (shippingAddr && shippingAddr.address_line) {
+                                    html += `<br><small class="text-muted">${shippingAddr.address_line}</small>`;
+                                }
+                                const city = shippingAddr?.city?.name || shippingAddr?.city;
+                                const state = shippingAddr?.state?.name || shippingAddr?.state;
+                                if (city && state) {
+                                    html += `<br><small class="text-muted">${city} - ${state}</small>`;
+                                } else if (city) {
+                                    html += `<br><small class="text-muted">${city}</small>`;
+                                }
+                                return html;
+                            }
+                            const fallback = order.shipping_details?.receiver_address || order.shipping_address;
+                            if (fallback) {
+                                let html = '';
+                                if (fallback.receiver_name) {
+                                    html += `<br><small class="text-muted">${fallback.receiver_name}</small>`;
+                                }
+                                if (fallback.address_line) {
+                                    html += `<br><small class="text-muted">${fallback.address_line}</small>`;
+                                }
+                                const city = fallback.city?.name || fallback.city;
+                                const state = fallback.state?.name || fallback.state;
+                                if (city && state) {
+                                    html += `<br><small class="text-muted">${city} - ${state}</small>`;
+                                } else if (city) {
+                                    html += `<br><small class="text-muted">${city}</small>`;
+                                }
+                                return html;
+                            }
+                            return '';
+                        })()}
+                    </td>
+                    <td>${totalAmount}</td>
+                    <td>${shippingInfo}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Detalhes
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    async function loadWaitingShipmentOrders() {
+        const tbody = document.getElementById('waiting-shipment-orders');
+        if (!tbody) return;
+        
+        // Mostrar loading
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    Carregando pedidos...
+                </td>
+            </tr>
+        `;
+        
+        try {
+            let allOrders = [];
+            let page = 1;
+            let hasMore = true;
+            
+            // Buscar TODOS os pedidos com paginação
+            while (hasMore) {
+                const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar pedidos');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrders = allOrders.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                } else {
+                    hasMore = false;
+                }
+                
+                if (page > 10) {
+                    hasMore = false;
+                }
+            }
+            
+            // Filtrar pedidos: status = PAID e READY_TO_SHIP (prontos para envio)
+            const filteredOrders = allOrders.filter(order => {
+                const shippingStatus = order.shipping_details?.status || order.shipping_status;
+                const substatus = order.shipping_details?.substatus;
+                
+                // Mostrar apenas pedidos com status PAID
+                if (order.status !== 'PAID') {
+                    return false;
+                }
+                
+                // Não mostrar se já foi enviado
+                if (shippingStatus === 'shipped' || 
+                    shippingStatus === 'in_transit' || 
+                    shippingStatus === 'out_for_delivery' || 
+                    shippingStatus === 'soon_deliver' ||
+                    order.status === 'SHIPPED') {
+                    return false;
+                }
+                
+                // Não mostrar se foi entregue
+                if (shippingStatus === 'delivered' || 
+                    shippingStatus === 'inferred' || 
+                    order.status === 'DELIVERED') {
+                    return false;
+                }
+                
+                // Não mostrar se está pendente
+                if (shippingStatus === 'pending' || order.status === 'PENDING') {
+                    return false;
+                }
+                
+                // Mostrar pedidos com substatus de ready_to_ship (prontos para envio)
+                if (substatus === 'ready_to_ship' || 
+                    substatus === 'ready_to_print' ||
+                    substatus === 'printed' ||
+                    substatus === 'ready_to_pack' ||
+                    substatus === 'packed' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff') {
+                    return true;
+                }
+                
+                // Mostrar pedidos sem shipping_status (prontos para envio)
+                if (!shippingStatus) {
+                    return true;
+                }
+                
+                return false;
+            });
+            
+            if (filteredOrders.length > 0) {
+                renderWaitingShipmentOrders(tbody, filteredOrders);
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            Nenhum pedido aguardando envio encontrado.
+                        </td>
+                    </tr>
+                `;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar pedidos:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        Erro ao carregar pedidos. Tente novamente.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function renderWaitingShipmentOrders(tbody, orders) {
+        // Salvar pedidos globalmente para acesso no modal
+        window.currentOrders = orders;
+        
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Nenhum pedido aguardando envio encontrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        // Reutilizar renderPendingOrders que já tem a estrutura correta
+        renderPendingOrders(tbody, orders);
+    }
+    
+    async function loadShippedOrders() {
+        const tbody = document.getElementById('shipped-orders');
+        if (!tbody) return;
+        
+        // Mostrar loading
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    Carregando pedidos...
+                </td>
+            </tr>
+        `;
+        
+        try {
+            let allOrders = [];
+            let page = 1;
+            let hasMore = true;
+            
+            // Buscar TODOS os pedidos com paginação
+            while (hasMore) {
+                const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar pedidos');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrders = allOrders.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                } else {
+                    hasMore = false;
+                }
+                
+                if (page > 10) {
+                    hasMore = false;
+                }
+            }
+            
+            // Filtrar pedidos: status = SHIPPED ou shipping_status com valores de em trânsito
+            const filteredOrders = allOrders.filter(order => {
+                const shippingStatus = order.shipping_details?.status || order.shipping_status;
+                
+                // Mostrar pedidos com status SHIPPED ou shipping_status indicando em trânsito
+                if (order.status === 'SHIPPED') {
+                    return true;
+                }
+                
+                // Também mostrar se shipping_status indica em trânsito
+                if (shippingStatus === 'shipped' || 
+                    shippingStatus === 'in_transit' || 
+                    shippingStatus === 'out_for_delivery' || 
+                    shippingStatus === 'soon_deliver') {
+                    return true;
+                }
+                
+                return false;
+            });
+            
+            if (filteredOrders.length > 0) {
+                renderShippedOrders(tbody, filteredOrders);
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            Nenhum pedido enviado encontrado.
+                        </td>
+                    </tr>
+                `;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar pedidos:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        Erro ao carregar pedidos. Tente novamente.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function renderShippedOrders(tbody, orders) {
+        // Salvar pedidos globalmente para acesso no modal
+        window.currentOrders = orders;
+        
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Nenhum pedido enviado encontrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = orders.map(order => {
+            const orderId = order.ml_order_id || order.order_id || '-';
+            const orderDate = order.date_created ? new Date(order.date_created).toLocaleDateString('pt-BR') : '-';
+            const orderTime = order.date_created ? new Date(order.date_created).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : '-';
+            const orderDateTime = `${orderDate} ${orderTime}`;
+            const totalAmount = order.total_amount ? `R$ ${parseFloat(order.total_amount).toFixed(2).replace('.', ',')}` : '-';
+            const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
+            
+            let shippingInfo = '';
+            if (order.shipping_details) {
+                const status = order.shipping_details.status;
+                const logistic = order.shipping_details.logistic;
+                const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                const statusHistory = order.shipping_details.status_history || {};
+                const dateShipped = statusHistory.date_shipped;
+                const estimatedDelivery = order.shipping_details.shipping_option?.estimated_delivery_final?.date 
+                                       || order.shipping_details.shipping_option?.estimated_delivery_limit?.date
+                                       || order.shipping_details.estimated_delivery
+                                       || order.estimated_delivery_date;
+                
+                const shippedDate = dateShipped ? new Date(dateShipped).toLocaleDateString('pt-BR') : null;
+                const deliveryDate = estimatedDelivery ? new Date(estimatedDelivery).toLocaleDateString('pt-BR') : null;
+                
+                // Badge do tipo de envio
+                if (logisticType === 'fulfillment') {
+                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                } else if (logisticType === 'cross_docking') {
+                    shippingInfo = '<span class="badge bg-info">Cross Docking</span>';
+                } else if (logisticType === 'xd_drop_off' || logisticType === 'drop_off') {
+                    shippingInfo = '<span class="badge bg-secondary">Ponto de Coleta</span>';
+                } else if (logisticType === 'me2') {
+                    shippingInfo = '<span class="badge bg-warning">Mercado Envios</span>';
+                } else {
+                    shippingInfo = `<span class="badge bg-secondary">${logisticType || 'N/A'}</span>`;
+                }
+                
+                // Status de envio - Mostrar como "Em Trânsito"
+                if (status === 'shipped' || status === 'in_transit' || status === 'out_for_delivery' || status === 'soon_deliver') {
+                    shippingInfo += `<br><small class="text-info">🚚 Em Trânsito</small>`;
+                    if (shippedDate) {
+                        shippingInfo += `<br><small class="text-muted">🚛 Enviado: ${shippedDate}</small>`;
+                    }
+                    if (deliveryDate) {
+                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
+                    }
+                } else {
+                    shippingInfo += `<br><small class="text-muted">${status}</small>`;
+                    if (deliveryDate) {
+                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
+                    }
+                }
+            } else {
+                shippingInfo = '<span class="badge bg-secondary">N/A</span>';
+            }
+            
+            return `
+                <tr>
+                    <td>
+                        <strong>${orderId}</strong><br>
+                        <small class="text-muted">${orderDateTime}</small>
+                        ${order.invoice_emitted ? 
+                            `<br><span class="badge bg-success">NF: ${invoiceNumber}</span>` : 
+                            `<br><span class="badge bg-secondary">Sem NF</span>`
+                        }
+                    </td>
+                    <td>
+                        ${order.buyer_first_name || order.buyer_nickname || '-'}
+                        ${(() => {
+                            const dest = order.shipping_details?.destination;
+                            if (dest) {
+                                let html = '';
+                                if (dest.receiver_name) {
+                                    html += `<br><small class="text-muted">${dest.receiver_name}</small>`;
+                                }
+                                const shippingAddr = dest.shipping_address;
+                                if (shippingAddr && shippingAddr.address_line) {
+                                    html += `<br><small class="text-muted">${shippingAddr.address_line}</small>`;
+                                }
+                                const city = shippingAddr?.city?.name || shippingAddr?.city;
+                                const state = shippingAddr?.state?.name || shippingAddr?.state;
+                                if (city && state) {
+                                    html += `<br><small class="text-muted">${city} - ${state}</small>`;
+                                } else if (city) {
+                                    html += `<br><small class="text-muted">${city}</small>`;
+                                }
+                                return html;
+                            }
+                            const fallback = order.shipping_details?.receiver_address || order.shipping_address;
+                            if (fallback) {
+                                let html = '';
+                                if (fallback.receiver_name) {
+                                    html += `<br><small class="text-muted">${fallback.receiver_name}</small>`;
+                                }
+                                if (fallback.address_line) {
+                                    html += `<br><small class="text-muted">${fallback.address_line}</small>`;
+                                }
+                                const city = fallback.city?.name || fallback.city;
+                                const state = fallback.state?.name || fallback.state;
+                                if (city && state) {
+                                    html += `<br><small class="text-muted">${city} - ${state}</small>`;
+                                } else if (city) {
+                                    html += `<br><small class="text-muted">${city}</small>`;
+                                }
+                                return html;
+                            }
+                            return '';
+                        })()}
+                    </td>
+                    <td>${totalAmount}</td>
+                    <td>${shippingInfo}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Detalhes
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
     function renderManualOrders(tbody, orders) {
         if (!orders || orders.length === 0) {
             tbody.innerHTML = `
@@ -453,6 +1490,222 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>
                         <button class="btn btn-sm btn-primary" onclick="syncOrder('${orderId}')">
                             <i class="bi bi-arrow-clockwise"></i> Sincronizar
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    async function loadCancelledOrders() {
+        const tbody = document.getElementById('cancelled-orders');
+        if (!tbody) return;
+        
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    Carregando pedidos...
+                </td>
+            </tr>
+        `;
+        
+        try {
+            let allOrders = [];
+            let page = 1;
+            let hasMore = true;
+            
+            while (hasMore) {
+                const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                if (!response.ok) throw new Error('Erro ao carregar pedidos');
+                
+                const data = await response.json();
+                
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrders = allOrders.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                } else {
+                    hasMore = false;
+                }
+                
+                if (page > 10) hasMore = false;
+            }
+            
+            const filteredOrders = allOrders.filter(order => {
+                return order.status === 'CANCELLED' || order.status === 'PENDING_CANCEL';
+            });
+            
+            if (filteredOrders.length > 0) {
+                renderCancelledOrders(tbody, filteredOrders);
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            Nenhum pedido cancelado encontrado.
+                        </td>
+                    </tr>
+                `;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar pedidos:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        Erro ao carregar pedidos. Tente novamente.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function renderCancelledOrders(tbody, orders) {
+        window.currentOrders = orders;
+        
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Nenhum pedido cancelado encontrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = orders.map(order => {
+            const orderId = order.ml_order_id || order.order_id || '-';
+            const orderDate = order.date_created ? new Date(order.date_created).toLocaleDateString('pt-BR') : '-';
+            const orderTime = order.date_created ? new Date(order.date_created).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : '-';
+            const orderDateTime = `${orderDate} ${orderTime}`;
+            const totalAmount = order.total_amount ? `R$ ${parseFloat(order.total_amount).toFixed(2).replace('.', ',')}` : '-';
+            
+            const statusBadge = order.status === 'CANCELLED' ? 
+                '<span class="badge bg-danger">Cancelado</span>' : 
+                '<span class="badge bg-warning">Pendente Cancelamento</span>';
+            
+            return `
+                <tr>
+                    <td>
+                        <strong>${orderId}</strong><br>
+                        <small class="text-muted">${orderDateTime}</small>
+                    </td>
+                    <td>${order.buyer_first_name || order.buyer_nickname || '-'}</td>
+                    <td>${totalAmount}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Detalhes
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    async function loadRefundedOrders() {
+        const tbody = document.getElementById('refunded-orders');
+        if (!tbody) return;
+        
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    Carregando pedidos...
+                </td>
+            </tr>
+        `;
+        
+        try {
+            let allOrders = [];
+            let page = 1;
+            let hasMore = true;
+            
+            while (hasMore) {
+                const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                if (!response.ok) throw new Error('Erro ao carregar pedidos');
+                
+                const data = await response.json();
+                
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrders = allOrders.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                } else {
+                    hasMore = false;
+                }
+                
+                if (page > 10) hasMore = false;
+            }
+            
+            const filteredOrders = allOrders.filter(order => {
+                return order.status === 'REFUNDED' || order.status === 'PARTIALLY_REFUNDED';
+            });
+            
+            if (filteredOrders.length > 0) {
+                renderRefundedOrders(tbody, filteredOrders);
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            Nenhum pedido reembolsado encontrado.
+                        </td>
+                    </tr>
+                `;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar pedidos:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        Erro ao carregar pedidos. Tente novamente.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function renderRefundedOrders(tbody, orders) {
+        window.currentOrders = orders;
+        
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Nenhum pedido reembolsado encontrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = orders.map(order => {
+            const orderId = order.ml_order_id || order.order_id || '-';
+            const orderDate = order.date_created ? new Date(order.date_created).toLocaleDateString('pt-BR') : '-';
+            const orderTime = order.date_created ? new Date(order.date_created).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : '-';
+            const orderDateTime = `${orderDate} ${orderTime}`;
+            const totalAmount = order.total_amount ? `R$ ${parseFloat(order.total_amount).toFixed(2).replace('.', ',')}` : '-';
+            
+            const statusBadge = order.status === 'REFUNDED' ? 
+                '<span class="badge bg-danger">Reembolsado</span>' : 
+                '<span class="badge bg-warning">Parcialmente Reembolsado</span>';
+            
+            return `
+                <tr>
+                    <td>
+                        <strong>${orderId}</strong><br>
+                        <small class="text-muted">${orderDateTime}</small>
+                    </td>
+                    <td>${order.buyer_first_name || order.buyer_nickname || '-'}</td>
+                    <td>${totalAmount}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Detalhes
                         </button>
                     </td>
                 </tr>
@@ -696,12 +1949,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
         const orderIds = Array.from(selectedCheckboxes).map(cb => cb.value);
         
-        if (orderIds.length === 0) {
-            alert('Selecione pelo menos um pedido para atualizar.');
-            return;
-        }
+        console.log('🔄 [FRONTEND] Iniciando atualização de pedidos selecionados');
+        console.log(`📋 [FRONTEND] Pedidos selecionados: ${orderIds.length}`);
+        console.log(`📋 [FRONTEND] IDs: ${orderIds.join(', ')}`);
         
-        if (!confirm(`Deseja atualizar ${orderIds.length} pedido(s)?\n\nIsso irá sincronizar o tipo de envio e status com o Mercado Livre.`)) {
+        if (orderIds.length === 0) {
+            console.warn('⚠️ [FRONTEND] Nenhum pedido selecionado');
             return;
         }
         
@@ -709,6 +1962,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const originalText = updateButton.innerHTML;
         updateButton.disabled = true;
         updateButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Atualizando...';
+        
+        // Criar AbortController para timeout de 5 minutos
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutos
+        
+        console.log('📡 [FRONTEND] Enviando requisição POST para /api/shipments/bulk-update');
         
         // Fazer requisição para atualizar os pedidos
         fetch('/api/shipments/bulk-update', {
@@ -718,32 +1977,50 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 order_ids: orderIds
-            })
+            }),
+            signal: controller.signal
         })
         .then(response => {
+            console.log(`📡 [FRONTEND] Resposta recebida: status=${response.status}`);
+            clearTimeout(timeoutId);
+            
             if (!response.ok) {
-                throw new Error('Erro ao atualizar pedidos');
+                return response.text().then(text => {
+                    console.error(`❌ [FRONTEND] Erro na resposta HTTP: status=${response.status}, body=${text}`);
+                    throw new Error(`Erro HTTP ${response.status}: ${text}`);
+                });
             }
             return response.json();
         })
         .then(data => {
+            console.log('✅ [FRONTEND] Dados recebidos:', data);
+            
             if (data.success) {
-                alert(`✅ ${data.updated || 0} pedido(s) atualizado(s) com sucesso!`);
+                console.log(`✅ [FRONTEND] ${data.success_count || 0} pedido(s) atualizado(s) com sucesso, ${data.failure_count || 0} falharam`);
+                console.log('🔄 [FRONTEND] Recarregando lista de pedidos...');
+                
                 // Recarregar a lista
                 loadReadyToPrepareOrders();
+                
                 // Desmarcar todos os checkboxes
                 document.querySelectorAll('.order-checkbox').forEach(cb => cb.checked = false);
                 document.getElementById('select-all-orders').checked = false;
                 updateSelectedCount();
+                
+                console.log('✅ [FRONTEND] Atualização concluída com sucesso');
             } else {
+                console.error('❌ [FRONTEND] Resposta indicou erro:', data.error);
                 throw new Error(data.error || 'Erro ao atualizar pedidos');
             }
         })
         .catch(error => {
-            console.error('Erro ao atualizar pedidos:', error);
-            alert('❌ Erro ao atualizar pedidos. Tente novamente.');
+            console.error('❌ [FRONTEND] Erro ao atualizar pedidos:', error);
+            if (error.name === 'AbortError') {
+                console.error('❌ [FRONTEND] Timeout na requisição (5 minutos)');
+            }
         })
         .finally(() => {
+            console.log('🏁 [FRONTEND] Finalizando atualização');
             updateButton.disabled = false;
             updateButton.innerHTML = originalText;
         });
