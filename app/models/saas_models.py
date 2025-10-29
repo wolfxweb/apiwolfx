@@ -535,11 +535,16 @@ class OrderStatus(enum.Enum):
     """Status do pedido"""
     PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
+    READY_TO_PREPARE = "READY_TO_PREPARE"  # Status manual - pedidos que precisam ser preparados manualmente
     PAID = "PAID"
+    PARTIALLY_PAID = "PARTIALLY_PAID"
     SHIPPED = "SHIPPED"
     DELIVERED = "DELIVERED"
     CANCELLED = "CANCELLED"
+    PENDING_CANCEL = "PENDING_CANCEL"
     REFUNDED = "REFUNDED"
+    PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED"
+    INVALID = "INVALID"
 
 class MLOrder(Base):
     """Modelo de Pedidos do Mercado Libre - Completo"""

@@ -17,76 +17,144 @@ class ShipmentController:
         self.service = ShipmentService(db)
 
     def list_pending_shipments(self, company_id: int, search: str = "", invoice_status: str = "", 
-                               page: int = 1, limit: int = 100) -> Dict:
+                               status: str = "", page: int = 1, limit: int = 100) -> Dict:
         """
         Lista pedidos para expedição com paginação
         Retorna pedidos paginados (todos os status) para exibir em todas as abas
         """
         try:
-            # Buscar TODOS os pedidos (todos os status)
-            query = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id
-            )
+            from sqlalchemy import text
+            
+            # Construir query SQL com filtros dinâmicos
+            sql = """
+                SELECT 
+                    ml_orders.*,
+                    ml_orders.ml_order_id,
+                    ml_orders.order_id,
+                    ml_orders.buyer_first_name,
+                    ml_orders.buyer_nickname,
+                    ml_orders.total_amount,
+                    ml_orders.status,
+                    ml_orders.date_created,
+                    ml_orders.invoice_emitted,
+                    ml_orders.invoice_number,
+                    ml_orders.invoice_series,
+                    ml_orders.invoice_key,
+                    ml_orders.invoice_pdf_url,
+                    ml_orders.invoice_xml_url,
+                    ml_orders.pack_id,
+                    ml_orders.shipping_type,
+                    ml_orders.shipping_details,
+                    ml_orders.payments,
+                    ml_orders.order_items,
+                    ml_orders.shipping_address,
+                    ml_orders.shipping_id,
+                    ml_orders.shipping_status,
+                    ml_orders.shipping_method,
+                    ml_orders.shipping_date,
+                    ml_orders.estimated_delivery_date
+                FROM ml_orders
+                WHERE ml_orders.company_id = :company_id
+            """
+            
+            params = {"company_id": company_id}
             
             # Aplicar filtro de busca
             if search:
-                search_term = f"%{search}%"
-                query = query.filter(
-                    (MLOrder.ml_order_id.cast(String).ilike(search_term)) |
-                    (MLOrder.order_id.ilike(search_term)) |
-                    (MLOrder.buyer_nickname.ilike(search_term)) |
-                    (MLOrder.buyer_first_name.ilike(search_term))
-                )
+                sql += """
+                    AND (
+                        CAST(ml_order_id AS VARCHAR) ILIKE :search
+                        OR order_id ILIKE :search
+                        OR buyer_nickname ILIKE :search
+                        OR buyer_first_name ILIKE :search
+                    )
+                """
+                params["search"] = f"%{search}%"
             
             # Aplicar filtro de status da nota fiscal
             if invoice_status == "emitted":
-                query = query.filter(MLOrder.invoice_emitted == True)
+                sql += " AND invoice_emitted = true"
             elif invoice_status == "pending":
-                query = query.filter(MLOrder.invoice_emitted == False)
+                sql += " AND invoice_emitted = false"
             
-            # Calcular offset
+            # Aplicar filtro de status do pedido
+            if status:
+                if status == "READY_TO_PREPARE":
+                    sql += " AND status = 'READY_TO_PREPARE'"
+                else:
+                    sql += f" AND status = :status_filter"
+                    params["status_filter"] = status
+            
+            # Contar total
+            count_sql = f"SELECT COUNT(*) as total FROM ({sql}) as filtered_orders"
+            count_result = self.db.execute(text(count_sql), params).first()
+            total_count = count_result[0] if count_result else 0
+            
+            # Aplicar paginação
             offset = (page - 1) * limit
-            
-            # Contar total de registros
-            total_count = query.count()
-            
-            # Buscar com paginação
-            orders = query.order_by(MLOrder.date_created.desc()).offset(offset).limit(limit).all()
+            sql += " ORDER BY date_created DESC OFFSET :offset LIMIT :limit"
+            params["offset"] = offset
+            params["limit"] = limit
             
             # Calcular total de páginas
             total_pages = (total_count + limit - 1) // limit if total_count > 0 else 0
             
+            # Executar query
+            results = self.db.execute(text(sql), params)
+            
             result = []
-            for order in orders:
+            for row in results:
                 # Converter status para string - garantir que seja maiúsculo
-                if order.status and hasattr(order.status, 'value'):
-                    status_str = str(order.status.value).upper()
-                elif order.status:
-                    status_str = str(order.status).upper()
+                status_value = row.status
+                if status_value:
+                    status_str = str(status_value).upper()
                 else:
                     status_str = None
                 
-                result.append({
-                    "id": order.id,
-                    "order_id": order.order_id,
-                    "ml_order_id": order.ml_order_id,
-                    "buyer_name": order.buyer_first_name,
-                    "buyer_nickname": order.buyer_nickname,
-                    "total_amount": float(order.total_amount) if order.total_amount else 0,
+                # Converter datetime para ISO string
+                date_created = row.date_created
+                if date_created and hasattr(date_created, 'isoformat'):
+                    date_created_str = date_created.isoformat()
+                else:
+                    date_created_str = str(date_created) if date_created else None
+                
+                # Converter shipping_details para dict se necessário
+                shipping_details_data = None
+                if row.shipping_details:
+                    import json
+                    if isinstance(row.shipping_details, dict):
+                        shipping_details_data = row.shipping_details
+                    elif isinstance(row.shipping_details, str):
+                        try:
+                            shipping_details_data = json.loads(row.shipping_details)
+                        except:
+                            shipping_details_data = row.shipping_details
+                
+                order_dict = {
+                    "id": row.id,
+                    "order_id": row.order_id,
+                    "ml_order_id": row.ml_order_id,
+                    "buyer_name": row.buyer_first_name,
+                    "buyer_nickname": row.buyer_nickname,
+                    "total_amount": float(row.total_amount) if row.total_amount else 0,
+                    "paid_amount": float(row.paid_amount) if row.paid_amount else 0,
                     "status": status_str,
-                    "date_created": order.date_created.isoformat() if order.date_created else None,
-                    "invoice_emitted": order.invoice_emitted if order.invoice_emitted else False,
-                    "invoice_number": order.invoice_number if order.invoice_number else None,
-                    "invoice_series": order.invoice_series if order.invoice_series else None,
-                    "invoice_key": order.invoice_key if order.invoice_key else None,
-                    "invoice_pdf_url": order.invoice_pdf_url if order.invoice_pdf_url else None,
-                    "invoice_xml_url": order.invoice_xml_url if order.invoice_xml_url else None,
-                        "pack_id": order.pack_id,
-                        "shipping_id": order.shipping_id,
-                        "shipping_type": order.shipping_type if order.shipping_type else None,
-                        "shipping_date": order.shipping_date.isoformat() if order.shipping_date else None,
-                        "estimated_delivery_date": order.estimated_delivery_date.isoformat() if order.estimated_delivery_date else None
-                })
+                    "date_created": date_created_str,
+                    "invoice_emitted": row.invoice_emitted if row.invoice_emitted else False,
+                    "invoice_number": row.invoice_number if row.invoice_number else None,
+                    "invoice_series": row.invoice_series if row.invoice_series else None,
+                    "invoice_key": row.invoice_key if row.invoice_key else None,
+                    "invoice_pdf_url": row.invoice_pdf_url if row.invoice_pdf_url else None,
+                    "invoice_xml_url": row.invoice_xml_url if row.invoice_xml_url else None,
+                    "pack_id": row.pack_id if row.pack_id else None,
+                    # Campos JSON completos (shipping_details já tem todas as informações de envio)
+                    "shipping_details": shipping_details_data,
+                    "payments": row.payments if row.payments else None,
+                    "order_items": row.order_items if row.order_items else None,
+                    "shipping_address": row.shipping_address if row.shipping_address else None
+                }
+                
+                result.append(order_dict)
             
             return {
                 "success": True,

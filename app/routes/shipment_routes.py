@@ -38,6 +38,7 @@ async def list_pending_shipments(
     request: Request,
     search: Optional[str] = Query(""),
     invoice_status: Optional[str] = Query(""),
+    status: Optional[str] = Query(""),
     page: Optional[int] = Query(1, ge=1),
     limit: Optional[int] = Query(100, ge=1, le=5000),
     session_token: Optional[str] = Cookie(None),
@@ -60,6 +61,7 @@ async def list_pending_shipments(
             company_id, 
             search=search, 
             invoice_status=invoice_status,
+            status=status,
             page=page,
             limit=limit
         )
@@ -156,6 +158,88 @@ async def sync_single_order_invoice(
         result = controller.sync_single_order_invoice(order_id, company_id, access_token)
         
         return JSONResponse(content=result)
+        
+    except Exception as e:
+        return JSONResponse(content={
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@router.post("/bulk-update")
+async def bulk_update_orders(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Atualiza múltiplos pedidos em lote"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info("🔄 [BULK UPDATE] Recebida requisição de atualização em lote")
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Obter dados da requisição
+        body = await request.json()
+        order_ids = body.get("order_ids", [])
+        
+        logger.info(f"📋 [BULK UPDATE] Recebidos {len(order_ids)} pedidos para atualizar: {order_ids}")
+        
+        if not order_ids:
+            return JSONResponse(content={"error": "Nenhum pedido selecionado"}, status_code=400)
+        
+        # Buscar token de acesso usando TokenManager
+        token_manager = TokenManager(db)
+        
+        # Buscar um usuário ativo da empresa
+        from app.models.saas_models import User
+        user_db = db.query(User).filter(
+            User.company_id == company_id,
+            User.is_active == True
+        ).first()
+        
+        if not user_db:
+            return JSONResponse(content={"error": "Nenhum usuário ativo encontrado para esta empresa"}, status_code=404)
+        
+        access_token = token_manager.get_valid_token(user_db.id)
+        
+        if not access_token:
+            return JSONResponse(content={"error": "Token de acesso inválido ou expirado"}, status_code=401)
+        
+        controller = ShipmentController(db)
+        
+        # Processar cada pedido
+        results = []
+        for order_id in order_ids:
+            try:
+                result = controller.sync_single_order_invoice(order_id, company_id, access_token)
+                results.append(result)
+                logger.info(f"✅ Result for order {order_id}: success={result.get('success')}, error={result.get('error')}, message={result.get('message')}")
+            except Exception as e:
+                logger.error(f"❌ Error processing order {order_id}: {e}")
+                results.append({"success": False, "error": str(e)})
+        
+        # Contar sucessos e falhas
+        success_count = sum(1 for r in results if r.get("success"))
+        failure_count = len(results) - success_count
+        
+        logger.info(f"📊 Total: {len(results)}, Success: {success_count}, Failure: {failure_count}")
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": f"Atualizados {success_count} pedidos com sucesso, {failure_count} falharam",
+            "total": len(order_ids),
+            "success_count": success_count,
+            "failure_count": failure_count,
+            "results": results
+        })
         
     except Exception as e:
         return JSONResponse(content={
