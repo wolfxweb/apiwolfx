@@ -16,20 +16,34 @@
                     <!-- Filtros rápidos acima da listagem de pedidos -->
                     <form id="filter-form" class="row g-2 align-items-end">
                         <div class="col-auto">
-                            <label for="filter-order-id" class="form-label mb-0 small">Código do Pedido</label>
-                            <input type="text" class="form-control" id="filter-order-id" placeholder="Ex: 2000012345678">
+                            <label for="filter-period" class="form-label mb-0 small">Período</label>
+                            <select class="form-select" id="filter-period">
+                                <option value="">Todos</option>
+                                <option value="15_days">Últimos 15 dias</option>
+                                <option value="30_days">Últimos 30 dias</option>
+                                <option value="today">Hoje</option>
+                                <option value="week">Esta Semana</option>
+                                <option value="month">Este Mês</option>
+                                <option value="last_month">Mês Passado</option>
+                                <option value="custom">Personalizado</option>
+                            </select>
                         </div>
                         <div class="col-auto">
+                            <label for="filter-customer" class="form-label mb-0 small">Buscar</label>
+                            <input type="text" class="form-control" id="filter-customer" placeholder="Nome do cliente ou código do pedido" style="min-width: 280px;">
+                        </div>
+                        <div class="col-auto" id="custom-dates" style="display: none;">
                             <label for="filter-start-date" class="form-label mb-0 small">Data Inicial</label>
                             <input type="date" class="form-control" id="filter-start-date">
                         </div>
-                        <div class="col-auto">
+                        <div class="col-auto" id="custom-dates-end" style="display: none;">
                             <label for="filter-end-date" class="form-label mb-0 small">Data Final</label>
                             <input type="date" class="form-control" id="filter-end-date">
                         </div>
                         <div class="col-auto">
-                            <button type="submit" class="btn btn-primary">Filtrar</button>
-                            <button type="button" class="btn btn-secondary" id="clear-filters">Limpar</button>
+                            <button type="button" class="btn btn-outline-secondary" id="clear-filters">
+                                <i class="bi bi-x-circle"></i> Limpar
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -401,6 +415,10 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Variável global para armazenar todos os pedidos carregados
+    let allOrdersLoaded = [];
+    let ordersLoaded = false;
+
     // Carregar contadores de todas as abas ao iniciar
     loadTabCounts();
     // Garantir que o contador "Pronto para Preparar" use exatamente o mesmo filtro da tabela
@@ -520,47 +538,127 @@ document.addEventListener('DOMContentLoaded', function() {
         return false;
     }
     
-    // Antes das funções de load e logo após filtros (após o </form>)
-    document.getElementById('filter-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        loadReadyToPrepareOrders(1); // reusa para todas as abas (pode adaptá-las tbm se quiser)
+    // Listener para mudança de período - preencher datas automaticamente
+    document.getElementById('filter-period').addEventListener('change', function() {
+        const period = this.value;
+        const startDateInput = document.getElementById('filter-start-date');
+        const endDateInput = document.getElementById('filter-end-date');
+        const customDatesContainer = document.getElementById('custom-dates');
+        const customDatesEndContainer = document.getElementById('custom-dates-end');
+        
+        const today = new Date();
+        const formatDate = (date) => date.toISOString().split('T')[0];
+        
+        if (period === 'custom') {
+            customDatesContainer.style.display = 'block';
+            customDatesEndContainer.style.display = 'block';
+        } else {
+            customDatesContainer.style.display = 'none';
+            customDatesEndContainer.style.display = 'none';
+            
+            if (period === '15_days') {
+                const fifteenDaysAgo = new Date(today);
+                fifteenDaysAgo.setDate(today.getDate() - 15);
+                startDateInput.value = formatDate(fifteenDaysAgo);
+                endDateInput.value = formatDate(today);
+            } else if (period === '30_days') {
+                const thirtyDaysAgo = new Date(today);
+                thirtyDaysAgo.setDate(today.getDate() - 30);
+                startDateInput.value = formatDate(thirtyDaysAgo);
+                endDateInput.value = formatDate(today);
+            } else if (period === 'today') {
+                startDateInput.value = formatDate(today);
+                endDateInput.value = formatDate(today);
+            } else if (period === 'week') {
+                const weekStart = new Date(today);
+                weekStart.setDate(today.getDate() - today.getDay());
+                startDateInput.value = formatDate(weekStart);
+                endDateInput.value = formatDate(today);
+            } else if (period === 'month') {
+                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                startDateInput.value = formatDate(monthStart);
+                endDateInput.value = formatDate(today);
+            } else if (period === 'last_month') {
+                const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                startDateInput.value = formatDate(lastMonthStart);
+                endDateInput.value = formatDate(lastMonthEnd);
+            } else {
+                // Todos
+                startDateInput.value = '';
+                endDateInput.value = '';
+            }
+            
+            // Aplicar filtros automaticamente ao mudar período
+            if (ordersLoaded) {
+                applyFiltersToLoadedOrders();
+            } else {
+                loadReadyToPrepareOrders(1);
+            }
+        }
+    });
+    
+    // Listener para buscar cliente ao digitar (debounce)
+    let customerSearchTimeout;
+    document.getElementById('filter-customer').addEventListener('input', function() {
+        clearTimeout(customerSearchTimeout);
+        customerSearchTimeout = setTimeout(() => {
+            if (ordersLoaded) {
+                applyFiltersToLoadedOrders();
+            } else {
+                loadReadyToPrepareOrders(1);
+            }
+        }, 500); // Aguarda 500ms após parar de digitar
     });
     
     // Botão Limpar filtros
     document.getElementById('clear-filters').addEventListener('click', function() {
-        document.getElementById('filter-order-id').value = '';
+        document.getElementById('filter-period').value = '';
+        document.getElementById('filter-customer').value = '';
         document.getElementById('filter-start-date').value = '';
         document.getElementById('filter-end-date').value = '';
-        loadReadyToPrepareOrders(1);
+        document.getElementById('custom-dates').style.display = 'none';
+        document.getElementById('custom-dates-end').style.display = 'none';
+        if (ordersLoaded) {
+            applyFiltersToLoadedOrders();
+        } else {
+            loadReadyToPrepareOrders(1);
+        }
     });
 
     // Modifique a loadReadyToPrepareOrders para aceitar página e ler filtros:
     async function loadReadyToPrepareOrders(page = 1) {
+        // Se ainda não carregou todos os pedidos, carregar agora (sem filtros do servidor)
+        if (!ordersLoaded) {
+            await loadAllOrdersOnce();
+        }
+        
+        // Aplicar filtros localmente
+        applyFiltersToLoadedOrders();
+    }
+
+    // Carregar todos os pedidos UMA VEZ (sem filtros) e armazenar globalmente
+    async function loadAllOrdersOnce() {
+        if (ordersLoaded) return; // Já carregou
+        
         const tbody = document.getElementById('ready-to-prepare-orders');
         if (!tbody) return;
         tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted"><div class="spinner-border spinner-border-sm" role="status"></div> Carregando pedidos...</td></tr>`;
         let hasMore = true;
-        let allOrders = [];
+        let page = 1;
         const limit = 1000;
+        
+        // Resetar array para evitar duplicações
+        allOrdersLoaded = [];
 
-        // Coletar filtros do formulário
-        const orderId = document.getElementById('filter-order-id').value.trim();
-        const startDate = document.getElementById('filter-start-date').value;
-        const endDate = document.getElementById('filter-end-date').value;
-
-        // Montar string de query
-        let query = `?page=${page}&limit=${limit}`;
-        if (orderId) query += `&search=${encodeURIComponent(orderId)}`;
-        if (startDate) query += `&start_date=${encodeURIComponent(startDate)}`;
-        if (endDate) query += `&end_date=${encodeURIComponent(endDate)}`;
-
+        // Buscar TODOS os pedidos (SEM filtros)
         while (hasMore) {
-            const response = await fetch(`/api/shipments/pending${query}`);
+            const response = await fetch(`/api/shipments/pending?page=${page}&limit=${limit}`);
             if (handle401Error(response)) return;
             if (!response.ok) throw new Error('Erro ao carregar pedidos');
-        const data = await response.json();
+            const data = await response.json();
             if (data.success && data.orders && data.orders.length > 0) {
-                allOrders = allOrders.concat(data.orders);
+                allOrdersLoaded = allOrdersLoaded.concat(data.orders);
                 hasMore = data.total_pages > page;
                 page++;
             } else {
@@ -568,8 +666,53 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (page > 10) hasMore = false;
         }
+        ordersLoaded = true;
+    }
+
+    // Aplicar filtros localmente nos pedidos já carregados
+    function applyFiltersToLoadedOrders() {
+        const tbody = document.getElementById('ready-to-prepare-orders');
+        if (!tbody) return;
         
-        const filteredOrders = filterReadyToPrepareOrders(allOrders); // Mantém o filtro de lógica do frontend
+        // Coletar filtros do formulário
+        const customerName = document.getElementById('filter-customer').value.trim();
+        const startDate = document.getElementById('filter-start-date').value;
+        const endDate = document.getElementById('filter-end-date').value;
+
+        let filteredOrders = [...allOrdersLoaded];
+
+        // Aplicar filtro de busca (cliente ou código pedido)
+        if (customerName) {
+            const searchLower = customerName.toLowerCase();
+            filteredOrders = filteredOrders.filter(order => {
+                const orderId = String(order.order_id || '');
+                const mlOrderId = String(order.ml_order_id || '');
+                const nickname = String(order.buyer_nickname || '').toLowerCase();
+                const firstName = String(order.buyer_first_name || '').toLowerCase();
+                return orderId.includes(searchLower) || 
+                       mlOrderId.includes(searchLower) || 
+                       nickname.includes(searchLower) || 
+                       firstName.includes(searchLower);
+            });
+        }
+
+        // Aplicar filtro de data
+        if (startDate) {
+            filteredOrders = filteredOrders.filter(order => {
+                const orderDate = new Date(order.date_created).toISOString().split('T')[0];
+                return orderDate >= startDate;
+            });
+        }
+        if (endDate) {
+            filteredOrders = filteredOrders.filter(order => {
+                const orderDate = new Date(order.date_created).toISOString().split('T')[0];
+                return orderDate <= endDate;
+            });
+        }
+
+        // Aplicar filtro lógico da aba (Pronto para Preparar, etc)
+        filteredOrders = filterReadyToPrepareOrders(filteredOrders);
+
         const badge = document.getElementById('ready-to-prepare-count');
         if (badge) badge.textContent = filteredOrders.length;
 
@@ -632,26 +775,50 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apenas recalcula a contagem no frontend (sem renderizar a tabela)
     async function loadReadyToPrepareCountOnly() {
         try {
-            let page = 1;
-            const limit = 100;
-            let hasMore = true;
-            let allOrders = [];
-            
-            while (hasMore) {
-                const response = await fetch(`/api/shipments/pending?status=ALL&page=${page}&limit=${limit}`);
-                if (handle401Error(response)) return;
-                if (!response.ok) throw new Error('Erro ao carregar pedidos');
-                const data = await response.json();
-                if (data.success && data.orders && data.orders.length > 0) {
-                    allOrders = allOrders.concat(data.orders);
-                    hasMore = data.total_pages > page;
-                    page++;
-                } else {
-                    hasMore = false;
-                }
-                if (page > 10) hasMore = false; // limite de segurança
+            // Se ainda não carregou todos os pedidos, carregar agora
+            if (!ordersLoaded) {
+                await loadAllOrdersOnce();
             }
-            const filteredOrders = filterReadyToPrepareOrders(allOrders);
+            
+            // Aplicar filtros localmente para contar
+            const customerName = document.getElementById('filter-customer').value.trim();
+            const startDate = document.getElementById('filter-start-date').value;
+            const endDate = document.getElementById('filter-end-date').value;
+
+            let filteredOrders = [...allOrdersLoaded];
+
+            // Aplicar filtro de busca
+            if (customerName) {
+                const searchLower = customerName.toLowerCase();
+                filteredOrders = filteredOrders.filter(order => {
+                    const orderId = String(order.order_id || '');
+                    const mlOrderId = String(order.ml_order_id || '');
+                    const nickname = String(order.buyer_nickname || '').toLowerCase();
+                    const firstName = String(order.buyer_first_name || '').toLowerCase();
+                    return orderId.includes(searchLower) || 
+                           mlOrderId.includes(searchLower) || 
+                           nickname.includes(searchLower) || 
+                           firstName.includes(searchLower);
+                });
+            }
+
+            // Aplicar filtro de data
+            if (startDate) {
+                filteredOrders = filteredOrders.filter(order => {
+                    const orderDate = new Date(order.date_created).toISOString().split('T')[0];
+                    return orderDate >= startDate;
+                });
+            }
+            if (endDate) {
+                filteredOrders = filteredOrders.filter(order => {
+                    const orderDate = new Date(order.date_created).toISOString().split('T')[0];
+                    return orderDate <= endDate;
+                });
+            }
+
+            // Aplicar filtro lógico da aba
+            filteredOrders = filterReadyToPrepareOrders(filteredOrders);
+            
             const badge = document.getElementById('ready-to-prepare-count');
             if (badge) badge.textContent = filteredOrders.length;
         } catch (e) {
