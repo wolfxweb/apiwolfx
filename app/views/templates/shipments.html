@@ -418,14 +418,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Variável global para armazenar todos os pedidos carregados
     let allOrdersLoaded = [];
     let ordersLoaded = false;
+    let loadingPromise = null; // Promise para evitar carregamento duplicado
 
     // Carregar contadores de todas as abas ao iniciar
     loadTabCounts();
-    // Garantir que o contador "Pronto para Preparar" use exatamente o mesmo filtro da tabela
-    // (recalcula no frontend para evitar divergências com o backend)
-    loadReadyToPrepareCountOnly();
     
     // Carregar pedidos da aba "Pronto para Preparar" ao carregar a página
+    // Isso já vai calcular o contador também
     loadReadyToPrepareOrders();
     
     // Carregar pedidos quando a aba for clicada
@@ -639,34 +638,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Carregar todos os pedidos UMA VEZ (sem filtros) e armazenar globalmente
     async function loadAllOrdersOnce() {
+        // Se já está carregando, aguardar a promise existente
+        if (loadingPromise) {
+            return await loadingPromise;
+        }
+        
         if (ordersLoaded) return; // Já carregou
         
-        const tbody = document.getElementById('ready-to-prepare-orders');
-        if (!tbody) return;
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted"><div class="spinner-border spinner-border-sm" role="status"></div> Carregando pedidos...</td></tr>`;
-        let hasMore = true;
-        let page = 1;
-        const limit = 1000;
-        
-        // Resetar array para evitar duplicações
-        allOrdersLoaded = [];
+        // Criar promise de carregamento para evitar duplicação
+        loadingPromise = (async () => {
+            const tbody = document.getElementById('ready-to-prepare-orders');
+            if (!tbody) return;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted"><div class="spinner-border spinner-border-sm" role="status"></div> Carregando pedidos...</td></tr>`;
+            let hasMore = true;
+            let page = 1;
+            const limit = 1000;
+            
+            // Resetar array para evitar duplicações
+            allOrdersLoaded = [];
 
-        // Buscar TODOS os pedidos (SEM filtros)
-        while (hasMore) {
-            const response = await fetch(`/api/shipments/pending?page=${page}&limit=${limit}`);
-            if (handle401Error(response)) return;
-            if (!response.ok) throw new Error('Erro ao carregar pedidos');
-            const data = await response.json();
-            if (data.success && data.orders && data.orders.length > 0) {
-                allOrdersLoaded = allOrdersLoaded.concat(data.orders);
-                hasMore = data.total_pages > page;
-                page++;
-            } else {
-                hasMore = false;
+            // Buscar TODOS os pedidos (SEM filtros)
+            while (hasMore) {
+                const response = await fetch(`/api/shipments/pending?page=${page}&limit=${limit}`);
+                if (handle401Error(response)) return;
+                if (!response.ok) throw new Error('Erro ao carregar pedidos');
+                const data = await response.json();
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrdersLoaded = allOrdersLoaded.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                } else {
+                    hasMore = false;
+                }
+                if (page > 10) hasMore = false;
             }
-            if (page > 10) hasMore = false;
-        }
-        ordersLoaded = true;
+            ordersLoaded = true;
+        })();
+        
+        await loadingPromise;
+        loadingPromise = null; // Limpar a promise após carregar
     }
 
     // Aplicar filtros localmente nos pedidos já carregados
@@ -712,12 +722,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Aplicar filtro lógico da aba (Pronto para Preparar, etc)
         filteredOrders = filterReadyToPrepareOrders(filteredOrders);
+        
+        // Remover duplicatas por ID
+        const uniqueOrders = [];
+        const seenIds = new Set();
+        for (const order of filteredOrders) {
+            const orderId = order.ml_order_id || order.order_id;
+            if (!seenIds.has(orderId)) {
+                seenIds.add(orderId);
+                uniqueOrders.push(order);
+            }
+        }
 
         const badge = document.getElementById('ready-to-prepare-count');
-        if (badge) badge.textContent = filteredOrders.length;
+        if (badge) badge.textContent = uniqueOrders.length;
 
-        if (filteredOrders.length > 0) {
-            renderOrders(tbody, filteredOrders);
+        if (uniqueOrders.length > 0) {
+            renderOrders(tbody, uniqueOrders);
         } else {
             tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Nenhum pedido encontrado.</td></tr>`;
         }
