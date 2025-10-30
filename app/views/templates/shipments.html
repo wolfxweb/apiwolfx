@@ -505,13 +505,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Atualizar contadores de cada aba
                 document.getElementById('pending-count').textContent = data.counts?.PENDING || 0;
                 document.getElementById('confirmed-count').textContent = data.counts?.CONFIRMED || 0;
-                document.getElementById('ready-to-prepare-count').textContent = data.counts?.PAID || 0;
+                document.getElementById('ready-to-prepare-count').textContent = data.counts?.READY_TO_PREPARE || 0;
                 document.getElementById('manual-prepare-count').textContent = data.counts?.READY_TO_PREPARE || 0;
                 document.getElementById('waiting-shipment-count').textContent = data.counts?.WAITING_SHIPMENT || 0;
                 document.getElementById('shipped-count').textContent = data.counts?.SHIPPED || 0;
                 document.getElementById('delivered-count').textContent = data.counts?.DELIVERED || 0;
                 document.getElementById('cancelled-count').textContent = data.counts?.CANCELLED || 0;
                 document.getElementById('refunded-count').textContent = data.counts?.REFUNDED || 0;
+                
+                console.log('📊 Contadores recebidos:', data.counts);
         }
     } catch (error) {
             console.error('Erro ao carregar contadores:', error);

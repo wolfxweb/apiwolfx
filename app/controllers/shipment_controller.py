@@ -282,7 +282,11 @@ class ShipmentController:
                 "REFUNDED": 0
             }
             
+            logger.info(f"📊 Total de pedidos na empresa: {len(all_orders)}")
+            
+            count = 0
             for order in all_orders:
+                count += 1
                 # Parse shipping_details se existir
                 shipping_details = None
                 if order.shipping_details:
@@ -296,21 +300,37 @@ class ShipmentController:
                 
                 shipping_status = shipping_details.get('status') if shipping_details else order.shipping_status
                 substatus = shipping_details.get('substatus') if shipping_details else None
+
+                # Normalizar status do pedido (enum/string) e shipping_status
+                try:
+                    status_str = getattr(order.status, 'value', order.status)
+                except Exception:
+                    status_str = order.status
+                status_str = str(status_str).upper() if status_str is not None else None
+                shipping_status_norm = str(shipping_status).lower() if shipping_status else None
+                substatus_norm = str(substatus).lower() if substatus else None
+                
+                # Log apenas os primeiros 5 pedidos para debug
+                if count <= 5:
+                    logger.debug(f"📋 Order {order.order_id}: status={status_str}, shipping_status={shipping_status_norm}, substatus={substatus_norm}")
                 
                 # 1. PENDING: status = PENDING OR (status = PAID AND shipping_status = pending)
-                if order.status == 'PENDING':
+                if status_str == 'PENDING':
                     counts["PENDING"] += 1
-                elif order.status == 'PAID' and (shipping_status == 'pending' or not shipping_status):
+                elif status_str == 'PAID' and (shipping_status_norm == 'pending' or not shipping_status_norm):
                     counts["PENDING"] += 1
                 
                 # 2. CONFIRMED
-                if order.status == 'CONFIRMED':
+                if status_str == 'CONFIRMED':
                     counts["CONFIRMED"] += 1
                 
                 # 3. READY_TO_PREPARE: status = PAID AND não enviado/entregue/pendente/ready_to_ship
-                if order.status == 'PAID':
-                    has_tracking = order.shipping_status == 'shipped'
+                if status_str == 'PAID':
+                    has_tracking = (shipping_status_norm == 'shipped')
                     has_shipping_date = order.shipping_date is not None
+                    
+                    # Verificar substatus de ready_to_ship ANTES das exclusões
+                    is_ready_to_ship = substatus_norm in ['ready_to_ship', 'ready_to_print', 'printed', 'ready_to_pack', 'packed', 'ready_for_pickup', 'ready_for_dropoff']
                     
                     # Verificar se deve excluir
                     exclude = False
@@ -320,52 +340,54 @@ class ShipmentController:
                         exclude = True
                     
                     # Excluir se está em trânsito
-                    if shipping_status in ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']:
+                    if shipping_status_norm in ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']:
                         exclude = True
                     
                     # Excluir se foi entregue
-                    if shipping_status in ['delivered', 'inferred'] or order.status == 'DELIVERED':
+                    if shipping_status_norm in ['delivered', 'inferred'] or status_str == 'DELIVERED':
                         exclude = True
                     
                     # Excluir se está pendente
-                    if shipping_status == 'pending' or order.status == 'PENDING':
+                    if shipping_status_norm == 'pending' or status_str == 'PENDING':
                         exclude = True
                     
                     # Excluir se status do pedido é SHIPPED
-                    if order.status == 'SHIPPED':
+                    if status_str == 'SHIPPED':
                         exclude = True
                     
                     # Excluir se está pronto para envio (vai para "Aguardando Envio")
-                    if substatus in ['ready_to_ship', 'ready_to_print', 'printed', 'ready_to_pack', 'packed', 'ready_for_pickup', 'ready_for_dropoff']:
+                    if is_ready_to_ship:
                         exclude = True
                     
                     if not exclude:
                         counts["READY_TO_PREPARE"] += 1
-                
-                # 4. WAITING_SHIPMENT: status = PAID AND (substatus = ready_to_ship OR não tem shipping_status)
-                if order.status == 'PAID':
-                    if substatus in ['ready_to_ship', 'ready_to_print', 'printed', 'ready_to_pack', 'packed', 'ready_for_pickup', 'ready_for_dropoff'] or not shipping_status:
-                        counts["WAITING_SHIPMENT"] += 1
+                    else:
+                        # Se excluiu de READY_TO_PREPARE, verificar se vai para WAITING_SHIPMENT
+                        # WAITING_SHIPMENT: substatus = ready_to_ship OU não tem shipping_status
+                        if is_ready_to_ship or not shipping_status_norm:
+                            counts["WAITING_SHIPMENT"] += 1
                 
                 # 5. SHIPPED: status = SHIPPED OR shipping_status em trânsito
-                if order.status == 'SHIPPED':
+                if status_str == 'SHIPPED':
                     counts["SHIPPED"] += 1
-                elif shipping_status in ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']:
+                elif shipping_status_norm in ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']:
                     counts["SHIPPED"] += 1
                 
                 # 6. DELIVERED: status = DELIVERED OR shipping_status = delivered/inferred
-                if order.status == 'DELIVERED':
+                if status_str == 'DELIVERED':
                     counts["DELIVERED"] += 1
-                elif shipping_status in ['delivered', 'inferred']:
+                elif shipping_status_norm in ['delivered', 'inferred']:
                     counts["DELIVERED"] += 1
                 
                 # 7. CANCELLED
-                if order.status in ['CANCELLED', 'PENDING_CANCEL']:
+                if status_str in ['CANCELLED', 'PENDING_CANCEL']:
                     counts["CANCELLED"] += 1
                 
                 # 8. REFUNDED
-                if order.status in ['REFUNDED', 'PARTIALLY_REFUNDED']:
+                if status_str in ['REFUNDED', 'PARTIALLY_REFUNDED']:
                     counts["REFUNDED"] += 1
+            
+            logger.info(f"📊 Contadores calculados: {counts}")
             
             return {
                 "success": True,
