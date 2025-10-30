@@ -1343,15 +1343,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Visualizar
-                        </button>
-                        ${order.invoice_pdf_url ? 
-                            `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success">
-                                <i class="bi bi-file-earmark-pdf"></i> NF
-                            </a>` : 
-                            '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf"></i> NF</button>'
-                        }
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${order.invoice_pdf_url ? 
+                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>` : 
+                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -1417,44 +1422,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     return false;
                 }
                 
-                // Não mostrar se já foi enviado
-                if (shippingStatus === 'shipped' || 
-                    shippingStatus === 'in_transit' || 
-                    shippingStatus === 'out_for_delivery' || 
-                    shippingStatus === 'soon_deliver' ||
-                    order.status === 'SHIPPED') {
-                    return false;
-                }
+                // Verificar se tem substatus de ready_to_ship
+                const is_ready_to_ship = substatus === 'ready_to_ship' || 
+                                        substatus === 'ready_to_print' ||
+                                        substatus === 'printed' ||
+                                        substatus === 'ready_to_pack' ||
+                                        substatus === 'packed' ||
+                                        substatus === 'ready_for_pickup' ||
+                                        substatus === 'ready_for_dropoff';
                 
-                // Não mostrar se foi entregue
-                if (shippingStatus === 'delivered' || 
-                    shippingStatus === 'inferred' || 
-                    order.status === 'DELIVERED') {
-                    return false;
-                }
-                
-                // Não mostrar se está pendente
-                if (shippingStatus === 'pending' || order.status === 'PENDING') {
-                    return false;
-                }
-                
-                // Mostrar pedidos com substatus de ready_to_ship (prontos para envio)
-                if (substatus === 'ready_to_ship' || 
-                    substatus === 'ready_to_print' ||
-                    substatus === 'printed' ||
-                    substatus === 'ready_to_pack' ||
-                    substatus === 'packed' ||
-                    substatus === 'ready_for_pickup' ||
-                    substatus === 'ready_for_dropoff') {
-                    return true;
-                }
-                
-                // Mostrar pedidos sem shipping_status (prontos para envio)
-                if (!shippingStatus) {
-                    return true;
-                }
-                
-                return false;
+                // Mostrar apenas se TEM substatus de ready_to_ship
+                return is_ready_to_ship;
             });
             
             if (filteredOrders.length > 0) {
@@ -1718,15 +1696,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Visualizar
-                        </button>
-                        ${order.invoice_pdf_url ? 
-                            `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success">
-                                <i class="bi bi-file-earmark-pdf"></i> NF
-                            </a>` : 
-                            '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf"></i> NF</button>'
-                        }
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${order.invoice_pdf_url ? 
+                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>` : 
+                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -1868,15 +1851,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${statusBadge}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Visualizar
-                        </button>
-                        ${order.invoice_pdf_url ? 
-                            `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success">
-                                <i class="bi bi-file-earmark-pdf"></i> NF
-                            </a>` : 
-                            '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf"></i> NF</button>'
-                        }
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${order.invoice_pdf_url ? 
+                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>` : 
+                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -1988,15 +1976,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${statusBadge}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Visualizar
-                        </button>
-                        ${order.invoice_pdf_url ? 
-                            `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success">
-                                <i class="bi bi-file-earmark-pdf"></i> NF
-                            </a>` : 
-                            '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf"></i> NF</button>'
-                        }
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${order.invoice_pdf_url ? 
+                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>` : 
+                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
             `;
