@@ -490,6 +490,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Buscar contadores do backend
             const response = await fetch('/api/shipments/tab-counts');
             
+            // Tratar erro 401
+            if (handle401Error(response)) {
+                return;
+            }
+            
             if (!response.ok) {
                 throw new Error('Erro ao carregar contadores');
         }
@@ -511,6 +516,16 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
             console.error('Erro ao carregar contadores:', error);
         }
+    }
+    
+    // Função para tratar erros 401 (não autenticado)
+    function handle401Error(response) {
+        if (response && response.status === 401) {
+            console.warn('⚠️ Não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return true;
+        }
+        return false;
     }
     
     async function loadReadyToPrepareOrders() {
@@ -537,6 +552,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Buscar TODOS os pedidos com paginação
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                
+                // Tratar erro 401
+                if (handle401Error(response)) {
+                    return;
+                }
+                
                 if (!response.ok) {
                     throw new Error('Erro ao carregar pedidos');
         }
@@ -647,6 +668,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Buscar pedidos com status manual READY_TO_PREPARE (status que não existe na API, apenas criado manualmente)
         fetch('/api/shipments/pending?status=READY_TO_PREPARE&page=1&limit=100')
             .then(response => {
+                // Tratar erro 401
+                if (handle401Error(response)) {
+                    return Promise.reject('not_authenticated');
+                }
+                
                 if (!response.ok) {
                     throw new Error('Erro ao carregar pedidos');
                 }
@@ -701,6 +727,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Buscar TODOS os pedidos com paginação
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                
+                // Tratar erro 401
+                if (handle401Error(response)) {
+                    return;
+                }
+                
                 if (!response.ok) {
                     throw new Error('Erro ao carregar pedidos');
                 }
@@ -908,6 +940,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Buscar TODOS os pedidos com paginação
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                
+                // Tratar erro 401
+                if (handle401Error(response)) {
+                    return;
+                }
+                
                 if (!response.ok) {
                     throw new Error('Erro ao carregar pedidos');
                 }
@@ -1128,6 +1166,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Buscar TODOS os pedidos com paginação
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                
+                // Tratar erro 401
+                if (handle401Error(response)) {
+                    return;
+                }
+                
                 if (!response.ok) {
                     throw new Error('Erro ao carregar pedidos');
                 }
@@ -1263,11 +1307,17 @@ document.addEventListener('DOMContentLoaded', function() {
             // Buscar TODOS os pedidos com paginação
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
-        if (!response.ok) {
-                    throw new Error('Erro ao carregar pedidos');
-        }
         
-        const data = await response.json();
+                // Tratar erro 401
+                if (handle401Error(response)) {
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar pedidos');
+                }
+                
+                const data = await response.json();
         
                 if (data.success && data.orders && data.orders.length > 0) {
                     allOrders = allOrders.concat(data.orders);
@@ -1627,6 +1677,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=1000`);
+                
+                // Tratar erro 401
+                if (handle401Error(response)) {
+                    return;
+                }
+                
                 if (!response.ok) throw new Error('Erro ao carregar pedidos');
         
         const data = await response.json();
@@ -1983,6 +2039,11 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => {
             console.log(`📡 [FRONTEND] Resposta recebida: status=${response.status}`);
             clearTimeout(timeoutId);
+            
+            // Tratar erro 401
+            if (handle401Error(response)) {
+                return Promise.reject('not_authenticated');
+            }
             
             if (!response.ok) {
                 return response.text().then(text => {

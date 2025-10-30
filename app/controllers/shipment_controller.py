@@ -257,49 +257,115 @@ class ShipmentController:
     def get_tab_counts(self, company_id: int) -> Dict:
         """
         Retorna contadores de pedidos por status para as abas
+        Considera shipping_status e substatus, não apenas status
         """
+        from sqlalchemy import or_, func
+        
         try:
             from app.models.saas_models import MLOrder, OrderStatus
+            import json
             
-            # Contar pedidos por status
+            # Buscar todos os pedidos da empresa
+            all_orders = self.db.query(MLOrder).filter(
+                MLOrder.company_id == company_id
+            ).all()
+            
+            # Contadores
             counts = {
-                "PENDING": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status == OrderStatus.PENDING
-                ).count(),
-                "CONFIRMED": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status == OrderStatus.CONFIRMED
-                ).count(),
-                "PAID": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status == OrderStatus.PAID
-                ).count(),
-                "READY_TO_PREPARE": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status == OrderStatus.READY_TO_PREPARE
-                ).count(),
-                "WAITING_SHIPMENT": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status == OrderStatus.PAID
-                ).count(),
-                "SHIPPED": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status == OrderStatus.SHIPPED
-                ).count(),
-                "DELIVERED": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status == OrderStatus.DELIVERED
-                ).count(),
-                "CANCELLED": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status.in_([OrderStatus.CANCELLED, OrderStatus.PENDING_CANCEL])
-                ).count(),
-                "REFUNDED": self.db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.status.in_([OrderStatus.REFUNDED, OrderStatus.PARTIALLY_REFUNDED])
-                ).count()
+                "PENDING": 0,
+                "CONFIRMED": 0,
+                "READY_TO_PREPARE": 0,
+                "WAITING_SHIPMENT": 0,
+                "SHIPPED": 0,
+                "DELIVERED": 0,
+                "CANCELLED": 0,
+                "REFUNDED": 0
             }
+            
+            for order in all_orders:
+                # Parse shipping_details se existir
+                shipping_details = None
+                if order.shipping_details:
+                    if isinstance(order.shipping_details, str):
+                        try:
+                            shipping_details = json.loads(order.shipping_details)
+                        except:
+                            shipping_details = {}
+                    else:
+                        shipping_details = order.shipping_details
+                
+                shipping_status = shipping_details.get('status') if shipping_details else order.shipping_status
+                substatus = shipping_details.get('substatus') if shipping_details else None
+                
+                # 1. PENDING: status = PENDING OR (status = PAID AND shipping_status = pending)
+                if order.status == 'PENDING':
+                    counts["PENDING"] += 1
+                elif order.status == 'PAID' and (shipping_status == 'pending' or not shipping_status):
+                    counts["PENDING"] += 1
+                
+                # 2. CONFIRMED
+                if order.status == 'CONFIRMED':
+                    counts["CONFIRMED"] += 1
+                
+                # 3. READY_TO_PREPARE: status = PAID AND não enviado/entregue/pendente/ready_to_ship
+                if order.status == 'PAID':
+                    has_tracking = order.shipping_status == 'shipped'
+                    has_shipping_date = order.shipping_date is not None
+                    
+                    # Verificar se deve excluir
+                    exclude = False
+                    
+                    # Excluir se já foi enviado
+                    if has_tracking or has_shipping_date:
+                        exclude = True
+                    
+                    # Excluir se está em trânsito
+                    if shipping_status in ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']:
+                        exclude = True
+                    
+                    # Excluir se foi entregue
+                    if shipping_status in ['delivered', 'inferred'] or order.status == 'DELIVERED':
+                        exclude = True
+                    
+                    # Excluir se está pendente
+                    if shipping_status == 'pending' or order.status == 'PENDING':
+                        exclude = True
+                    
+                    # Excluir se status do pedido é SHIPPED
+                    if order.status == 'SHIPPED':
+                        exclude = True
+                    
+                    # Excluir se está pronto para envio (vai para "Aguardando Envio")
+                    if substatus in ['ready_to_ship', 'ready_to_print', 'printed', 'ready_to_pack', 'packed', 'ready_for_pickup', 'ready_for_dropoff']:
+                        exclude = True
+                    
+                    if not exclude:
+                        counts["READY_TO_PREPARE"] += 1
+                
+                # 4. WAITING_SHIPMENT: status = PAID AND (substatus = ready_to_ship OR não tem shipping_status)
+                if order.status == 'PAID':
+                    if substatus in ['ready_to_ship', 'ready_to_print', 'printed', 'ready_to_pack', 'packed', 'ready_for_pickup', 'ready_for_dropoff'] or not shipping_status:
+                        counts["WAITING_SHIPMENT"] += 1
+                
+                # 5. SHIPPED: status = SHIPPED OR shipping_status em trânsito
+                if order.status == 'SHIPPED':
+                    counts["SHIPPED"] += 1
+                elif shipping_status in ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']:
+                    counts["SHIPPED"] += 1
+                
+                # 6. DELIVERED: status = DELIVERED OR shipping_status = delivered/inferred
+                if order.status == 'DELIVERED':
+                    counts["DELIVERED"] += 1
+                elif shipping_status in ['delivered', 'inferred']:
+                    counts["DELIVERED"] += 1
+                
+                # 7. CANCELLED
+                if order.status in ['CANCELLED', 'PENDING_CANCEL']:
+                    counts["CANCELLED"] += 1
+                
+                # 8. REFUNDED
+                if order.status in ['REFUNDED', 'PARTIALLY_REFUNDED']:
+                    counts["REFUNDED"] += 1
             
             return {
                 "success": True,
@@ -308,13 +374,14 @@ class ShipmentController:
         
         except Exception as e:
             logger.error(f"Erro ao buscar contadores das abas: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {
                 "success": False,
                 "error": str(e),
                 "counts": {
                     "PENDING": 0,
                     "CONFIRMED": 0,
-                    "PAID": 0,
                     "READY_TO_PREPARE": 0,
                     "WAITING_SHIPMENT": 0,
                     "SHIPPED": 0,
