@@ -1076,6 +1076,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
                             </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
                             ${order.invoice_pdf_url ? 
                                 `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
                                     <i class="bi bi-file-earmark-pdf"></i>
@@ -1274,6 +1277,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
                             </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
                             ${order.invoice_pdf_url ? 
                                 `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
                                     <i class="bi bi-file-earmark-pdf"></i>
@@ -1288,6 +1294,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             `;
         }).join('');
+    }
+    
+    // Função para copiar número do pedido
+    async function copyOrderNumber(orderId) {
+        try {
+            await navigator.clipboard.writeText(orderId);
+            alert('✅ Número do pedido copiado: ' + orderId);
+        } catch (err) {
+            console.error('Erro ao copiar:', err);
+            alert('❌ Erro ao copiar número do pedido');
+        }
     }
     
     async function loadWaitingShipmentOrders() {
@@ -1549,6 +1566,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
                             </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
                             ${order.invoice_pdf_url ? 
                                 `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
                                     <i class="bi bi-file-earmark-pdf"></i>
@@ -1592,9 +1612,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td><span class="badge bg-info">${shippingType}</span></td>
                     <td><span class="badge bg-warning">Status Manual</span></td>
                     <td>
-                        <button class="btn btn-sm btn-primary" onclick="syncOrder('${orderId}')">
-                            <i class="bi bi-arrow-clockwise"></i> Sincronizar
-                        </button>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="syncOrder('${orderId}')">
+                                <i class="bi bi-arrow-clockwise"></i> Sincronizar
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -1676,6 +1701,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
+                                <i class="bi bi-clipboard"></i>
                             </button>
                             ${order.invoice_pdf_url ? 
                                 `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
@@ -1768,6 +1796,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
+                                <i class="bi bi-clipboard"></i>
                             </button>
                             ${order.invoice_pdf_url ? 
                                 `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
@@ -1955,6 +1986,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
+                                <i class="bi bi-clipboard"></i>
                             </button>
                             ${order.invoice_pdf_url ? 
                                 `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
