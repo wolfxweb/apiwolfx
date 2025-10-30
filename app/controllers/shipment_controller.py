@@ -324,7 +324,7 @@ class ShipmentController:
                 if status_str == 'CONFIRMED':
                     counts["CONFIRMED"] += 1
                 
-                # 3. READY_TO_PREPARE: status = PAID AND não enviado/entregue/pendente/ready_to_ship
+                # 3. READY_TO_PREPARE: status = PAID AND não enviado/entregue/pendente/ready_to_ship (não-Fulfillment)
                 if status_str == 'PAID':
                     has_tracking = (shipping_status_norm == 'shipped')
                     has_shipping_date = order.shipping_date is not None
@@ -358,12 +358,19 @@ class ShipmentController:
                     # Excluir se está pronto para envio (vai para "Aguardando Envio")
                     if is_ready_to_ship:
                         exclude = True
+
+                    # Excluir pedidos Fulfillment (aba é para não-Fulfillment)
+                    try:
+                        if getattr(order, 'shipping_type', None) == 'fulfillment':
+                            exclude = True
+                    except Exception:
+                        pass
                     
                     if not exclude:
                         counts["READY_TO_PREPARE"] += 1
                     else:
-                        # Se excluiu de READY_TO_PREPARE, verificar se vai para WAITING_SHIPMENT
-                        # WAITING_SHIPMENT: substatus = ready_to_ship OU não tem shipping_status
+                        # Se excluiu de READY_TO_PREPARE por estar pronto para envio, vai para WAITING_SHIPMENT
+                        # WAITING_SHIPMENT: substatus indicar pronto para envio OU não tem shipping_status (sem dados ainda)
                         if is_ready_to_ship or not shipping_status_norm:
                             counts["WAITING_SHIPMENT"] += 1
                 
