@@ -361,51 +361,57 @@ class ShipmentController:
                         exclude = True
                         debug_excludes["in_transit"] += 1
                     
-                    # Excluir se foi entregue
-                    if shipping_status_norm in ['delivered', 'inferred'] or status_str == 'DELIVERED':
+                # Excluir se substatus indica em trânsito ou que já foi coletado (mesmo com status ready_to_ship)
+                if substatus_norm in ['in_transit', 'picked_up', 'dropped_off', 'in_hub']:
+                    exclude = True
+                    debug_excludes["in_transit"] += 1
+                
+                # Excluir se foi entregue
+                if shipping_status_norm in ['delivered', 'inferred'] or status_str == 'DELIVERED':
+                    exclude = True
+                    debug_excludes["delivered"] += 1
+                
+                # Excluir se está pendente
+                if shipping_status_norm == 'pending' or status_str == 'PENDING':
+                    exclude = True
+                    debug_excludes["pending"] += 1
+                
+                # Excluir se status do pedido é SHIPPED
+                if status_str == 'SHIPPED':
+                    exclude = True
+                    debug_excludes["status_shipped"] += 1
+                
+                # Excluir se está pronto para envio (vai para "Aguardando Envio")
+                if is_ready_to_ship:
+                    exclude = True
+                    debug_excludes["ready_to_ship"] += 1
+
+                # Excluir Fulfillment (não-Fulfillment na aba)
+                try:
+                    logistic_type = None
+                    details = shipping_details if 'shipping_details' in locals() and shipping_details else {}
+                    if isinstance(details, dict):
+                        logistic_type = details.get('logistic_type') or (details.get('logistic', {}) or {}).get('type')
+                    shipping_type = getattr(order, 'shipping_type', None)
+                    if (shipping_type == 'fulfillment') or (str(logistic_type).lower() == 'fulfillment'):
                         exclude = True
-                        debug_excludes["delivered"] += 1
-                    
-                    # Excluir se está pendente
-                    if shipping_status_norm == 'pending' or status_str == 'PENDING':
-                        exclude = True
-                        debug_excludes["pending"] += 1
-                    
-                    # Excluir se status do pedido é SHIPPED
-                    if status_str == 'SHIPPED':
-                        exclude = True
-                        debug_excludes["status_shipped"] += 1
-                    
-                    # Excluir se está pronto para envio (vai para "Aguardando Envio")
+                except Exception:
+                    pass
+
+                if not exclude:
+                    counts["READY_TO_PREPARE"] += 1
+                else:
+                    # Se excluiu de READY_TO_PREPARE por estar pronto para envio, vai para WAITING_SHIPMENT
+                    # WAITING_SHIPMENT: apenas quando substatus indicar pronto para envio (igual à tela)
                     if is_ready_to_ship:
-                        exclude = True
-                        debug_excludes["ready_to_ship"] += 1
-
-                    # Excluir Fulfillment (não-Fulfillment na aba)
-                    try:
-                        logistic_type = None
-                        details = shipping_details if 'shipping_details' in locals() and shipping_details else {}
-                        if isinstance(details, dict):
-                            logistic_type = details.get('logistic_type') or (details.get('logistic', {}) or {}).get('type')
-                        shipping_type = getattr(order, 'shipping_type', None)
-                        if (shipping_type == 'fulfillment') or (str(logistic_type).lower() == 'fulfillment'):
-                            exclude = True
-                    except Exception:
-                        pass
-
-                    
-                    if not exclude:
-                        counts["READY_TO_PREPARE"] += 1
-                    else:
-                        # Se excluiu de READY_TO_PREPARE por estar pronto para envio, vai para WAITING_SHIPMENT
-                        # WAITING_SHIPMENT: apenas quando substatus indicar pronto para envio (igual à tela)
-                        if is_ready_to_ship:
-                            counts["WAITING_SHIPMENT"] += 1
+                        counts["WAITING_SHIPMENT"] += 1
                 
                 # 5. SHIPPED: status = SHIPPED OR shipping_status em trânsito
                 if status_str == 'SHIPPED':
                     counts["SHIPPED"] += 1
                 elif shipping_status_norm in ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']:
+                    counts["SHIPPED"] += 1
+                elif substatus_norm in ['in_transit', 'picked_up', 'dropped_off', 'in_hub']:
                     counts["SHIPPED"] += 1
                 
                 # 6. DELIVERED: status = DELIVERED OR shipping_status = delivered/inferred

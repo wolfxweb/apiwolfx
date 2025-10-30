@@ -762,8 +762,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             }
             
-            // Não mostrar se está em trânsito (prioridade alta)
+            // Não mostrar se status shipping_status indica em trânsito
             if (shippingStatus === 'shipped' || shippingStatus === 'in_transit' || shippingStatus === 'out_for_delivery' || shippingStatus === 'soon_deliver') {
+                return false;
+            }
+            
+            // Não mostrar se o substatus indica em trânsito ou que já foi coletado (mesmo com status ready_to_ship)
+            if (substatus === 'in_transit' || 
+                substatus === 'picked_up' || 
+                substatus === 'dropped_off' || 
+                substatus === 'in_hub') {
                 return false;
             }
             
@@ -1395,6 +1403,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Filtrar pedidos: status = SHIPPED ou shipping_status com valores de em trânsito
             const filteredOrders = allOrdersLoaded.filter(order => {
                 const shippingStatus = order.shipping_details?.status || order.shipping_status;
+                const substatus = order.shipping_details?.substatus;
                 
                 // Mostrar pedidos com status SHIPPED ou shipping_status indicando em trânsito
                 if (order.status === 'SHIPPED') {
@@ -1406,6 +1415,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     shippingStatus === 'in_transit' || 
                     shippingStatus === 'out_for_delivery' || 
                     shippingStatus === 'soon_deliver') {
+                    return true;
+                }
+                
+                // Mostrar se substatus indica em trânsito ou que já foi coletado (mesmo com status ready_to_ship)
+                if (substatus === 'in_transit' || 
+                    substatus === 'picked_up' || 
+                    substatus === 'dropped_off' || 
+                    substatus === 'in_hub') {
                     return true;
                 }
                 
