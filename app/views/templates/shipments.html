@@ -416,6 +416,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Carregar contadores de todas as abas ao iniciar
     loadTabCounts();
+    // Garantir que o contador "Pronto para Preparar" use exatamente o mesmo filtro da tabela
+    // (recalcula no frontend para evitar divergências com o backend)
+    loadReadyToPrepareCountOnly();
     
     // Carregar pedidos da aba "Pronto para Preparar" ao carregar a página
     loadReadyToPrepareOrders();
@@ -581,52 +584,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Filtrar pedidos: status = PAID AND não foi enviado, entregue, pendente ou em trânsito
-            const filteredOrders = allOrders.filter(order => {
-                const shippingStatus = order.shipping_details?.status || order.shipping_status;
-                const substatus = order.shipping_details?.substatus;
-                
-                // Não mostrar se já foi enviado
-                const hasTracking = order.shipping_status && order.shipping_status === 'shipped';
-                const hasShippingDate = order.shipping_date;
-                if (hasTracking || hasShippingDate) {
-                    return false;
-                }
-                
-                // Não mostrar se está em trânsito (prioridade alta)
-                if (shippingStatus === 'shipped' || shippingStatus === 'in_transit' || shippingStatus === 'out_for_delivery' || shippingStatus === 'soon_deliver') {
-                    return false;
-                }
-                
-                // Não mostrar se foi entregue
-                if (shippingStatus === 'delivered' || shippingStatus === 'inferred' || order.status === 'DELIVERED') {
-                    return false;
-                }
-                
-                // Não mostrar se está pendente (shipping_status = pending)
-                if (shippingStatus === 'pending' || order.status === 'PENDING') {
-                    return false;
-                }
-                
-                // Não mostrar se status do pedido é SHIPPED
-                if (order.status === 'SHIPPED') {
-                    return false;
-                }
-                
-                // NÃO mostrar pedidos prontos para envio (estes vão para "Aguardando Envio")
-                if (substatus === 'ready_to_ship' || 
-                    substatus === 'ready_to_print' ||
-                    substatus === 'printed' ||
-                    substatus === 'ready_to_pack' ||
-                    substatus === 'packed' ||
-                    substatus === 'ready_for_pickup' ||
-                    substatus === 'ready_for_dropoff') {
-                    return false;
-                }
-                
-                // Mostrar apenas pedidos PAID que NÃO estão prontos para envio
-                return order.status === 'PAID';
-            });
+            // Usar exatamente o mesmo filtro da tabela em uma função reutilizável
+            const filteredOrders = filterReadyToPrepareOrders(allOrders);
+            // Atualizar badge da aba com a contagem real filtrada pelo frontend
+            const badge = document.getElementById('ready-to-prepare-count');
+            if (badge) badge.textContent = filteredOrders.length;
             
             if (filteredOrders.length > 0) {
                 renderOrders(tbody, filteredOrders);
@@ -651,6 +613,86 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Função reutilizável que aplica o MESMO filtro da aba "Pronto para Preparar"
+    function filterReadyToPrepareOrders(allOrders) {
+        return allOrders.filter(order => {
+            const shippingStatus = order.shipping_details?.status || order.shipping_status;
+            const substatus = order.shipping_details?.substatus;
+            
+            // Não mostrar se já foi enviado
+            const hasTracking = order.shipping_status && order.shipping_status === 'shipped';
+            const hasShippingDate = order.shipping_date;
+            if (hasTracking || hasShippingDate) {
+                return false;
+            }
+            
+            // Não mostrar se está em trânsito (prioridade alta)
+            if (shippingStatus === 'shipped' || shippingStatus === 'in_transit' || shippingStatus === 'out_for_delivery' || shippingStatus === 'soon_deliver') {
+                return false;
+            }
+            
+            // Não mostrar se foi entregue
+            if (shippingStatus === 'delivered' || shippingStatus === 'inferred' || order.status === 'DELIVERED') {
+                return false;
+            }
+            
+            // Não mostrar se está pendente (shipping_status = pending)
+            if (shippingStatus === 'pending' || order.status === 'PENDING') {
+                return false;
+            }
+            
+            // Não mostrar se status do pedido é SHIPPED
+            if (order.status === 'SHIPPED') {
+                return false;
+            }
+            
+            // NÃO mostrar pedidos prontos para envio (estes vão para "Aguardando Envio")
+            if (substatus === 'ready_to_ship' || 
+                substatus === 'ready_to_print' ||
+                substatus === 'printed' ||
+                substatus === 'ready_to_pack' ||
+                substatus === 'packed' ||
+                substatus === 'ready_for_pickup' ||
+                substatus === 'ready_for_dropoff') {
+                return false;
+            }
+            
+            // Mostrar apenas pedidos PAID que NÃO estão prontos para envio
+            return order.status === 'PAID';
+        });
+    }
+
+    // Apenas recalcula a contagem no frontend (sem renderizar a tabela)
+    async function loadReadyToPrepareCountOnly() {
+        try {
+            let page = 1;
+            const limit = 100;
+            let hasMore = true;
+            let allOrders = [];
+            
+            while (hasMore) {
+                const response = await fetch(`/api/shipments/pending?status=ALL&page=${page}&limit=${limit}`);
+                if (handle401Error(response)) return;
+                if (!response.ok) throw new Error('Erro ao carregar pedidos');
+                const data = await response.json();
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrders = allOrders.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                } else {
+                    hasMore = false;
+                }
+                if (page > 10) hasMore = false; // limite de segurança
+            }
+            const filteredOrders = filterReadyToPrepareOrders(allOrders);
+            const badge = document.getElementById('ready-to-prepare-count');
+            if (badge) badge.textContent = filteredOrders.length;
+        } catch (e) {
+            // Em caso de erro, não derrubar a página; apenas logar
+            console.warn('Falha ao calcular contador (frontend) de Pronto para Preparar:', e);
+        }
+    }
+
     function loadManualPrepareOrders() {
         const tbody = document.getElementById('manual-prepare-orders');
         if (!tbody) return;

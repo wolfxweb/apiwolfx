@@ -281,6 +281,18 @@ class ShipmentController:
                 "CANCELLED": 0,
                 "REFUNDED": 0
             }
+
+            # Contadores de debug para entender exclusões em READY_TO_PREPARE
+            debug_excludes = {
+                "total_paid": 0,
+                "has_tracking": 0,
+                "has_shipping_date": 0,
+                "in_transit": 0,
+                "delivered": 0,
+                "pending": 0,
+                "status_shipped": 0,
+                "ready_to_ship": 0,
+            }
             
             logger.info(f"📊 Total de pedidos na empresa: {len(all_orders)}")
             
@@ -334,44 +346,60 @@ class ShipmentController:
                     
                     # Verificar se deve excluir
                     exclude = False
+                    debug_excludes["total_paid"] += 1
                     
                     # Excluir se já foi enviado
                     if has_tracking or has_shipping_date:
                         exclude = True
+                        if has_tracking:
+                            debug_excludes["has_tracking"] += 1
+                        if has_shipping_date:
+                            debug_excludes["has_shipping_date"] += 1
                     
                     # Excluir se está em trânsito
                     if shipping_status_norm in ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']:
                         exclude = True
+                        debug_excludes["in_transit"] += 1
                     
                     # Excluir se foi entregue
                     if shipping_status_norm in ['delivered', 'inferred'] or status_str == 'DELIVERED':
                         exclude = True
+                        debug_excludes["delivered"] += 1
                     
                     # Excluir se está pendente
                     if shipping_status_norm == 'pending' or status_str == 'PENDING':
                         exclude = True
+                        debug_excludes["pending"] += 1
                     
                     # Excluir se status do pedido é SHIPPED
                     if status_str == 'SHIPPED':
                         exclude = True
+                        debug_excludes["status_shipped"] += 1
                     
                     # Excluir se está pronto para envio (vai para "Aguardando Envio")
                     if is_ready_to_ship:
                         exclude = True
+                        debug_excludes["ready_to_ship"] += 1
 
-                    # Excluir pedidos Fulfillment (aba é para não-Fulfillment)
+                    # Excluir Fulfillment (não-Fulfillment na aba)
                     try:
-                        if getattr(order, 'shipping_type', None) == 'fulfillment':
+                        logistic_type = None
+                        details = shipping_details if 'shipping_details' in locals() and shipping_details else {}
+                        if isinstance(details, dict):
+                            logistic_type = details.get('logistic_type') or (details.get('logistic', {}) or {}).get('type')
+                        shipping_type = getattr(order, 'shipping_type', None)
+                        if (shipping_type == 'fulfillment') or (str(logistic_type).lower() == 'fulfillment'):
                             exclude = True
                     except Exception:
                         pass
+
                     
                     if not exclude:
                         counts["READY_TO_PREPARE"] += 1
                     else:
                         # Se excluiu de READY_TO_PREPARE por estar pronto para envio, vai para WAITING_SHIPMENT
-                        # WAITING_SHIPMENT: substatus indicar pronto para envio OU não tem shipping_status (sem dados ainda)
-                        if is_ready_to_ship or not shipping_status_norm:
+                        # WAITING_SHIPMENT: apenas quando substatus indicar pronto para envio (igual à tela)
+                        if is_ready_to_ship:
                             counts["WAITING_SHIPMENT"] += 1
                 
                 # 5. SHIPPED: status = SHIPPED OR shipping_status em trânsito
@@ -395,6 +423,7 @@ class ShipmentController:
                     counts["REFUNDED"] += 1
             
             logger.info(f"📊 Contadores calculados: {counts}")
+            logger.info(f"🧪 READY_TO_PREPARE debug: {debug_excludes}")
             
             return {
                 "success": True,
