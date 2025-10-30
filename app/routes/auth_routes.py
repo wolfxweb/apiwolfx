@@ -165,35 +165,10 @@ async def logout(
     return response
 
 @auth_router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(
-    request: Request,
-    session_token: Optional[str] = Cookie(None),
-    db: Session = Depends(get_db)
-):
+async def dashboard(request: Request):
     """Dashboard do usuário"""
-    if not session_token:
-        return RedirectResponse(url="/auth/login", status_code=302)
-    
-    result = auth_controller.get_user_by_session(session_token, db)
-    if result.get("error"):
-        return RedirectResponse(url="/auth/login", status_code=302)
-    
-    # Buscar contas ML para estatísticas do dashboard
-    from app.controllers.ml_controller import MLController
-    ml_controller = MLController()
-    
-    user_data = result["user"]
-    user_id = user_data["id"]
-    company_id = user_data["company"]["id"]
-    
-    accounts_result = ml_controller.get_user_ml_accounts(user_id, company_id, db)
-    total_accounts = accounts_result.get("total_accounts", 0) if accounts_result.get("success") else 0
-    
     from app.views.template_renderer import render_template
-    return render_template("dashboard.html", 
-                         user=user_data,
-                         company=user_data.get("company", {}),
-                         total_accounts=total_accounts)
+    return render_template("dashboard_simple.html", request=request)
 
 @auth_router.get("/profile", response_class=HTMLResponse)
 async def profile(

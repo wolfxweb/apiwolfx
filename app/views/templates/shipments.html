@@ -117,14 +117,24 @@
 
                         <!-- Tab Pendentes -->
                 <div class="tab-pane fade" id="pending" role="tabpanel" aria-labelledby="pending-tab">
+                            <!-- Botão de Atualização -->
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="update-pending-orders" disabled>
+                                    <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
+                                </button>
+                                <span class="ms-2 text-muted" id="pending-selected-count">0 selecionado(s)</span>
+                            </div>
+                            
                             <h5 class="card-title">Pendentes</h5>
-                            <p class="text-muted">Pedidos aguardando confirmação ou pagamento.</p>
                             
                             <!-- Tabela de Pedidos Pendentes -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead class="table-dark">
                                         <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" id="select-all-pending" title="Selecionar todos">
+                                            </th>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
                                             <th>Valor</th>
@@ -134,7 +144,7 @@
                                     </thead>
                                     <tbody id="pending-orders">
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted">
+                                            <td colspan="6" class="text-center text-muted">
                                                 <div class="spinner-border spinner-border-sm" role="status">
                                                     <span class="visually-hidden">Carregando...</span>
                                                 </div>
@@ -149,7 +159,6 @@
                         <!-- Tab Confirmados -->
                 <div class="tab-pane fade" id="confirmed" role="tabpanel" aria-labelledby="confirmed-tab">
                             <h5 class="card-title">Confirmados</h5>
-                            <p class="text-muted">Pedidos confirmados mas ainda não pagos.</p>
                             <!-- Tabela será adicionada aqui -->
                 </div>
 
@@ -194,16 +203,26 @@
 
                 <!-- Tab Separar Pedidos (Manual Status) -->
                 <div class="tab-pane fade" id="manual-prepare" role="tabpanel" aria-labelledby="manual-prepare-tab">
+                            <!-- Botão de Atualização -->
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="update-manual-prepare-orders" disabled>
+                                    <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
+                                </button>
+                                <span class="ms-2 text-muted" id="manual-prepare-selected-count">0 selecionado(s)</span>
+                            </div>
+                            
                             <h5 class="card-title">
                                 <i class="bi bi-exclamation-triangle-fill text-warning"></i> Separar Pedidos
                             </h5>
-                            <p class="text-muted">Pedidos marcados manualmente para separação. Status: READY_TO_PREPARE</p>
                             
                             <!-- Tabela de Pedidos -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead class="table-dark">
                                         <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" id="select-all-manual-prepare" title="Selecionar todos">
+                                            </th>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
                                             <th>Data</th>
@@ -215,7 +234,7 @@
                                     </thead>
                                     <tbody id="manual-prepare-orders">
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="8" class="text-center text-muted">
                                                 <div class="spinner-border spinner-border-sm" role="status">
                                                     <span class="visually-hidden">Carregando...</span>
                                                 </div>
@@ -229,14 +248,24 @@
 
                 <!-- Tab Aguardando Envio -->
                 <div class="tab-pane fade" id="waiting-shipment" role="tabpanel" aria-labelledby="waiting-shipment-tab">
+                            <!-- Botão de Atualização -->
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="update-waiting-shipment-orders" disabled>
+                                    <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
+                                </button>
+                                <span class="ms-2 text-muted" id="waiting-shipment-selected-count">0 selecionado(s)</span>
+                            </div>
+                            
                             <h5 class="card-title">Aguardando Envio</h5>
-                            <p class="text-muted">Pedidos pagos e prontos para envio.</p>
                             
                             <!-- Tabela de Pedidos Aguardando Envio -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead class="table-dark">
                                         <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" id="select-all-waiting-shipment" title="Selecionar todos">
+                                            </th>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
                                             <th>Valor</th>
@@ -246,7 +275,7 @@
                                     </thead>
                                     <tbody id="waiting-shipment-orders">
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted">
+                                            <td colspan="6" class="text-center text-muted">
                                                 Carregando pedidos...
                                             </td>
                                         </tr>
@@ -257,14 +286,24 @@
 
                 <!-- Tab Enviados -->
                 <div class="tab-pane fade" id="shipped" role="tabpanel" aria-labelledby="shipped-tab">
+                            <!-- Botão de Atualização -->
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="update-shipped-orders" disabled>
+                                    <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
+                                </button>
+                                <span class="ms-2 text-muted" id="shipped-selected-count">0 selecionado(s)</span>
+                            </div>
+                            
                             <h5 class="card-title">Enviados</h5>
-                            <p class="text-muted">Pedidos que já foram enviados e estão em trânsito.</p>
                             
                             <!-- Tabela de Pedidos Enviados -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead class="table-dark">
                                         <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" id="select-all-shipped" title="Selecionar todos">
+                                            </th>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
                                             <th>Valor</th>
@@ -274,7 +313,7 @@
                                     </thead>
                                     <tbody id="shipped-orders">
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted">
+                                            <td colspan="6" class="text-center text-muted">
                                                 <div class="spinner-border spinner-border-sm" role="status">
                                                     <span class="visually-hidden">Carregando...</span>
                                                 </div>
@@ -288,14 +327,24 @@
 
                 <!-- Tab Entregues -->
                 <div class="tab-pane fade" id="delivered" role="tabpanel" aria-labelledby="delivered-tab">
+                            <!-- Botão de Atualização -->
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="update-delivered-orders" disabled>
+                                    <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
+                                </button>
+                                <span class="ms-2 text-muted" id="delivered-selected-count">0 selecionado(s)</span>
+                            </div>
+                            
                             <h5 class="card-title">Entregues</h5>
-                            <p class="text-muted">Pedidos que foram entregues ao cliente.</p>
                             
                             <!-- Tabela de Pedidos Entregues -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead class="table-dark">
                                         <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" id="select-all-delivered" title="Selecionar todos">
+                                            </th>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
                                             <th>Valor</th>
@@ -305,7 +354,7 @@
                                     </thead>
                                     <tbody id="delivered-orders">
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted">
+                                            <td colspan="6" class="text-center text-muted">
                                                 <div class="spinner-border spinner-border-sm" role="status">
                                                     <span class="visually-hidden">Carregando...</span>
                                                 </div>
@@ -319,14 +368,24 @@
 
                 <!-- Tab Cancelados -->
                 <div class="tab-pane fade" id="cancelled" role="tabpanel" aria-labelledby="cancelled-tab">
+                            <!-- Botão de Atualização -->
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="update-cancelled-orders" disabled>
+                                    <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
+                                </button>
+                                <span class="ms-2 text-muted" id="cancelled-selected-count">0 selecionado(s)</span>
+                            </div>
+                            
                             <h5 class="card-title">Cancelados</h5>
-                            <p class="text-muted">Pedidos que foram cancelados.</p>
                             
                             <!-- Tabela de Pedidos Cancelados -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead class="table-dark">
                                         <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" id="select-all-cancelled" title="Selecionar todos">
+                                            </th>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
                                             <th>Valor</th>
@@ -336,7 +395,7 @@
                                     </thead>
                                     <tbody id="cancelled-orders">
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted">
+                                            <td colspan="6" class="text-center text-muted">
                                                 <div class="spinner-border spinner-border-sm" role="status">
                                                     <span class="visually-hidden">Carregando...</span>
                                                 </div>
@@ -350,14 +409,24 @@
 
                 <!-- Tab Reembolsados -->
                 <div class="tab-pane fade" id="refunded" role="tabpanel" aria-labelledby="refunded-tab">
+                            <!-- Botão de Atualização -->
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="update-refunded-orders" disabled>
+                                    <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
+                                </button>
+                                <span class="ms-2 text-muted" id="refunded-selected-count">0 selecionado(s)</span>
+                            </div>
+                            
                             <h5 class="card-title">Reembolsados</h5>
-                            <p class="text-muted">Pedidos que foram reembolsados completamente ou parcialmente.</p>
                             
                             <!-- Tabela de Pedidos Reembolsados -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead class="table-dark">
                                         <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" id="select-all-refunded" title="Selecionar todos">
+                                            </th>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
                                             <th>Valor</th>
@@ -367,7 +436,7 @@
                                     </thead>
                                     <tbody id="refunded-orders">
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted">
+                                            <td colspan="6" class="text-center text-muted">
                                                 <div class="spinner-border spinner-border-sm" role="status">
                                                     <span class="visually-hidden">Carregando...</span>
                                                 </div>
@@ -972,7 +1041,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                    <td colspan="5" class="text-center text-muted">
+                    <td colspan="6" class="text-center text-muted">
                         Nenhum pedido entregue encontrado.
                 </td>
             </tr>
@@ -1025,6 +1094,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             return `
         <tr>
+            <td>
+                        <input type="checkbox" class="order-checkbox" value="${orderId}" data-order-id="${orderId}">
+                    </td>
             <td>
                         <strong>${orderId}</strong><br>
                         <small class="text-muted">${orderDateTime}</small>
@@ -1101,6 +1173,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             `;
         }).join('');
+        
+        // Configurar eventos dos checkboxes após renderizar
+        setupCheckboxEventsGeneric('select-all-delivered', updateDeliveredCount);
     }
     
     async function loadPendingOrders() {
@@ -1161,7 +1236,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || orders.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted">
+                    <td colspan="6" class="text-center text-muted">
                         Nenhum pedido pendente encontrado.
                     </td>
                 </tr>
@@ -1227,6 +1302,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             return `
                 <tr>
+                    <td>
+                        <input type="checkbox" class="order-checkbox" value="${orderId}" data-order-id="${orderId}">
+                    </td>
                     <td>
                         <strong>${orderId}</strong><br>
                         <small class="text-muted">${orderDateTime}</small>
@@ -1302,6 +1380,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             `;
         }).join('');
+        
+        // Configurar eventos dos checkboxes após renderizar
+        setupCheckboxEventsGeneric('select-all-pending', updatePendingCount);
     }
     
     // Função para copiar número do pedido
@@ -1378,7 +1459,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || orders.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted">
+                    <td colspan="6" class="text-center text-muted">
                         Nenhum pedido aguardando envio encontrado.
                     </td>
                 </tr>
@@ -1459,7 +1540,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || orders.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted">
+                    <td colspan="6" class="text-center text-muted">
                         Nenhum pedido enviado encontrado.
                     </td>
                 </tr>
@@ -1525,6 +1606,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             return `
                 <tr>
+                    <td>
+                        <input type="checkbox" class="order-checkbox" value="${orderId}" data-order-id="${orderId}">
+                    </td>
                     <td>
                         <strong>${orderId}</strong><br>
                         <small class="text-muted">${orderDateTime}</small>
@@ -1600,6 +1684,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             `;
         }).join('');
+        
+        // Configurar eventos dos checkboxes após renderizar
+        setupCheckboxEventsGeneric('select-all-shipped', updateShippedCount);
     }
     
     function renderManualOrders(tbody, orders) {
@@ -1622,6 +1709,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             return `
                 <tr>
+                    <td>
+                        <input type="checkbox" class="order-checkbox" value="${orderId}" data-order-id="${orderId}">
+                    </td>
                     <td><strong>${orderId}</strong></td>
                     <td>${order.buyer_name || order.buyer_nickname || '-'}</td>
                     <td>${orderDate}</td>
@@ -1641,6 +1731,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             `;
         }).join('');
+        
+        // Configurar eventos dos checkboxes após renderizar
+        setupCheckboxEventsGeneric('select-all-manual-prepare', updateManualPrepareCount);
     }
     
     async function loadCancelledOrders() {
@@ -1686,7 +1779,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || orders.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted">
+                    <td colspan="6" class="text-center text-muted">
                         Nenhum pedido cancelado encontrado.
                     </td>
                 </tr>
@@ -1707,6 +1800,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             return `
                 <tr>
+                    <td>
+                        <input type="checkbox" class="order-checkbox" value="${orderId}" data-order-id="${orderId}">
+                    </td>
                     <td>
                         <strong>${orderId}</strong><br>
                         <small class="text-muted">${orderDateTime}</small>
@@ -1736,6 +1832,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             `;
         }).join('');
+        
+        // Configurar eventos dos checkboxes após renderizar
+        setupCheckboxEventsGeneric('select-all-cancelled', updateCancelledCount);
     }
     
     async function loadRefundedOrders() {
@@ -1781,7 +1880,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || orders.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted">
+                    <td colspan="6" class="text-center text-muted">
                         Nenhum pedido reembolsado encontrado.
                     </td>
                 </tr>
@@ -1802,6 +1901,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             return `
                 <tr>
+                    <td>
+                        <input type="checkbox" class="order-checkbox" value="${orderId}" data-order-id="${orderId}">
+                    </td>
                     <td>
                         <strong>${orderId}</strong><br>
                         <small class="text-muted">${orderDateTime}</small>
@@ -1831,6 +1933,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             `;
         }).join('');
+        
+        // Configurar eventos dos checkboxes após renderizar
+        setupCheckboxEventsGeneric('select-all-refunded', updateRefundedCount);
     }
     
     function renderOrders(tbody, orders) {
@@ -2026,19 +2131,22 @@ document.addEventListener('DOMContentLoaded', function() {
         setupCheckboxEvents();
     }
     
-    function setupCheckboxEvents() {
-        // Checkbox "Selecionar todos"
-        const selectAllCheckbox = document.getElementById('select-all-orders');
-        const orderCheckboxes = document.querySelectorAll('.order-checkbox');
-        const updateButton = document.getElementById('update-selected-orders');
-        const selectedCount = document.getElementById('selected-count');
+    // Função genérica para configurar eventos de qualquer aba
+    function setupCheckboxEventsGeneric(selectAllId, tbodyId, countUpdateFunc) {
+        const selectAllCheckbox = document.getElementById(selectAllId);
+        const tbody = document.getElementById(tbodyId);
+        
+        if (!tbody) return;
+        
+        // Buscar checkboxes APENAS dentro deste tbody específico
+        const orderCheckboxes = tbody.querySelectorAll('.order-checkbox');
         
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', function() {
                 orderCheckboxes.forEach(checkbox => {
                     checkbox.checked = this.checked;
                 });
-                updateSelectedCount();
+                countUpdateFunc();
             });
         }
         
@@ -2052,23 +2160,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     selectAllCheckbox.checked = allChecked;
                     selectAllCheckbox.indeterminate = someChecked && !allChecked;
                 }
-                updateSelectedCount();
+                countUpdateFunc();
             });
         });
-        
-        // Botão de atualizar
-        if (updateButton) {
-            updateButton.addEventListener('click', function() {
-                updateSelectedOrders();
-            });
-        }
     }
     
-    function updateSelectedCount() {
-        const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+    function setupCheckboxEvents() {
+        setupCheckboxEventsGeneric('select-all-orders', 'ready-to-prepare-orders', updateSelectedCount);
+    }
+    
+    // Função genérica para atualizar contador de qualquer aba
+    function updateSelectedCountGeneric(countId, buttonId, tbodyId) {
+        const tbody = document.getElementById(tbodyId);
+        let selectedCheckboxes = [];
+        
+        if (tbody) {
+            // Buscar checkboxes APENAS dentro deste tbody específico
+            selectedCheckboxes = tbody.querySelectorAll('.order-checkbox:checked');
+        }
+        
         const count = selectedCheckboxes.length;
-        const selectedCountEl = document.getElementById('selected-count');
-        const updateButton = document.getElementById('update-selected-orders');
+        const selectedCountEl = document.getElementById(countId);
+        const updateButton = document.getElementById(buttonId);
         
         if (selectedCountEl) {
             selectedCountEl.textContent = `${count} selecionado(s)`;
@@ -2079,8 +2192,50 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    function updateSelectedOrders() {
-        const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+    function updateSelectedCount() {
+        updateSelectedCountGeneric('selected-count', 'update-selected-orders', 'ready-to-prepare-orders');
+    }
+    
+    // Funções para cada aba
+    function updatePendingCount() {
+        updateSelectedCountGeneric('pending-selected-count', 'update-pending-orders', 'pending-orders');
+    }
+    
+    function updateWaitingShipmentCount() {
+        updateSelectedCountGeneric('waiting-shipment-selected-count', 'update-waiting-shipment-orders', 'waiting-shipment-orders');
+    }
+    
+    function updateShippedCount() {
+        updateSelectedCountGeneric('shipped-selected-count', 'update-shipped-orders', 'shipped-orders');
+    }
+    
+    function updateDeliveredCount() {
+        updateSelectedCountGeneric('delivered-selected-count', 'update-delivered-orders', 'delivered-orders');
+    }
+    
+    function updateCancelledCount() {
+        updateSelectedCountGeneric('cancelled-selected-count', 'update-cancelled-orders', 'cancelled-orders');
+    }
+    
+    function updateRefundedCount() {
+        updateSelectedCountGeneric('refunded-selected-count', 'update-refunded-orders', 'refunded-orders');
+    }
+    
+    function updateManualPrepareCount() {
+        updateSelectedCountGeneric('manual-prepare-selected-count', 'update-manual-prepare-orders', 'manual-prepare-orders');
+    }
+    
+    // Função genérica para atualizar pedidos de qualquer aba
+    function updateSelectedOrders(buttonId, selectAllId, checkboxClass, countId, reloadFunction, tbodyId) {
+        let selectedCheckboxes = [];
+        if (tbodyId) {
+            const tbody = document.getElementById(tbodyId);
+            if (tbody) {
+                selectedCheckboxes = tbody.querySelectorAll(`${checkboxClass}:checked`);
+            }
+        } else {
+            selectedCheckboxes = document.querySelectorAll(`${checkboxClass}:checked`);
+        }
         const orderIds = Array.from(selectedCheckboxes).map(cb => cb.value);
         
         console.log('🔄 [FRONTEND] Iniciando atualização de pedidos selecionados');
@@ -2092,7 +2247,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        const updateButton = document.getElementById('update-selected-orders');
+        const updateButton = document.getElementById(buttonId);
         const originalText = updateButton.innerHTML;
         updateButton.disabled = true;
         updateButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Atualizando...';
@@ -2138,13 +2293,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log(`✅ [FRONTEND] ${data.success_count || 0} pedido(s) atualizado(s) com sucesso, ${data.failure_count || 0} falharam`);
                 console.log('🔄 [FRONTEND] Recarregando lista de pedidos...');
                 
-                // Recarregar a lista
-                loadReadyToPrepareOrders();
+                // Recarregar a lista usando a função fornecida
+                if (reloadFunction && typeof reloadFunction === 'function') {
+                    reloadFunction();
+                }
                 
                 // Desmarcar todos os checkboxes
-                document.querySelectorAll('.order-checkbox').forEach(cb => cb.checked = false);
-                document.getElementById('select-all-orders').checked = false;
-                updateSelectedCount();
+                document.querySelectorAll(checkboxClass).forEach(cb => cb.checked = false);
+                const selectAll = document.getElementById(selectAllId);
+                if (selectAll) selectAll.checked = false;
+                
+                // Atualizar contador
+                const countEl = document.getElementById(countId);
+                if (countEl) countEl.textContent = '0 selecionado(s)';
                 
                 console.log('✅ [FRONTEND] Atualização concluída com sucesso');
             } else {
@@ -2246,6 +2407,48 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = new bootstrap.Modal(document.getElementById('jsonModal'));
         modal.show();
     };
+    
+    // ============================================
+    // CONFIGURAR EVENTOS DE TODAS AS ABAS
+    // ============================================
+    
+    // Helper para configurar uma aba completa
+    function setupTab(selectAllId, buttonId, tbodyId, countUpdateFunc, reloadFunc) {
+        const selectAllCheckbox = document.getElementById(selectAllId);
+        const updateButton = document.getElementById(buttonId);
+        
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                const tbody = document.getElementById(tbodyId);
+                if (tbody) {
+                    tbody.querySelectorAll('.order-checkbox').forEach(cb => cb.checked = this.checked);
+                    countUpdateFunc();
+                }
+            });
+        }
+        
+        if (updateButton) {
+            updateButton.addEventListener('click', () => {
+                updateSelectedOrders(
+                    buttonId,
+                    selectAllId,
+                    '.order-checkbox',
+                    buttonId.replace('update-', '').replace('-orders', '-selected-count'),
+                    reloadFunc,
+                    tbodyId
+                );
+            });
+        }
+    }
+    
+    // Configurar eventos para cada aba
+    setupTab('select-all-pending', 'update-pending-orders', 'pending-orders', updatePendingCount, loadPendingOrders);
+    setupTab('select-all-waiting-shipment', 'update-waiting-shipment-orders', 'waiting-shipment-orders', updateWaitingShipmentCount, loadWaitingShipmentOrders);
+    setupTab('select-all-shipped', 'update-shipped-orders', 'shipped-orders', updateShippedCount, loadShippedOrders);
+    setupTab('select-all-delivered', 'update-delivered-orders', 'delivered-orders', updateDeliveredCount, loadDeliveredOrders);
+    setupTab('select-all-cancelled', 'update-cancelled-orders', 'cancelled-orders', updateCancelledCount, loadCancelledOrders);
+    setupTab('select-all-refunded', 'update-refunded-orders', 'refunded-orders', updateRefundedCount, loadRefundedOrders);
+    setupTab('select-all-manual-prepare', 'update-manual-prepare-orders', 'manual-prepare-orders', updateManualPrepareCount, loadManualPrepareOrders);
 });
 </script>
 

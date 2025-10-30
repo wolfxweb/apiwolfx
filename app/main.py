@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Cookie, Depends, HTTPException, Request
+from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -861,25 +862,10 @@ async def get_user_info(access_token: str = None):
 
 
 @app.get("/dashboard")
-async def dashboard(session_token: str = Cookie(None)):
+async def dashboard(request: Request):
     """Dashboard do usuário"""
-    from app.controllers.auth_controller import AuthController
-    from app.config.database import get_db
     from app.views.template_renderer import render_template
-    from fastapi.responses import RedirectResponse
-    
-    # Se não há session_token como parâmetro, redirecionar para login
-    if not session_token:
-        return RedirectResponse(url="/auth/login", status_code=302)
-    
-    controller = AuthController()
-    db = next(get_db())
-    result = controller.get_user_by_session(session_token, db)
-    
-    if result.get("error"):
-        return RedirectResponse(url="/auth/login", status_code=302)
-    
-    return render_template("dashboard.html", user=result["user"])
+    return render_template("dashboard_simple.html", request=request)
 
 @app.get("/health")
 async def health_check():
