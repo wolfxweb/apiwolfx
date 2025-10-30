@@ -7,12 +7,16 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 import io
+import logging
+import httpx
 
 from app.config.database import get_db
 from app.controllers.shipment_controller import ShipmentController
 from app.controllers.auth_controller import AuthController
 from app.services.token_manager import TokenManager
 from app.views.template_renderer import render_template
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/shipments", tags=["Expedição"])
 
@@ -242,6 +246,88 @@ async def bulk_update_orders(
         })
         
     except Exception as e:
+        return JSONResponse(content={
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@router.get("/download-invoice/{order_id}")
+async def download_invoice(
+    order_id: str,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Download da nota fiscal do pedido"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Buscar pedido no banco
+        from app.models.saas_models import MLOrder
+        order = db.query(MLOrder).filter(
+            MLOrder.ml_order_id == order_id,
+            MLOrder.company_id == company_id
+        ).first()
+        
+        if not order:
+            return JSONResponse(content={"error": "Pedido não encontrado"}, status_code=404)
+        
+        if not order.invoice_pdf_url:
+            return JSONResponse(content={"error": "Nota fiscal não disponível"}, status_code=404)
+        
+        # Buscar token de acesso
+        token_manager = TokenManager(db)
+        from app.models.saas_models import User
+        user_db = db.query(User).filter(
+            User.company_id == company_id,
+            User.is_active == True
+        ).first()
+        
+        if not user_db:
+            return JSONResponse(content={"error": "Usuário não encontrado"}, status_code=404)
+        
+        access_token = token_manager.get_valid_token(user_db.id)
+        if not access_token:
+            return JSONResponse(content={"error": "Token inválido"}, status_code=401)
+        
+        # Baixar PDF da API do Mercado Livre
+        headers = {
+            "Authorization": f"Bearer {access_token}"
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(order.invoice_pdf_url, headers=headers, timeout=30.0)
+            
+            if response.status_code != 200:
+                logger.error(f"Erro ao baixar PDF: {response.status_code}")
+                return JSONResponse(content={"error": "Erro ao baixar nota fiscal"}, status_code=500)
+            
+            # Preparar nome do arquivo
+            invoice_filename = f"NF-{order_id}"
+            if order.invoice_number:
+                invoice_filename = f"NF-{order.invoice_number}"
+                if order.invoice_series:
+                    invoice_filename = f"NF-{order.invoice_number}-{order.invoice_series}"
+            
+            invoice_filename += ".pdf"
+            
+            # Retornar arquivo como download
+            return StreamingResponse(
+                io.BytesIO(response.content),
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{invoice_filename}"'
+                }
+            )
+    
+    except Exception as e:
+        logger.error(f"Erro ao baixar nota fiscal: {e}")
         return JSONResponse(content={
             "error": f"Erro interno: {str(e)}"
         }, status_code=500)

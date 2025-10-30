@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Expedição de Produtos{% endblock %}
+{% block title %}Pedidos{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
             <h1 class="mb-4">
-                    <i class="bi bi-box-seam"></i> Expedição de Produtos
+                    <i class="bi bi-box-seam"></i> Pedidos
                 </h1>
 
             <!-- Card com Filtros -->
@@ -69,7 +69,7 @@
                                 </li>
                                 <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="ready-to-prepare-tab" data-bs-toggle="tab" data-bs-target="#ready-to-prepare" type="button" role="tab">
-                                Pronto para Preparar
+                                Preparando Envio
                                 <span class="badge bg-secondary ms-1" id="ready-to-prepare-count">0</span>
                             </button>
                         </li>
@@ -123,7 +123,7 @@
                             <!-- Tabela de Pedidos Pendentes -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
-                                    <thead>
+                                    <thead class="table-dark">
                                         <tr>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
@@ -153,7 +153,7 @@
                             <!-- Tabela será adicionada aqui -->
                 </div>
 
-                <!-- Tab Pronto para Preparar -->
+                <!-- Tab Preparando Envio -->
                 <div class="tab-pane fade show active" id="ready-to-prepare" role="tabpanel" aria-labelledby="ready-to-prepare-tab">
                             <!-- Botão de Atualização -->
                             <div class="mb-3">
@@ -166,7 +166,7 @@
                             <!-- Tabela de Pedidos -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
-                                    <thead>
+                                    <thead class="table-dark">
                                         <tr>
                                             <th style="width: 40px;">
                                                 <input type="checkbox" id="select-all-orders" title="Selecionar todos">
@@ -202,7 +202,7 @@
                             <!-- Tabela de Pedidos -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
-                                    <thead>
+                                    <thead class="table-dark">
                                         <tr>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
@@ -234,7 +234,7 @@
                             <!-- Tabela de Pedidos Aguardando Envio -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
-                                    <thead>
+                                    <thead class="table-dark">
                                         <tr>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
@@ -261,7 +261,7 @@
                             <!-- Tabela de Pedidos Enviados -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
-                                    <thead>
+                                    <thead class="table-dark">
                                         <tr>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
@@ -291,7 +291,7 @@
                             <!-- Tabela de Pedidos Entregues -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
-                                    <thead>
+                                    <thead class="table-dark">
                                         <tr>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
@@ -321,7 +321,7 @@
                             <!-- Tabela de Pedidos Cancelados -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
-                                    <thead>
+                                    <thead class="table-dark">
                                         <tr>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
@@ -351,7 +351,7 @@
                             <!-- Tabela de Pedidos Reembolsados -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
-                                    <thead>
+                                    <thead class="table-dark">
                                         <tr>
                                             <th>Pedido</th>
                                             <th>Comprador</th>
@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Carregar contadores de todas as abas ao iniciar
     loadTabCounts();
     
-    // Carregar pedidos da aba "Pronto para Preparar" ao carregar a página
+    // Carregar pedidos da aba "Preparando Envio" ao carregar a página
     // Isso já vai calcular o contador também
     loadReadyToPrepareOrders();
     
@@ -1106,9 +1106,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Detalhes
-                        </button>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${order.invoice_pdf_url ? 
+                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>` : 
+                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -1332,9 +1343,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Detalhes
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Visualizar
                         </button>
+                        ${order.invoice_pdf_url ? 
+                            `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-file-earmark-pdf"></i> NF
+                            </a>` : 
+                            '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf"></i> NF</button>'
+                        }
                     </td>
                 </tr>
             `;
@@ -1701,9 +1718,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Detalhes
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Visualizar
                         </button>
+                        ${order.invoice_pdf_url ? 
+                            `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-file-earmark-pdf"></i> NF
+                            </a>` : 
+                            '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf"></i> NF</button>'
+                        }
                     </td>
                 </tr>
             `;
@@ -1845,9 +1868,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${statusBadge}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Detalhes
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Visualizar
                         </button>
+                        ${order.invoice_pdf_url ? 
+                            `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-file-earmark-pdf"></i> NF
+                            </a>` : 
+                            '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf"></i> NF</button>'
+                        }
                     </td>
                 </tr>
             `;
@@ -1959,9 +1988,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${totalAmount}</td>
                     <td>${statusBadge}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Detalhes
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewOrderDetails('${orderId}')">
+                            <i class="bi bi-eye"></i> Visualizar
                         </button>
+                        ${order.invoice_pdf_url ? 
+                            `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-file-earmark-pdf"></i> NF
+                            </a>` : 
+                            '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf"></i> NF</button>'
+                        }
                     </td>
                 </tr>
             `;
@@ -2135,9 +2170,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${shippingInfo}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')">
-                            <i class="bi bi-eye"></i> Detalhes
-                        </button>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${order.invoice_pdf_url ? 
+                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>` : 
+                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -2296,9 +2342,72 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Exibir JSON formatado no modal
-        const jsonContent = JSON.stringify(order, null, 2);
-        document.getElementById('json-content').textContent = jsonContent;
+        // Criar conteúdo de texto com todos os campos
+        let textContent = `DETALHES DO PEDIDO\n`;
+        textContent += `${'='.repeat(50)}\n\n`;
+        
+        textContent += `ID do Pedido: ${order.order_id || order.ml_order_id || '-'}\n`;
+        textContent += `Data de Criação: ${order.date_created || '-'}\n`;
+        textContent += `Status: ${order.status || '-'}\n`;
+        textContent += `Total: R$ ${order.total_amount || '0.00'}\n\n`;
+        
+        textContent += `INFORMAÇÕES DO COMPRADOR\n`;
+        textContent += `${'-'.repeat(50)}\n`;
+        textContent += `Nome: ${order.buyer_first_name || order.buyer_nickname || '-'}\n`;
+        textContent += `Nickname: ${order.buyer_nickname || '-'}\n`;
+        textContent += `Email: ${order.buyer_email || '-'}\n\n`;
+        
+        if (order.shipping_address || order.shipping_details) {
+            textContent += `ENDEREÇO DE ENVIO\n`;
+            textContent += `${'-'.repeat(50)}\n`;
+            const dest = order.shipping_details?.destination;
+            const fallback = order.shipping_details?.receiver_address || order.shipping_address;
+            const addr = dest?.shipping_address || fallback;
+            if (addr) {
+                textContent += `Nome: ${addr.receiver_name || dest?.receiver_name || '-'}\n`;
+                textContent += `Endereço: ${addr.address_line || '-'}\n`;
+                textContent += `Cidade: ${addr.city?.name || addr.city || '-'}\n`;
+                textContent += `Estado: ${addr.state?.name || addr.state || '-'}\n`;
+                textContent += `CEP: ${addr.zip_code || '-'}\n`;
+            }
+            textContent += `\n`;
+        }
+        
+        textContent += `FORMA DE ENVIO\n`;
+        textContent += `${'-'.repeat(50)}\n`;
+        textContent += `Tipo: ${order.shipping_type || '-'}\n`;
+        if (order.shipping_details) {
+            textContent += `Status: ${order.shipping_details.status || '-'}\n`;
+            textContent += `Substatus: ${order.shipping_details.substatus || '-'}\n`;
+        }
+        if (order.shipping_date) {
+            textContent += `Data de Envio: ${order.shipping_date}\n`;
+        }
+        if (order.estimated_delivery_date) {
+            textContent += `Previsão de Entrega: ${order.estimated_delivery_date}\n`;
+        }
+        textContent += `\n`;
+        
+        if (order.invoice_emitted) {
+            textContent += `NOTA FISCAL\n`;
+            textContent += `${'-'.repeat(50)}\n`;
+            textContent += `Emitida: Sim\n`;
+            textContent += `Número: ${order.invoice_number || '-'}\n`;
+            textContent += `Série: ${order.invoice_series || '-'}\n`;
+            textContent += `Chave: ${order.invoice_key || '-'}\n`;
+            if (order.invoice_emitted_at) {
+                textContent += `Data: ${order.invoice_emitted_at}\n`;
+            }
+            textContent += `\n`;
+        }
+        
+        // JSON completo no final
+        textContent += `JSON COMPLETO\n`;
+        textContent += `${'-'.repeat(50)}\n`;
+        textContent += JSON.stringify(order, null, 2);
+        
+        // Exibir no modal
+        document.getElementById('json-content').textContent = textContent;
         
         // Mostrar modal
         const modal = new bootstrap.Modal(document.getElementById('jsonModal'));
@@ -2307,23 +2416,23 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- Modal para exibir JSON completo -->
+<!-- Modal para exibir detalhes completos -->
 <div class="modal fade" id="jsonModal" tabindex="-1" aria-labelledby="jsonModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="jsonModalLabel">
-                    <i class="bi bi-code-slash"></i> JSON Completo do Pedido
+                    <i class="bi bi-eye"></i> Detalhes do Pedido
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <pre id="json-content" style="max-height: 600px; overflow-y: auto; background-color: #f8f9fa; padding: 15px; border-radius: 5px; font-size: 12px;"><code></code></pre>
+                <pre id="json-content" style="max-height: 600px; overflow-y: auto; background-color: #f8f9fa; padding: 15px; border-radius: 5px; font-size: 12px; white-space: pre-wrap; word-wrap: break-word;"></pre>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                 <button type="button" class="btn btn-primary" onclick="copyJsonToClipboard()">
-                    <i class="bi bi-clipboard"></i> Copiar JSON
+                    <i class="bi bi-clipboard"></i> Copiar Texto
                 </button>
             </div>
         </div>
@@ -2331,14 +2440,14 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <script>
-// Função para copiar JSON para a área de transferência
+// Função para copiar texto para a área de transferência
 function copyJsonToClipboard() {
-    const jsonContent = document.getElementById('json-content').textContent;
-    navigator.clipboard.writeText(jsonContent).then(() => {
-        alert('✅ JSON copiado para a área de transferência!');
+    const textContent = document.getElementById('json-content').textContent;
+    navigator.clipboard.writeText(textContent).then(() => {
+        alert('✅ Texto copiado para a área de transferência!');
     }).catch(err => {
         console.error('Erro ao copiar:', err);
-        alert('❌ Erro ao copiar JSON');
+        alert('❌ Erro ao copiar texto');
     });
 }
 </script>
