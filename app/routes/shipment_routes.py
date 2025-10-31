@@ -45,6 +45,8 @@ async def list_pending_shipments(
     status: Optional[str] = Query(""),
     page: Optional[int] = Query(1, ge=1),
     limit: Optional[int] = Query(100, ge=1, le=5000),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -67,7 +69,9 @@ async def list_pending_shipments(
             invoice_status=invoice_status,
             status=status,
             page=page,
-            limit=limit
+            limit=limit,
+            start_date=start_date,
+            end_date=end_date
         )
         
         return JSONResponse(content=result)

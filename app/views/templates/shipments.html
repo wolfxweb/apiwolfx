@@ -539,10 +539,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('filter-end-date').value = formatDate(today);
     
     // Carregar pedidos da aba "Preparando Envio" ao carregar a página
-    // Isso já vai calcular o contador também
-    // COMENTADO: O carregamento inicial está muito lento com muitos pedidos
-    // Os pedidos serão carregados apenas quando a aba for clicada
-    // loadReadyToPrepareOrders();
+    // Como a aba está ativa por padrão (show active), precisamos carregar os pedidos
+    // Agora com filtro de data aplicado, o carregamento será mais rápido (apenas últimos 7 dias)
+    loadReadyToPrepareOrders();
     
     // Carregar pedidos quando a aba for clicada
     const confirmedTab = document.getElementById('confirmed-tab');
@@ -717,12 +716,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 endDateInput.value = '';
             }
             
-            // Aplicar filtros automaticamente ao mudar período
-            if (ordersLoaded) {
-                applyFiltersToLoadedOrders();
-            } else {
-                loadReadyToPrepareOrders(1);
-            }
+            // Ao mudar período, recarregar os pedidos do servidor com novo filtro
+            // Resetar flags para forçar novo carregamento
+            ordersLoaded = false;
+            allOrdersLoaded = [];
+            loadingPromise = null;
+            
+            // Recarregar pedidos com novo período
+            loadReadyToPrepareOrders();
         }
     });
     
@@ -788,11 +789,21 @@ document.addEventListener('DOMContentLoaded', function() {
             // Resetar array para evitar duplicações em recarregamentos
             allOrdersLoaded = [];
 
-            // Buscar TODOS os pedidos (SEM filtros)
-            // REMOVIDO limite de 10 páginas (10.000 pedidos) para suportar mais pedidos
+            // Buscar pedidos aplicando filtros de data por padrão
+            // Removido limite de 10 páginas (10.000 pedidos) para suportar mais pedidos
             // O loop continuará até que não haja mais páginas disponíveis
+            
+            // Coletar filtros de data do formulário para aplicar na busca
+            const startDate = document.getElementById('filter-start-date').value;
+            const endDate = document.getElementById('filter-end-date').value;
+            
             while (hasMore) {
-                const response = await fetch(`/api/shipments/pending?page=${page}&limit=${limit}`);
+                // Construir URL com filtros de data
+                let url = `/api/shipments/pending?page=${page}&limit=${limit}`;
+                if (startDate) url += `&start_date=${startDate}`;
+                if (endDate) url += `&end_date=${endDate}`;
+                
+                const response = await fetch(url);
                 if (handle401Error(response)) return;
                 if (!response.ok) throw new Error('Erro ao carregar pedidos');
         const data = await response.json();

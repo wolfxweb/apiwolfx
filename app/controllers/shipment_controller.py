@@ -17,13 +17,15 @@ class ShipmentController:
         self.service = ShipmentService(db)
 
     def list_pending_shipments(self, company_id: int, search: str = "", invoice_status: str = "", 
-                               status: str = "", page: int = 1, limit: int = 100) -> Dict:
+                               status: str = "", page: int = 1, limit: int = 100, 
+                               start_date: str = None, end_date: str = None) -> Dict:
         """
         Lista pedidos para expedição com paginação
         Retorna pedidos paginados (todos os status) para exibir em todas as abas
         """
         try:
             from sqlalchemy import text
+            from datetime import datetime
             
             # Construir query SQL com filtros dinâmicos
             sql = """
@@ -70,6 +72,16 @@ class ShipmentController:
                     )
                 """
                 params["search"] = f"%{search}%"
+            
+            # Aplicar filtro de data inicial
+            if start_date:
+                sql += " AND ml_orders.date_created >= CAST(:start_date AS DATE)"
+                params["start_date"] = start_date
+            
+            # Aplicar filtro de data final
+            if end_date:
+                sql += " AND ml_orders.date_created <= CAST(:end_date AS DATE)"
+                params["end_date"] = end_date
             
             # Aplicar filtro de status da nota fiscal
             if invoice_status == "emitted":
