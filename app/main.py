@@ -862,10 +862,20 @@ async def get_user_info(access_token: str = None):
 
 
 @app.get("/dashboard")
-async def dashboard(request: Request):
+async def dashboard(request: Request, session_token: str = Cookie(None), db: Session = Depends(get_db)):
     """Dashboard do usuário"""
     from app.views.template_renderer import render_template
-    return render_template("dashboard_simple.html", request=request)
+    from app.controllers.auth_controller import AuthController
+    
+    # Se o usuário estiver logado, buscar seus dados
+    user_data = None
+    if session_token:
+        controller = AuthController()
+        result = controller.get_user_by_session(session_token, db)
+        if "error" not in result:
+            user_data = result.get("user")
+    
+    return render_template("dashboard_simple.html", request=request, user=user_data)
 
 @app.get("/health")
 async def health_check():
