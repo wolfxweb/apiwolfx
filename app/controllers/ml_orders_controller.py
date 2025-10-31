@@ -190,7 +190,7 @@ class MLOrdersController:
                 "accounts": []
             }
     
-    def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None, is_full_import: bool = False) -> Dict:
+    def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None, is_full_import: bool = False, days_back: Optional[int] = None) -> Dict:
         """Sincroniza orders da API do Mercado Libre"""
         try:
             logger.info(f"Sincronizando orders para company_id: {company_id}")
@@ -221,7 +221,7 @@ class MLOrdersController:
             
             for account in accounts:
                 try:
-                    result = self.orders_service.sync_orders_from_api(account.id, company_id, is_full_import=is_full_import)
+                    result = self.orders_service.sync_orders_from_api(account.id, company_id, is_full_import=is_full_import, days_back=days_back)
                     
                     if result.get("success"):
                         sync_results.append({

@@ -77,11 +77,14 @@ class ShipmentController:
             if start_date:
                 sql += " AND ml_orders.date_created >= CAST(:start_date AS DATE)"
                 params["start_date"] = start_date
+                logger.info(f"📅 Filtro de data inicial aplicado: {start_date}")
             
             # Aplicar filtro de data final
             if end_date:
-                sql += " AND ml_orders.date_created <= CAST(:end_date AS DATE)"
+                # Incluir o dia inteiro (até 23:59:59)
+                sql += " AND ml_orders.date_created < CAST(:end_date AS DATE) + INTERVAL '1 day'"
                 params["end_date"] = end_date
+                logger.info(f"📅 Filtro de data final aplicado: {end_date}")
             
             # Aplicar filtro de status da nota fiscal
             if invoice_status == "emitted":

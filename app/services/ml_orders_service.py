@@ -253,7 +253,7 @@ class MLOrdersService:
             }
 
     def sync_orders_from_api(self, ml_account_id: int, company_id: int, 
-                           limit: int = 50, is_full_import: bool = False) -> Dict:
+                           limit: int = 50, is_full_import: bool = False, days_back: Optional[int] = None) -> Dict:
         """Sincroniza orders da API do Mercado Libre para o banco"""
         try:
             logger.info(f"Sincronizando orders para ml_account_id: {ml_account_id}")
@@ -284,6 +284,10 @@ class MLOrdersService:
                 # Importação completa - limitar para evitar sobrecarga
                 logger.info("Importação completa - limitando a 50 pedidos para evitar sobrecarga")
                 orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit=50, days_back=30)
+            elif days_back is not None:
+                # Dias personalizados
+                logger.info(f"Sincronização - buscando pedidos dos últimos {days_back} dias")
+                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=days_back)
             else:
                 # Sincronização rápida - apenas os mais recentes (últimos 7 dias)
                 logger.info("Sincronização rápida - buscando pedidos dos últimos 7 dias")

@@ -321,6 +321,9 @@ class MLNotificationsController:
                         paid_amount = :paid_amount,
                         shipping_cost = :shipping_cost,
                         shipping_type = :shipping_type,
+                        shipping_status = :shipping_status,
+                        shipping_id = :shipping_id,
+                        shipping_method = :shipping_method,
                         shipping_date = :shipping_date,
                         estimated_delivery_date = :estimated_delivery_date,
                         shipping_details = :shipping_details,
@@ -337,7 +340,11 @@ class MLNotificationsController:
                 # Tentar buscar detalhes completos do shipment se tiver ID
                 shipment_substatus = None
                 logistic_type = None
+                shipping_method = None
                 shipment_data_json = None
+                shipping_date = None
+                estimated_delivery_date = None
+                
                 if shipping_id and access_token:
                     try:
                         # Buscar detalhes completos do shipment com header x-format-new
@@ -358,12 +365,16 @@ class MLNotificationsController:
                                 logistic_type = shipment_data.get("logistic_type")  # Campo direto
                                 shipping_date = shipment_data.get("date_created")
                                 
-                                # Buscar data estimada de entrega
+                                # Buscar método de envio
                                 shipping_option = shipment_data.get("shipping_option", {})
+                                shipping_method_name = shipping_option.get("shipping_method", {}).get("name") if shipping_option.get("shipping_method") else None
+                                shipping_method = shipping_method_name
+                                
+                                # Buscar data estimada de entrega
                                 estimated_delivery = shipping_option.get("estimated_delivery_final", {})
                                 estimated_delivery_date = estimated_delivery.get("date")
                                 
-                                logger.info(f"📦 Shipment {shipping_id}: substatus={shipment_substatus}, type={logistic_type}, date={shipping_date}, estimated={estimated_delivery_date}")
+                                logger.info(f"📦 Shipment {shipping_id}: substatus={shipment_substatus}, type={logistic_type}, method={shipping_method}, date={shipping_date}, estimated={estimated_delivery_date}")
                     except Exception as e:
                         logger.warning(f"Erro ao buscar detalhes do shipment {shipping_id}: {e}")
                 
@@ -447,6 +458,9 @@ class MLNotificationsController:
                     "paid_amount": payments[0].get("total_paid_amount") if payments else 0,
                     "shipping_cost": shipping.get("cost", 0) if shipping else 0,
                     "shipping_type": logistic_type,
+                    "shipping_status": shipping_status,
+                    "shipping_id": str(shipping_id) if shipping_id else None,
+                    "shipping_method": shipping_method,
                     "shipping_date": shipping_date,
                     "estimated_delivery_date": estimated_delivery_date,
                     "shipping_details": json.dumps(shipment_data_json) if shipment_data_json else None,

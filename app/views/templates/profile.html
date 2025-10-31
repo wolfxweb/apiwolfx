@@ -1,577 +1,233 @@
 {% extends "base.html" %}
 
-{% block title %}Perfil do Usuário - GIVM{% endblock %}
+{% block title %}Perfil do Usuário - CELX{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="bi bi-person-circle"></i> Perfil do Usuário</h2>
-                <a href="/dashboard" class="btn btn-outline-primary">
-                    <i class="bi bi-house"></i> Voltar ao Dashboard
+                <h2 class="mb-0">Perfil do Usuário</h2>
+                <a href="/dashboard" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left"></i> Voltar
                 </a>
             </div>
         </div>
     </div>
     
-    <!-- Informações Pessoais -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-person-lines-fill text-primary"></i>
-                        Informações Pessoais
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong><i class="bi bi-person"></i> Nome:</strong> {{ user.first_name }} {{ user.last_name }}</p>
-                            <p><strong><i class="bi bi-envelope"></i> Email:</strong> {{ user.email }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong><i class="bi bi-hash"></i> ID:</strong> {{ user.id }}</p>
-                            <p><strong><i class="bi bi-shield-check"></i> Função:</strong> 
-                                <span class="badge bg-info">{{ user.role }}</span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Informações da Empresa -->
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <div class="card shadow">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-building text-success"></i>
-                        Informações da Empresa
-                    </h5>
-                    <a href="/auth/company/edit" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-pencil"></i> Editar Empresa
-                    </a>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong><i class="bi bi-building"></i> Nome:</strong> {{ company.name or 'N/A' }}</p>
-                            <p><strong><i class="bi bi-tag"></i> Slug:</strong> {{ company.slug or 'N/A' }}</p>
-                            <p><strong><i class="bi bi-hash"></i> ID:</strong> {{ company.id or 'N/A' }}</p>
-                            <p><strong><i class="bi bi-globe"></i> Domínio:</strong> {{ company.domain or 'N/A' }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong><i class="bi bi-shield-check"></i> Status:</strong> 
-                                {% if company.status %}
-                                    {% if company.status == 'active' %}
-                                        <span class="badge bg-success">{{ company.status|title }}</span>
-                                    {% elif company.status == 'trial' %}
-                                        <span class="badge bg-warning">{{ company.status|title }}</span>
-                                    {% elif company.status == 'suspended' %}
-                                        <span class="badge bg-danger">{{ company.status|title }}</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">{{ company.status|title }}</span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="badge bg-secondary">N/A</span>
-                                {% endif %}
-                            </p>
-                            <p><strong><i class="bi bi-calendar-plus"></i> Criada em:</strong> 
-                                {% if company.created_at %}
-                {% if company.created_at is string %}
-                    {{ company.created_at[:10] }}
-                {% else %}
-                                    {{ company.created_at.strftime('%d/%m/%Y %H:%M') }}
-                {% endif %}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </p>
-                            {% if company.trial_ends_at %}
-                            <p><strong><i class="bi bi-clock-history"></i> Trial expira em:</strong> 
-                                <span class="badge bg-warning text-dark">
-                {% if company.trial_ends_at is string %}
-                    {{ company.trial_ends_at[:10] }}
-                {% else %}
-                                    {{ company.trial_ends_at.strftime('%d/%m/%Y %H:%M') }}
-                {% endif %}
-                                </span>
-                            </p>
-                            {% endif %}
-    </div>
-</div>
-
-<!-- Informações de Identificação da Empresa -->
-{% if company.razao_social or company.nome_fantasia or company.cnpj or company.inscricao_estadual or company.inscricao_municipal or company.regime_tributario %}
-<div class="row mt-3">
-    <div class="col-12">
-        <h6 class="text-primary mb-3"><i class="bi bi-building-gear text-primary"></i> Identificação da Empresa</h6>
-        <div class="row">
-            <div class="col-md-6">
-                {% if company.razao_social %}
-                <p><strong><i class="bi bi-building"></i> Razão Social:</strong> {{ company.razao_social }}</p>
-                {% endif %}
-                {% if company.nome_fantasia %}
-                <p><strong><i class="bi bi-shop"></i> Nome Fantasia:</strong> {{ company.nome_fantasia }}</p>
-                {% endif %}
-                {% if company.cnpj %}
-                <p><strong><i class="bi bi-card-text"></i> CNPJ:</strong> {{ company.cnpj }}</p>
-                {% endif %}
-            </div>
-            <div class="col-md-6">
-                {% if company.inscricao_estadual %}
-                <p><strong><i class="bi bi-file-text"></i> Inscrição Estadual:</strong> {{ company.inscricao_estadual }}</p>
-                {% endif %}
-                {% if company.inscricao_municipal %}
-                <p><strong><i class="bi bi-file-text"></i> Inscrição Municipal:</strong> {{ company.inscricao_municipal }}</p>
-                {% endif %}
-                {% if company.regime_tributario %}
-                <p><strong><i class="bi bi-calculator"></i> Regime Tributário:</strong> 
-                    <span class="badge bg-info">{{ company.regime_tributario|replace('_', ' ')|title }}</span>
-                </p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Informações de Endereço da Empresa -->
-{% if company.cep or company.endereco or company.cidade or company.estado or company.pais %}
-<div class="row mt-3">
-    <div class="col-12">
-        <h6 class="text-success mb-3"><i class="bi bi-geo-alt text-success"></i> Endereço da Empresa</h6>
-        <div class="row">
-            <div class="col-md-6">
-                {% if company.cep %}
-                <p><strong><i class="bi bi-mailbox"></i> CEP:</strong> {{ company.cep }}</p>
-                {% endif %}
-                {% if company.endereco %}
-                <p><strong><i class="bi bi-signpost"></i> Endereço:</strong> {{ company.endereco }}{% if company.numero %}, {{ company.numero }}{% endif %}</p>
-                {% endif %}
-                {% if company.complemento %}
-                <p><strong><i class="bi bi-plus-circle"></i> Complemento:</strong> {{ company.complemento }}</p>
-                {% endif %}
-                {% if company.bairro %}
-                <p><strong><i class="bi bi-geo"></i> Bairro:</strong> {{ company.bairro }}</p>
-                {% endif %}
-            </div>
-            <div class="col-md-6">
-                {% if company.cidade %}
-                <p><strong><i class="bi bi-building"></i> Cidade:</strong> {{ company.cidade }}</p>
-                {% endif %}
-                {% if company.estado %}
-                <p><strong><i class="bi bi-flag"></i> Estado:</strong> {{ company.estado }}</p>
-                {% endif %}
-                {% if company.pais %}
-                <p><strong><i class="bi bi-globe"></i> País:</strong> {{ company.pais }}</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Informações Tributárias -->
-{% if company.aliquota_simples or company.faturamento_anual or company.aliquota_ir or company.aliquota_csll or company.aliquota_pis or company.aliquota_cofins or company.aliquota_icms or company.aliquota_iss %}
-<div class="row mt-3">
-    <div class="col-12">
-        <h6 class="text-warning mb-3"><i class="bi bi-calculator text-warning"></i> Informações Tributárias</h6>
-        <div class="row">
-            <div class="col-md-6">
-                {% if company.aliquota_simples %}
-                <p><strong><i class="bi bi-percent"></i> Alíquota Simples Nacional:</strong> {{ company.aliquota_simples }}%</p>
-                {% endif %}
-                {% if company.faturamento_anual %}
-                <p><strong><i class="bi bi-currency-dollar"></i> Faturamento Anual:</strong> R$ {{ "{:,.2f}".format(company.faturamento_anual).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
-                {% endif %}
-                {% if company.aliquota_ir %}
-                <p><strong><i class="bi bi-percent"></i> Alíquota IR:</strong> {{ company.aliquota_ir }}%</p>
-                {% endif %}
-                {% if company.aliquota_csll %}
-                <p><strong><i class="bi bi-percent"></i> Alíquota CSLL:</strong> {{ company.aliquota_csll }}%</p>
-                {% endif %}
-            </div>
-            <div class="col-md-6">
-                {% if company.aliquota_pis %}
-                <p><strong><i class="bi bi-percent"></i> Alíquota PIS:</strong> {{ company.aliquota_pis }}%</p>
-                {% endif %}
-                {% if company.aliquota_cofins %}
-                <p><strong><i class="bi bi-percent"></i> Alíquota COFINS:</strong> {{ company.aliquota_cofins }}%</p>
-                {% endif %}
-                {% if company.aliquota_icms %}
-                <p><strong><i class="bi bi-percent"></i> Alíquota ICMS:</strong> {{ company.aliquota_icms }}%</p>
-                {% endif %}
-                {% if company.aliquota_iss %}
-                <p><strong><i class="bi bi-percent"></i> Alíquota ISS:</strong> {{ company.aliquota_iss }}%</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Linha separada para Pedidos ML como Contas a Receber -->
-<div class="row mt-3">
-    <div class="col-12">
-        <p><strong><i class="bi bi-cart-check"></i> Pedidos ML como Contas a Receber:</strong>
-            <div class="form-check form-switch d-inline-block ms-2">
-                <input class="form-check-input" type="checkbox" id="mlOrdersSwitch" 
-                       {% if company.ml_orders_as_receivables %}checked{% endif %}
-                       onchange="toggleMLOrdersReceivables(this)">
-                <label class="form-check-label" for="mlOrdersSwitch">
-                    {% if company.ml_orders_as_receivables %}
-                        <span class="text-success">Ativado</span>
-                    {% else %}
-                        <span class="text-muted">Desativado</span>
-                    {% endif %}
-                </label>
-            </div>
-                            </p>
-                        </div>
-                    </div>
-                    {% if company.description %}
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <p><strong><i class="bi bi-text-paragraph"></i> Descrição:</strong><br>
-                                {{ company.description }}
-                            </p>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        
-        <!-- Plano/Assinatura -->
-        <div class="col-md-4">
-            <div class="card shadow">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-credit-card text-warning"></i>
-                        Plano & Assinatura
-                    </h5>
-                </div>
-                <div class="card-body">
-                    {% if subscription %}
-                        <p><strong><i class="bi bi-trophy"></i> Plano:</strong> 
-                            <span class="badge bg-primary">{{ subscription.plan_name or 'N/A' }}</span>
-                        </p>
-                        {% if subscription.price %}
-                        <p><strong><i class="bi bi-currency-dollar"></i> Preço:</strong> 
-                            {{ subscription.price|brl }}
-                        </p>
-                        {% endif %}
-                        <p><strong><i class="bi bi-calendar-check"></i> Início:</strong> 
-                            {% if subscription.starts_at %}
-                                {{ subscription.starts_at.strftime('%d/%m/%Y') }}
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </p>
-                        <p><strong><i class="bi bi-calendar-x"></i> Vencimento:</strong> 
-                            {% if subscription.ends_at %}
-                                {{ subscription.ends_at.strftime('%d/%m/%Y') }}
-                            {% elif subscription.trial_ends_at %}
-                                <span class="text-warning">{{ subscription.trial_ends_at.strftime('%d/%m/%Y') }} (Trial)</span>
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </p>
-                        <p><strong><i class="bi bi-info-circle"></i> Status:</strong> 
-                            {% if subscription.is_trial %}
-                                <span class="badge bg-warning">Trial</span>
-                            {% else %}
-                                <span class="badge bg-success">{{ subscription.status|title }}</span>
-                            {% endif %}
-                        </p>
-                    {% else %}
-                        <div class="text-center text-muted">
-                            <i class="bi bi-exclamation-triangle fs-1"></i>
-                            <p class="mt-2">Nenhuma assinatura ativa encontrada</p>
-                        </div>
-                    {% endif %}
-                    
-                    <!-- Botões de Ação - SEMPRE VISÍVEIS -->
-                    <div class="d-grid gap-2 mt-3">
-                        <!-- Botão principal sempre visível -->
-                        <a href="/auth/plans" class="btn btn-warning btn-sm">
-                            <i class="bi bi-credit-card"></i> Assinar/Upgrade
-                        </a>
-                        
-                        <!-- Botões secundários sempre visíveis -->
-                        <a href="/auth/plans" class="btn btn-primary btn-sm">
-                            <i class="bi bi-list-ul"></i> Ver Todos os Planos
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Seção de Pagamentos -->
-    <div class="row mt-4">
-        <div class="col-12">
+    <!-- Card Único com todas as informações -->
+    <div class="row">
+        <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-credit-card text-info"></i>
-                        Histórico de Pagamentos
-                    </h5>
-                </div>
                 <div class="card-body">
-                    <div id="payments-loading" class="text-center">
-                        <div class="spinner-border text-info" role="status">
-                            <span class="visually-hidden">Carregando...</span>
+                    <!-- Informações Pessoais -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Informações Pessoais</h5>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Nome Completo</p>
+                                <p class="mb-0"><strong>{{ user.first_name }} {{ user.last_name }}</strong></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Email</p>
+                                <p class="mb-0"><strong>{{ user.email }}</strong></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Função</p>
+                                <p class="mb-0"><span class="badge bg-secondary">{{ user.role }}</span></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">ID</p>
+                                <p class="mb-0"><strong>{{ user.id }}</strong></p>
+                            </div>
                         </div>
-                        <p class="mt-2">Carregando pagamentos...</p>
                     </div>
                     
-                    <div id="payments-content" style="display: none;">
-                        <!-- Tabela de pagamentos será carregada aqui -->
+                    <hr class="my-4">
+                    
+                    <!-- Plano & Assinatura -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="mb-0">Plano & Assinatura</h5>
+                            {% if subscription %}
+                            <a href="/auth/plans" class="btn btn-outline-primary btn-sm">Gerenciar</a>
+                            {% else %}
+                            <a href="/auth/plans" class="btn btn-primary btn-sm">Assinar</a>
+                            {% endif %}
+                        </div>
+                        {% if subscription %}
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Plano Atual</p>
+                                <p class="mb-0"><strong>{{ subscription.plan_name or 'N/A' }}</strong></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Valor</p>
+                                <p class="mb-0"><strong>{{ subscription.price|brl }}</strong></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Status</p>
+                                <p class="mb-0">
+                                    {% if subscription.is_trial %}
+                                        <span class="badge bg-warning">Trial</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Ativo</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Vencimento</p>
+                                <p class="mb-0">
+                                    {% if subscription.ends_at %}
+                                        <strong>{{ subscription.ends_at.strftime('%d/%m/%Y') }}</strong>
+                                    {% elif subscription.trial_ends_at %}
+                                        <span class="text-warning">{{ subscription.trial_ends_at.strftime('%d/%m/%Y') }} (Trial)</span>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning mb-0">
+                            Nenhuma assinatura ativa. <a href="/auth/plans" class="alert-link">Assine agora</a> para começar.
+                        </div>
+                        {% endif %}
                     </div>
                     
-                    <div id="no-payments-message" style="display: none;" class="text-center py-3">
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i>
-                            <span>Nenhum pagamento encontrado. Faça sua primeira assinatura!</span>
+                    <hr class="my-4">
+                    
+                    <!-- Informações da Empresa -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="mb-0">Informações da Empresa</h5>
+                            <a href="/auth/company/edit" class="btn btn-outline-secondary btn-sm">Editar</a>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Nome</p>
+                                <p class="mb-0"><strong>{{ company.name or 'N/A' }}</strong></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Status</p>
+                                <p class="mb-0">
+                                    {% if company.status %}
+                                        {% if company.status == 'active' %}
+                                            <span class="badge bg-success">Ativo</span>
+                                        {% elif company.status == 'trial' %}
+                                            <span class="badge bg-warning">Trial</span>
+                                        {% elif company.status == 'suspended' %}
+                                            <span class="badge bg-danger">Suspenso</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ company.status|title }}</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">N/A</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Domínio</p>
+                                <p class="mb-0"><strong>{{ company.domain or 'N/A' }}</strong></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Criada em</p>
+                                <p class="mb-0">
+                                    {% if company.created_at %}
+                                        {% if company.created_at is string %}
+                                            <strong>{{ company.created_at[:10] }}</strong>
+                                        {% else %}
+                                            <strong>{{ company.created_at.strftime('%d/%m/%Y') }}</strong>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {% if company.razao_social or company.nome_fantasia or company.cnpj %}
+                        <div class="row mt-3 pt-3 border-top">
+                            <div class="col-md-4 mb-3">
+                                {% if company.razao_social %}
+                                    <p class="mb-1 text-muted small">Razão Social</p>
+                                    <p class="mb-0"><strong>{{ company.razao_social }}</strong></p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                {% if company.nome_fantasia %}
+                                    <p class="mb-1 text-muted small">Nome Fantasia</p>
+                                    <p class="mb-0"><strong>{{ company.nome_fantasia }}</strong></p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                {% if company.cnpj %}
+                                    <p class="mb-1 text-muted small">CNPJ</p>
+                                    <p class="mb-0"><strong>{{ company.cnpj }}</strong></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if company.cep or company.endereco or company.cidade %}
+                        <div class="row mt-3 pt-3 border-top">
+                            <div class="col-md-6 mb-3">
+                                {% if company.endereco %}
+                                    <p class="mb-1 text-muted small">Endereço</p>
+                                    <p class="mb-0"><strong>{{ company.endereco }}{% if company.numero %}, {{ company.numero }}{% endif %}</strong></p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {% if company.cidade %}
+                                    <p class="mb-1 text-muted small">Cidade</p>
+                                    <p class="mb-0"><strong>{{ company.cidade }}{% if company.estado %} - {{ company.estado }}{% endif %}</strong></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="row mt-3 pt-3 border-top">
+                            <div class="col-md-12">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>Pedidos ML como Contas a Receber</strong>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="mlOrdersSwitch" 
+                                               {% if company.ml_orders_as_receivables %}checked{% endif %}
+                                               onchange="toggleMLOrdersReceivables(this)">
+                                        <label class="form-check-label" for="mlOrdersSwitch">
+                                            {% if company.ml_orders_as_receivables %}
+                                                <span class="text-success">Ativado</span>
+                                            {% else %}
+                                                <span class="text-muted">Desativado</span>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Histórico de Pagamentos -->
+                    <div>
+                        <h5 class="mb-3">Histórico de Pagamentos</h5>
+                        <div id="payments-loading" class="text-center py-4">
+                            <div class="spinner-border text-secondary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Carregando pagamentos...</p>
+                        </div>
+                        
+                        <div id="payments-content" style="display: none;"></div>
+                        
+                        <div id="no-payments-message" style="display: none;" class="text-center py-4">
+                            <p class="text-muted mb-0">Nenhum pagamento encontrado.</p>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-    
-</div>
-
-<!-- Modal para Editar Empresa -->
-<div class="modal fade" id="editCompanyModal" tabindex="-1" aria-labelledby="editCompanyModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title" id="editCompanyModalLabel">
-                    <i class="bi bi-building"></i> Editar Empresa
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="editCompanyForm">
-                    <!-- Seção: Identificação da Empresa -->
-                    <div class="mb-4">
-                        <h6 class="text-primary mb-3"><i class="bi bi-building"></i> Identificação da Empresa</h6>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="companyName" class="form-label">Nome da Empresa *</label>
-                                    <input type="text" class="form-control" id="companyName" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="companySlug" class="form-label">Slug</label>
-                                    <input type="text" class="form-control" id="companySlug" readonly>
-                                    <div class="form-text">Slug é gerado automaticamente</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="razaoSocial" class="form-label">Razão Social</label>
-                                    <input type="text" class="form-control" id="razaoSocial">
-                                    <div class="form-text">Nome jurídico registrado na Receita Federal</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="nomeFantasia" class="form-label">Nome Fantasia</label>
-                                    <input type="text" class="form-control" id="nomeFantasia">
-                                    <div class="form-text">Nome comercial usado em marketing</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="cnpj" class="form-label">CNPJ</label>
-                                    <input type="text" class="form-control" id="cnpj">
-                                    <div class="form-text">Cadastro Nacional da Pessoa Jurídica</div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="inscricaoEstadual" class="form-label">Inscrição Estadual (IE)</label>
-                                    <input type="text" class="form-control" id="inscricaoEstadual">
-                                    <div class="form-text">Registro na Secretaria da Fazenda</div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="inscricaoMunicipal" class="form-label">Inscrição Municipal (IM)</label>
-                                    <input type="text" class="form-control" id="inscricaoMunicipal">
-                                    <div class="form-text">Registro na prefeitura</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="regimeTributario" class="form-label">Regime Tributário</label>
-                                    <select class="form-select" id="regimeTributario">
-                                        <option value="">Selecione o regime</option>
-                                        <option value="simples_nacional">Simples Nacional</option>
-                                        <option value="lucro_presumido">Lucro Presumido</option>
-                                        <option value="lucro_real">Lucro Real</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Seção: Endereço da Empresa -->
-                    <div class="mb-4">
-                        <h6 class="text-primary mb-3"><i class="bi bi-geo-alt"></i> Endereço da Empresa</h6>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="mb-3">
-                                    <label for="cep" class="form-label">CEP</label>
-                                    <input type="text" class="form-control" id="cep">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="endereco" class="form-label">Endereço</label>
-                                    <input type="text" class="form-control" id="endereco">
-                                    <div class="form-text">Rua, avenida, etc.</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="mb-3">
-                                    <label for="numero" class="form-label">Número</label>
-                                    <input type="text" class="form-control" id="numero">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="complemento" class="form-label">Complemento</label>
-                                    <input type="text" class="form-control" id="complemento">
-                                    <div class="form-text">Sala, bloco, loja, etc.</div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="bairro" class="form-label">Bairro</label>
-                                    <input type="text" class="form-control" id="bairro">
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="cidade" class="form-label">Cidade</label>
-                                    <input type="text" class="form-control" id="cidade">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="mb-3">
-                                    <label for="estado" class="form-label">Estado (UF)</label>
-                                    <select class="form-select" id="estado">
-                                        <option value="">Selecione</option>
-                                        <option value="AC">Acre</option>
-                                        <option value="AL">Alagoas</option>
-                                        <option value="AP">Amapá</option>
-                                        <option value="AM">Amazonas</option>
-                                        <option value="BA">Bahia</option>
-                                        <option value="CE">Ceará</option>
-                                        <option value="DF">Distrito Federal</option>
-                                        <option value="ES">Espírito Santo</option>
-                                        <option value="GO">Goiás</option>
-                                        <option value="MA">Maranhão</option>
-                                        <option value="MT">Mato Grosso</option>
-                                        <option value="MS">Mato Grosso do Sul</option>
-                                        <option value="MG">Minas Gerais</option>
-                                        <option value="PA">Pará</option>
-                                        <option value="PB">Paraíba</option>
-                                        <option value="PR">Paraná</option>
-                                        <option value="PE">Pernambuco</option>
-                                        <option value="PI">Piauí</option>
-                                        <option value="RJ">Rio de Janeiro</option>
-                                        <option value="RN">Rio Grande do Norte</option>
-                                        <option value="RS">Rio Grande do Sul</option>
-                                        <option value="RO">Rondônia</option>
-                                        <option value="RR">Roraima</option>
-                                        <option value="SC">Santa Catarina</option>
-                                        <option value="SP">São Paulo</option>
-                                        <option value="SE">Sergipe</option>
-                                        <option value="TO">Tocantins</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="mb-3">
-                                    <label for="pais" class="form-label">País</label>
-                                    <input type="text" class="form-control" id="pais" value="Brasil">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Seção: Informações Adicionais -->
-                    <div class="mb-4">
-                        <h6 class="text-primary mb-3"><i class="bi bi-info-circle"></i> Informações Adicionais</h6>
-                        <div class="row">
-                            <div class="col-md-12">
-                                <div class="mb-3">
-                                    <label for="companyDomain" class="form-label">Domínio</label>
-                                    <input type="text" class="form-control" id="companyDomain" placeholder="exemplo.com">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="companyDescription" class="form-label">Descrição</label>
-                        <textarea class="form-control" id="companyDescription" rows="3" placeholder="Descrição da empresa..."></textarea>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="trialEndsAt" class="form-label">Trial Expira em</label>
-                                <input type="date" class="form-control" id="trialEndsAt">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="mlOrdersReceivables">
-                                    <label class="form-check-label" for="mlOrdersReceivables">
-                                        Pedidos ML como Contas a Receber
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Cancelar
-                </button>
-                <button type="button" class="btn btn-success" onclick="saveCompany()">
-                    <i class="bi bi-check-circle"></i> Salvar Alterações
-                </button>
             </div>
         </div>
     </div>
@@ -587,7 +243,6 @@ async function loadUserPayments() {
         const response = await fetch('/api/payments/my-payments');
         const data = await response.json();
         
-        // Esconder loading
         document.getElementById('payments-loading').style.display = 'none';
         
         if (data.payments && data.payments.length > 0) {
@@ -608,16 +263,15 @@ function displayPaymentsTable(payments) {
     
     let html = `
         <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead class="table-dark">
+            <table class="table table-sm">
+                <thead class="table-light">
                     <tr>
-                        <th><i class="bi bi-calendar"></i> Data</th>
-                        <th><i class="bi bi-tag"></i> Plano</th>
-                        <th><i class="bi bi-currency-dollar"></i> Valor</th>
-                        <th><i class="bi bi-shield-check"></i> Status</th>
-                        <th><i class="bi bi-credit-card-2-back"></i> Método</th>
-                        <th><i class="bi bi-hash"></i> ID Pagamento</th>
-                        <th><i class="bi bi-gear"></i> Ações</th>
+                        <th>Data</th>
+                        <th>Plano</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                        <th>Método</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -631,25 +285,12 @@ function displayPaymentsTable(payments) {
         html += `
             <tr>
                 <td>${date}</td>
+                <td><span class="badge bg-secondary">${payment.plan_name || payment.description}</span></td>
+                <td><strong>R$ ${payment.amount.toFixed(2)}</strong></td>
+                <td><span class="badge bg-${statusClass}">${statusIcon} ${payment.status.toUpperCase()}</span></td>
+                <td><small class="text-muted">${payment.payment_method || 'N/A'}</small></td>
                 <td>
-                    <span class="badge bg-primary">${payment.plan_name || payment.description}</span>
-                </td>
-                <td>
-                    <strong>R$ ${payment.amount.toFixed(2)}</strong>
-                </td>
-                <td>
-                    <span class="badge bg-${statusClass}">
-                        ${statusIcon} ${payment.status.toUpperCase()}
-                    </span>
-                </td>
-                <td>
-                    <small class="text-muted">${payment.payment_method || 'N/A'}</small>
-                </td>
-                <td>
-                    <small class="text-muted font-monospace">${payment.mp_payment_id || payment.id}</small>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="viewPaymentDetails('${payment.mp_payment_id || payment.id}')">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="viewPaymentDetails('${payment.mp_payment_id || payment.id}')">
                         <i class="bi bi-eye"></i>
                     </button>
                 </td>
@@ -693,22 +334,17 @@ function toggleMLOrdersReceivables(switchElement) {
     const isChecked = switchElement.checked;
     const label = switchElement.nextElementSibling.querySelector('span');
     
-    // Mostrar loading no switch
     switchElement.disabled = true;
     label.textContent = 'Alterando...';
     
-    // Fazer a requisição
     fetch('/api/company/toggle-ml-orders-receivables', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         credentials: 'include'
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Atualizar o label com o novo status
             if (data.ml_orders_as_receivables) {
                 label.textContent = 'Ativado';
                 label.className = 'text-success';
@@ -716,42 +352,30 @@ function toggleMLOrdersReceivables(switchElement) {
                 label.textContent = 'Desativado';
                 label.className = 'text-muted';
             }
-            
-            // Mostrar notificação de sucesso
             showNotification('Configuração alterada com sucesso!', 'success');
         } else {
-            // Reverter o switch se houve erro
             switchElement.checked = !isChecked;
             label.textContent = isChecked ? 'Desativado' : 'Ativado';
             label.className = isChecked ? 'text-muted' : 'text-success';
-            
-            // Mostrar notificação de erro
             showNotification('Erro ao alterar configuração: ' + (data.error || 'Erro desconhecido'), 'error');
         }
     })
     .catch(error => {
         console.error('Erro:', error);
-        
-        // Reverter o switch se houve erro
         switchElement.checked = !isChecked;
         label.textContent = isChecked ? 'Desativado' : 'Ativado';
         label.className = isChecked ? 'text-muted' : 'text-success';
-        
-        // Mostrar notificação de erro
         showNotification('Erro de conexão. Tente novamente.', 'error');
     })
     .finally(() => {
-        // Reabilitar o switch
         switchElement.disabled = false;
     });
 }
 
 function showNotification(message, type = 'info') {
-    // Usar a função do custom.js se disponível
     if (window.MLAPI && window.MLAPI.showNotification) {
         window.MLAPI.showNotification(message, type);
     } else {
-        // Fallback simples
         const alertClass = type === 'success' ? 'alert-success' : 
                           type === 'error' ? 'alert-danger' : 
                           type === 'warning' ? 'alert-warning' : 'alert-info';
@@ -768,142 +392,11 @@ function showNotification(message, type = 'info') {
         
         document.body.appendChild(notification);
         
-        // Remover automaticamente após 5 segundos
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
             }
         }, 5000);
-    }
-}
-
-function editCompany() {
-    // Preencher o modal com os dados atuais da empresa
-    document.getElementById('companyName').value = '{{ company.name or "" }}';
-    document.getElementById('companySlug').value = '{{ company.slug or "" }}';
-    document.getElementById('companyDomain').value = '{{ company.domain or "" }}';
-    document.getElementById('companyDescription').value = '{{ company.description or "" }}';
-    
-    // Preencher campos de identificação
-    document.getElementById('razaoSocial').value = '{{ company.razao_social or "" }}';
-    document.getElementById('nomeFantasia').value = '{{ company.nome_fantasia or "" }}';
-    document.getElementById('cnpj').value = '{{ company.cnpj or "" }}';
-    document.getElementById('inscricaoEstadual').value = '{{ company.inscricao_estadual or "" }}';
-    document.getElementById('inscricaoMunicipal').value = '{{ company.inscricao_municipal or "" }}';
-    document.getElementById('regimeTributario').value = '{{ company.regime_tributario or "" }}';
-    
-    // Preencher campos de endereço
-    document.getElementById('cep').value = '{{ company.cep or "" }}';
-    document.getElementById('endereco').value = '{{ company.endereco or "" }}';
-    document.getElementById('numero').value = '{{ company.numero or "" }}';
-    document.getElementById('complemento').value = '{{ company.complemento or "" }}';
-    document.getElementById('bairro').value = '{{ company.bairro or "" }}';
-    document.getElementById('cidade').value = '{{ company.cidade or "" }}';
-    document.getElementById('estado').value = '{{ company.estado or "" }}';
-    document.getElementById('pais').value = '{{ company.pais or "Brasil" }}';
-    
-    // Preencher data do trial
-    {% if company.trial_ends_at %}
-    const trialDate = '{{ company.trial_ends_at }}';
-    if (trialDate && trialDate !== 'None') {
-        // Converter para formato YYYY-MM-DD se necessário
-        const date = new Date(trialDate);
-        if (!isNaN(date.getTime())) {
-            document.getElementById('trialEndsAt').value = date.toISOString().split('T')[0];
-        }
-    }
-    {% endif %}
-    
-    // Preencher checkbox ML orders
-    document.getElementById('mlOrdersReceivables').checked = {{ 'true' if company.ml_orders_as_receivables else 'false' }};
-    
-    // Abrir o modal
-    const modal = new bootstrap.Modal(document.getElementById('editCompanyModal'));
-    modal.show();
-}
-
-async function saveCompany() {
-    const saveButton = document.querySelector('#editCompanyModal .btn-success');
-    const originalText = saveButton.innerHTML;
-    
-    try {
-        // Desabilitar botão e mostrar spinner
-        saveButton.disabled = true;
-        saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
-        
-        // Coletar dados do formulário
-        const formData = {
-            name: document.getElementById('companyName').value,
-            domain: document.getElementById('companyDomain').value,
-            description: document.getElementById('companyDescription').value,
-            trial_ends_at: document.getElementById('trialEndsAt').value || null,
-            ml_orders_as_receivables: document.getElementById('mlOrdersReceivables').checked,
-            
-            // Campos de identificação
-            razao_social: document.getElementById('razaoSocial').value,
-            nome_fantasia: document.getElementById('nomeFantasia').value,
-            cnpj: document.getElementById('cnpj').value,
-            inscricao_estadual: document.getElementById('inscricaoEstadual').value,
-            inscricao_municipal: document.getElementById('inscricaoMunicipal').value,
-            regime_tributario: document.getElementById('regimeTributario').value,
-            
-            // Campos de endereço
-            cep: document.getElementById('cep').value,
-            endereco: document.getElementById('endereco').value,
-            numero: document.getElementById('numero').value,
-            complemento: document.getElementById('complemento').value,
-            bairro: document.getElementById('bairro').value,
-            cidade: document.getElementById('cidade').value,
-            estado: document.getElementById('estado').value,
-            pais: document.getElementById('pais').value
-        };
-        
-        // Validar dados obrigatórios
-        if (!formData.name.trim()) {
-            showNotification('Nome da empresa é obrigatório!', 'error');
-            return;
-        }
-        
-        // Fazer requisição para salvar
-        const response = await fetch('/api/company/update', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify(formData)
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            showNotification('Empresa atualizada com sucesso!', 'success');
-            
-            // Fechar modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('editCompanyModal'));
-            modal.hide();
-            
-            // Recarregar a página para mostrar as alterações
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        } else if (response.status === 401) {
-            // Sessão expirada - redirecionar para login
-            showNotification('Sessão expirada. Redirecionando para login...', 'warning');
-            setTimeout(() => {
-                window.location.href = '/auth/login';
-            }, 2000);
-        } else {
-            showNotification(data.error || 'Erro ao salvar empresa', 'error');
-        }
-        
-    } catch (error) {
-        console.error('Erro:', error);
-        showNotification('Erro de conexão. Tente novamente.', 'error');
-    } finally {
-        // Reabilitar botão
-        saveButton.disabled = false;
-        saveButton.innerHTML = originalText;
     }
 }
 </script>

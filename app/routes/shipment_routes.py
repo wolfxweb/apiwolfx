@@ -390,3 +390,58 @@ async def get_tab_counts(
             "error": f"Erro interno: {str(e)}"
         }, status_code=500)
 
+@router.post("/sync-recent")
+async def sync_recent_orders(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Sincroniza pedidos dos últimos 2 dias com o Mercado Livre"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Buscar token de acesso usando TokenManager
+        token_manager = TokenManager(db)
+        
+        # Buscar um usuário ativo da empresa
+        from app.models.saas_models import User
+        user_db = db.query(User).filter(
+            User.company_id == company_id,
+            User.is_active == True
+        ).first()
+        
+        if not user_db:
+            return JSONResponse(content={"error": "Nenhum usuário ativo encontrado para esta empresa"}, status_code=404)
+        
+        access_token = token_manager.get_valid_token(user_db.id)
+        
+        if not access_token:
+            return JSONResponse(content={"error": "Token de acesso inválido ou expirado"}, status_code=401)
+        
+        # Usar o MLOrdersController para sincronizar pedidos
+        from app.controllers.ml_orders_controller import MLOrdersController
+        controller = MLOrdersController(db)
+        
+        # Sincronizar pedidos dos últimos 2 dias
+        result = controller.sync_orders(company_id=company_id, ml_account_id=None, is_full_import=False, days_back=2)
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": f"{result.get('total_saved', 0)} novos pedidos, {result.get('total_updated', 0)} pedidos atualizados",
+            **result
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao sincronizar pedidos recentes: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+

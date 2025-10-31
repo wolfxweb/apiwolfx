@@ -42,6 +42,11 @@
                             <input type="date" class="form-control" id="filter-end-date">
                         </div>
                         <div class="col-auto">
+                            <button type="button" class="btn btn-primary" id="sync-orders-btn">
+                                <i class="bi bi-cloud-download"></i> Atualizar Pedidos
+                            </button>
+                        </div>
+                        <div class="col-auto">
                             <button type="button" class="btn btn-outline-secondary" id="clear-filters">
                                 <i class="bi bi-x-circle"></i> Limpar
                             </button>
@@ -738,6 +743,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadReadyToPrepareOrders(1);
             }
         }, 500); // Aguarda 500ms após parar de digitar
+    });
+    
+    // Botão Atualizar Pedidos (últimos 2 dias)
+    document.getElementById('sync-orders-btn').addEventListener('click', async function() {
+        const btn = this;
+        const originalHtml = btn.innerHTML;
+        
+        // Desabilitar botão e mostrar loading
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+        
+        try {
+            const response = await fetch('/api/shipments/sync-recent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (handle401Error(response)) {
+                return;
+            }
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Resetar flags para recarregar os dados
+                ordersLoaded = false;
+                allOrdersLoaded = [];
+                loadingPromise = null;
+                
+                // Recarregar pedidos da aba atual
+                await loadReadyToPrepareOrders();
+                
+                // Mostrar feedback de sucesso
+                alert(`✅ Sincronização concluída!\n\n${data.message || 'Pedidos atualizados com sucesso'}`);
+            } else {
+                alert(`❌ Erro: ${data.error || 'Erro ao sincronizar pedidos'}`);
+            }
+        } catch (error) {
+            console.error('Erro ao sincronizar pedidos:', error);
+            alert('❌ Erro ao sincronizar pedidos. Tente novamente.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     });
     
     // Botão Limpar filtros

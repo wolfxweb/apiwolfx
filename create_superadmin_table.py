@@ -95,14 +95,14 @@ def create_superadmin_table():
                         role, can_manage_companies, can_manage_plans, 
                         can_manage_users, can_view_analytics, can_access_system_logs
                     ) VALUES (
-                        'admin@givm.com', 'admin', :password_hash, 'Super', 'Admin',
+                        'admin@celx.com', 'admin', :password_hash, 'Super', 'Admin',
                         'super_admin', true, true, true, true, true
                     )
                 """), {"password_hash": password_hash})
                 
                 conn.commit()
                 print("   ✅ Superadmin criado")
-                print("   📧 Email: admin@givm.com")
+                print("   📧 Email: admin@celx.com")
                 print("   👤 Username: admin")
                 print("   🔑 Senha: admin123")
             else:

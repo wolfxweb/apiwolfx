@@ -41,7 +41,7 @@ import atexit
 
 # Inicializar FastAPI
 app = FastAPI(
-    title="GIVM - Gestão Inteligente de Vendas para Marketplace",
+    title="CELX - Gestão Inteligente de Vendas para Marketplace",
     description="Plataforma de gestão inteligente para marketplaces com Inteligência Artificial",
     version="2.0.0",
     docs_url="/docs"
@@ -514,7 +514,7 @@ async def api_update_company(
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")
 async def root():
-    """Página inicial - Landing page do GIVM"""
+    """Página inicial - Landing page do CELX"""
     from app.views.template_renderer import render_template
     from app.models.saas_models import Subscription
     from app.config.database import SessionLocal
