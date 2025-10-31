@@ -157,8 +157,41 @@
 
                         <!-- Tab Confirmados -->
                 <div class="tab-pane fade" id="confirmed" role="tabpanel" aria-labelledby="confirmed-tab">
-                            <h5 class="card-title">Confirmados</h5>
-                            <!-- Tabela será adicionada aqui -->
+                            <!-- Botão de Atualização -->
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="update-confirmed-orders" disabled>
+                                    <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
+                                </button>
+                                <span class="ms-2 text-muted" id="confirmed-selected-count">0 selecionado(s)</span>
+                            </div>
+                            
+                            <!-- Tabela de Pedidos Confirmados -->
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" id="select-all-confirmed" title="Selecionar todos">
+                                            </th>
+                                            <th>Pedido</th>
+                                            <th>Comprador</th>
+                                            <th>Valor</th>
+                                            <th>Forma de Envio</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="confirmed-orders">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                Carregando pedidos...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                 </div>
 
                 <!-- Tab Preparando Envio -->
@@ -499,6 +532,13 @@ document.addEventListener('DOMContentLoaded', function() {
     loadReadyToPrepareOrders();
     
     // Carregar pedidos quando a aba for clicada
+    const confirmedTab = document.getElementById('confirmed-tab');
+    if (confirmedTab) {
+        confirmedTab.addEventListener('shown.bs.tab', function() {
+            loadConfirmedOrders();
+        });
+    }
+    
     const readyToPrepareTab = document.getElementById('ready-to-prepare-tab');
     if (readyToPrepareTab) {
         readyToPrepareTab.addEventListener('shown.bs.tab', function() {
@@ -1175,6 +1215,44 @@ document.addEventListener('DOMContentLoaded', function() {
         setupCheckboxEventsGeneric('select-all-delivered', updateDeliveredCount);
     }
     
+    async function loadConfirmedOrders() {
+        const tbody = document.getElementById('confirmed-orders');
+        if (!tbody) return;
+        
+        // Se ainda não carregou todos os pedidos, carregar agora
+        if (!ordersLoaded) {
+            await loadAllOrdersOnce();
+        }
+        
+        try {
+            // Filtrar pedidos: status = CONFIRMED
+            const filteredOrders = allOrdersLoaded.filter(order => {
+                return order.status === 'CONFIRMED';
+            });
+            
+            if (filteredOrders.length > 0) {
+                renderConfirmedOrders(tbody, filteredOrders);
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">
+                            Nenhum pedido confirmado encontrado.
+                        </td>
+                    </tr>
+                `;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar pedidos:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-danger">
+                        Erro ao carregar pedidos. Tente novamente.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
     async function loadPendingOrders() {
         const tbody = document.getElementById('pending-orders');
         if (!tbody) return;
@@ -1208,7 +1286,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="text-center text-muted">
+                        <td colspan="6" class="text-center text-muted">
                             Nenhum pedido pendente encontrado.
                         </td>
                     </tr>
@@ -1218,12 +1296,147 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Erro ao carregar pedidos:', error);
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-danger">
+                    <td colspan="6" class="text-center text-danger">
                         Erro ao carregar pedidos. Tente novamente.
                     </td>
                 </tr>
             `;
         }
+    }
+    
+    function renderConfirmedOrders(tbody, orders) {
+        // Salvar pedidos globalmente para acesso no modal
+        window.currentOrders = orders;
+        
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        Nenhum pedido confirmado encontrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = orders.map(order => {
+            const orderId = order.ml_order_id || order.order_id || '-';
+            const orderDate = order.date_created ? new Date(order.date_created).toLocaleDateString('pt-BR') : '-';
+            const orderTime = order.date_created ? new Date(order.date_created).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : '-';
+            const orderDateTime = `${orderDate} ${orderTime}`;
+            const totalAmount = order.total_amount ? `R$ ${parseFloat(order.total_amount).toFixed(2).replace('.', ',')}` : '-';
+            const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
+            
+            let shippingInfo = '';
+            if (order.shipping_details) {
+                const status = order.shipping_details.status;
+                const logistic = order.shipping_details.logistic;
+                const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                const estimatedDelivery = order.shipping_details.shipping_option?.estimated_delivery_final?.date 
+                                       || order.shipping_details.shipping_option?.estimated_delivery_limit?.date
+                                       || order.shipping_details.estimated_delivery
+                                       || order.estimated_delivery_date;
+                
+                const deliveryDate = estimatedDelivery ? new Date(estimatedDelivery).toLocaleDateString('pt-BR') : null;
+                
+                // Badge do tipo de envio
+                if (logisticType === 'fulfillment') {
+                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                } else if (logisticType === 'cross_docking') {
+                    shippingInfo = '<span class="badge bg-info">Cross Docking</span>';
+                } else if (logisticType === 'xd_drop_off' || logisticType === 'drop_off') {
+                    shippingInfo = '<span class="badge bg-secondary">Ponto de Coleta</span>';
+                } else if (logisticType === 'me2') {
+                    shippingInfo = '<span class="badge bg-warning">Mercado Envios</span>';
+                } else {
+                    shippingInfo = `<span class="badge bg-secondary">${logisticType || 'N/A'}</span>`;
+                }
+                
+                // Status de envio
+                if (status === 'pending') {
+                    shippingInfo += `<br><small class="text-secondary">⏳ Pendente</small>`;
+                    if (deliveryDate) {
+                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
+                    }
+                } else if (status === 'ready_to_ship' || status === 'ready_to_print' || status === 'printed' || status === 'packed') {
+                    shippingInfo += `<br><small class="text-warning">📦 Pronto para Envio</small>`;
+                    if (deliveryDate) {
+                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
+                    }
+                } else {
+                    shippingInfo += `<br><small class="text-muted">${status}</small>`;
+                    if (deliveryDate) {
+                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
+                    }
+                }
+            } else {
+                shippingInfo = '<span class="badge bg-secondary">N/A</span>';
+            }
+            
+            return `
+                <tr>
+                    <td>
+                        <input type="checkbox" class="order-checkbox" value="${orderId}" data-order-id="${orderId}">
+                    </td>
+                    <td>
+                        <strong>${orderId}</strong><br>
+                        <small class="text-muted">${orderDateTime}</small>
+                        ${order.invoice_emitted ? 
+                            `<br><span class="badge bg-success">NF: ${invoiceNumber}</span>` : 
+                            `<br><span class="badge bg-secondary">Sem NF</span>`
+                        }
+                    </td>
+                    <td>
+                        ${order.buyer_first_name || order.buyer_nickname || '-'}
+                        ${(() => {
+                            const dest = order.shipping_details?.destination;
+                            if (dest) {
+                                let html = '';
+                                if (dest.receiver_name) {
+                                    html += `<br><small class="text-muted">${dest.receiver_name}</small>`;
+                                }
+                                const shippingAddr = dest.shipping_address;
+                                if (shippingAddr && shippingAddr.address_line) {
+                                    html += `<br><small class="text-muted">${shippingAddr.address_line}</small>`;
+                                }
+                                const city = shippingAddr?.city?.name || shippingAddr?.city;
+                                const state = shippingAddr?.state?.name || shippingAddr?.state;
+                                if (city && state) {
+                                    html += `<br><small class="text-muted">${city} - ${state}</small>`;
+                                }
+                                return html;
+                            }
+                            return '';
+                        })()}
+                    </td>
+                    <td>${totalAmount}</td>
+                    <td>${shippingInfo}</td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${order.invoice_pdf_url ?
+                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>` : 
+                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        // Configurar eventos dos checkboxes após renderizar
+        setupCheckboxEventsGeneric('select-all-confirmed', 'confirmed-orders', updateConfirmedCount);
     }
     
     function renderPendingOrders(tbody, orders) {
@@ -2194,6 +2407,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Funções para cada aba
+    function updateConfirmedCount() {
+        updateSelectedCountGeneric('confirmed-selected-count', 'update-confirmed-orders', 'confirmed-orders');
+    }
+    
     function updatePendingCount() {
         updateSelectedCountGeneric('pending-selected-count', 'update-pending-orders', 'pending-orders');
     }
@@ -2439,6 +2656,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Configurar eventos para cada aba
+    setupTab('select-all-confirmed', 'update-confirmed-orders', 'confirmed-orders', updateConfirmedCount, loadConfirmedOrders);
     setupTab('select-all-pending', 'update-pending-orders', 'pending-orders', updatePendingCount, loadPendingOrders);
     setupTab('select-all-waiting-shipment', 'update-waiting-shipment-orders', 'waiting-shipment-orders', updateWaitingShipmentCount, loadWaitingShipmentOrders);
     setupTab('select-all-shipped', 'update-shipped-orders', 'shipped-orders', updateShippedCount, loadShippedOrders);
