@@ -19,6 +19,7 @@
                             <label for="filter-period" class="form-label mb-0 small">Período</label>
                             <select class="form-select" id="filter-period">
                                 <option value="">Todos</option>
+                                <option value="7_days" selected>Últimos 7 dias</option>
                                 <option value="15_days">Últimos 15 dias</option>
                                 <option value="30_days">Últimos 30 dias</option>
                                 <option value="today">Hoje</option>
@@ -35,7 +36,7 @@
                         <div class="col-auto" id="custom-dates" style="display: none;">
                             <label for="filter-start-date" class="form-label mb-0 small">Data Inicial</label>
                             <input type="date" class="form-control" id="filter-start-date">
-                        </div>
+                            </div>
                         <div class="col-auto" id="custom-dates-end" style="display: none;">
                             <label for="filter-end-date" class="form-label mb-0 small">Data Final</label>
                             <input type="date" class="form-control" id="filter-end-date">
@@ -44,7 +45,7 @@
                             <button type="button" class="btn btn-outline-secondary" id="clear-filters">
                                 <i class="bi bi-x-circle"></i> Limpar
                             </button>
-                        </div>
+                    </div>
                     </form>
                 </div>
             </div>
@@ -55,19 +56,19 @@
                     <!-- Tabs de Status com Scroll Horizontal -->
                     <div class="tabs-scroll-container mb-3" style="overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;">
                         <ul class="nav nav-tabs mb-0 flex-nowrap" id="statusTabs" role="tablist" style="display: flex; flex-wrap: nowrap; white-space: nowrap;">
-                                <li class="nav-item" role="presentation">
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab">
                                 Pendentes
                                 <span class="badge bg-secondary ms-1" id="pending-count">0</span>
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed" type="button" role="tab">
                                 Confirmados
                                 <span class="badge bg-secondary ms-1" id="confirmed-count">0</span>
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="ready-to-prepare-tab" data-bs-toggle="tab" data-bs-target="#ready-to-prepare" type="button" role="tab">
                                 Preparando Envio
                                 <span class="badge bg-secondary ms-1" id="ready-to-prepare-count">0</span>
@@ -83,34 +84,34 @@
                             <button class="nav-link" id="waiting-shipment-tab" data-bs-toggle="tab" data-bs-target="#waiting-shipment" type="button" role="tab">
                                 Aguardando Envio
                                 <span class="badge bg-secondary ms-1" id="waiting-shipment-count">0</span>
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="shipped-tab" data-bs-toggle="tab" data-bs-target="#shipped" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="shipped-tab" data-bs-toggle="tab" data-bs-target="#shipped" type="button" role="tab">
                                 Enviados
                                 <span class="badge bg-secondary ms-1" id="shipped-count">0</span>
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="delivered-tab" data-bs-toggle="tab" data-bs-target="#delivered" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="delivered-tab" data-bs-toggle="tab" data-bs-target="#delivered" type="button" role="tab">
                                 Entregues
                                 <span class="badge bg-secondary ms-1" id="delivered-count">0</span>
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="cancelled-tab" data-bs-toggle="tab" data-bs-target="#cancelled" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="cancelled-tab" data-bs-toggle="tab" data-bs-target="#cancelled" type="button" role="tab">
                                 Cancelados
                                 <span class="badge bg-secondary ms-1" id="cancelled-count">0</span>
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="refunded-tab" data-bs-toggle="tab" data-bs-target="#refunded" type="button" role="tab">
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="refunded-tab" data-bs-toggle="tab" data-bs-target="#refunded" type="button" role="tab">
                                 Reembolsados
                                 <span class="badge bg-secondary ms-1" id="refunded-count">0</span>
-                                    </button>
-                                </li>
-                            </ul>
-                        </div>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
 
                     <!-- Conteúdo das Tabs -->
                     <div class="tab-content" id="statusTabsContent">
@@ -153,7 +154,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                </div>
+                        </div>
 
                         <!-- Tab Confirmados -->
                 <div class="tab-pane fade" id="confirmed" role="tabpanel" aria-labelledby="confirmed-tab">
@@ -192,7 +193,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                </div>
+                        </div>
 
                 <!-- Tab Preparando Envio -->
                 <div class="tab-pane fade show active" id="ready-to-prepare" role="tabpanel" aria-labelledby="ready-to-prepare-tab">
@@ -231,7 +232,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                </div>
+                        </div>
 
                 <!-- Tab Separar Pedidos (Manual Status) -->
                 <div class="tab-pane fade" id="manual-prepare" role="tabpanel" aria-labelledby="manual-prepare-tab">
@@ -274,7 +275,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                </div>
+                        </div>
 
                 <!-- Tab Aguardando Envio -->
                 <div class="tab-pane fade" id="waiting-shipment" role="tabpanel" aria-labelledby="waiting-shipment-tab">
@@ -312,7 +313,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                </div>
+                        </div>
 
                 <!-- Tab Enviados -->
                 <div class="tab-pane fade" id="shipped" role="tabpanel" aria-labelledby="shipped-tab">
@@ -353,7 +354,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                </div>
+                        </div>
 
                 <!-- Tab Entregues -->
                 <div class="tab-pane fade" id="delivered" role="tabpanel" aria-labelledby="delivered-tab">
@@ -394,7 +395,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                </div>
+                        </div>
 
                 <!-- Tab Cancelados -->
                 <div class="tab-pane fade" id="cancelled" role="tabpanel" aria-labelledby="cancelled-tab">
@@ -404,7 +405,7 @@
                                     <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
                                 </button>
                                 <span class="ms-2 text-muted" id="cancelled-selected-count">0 selecionado(s)</span>
-                            </div>
+                    </div>
                             
                  
                             
@@ -428,14 +429,14 @@
                                             <td colspan="6" class="text-center text-muted">
                                                 <div class="spinner-border spinner-border-sm" role="status">
                                                     <span class="visually-hidden">Carregando...</span>
-                                                </div>
+                </div>
                                                 Carregando pedidos...
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
-                            </div>
-                </div>
+    </div>
+</div>
 
                 <!-- Tab Reembolsados -->
                 <div class="tab-pane fade" id="refunded" role="tabpanel" aria-labelledby="refunded-tab">
@@ -445,7 +446,7 @@
                                     <i class="bi bi-arrow-clockwise"></i> Atualizar Selecionados
                                 </button>
                                 <span class="ms-2 text-muted" id="refunded-selected-count">0 selecionado(s)</span>
-                            </div>
+            </div>
                             
         
                             
@@ -468,16 +469,16 @@
                                         <tr>
                                             <td colspan="6" class="text-center text-muted">
                                                 <div class="spinner-border spinner-border-sm" role="status">
-                                                    <span class="visually-hidden">Carregando...</span>
-                                                </div>
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
                                                 Carregando pedidos...
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
-                            </div>
                 </div>
-                    </div>
+                            </div>
+                        </div>
                 </div>
             </div>
         </div>
@@ -527,9 +528,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Carregar contadores de todas as abas ao iniciar
     loadTabCounts();
     
+    // Configurar período padrão como "Últimos 7 dias" ao carregar a página
+    const today = new Date();
+    const formatDate = (date) => date.toISOString().split('T')[0];
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 7);
+    
+    document.getElementById('filter-period').value = '7_days';
+    document.getElementById('filter-start-date').value = formatDate(sevenDaysAgo);
+    document.getElementById('filter-end-date').value = formatDate(today);
+    
     // Carregar pedidos da aba "Preparando Envio" ao carregar a página
     // Isso já vai calcular o contador também
-    loadReadyToPrepareOrders();
+    // COMENTADO: O carregamento inicial está muito lento com muitos pedidos
+    // Os pedidos serão carregados apenas quando a aba for clicada
+    // loadReadyToPrepareOrders();
     
     // Carregar pedidos quando a aba for clicada
     const confirmedTab = document.getElementById('confirmed-tab');
@@ -666,7 +679,12 @@ document.addEventListener('DOMContentLoaded', function() {
             customDatesContainer.style.display = 'none';
             customDatesEndContainer.style.display = 'none';
             
-            if (period === '15_days') {
+            if (period === '7_days') {
+                const sevenDaysAgo = new Date(today);
+                sevenDaysAgo.setDate(today.getDate() - 7);
+                startDateInput.value = formatDate(sevenDaysAgo);
+                endDateInput.value = formatDate(today);
+            } else if (period === '15_days') {
                 const fifteenDaysAgo = new Date(today);
                 fifteenDaysAgo.setDate(today.getDate() - 15);
                 startDateInput.value = formatDate(fifteenDaysAgo);
@@ -748,13 +766,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Carregar todos os pedidos UMA VEZ (sem filtros) e armazenar globalmente
+    // Esta função é chamada quando o usuário clica em uma aba pela primeira vez
+    // Carrega TODOS os pedidos em memória para permitir filtragem rápida no cliente
     async function loadAllOrdersOnce() {
-        // Se já está carregando, aguardar a promise existente
+        // Se já está carregando, aguardar a promise existente (evita carregamento duplicado)
         if (loadingPromise) {
             return await loadingPromise;
         }
         
-        if (ordersLoaded) return; // Já carregou
+        if (ordersLoaded) return; // Já carregou anteriormente, não precisa carregar novamente
         
         // Criar promise de carregamento para evitar duplicação
         loadingPromise = (async () => {
@@ -763,31 +783,35 @@ document.addEventListener('DOMContentLoaded', function() {
             tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted"><div class="spinner-border spinner-border-sm" role="status"></div> Carregando pedidos...</td></tr>`;
             let hasMore = true;
             let page = 1;
-            const limit = 1000;
+            const limit = 1000; // Carregar 1000 pedidos por página
             
-            // Resetar array para evitar duplicações
+            // Resetar array para evitar duplicações em recarregamentos
             allOrdersLoaded = [];
 
             // Buscar TODOS os pedidos (SEM filtros)
+            // REMOVIDO limite de 10 páginas (10.000 pedidos) para suportar mais pedidos
+            // O loop continuará até que não haja mais páginas disponíveis
             while (hasMore) {
                 const response = await fetch(`/api/shipments/pending?page=${page}&limit=${limit}`);
                 if (handle401Error(response)) return;
                 if (!response.ok) throw new Error('Erro ao carregar pedidos');
-                const data = await response.json();
+        const data = await response.json();
                 if (data.success && data.orders && data.orders.length > 0) {
                     allOrdersLoaded = allOrdersLoaded.concat(data.orders);
                     hasMore = data.total_pages > page;
                     page++;
+                    console.log(`📦 Carregou página ${page - 1}/${data.total_pages || '?'} - Total: ${allOrdersLoaded.length} pedidos`);
                 } else {
                     hasMore = false;
                 }
-                if (page > 10) hasMore = false;
+                // REMOVIDO: if (page > 10) hasMore = false; // Limite antigo de 10 páginas
             }
-            ordersLoaded = true;
+            ordersLoaded = true; // Marcar como carregado para evitar novos carregamentos
+            console.log(`✅ Carregamento concluído: ${allOrdersLoaded.length} pedidos carregados`);
         })();
         
         await loadingPromise;
-        loadingPromise = null; // Limpar a promise após carregar
+        loadingPromise = null; // Limpar a promise após carregar para permitir novo carregamento se necessário
     }
 
     // Aplicar filtros localmente nos pedidos já carregados
@@ -1058,8 +1082,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         </td>
                     </tr>
                 `;
-            }
-        } catch (error) {
+        }
+    } catch (error) {
             console.error('Erro ao carregar pedidos:', error);
             tbody.innerHTML = `
                 <tr>
@@ -1078,7 +1102,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                    <td colspan="6" class="text-center text-muted">
+                <td colspan="6" class="text-center text-muted">
                         Nenhum pedido entregue encontrado.
                 </td>
             </tr>
@@ -1194,8 +1218,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <i class="bi bi-eye"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
-                                <i class="bi bi-clipboard"></i>
-                            </button>
+                        <i class="bi bi-clipboard"></i>
+                    </button>
                             ${order.invoice_pdf_url ? 
                                 `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
                                     <i class="bi bi-file-earmark-pdf"></i>
@@ -1205,8 +1229,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
-                        </div>
-                    </td>
+                </div>
+            </td>
                 </tr>
             `;
         }).join('');
@@ -1378,16 +1402,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 <tr>
                     <td>
                         <input type="checkbox" class="order-checkbox" value="${orderId}" data-order-id="${orderId}">
-                    </td>
-                    <td>
+            </td>
+            <td>
                         <strong>${orderId}</strong><br>
                         <small class="text-muted">${orderDateTime}</small>
                         ${order.invoice_emitted ? 
                             `<br><span class="badge bg-success">NF: ${invoiceNumber}</span>` : 
                             `<br><span class="badge bg-secondary">Sem NF</span>`
                         }
-                    </td>
-                    <td>
+            </td>
+            <td>
                         ${order.buyer_first_name || order.buyer_nickname || '-'}
                         ${(() => {
                             const dest = order.shipping_details?.destination;
@@ -1409,7 +1433,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             return '';
                         })()}
-                    </td>
+            </td>
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
                     <td>
@@ -1430,7 +1454,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <i class="bi bi-clipboard"></i>
                             </button>
                         </div>
-                    </td>
+            </td>
                 </tr>
             `;
         }).join('');
@@ -1568,14 +1592,14 @@ document.addEventListener('DOMContentLoaded', function() {
             </td>
                     <td>${totalAmount}</td>
                     <td>${shippingInfo}</td>
-                    <td>
-                        <div class="btn-group" role="group">
+            <td>
+                <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
-                            </button>
+                        </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
-                            </button>
+                    </button>
                             ${order.invoice_pdf_url ? 
                                 `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
                                     <i class="bi bi-file-earmark-pdf"></i>
@@ -1585,9 +1609,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
-                        </div>
-                    </td>
-                </tr>
+                </div>
+            </td>
+        </tr>
             `;
         }).join('');
         
@@ -1722,7 +1746,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (filteredOrders.length > 0) {
                 renderShippedOrders(tbody, filteredOrders);
-            } else {
+        } else {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="5" class="text-center text-muted">
@@ -1730,8 +1754,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         </td>
                     </tr>
                 `;
-            }
-        } catch (error) {
+        }
+    } catch (error) {
             console.error('Erro ao carregar pedidos:', error);
             tbody.innerHTML = `
                 <tr>
@@ -2063,7 +2087,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (filteredOrders.length > 0) {
                 renderRefundedOrders(tbody, filteredOrders);
-            } else {
+        } else {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="5" class="text-center text-muted">
@@ -2071,8 +2095,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         </td>
                     </tr>
                 `;
-            }
-        } catch (error) {
+        }
+    } catch (error) {
             console.error('Erro ao carregar pedidos:', error);
             tbody.innerHTML = `
                 <tr>
