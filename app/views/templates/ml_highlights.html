@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Mais Vendidos - Mercado Livre{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="bi bi-trophy-fill"></i> Mais Vendidos do Mercado Livre</h2>
+            <p class="text-muted">Consulte os 20 produtos mais vendidos por categoria</p>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Categoria:</label>
+                            <select class="form-select" id="category-id">
+                                <option value="">Carregando categorias...</option>
+                            </select>
+                            <small class="text-muted">Selecione uma categoria do Mercado Livre</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Atributo (opcional):</label>
+                            <select class="form-select" id="attribute-filter">
+                                <option value="">Nenhum</option>
+                                <option value="BRAND">Marca</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Valor do Atributo:</label>
+                            <input type="text" class="form-control" id="attribute-value" placeholder="ID do atributo">
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <button class="btn btn-primary" onclick="loadHighlights()">
+                                <i class="bi bi-search"></i> Buscar Mais Vendidos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultados -->
+    <div id="results-container" style="display: none;">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-list-ol"></i> Top 20 Mais Vendidos</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="highlights-content">
+                            <!-- Conteúdo será inserido aqui -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensagem de erro -->
+    <div id="error-container" class="row mb-4" style="display: none;">
+        <div class="col-12">
+            <div class="alert alert-danger">
+                <h5><i class="bi bi-exclamation-triangle"></i> Erro</h5>
+                <p id="error-message"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Carregar categorias ao abrir a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadCategories();
+});
+
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/ml/highlights/categories', {
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        const selector = document.getElementById('category-id');
+        
+        if (!selector) return;
+        
+        if (!data.success) {
+            selector.innerHTML = '<option value="">Erro ao carregar categorias</option>';
+            return;
+        }
+        
+        const categories = data.categories || [];
+        
+        if (categories.length === 0) {
+            selector.innerHTML = '<option value="">Nenhuma categoria encontrada</option>';
+            return;
+        }
+        
+        selector.innerHTML = '<option value="">Selecione uma categoria</option>' +
+            categories.map(cat => 
+                `<option value="${cat.id}">${cat.name}</option>`
+            ).join('');
+    } catch (error) {
+        console.error('Erro ao carregar categorias:', error);
+        const selector = document.getElementById('category-id');
+        if (selector) {
+            selector.innerHTML = '<option value="">Erro ao carregar categorias</option>';
+        }
+    }
+}
+
+async function loadHighlights() {
+    const categoryId = document.getElementById('category-id')?.value.trim();
+    const attribute = document.getElementById('attribute-filter')?.value;
+    const attributeValue = document.getElementById('attribute-value')?.value.trim();
+    
+    if (!categoryId) {
+        alert('Por favor, selecione uma categoria');
+        return;
+    }
+    
+    // Mostrar loading
+    const resultsContainer = document.getElementById('results-container');
+    const errorContainer = document.getElementById('error-container');
+    const highlightsContent = document.getElementById('highlights-content');
+    
+    resultsContainer.style.display = 'none';
+    errorContainer.style.display = 'none';
+    
+    highlightsContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Carregando mais vendidos...</p></div>';
+    resultsContainer.style.display = 'block';
+    
+    try {
+        let url = `/api/ml/highlights/category/${categoryId}`;
+        const params = new URLSearchParams();
+        if (attribute && attributeValue) {
+            params.append('attribute', attribute);
+            params.append('attribute_value', attributeValue);
+        }
+        if (params.toString()) {
+            url += '?' + params.toString();
+        }
+        
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        console.log('Dados recebidos:', data); // Debug
+        
+        if (!data.success) {
+            errorContainer.style.display = 'block';
+            document.getElementById('error-message').textContent = data.error || 'Erro ao carregar mais vendidos';
+            resultsContainer.style.display = 'none';
+            return;
+        }
+        
+        const highlights = data.highlights || [];
+        console.log('Highlights:', highlights); // Debug
+        console.log('Primeiro produto:', highlights[0]); // Debug
+        
+        if (highlights.length === 0) {
+            highlightsContent.innerHTML = '<p class="text-muted text-center py-4">Nenhum resultado encontrado.</p>';
+            return;
+        }
+        
+        // Renderizar resultados
+        highlightsContent.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">#</th>
+                            <th style="width: 100px;">Imagem</th>
+                            <th>Produto</th>
+                            <th class="text-end">Preço</th>
+                            <th class="text-center">Vendidos</th>
+                            <th class="text-center">Tipo</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${highlights.map(item => {
+                            const title = item.title || 'N/A';
+                            const thumbnail = item.thumbnail || '';
+                            const price = parseFloat(item.price || 0);
+                            const soldQty = parseInt(item.sold_quantity || 0);
+                            const permalink = item.permalink || '';
+                            const itemId = item.id || '';
+                            const sellerNick = item.seller_nickname || '';
+                            const itemType = item.type || 'ITEM';
+                            
+                            return `
+                            <tr>
+                                <td><strong class="text-primary">${item.position || ''}</strong></td>
+                                <td>
+                                    ${thumbnail ? `<img src="${thumbnail}" class="img-thumbnail" style="width: 80px; height: 80px; object-fit: cover;" alt="${title}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'bg-light d-flex align-items-center justify-content-center\\' style=\\'width: 80px; height: 80px;\\'><i class=\\'bi bi-image text-muted\\'></i></div>';" />` : '<div class="bg-light d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;"><i class="bi bi-image text-muted"></i></div>'}
+                                </td>
+                                <td>
+                                    <strong>${title}</strong><br>
+                                    <small class="text-muted">ID: ${itemId}</small>
+                                    ${sellerNick ? `<br><small class="text-muted"><i class="bi bi-person"></i> ${sellerNick}</small>` : ''}
+                                </td>
+                                <td class="text-end">
+                                    <strong class="text-success">R$ ${price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-info">${soldQty}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-${itemType === 'PRODUCT' ? 'primary' : 'secondary'}">${itemType}</span>
+                                </td>
+                                <td class="text-center">
+                                    ${permalink ? `<a href="${permalink}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i> Ver no ML</a>` : '-'}
+                                </td>
+                            </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Erro ao carregar mais vendidos:', error);
+        errorContainer.style.display = 'block';
+        document.getElementById('error-message').textContent = 'Erro ao carregar dados: ' + error.message;
+        resultsContainer.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
+
