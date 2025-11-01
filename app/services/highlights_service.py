@@ -220,10 +220,19 @@ class HighlightsService:
                                 logger.debug(f"Tentando buscar {item_type} {item_id} via /items com token")
                                 details = self._get_item_details(item_id, item_type, access_token)
                             
-                            # Se ainda não encontrou após todas as tentativas
+                            # Se ainda não encontrou após todas as tentativas, construir dados mínimos com permalink
                             if not details or not details.get("title"):
-                                logger.warning(f"Não foi possível obter detalhes para {item_type} {item_id} após todas as tentativas")
+                                logger.warning(f"Não foi possível obter detalhes via API para {item_type} {item_id}. Construindo permalink manualmente.")
                                 details = self._empty_details()
+                                # Construir permalink manualmente - formato padrão do ML
+                                if item_type in ["ITEM", "USER_PRODUCT"]:
+                                    # Para ITEM e USER_PRODUCT, formato é: https://produto.mercadolivre.com.br/MLB-{id}
+                                    item_suffix = item_id.replace("MLB", "").replace("MLBU", "")
+                                    details["permalink"] = f"https://produto.mercadolivre.com.br/MLB-{item_suffix}"
+                                else:
+                                    # Para PRODUCT, formato é diferente
+                                    details["permalink"] = f"https://produto.mercadolivre.com.br/{item_id}"
+                                details["id"] = item_id  # Garantir que o ID está presente
                     else:
                         # Fallback para outros tipos
                         if not details or not details.get("title"):

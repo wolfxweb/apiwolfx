@@ -397,41 +397,56 @@ async function loadHighlights() {
                     </thead>
                     <tbody>
                         ${highlights.map(item => {
-                            const title = item.title || 'N/A';
+                            const title = item.title || '';
+                            const hasTitle = title && title.trim() !== '';
                             const thumbnail = item.thumbnail || '';
                             const price = parseFloat(item.price || 0);
+                            const hasPrice = price > 0;
                             const soldQty = parseInt(item.sold_quantity || 0);
                             const visits = parseInt(item.visits || 0);
                             const permalink = item.permalink || '';
                             const itemId = item.id || '';
                             const sellerNick = item.seller_nickname || '';
                             const itemType = item.type || 'ITEM';
+                            const hasData = hasTitle && hasPrice; // Dados completos disponíveis
+                            
+                            // Construir permalink se não estiver disponível
+                            let finalPermalink = permalink;
+                            if (!finalPermalink && itemId) {
+                                if (itemType === 'ITEM' || itemType === 'USER_PRODUCT') {
+                                    const itemSuffix = itemId.replace('MLB', '').replace('MLBU', '');
+                                    finalPermalink = `https://produto.mercadolivre.com.br/MLB-${itemSuffix}`;
+                                } else {
+                                    finalPermalink = `https://produto.mercadolivre.com.br/${itemId}`;
+                                }
+                            }
                             
                             return `
-                            <tr>
+                            <tr class="${!hasData ? 'table-warning' : ''}">
                                 <td><strong class="text-primary">${item.position || ''}</strong></td>
                                 <td>
-                                    ${thumbnail ? `<img src="${thumbnail}" class="img-thumbnail" style="width: 80px; height: 80px; object-fit: cover;" alt="${title}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'bg-light d-flex align-items-center justify-content-center\\' style=\\'width: 80px; height: 80px;\\'><i class=\\'bi bi-image text-muted\\'></i></div>';" />` : '<div class="bg-light d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;"><i class="bi bi-image text-muted"></i></div>'}
+                                    ${thumbnail ? `<img src="${thumbnail}" class="img-thumbnail" style="width: 80px; height: 80px; object-fit: cover;" alt="${title || itemId}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'bg-light d-flex align-items-center justify-content-center\\' style=\\'width: 80px; height: 80px;\\'><i class=\\'bi bi-image text-muted\\'></i></div>';" />` : '<div class="bg-light d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;"><i class="bi bi-image text-muted"></i></div>'}
                                 </td>
                                 <td>
-                                    <strong>${title}</strong><br>
+                                    ${hasTitle ? `<strong>${title}</strong><br>` : `<span class="text-muted"><i class="bi bi-exclamation-triangle"></i> Dados indisponíveis na API</span><br>`}
                                     <small class="text-muted">ID: ${itemId}</small>
                                     ${sellerNick ? `<br><small class="text-muted"><i class="bi bi-person"></i> ${sellerNick}</small>` : ''}
+                                    ${!hasData ? `<br><small class="text-warning"><i class="bi bi-info-circle"></i> Clique em "Ver no ML" para ver detalhes</small>` : ''}
                                 </td>
                                 <td class="text-end">
-                                    <strong class="text-success">R$ ${price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong>
+                                    ${hasPrice ? `<strong class="text-success">R$ ${price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong>` : '<span class="text-muted">-</span>'}
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge bg-info">${soldQty.toLocaleString('pt-BR')}</span>
+                                    ${soldQty > 0 ? `<span class="badge bg-info">${soldQty.toLocaleString('pt-BR')}</span>` : '<span class="text-muted">-</span>'}
                                 </td>
                                 <td class="text-center">
                                     ${visits > 0 ? `<span class="badge bg-warning text-dark">${visits.toLocaleString('pt-BR')}</span>` : '<span class="text-muted">-</span>'}
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge bg-${itemType === 'PRODUCT' ? 'primary' : 'secondary'}">${itemType}</span>
+                                    <span class="badge bg-${itemType === 'PRODUCT' ? 'primary' : itemType === 'ITEM' ? 'secondary' : 'warning'}">${itemType}</span>
                                 </td>
                                 <td class="text-center">
-                                    ${permalink ? `<a href="${permalink}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i> Ver no ML</a>` : '-'}
+                                    ${finalPermalink ? `<a href="${finalPermalink}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i> Ver no ML</a>` : '<span class="text-muted">-</span>'}
                                 </td>
                             </tr>
                             `;
