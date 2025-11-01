@@ -114,6 +114,67 @@
     </div>
 </div>
 
+<!-- Modal Genérico para Mensagens -->
+<div class="modal fade" id="messageModal" tabindex="-1" aria-labelledby="messageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" id="messageModalHeader">
+                <h5 class="modal-title" id="messageModalLabel">
+                    <i class="bi" id="messageModalIcon"></i> <span id="messageModalTitle">Mensagem</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="messageModalBody">
+                <!-- Mensagem será inserida aqui -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">
+                    <i class="bi bi-question-circle"></i> Confirmar
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="confirmModalBody">
+                <!-- Mensagem será inserida aqui -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirmModalBtn">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Sincronização (com detalhes) -->
+<div class="modal fade" id="syncModal" tabindex="-1" aria-labelledby="syncModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" id="syncModalHeader">
+                <h5 class="modal-title" id="syncModalLabel">
+                    <i class="bi" id="syncModalIcon"></i> Sincronização
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="syncModalBody">
+                <!-- Detalhes da sincronização serão inseridos aqui -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let currentQuestionId = null;
 let searchTimeout = null;
@@ -123,6 +184,166 @@ document.addEventListener('DOMContentLoaded', function() {
     loadQuestions();
     loadAccounts();
 });
+
+// Função para mostrar mensagem genérica
+function showMessage(type, title, message) {
+    const modal = document.getElementById('messageModal');
+    const modalHeader = document.getElementById('messageModalHeader');
+    const modalTitle = document.getElementById('messageModalTitle');
+    const modalIcon = document.getElementById('messageModalIcon');
+    const modalBody = document.getElementById('messageModalBody');
+    
+    // Limpar classes anteriores
+    modalHeader.className = 'modal-header';
+    modalIcon.className = 'bi me-2';
+    
+    if (type === 'success') {
+        modalHeader.classList.add('bg-success', 'text-white');
+        modalIcon.classList.add('bi-check-circle-fill', 'text-white');
+        modalTitle.textContent = title || 'Sucesso';
+    } else if (type === 'error') {
+        modalHeader.classList.add('bg-danger', 'text-white');
+        modalIcon.classList.add('bi-x-circle-fill', 'text-white');
+        modalTitle.textContent = title || 'Erro';
+    } else if (type === 'warning') {
+        modalHeader.classList.add('bg-warning', 'text-dark');
+        modalIcon.classList.add('bi-exclamation-triangle-fill', 'text-dark');
+        modalTitle.textContent = title || 'Atenção';
+    } else {
+        modalHeader.classList.add('bg-info', 'text-white');
+        modalIcon.classList.add('bi-info-circle-fill', 'text-white');
+        modalTitle.textContent = title || 'Informação';
+    }
+    
+    modalBody.innerHTML = `<p class="mb-0">${escapeHtml(message)}</p>`;
+    
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+// Função para confirmar ação
+function showConfirm(message, onConfirm) {
+    const modal = document.getElementById('confirmModal');
+    const modalBody = document.getElementById('confirmModalBody');
+    const confirmBtn = document.getElementById('confirmModalBtn');
+    
+    modalBody.innerHTML = `<p class="mb-0">${escapeHtml(message)}</p>`;
+    
+    // Remover listeners anteriores
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    
+    // Adicionar novo listener
+    newConfirmBtn.addEventListener('click', function() {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        bsModal.hide();
+        if (onConfirm) onConfirm();
+    });
+    
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+// Função para mostrar modal de sincronização
+function showSyncModal(type, title, message, details = null) {
+    const modal = document.getElementById('syncModal');
+    const modalLabel = document.getElementById('syncModalLabel');
+    const modalHeader = document.getElementById('syncModalHeader');
+    const modalBody = document.getElementById('syncModalBody');
+    const modalIcon = document.getElementById('syncModalIcon');
+    
+    // Limpar classes anteriores
+    modalHeader.className = 'modal-header';
+    modalIcon.className = 'bi me-2';
+    
+    if (type === 'success') {
+        modalHeader.classList.add('bg-success', 'text-white');
+        modalIcon.classList.add('bi-check-circle-fill', 'text-white');
+        modalLabel.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> ' + title;
+    } else {
+        modalHeader.classList.add('bg-danger', 'text-white');
+        modalIcon.classList.add('bi-x-circle-fill', 'text-white');
+        modalLabel.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i> ' + title;
+    }
+    
+    // Construir conteúdo do body
+    let bodyContent = `<p class="mb-3">${escapeHtml(message)}</p>`;
+    
+    if (details && type === 'success') {
+        if (details.total !== undefined || details.saved !== undefined || details.errors !== undefined) {
+            bodyContent += '<hr class="my-3">';
+            bodyContent += '<h6 class="mb-3">📊 Resumo Geral:</h6>';
+            bodyContent += '<div class="row g-2 mb-3">';
+            if (details.total !== undefined) {
+                bodyContent += `
+                    <div class="col-4">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="h5 mb-0 text-primary">${details.total}</div>
+                            <small class="text-muted">Total de perguntas</small>
+                        </div>
+                    </div>
+                `;
+            }
+            if (details.saved !== undefined) {
+                bodyContent += `
+                    <div class="col-4">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="h5 mb-0 text-success">${details.saved}</div>
+                            <small class="text-muted">Perguntas salvas</small>
+                        </div>
+                    </div>
+                `;
+            }
+            if (details.errors !== undefined && details.errors > 0) {
+                bodyContent += `
+                    <div class="col-4">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="h5 mb-0 text-danger">${details.errors}</div>
+                            <small class="text-muted">Erros</small>
+                        </div>
+                    </div>
+                `;
+            }
+            bodyContent += '</div>';
+        }
+        
+        if (details.accounts_synced && details.accounts_synced.length > 0) {
+            bodyContent += '<hr class="my-3">';
+            bodyContent += '<h6 class="mb-2">📋 Por Conta:</h6>';
+            bodyContent += '<ul class="list-group">';
+            details.accounts_synced.forEach(acc => {
+                bodyContent += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><strong>${escapeHtml(acc.nickname || 'Conta')}</strong></span>
+                        <span class="badge bg-success rounded-pill">${acc.saved || 0} salvas</span>
+                    </li>
+                `;
+            });
+            bodyContent += '</ul>';
+        }
+        
+        if (details.accounts_failed && details.accounts_failed.length > 0) {
+            bodyContent += '<hr class="my-3">';
+            bodyContent += '<h6 class="mb-2 text-danger">⚠️ Contas com erro:</h6>';
+            bodyContent += '<ul class="list-group">';
+            details.accounts_failed.forEach(acc => {
+                bodyContent += `
+                    <li class="list-group-item">
+                        <strong>${escapeHtml(acc.nickname || 'Conta')}</strong><br>
+                        <small class="text-danger">${escapeHtml(acc.error || 'Erro desconhecido')}</small>
+                    </li>
+                `;
+            });
+            bodyContent += '</ul>';
+        }
+    }
+    
+    modalBody.innerHTML = bodyContent;
+    
+    // Mostrar modal
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
 
 function debounceSearch() {
     if (searchTimeout) {
@@ -335,11 +556,11 @@ async function openAnswerModal(questionId) {
             const modal = new bootstrap.Modal(document.getElementById('answerModal'));
             modal.show();
         } else {
-            alert('Erro ao carregar detalhes da pergunta: ' + (data.error || 'Erro desconhecido'));
+            showMessage('error', 'Erro ao carregar pergunta', data.error || 'Erro desconhecido ao carregar detalhes da pergunta.');
         }
     } catch (error) {
         console.error('Erro ao abrir modal:', error);
-        alert('Erro ao carregar pergunta');
+        showMessage('error', 'Erro', 'Erro ao carregar pergunta. Tente novamente.');
     }
 }
 
@@ -347,13 +568,21 @@ async function submitAnswer() {
     const answerText = document.getElementById('answer-text').value.trim();
     
     if (!answerText) {
-        alert('Por favor, digite uma resposta');
+        showMessage('warning', 'Campo obrigatório', 'Por favor, digite uma resposta.');
         return;
     }
     
     if (!currentQuestionId) {
-        alert('Erro: ID da pergunta não encontrado');
+        showMessage('error', 'Erro', 'ID da pergunta não encontrado.');
         return;
+    }
+    
+    // Desabilitar botão durante envio
+    const submitBtn = document.querySelector('#answerModal button[onclick="submitAnswer()"]');
+    const originalText = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split spinner-border spinner-border-sm"></i> Enviando...';
     }
     
     try {
@@ -373,8 +602,13 @@ async function submitAnswer() {
         
         const data = await response.json();
         
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+        
         if (data.success) {
-            alert('✅ Resposta enviada com sucesso!');
+            showMessage('success', 'Sucesso', 'Resposta enviada com sucesso!');
             
             // Fechar modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('answerModal'));
@@ -383,11 +617,15 @@ async function submitAnswer() {
             // Recarregar perguntas
             loadQuestions();
         } else {
-            alert('Erro ao enviar resposta: ' + (data.error || 'Erro desconhecido'));
+            showMessage('error', 'Erro ao enviar resposta', data.error || 'Erro desconhecido ao enviar resposta.');
         }
     } catch (error) {
         console.error('Erro ao enviar resposta:', error);
-        alert('Erro ao enviar resposta');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+        showMessage('error', 'Erro', 'Erro ao enviar resposta. Tente novamente.');
     }
 }
 
@@ -400,10 +638,12 @@ async function syncQuestions() {
         ? 'Deseja sincronizar as perguntas desta conta com o Mercado Livre? Isso pode levar alguns minutos.'
         : 'Deseja sincronizar as perguntas de TODAS as contas ML com o Mercado Livre? Isso pode levar alguns minutos.';
     
-    if (!confirm(syncMessage)) {
-        return;
-    }
-    
+    showConfirm(syncMessage, () => {
+        performSync(mlAccountId, statusFilter);
+    });
+}
+
+async function performSync(mlAccountId, statusFilter) {
     // Mostrar loading
     const syncButton = document.querySelector('button[onclick="syncQuestions()"]');
     const originalText = syncButton ? syncButton.innerHTML : '';
@@ -444,32 +684,16 @@ async function syncQuestions() {
         }
         
         if (data.success) {
-            // Montar mensagem detalhada
-            let message = `✅ Sincronização concluída!\n\n`;
-            message += `📊 Resumo Geral:\n`;
-            message += `• Total de perguntas: ${data.total || 0}\n`;
-            message += `• Perguntas salvas: ${data.saved || 0}\n`;
-            message += `• Erros: ${data.errors || 0}\n`;
-            
-            // Se sincronizou múltiplas contas, mostrar detalhes
-            if (data.accounts_synced && data.accounts_synced.length > 0) {
-                message += `\n📋 Por Conta:\n`;
-                data.accounts_synced.forEach(acc => {
-                    message += `• ${acc.nickname}: ${acc.saved || 0} salvas\n`;
-                });
-            }
-            
-            if (data.accounts_failed && data.accounts_failed.length > 0) {
-                message += `\n⚠️ Contas com erro:\n`;
-                data.accounts_failed.forEach(acc => {
-                    message += `• ${acc.nickname}: ${acc.error}\n`;
-                });
-            }
-            
-            alert(message);
+            showSyncModal('success', 'Sincronização concluída', 'Perguntas sincronizadas com sucesso!', {
+                total: data.total || 0,
+                saved: data.saved || 0,
+                errors: data.errors || 0,
+                accounts_synced: data.accounts_synced || [],
+                accounts_failed: data.accounts_failed || []
+            });
             loadQuestions(); // Recarregar lista
         } else {
-            alert('❌ Erro ao sincronizar: ' + (data.error || 'Erro desconhecido'));
+            showSyncModal('error', 'Erro na sincronização', data.error || 'Erro desconhecido ao sincronizar perguntas.');
         }
     } catch (error) {
         console.error('Erro ao sincronizar:', error);
@@ -477,7 +701,7 @@ async function syncQuestions() {
             syncButton.disabled = false;
             syncButton.innerHTML = originalText;
         }
-        alert('❌ Erro ao sincronizar perguntas: ' + error.message);
+        showSyncModal('error', 'Erro na sincronização', 'Erro ao sincronizar perguntas: ' + error.message);
     }
 }
 </script>

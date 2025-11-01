@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.services.ml_questions_service import MLQuestionsService
 from app.models.saas_models import MLQuestion, MLQuestionStatus, MLAccount, MLAccountStatus, User
 from app.services.token_manager import TokenManager
+from app.utils.notification_logger import global_logger
 
 logger = logging.getLogger(__name__)
 
@@ -166,9 +167,14 @@ class MLQuestionsController:
     
     def process_notification(self, resource: str, ml_user_id: int, company_id: int) -> bool:
         """Processa notificação de pergunta (chamado pelo notification controller)"""
+        question_id = None
+        ml_account_id = None
+        
         try:
             # Extrair question_id do resource: "/questions/123456789"
             question_id = int(resource.split("/")[-1])
+            
+            logger.info(f"❓ Processando notificação de pergunta - Question ID: {question_id}, ML User ID: {ml_user_id}, Company ID: {company_id}")
             
             # Buscar conta ML
             ml_account = self.db.query(MLAccount).filter(
@@ -178,40 +184,172 @@ class MLQuestionsController:
             ).first()
             
             if not ml_account:
-                logger.warning(f"Conta ML não encontrada para ml_user_id: {ml_user_id}")
+                error_msg = f"Conta ML não encontrada para ml_user_id: {ml_user_id}, company_id: {company_id}"
+                logger.warning(error_msg)
+                global_logger.log_event(
+                    event_type="question_processed",
+                    data={
+                        "question_id": question_id,
+                        "ml_account_id": None,
+                        "action": "error",
+                        "description": error_msg
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=error_msg
+                )
                 return False
+            
+            ml_account_id = ml_account.id
+            logger.info(f"✅ Conta ML encontrada: ID {ml_account_id}, Nickname: {ml_account.nickname}")
             
             # Obter token
             token_manager = TokenManager(self.db)
             user = self.db.query(User).filter(User.company_id == company_id).first()
             if not user:
-                logger.warning(f"Usuário não encontrado para company_id: {company_id}")
+                error_msg = f"Usuário não encontrado para company_id: {company_id}"
+                logger.warning(error_msg)
+                global_logger.log_event(
+                    event_type="question_processed",
+                    data={
+                        "question_id": question_id,
+                        "ml_account_id": ml_account_id,
+                        "action": "error",
+                        "description": error_msg
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=error_msg
+                )
                 return False
+            
+            logger.info(f"✅ Usuário encontrado: ID {user.id}, Email: {user.email}")
             
             access_token = token_manager.get_valid_token(user.id)
             if not access_token:
-                logger.warning(f"Token não encontrado para company_id: {company_id}")
+                error_msg = f"Token não encontrado para company_id: {company_id}, user_id: {user.id}"
+                logger.warning(error_msg)
+                global_logger.log_event(
+                    event_type="question_processed",
+                    data={
+                        "question_id": question_id,
+                        "ml_account_id": ml_account_id,
+                        "action": "error",
+                        "description": error_msg
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=error_msg
+                )
                 return False
+            
+            logger.info(f"✅ Token obtido com sucesso (tamanho: {len(access_token)} caracteres)")
             
             # Buscar detalhes da pergunta na API
+            logger.info(f"📡 Buscando detalhes da pergunta {question_id} na API do Mercado Livre...")
             question_data = self.service.get_question_details(question_id, access_token)
             
-            if question_data:
-                # Salvar/atualizar no banco
-                result = self.service.save_question_to_db(question_data, company_id, ml_account.id)
+            if not question_data:
+                error_msg = f"Falha ao buscar detalhes da pergunta {question_id} na API do Mercado Livre"
+                logger.error(error_msg)
+                global_logger.log_event(
+                    event_type="question_processed",
+                    data={
+                        "question_id": question_id,
+                        "ml_account_id": ml_account_id,
+                        "action": "error",
+                        "description": error_msg
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=error_msg
+                )
+                return False
+            
+            logger.info(f"✅ Dados da pergunta recebidos da API - Status: {question_data.get('status')}, Item ID: {question_data.get('item', {}).get('id') if isinstance(question_data.get('item'), dict) else 'N/A'}")
+            
+            # Salvar/atualizar no banco
+            logger.info(f"💾 Salvando/atualizando pergunta no banco de dados...")
+            result = self.service.save_question_to_db(question_data, company_id, ml_account.id)
+            
+            if result:
+                action = "created" if not result.id or result.id == 0 else "updated"
+                logger.info(f"✅ Pergunta {question_id} processada e salva no banco - Ação: {action}, DB ID: {result.id if result else 'N/A'}")
                 
-                if result:
-                    logger.info(f"✅ Pergunta {question_id} processada e salva no banco")
-                    return True
-                else:
-                    logger.error(f"❌ Erro ao salvar pergunta {question_id} no banco")
-                    return False
+                # Log detalhado de sucesso usando o logger global
+                question_details = {}
+                if question_data:
+                    question_details = {
+                        "item_id": question_data.get("item", {}).get("id") if isinstance(question_data.get("item"), dict) else None,
+                        "item_title": question_data.get("item", {}).get("title") if isinstance(question_data.get("item"), dict) else None,
+                        "status": question_data.get("status"),
+                        "has_answer": bool(question_data.get("answer")),
+                        "buyer_nickname": question_data.get("from", {}).get("nickname") if isinstance(question_data.get("from"), dict) else None
+                    }
+                
+                global_logger.log_event(
+                    event_type="question_processed",
+                    data={
+                        "question_id": question_id,
+                        "ml_account_id": ml_account_id,
+                        "action": action,
+                        "db_id": result.id if result else None,
+                        "description": f"Pergunta {question_id} {action} com sucesso",
+                        **question_details
+                    },
+                    company_id=company_id,
+                    success=True,
+                    error_message=None
+                )
+                return True
             else:
-                logger.error(f"❌ Erro ao buscar pergunta {question_id} da API")
+                error_msg = f"Falha ao salvar pergunta {question_id} no banco de dados"
+                logger.warning(error_msg)
+                global_logger.log_event(
+                    event_type="question_processed",
+                    data={
+                        "question_id": question_id,
+                        "ml_account_id": ml_account_id,
+                        "action": "error",
+                        "description": error_msg
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=error_msg
+                )
                 return False
                 
+        except ValueError as e:
+            error_msg = f"Erro ao extrair question_id do resource '{resource}': {e}"
+            logger.error(error_msg)
+            global_logger.log_event(
+                event_type="question_processed",
+                data={
+                    "question_id": question_id or 0,
+                    "ml_account_id": ml_account_id,
+                    "action": "error",
+                    "description": error_msg
+                },
+                company_id=company_id,
+                success=False,
+                error_message=error_msg
+            )
+            return False
         except Exception as e:
-            logger.error(f"❌ Erro ao processar notificação de pergunta: {e}", exc_info=True)
+            error_msg = f"Erro ao processar notificação de pergunta: {str(e)}"
+            logger.error(f"❌ {error_msg}", exc_info=True)
+            global_logger.log_event(
+                event_type="question_processed",
+                data={
+                    "question_id": question_id or 0,
+                    "ml_account_id": ml_account_id,
+                    "action": "error",
+                    "description": error_msg
+                },
+                company_id=company_id,
+                success=False,
+                error_message=error_msg
+            )
             return False
     
     def _question_to_dict(self, question: MLQuestion) -> Dict:

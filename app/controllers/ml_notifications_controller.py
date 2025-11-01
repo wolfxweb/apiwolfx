@@ -183,21 +183,67 @@ class MLNotificationsController:
     
     async def _process_question_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de pergunta"""
-        logger.info(f"❓ Notificação de pergunta recebida: {resource} para company_id: {company_id}")
+        logger.info(f"❓ Notificação de pergunta recebida - Resource: {resource}, ML User ID: {ml_user_id}, Company ID: {company_id}")
         
         try:
+            # Extrair question_id para logs detalhados
+            question_id = None
+            try:
+                question_id = int(resource.split("/")[-1])
+                logger.info(f"📋 Question ID extraído: {question_id}")
+            except (ValueError, IndexError) as e:
+                logger.warning(f"⚠️ Não foi possível extrair question_id do resource '{resource}': {e}")
+            
             from app.controllers.ml_questions_controller import MLQuestionsController
             
             controller = MLQuestionsController(db)
+            
+            logger.info(f"🔄 Iniciando processamento da pergunta {question_id} via MLQuestionsController...")
             success = controller.process_notification(resource, ml_user_id, company_id)
             
             if success:
-                logger.info(f"✅ Pergunta processada com sucesso para company_id: {company_id}")
+                logger.info(f"✅ Pergunta {question_id} processada com sucesso para company_id: {company_id}")
+                global_logger.log_event(
+                    event_type="question_notification_success",
+                    data={
+                        "question_id": question_id,
+                        "resource": resource,
+                        "ml_user_id": ml_user_id,
+                        "description": f"Pergunta {question_id} processada com sucesso"
+                    },
+                    company_id=company_id,
+                    success=True
+                )
             else:
-                logger.warning(f"⚠️ Falha ao processar pergunta para company_id: {company_id}")
+                logger.warning(f"⚠️ Falha ao processar pergunta {question_id} para company_id: {company_id}")
+                global_logger.log_event(
+                    event_type="question_notification_error",
+                    data={
+                        "question_id": question_id,
+                        "resource": resource,
+                        "ml_user_id": ml_user_id,
+                        "description": f"Falha ao processar pergunta {question_id}"
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message="Processamento falhou (ver logs detalhados em question_processed)"
+                )
                 
         except Exception as e:
-            logger.error(f"❌ Erro ao processar notificação de pergunta: {e}", exc_info=True)
+            error_msg = f"Erro ao processar notificação de pergunta: {str(e)}"
+            logger.error(f"❌ {error_msg}", exc_info=True)
+            global_logger.log_event(
+                event_type="question_notification_exception",
+                data={
+                    "question_id": question_id if question_id else None,
+                    "resource": resource,
+                    "ml_user_id": ml_user_id,
+                    "description": f"Exceção ao processar notificação de pergunta"
+                },
+                company_id=company_id,
+                success=False,
+                error_message=error_msg
+            )
     
     async def _process_payment_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de pagamento"""
