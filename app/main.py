@@ -667,7 +667,7 @@ async def api_callback(code: str = None, error: str = None, state: str = None):
             # CRIAR nova conta ML
             ml_account = MLAccount(
                 company_id=company_id,
-                ml_user_id=user_info["id"],
+                ml_user_id=str(user_info["id"]),  # IMPORTANTE: Sempre salvar como string
                 nickname=user_info["nickname"],
                 email=user_info.get("email", ""),
                 first_name=user_info.get("first_name", ""),
@@ -811,7 +811,7 @@ async def callback(code: str = None, error: str = None, state: str = None):
             # CRIAR nova conta ML
             ml_account = MLAccount(
                 company_id=company_id,
-                ml_user_id=user_info["id"],
+                ml_user_id=str(user_info["id"]),  # IMPORTANTE: Sempre salvar como string
                 nickname=user_info["nickname"],
                 email=user_info.get("email", ""),
                 first_name=user_info.get("first_name", ""),

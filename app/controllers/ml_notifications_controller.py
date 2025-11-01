@@ -204,17 +204,14 @@ class MLNotificationsController:
     def _get_company_id_from_ml_user(self, ml_user_id: int, db: Session) -> int:
         """Busca company_id a partir do ml_user_id do Mercado Livre"""
         try:
-            from sqlalchemy import text
+            from app.models.saas_models import MLAccount, MLAccountStatus
+            # Usar ORM ao invés de SQL direto para garantir compatibilidade com Enum
+            ml_account = db.query(MLAccount).filter(
+                MLAccount.ml_user_id == str(ml_user_id),
+                MLAccount.status == MLAccountStatus.ACTIVE
+            ).first()
             
-            query = text("""
-                SELECT ma.company_id 
-                FROM ml_accounts ma 
-                WHERE ma.ml_user_id = :ml_user_id
-                AND ma.status = 'ACTIVE'
-            """)
-            
-            result = db.execute(query, {"ml_user_id": str(ml_user_id)}).fetchone()
-            return result[0] if result else None
+            return ml_account.company_id if ml_account else None
             
         except Exception as e:
             logger.error(f"❌ Erro ao buscar company_id: {e}")
@@ -469,6 +466,10 @@ class MLNotificationsController:
                 
                 logger.info(f"✅ [WEBHOOK] Pedido {order_id} atualizado com status: {db_status}")
                 
+                # IMPORTANTE: Fazer commit da atualização
+                db.commit()
+                logger.info(f"✅ Commit realizado para atualização do pedido {order_id}")
+                
                 # Verificar nota fiscal automaticamente para pedidos pagos
                 if db_status in ["PAID", "CONFIRMED"]:
                     await self._check_invoice_for_order(order_id, company_id, db)
@@ -479,12 +480,12 @@ class MLNotificationsController:
                 # Criar novo pedido usando MLOrdersService
                 try:
                     from app.services.ml_orders_service import MLOrdersService
-                    from app.models.saas_models import MLAccount
+                    from app.models.saas_models import MLAccount, MLAccountStatus
                     
-                    # Buscar MLAccount da empresa
+                    # Buscar MLAccount ativa da empresa
                     ml_account = db.query(MLAccount).filter(
                         MLAccount.company_id == company_id,
-                        MLAccount.is_active == True
+                        MLAccount.status == MLAccountStatus.ACTIVE
                     ).first()
                     
                     if ml_account:
@@ -495,17 +496,32 @@ class MLNotificationsController:
                             logger.info(f"✅ Novo pedido {order_id} criado com sucesso via webhook")
                         elif result.get("action") == "updated":
                             logger.info(f"✅ Pedido {order_id} atualizado via webhook")
+                        
+                        # IMPORTANTE: Garantir commit após criar/atualizar pedido
+                        db.commit()
+                        logger.info(f"✅ Commit realizado para pedido {order_id}")
                     else:
-                        logger.warning(f"⚠️ MLAccount não encontrada para company_id {company_id}")
+                        error_msg = f"MLAccount não encontrada para company_id {company_id}"
+                        logger.warning(f"⚠️ {error_msg}")
+                        raise Exception(error_msg)
                 
                 except Exception as e:
-                    logger.error(f"❌ Erro ao criar pedido {order_id} via webhook: {e}")
+                    logger.error(f"❌ Erro ao criar pedido {order_id} via webhook: {e}", exc_info=True)
+                    db.rollback()
+                    raise  # Re-raise para ser capturado no except externo
             
-            db.commit()
+            # Não precisa fazer commit aqui pois:
+            # - Pedidos existentes: commit já foi feito acima (linha ~467)
+            # - Pedidos novos: commit já foi feito no bloco acima (linha ~497)
+            logger.info(f"✅ Pedido {order_id} processado com sucesso")
             
         except Exception as e:
-            logger.error(f"❌ Erro ao salvar pedido: {e}")
-            db.rollback()
+            logger.error(f"❌ Erro ao salvar pedido {order_id}: {e}", exc_info=True)
+            try:
+                db.rollback()
+            except Exception as rollback_error:
+                logger.error(f"❌ Erro ao fazer rollback: {rollback_error}", exc_info=True)
+            raise  # Re-raise para que o erro seja logado no nível superior
     
     async def _check_invoice_for_order(self, order_id: str, company_id: int, db: Session):
         """

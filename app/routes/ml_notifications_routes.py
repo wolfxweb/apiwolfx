@@ -5,8 +5,9 @@ from fastapi import APIRouter, Request, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 import logging
+import copy
 
-from app.config.database import get_db
+from app.config.database import get_db, SessionLocal
 from app.controllers.ml_notifications_controller import MLNotificationsController
 
 logger = logging.getLogger(__name__)
@@ -41,12 +42,37 @@ async def receive_ml_notification(
         
         logger.info(f"📬 Notificação recebida do ML: {notification_data.get('topic')} - {notification_data.get('resource')}")
         
+        # IMPORTANTE: Criar cópia dos dados e nova sessão no background
+        # para evitar problemas com sessão fechada antes do processamento terminar
+        notification_data_copy = copy.deepcopy(notification_data)
+        
+        def process_in_background(notification_data_copy):
+            """Processa notificação em background com nova sessão"""
+            import asyncio
+            db_background = SessionLocal()
+            try:
+                # Criar novo event loop se necessário
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                # Executar função assíncrona
+                loop.run_until_complete(
+                    notifications_controller.process_notification(notification_data_copy, db_background)
+                )
+                logger.info(f"✅ Notificação processada com sucesso: {notification_data_copy.get('topic')}")
+            except Exception as e:
+                logger.error(f"❌ Erro no processamento em background: {e}", exc_info=True)
+            finally:
+                db_background.close()
+        
         # Retornar 200 imediatamente (dentro de 500ms conforme documentação ML)
         # O processamento será feito em background
         background_tasks.add_task(
-            notifications_controller.process_notification,
-            notification_data,
-            db
+            process_in_background,
+            notification_data_copy
         )
         
         return JSONResponse(
@@ -55,7 +81,7 @@ async def receive_ml_notification(
         )
         
     except Exception as e:
-        logger.error(f"❌ Erro ao receber notificação: {e}")
+        logger.error(f"❌ Erro ao receber notificação: {e}", exc_info=True)
         # Mesmo com erro, retornar 200 para evitar reenvios
         return JSONResponse(
             status_code=200,

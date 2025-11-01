@@ -623,7 +623,9 @@ document.addEventListener('DOMContentLoaded', function() {
     async function loadTabCounts() {
         try {
             // Buscar contadores do backend
-            const response = await fetch('/api/shipments/tab-counts');
+            const response = await fetch('/api/shipments/tab-counts', {
+                credentials: 'include'  // Enviar cookies (session_token)
+            });
             
             // Tratar erro 401
             if (handle401Error(response)) {
@@ -757,6 +759,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('/api/shipments/sync-recent', {
                 method: 'POST',
+                credentials: 'include',  // IMPORTANTE: Enviar cookies (session_token)
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -854,7 +857,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (startDate) url += `&start_date=${startDate}`;
                 if (endDate) url += `&end_date=${endDate}`;
                 
-                const response = await fetch(url);
+                const response = await fetch(url, {
+                    credentials: 'include'  // Enviar cookies (session_token)
+                });
                 if (handle401Error(response)) return;
                 if (!response.ok) throw new Error('Erro ao carregar pedidos');
         const data = await response.json();
@@ -1070,7 +1075,9 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         // Buscar pedidos com status manual READY_TO_PREPARE (status que não existe na API, apenas criado manualmente)
-        fetch('/api/shipments/pending?status=READY_TO_PREPARE&page=1&limit=100')
+        fetch('/api/shipments/pending?status=READY_TO_PREPARE&page=1&limit=100', {
+            credentials: 'include'  // Enviar cookies (session_token)
+        })
             .then(response => {
                 // Tratar erro 401
                 if (handle401Error(response)) {
@@ -2561,6 +2568,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Fazer requisição para atualizar os pedidos
         fetch('/api/shipments/bulk-update', {
             method: 'POST',
+            credentials: 'include',  // Enviar cookies (session_token)
             headers: {
                 'Content-Type': 'application/json'
             },

@@ -407,29 +407,13 @@ async def sync_recent_orders(
         user_data = result["user"]
         company_id = user_data["company"]["id"]
         
-        # Buscar token de acesso usando TokenManager
-        token_manager = TokenManager(db)
-        
-        # Buscar um usuário ativo da empresa
-        from app.models.saas_models import User
-        user_db = db.query(User).filter(
-            User.company_id == company_id,
-            User.is_active == True
-        ).first()
-        
-        if not user_db:
-            return JSONResponse(content={"error": "Nenhum usuário ativo encontrado para esta empresa"}, status_code=404)
-        
-        access_token = token_manager.get_valid_token(user_db.id)
-        
-        if not access_token:
-            return JSONResponse(content={"error": "Token de acesso inválido ou expirado"}, status_code=401)
-        
         # Usar o MLOrdersController para sincronizar pedidos
+        # O controller já busca o token corretamente pela conta ML (ml_account_id)
         from app.controllers.ml_orders_controller import MLOrdersController
         controller = MLOrdersController(db)
         
         # Sincronizar pedidos dos últimos 2 dias
+        # O método sync_orders já busca tokens das contas ML automaticamente
         result = controller.sync_orders(company_id=company_id, ml_account_id=None, is_full_import=False, days_back=2)
         
         return JSONResponse(content={

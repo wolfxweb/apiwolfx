@@ -126,7 +126,7 @@ async def ml_callback(
         from datetime import datetime, timedelta
         
         existing_account = db.query(MLAccount).filter(
-            MLAccount.ml_user_id == user_info["id"],
+            MLAccount.ml_user_id == str(user_info["id"]),  # Converter para string para garantir correspondência
             MLAccount.company_id == company_id
         ).first()
         
@@ -157,7 +157,7 @@ async def ml_callback(
             # CRIAR nova conta ML
             ml_account = MLAccount(
                 company_id=company_id,
-                ml_user_id=user_info["id"],
+                ml_user_id=str(user_info["id"]),  # IMPORTANTE: Sempre salvar como string
                 nickname=user_info["nickname"],
                 email=user_info.get("email", ""),
                 first_name=user_info.get("first_name", ""),
