@@ -212,30 +212,78 @@ async def get_categories_api(
             if access_token:
                 headers["Authorization"] = f"Bearer {access_token}"
             
+            # Primeiro tentar buscar todas as categorias via /categories/all
+            all_url = f"https://api.mercadolibre.com/sites/{site_id}/categories/all"
+            logger.info(f"Buscando todas as categorias via {all_url}")
+            all_response = requests.get(all_url, headers=headers, timeout=15)
+            
+            if all_response.status_code == 200:
+                all_categories_raw = all_response.json()
+                logger.info(f"Todas as categorias encontradas (tipo: {type(all_categories_raw)})")
+                
+                # Verificar formato da resposta
+                if isinstance(all_categories_raw, list):
+                    # Filtrar apenas objetos (dicionários), ignorar strings se houver
+                    all_categories = [cat for cat in all_categories_raw if isinstance(cat, dict)]
+                    logger.info(f"Categorias válidas (dicionários): {len(all_categories)}")
+                elif isinstance(all_categories_raw, dict):
+                    # A API /categories/all retorna um dict onde cada chave é o ID da categoria
+                    # Converter para lista, garantindo que cada item tenha o campo 'id'
+                    all_categories = []
+                    for cat_id, cat_data in all_categories_raw.items():
+                        if isinstance(cat_data, dict):
+                            # Garantir que o ID está no dicionário
+                            cat_data['id'] = cat_id
+                            all_categories.append(cat_data)
+                    logger.info(f"Categorias convertidas do dicionário: {len(all_categories)}")
+                else:
+                    logger.warning(f"Formato inesperado de categorias: {type(all_categories_raw)}")
+                    all_categories = []
+                
+                if not all_categories:
+                    logger.warning("Nenhuma categoria válida encontrada")
+                    return JSONResponse(content={
+                        "success": False,
+                        "error": "Nenhuma categoria válida encontrada"
+                    }, status_code=500)
+                
+                # Extrair parent_id do path_from_root se não estiver presente
+                for cat in all_categories:
+                    if 'parent_id' not in cat or cat.get('parent_id') is None:
+                        path_from_root = cat.get('path_from_root', [])
+                        if isinstance(path_from_root, list) and len(path_from_root) > 1:
+                            # O parent_id é o penúltimo item no path
+                            parent_info = path_from_root[-2]
+                            if isinstance(parent_info, dict):
+                                cat['parent_id'] = parent_info.get('id')
+                            elif isinstance(parent_info, str):
+                                cat['parent_id'] = parent_info
+                
+                # Organizar em estrutura hierárquica
+                categories_dict = {cat.get('id'): cat for cat in all_categories if cat.get('id')}
+                categories_tree = []
+                
+                # Primeiro, adicionar todas as categorias principais (sem parent_id)
+                for cat in all_categories:
+                    if isinstance(cat, dict) and (not cat.get('parent_id') or cat.get('parent_id') == ''):
+                        categories_tree.append(cat)
+                
+                # Ordenar por nome
+                categories_tree.sort(key=lambda x: x.get('name', ''))
+                
+                return JSONResponse(content={
+                    "success": True,
+                    "site_id": site_id,
+                    "categories": all_categories,  # Todas as categorias (incluindo subcategorias)
+                    "categories_tree": categories_tree,  # Apenas principais para estrutura
+                    "categories_dict": categories_dict  # Dicionário para buscar por ID
+                })
+            
+            # Fallback: tentar /categories (apenas principais)
             response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code != 200:
                 logger.error(f"Erro na API do ML: {response.status_code} - {response.text[:200]}")
-                
-                # Se 403, tentar buscar categorias principais via /categories/all
-                if response.status_code == 403:
-                    try:
-                        all_url = f"https://api.mercadolibre.com/sites/{site_id}/categories/all"
-                        logger.info(f"Tentando buscar via /categories/all: {all_url}")
-                        all_response = requests.get(all_url, headers=headers, timeout=10)
-                        if all_response.status_code == 200:
-                            all_categories = all_response.json()
-                            # Filtrar apenas categorias principais (sem pai)
-                            main_categories = [cat for cat in all_categories if not cat.get('parent_id')]
-                            logger.info(f"Categorias principais encontradas: {len(main_categories)}")
-                            return JSONResponse(content={
-                                "success": True,
-                                "site_id": site_id,
-                                "categories": main_categories
-                            })
-                    except Exception as e2:
-                        logger.error(f"Erro ao buscar via /categories/all: {e2}")
-                
                 return JSONResponse(content={
                     "success": False,
                     "error": f"Erro ao buscar categorias na API do Mercado Livre: {response.status_code}"
@@ -257,10 +305,23 @@ async def get_categories_api(
             
             logger.info(f"Categorias encontradas: {len(categories) if isinstance(categories, list) else 'N/A'}")
             
+            # Se veio de /categories, organizar também
+            if isinstance(categories, list):
+                categories_dict = {cat.get('id'): cat for cat in categories}
+                return JSONResponse(content={
+                    "success": True,
+                    "site_id": site_id,
+                    "categories": categories,
+                    "categories_tree": categories,  # Neste caso, todas são principais
+                    "categories_dict": categories_dict
+                })
+            
             return JSONResponse(content={
                 "success": True,
                 "site_id": site_id,
-                "categories": categories if isinstance(categories, list) else []
+                "categories": categories if isinstance(categories, list) else [],
+                "categories_tree": categories if isinstance(categories, list) else [],
+                "categories_dict": {}
             })
         except requests.RequestException as req_error:
             logger.error(f"Erro na requisição HTTP: {req_error}", exc_info=True)

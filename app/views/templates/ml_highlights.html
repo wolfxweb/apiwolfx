@@ -22,10 +22,14 @@
                     <div class="row">
                         <div class="col-md-6">
                             <label class="form-label">Categoria:</label>
-                            <select class="form-select" id="category-id">
-                                <option value="">Carregando categorias...</option>
-                            </select>
-                            <small class="text-muted">Selecione uma categoria do Mercado Livre</small>
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="category-search" placeholder="Digite para buscar categoria (ex: Veículos, Acessórios...)" autocomplete="off">
+                                <input type="hidden" id="category-id" value="">
+                                <div id="category-dropdown" class="dropdown-menu w-100" style="display: none; max-height: 300px; overflow-y: auto; z-index: 1000;">
+                                    <!-- Resultados da busca aparecerão aqui -->
+                                </div>
+                            </div>
+                            <small class="text-muted">Digite para buscar categorias e subcategorias do Mercado Livre</small>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Atributo (opcional):</label>
@@ -78,12 +82,60 @@
             </div>
         </div>
     </div>
+
+<style>
+    /* Estilos para o autocomplete de categorias */
+    #category-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin-top: 2px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+    
+    .category-item {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f0f0f0;
+        transition: background-color 0.2s;
+    }
+    
+    .category-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .category-item:last-child {
+        border-bottom: none;
+    }
+    
+    .category-item .fw-bold {
+        color: #495057;
+        margin-bottom: 0.25rem;
+    }
+    
+    .category-item small {
+        display: block;
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    
+    .position-relative {
+        position: relative;
+    }
+</style>
 </div>
 
 <script>
+// Variável global para armazenar todas as categorias
+let allCategoriesData = [];
+let categorySearchTimeout = null;
+
 // Carregar categorias ao abrir a página
 document.addEventListener('DOMContentLoaded', function() {
     loadCategories();
+    setupCategoryAutocomplete();
 });
 
 async function loadCategories() {
@@ -98,33 +150,172 @@ async function loadCategories() {
         }
         
         const data = await response.json();
-        const selector = document.getElementById('category-id');
-        
-        if (!selector) return;
         
         if (!data.success) {
-            selector.innerHTML = '<option value="">Erro ao carregar categorias</option>';
+            console.error('Erro ao carregar categorias:', data.error);
             return;
         }
         
-        const categories = data.categories || [];
+        allCategoriesData = data.categories || [];
         
-        if (categories.length === 0) {
-            selector.innerHTML = '<option value="">Nenhuma categoria encontrada</option>';
-            return;
-        }
+        // Preparar path_from_root como string para cada categoria
+        allCategoriesData.forEach(cat => {
+            const path = cat.path_from_root || [];
+            if (Array.isArray(path) && path.length > 0) {
+                cat.full_path = path.map(p => p.name || p.id || p).join(' → ');
+            } else {
+                cat.full_path = cat.name || cat.id || '';
+            }
+        });
         
-        selector.innerHTML = '<option value="">Selecione uma categoria</option>' +
-            categories.map(cat => 
-                `<option value="${cat.id}">${cat.name}</option>`
-            ).join('');
+        console.log(`Categorias carregadas: ${allCategoriesData.length}`);
     } catch (error) {
         console.error('Erro ao carregar categorias:', error);
-        const selector = document.getElementById('category-id');
-        if (selector) {
-            selector.innerHTML = '<option value="">Erro ao carregar categorias</option>';
-        }
     }
+}
+
+function setupCategoryAutocomplete() {
+    const searchInput = document.getElementById('category-search');
+    const hiddenInput = document.getElementById('category-id');
+    const dropdown = document.getElementById('category-dropdown');
+    
+    if (!searchInput || !hiddenInput || !dropdown) return;
+    
+    // Event listener para digitação
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+        
+        // Limpar timeout anterior
+        if (categorySearchTimeout) {
+            clearTimeout(categorySearchTimeout);
+        }
+        
+        // Aguardar 200ms antes de buscar (debounce)
+        categorySearchTimeout = setTimeout(() => {
+            if (query.length >= 2) {
+                searchCategories(query);
+            } else {
+                hideCategoryDropdown();
+                hiddenInput.value = '';
+            }
+        }, 200);
+    });
+    
+    // Event listener para seleção de item
+    dropdown.addEventListener('click', function(e) {
+        const item = e.target.closest('.category-item');
+        if (item) {
+            const categoryId = item.dataset.categoryId;
+            const categoryName = item.dataset.categoryName;
+            const categoryPath = item.dataset.categoryPath;
+            
+            hiddenInput.value = categoryId;
+            searchInput.value = categoryPath || categoryName;
+            hideCategoryDropdown();
+        }
+    });
+    
+    // Fechar dropdown ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+            hideCategoryDropdown();
+        }
+    });
+}
+
+function searchCategories(query) {
+    const dropdown = document.getElementById('category-dropdown');
+    if (!dropdown || allCategoriesData.length === 0) return;
+    
+    // Filtrar categorias que contenham o termo de busca
+    const filtered = allCategoriesData.filter(cat => {
+        const name = (cat.name || '').toLowerCase();
+        const fullPath = (cat.full_path || '').toLowerCase();
+        const id = (cat.id || '').toLowerCase();
+        
+        return name.includes(query) || fullPath.includes(query) || id.includes(query);
+    });
+    
+    // Ordenar por relevância (nome primeiro, depois path completo)
+    filtered.sort((a, b) => {
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        
+        // Priorizar matches no nome
+        const aNameMatch = aName.includes(query);
+        const bNameMatch = bName.includes(query);
+        
+        if (aNameMatch && !bNameMatch) return -1;
+        if (!aNameMatch && bNameMatch) return 1;
+        
+        // Depois ordenar por nome
+        return aName.localeCompare(bName);
+    });
+    
+    // Limitar a 50 resultados
+    const limited = filtered.slice(0, 50);
+    
+    if (limited.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item-text text-muted">Nenhuma categoria encontrada</div>';
+        showCategoryDropdown();
+        return;
+    }
+    
+    // Construir HTML dos resultados
+    let html = '';
+    limited.forEach(cat => {
+        const name = cat.name || cat.id || 'Sem nome';
+        const fullPath = cat.full_path || name;
+        const categoryId = cat.id || '';
+        
+        // Destacar o termo de busca no nome (opcional - pode remover se não quiser)
+        const highlightedName = highlightText(name, query);
+        
+        html += `
+            <div class="category-item dropdown-item" 
+                 data-category-id="${escapeHtml(categoryId)}"
+                 data-category-name="${escapeHtml(name)}"
+                 data-category-path="${escapeHtml(fullPath)}"
+                 style="cursor: pointer;">
+                <div class="fw-bold">${highlightedName}</div>
+                <small class="text-muted">${escapeHtml(fullPath)}</small>
+            </div>
+        `;
+    });
+    
+    dropdown.innerHTML = html;
+    showCategoryDropdown();
+}
+
+function showCategoryDropdown() {
+    const dropdown = document.getElementById('category-dropdown');
+    if (dropdown) {
+        dropdown.style.display = 'block';
+    }
+}
+
+function hideCategoryDropdown() {
+    const dropdown = document.getElementById('category-dropdown');
+    if (dropdown) {
+        dropdown.style.display = 'none';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function highlightText(text, query) {
+    if (!query || !text) return escapeHtml(text);
+    
+    const regex = new RegExp(`(${escapeRegex(query)})`, 'gi');
+    return escapeHtml(text).replace(regex, '<mark>$1</mark>');
+}
+
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function loadHighlights() {
@@ -199,6 +390,7 @@ async function loadHighlights() {
                             <th>Produto</th>
                             <th class="text-end">Preço</th>
                             <th class="text-center">Vendidos</th>
+                            <th class="text-center">Visitas</th>
                             <th class="text-center">Tipo</th>
                             <th class="text-center">Ações</th>
                         </tr>
@@ -209,6 +401,7 @@ async function loadHighlights() {
                             const thumbnail = item.thumbnail || '';
                             const price = parseFloat(item.price || 0);
                             const soldQty = parseInt(item.sold_quantity || 0);
+                            const visits = parseInt(item.visits || 0);
                             const permalink = item.permalink || '';
                             const itemId = item.id || '';
                             const sellerNick = item.seller_nickname || '';
@@ -229,7 +422,10 @@ async function loadHighlights() {
                                     <strong class="text-success">R$ ${price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong>
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge bg-info">${soldQty}</span>
+                                    <span class="badge bg-info">${soldQty.toLocaleString('pt-BR')}</span>
+                                </td>
+                                <td class="text-center">
+                                    ${visits > 0 ? `<span class="badge bg-warning text-dark">${visits.toLocaleString('pt-BR')}</span>` : '<span class="text-muted">-</span>'}
                                 </td>
                                 <td class="text-center">
                                     <span class="badge bg-${itemType === 'PRODUCT' ? 'primary' : 'secondary'}">${itemType}</span>

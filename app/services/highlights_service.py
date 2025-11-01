@@ -142,7 +142,8 @@ class HighlightsService:
                         "category_id": details.get("category_id", ""),
                         "category_name": details.get("category_name", ""),
                         "seller_id": details.get("seller_id", ""),
-                        "seller_nickname": details.get("seller_nickname", "")
+                        "seller_nickname": details.get("seller_nickname", ""),
+                        "visits": details.get("visits", 0)
                     }
                 except Exception as e:
                     logger.warning(f"Erro ao buscar detalhes de {item_type} {item_id}: {e}")
@@ -161,13 +162,17 @@ class HighlightsService:
                         "category_id": "",
                         "category_name": "",
                         "seller_id": "",
-                        "seller_nickname": ""
+                        "seller_nickname": "",
+                        "visits": 0
                     }
             
             # Primeiro, para produtos catalogados, precisamos obter os itens associados
             # Separar por tipo
             product_ids = [item.get("id", "") for item in content if item.get("type") == "PRODUCT" and item.get("id", "")]
-            item_ids = [item.get("id", "") for item in content if item.get("type") == "ITEM" and item.get("id", "") and not item.get("id", "").startswith("MLBU")]
+            # Incluir ITEM e USER_PRODUCT na busca em lote (via search público funciona melhor)
+            item_ids = [item.get("id", "") for item in content 
+                       if item.get("type") in ["ITEM", "USER_PRODUCT"] 
+                       and item.get("id", "")]
             
             batch_details = {}
             catalog_product_details = {}
@@ -177,8 +182,9 @@ class HighlightsService:
                 logger.info(f"Buscando detalhes para {len(product_ids)} produtos catalogados...")
                 catalog_product_details = self._get_catalog_products_items(product_ids, access_token)
             
-            # Buscar detalhes dos itens normais
+            # Buscar detalhes dos itens normais (ITEM e USER_PRODUCT) via search público
             if item_ids:
+                logger.info(f"Buscando detalhes para {len(item_ids)} itens (ITEM/USER_PRODUCT)...")
                 batch_details = self._get_items_batch(item_ids, access_token, site_id)
             
             # Se a busca funcionou, usar esses dados
@@ -191,17 +197,37 @@ class HighlightsService:
                     
                     # Buscar detalhes do lote ou dos produtos catalogados
                     details = {}
+                    
                     if item_type == "PRODUCT" and item_id in catalog_product_details:
                         # Para produtos catalogados, usar os detalhes já obtidos
                         details = catalog_product_details[item_id]
-                    elif item_type == "ITEM" and item_id in batch_details:
-                        # Para itens normais, usar os detalhes do lote
-                        details = batch_details[item_id]
-                    
-                    if not details or not details.get("title"):
-                        # Se não encontrou, buscar individualmente
-                        logger.debug(f"Buscando individualmente {item_type} {item_id}")
-                        details = self._get_item_details(item_id, item_type, access_token)
+                        logger.debug(f"Usando detalhes de lote para PRODUCT {item_id}")
+                    elif item_type in ["ITEM", "USER_PRODUCT"]:
+                        # Para itens normais e USER_PRODUCT
+                        if item_id in batch_details:
+                            details = batch_details[item_id]
+                            logger.debug(f"Usando detalhes de lote para {item_type} {item_id}")
+                        
+                        # Se não encontrou no lote ou está vazio, buscar individualmente
+                        if not details or not details.get("title") or not details.get("price"):
+                            logger.info(f"Item {item_id} (tipo: {item_type}) não encontrado no lote ou incompleto, buscando individualmente...")
+                            
+                            # Tentar primeiro via search público (funciona melhor para ITEM e USER_PRODUCT)
+                            details = self._get_item_via_search(item_id, site_id)
+                            
+                            # Se ainda não encontrou, tentar método normal com token
+                            if not details or not details.get("title"):
+                                logger.debug(f"Tentando buscar {item_type} {item_id} via /items com token")
+                                details = self._get_item_details(item_id, item_type, access_token)
+                            
+                            # Se ainda não encontrou após todas as tentativas
+                            if not details or not details.get("title"):
+                                logger.warning(f"Não foi possível obter detalhes para {item_type} {item_id} após todas as tentativas")
+                                details = self._empty_details()
+                    else:
+                        # Fallback para outros tipos
+                        if not details or not details.get("title"):
+                            details = self._get_item_details(item_id, item_type, access_token)
                     
                     highlights.append({
                         "id": item_id,
@@ -218,7 +244,8 @@ class HighlightsService:
                         "category_id": details.get("category_id", ""),
                         "category_name": details.get("category_name", ""),
                         "seller_id": details.get("seller_id", ""),
-                        "seller_nickname": details.get("seller_nickname", "")
+                        "seller_nickname": details.get("seller_nickname", ""),
+                        "visits": details.get("visits", 0)
                     })
             else:
                 # Fallback: buscar individualmente em paralelo
@@ -355,19 +382,29 @@ class HighlightsService:
         category_id = data.get("category_id", "")
         category_name = data.get("category_name", "")
         
+        # Garantir que permalink está correto
+        item_permalink = data.get("permalink", "")
+        if not item_permalink:
+            item_id_from_data = data.get("id", "")
+            if item_id_from_data:
+                item_permalink = f"https://produto.mercadolivre.com.br/MLB-{item_id_from_data}"
+        elif not item_permalink.startswith("http"):
+            item_permalink = f"https://{item_permalink}" if not item_permalink.startswith("//") else f"https:{item_permalink}"
+        
         result = {
             "title": data.get("title", ""),
             "price": float(data.get("price", 0)),
             "currency_id": data.get("currency_id", "BRL"),
             "thumbnail": data.get("thumbnail", ""),
-            "permalink": data.get("permalink", ""),
+            "permalink": item_permalink.strip() if item_permalink else "",
             "condition": data.get("condition", "new"),
             "sold_quantity": int(data.get("sold_quantity", 0)),
             "available_quantity": int(data.get("available_quantity", 0)),
             "category_id": category_id,
             "category_name": category_name,
             "seller_id": seller_id,
-            "seller_nickname": seller_nickname
+            "seller_nickname": seller_nickname,
+            "visits": 0  # Visitas não estão disponíveis na API pública de highlights
         }
         
         return result
@@ -418,6 +455,7 @@ class HighlightsService:
                     seller_id = ""
                     seller_nickname = ""
                     
+                    sold_quantity_from_item = 0
                     if items_response.status_code == 200:
                         items_data = items_response.json()
                         results = items_data.get("results", [])
@@ -429,6 +467,23 @@ class HighlightsService:
                             price = float(item.get("price", 0))
                             item_id = item.get("item_id", "")
                             seller_id = str(item.get("seller_id", ""))
+                            
+                            # Tentar buscar sold_quantity e permalink via search público (mais confiável)
+                            item_permalink_from_search = ""
+                            if item_id:
+                                try:
+                                    search_url = f"{self.base_url}/sites/MLB/search"
+                                    search_params = {"ids": item_id}
+                                    search_response = requests.get(search_url, params=search_params, timeout=10)
+                                    if search_response.status_code == 200:
+                                        search_data = search_response.json()
+                                        search_results = search_data.get("results", [])
+                                        if search_results:
+                                            search_item = search_results[0]
+                                            sold_quantity_from_item = int(search_item.get("sold_quantity", 0))
+                                            item_permalink_from_search = search_item.get("permalink", "")
+                                except:
+                                    pass
                     
                     # Extrair seller info do item (se disponível) ou do produto
                     seller = prod_data.get("seller", {})
@@ -446,10 +501,30 @@ class HighlightsService:
                         # Pegar a URL da primeira imagem
                         thumbnail = pictures[0].get("url", "")
                     
-                    # Construir permalink se não vier
-                    permalink = prod_data.get("permalink", "")
+                    # Usar permalink do item específico se encontrado (mais preciso), senão usar do produto
+                    permalink = item_permalink_from_search
                     if not permalink:
-                        permalink = f"https://produto.mercadolivre.com.br/{product_id}"
+                        permalink = prod_data.get("permalink", "")
+                    if not permalink:
+                        # Fallback: construir URL do item se tiver item_id
+                        # Formato correto do ML: https://produto.mercadolivre.com.br/MLB-{item_id}
+                        if item_id:
+                            # Remover "MLB" se já estiver no início do item_id
+                            clean_item_id = item_id.replace("MLB", "").lstrip("-")
+                            permalink = f"https://produto.mercadolivre.com.br/MLB-{clean_item_id}"
+                        else:
+                            # Se não tem item_id, tentar construir URL do produto catalogado
+                            permalink = f"https://produto.mercadolivre.com.br/{product_id}"
+                    
+                    # Garantir que o permalink está completo (com https://)
+                    if permalink:
+                        if not permalink.startswith("http"):
+                            permalink = f"https://{permalink}" if not permalink.startswith("//") else f"https:{permalink}"
+                        # Remover espaços ou caracteres inválidos
+                        permalink = permalink.strip()
+                    
+                    # Usar sold_quantity do item se encontrado, senão tentar do produto
+                    final_sold_quantity = sold_quantity_from_item or int(prod_data.get("sold_quantity", sold_quantity))
                     
                     # Montar detalhes completos
                     product_details[product_id] = {
@@ -459,12 +534,13 @@ class HighlightsService:
                         "thumbnail": thumbnail,
                         "permalink": permalink,
                         "condition": prod_data.get("condition", "new"),
-                        "sold_quantity": int(prod_data.get("sold_quantity", sold_quantity)),
+                        "sold_quantity": final_sold_quantity,
                         "available_quantity": available_quantity,
                         "category_id": prod_data.get("category_id", ""),
                         "category_name": "",
                         "seller_id": seller_id,
                         "seller_nickname": seller_nickname,
+                        "visits": 0,  # Visitas não estão disponíveis na API pública de highlights
                         "_item_id": item_id  # Guardar item_id caso precise depois
                     }
                     
@@ -475,10 +551,10 @@ class HighlightsService:
         return product_details
     
     def _get_items_batch(self, item_ids: List[str], access_token: str, site_id: str) -> Dict[str, Dict]:
-        """Busca múltiplos itens em lote usando o endpoint /items"""
+        """Busca múltiplos itens em lote usando search público (mais confiável para sold_quantity)"""
         try:
+            # Usar search público que retorna sold_quantity
             # A API do ML permite buscar até 20 itens por vez usando ?ids=ID1,ID2,...
-            # Dividir em lotes de 20
             batch_size = 20
             all_details = {}
             
@@ -486,35 +562,131 @@ class HighlightsService:
                 batch = item_ids[i:i+batch_size]
                 ids_param = ",".join(batch)
                 
-                url = f"{self.base_url}/items"
-                params = {"ids": ids_param}
-                headers = {
-                    **self.headers,
-                    "Authorization": f"Bearer {access_token}"
+                # Tentar search primeiro (público, tem sold_quantity)
+                search_url = f"{self.base_url}/sites/{site_id}/search"
+                search_params = {"ids": ids_param}
+                headers_public = {
+                    **self.headers
                 }
                 
-                logger.debug(f"Buscando lote de {len(batch)} itens via {url}")
-                response = requests.get(url, params=params, headers=headers, timeout=20)
+                logger.debug(f"Buscando lote de {len(batch)} itens via search: {ids_param[:100]}")
+                search_response = requests.get(search_url, params=search_params, headers=headers_public, timeout=20)
                 
-                if response.status_code == 200:
-                    items = response.json()
-                    for item in items:
-                        if isinstance(item, dict) and "code" not in item:  # Sem erro
-                            item_id = item.get("id", "")
-                            if item_id:
-                                all_details[item_id] = self._parse_item_response(item)
-                        elif isinstance(item, dict) and item.get("status") == 404:
-                            # Item não encontrado, ignorar
-                            continue
-                else:
-                    logger.warning(f"Erro ao buscar lote: {response.status_code}")
+                if search_response.status_code == 200:
+                    search_data = search_response.json()
+                    search_results = search_data.get("results", [])
+                    logger.debug(f"Search retornou {len(search_results)} resultados para o lote")
+                    
+                    for item in search_results:
+                        item_id = item.get("id", "")
+                        if item_id:
+                            # Parsear item da busca
+                            seller = item.get("seller", {})
+                            # Garantir que permalink está correto
+                            item_permalink = item.get("permalink", "")
+                            if not item_permalink:
+                                # Construir permalink se não vier
+                                item_permalink = f"https://produto.mercadolivre.com.br/MLB-{item_id}"
+                            elif not item_permalink.startswith("http"):
+                                item_permalink = f"https://{item_permalink}" if not item_permalink.startswith("//") else f"https:{item_permalink}"
+                            
+                            title = item.get("title", "")
+                            price = float(item.get("price", 0))
+                            thumbnail = item.get("thumbnail", "")
+                            
+                            logger.debug(f"Item {item_id}: title='{title[:50]}', price={price}, thumbnail={'sim' if thumbnail else 'não'}")
+                            
+                            all_details[item_id] = {
+                                "title": title,
+                                "price": price,
+                                "currency_id": item.get("currency_id", "BRL"),
+                                "thumbnail": thumbnail,
+                                "permalink": item_permalink.strip(),
+                                "condition": item.get("condition", "new"),
+                                "sold_quantity": int(item.get("sold_quantity", 0)),
+                                "available_quantity": int(item.get("available_quantity", 0)),
+                                "category_id": item.get("category_id", ""),
+                                "category_name": "",
+                                "seller_id": str(seller.get("id", "")) if isinstance(seller, dict) else "",
+                                "seller_nickname": seller.get("nickname", "") if isinstance(seller, dict) else "",
+                                "visits": 0  # Visitas não estão disponíveis na API pública
+                            }
+                
+                # Se search falhou ou retornou poucos resultados, tentar /items com token como fallback
+                if search_response.status_code != 200 or len(all_details) < len(batch) * 0.5:
+                    missing_ids = [item_id for item_id in batch if item_id not in all_details]
+                    if missing_ids:
+                        logger.debug(f"Search não retornou todos os itens ({len(missing_ids)} faltando), tentando /items com token")
+                        url = f"{self.base_url}/items"
+                        params = {"ids": ",".join(missing_ids)}
+                        headers = {
+                            **self.headers,
+                            "Authorization": f"Bearer {access_token}"
+                        }
+                        
+                        response = requests.get(url, params=params, headers=headers, timeout=20)
+                        
+                        if response.status_code == 200:
+                            items = response.json()
+                            for item in items:
+                                if isinstance(item, dict) and "code" not in item:
+                                    item_id = item.get("id", "")
+                                    if item_id and item_id not in all_details:
+                                        details = self._parse_item_response(item)
+                                        details["visits"] = 0
+                                        all_details[item_id] = details
+                                        logger.debug(f"Item {item_id} encontrado via /items com token")
             
-            logger.info(f"Busca em lote retornou {len(all_details)} itens com sucesso")
+            logger.info(f"Busca em lote retornou {len(all_details)} itens de {len(item_ids)} solicitados")
             return all_details
             
         except Exception as e:
-            logger.warning(f"Erro na busca em lote: {e}")
+            logger.error(f"Erro na busca em lote: {e}", exc_info=True)
             return {}
+    
+    def _get_item_via_search(self, item_id: str, site_id: str) -> Dict:
+        """Busca item via search público (funciona melhor que /items para alguns casos)"""
+        try:
+            search_url = f"{self.base_url}/sites/{site_id}/search"
+            search_params = {"ids": item_id}
+            headers_public = {
+                **self.headers
+            }
+            
+            response = requests.get(search_url, params=search_params, headers=headers_public, timeout=15)
+            
+            if response.status_code == 200:
+                search_data = response.json()
+                search_results = search_data.get("results", [])
+                if search_results:
+                    item = search_results[0]
+                    seller = item.get("seller", {})
+                    
+                    item_permalink = item.get("permalink", "")
+                    if not item_permalink:
+                        item_permalink = f"https://produto.mercadolivre.com.br/MLB-{item_id}"
+                    elif not item_permalink.startswith("http"):
+                        item_permalink = f"https://{item_permalink}" if not item_permalink.startswith("//") else f"https:{item_permalink}"
+                    
+                    return {
+                        "title": item.get("title", ""),
+                        "price": float(item.get("price", 0)),
+                        "currency_id": item.get("currency_id", "BRL"),
+                        "thumbnail": item.get("thumbnail", ""),
+                        "permalink": item_permalink.strip(),
+                        "condition": item.get("condition", "new"),
+                        "sold_quantity": int(item.get("sold_quantity", 0)),
+                        "available_quantity": int(item.get("available_quantity", 0)),
+                        "category_id": item.get("category_id", ""),
+                        "category_name": "",
+                        "seller_id": str(seller.get("id", "")) if isinstance(seller, dict) else "",
+                        "seller_nickname": seller.get("nickname", "") if isinstance(seller, dict) else "",
+                        "visits": 0
+                    }
+        except Exception as e:
+            logger.debug(f"Erro ao buscar item via search: {e}")
+        
+        return {}
     
     def _get_product_via_search(self, product_id: str, access_token: str) -> Dict:
         """Tenta buscar produto via search quando não encontrado diretamente"""
