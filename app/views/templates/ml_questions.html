@@ -135,7 +135,7 @@ function debounceSearch() {
 
 async function loadAccounts() {
     try {
-        const response = await fetch('/api/my-ml-accounts', {
+            const response = await fetch('/api/accounts', {
             credentials: 'include'
         });
         
@@ -172,7 +172,7 @@ async function loadQuestions() {
     if (status) params.append('status', status);
     if (mlAccountId) params.append('ml_account_id', mlAccountId);
     
-    const url = `/api/ml/questions?${params.toString()}`;
+    const url = `/api/questions?${params.toString()}`;
     
     document.getElementById('loading-message').style.display = 'block';
     document.getElementById('questions-container').style.display = 'none';
@@ -301,7 +301,7 @@ async function openAnswerModal(questionId) {
     currentQuestionId = questionId;
     
     try {
-        const response = await fetch(`/api/ml/questions/${questionId}`, {
+        const response = await fetch(`/api/questions/${questionId}`, {
             credentials: 'include'
         });
         
@@ -357,7 +357,7 @@ async function submitAnswer() {
     }
     
     try {
-        const response = await fetch(`/api/ml/questions/${currentQuestionId}/answer`, {
+        const response = await fetch(`/api/questions/${currentQuestionId}/answer`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -393,27 +393,41 @@ async function submitAnswer() {
 
 async function syncQuestions() {
     const mlAccountId = document.getElementById('account_filter')?.value;
+    const statusFilter = document.getElementById('status_filter')?.value;
     
-    if (!mlAccountId) {
-        alert('Por favor, selecione uma conta ML para sincronizar');
+    // Se não selecionou conta, sincroniza todas as contas da empresa
+    const syncMessage = mlAccountId 
+        ? 'Deseja sincronizar as perguntas desta conta com o Mercado Livre? Isso pode levar alguns minutos.'
+        : 'Deseja sincronizar as perguntas de TODAS as contas ML com o Mercado Livre? Isso pode levar alguns minutos.';
+    
+    if (!confirm(syncMessage)) {
         return;
     }
     
-    if (!confirm('Deseja sincronizar as perguntas com o Mercado Livre? Isso pode levar alguns minutos.')) {
-        return;
+    // Mostrar loading
+    const syncButton = document.querySelector('button[onclick="syncQuestions()"]');
+    const originalText = syncButton ? syncButton.innerHTML : '';
+    if (syncButton) {
+        syncButton.disabled = true;
+        syncButton.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Sincronizando...';
     }
     
     try {
-        const response = await fetch('/api/ml/questions/sync', {
+        const requestBody = {};
+        if (mlAccountId) {
+            requestBody.ml_account_id = parseInt(mlAccountId);
+        }
+        if (statusFilter) {
+            requestBody.status = statusFilter;
+        }
+        
+        const response = await fetch('/api/questions/sync', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             credentials: 'include',
-            body: JSON.stringify({
-                ml_account_id: parseInt(mlAccountId),
-                status: null
-            })
+            body: JSON.stringify(requestBody)
         });
         
         if (response.status === 401) {
@@ -423,15 +437,47 @@ async function syncQuestions() {
         
         const data = await response.json();
         
+        // Restaurar botão
+        if (syncButton) {
+            syncButton.disabled = false;
+            syncButton.innerHTML = originalText;
+        }
+        
         if (data.success) {
-            alert(`✅ Sincronização concluída!\nTotal: ${data.total}\nSalvas: ${data.saved}\nErros: ${data.errors || 0}`);
-            loadQuestions();
+            // Montar mensagem detalhada
+            let message = `✅ Sincronização concluída!\n\n`;
+            message += `📊 Resumo Geral:\n`;
+            message += `• Total de perguntas: ${data.total || 0}\n`;
+            message += `• Perguntas salvas: ${data.saved || 0}\n`;
+            message += `• Erros: ${data.errors || 0}\n`;
+            
+            // Se sincronizou múltiplas contas, mostrar detalhes
+            if (data.accounts_synced && data.accounts_synced.length > 0) {
+                message += `\n📋 Por Conta:\n`;
+                data.accounts_synced.forEach(acc => {
+                    message += `• ${acc.nickname}: ${acc.saved || 0} salvas\n`;
+                });
+            }
+            
+            if (data.accounts_failed && data.accounts_failed.length > 0) {
+                message += `\n⚠️ Contas com erro:\n`;
+                data.accounts_failed.forEach(acc => {
+                    message += `• ${acc.nickname}: ${acc.error}\n`;
+                });
+            }
+            
+            alert(message);
+            loadQuestions(); // Recarregar lista
         } else {
-            alert('Erro ao sincronizar: ' + (data.error || 'Erro desconhecido'));
+            alert('❌ Erro ao sincronizar: ' + (data.error || 'Erro desconhecido'));
         }
     } catch (error) {
         console.error('Erro ao sincronizar:', error);
-        alert('Erro ao sincronizar perguntas');
+        if (syncButton) {
+            syncButton.disabled = false;
+            syncButton.innerHTML = originalText;
+        }
+        alert('❌ Erro ao sincronizar perguntas: ' + error.message);
     }
 }
 </script>

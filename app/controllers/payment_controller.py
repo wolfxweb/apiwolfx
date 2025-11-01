@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.services.mercado_pago_service import mercado_pago_service
-from app.services.test_account_service import test_account_service
 from app.models.payment_models import (
     PaymentRequest, PaymentResponse, PreferenceRequest, PreferenceResponse,
     WebhookNotification

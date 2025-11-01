@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.controllers.payment_controller import PaymentController
-from app.services.test_account_service import test_account_service
+# from app.services.test_account_service import test_account_service  # Removido - arquivo não existe mais
 from app.models.payment_models import (
     PaymentRequest, PaymentResponse, PreferenceRequest, PreferenceResponse
 )
@@ -475,15 +475,12 @@ async def create_test_account(account_type: str = "buyer", country: str = "BR", 
     try:
         logger.info(f"🔄 Criando conta de teste: {account_type}")
         
-        account = test_account_service.create_test_account(account_type, country, description)
-        
-        if account.get("error"):
-            raise HTTPException(status_code=400, detail=account["error"])
-        
-        return {
-            "message": f"Conta de teste {account_type} criada com sucesso",
-            "account": account
-        }
+        # test_account_service removido - funcionalidade desabilitada
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=501,
+            content={"error": "Funcionalidade de contas de teste desabilitada"}
+        )
         
     except HTTPException:
         raise
@@ -498,12 +495,12 @@ async def setup_test_environment():
     try:
         logger.info("🚀 Configurando ambiente de teste...")
         
-        environment = test_account_service.setup_test_environment()
-        
-        if environment.get("error"):
-            raise HTTPException(status_code=400, detail=environment["error"])
-        
-        return environment
+        # test_account_service removido - funcionalidade desabilitada
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=501,
+            content={"error": "Funcionalidade de contas de teste desabilitada"}
+        )
         
     except HTTPException:
         raise
@@ -516,29 +513,12 @@ async def setup_test_environment():
 async def get_test_cards(country: str = "BR"):
     """Retorna cartões de teste para o país especificado"""
     try:
-        cards = test_account_service.get_test_cards(country)
-        
-        return {
-            "message": f"Cartões de teste para {country}",
-            "test_cards": cards,
-            "usage_instructions": {
-                "approved": {
-                    "description": "Use para simular pagamentos aprovados",
-                    "number": cards["approved"]["number"],
-                    "holder": cards["approved"]["cardholder"]["name"]
-                },
-                "rejected": {
-                    "description": "Use para simular pagamentos rejeitados",
-                    "number": cards["rejected"]["number"],
-                    "holder": cards["rejected"]["cardholder"]["name"]
-                },
-                "pending": {
-                    "description": "Use para simular pagamentos pendentes",
-                    "number": cards["pending"]["number"],
-                    "holder": cards["pending"]["cardholder"]["name"]
-                }
-            }
-        }
+        # test_account_service removido - funcionalidade desabilitada
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=501,
+            content={"error": "Funcionalidade de contas de teste desabilitada"}
+        )
         
     except Exception as e:
         logger.error(f"❌ Erro ao obter cartões de teste: {e}")

@@ -204,7 +204,7 @@ app.include_router(marketing_costs_router)  # Para /marketing
 app.include_router(advertising_router)  # Para /ml/advertising
 app.include_router(shipment_router, prefix="/api")  # Para /api/shipments
 app.include_router(highlights_router)  # Para /ml/highlights e /api/ml/highlights
-app.include_router(ml_questions_router, prefix="/ml")  # Para /ml/questions e /api/ml/questions
+app.include_router(ml_questions_router)  # Para /questions (HTML) e /api/questions (API)
 # app.include_router(settings_router)  # Removido - usando /auth/profile
 
 # Rota específica para página de edição da empresa

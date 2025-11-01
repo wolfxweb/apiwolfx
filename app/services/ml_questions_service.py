@@ -193,20 +193,57 @@ class MLQuestionsService:
                 question.answer_date = answer_date
                 question.buyer_nickname = from_data.get("nickname") if from_data else None
                 question.buyer_answered_questions = from_data.get("answered_questions") if from_data else None
-                question.item_title = item_data.get("title") if item_data else None
+                question.item_title = item_data.get("title") if item_data else question.item_title
+                question.item_thumbnail = item_data.get("thumbnail") if item_data else question.item_thumbnail
                 question.question_data = question_data
                 question.updated_at = datetime.now()
                 question.last_sync = datetime.now()
                 question.deleted_from_list = question_data.get("deleted_from_list", False)
                 question.hold = question_data.get("hold", False)
+                
+                # Atualizar ml_item_id e ml_seller_id se necessário
+                if item_data and item_data.get("id") and not question.ml_item_id:
+                    question.ml_item_id = str(item_data.get("id"))
+                if question_data.get("seller_id") and not question.ml_seller_id:
+                    question.ml_seller_id = str(question_data.get("seller_id"))
             else:
+                # Extrair item_id do objeto item
+                item_id = None
+                if item_data and item_data.get("id"):
+                    item_id = str(item_data.get("id"))
+                elif question_data.get("item_id"):
+                    item_id = str(question_data.get("item_id"))
+                
+                # Validar que temos item_id (campo obrigatório)
+                if not item_id:
+                    logger.warning(f"Item ID não encontrado na pergunta {ml_question_id}")
+                    # Tentar usar um valor padrão ou buscar de outra fonte
+                    # Por enquanto, vamos usar "UNKNOWN" para não quebrar o banco
+                    item_id = "UNKNOWN"
+                
+                # Obter seller_id da conta ML (ml_user_id)
+                # Se não estiver disponível na resposta da API, usar o ml_user_id da conta
+                seller_id = ""
+                if question_data.get("seller_id"):
+                    seller_id = str(question_data.get("seller_id"))
+                else:
+                    # Buscar ml_account para obter ml_user_id
+                    ml_account = self.db.query(MLAccount).filter(MLAccount.id == ml_account_id).first()
+                    if ml_account:
+                        seller_id = str(ml_account.ml_user_id)
+                
+                # Validar que temos seller_id (campo obrigatório)
+                if not seller_id:
+                    logger.warning(f"Seller ID não encontrado para pergunta {ml_question_id}")
+                    seller_id = "UNKNOWN"
+                
                 # Criar novo
                 question = MLQuestion(
                     company_id=company_id,
                     ml_account_id=ml_account_id,
                     ml_question_id=ml_question_id,
-                    ml_item_id=question_data.get("item_id", ""),
-                    ml_seller_id=str(question_data.get("seller_id", "")),
+                    ml_item_id=item_id,
+                    ml_seller_id=seller_id,
                     ml_buyer_id=str(from_data.get("id", "")) if from_data and from_data.get("id") else None,
                     question_text=question_data.get("text", ""),
                     status=status,
@@ -237,50 +274,111 @@ class MLQuestionsService:
             self.db.rollback()
             return None
     
-    def sync_questions(self, company_id: int, ml_account_id: int, user_id: int, status: str = None) -> Dict:
-        """Sincroniza todas as perguntas do vendedor"""
+    def sync_questions(self, company_id: int, user_id: int, ml_account_id: int = None, status: str = None) -> Dict:
+        """Sincroniza todas as perguntas do vendedor (todas as contas ou uma conta específica)"""
         try:
             # Obter token
             token_manager = TokenManager(self.db)
-            access_token = token_manager.get_valid_token(user_id)
             
-            if not access_token:
-                return {
-                    "success": False,
-                    "error": "Token de acesso não encontrado"
-                }
-            
-            # Buscar conta ML
-            ml_account = self.db.query(MLAccount).filter(
-                MLAccount.id == ml_account_id,
+            # Buscar contas ML ativas da empresa
+            query = self.db.query(MLAccount).filter(
                 MLAccount.company_id == company_id,
                 MLAccount.status == MLAccountStatus.ACTIVE
-            ).first()
+            )
             
-            if not ml_account:
-                return {
-                    "success": False,
-                    "error": "Conta ML não encontrada"
-                }
+            if ml_account_id:
+                # Validar que a conta ML pertence à empresa do usuário logado
+                query = query.filter(MLAccount.id == ml_account_id)
             
-            # Buscar todas as perguntas
-            questions = self.get_all_questions(str(ml_account.ml_user_id), access_token, status)
+            ml_accounts = query.all()
             
-            saved_count = 0
-            error_count = 0
-            
-            for question_data in questions:
-                result = self.save_question_to_db(question_data, company_id, ml_account_id)
-                if result:
-                    saved_count += 1
+            if not ml_accounts:
+                if ml_account_id:
+                    return {
+                        "success": False,
+                        "error": f"Conta ML {ml_account_id} não encontrada ou não pertence à sua empresa"
+                    }
                 else:
-                    error_count += 1
+                    return {
+                        "success": False,
+                        "error": "Nenhuma conta ML ativa encontrada para esta empresa"
+                    }
+            
+            total_questions = 0
+            total_saved = 0
+            total_errors = 0
+            accounts_synced = []
+            accounts_failed = []
+            
+            # Sincronizar cada conta
+            for ml_account in ml_accounts:
+                try:
+                    # Buscar token específico desta conta ML
+                    from app.models.saas_models import Token
+                    from datetime import datetime
+                    
+                    token_obj = self.db.query(Token).filter(
+                        Token.ml_account_id == ml_account.id,
+                        Token.is_active == True
+                    ).order_by(Token.expires_at.desc()).first()
+                    
+                    if not token_obj:
+                        logger.warning(f"Token não encontrado para conta ML {ml_account.id}")
+                        accounts_failed.append({
+                            "account_id": ml_account.id,
+                            "nickname": ml_account.nickname,
+                            "error": "Token de acesso não encontrado"
+                        })
+                        continue
+                    
+                    # Verificar se o token está expirado
+                    access_token = token_obj.access_token
+                    if token_obj.expires_at and token_obj.expires_at < datetime.now():
+                        logger.warning(f"Token expirado para conta ML {ml_account.id}, tentando usar mesmo assim")
+                        # Continuar mesmo com token expirado - a API pode aceitar ou retornar erro específico
+                    
+                    # Buscar todas as perguntas desta conta
+                    questions = self.get_all_questions(str(ml_account.ml_user_id), access_token, status)
+                    
+                    saved_count = 0
+                    error_count = 0
+                    
+                    for question_data in questions:
+                        result = self.save_question_to_db(question_data, company_id, ml_account.id)
+                        if result:
+                            saved_count += 1
+                        else:
+                            error_count += 1
+                    
+                    total_questions += len(questions)
+                    total_saved += saved_count
+                    total_errors += error_count
+                    
+                    accounts_synced.append({
+                        "account_id": ml_account.id,
+                        "nickname": ml_account.nickname,
+                        "questions": len(questions),
+                        "saved": saved_count,
+                        "errors": error_count
+                    })
+                    
+                except Exception as e:
+                    logger.error(f"Erro ao sincronizar conta ML {ml_account.id}: {e}", exc_info=True)
+                    accounts_failed.append({
+                        "account_id": ml_account.id,
+                        "nickname": ml_account.nickname,
+                        "error": str(e)
+                    })
+                    total_errors += 1
             
             return {
                 "success": True,
-                "total": len(questions),
-                "saved": saved_count,
-                "errors": error_count
+                "total": total_questions,
+                "saved": total_saved,
+                "errors": total_errors,
+                "accounts_synced": accounts_synced,
+                "accounts_failed": accounts_failed,
+                "total_accounts": len(ml_accounts)
             }
             
         except Exception as e:

@@ -65,6 +65,48 @@ async def get_questions_api(
     
     return JSONResponse(content=result)
 
+@ml_questions_router.get("/api/accounts")
+async def get_ml_accounts_api(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para listar contas ML do usuário logado"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result["user"]
+    company_id = user_data["company"]["id"]  # Garantir que sempre usa o company_id do usuário logado
+    
+    # Buscar contas ML da empresa (filtradas pelo company_id do usuário logado)
+    from app.models.saas_models import MLAccount, MLAccountStatus
+    
+    ml_accounts = db.query(MLAccount).filter(
+        MLAccount.company_id == company_id,  # Filtro por company_id do usuário logado
+        MLAccount.status == MLAccountStatus.ACTIVE
+    ).all()
+    
+    accounts_list = []
+    for acc in ml_accounts:
+        accounts_list.append({
+            "id": acc.id,
+            "nickname": acc.nickname,
+            "email": acc.email,
+            "ml_user_id": acc.ml_user_id
+        })
+    
+    return JSONResponse(content=accounts_list)
+
 @ml_questions_router.get("/api/questions/{question_id}")
 async def get_question_api(
     question_id: int,
@@ -157,17 +199,11 @@ async def sync_questions_api(
     company_id = user_data["company"]["id"]
     user_id = user_data["id"]
     
-    ml_account_id = body.get("ml_account_id")
-    status = body.get("status")
-    
-    if not ml_account_id:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "error": "ml_account_id é obrigatório"}
-        )
+    ml_account_id = body.get("ml_account_id")  # Opcional - se None, sincroniza todas as contas
+    status = body.get("status")  # Opcional - se None, busca todas as perguntas
     
     controller = MLQuestionsController(db)
-    result = controller.sync_questions(company_id, ml_account_id, user_id, status)
+    result = controller.sync_questions(company_id, user_id, ml_account_id, status)
     
     return JSONResponse(content=result)
 

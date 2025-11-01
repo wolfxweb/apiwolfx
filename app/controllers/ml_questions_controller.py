@@ -20,11 +20,25 @@ class MLQuestionsController:
     
     def get_questions(self, company_id: int, ml_account_id: Optional[int] = None, 
                      status: Optional[str] = None, limit: int = 50) -> Dict:
-        """Lista perguntas da empresa"""
+        """Lista perguntas da empresa (garantindo que ml_account_id pertence ao company_id)"""
         try:
             query = self.db.query(MLQuestion).filter(MLQuestion.company_id == company_id)
             
             if ml_account_id:
+                # Garantir que a conta ML pertence à empresa do usuário logado
+                ml_account = self.db.query(MLAccount).filter(
+                    MLAccount.id == ml_account_id,
+                    MLAccount.company_id == company_id
+                ).first()
+                
+                if not ml_account:
+                    return {
+                        "success": False,
+                        "error": f"Conta ML {ml_account_id} não encontrada ou não pertence à sua empresa",
+                        "questions": [],
+                        "total": 0
+                    }
+                
                 query = query.filter(MLQuestion.ml_account_id == ml_account_id)
             
             if status:
@@ -138,10 +152,10 @@ class MLQuestionsController:
                 "error": str(e)
             }
     
-    def sync_questions(self, company_id: int, ml_account_id: int, user_id: int, status: Optional[str] = None) -> Dict:
-        """Sincroniza perguntas com o Mercado Livre"""
+    def sync_questions(self, company_id: int, user_id: int, ml_account_id: Optional[int] = None, status: Optional[str] = None) -> Dict:
+        """Sincroniza perguntas com o Mercado Livre (todas as contas ou uma conta específica)"""
         try:
-            result = self.service.sync_questions(company_id, ml_account_id, user_id, status)
+            result = self.service.sync_questions(company_id, user_id, ml_account_id, status)
             return result
         except Exception as e:
             logger.error(f"Erro ao sincronizar perguntas: {e}", exc_info=True)
