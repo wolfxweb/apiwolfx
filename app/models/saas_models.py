@@ -99,6 +99,7 @@ class Company(Base):
     subscriptions = relationship("Subscription", back_populates="company", cascade="all, delete-orphan")
     products = relationship("Product", back_populates="company", cascade="all, delete-orphan")
     internal_products = relationship("InternalProduct", back_populates="company", cascade="all, delete-orphan")
+    ml_questions = relationship("MLQuestion", back_populates="company", cascade="all, delete-orphan")
     
     # Relacionamentos Financeiros
     financial_accounts = relationship("FinancialAccount", back_populates="company", cascade="all, delete-orphan")
@@ -209,6 +210,7 @@ class MLAccount(Base):
     user_ml_accounts = relationship("UserMLAccount", back_populates="ml_account", cascade="all, delete-orphan")
     tokens = relationship("Token", back_populates="ml_account", cascade="all, delete-orphan")
     ml_products = relationship("MLProduct", back_populates="ml_account", cascade="all, delete-orphan")
+    ml_questions = relationship("MLQuestion", back_populates="ml_account", cascade="all, delete-orphan")
 
 class UserMLAccount(Base):
     """Associação entre Usuário e Conta ML (permissões)"""
@@ -531,6 +533,12 @@ class MLProductAttribute(Base):
 
 # ApiLog removido - já definido em database_models.py
 
+class MLQuestionStatus(enum.Enum):
+    """Status da pergunta do Mercado Livre"""
+    UNANSWERED = "UNANSWERED"
+    ANSWERED = "ANSWERED"
+    CLOSED_UNANSWERED = "CLOSED_UNANSWERED"
+
 class OrderStatus(enum.Enum):
     """Status do pedido"""
     PENDING = "PENDING"
@@ -689,6 +697,64 @@ class MLOrder(Base):
         Index('ix_ml_orders_advertising', 'is_advertising_sale'),
         Index('ix_ml_orders_shipping_id', 'shipping_id'),
         Index('ix_ml_orders_cash_entry', 'cash_entry_created'),
+    )
+
+class MLQuestion(Base):
+    """Modelo de Perguntas do Mercado Livre"""
+    __tablename__ = "ml_questions"
+    
+    # IDs
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
+    
+    # Identificadores ML
+    ml_question_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    ml_item_id = Column(String(50), nullable=False, index=True)
+    ml_seller_id = Column(String(50), nullable=False, index=True)
+    ml_buyer_id = Column(String(50), index=True)
+    
+    # Dados da pergunta
+    question_text = Column(Text, nullable=False)
+    status = Column(Enum(MLQuestionStatus), nullable=False, index=True)
+    
+    # Dados do item relacionado
+    item_title = Column(String(500))
+    item_thumbnail = Column(String(500))
+    
+    # Resposta (se existir)
+    answer_text = Column(Text)
+    answer_status = Column(String(50))  # ACTIVE, DISABLED
+    answered_at = Column(DateTime)
+    
+    # Metadados
+    deleted_from_list = Column(Boolean, default=False)
+    hold = Column(Boolean, default=False)  # Se a pergunta está em análise
+    
+    # Dados do comprador
+    buyer_nickname = Column(String(255))
+    buyer_answered_questions = Column(Integer)  # Quantidade de perguntas que o comprador já fez
+    
+    # Timestamps
+    question_date = Column(DateTime, nullable=False, index=True)
+    answer_date = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    last_sync = Column(DateTime)  # Última sincronização com ML
+    
+    # Dados completos (JSON) para referência futura
+    question_data = Column(JSON)  # Dados completos da API
+    
+    # Relacionamentos
+    company = relationship("Company", back_populates="ml_questions")
+    ml_account = relationship("MLAccount", back_populates="ml_questions")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ml_questions_company_status', 'company_id', 'status'),
+        Index('ix_ml_questions_item', 'ml_item_id'),
+        Index('ix_ml_questions_date', 'question_date'),
+        Index('ix_ml_questions_ml_question_id', 'ml_question_id'),
     )
 
 class CatalogParticipant(Base):

@@ -184,7 +184,20 @@ class MLNotificationsController:
     async def _process_question_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de pergunta"""
         logger.info(f"❓ Notificação de pergunta recebida: {resource} para company_id: {company_id}")
-        # TODO: Implementar processamento de perguntas
+        
+        try:
+            from app.controllers.ml_questions_controller import MLQuestionsController
+            
+            controller = MLQuestionsController(db)
+            success = controller.process_notification(resource, ml_user_id, company_id)
+            
+            if success:
+                logger.info(f"✅ Pergunta processada com sucesso para company_id: {company_id}")
+            else:
+                logger.warning(f"⚠️ Falha ao processar pergunta para company_id: {company_id}")
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao processar notificação de pergunta: {e}", exc_info=True)
     
     async def _process_payment_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de pagamento"""

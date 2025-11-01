@@ -1,0 +1,439 @@
+{% extends "base.html" %}
+
+{% block title %}Perguntas - Mercado Livre{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="bi bi-question-circle"></i> Perguntas do Mercado Livre</h2>
+                    <p class="text-muted mb-0">Gerencie e responda perguntas dos seus produtos</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="syncQuestions()">
+                        <i class="bi bi-arrow-clockwise"></i> Sincronizar Perguntas
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="status_filter" class="form-label">Status</label>
+                            <select class="form-select" id="status_filter" onchange="loadQuestions()">
+                                <option value="">Todas</option>
+                                <option value="UNANSWERED">Não Respondidas</option>
+                                <option value="ANSWERED">Respondidas</option>
+                                <option value="CLOSED_UNANSWERED">Fechadas sem Resposta</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="account_filter" class="form-label">Conta ML</label>
+                            <select class="form-select" id="account_filter" onchange="loadQuestions()">
+                                <option value="">Todas as contas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="search_filter" class="form-label">Buscar</label>
+                            <input type="text" class="form-control" id="search_filter" placeholder="Buscar por produto, pergunta..." onkeyup="debounceSearch()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Perguntas -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-list-ul"></i> Perguntas</h5>
+                    <span id="questions-count" class="badge bg-primary">Carregando...</span>
+                </div>
+                <div class="card-body">
+                    <div id="loading-message" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Carregando perguntas...</p>
+                    </div>
+                    <div id="questions-container" style="display: none;">
+                        <!-- Perguntas serão inseridas aqui -->
+                    </div>
+                    <div id="empty-message" style="display: none;" class="text-center py-4">
+                        <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                        <p class="text-muted mt-3">Nenhuma pergunta encontrada</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Responder Pergunta -->
+<div class="modal fade" id="answerModal" tabindex="-1" aria-labelledby="answerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="answerModalLabel">
+                    <i class="bi bi-reply"></i> Responder Pergunta
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="question-details">
+                    <!-- Detalhes da pergunta serão inseridos aqui -->
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <label for="answer-text" class="form-label">Sua Resposta</label>
+                    <textarea class="form-control" id="answer-text" rows="4" placeholder="Digite sua resposta aqui..."></textarea>
+                    <small class="text-muted">A resposta será publicada no Mercado Livre</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="submitAnswer()">
+                    <i class="bi bi-send"></i> Enviar Resposta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentQuestionId = null;
+let searchTimeout = null;
+
+// Carregar perguntas ao abrir a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadQuestions();
+    loadAccounts();
+});
+
+function debounceSearch() {
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+    searchTimeout = setTimeout(() => {
+        loadQuestions();
+    }, 500);
+}
+
+async function loadAccounts() {
+    try {
+        const response = await fetch('/api/my-ml-accounts', {
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        const selector = document.getElementById('account_filter');
+        
+        if (data && Array.isArray(data)) {
+            selector.innerHTML = '<option value="">Todas as contas</option>' +
+                data.map(acc => 
+                    `<option value="${acc.id}">${acc.nickname || acc.email || acc.ml_user_id}</option>`
+                ).join('');
+        } else if (data && data.accounts && Array.isArray(data.accounts)) {
+            selector.innerHTML = '<option value="">Todas as contas</option>' +
+                data.accounts.map(acc => 
+                    `<option value="${acc.id}">${acc.nickname || acc.email || acc.ml_user_id}</option>`
+                ).join('');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar contas:', error);
+    }
+}
+
+async function loadQuestions() {
+    const status = document.getElementById('status_filter')?.value || '';
+    const mlAccountId = document.getElementById('account_filter')?.value || '';
+    const search = document.getElementById('search_filter')?.value.trim() || '';
+    
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (mlAccountId) params.append('ml_account_id', mlAccountId);
+    
+    const url = `/api/ml/questions?${params.toString()}`;
+    
+    document.getElementById('loading-message').style.display = 'block';
+    document.getElementById('questions-container').style.display = 'none';
+    document.getElementById('empty-message').style.display = 'none';
+    
+    try {
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        document.getElementById('loading-message').style.display = 'none';
+        
+        if (data.success && data.questions && data.questions.length > 0) {
+            // Filtrar por busca local se necessário
+            let questions = data.questions;
+            if (search) {
+                const searchLower = search.toLowerCase();
+                questions = questions.filter(q => 
+                    (q.question_text && q.question_text.toLowerCase().includes(searchLower)) ||
+                    (q.item_title && q.item_title.toLowerCase().includes(searchLower)) ||
+                    (q.buyer_nickname && q.buyer_nickname.toLowerCase().includes(searchLower))
+                );
+            }
+            
+            if (questions.length === 0) {
+                document.getElementById('empty-message').style.display = 'block';
+                document.getElementById('questions-count').textContent = '0 perguntas';
+                return;
+            }
+            
+            document.getElementById('questions-container').style.display = 'block';
+            document.getElementById('questions-count').textContent = `${questions.length} pergunta(s)`;
+            
+            renderQuestions(questions);
+        } else {
+            document.getElementById('empty-message').style.display = 'block';
+            document.getElementById('questions-count').textContent = '0 perguntas';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar perguntas:', error);
+        document.getElementById('loading-message').style.display = 'none';
+        document.getElementById('empty-message').style.display = 'block';
+    }
+}
+
+function renderQuestions(questions) {
+    const container = document.getElementById('questions-container');
+    
+    container.innerHTML = questions.map(q => {
+        const statusBadge = {
+            'UNANSWERED': '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle"></i> Não Respondida</span>',
+            'ANSWERED': '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Respondida</span>',
+            'CLOSED_UNANSWERED': '<span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Fechada</span>'
+        }[q.status] || '<span class="badge bg-secondary">' + q.status + '</span>';
+        
+        const questionDate = q.question_date ? new Date(q.question_date).toLocaleString('pt-BR') : 'N/A';
+        const answeredDate = q.answered_at ? new Date(q.answered_at).toLocaleString('pt-BR') : null;
+        
+        return `
+            <div class="card mb-3 ${q.status === 'UNANSWERED' ? 'border-warning' : ''}">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-1 text-center">
+                            ${q.item_thumbnail ? 
+                                `<img src="${q.item_thumbnail}" class="img-thumbnail" style="width: 60px; height: 60px; object-fit: cover;" alt="${q.item_title || ''}">` :
+                                `<div class="bg-light d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;"><i class="bi bi-image text-muted"></i></div>`
+                            }
+                        </div>
+                        <div class="col-md-8">
+                            <h6 class="mb-1">
+                                ${q.item_title || 'Produto sem título'}
+                            </h6>
+                            <p class="mb-2"><strong>Pergunta:</strong> ${escapeHtml(q.question_text || 'N/A')}</p>
+                            ${q.answer_text ? 
+                                `<p class="mb-1 text-success"><strong>Resposta:</strong> ${escapeHtml(q.answer_text)}</p>` : 
+                                ''
+                            }
+                            <small class="text-muted">
+                                <i class="bi bi-person"></i> ${q.buyer_nickname || 'Comprador'} | 
+                                <i class="bi bi-calendar"></i> ${questionDate}
+                                ${answeredDate ? ` | <i class="bi bi-check"></i> Respondida em ${answeredDate}` : ''}
+                            </small>
+                        </div>
+                        <div class="col-md-3 text-end">
+                            ${statusBadge}
+                            <div class="mt-2">
+                                ${q.status === 'UNANSWERED' ? 
+                                    `<button class="btn btn-sm btn-primary" onclick="openAnswerModal(${q.id})">
+                                        <i class="bi bi-reply"></i> Responder
+                                    </button>` :
+                                    '<span class="text-muted"><i class="bi bi-check-circle"></i> Respondida</span>'
+                                }
+                            </div>
+                            ${q.ml_item_id ? 
+                                `<div class="mt-2">
+                                    <a href="https://produto.mercadolivre.com.br/MLB-${q.ml_item_id.replace('MLB', '')}" 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-box-arrow-up-right"></i> Ver Produto
+                                    </a>
+                                </div>` :
+                                ''
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function openAnswerModal(questionId) {
+    currentQuestionId = questionId;
+    
+    try {
+        const response = await fetch(`/api/ml/questions/${questionId}`, {
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.question) {
+            const q = data.question;
+            
+            document.getElementById('question-details').innerHTML = `
+                <div class="mb-3">
+                    <strong>Produto:</strong> ${escapeHtml(q.item_title || 'N/A')}
+                </div>
+                <div class="mb-3">
+                    <strong>Pergunta:</strong>
+                    <div class="alert alert-light mt-2">
+                        ${escapeHtml(q.question_text || 'N/A')}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <strong>Comprador:</strong> ${escapeHtml(q.buyer_nickname || 'N/A')}
+                </div>
+            `;
+            
+            document.getElementById('answer-text').value = '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('answerModal'));
+            modal.show();
+        } else {
+            alert('Erro ao carregar detalhes da pergunta: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao abrir modal:', error);
+        alert('Erro ao carregar pergunta');
+    }
+}
+
+async function submitAnswer() {
+    const answerText = document.getElementById('answer-text').value.trim();
+    
+    if (!answerText) {
+        alert('Por favor, digite uma resposta');
+        return;
+    }
+    
+    if (!currentQuestionId) {
+        alert('Erro: ID da pergunta não encontrado');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/ml/questions/${currentQuestionId}/answer`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ text: answerText })
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ Resposta enviada com sucesso!');
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('answerModal'));
+            modal.hide();
+            
+            // Recarregar perguntas
+            loadQuestions();
+        } else {
+            alert('Erro ao enviar resposta: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao enviar resposta:', error);
+        alert('Erro ao enviar resposta');
+    }
+}
+
+async function syncQuestions() {
+    const mlAccountId = document.getElementById('account_filter')?.value;
+    
+    if (!mlAccountId) {
+        alert('Por favor, selecione uma conta ML para sincronizar');
+        return;
+    }
+    
+    if (!confirm('Deseja sincronizar as perguntas com o Mercado Livre? Isso pode levar alguns minutos.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/ml/questions/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                ml_account_id: parseInt(mlAccountId),
+                status: null
+            })
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`✅ Sincronização concluída!\nTotal: ${data.total}\nSalvas: ${data.saved}\nErros: ${data.errors || 0}`);
+            loadQuestions();
+        } else {
+            alert('Erro ao sincronizar: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao sincronizar:', error);
+        alert('Erro ao sincronizar perguntas');
+    }
+}
+</script>
+{% endblock %}
+
