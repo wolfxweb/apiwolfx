@@ -190,10 +190,21 @@ class MLOrdersController:
                 "accounts": []
             }
     
-    def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None, is_full_import: bool = False, days_back: Optional[int] = None) -> Dict:
+    def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None, is_full_import: bool = False, days_back: Optional[int] = None, user_id: Optional[int] = None) -> Dict:
         """Sincroniza orders da API do Mercado Libre"""
         try:
             logger.info(f"Sincronizando orders para company_id: {company_id}")
+            
+            # Se user_id foi fornecido, obter token usando TokenManager
+            access_token = None
+            if user_id:
+                from app.services.token_manager import TokenManager
+                token_manager = TokenManager(self.db)
+                access_token = token_manager.get_valid_token(user_id)
+                if access_token:
+                    logger.info(f"Token obtido via TokenManager para user_id: {user_id}")
+                else:
+                    logger.warning(f"Token não encontrado via TokenManager para user_id: {user_id}")
             
             # Se ml_account_id não foi especificado, sincronizar todas as contas
             if ml_account_id:
@@ -218,10 +229,19 @@ class MLOrdersController:
             sync_results = []
             total_saved = 0
             total_updated = 0
+            has_errors = False
+            error_messages = []
             
             for account in accounts:
                 try:
-                    result = self.orders_service.sync_orders_from_api(account.id, company_id, is_full_import=is_full_import, days_back=days_back)
+                    # Se temos access_token via TokenManager, passar para o service
+                    result = self.orders_service.sync_orders_from_api(
+                        account.id, 
+                        company_id, 
+                        is_full_import=is_full_import, 
+                        days_back=days_back,
+                        access_token=access_token  # Passar token obtido via TokenManager
+                    )
                     
                     if result.get("success"):
                         sync_results.append({
@@ -236,15 +256,22 @@ class MLOrdersController:
                         total_saved += result.get("saved_count", 0)
                         total_updated += result.get("updated_count", 0)
                     else:
+                        has_errors = True
+                        error_msg = result.get("error", "Erro desconhecido")
+                        error_messages.append(f"{account.nickname}: {error_msg}")
+                        
                         sync_results.append({
                             "account_id": account.id,
                             "account_nickname": account.nickname,
                             "success": False,
-                            "error": result.get("error")
+                            "error": error_msg
                         })
                         
                 except Exception as e:
                     logger.error(f"Erro ao sincronizar orders da conta {account.id}: {e}")
+                    has_errors = True
+                    error_messages.append(f"{account.nickname}: {str(e)}")
+                    
                     sync_results.append({
                         "account_id": account.id,
                         "account_nickname": account.nickname,
@@ -252,9 +279,32 @@ class MLOrdersController:
                         "error": str(e)
                     })
             
+            # Se todas as contas falharam ou não há resultados, retornar erro
+            if has_errors and total_saved == 0 and total_updated == 0:
+                # Se todos os erros são relacionados a token, mensagem mais clara
+                if all("token" in err.lower() or "não encontrado" in err.lower() or "expirado" in err.lower() 
+                       for err in error_messages):
+                    return {
+                        "success": False,
+                        "error": "Nenhum token válido encontrado. Por favor, reconecte suas contas ML em 'Contas ML'.",
+                        "total_saved": 0,
+                        "total_updated": 0,
+                        "accounts_results": sync_results
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": " | ".join(error_messages),
+                        "total_saved": 0,
+                        "total_updated": 0,
+                        "accounts_results": sync_results
+                    }
+            
+            # Se pelo menos uma conta teve sucesso, retornar sucesso com avisos
             return {
                 "success": True,
-                "message": f"Sincronização concluída: {total_saved} orders criadas, {total_updated} orders atualizadas",
+                "message": f"Sincronização concluída: {total_saved} orders criadas, {total_updated} orders atualizadas" + 
+                          (f" (Avisos: {'; '.join(error_messages)})" if error_messages else ""),
                 "total_saved": total_saved,
                 "total_updated": total_updated,
                 "accounts_results": sync_results

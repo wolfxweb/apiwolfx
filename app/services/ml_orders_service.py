@@ -253,7 +253,7 @@ class MLOrdersService:
             }
 
     def sync_orders_from_api(self, ml_account_id: int, company_id: int, 
-                           limit: int = 50, is_full_import: bool = False, days_back: Optional[int] = None) -> Dict:
+                           limit: int = 50, is_full_import: bool = False, days_back: Optional[int] = None, access_token: Optional[str] = None) -> Dict:
         """Sincroniza orders da API do Mercado Libre para o banco"""
         try:
             logger.info(f"Sincronizando orders para ml_account_id: {ml_account_id}")
@@ -271,8 +271,10 @@ class MLOrdersService:
                     "error": "Conta não encontrada ou inativa"
                 }
             
-            # Obter token ativo
-            access_token = self._get_active_token(ml_account_id)
+            # Obter token ativo: usar o fornecido (via TokenManager) ou buscar por ml_account_id
+            if not access_token:
+                access_token = self._get_active_token(ml_account_id)
+            
             if not access_token:
                 return {
                     "success": False,

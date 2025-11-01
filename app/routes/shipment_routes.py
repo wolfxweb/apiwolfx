@@ -406,24 +406,33 @@ async def sync_recent_orders(
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]
+        user_id = user_data["id"]  # ID do usuário logado
         
-        # Usar o MLOrdersController para sincronizar pedidos
-        # O controller já busca o token corretamente pela conta ML (ml_account_id)
+        # Usar MLOrdersController como as outras rotas (/sync-invoices, /sync-single-invoice)
         from app.controllers.ml_orders_controller import MLOrdersController
+        
         controller = MLOrdersController(db)
+        result = controller.sync_orders(
+            company_id=company_id,
+            ml_account_id=None,  # Sincronizar todas as contas da empresa
+            is_full_import=False,
+            days_back=2,  # Últimos 2 dias
+            user_id=user_id  # Passar user_id para usar TokenManager
+        )
         
-        # Sincronizar pedidos dos últimos 2 dias
-        # O método sync_orders já busca tokens das contas ML automaticamente
-        result = controller.sync_orders(company_id=company_id, ml_account_id=None, is_full_import=False, days_back=2)
+        # Se houver erro relacionado a token, retornar 401 (igual às outras rotas)
+        if not result.get("success"):
+            error_msg = result.get("error", "").lower()
+            if "token" in error_msg or "não encontrado" in error_msg or "expirado" in error_msg:
+                return JSONResponse(content={
+                    "error": "Token de acesso do Mercado Livre inválido ou expirado. Por favor, reconecte sua conta ML em 'Contas ML'."
+                }, status_code=401)
         
-        return JSONResponse(content={
-            "success": True,
-            "message": f"{result.get('total_saved', 0)} novos pedidos, {result.get('total_updated', 0)} pedidos atualizados",
-            **result
-        })
+        return JSONResponse(content=result)
         
     except Exception as e:
-        logger.error(f"Erro ao sincronizar pedidos recentes: {e}")
+        logger.error(f"Erro ao sincronizar pedidos recentes: {e}", exc_info=True)
+        db.rollback()
         return JSONResponse(content={
             "success": False,
             "error": f"Erro interno: {str(e)}"

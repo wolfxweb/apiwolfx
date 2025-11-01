@@ -780,14 +780,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Recarregar pedidos da aba atual
                 await loadReadyToPrepareOrders();
                 
-                // Mostrar feedback de sucesso
-                alert(`✅ Sincronização concluída!\n\n${data.message || 'Pedidos atualizados com sucesso'}`);
+                // Mostrar feedback de sucesso em modal
+                showSyncModal('success', 'Sincronização concluída!', data.message || 'Pedidos atualizados com sucesso', {
+                    total_saved: data.total_saved || 0,
+                    total_updated: data.total_updated || 0
+                });
             } else {
-                alert(`❌ Erro: ${data.error || 'Erro ao sincronizar pedidos'}`);
+                // Mostrar erro em modal
+                showSyncModal('error', 'Erro na sincronização', data.error || 'Erro ao sincronizar pedidos');
             }
         } catch (error) {
             console.error('Erro ao sincronizar pedidos:', error);
-            alert('❌ Erro ao sincronizar pedidos. Tente novamente.');
+            showSyncModal('error', 'Erro na sincronização', 'Erro ao sincronizar pedidos. Tente novamente.');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
@@ -2635,6 +2639,64 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Função para ver detalhes do pedido completo
+    // Função para mostrar modal de sincronização
+    function showSyncModal(type, title, message, details = null) {
+        const modal = document.getElementById('syncModal');
+        const modalLabel = document.getElementById('syncModalLabel');
+        const modalHeader = document.getElementById('syncModalHeader');
+        const modalBody = document.getElementById('syncModalBody');
+        const modalIcon = document.getElementById('syncModalIcon');
+        
+        // Limpar classes anteriores
+        modalHeader.className = 'modal-header';
+        modalIcon.className = '';
+        
+        if (type === 'success') {
+            modalHeader.classList.add('bg-success', 'text-white');
+            modalIcon.className = 'bi bi-check-circle-fill text-white me-2';
+            modalLabel.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> ' + title;
+        } else {
+            modalHeader.classList.add('bg-danger', 'text-white');
+            modalIcon.className = 'bi bi-x-circle-fill text-white me-2';
+            modalLabel.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i> ' + title;
+        }
+        
+        // Construir conteúdo do body
+        let bodyContent = `<p class="mb-0">${message}</p>`;
+        
+        if (details && type === 'success') {
+            bodyContent += '<hr class="my-3">';
+            bodyContent += '<div class="row g-2">';
+            if (details.total_saved > 0) {
+                bodyContent += `
+                    <div class="col-6">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="h4 mb-0 text-success">${details.total_saved}</div>
+                            <small class="text-muted">Novos pedidos</small>
+                        </div>
+                    </div>
+                `;
+            }
+            if (details.total_updated > 0) {
+                bodyContent += `
+                    <div class="col-6">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="h4 mb-0 text-primary">${details.total_updated}</div>
+                            <small class="text-muted">Pedidos atualizados</small>
+                        </div>
+                    </div>
+                `;
+            }
+            bodyContent += '</div>';
+        }
+        
+        modalBody.innerHTML = bodyContent;
+        
+        // Mostrar modal
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+    }
+    
     window.viewOrderDetails = function(orderId) {
         // Buscar o pedido no array de orders carregado
         const order = window.currentOrders?.find(o => o.order_id === orderId || o.ml_order_id === orderId);
@@ -2760,6 +2822,26 @@ document.addEventListener('DOMContentLoaded', function() {
     setupTab('select-all-manual-prepare', 'update-manual-prepare-orders', 'manual-prepare-orders', updateManualPrepareCount, loadManualPrepareOrders);
 });
 </script>
+
+<!-- Modal para mensagens de sincronização -->
+<div class="modal fade" id="syncModal" tabindex="-1" aria-labelledby="syncModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" id="syncModalHeader">
+                <h5 class="modal-title" id="syncModalLabel">
+                    <i class="bi bi-check-circle-fill text-success" id="syncModalIcon"></i> Sincronização
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="syncModalBody">
+                <!-- Conteúdo será preenchido dinamicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Modal para exibir detalhes completos -->
 <div class="modal fade" id="jsonModal" tabindex="-1" aria-labelledby="jsonModalLabel" aria-hidden="true">
