@@ -193,45 +193,6 @@ class GlobalLogger:
         except Exception as e:
             self.logger.error(f"❌ Erro ao logar produto: {e}")
     
-    def log_question_processed(self, question_id: int, company_id: int, ml_account_id: Optional[int] = None, success: bool = True, action: str = "created", error_message: Optional[str] = None, question_data: Optional[Dict[str, Any]] = None):
-        """Log específico para processamento de perguntas"""
-        try:
-            log_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "event": "question_processed",
-                "company_id": company_id,
-                "question_id": question_id,
-                "ml_account_id": ml_account_id,
-                "action": action,  # "created", "updated", "error"
-                "success": success,
-                "error_message": error_message
-            }
-            
-            # Adicionar dados da pergunta se disponível
-            if question_data:
-                log_entry["question_details"] = {
-                    "item_id": question_data.get("item", {}).get("id") if isinstance(question_data.get("item"), dict) else None,
-                    "item_title": question_data.get("item", {}).get("title") if isinstance(question_data.get("item"), dict) else None,
-                    "status": question_data.get("status"),
-                    "has_answer": bool(question_data.get("answer")),
-                    "buyer_nickname": question_data.get("from", {}).get("nickname") if isinstance(question_data.get("from"), dict) else None,
-                    "question_text_length": len(question_data.get("text", "")) if question_data.get("text") else 0
-                }
-            
-            if success:
-                self.logger.info(f"❓ Pergunta {action}: {question_id} - Company: {company_id} - ML Account: {ml_account_id}")
-            else:
-                self.logger.error(f"❌ Erro ao {action} pergunta {question_id} - Company: {company_id} - ML Account: {ml_account_id} - Erro: {error_message}")
-            
-            # Log específico por empresa
-            self._log_to_company_file(company_id, log_entry)
-            
-            # Log específico para eventos de pergunta
-            self._log_to_event_file("question_processed", log_entry)
-            
-        except Exception as e:
-            self.logger.error(f"❌ Erro ao logar pergunta: {e}")
-    
     def _log_to_company_file(self, company_id: int, log_entry: Dict[str, Any]):
         """Log específico para arquivo da empresa"""
         try:
