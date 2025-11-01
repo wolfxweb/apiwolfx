@@ -1,17 +1,109 @@
 {% extends "base.html" %}
 
-{% block title %}Login - GVMIA{% endblock %}
+{% block title %}Login - CELX{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Garantir que o footer fique embaixo */
+    body {
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 100vh !important;
+    }
+    
+    /* Container principal deve ocupar espaço disponível e centralizar verticalmente */
+    .container.mt-4 {
+        flex: 1 0 auto !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 2rem 0 !important;
+        margin-top: 0 !important;
+        width: 100% !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* Footer deve ficar embaixo - sempre na parte inferior */
+    footer {
+        flex-shrink: 0 !important;
+        margin-top: 0 !important;
+        width: 100% !important;
+        clear: both !important;
+        display: block !important;
+    }
+    
+    /* Garantir que footer não fique inline */
+    footer.bg-light {
+        display: block !important;
+        float: none !important;
+    }
+    
+    
+    .login-card {
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        border: none;
+    }
+    
+    .login-card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-align: center;
+        padding: 2rem;
+        border: none;
+    }
+    
+    .login-card-header h4 {
+        margin: 0;
+        font-weight: 700;
+        font-size: 1.5rem;
+    }
+    
+    .login-card-body {
+        padding: 2rem;
+    }
+    
+    .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .btn-login {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        font-weight: 600;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-login:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+    
+    .btn-login:active {
+        transform: translateY(0);
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
+<div class="row justify-content-center w-100">
     <div class="col-md-6 col-lg-4">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white text-center">
-                <h4 class="mb-0">
-                    <i class="bi bi-box-arrow-in-right"></i> Login
-                </h4>
-            </div>
-            <div class="card-body p-4">
+            <div class="card login-card shadow-lg">
+                <div class="card-header login-card-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
+                    </h4>
+                    <p class="mb-0 mt-2 opacity-75">Acesse sua conta CELX</p>
+                </div>
+                <div class="card-body login-card-body">
                 <!-- Mensagens de erro/sucesso -->
                 {% if error %}
                 <div class="alert alert-danger" role="alert">
@@ -56,7 +148,7 @@
                     </div>
                     
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">
+                        <button type="submit" class="btn btn-login btn-lg">
                             <i class="bi bi-box-arrow-in-right"></i> Entrar
                         </button>
                     </div>
