@@ -177,9 +177,98 @@ class MLNotificationsController:
             global_logger.log_product_processed(item_id, company_id, False, "error", error_msg)
     
     async def _process_message_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
-        """Processa notificação de mensagem"""
-        logger.info(f"💬 Notificação de mensagem recebida: {resource} para company_id: {company_id}")
-        # TODO: Implementar processamento de mensagens
+        """Processa notificação de mensagem pós-venda"""
+        logger.info(f"💬 ========== PROCESSANDO NOTIFICAÇÃO DE MENSAGEM ==========")
+        logger.info(f"💬 Resource (package_id): {resource}")
+        logger.info(f"💬 ML User ID: {ml_user_id}")
+        logger.info(f"💬 Company ID: {company_id}")
+        logger.info(f"💬 Tipo: mensagem pós-venda (messages)")
+        
+        try:
+            # O resource é o package_id (ID do pacote/conversa)
+            package_id = resource.strip() if resource else None
+            
+            if not package_id:
+                logger.error(f"❌ Package ID vazio ou inválido: {resource}")
+                raise ValueError(f"Package ID vazio: {resource}")
+            
+            logger.info(f"📦 Package ID extraído: {package_id}")
+            
+            from app.controllers.ml_messages_controller import MLMessagesController
+            
+            logger.info(f"🔧 Criando instância do MLMessagesController...")
+            controller = MLMessagesController(db)
+            
+            logger.info(f"🔄 Iniciando processamento da mensagem pós-venda {package_id} via MLMessagesController...")
+            logger.info(f"📊 Parâmetros: package_id={package_id}, ml_user_id={ml_user_id}, company_id={company_id}")
+            
+            result = controller.process_notification(package_id, ml_user_id, company_id)
+            
+            logger.info(f"📥 Resultado do processamento: {result}")
+            
+            if result.get("success"):
+                thread_id = result.get("thread_id")
+                logger.info(f"✅ Mensagem pós-venda {package_id} processada com sucesso!")
+                logger.info(f"✅ Thread ID criado/atualizado: {thread_id}")
+                logger.info(f"✅ Company ID: {company_id}")
+                
+                global_logger.log_event(
+                    event_type="message_notification_success",
+                    data={
+                        "package_id": package_id,
+                        "resource": resource,
+                        "ml_user_id": ml_user_id,
+                        "thread_id": thread_id,
+                        "description": f"Mensagem pós-venda {package_id} processada com sucesso"
+                    },
+                    company_id=company_id,
+                    success=True
+                )
+                logger.info(f"💬 ========== NOTIFICAÇÃO DE MENSAGEM PROCESSADA COM SUCESSO ==========")
+            else:
+                error_msg = result.get("error", "Erro desconhecido")
+                logger.error(f"❌ Erro ao processar mensagem pós-venda {package_id}")
+                logger.error(f"❌ Mensagem de erro: {error_msg}")
+                logger.error(f"❌ Resultado completo: {result}")
+                
+                global_logger.log_event(
+                    event_type="message_notification_error",
+                    data={
+                        "package_id": package_id,
+                        "resource": resource,
+                        "ml_user_id": ml_user_id,
+                        "error": error_msg,
+                        "result": result
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=error_msg
+                )
+                logger.error(f"💬 ========== ERRO AO PROCESSAR NOTIFICAÇÃO DE MENSAGEM ==========")
+            
+        except Exception as e:
+            logger.error(f"❌ ========== EXCEÇÃO AO PROCESSAR NOTIFICAÇÃO DE MENSAGEM ==========")
+            logger.error(f"❌ Resource: {resource}")
+            logger.error(f"❌ ML User ID: {ml_user_id}")
+            logger.error(f"❌ Company ID: {company_id}")
+            logger.error(f"❌ Erro: {str(e)}")
+            logger.error(f"❌ Tipo da exceção: {type(e).__name__}")
+            logger.error(f"❌ Traceback completo:", exc_info=True)
+            
+            global_logger.log_event(
+                event_type="message_notification_exception",
+                data={
+                    "resource": resource,
+                    "ml_user_id": ml_user_id,
+                    "company_id": company_id,
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                },
+                company_id=company_id,
+                success=False,
+                error_message=str(e)
+            )
+            logger.error(f"💬 ========== FIM DO ERRO NA NOTIFICAÇÃO DE MENSAGEM ==========")
     
     async def _process_question_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de pergunta"""

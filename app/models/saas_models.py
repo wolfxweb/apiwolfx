@@ -100,6 +100,8 @@ class Company(Base):
     products = relationship("Product", back_populates="company", cascade="all, delete-orphan")
     internal_products = relationship("InternalProduct", back_populates="company", cascade="all, delete-orphan")
     ml_questions = relationship("MLQuestion", back_populates="company", cascade="all, delete-orphan")
+    ml_message_threads = relationship("MLMessageThread", back_populates="company", cascade="all, delete-orphan")
+    ml_messages = relationship("MLMessage", back_populates="company", cascade="all, delete-orphan")
     
     # Relacionamentos Financeiros
     financial_accounts = relationship("FinancialAccount", back_populates="company", cascade="all, delete-orphan")
@@ -211,6 +213,7 @@ class MLAccount(Base):
     tokens = relationship("Token", back_populates="ml_account", cascade="all, delete-orphan")
     ml_products = relationship("MLProduct", back_populates="ml_account", cascade="all, delete-orphan")
     ml_questions = relationship("MLQuestion", back_populates="ml_account", cascade="all, delete-orphan")
+    ml_message_threads = relationship("MLMessageThread", back_populates="ml_account", cascade="all, delete-orphan")
 
 class UserMLAccount(Base):
     """Associação entre Usuário e Conta ML (permissões)"""
@@ -539,6 +542,17 @@ class MLQuestionStatus(enum.Enum):
     ANSWERED = "ANSWERED"
     CLOSED_UNANSWERED = "CLOSED_UNANSWERED"
 
+class MLMessageThreadStatus(enum.Enum):
+    """Status da conversa/thread de mensagem"""
+    OPEN = "open"
+    CLOSED = "closed"
+
+class MLMessageType(enum.Enum):
+    """Tipo de mensagem"""
+    TEXT = "text"
+    IMAGE = "image"
+    SYSTEM = "system"
+
 class OrderStatus(enum.Enum):
     """Status do pedido"""
     PENDING = "PENDING"
@@ -755,6 +769,99 @@ class MLQuestion(Base):
         Index('ix_ml_questions_item', 'ml_item_id'),
         Index('ix_ml_questions_date', 'question_date'),
         Index('ix_ml_questions_ml_question_id', 'ml_question_id'),
+    )
+
+class MLMessageThread(Base):
+    """Modelo de Thread/Conversa de Mensagem Pós-Venda do Mercado Livre"""
+    __tablename__ = "ml_message_threads"
+    
+    # IDs
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
+    
+    # Identificadores ML
+    ml_thread_id = Column(String(100), unique=True, nullable=False, index=True)
+    ml_package_id = Column(String(100), index=True)  # ID do pacote (pode ter um ou vários pedidos)
+    ml_buyer_id = Column(String(50), nullable=False, index=True)
+    
+    # Dados do comprador
+    buyer_nickname = Column(String(255))
+    
+    # Dados da conversa
+    reason = Column(String(100))  # Motivo escolhido pelo vendedor ao iniciar contato
+    subject = Column(String(500))  # Assunto da conversa
+    status = Column(Enum(MLMessageThreadStatus), default=MLMessageThreadStatus.OPEN, index=True)
+    
+    # Última mensagem
+    last_message_date = Column(DateTime, index=True)
+    last_message_text = Column(Text)
+    
+    # Pedidos relacionados
+    order_ids = Column(JSON)  # Array de order_ids relacionados ao pacote
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    last_sync = Column(DateTime)  # Última sincronização com ML
+    
+    # Dados completos (JSON) para referência futura
+    thread_data = Column(JSON)  # Dados completos da API
+    
+    # Relacionamentos
+    company = relationship("Company", back_populates="ml_message_threads")
+    ml_account = relationship("MLAccount", back_populates="ml_message_threads")
+    messages = relationship("MLMessage", back_populates="thread", cascade="all, delete-orphan", order_by="MLMessage.message_date")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ml_message_threads_company_status', 'company_id', 'status'),
+        Index('ix_ml_message_threads_last_message_date', 'last_message_date'),
+        Index('ix_ml_message_threads_ml_thread_id', 'ml_thread_id'),
+    )
+
+class MLMessage(Base):
+    """Modelo de Mensagem Individual dentro de uma Conversa"""
+    __tablename__ = "ml_messages"
+    
+    # IDs
+    id = Column(Integer, primary_key=True, index=True)
+    thread_id = Column(Integer, ForeignKey("ml_message_threads.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    
+    # Identificador ML
+    ml_message_id = Column(String(100), unique=True, nullable=False, index=True)
+    
+    # Dados do remetente e destinatário
+    from_user_id = Column(String(50), nullable=False, index=True)
+    from_nickname = Column(String(255))
+    to_user_id = Column(String(50), nullable=False)
+    to_nickname = Column(String(255))
+    
+    # Conteúdo da mensagem
+    message_text = Column(Text, nullable=False)
+    message_type = Column(Enum(MLMessageType), default=MLMessageType.TEXT)
+    
+    # Metadados
+    is_seller = Column(Boolean, default=False)  # Se a mensagem é do vendedor
+    message_date = Column(DateTime, nullable=False, index=True)
+    read = Column(Boolean, default=False)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Dados completos (JSON) para referência futura
+    message_data = Column(JSON)  # Dados completos da API
+    
+    # Relacionamentos
+    thread = relationship("MLMessageThread", back_populates="messages")
+    company = relationship("Company", back_populates="ml_messages")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ml_messages_thread_date', 'thread_id', 'message_date'),
+        Index('ix_ml_messages_ml_message_id', 'ml_message_id'),
     )
 
 class CatalogParticipant(Base):

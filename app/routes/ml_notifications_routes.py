@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 import logging
 import copy
+import json
 
 from app.config.database import get_db, SessionLocal
 from app.controllers.ml_notifications_controller import MLNotificationsController
@@ -40,7 +41,13 @@ async def receive_ml_notification(
         # Obter dados da notificação
         notification_data = await request.json()
         
-        logger.info(f"📬 Notificação recebida do ML: {notification_data.get('topic')} - {notification_data.get('resource')}")
+        topic = notification_data.get('topic')
+        resource = notification_data.get('resource')
+        ml_user_id = notification_data.get('user_id')
+        notification_id = notification_data.get('_id')
+        
+        logger.info(f"📬 Notificação recebida do ML: topic={topic}, resource={resource}, user_id={ml_user_id}, _id={notification_id}")
+        logger.info(f"📋 Dados completos da notificação: {json.dumps(notification_data, indent=2, default=str)}")
         
         # IMPORTANTE: Criar cópia dos dados e nova sessão no background
         # para evitar problemas com sessão fechada antes do processamento terminar
@@ -50,7 +57,12 @@ async def receive_ml_notification(
             """Processa notificação em background com nova sessão"""
             import asyncio
             db_background = SessionLocal()
+            topic_bg = notification_data_copy.get('topic')
+            resource_bg = notification_data_copy.get('resource')
+            
             try:
+                logger.info(f"🔄 Iniciando processamento em background: topic={topic_bg}, resource={resource_bg}")
+                
                 # Criar novo event loop se necessário
                 try:
                     loop = asyncio.get_event_loop()
@@ -62,11 +74,13 @@ async def receive_ml_notification(
                 loop.run_until_complete(
                     notifications_controller.process_notification(notification_data_copy, db_background)
                 )
-                logger.info(f"✅ Notificação processada com sucesso: {notification_data_copy.get('topic')}")
+                logger.info(f"✅ Notificação processada com sucesso em background: topic={topic_bg}, resource={resource_bg}")
             except Exception as e:
-                logger.error(f"❌ Erro no processamento em background: {e}", exc_info=True)
+                logger.error(f"❌ Erro no processamento em background: topic={topic_bg}, resource={resource_bg}, error={e}", exc_info=True)
+                logger.error(f"📋 Dados da notificação que falhou: {json.dumps(notification_data_copy, indent=2, default=str)}")
             finally:
                 db_background.close()
+                logger.info(f"🔒 Sessão do banco fechada para notificação: topic={topic_bg}")
         
         # Retornar 200 imediatamente (dentro de 500ms conforme documentação ML)
         # O processamento será feito em background

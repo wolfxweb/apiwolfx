@@ -1,0 +1,552 @@
+{% extends "base.html" %}
+
+{% block title %}Pós-venda - Mensageria{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="bi bi-chat-dots"></i> Pós-venda - Mensageria</h2>
+                    <p class="text-muted mb-0">Gerencie conversas com seus compradores após a venda</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="syncMessages()">
+                        <i class="bi bi-arrow-clockwise"></i> Sincronizar Mensagens
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Lista de Conversas -->
+        <div class="col-md-4">
+            <div class="card" style="height: calc(100vh - 200px);">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Conversas</h5>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Filtros -->
+                    <div class="p-3 border-bottom">
+                        <div class="mb-2">
+                            <select class="form-select form-select-sm" id="status_filter" onchange="loadThreads()">
+                                <option value="">Todas</option>
+                                <option value="open">Abertas</option>
+                                <option value="closed">Fechadas</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <select class="form-select form-select-sm" id="account_filter" onchange="loadThreads()">
+                                <option value="">Todas as contas</option>
+                            </select>
+                        </div>
+                        <input type="text" class="form-control form-control-sm" id="search_filter" placeholder="Buscar..." onkeyup="debounceSearch()">
+                    </div>
+                    
+                    <!-- Lista de threads -->
+                    <div id="threads-list" style="overflow-y: auto; max-height: calc(100vh - 350px);">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Área de Chat -->
+        <div class="col-md-8">
+            <div class="card" style="height: calc(100vh - 200px);">
+                <div id="chat-empty" class="card-body d-flex align-items-center justify-content-center" style="min-height: 400px;">
+                    <div class="text-center text-muted">
+                        <i class="bi bi-chat-left-text" style="font-size: 4rem;"></i>
+                        <p class="mt-3">Selecione uma conversa para visualizar as mensagens</p>
+                    </div>
+                </div>
+
+                <div id="chat-container" style="display: none;">
+                    <!-- Header da conversa -->
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0" id="thread-buyer-name">
+                                <i class="bi bi-person-circle"></i> Comprador
+                            </h5>
+                            <small class="text-muted" id="thread-order-info"></small>
+                        </div>
+                        <div>
+                            <span id="thread-status-badge" class="badge bg-success">Aberta</span>
+                        </div>
+                    </div>
+
+                    <!-- Mensagens -->
+                    <div class="card-body" id="messages-container" style="overflow-y: auto; max-height: calc(100vh - 400px); padding: 1rem;">
+                        <!-- Mensagens serão inseridas aqui -->
+                    </div>
+
+                    <!-- Input de mensagem -->
+                    <div class="card-footer">
+                        <form id="message-form" onsubmit="sendMessage(event)">
+                            <div class="input-group">
+                                <textarea class="form-control" id="message-text" rows="2" placeholder="Digite sua mensagem..." required></textarea>
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="bi bi-send"></i> Enviar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Criar Nova Conversa -->
+<div class="modal fade" id="newMessageModal" tabindex="-1" aria-labelledby="newMessageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newMessageModalLabel">
+                    <i class="bi bi-plus-circle"></i> Nova Mensagem Pós-venda
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-message-form">
+                    <div class="mb-3">
+                        <label for="package-id" class="form-label">ID do Pacote/Pedido</label>
+                        <input type="text" class="form-control" id="package-id" required placeholder="Ex: 1234567890">
+                        <small class="text-muted">Informe o ID do pedido ou pacote relacionado</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="reason-select" class="form-label">Motivo</label>
+                        <select class="form-select" id="reason-select" required>
+                            <option value="">Carregando motivos...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-message-text" class="form-label">Mensagem</label>
+                        <textarea class="form-control" id="new-message-text" rows="4" required placeholder="Digite sua mensagem..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="createNewMessage()">Enviar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Feedback -->
+<div class="modal fade" id="messageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="messageModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="messageModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Sincronização -->
+<div class="modal fade" id="syncModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-arrow-clockwise"></i> Sincronização de Mensagens
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="syncModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentThreadId = null;
+let threadsData = [];
+let searchTimeout = null;
+
+// Carregar dados iniciais
+document.addEventListener('DOMContentLoaded', function() {
+    loadAccounts();
+    loadReasons();
+    loadThreads();
+});
+
+function debounceSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadThreads();
+    }, 500);
+}
+
+async function loadAccounts() {
+    try {
+        const response = await fetch('/api/messages/accounts', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success && data.accounts) {
+            const select = document.getElementById('account_filter');
+            select.innerHTML = '<option value="">Todas as contas</option>';
+            data.accounts.forEach(acc => {
+                const option = document.createElement('option');
+                option.value = acc.id;
+                option.textContent = acc.nickname || `Conta ${acc.id}`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao carregar contas:', error);
+    }
+}
+
+async function loadReasons() {
+    try {
+        const response = await fetch('/api/messages/reasons', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success && data.reasons) {
+            const select = document.getElementById('reason-select');
+            select.innerHTML = '<option value="">Selecione um motivo...</option>';
+            data.reasons.forEach(reason => {
+                const option = document.createElement('option');
+                option.value = reason.id || reason.code || reason;
+                option.textContent = reason.label || reason.name || reason;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao carregar motivos:', error);
+    }
+}
+
+async function loadThreads() {
+    const statusFilter = document.getElementById('status_filter').value;
+    const accountFilter = document.getElementById('account_filter').value;
+    const searchFilter = document.getElementById('search_filter').value.toLowerCase();
+    
+    const params = new URLSearchParams();
+    if (statusFilter) params.append('status', statusFilter);
+    if (accountFilter) params.append('ml_account_id', accountFilter);
+    
+    try {
+        const response = await fetch(`/api/messages?${params.toString()}`, {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success && data.threads) {
+            threadsData = data.threads;
+            
+            // Filtrar por busca
+            let filtered = threadsData;
+            if (searchFilter) {
+                filtered = threadsData.filter(t => {
+                    const nickname = (t.buyer_nickname || '').toLowerCase();
+                    const subject = (t.subject || '').toLowerCase();
+                    const lastMsg = (t.last_message_text || '').toLowerCase();
+                    return nickname.includes(searchFilter) || subject.includes(searchFilter) || lastMsg.includes(searchFilter);
+                });
+            }
+            
+            renderThreadsList(filtered);
+        } else {
+            document.getElementById('threads-list').innerHTML = '<p class="text-center text-muted p-3">Nenhuma conversa encontrada</p>';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar conversas:', error);
+        document.getElementById('threads-list').innerHTML = '<p class="text-center text-danger p-3">Erro ao carregar conversas</p>';
+    }
+}
+
+function renderThreadsList(threads) {
+    const container = document.getElementById('threads-list');
+    
+    if (threads.length === 0) {
+        container.innerHTML = '<p class="text-center text-muted p-3">Nenhuma conversa encontrada</p>';
+        return;
+    }
+    
+    container.innerHTML = threads.map(thread => {
+        const date = thread.last_message_date ? new Date(thread.last_message_date).toLocaleString('pt-BR') : 'N/A';
+        const lastMsg = (thread.last_message_text || '').substring(0, 50);
+        const statusClass = thread.status === 'open' ? 'success' : 'secondary';
+        
+        return `
+            <div class="border-bottom p-3 thread-item" style="cursor: pointer;" onclick="openThread(${thread.id})" data-thread-id="${thread.id}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <strong>${thread.buyer_nickname || 'Comprador'}</strong>
+                        <span class="badge bg-${statusClass} ms-2">${thread.status === 'open' ? 'Aberta' : 'Fechada'}</span>
+                        <p class="text-muted mb-1 small">${lastMsg || 'Sem mensagens'}</p>
+                        <small class="text-muted">${date}</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function openThread(threadId) {
+    currentThreadId = threadId;
+    
+    // Destacar thread selecionada
+    document.querySelectorAll('.thread-item').forEach(item => {
+        item.classList.remove('bg-light');
+    });
+    document.querySelector(`[data-thread-id="${threadId}"]`).classList.add('bg-light');
+    
+    try {
+        const response = await fetch(`/api/messages/${threadId}`, {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success && data.thread) {
+            const thread = data.thread;
+            
+            // Mostrar chat
+            document.getElementById('chat-empty').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'block';
+            
+            // Atualizar header
+            document.getElementById('thread-buyer-name').innerHTML = `
+                <i class="bi bi-person-circle"></i> ${thread.buyer_nickname || 'Comprador'}
+            `;
+            
+            const orderInfo = thread.order_ids && thread.order_ids.length > 0 
+                ? `Pedido(s): ${thread.order_ids.join(', ')}`
+                : '';
+            document.getElementById('thread-order-info').textContent = orderInfo;
+            
+            const statusBadge = document.getElementById('thread-status-badge');
+            if (thread.status === 'open') {
+                statusBadge.className = 'badge bg-success';
+                statusBadge.textContent = 'Aberta';
+            } else {
+                statusBadge.className = 'badge bg-secondary';
+                statusBadge.textContent = 'Fechada';
+            }
+            
+            // Renderizar mensagens
+            renderMessages(thread.messages || []);
+            
+            // Scroll para última mensagem
+            const container = document.getElementById('messages-container');
+            container.scrollTop = container.scrollHeight;
+        } else {
+            showMessage('Erro', 'Não foi possível carregar a conversa');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar conversa:', error);
+        showMessage('Erro', 'Erro ao carregar a conversa');
+    }
+}
+
+function renderMessages(messages) {
+    const container = document.getElementById('messages-container');
+    
+    if (messages.length === 0) {
+        container.innerHTML = '<p class="text-center text-muted">Nenhuma mensagem ainda</p>';
+        return;
+    }
+    
+    container.innerHTML = messages.map(msg => {
+        const date = new Date(msg.message_date).toLocaleString('pt-BR');
+        const isSeller = msg.is_seller;
+        const alignClass = isSeller ? 'text-end' : 'text-start';
+        const bgClass = isSeller ? 'bg-primary text-white' : 'bg-light';
+        
+        return `
+            <div class="mb-3 ${alignClass}">
+                <div class="d-inline-block p-3 rounded ${bgClass}" style="max-width: 70%;">
+                    <div class="fw-bold mb-1">${msg.from_nickname || (isSeller ? 'Você' : 'Comprador')}</div>
+                    <div>${msg.message_text}</div>
+                    <small class="opacity-75">${date}</small>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function sendMessage(event) {
+    event.preventDefault();
+    
+    if (!currentThreadId) {
+        showMessage('Erro', 'Nenhuma conversa selecionada');
+        return;
+    }
+    
+    const messageText = document.getElementById('message-text').value.trim();
+    if (!messageText) {
+        return;
+    }
+    
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
+    
+    try {
+        const response = await fetch(`/api/messages/${currentThreadId}/send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ message_text: messageText })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('message-text').value = '';
+            // Recarregar thread
+            await openThread(currentThreadId);
+            showMessage('Sucesso', 'Mensagem enviada com sucesso');
+        } else {
+            showMessage('Erro', data.error || 'Erro ao enviar mensagem');
+        }
+    } catch (error) {
+        console.error('Erro ao enviar mensagem:', error);
+        showMessage('Erro', 'Erro ao enviar mensagem');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-send"></i> Enviar';
+    }
+}
+
+async function createNewMessage() {
+    const packageId = document.getElementById('package-id').value.trim();
+    const reason = document.getElementById('reason-select').value;
+    const messageText = document.getElementById('new-message-text').value.trim();
+    
+    if (!packageId || !reason || !messageText) {
+        showMessage('Atenção', 'Preencha todos os campos');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/messages/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                package_id: packageId,
+                reason: reason,
+                message_text: messageText
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('newMessageModal'));
+            modal.hide();
+            document.getElementById('new-message-form').reset();
+            showMessage('Sucesso', 'Mensagem enviada com sucesso');
+            loadThreads();
+        } else {
+            showMessage('Erro', data.error || 'Erro ao criar mensagem');
+        }
+    } catch (error) {
+        console.error('Erro ao criar mensagem:', error);
+        showMessage('Erro', 'Erro ao criar mensagem');
+    }
+}
+
+async function syncMessages() {
+    const accountFilter = document.getElementById('account_filter').value;
+    
+    const button = event.target;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    
+    try {
+        const response = await fetch('/api/messages/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                ml_account_id: accountFilter || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        let message = '';
+        if (data.success) {
+            message = `
+                <div class="text-center">
+                    <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">Sincronização Concluída</h5>
+                    <p>${data.synced || 0} conversa(s) sincronizada(s)</p>
+                    ${data.errors && data.errors.length > 0 ? `<p class="text-warning">${data.errors.length} erro(s) durante a sincronização</p>` : ''}
+                </div>
+            `;
+        } else {
+            message = `
+                <div class="text-center">
+                    <i class="bi bi-x-circle text-danger" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">Erro na Sincronização</h5>
+                    <p>${data.error || 'Erro desconhecido'}</p>
+                </div>
+            `;
+        }
+        
+        document.getElementById('syncModalBody').innerHTML = message;
+        const modal = new bootstrap.Modal(document.getElementById('syncModal'));
+        modal.show();
+        
+        if (data.success) {
+            loadThreads();
+        }
+    } catch (error) {
+        console.error('Erro ao sincronizar:', error);
+        showMessage('Erro', 'Erro ao sincronizar mensagens');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Sincronizar Mensagens';
+    }
+}
+
+function showMessage(title, message) {
+    document.getElementById('messageModalTitle').textContent = title;
+    document.getElementById('messageModalBody').textContent = message;
+    const modal = new bootstrap.Modal(document.getElementById('messageModal'));
+    modal.show();
+}
+</script>
+
+<style>
+.thread-item:hover {
+    background-color: #f8f9fa !important;
+}
+
+#messages-container {
+    min-height: 300px;
+}
+</style>
+{% endblock %}
+

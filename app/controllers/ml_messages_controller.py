@@ -1,0 +1,442 @@
+"""
+Controller para gerenciar mensagens pós-venda do Mercado Livre
+"""
+import logging
+from typing import Dict, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import desc, and_
+
+from app.models.saas_models import MLMessageThread, MLMessage, MLAccount, MLAccountStatus, MLMessageThreadStatus
+from app.services.ml_messages_service import MLMessagesService
+from app.utils.notification_logger import global_logger
+
+logger = logging.getLogger(__name__)
+
+class MLMessagesController:
+    """Controller para gerenciar mensagens pós-venda do Mercado Livre"""
+    
+    def __init__(self, db: Session):
+        self.db = db
+        self.service = MLMessagesService(db)
+    
+    def get_threads(self, company_id: int, ml_account_id: Optional[int] = None,
+                   status: Optional[str] = None, limit: int = 50) -> Dict:
+        """Lista conversas/threads da empresa"""
+        try:
+            query = self.db.query(MLMessageThread).filter(
+                MLMessageThread.company_id == company_id
+            )
+            
+            if ml_account_id:
+                # Garantir que a conta ML pertence à empresa do usuário logado
+                ml_account = self.db.query(MLAccount).filter(
+                    MLAccount.id == ml_account_id,
+                    MLAccount.company_id == company_id
+                ).first()
+                
+                if not ml_account:
+                    return {
+                        "success": False,
+                        "error": f"Conta ML {ml_account_id} não encontrada ou não pertence à sua empresa",
+                        "threads": [],
+                        "total": 0
+                    }
+                
+                query = query.filter(MLMessageThread.ml_account_id == ml_account_id)
+            
+            if status:
+                try:
+                    status_enum = MLMessageThreadStatus[status.upper()] if isinstance(status, str) else status
+                    query = query.filter(MLMessageThread.status == status_enum)
+                except (KeyError, AttributeError):
+                    pass
+            
+            threads = query.order_by(desc(MLMessageThread.last_message_date)).limit(limit).all()
+            
+            return {
+                "success": True,
+                "threads": [self._thread_to_dict(t) for t in threads],
+                "total": len(threads)
+            }
+        except Exception as e:
+            logger.error(f"Erro ao listar threads: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "threads": [],
+                "total": 0
+            }
+    
+    def get_thread(self, thread_id: int, company_id: int) -> Dict:
+        """Obtém detalhes de uma thread/conversa"""
+        try:
+            thread = self.db.query(MLMessageThread).filter(
+                MLMessageThread.id == thread_id,
+                MLMessageThread.company_id == company_id
+            ).first()
+            
+            if not thread:
+                return {
+                    "success": False,
+                    "error": "Conversa não encontrada"
+                }
+            
+            # Buscar mensagens da thread
+            messages = self.db.query(MLMessage).filter(
+                MLMessage.thread_id == thread_id
+            ).order_by(MLMessage.message_date).all()
+            
+            thread_dict = self._thread_to_dict(thread)
+            thread_dict["messages"] = [self._message_to_dict(m) for m in messages]
+            
+            return {
+                "success": True,
+                "thread": thread_dict
+            }
+        except Exception as e:
+            logger.error(f"Erro ao buscar thread {thread_id}: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def create_message(self, package_id: str, reason: str, message_text: str,
+                      company_id: int, user_id: int) -> Dict:
+        """Cria uma nova mensagem pós-venda"""
+        try:
+            access_token = self.service._get_access_token(user_id)
+            if not access_token:
+                return {
+                    "success": False,
+                    "error": "Token de acesso não encontrado ou expirado"
+                }
+            
+            result = self.service.create_message_thread(package_id, reason, message_text, access_token)
+            
+            if "error" in result:
+                return {
+                    "success": False,
+                    "error": result["error"]
+                }
+            
+            # Buscar account ML baseado no package/thread criado
+            ml_accounts = self.db.query(MLAccount).filter(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
+            ).all()
+            
+            if ml_accounts:
+                # Tentar salvar no banco se possível
+                try:
+                    ml_account = ml_accounts[0]  # Usar primeira conta ativa
+                    self.service.save_thread_to_db(result, company_id, ml_account.id, str(ml_account.ml_user_id))
+                except Exception as e:
+                    logger.warning(f"Erro ao salvar thread no banco: {e}")
+            
+            return {
+                "success": True,
+                "thread": result
+            }
+        except Exception as e:
+            logger.error(f"Erro ao criar mensagem: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def send_message(self, thread_id: int, message_text: str,
+                    company_id: int, user_id: int) -> Dict:
+        """Envia uma mensagem em uma conversa existente"""
+        try:
+            # Buscar thread no banco
+            thread = self.db.query(MLMessageThread).filter(
+                MLMessageThread.id == thread_id,
+                MLMessageThread.company_id == company_id
+            ).first()
+            
+            if not thread:
+                return {
+                    "success": False,
+                    "error": "Conversa não encontrada"
+                }
+            
+            access_token = self.service._get_access_token(user_id)
+            if not access_token:
+                return {
+                    "success": False,
+                    "error": "Token de acesso não encontrado ou expirado"
+                }
+            
+            result = self.service.send_message(thread.ml_package_id, message_text, access_token)
+            
+            if "error" in result:
+                return {
+                    "success": False,
+                    "error": result["error"]
+                }
+            
+            # Atualizar thread e mensagens no banco
+            try:
+                ml_account = self.db.query(MLAccount).filter(
+                    MLAccount.id == thread.ml_account_id
+                ).first()
+                
+                if ml_account:
+                    # Buscar detalhes atualizados
+                    thread_details = self.service.get_thread_messages(thread.ml_package_id, access_token)
+                    if thread_details:
+                        thread_data = {"id": thread.ml_package_id, "package_id": thread.ml_package_id}
+                        thread_data.update(thread_details)
+                        self.service.save_thread_to_db(thread_data, company_id, thread.ml_account_id, str(ml_account.ml_user_id))
+            except Exception as e:
+                logger.warning(f"Erro ao atualizar thread no banco: {e}")
+            
+            return {
+                "success": True,
+                "message": result
+            }
+        except Exception as e:
+            logger.error(f"Erro ao enviar mensagem: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def sync_messages(self, company_id: int, user_id: int, ml_account_id: int = None) -> Dict:
+        """Sincroniza mensagens pós-venda"""
+        try:
+            result = self.service.sync_messages(company_id, user_id, ml_account_id)
+            
+            global_logger.log_event(
+                event_type="messages_synced",
+                data={
+                    "company_id": company_id,
+                    "ml_account_id": ml_account_id,
+                    "synced_count": result.get("synced", 0),
+                    "errors": result.get("errors"),
+                    "description": f"Sincronização de mensagens concluída: {result.get('synced', 0)} conversas"
+                },
+                company_id=company_id,
+                success=result.get("success", False),
+                error_message=result.get("error")
+            )
+            
+            return result
+        except Exception as e:
+            logger.error(f"Erro ao sincronizar mensagens: {e}", exc_info=True)
+            global_logger.log_event(
+                event_type="messages_sync_error",
+                data={
+                    "company_id": company_id,
+                    "error": str(e)
+                },
+                company_id=company_id,
+                success=False,
+                error_message=str(e)
+            )
+            return {
+                "success": False,
+                "error": str(e),
+                "synced": 0
+            }
+    
+    def get_reasons(self, user_id: int) -> Dict:
+        """Obtém motivos disponíveis para iniciar comunicação"""
+        try:
+            access_token = self.service._get_access_token(user_id)
+            if not access_token:
+                return {
+                    "success": False,
+                    "error": "Token de acesso não encontrado ou expirado",
+                    "reasons": []
+                }
+            
+            reasons = self.service.get_reasons_to_communicate(access_token)
+            
+            return {
+                "success": True,
+                "reasons": reasons
+            }
+        except Exception as e:
+            logger.error(f"Erro ao buscar motivos: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "reasons": []
+            }
+    
+    def _thread_to_dict(self, thread: MLMessageThread) -> Dict:
+        """Converte thread para dicionário"""
+        return {
+            "id": thread.id,
+            "ml_thread_id": thread.ml_thread_id,
+            "ml_package_id": thread.ml_package_id,
+            "ml_buyer_id": thread.ml_buyer_id,
+            "buyer_nickname": thread.buyer_nickname,
+            "reason": thread.reason,
+            "subject": thread.subject,
+            "status": thread.status.value if thread.status else "open",
+            "last_message_date": thread.last_message_date.isoformat() if thread.last_message_date else None,
+            "last_message_text": thread.last_message_text,
+            "order_ids": thread.order_ids if thread.order_ids else [],
+            "created_at": thread.created_at.isoformat() if thread.created_at else None,
+            "updated_at": thread.updated_at.isoformat() if thread.updated_at else None,
+            "message_count": len(thread.messages) if thread.messages else 0
+        }
+    
+    def _message_to_dict(self, message: MLMessage) -> Dict:
+        """Converte mensagem para dicionário"""
+        return {
+            "id": message.id,
+            "ml_message_id": message.ml_message_id,
+            "from_user_id": message.from_user_id,
+            "from_nickname": message.from_nickname,
+            "to_user_id": message.to_user_id,
+            "to_nickname": message.to_nickname,
+            "message_text": message.message_text,
+            "message_type": message.message_type.value if message.message_type else "text",
+            "is_seller": message.is_seller,
+            "message_date": message.message_date.isoformat() if message.message_date else None,
+            "read": message.read,
+            "created_at": message.created_at.isoformat() if message.created_at else None
+        }
+    
+    def process_notification(self, resource: str, ml_user_id: int, company_id: int) -> Dict:
+        """Processa notificação de nova mensagem"""
+        try:
+            # Buscar token baseado em ml_user_id
+            from sqlalchemy import text
+            logger.info(f"🔍 Buscando token para ml_user_id={ml_user_id}, company_id={company_id}")
+            
+            token_query = text("""
+                SELECT t.access_token 
+                FROM tokens t
+                JOIN ml_accounts mla ON t.ml_account_id = mla.id
+                WHERE mla.ml_user_id = :ml_user_id 
+                  AND mla.company_id = :company_id
+                  AND t.is_active = true
+                ORDER BY t.expires_at DESC
+                LIMIT 1
+            """)
+            
+            logger.info(f"📝 Executando query SQL para buscar token...")
+            result = self.db.execute(token_query, {"ml_user_id": str(ml_user_id), "company_id": company_id})
+            token_row = result.fetchone()
+            
+            if not token_row:
+                logger.error(f"❌ Token não encontrado para ml_user_id: {ml_user_id}, company_id: {company_id}")
+                logger.error(f"❌ Verificando se há contas ML cadastradas para este company_id...")
+                
+                # Verificar se existe conta ML
+                accounts_count = self.db.query(MLAccount).filter(
+                    MLAccount.company_id == company_id
+                ).count()
+                logger.error(f"❌ Total de contas ML para company_id {company_id}: {accounts_count}")
+                
+                return {
+                    "success": False,
+                    "error": "Token não encontrado"
+                }
+            
+            access_token = token_row[0]
+            logger.info(f"✅ Token encontrado! (últimos 10 caracteres: ...{access_token[-10:]})")
+            
+            # Buscar account ML
+            logger.info(f"🔍 Buscando MLAccount para ml_user_id={ml_user_id}, company_id={company_id}")
+            ml_account = self.db.query(MLAccount).filter(
+                MLAccount.ml_user_id == str(ml_user_id),
+                MLAccount.company_id == company_id
+            ).first()
+            
+            if not ml_account:
+                logger.error(f"❌ MLAccount não encontrado para ml_user_id: {ml_user_id}, company_id: {company_id}")
+                
+                # Listar todas as contas disponíveis para debug
+                all_accounts = self.db.query(MLAccount).filter(
+                    MLAccount.company_id == company_id
+                ).all()
+                logger.error(f"❌ Contas ML disponíveis para company_id {company_id}:")
+                for acc in all_accounts:
+                    logger.error(f"   - ml_account_id: {acc.id}, ml_user_id: {acc.ml_user_id}, status: {acc.status}")
+                
+                return {
+                    "success": False,
+                    "error": "Conta ML não encontrada"
+                }
+            
+            logger.info(f"✅ MLAccount encontrado! ID: {ml_account.id}, ml_user_id: {ml_account.ml_user_id}, status: {ml_account.status}")
+            
+            # Buscar detalhes do pacote/thread
+            logger.info(f"🌐 Buscando detalhes do pacote/thread {resource} na API do Mercado Livre...")
+            thread_details = self.service.get_thread_messages(resource, access_token)
+            
+            if thread_details:
+                logger.info(f"✅ Detalhes do thread recebidos da API!")
+                logger.info(f"📊 Chaves do objeto thread_details: {list(thread_details.keys())}")
+                
+                thread_data = {"id": resource, "package_id": resource}
+                thread_data.update(thread_details)
+                
+                logger.info(f"💾 Salvando thread no banco de dados...")
+                logger.info(f"📋 Dados a serem salvos: package_id={resource}, company_id={company_id}, ml_account_id={ml_account.id}")
+                
+                saved = self.service.save_thread_to_db(thread_data, company_id, ml_account.id, str(ml_user_id))
+                
+                if saved:
+                    logger.info(f"✅ Thread salvo com sucesso! Thread ID: {saved.id}")
+                    
+                    global_logger.log_event(
+                        event_type="message_notification_processed",
+                        data={
+                            "ml_package_id": resource,
+                            "ml_account_id": ml_account.id,
+                            "action": "created" if saved else "updated",
+                            "thread_id": saved.id if saved else None,
+                            "description": f"Mensagem pós-venda {resource} processada com sucesso"
+                        },
+                        company_id=company_id,
+                        success=True
+                    )
+                    
+                    return {
+                        "success": True,
+                        "thread_id": saved.id if saved else None
+                    }
+                else:
+                    logger.error(f"❌ Falha ao salvar thread no banco de dados")
+            else:
+                logger.error(f"❌ Não foi possível obter detalhes do thread {resource} da API")
+            
+            return {
+                "success": False,
+                "error": "Falha ao processar notificação"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ ========== EXCEÇÃO EM process_notification ==========")
+            logger.error(f"❌ Package ID: {resource}")
+            logger.error(f"❌ ML User ID: {ml_user_id}")
+            logger.error(f"❌ Company ID: {company_id}")
+            logger.error(f"❌ Erro: {str(e)}")
+            logger.error(f"❌ Tipo: {type(e).__name__}")
+            logger.error(f"❌ Traceback completo:", exc_info=True)
+            
+            global_logger.log_event(
+                event_type="message_notification_error",
+                data={
+                    "ml_package_id": resource,
+                    "ml_user_id": ml_user_id,
+                    "company_id": company_id,
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                },
+                company_id=company_id,
+                success=False,
+                error_message=str(e)
+            )
+            logger.error(f"❌ ========== FIM DA EXCEÇÃO ==========")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
