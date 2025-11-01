@@ -3,19 +3,6 @@
 {% block title %}Anúncios - GVMIA{% endblock %}
 
 {% block content %}
-<style>
-/* Estilos para cabeçalho da tabela */
-thead.table-dark {
-    background-color: #000000 !important;
-    color: #ffffff !important;
-}
-
-thead.table-dark th {
-    background-color: #000000 !important;
-    color: #ffffff !important;
-    border-color: #333333 !important;
-}
-</style>
 <div class="container-fluid">
     <!-- Header -->
     <div class="row mb-4">
@@ -118,7 +105,7 @@ thead.table-dark th {
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
-                            <thead class="table-dark text-white" style="background-color: #000000 !important;">
+                            <thead class="table-dark">
                                 <tr>
                                     <th width="50" class="text-center">
                                         <input type="checkbox" id="select-all-products" onchange="toggleSelectAll()">
