@@ -9,6 +9,7 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial
+      - ENVIRONMENT=local
       - ML_APP_ID=6987936494418444
       - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
       - ML_REDIRECT_URI=https://9d175879a07f.ngrok-free.app/api/callback

@@ -917,9 +917,10 @@ class MLOrdersService:
         try:
             ml_order_id = order_data.get("id")
             
-            # Verificar se a order já existe
+            # Verificar se a order já existe (filtrando por company_id para evitar conflitos entre empresas)
             existing_order = self.db.query(MLOrder).filter(
-                MLOrder.ml_order_id == ml_order_id
+                MLOrder.ml_order_id == ml_order_id,
+                MLOrder.company_id == company_id
             ).first()
             
             # Obter token para buscar informações adicionais

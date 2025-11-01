@@ -259,7 +259,19 @@ async def api_delete_company(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+        import traceback
+        error_detail = str(e)
+        # Se for erro do banco, extrair informação relevante
+        if hasattr(e, 'orig') and e.orig:
+            error_detail = str(e.orig)
+        elif hasattr(e, 'args') and e.args:
+            error_detail = str(e.args[0]) if isinstance(e.args[0], str) else str(e)
+        
+        # Log detalhado
+        print(f"❌ Erro ao excluir empresa {company_id} via API: {error_detail}")
+        print(traceback.format_exc())
+        
+        raise HTTPException(status_code=500, detail=f"Erro interno: {error_detail}")
 
 @superadmin_router.get("/api/superadmin/companies/{company_id}/subscription")
 async def api_get_company_subscription(

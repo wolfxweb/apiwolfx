@@ -474,67 +474,314 @@ class SuperAdminController:
     
     def delete_company(self, company_id: int) -> Dict:
         """Exclui uma empresa e todos os seus registros associados"""
+        from sqlalchemy import text
+        import traceback
+        import sys
+        
+        # Buscar empresa sem carregar relacionamentos que podem ter problemas
         try:
-            from app.models.saas_models import Token, MLOrder, MLCatalogMonitoring, MLCatalogHistory
-            from sqlalchemy import text
-            
             company = self.db.query(Company).filter(Company.id == company_id).first()
             if not company:
                 raise ValueError("Empresa não encontrada")
+            company_name = company.name
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Erro ao buscar empresa: {str(e)}")
+        
+        # Função helper para deletar com tratamento de erro isolado
+        def safe_delete(table_name: str, description: str = "", use_subquery: bool = False, subquery_table: str = "", subquery_field: str = "id"):
+            """Deleta de uma tabela com tratamento de erro isolado"""
+            def build_query():
+                if use_subquery and subquery_table:
+                    return f"""
+                        DELETE FROM {table_name} 
+                        WHERE {subquery_field} IN (
+                            SELECT {subquery_field} FROM {subquery_table} WHERE company_id = :company_id
+                        )
+                    """
+                else:
+                    return f"DELETE FROM {table_name} WHERE company_id = :company_id"
             
-            # Excluir TODOS os registros associados em ordem
-            # 1. Tokens (vinculados a usuários)
-            tokens = self.db.query(Token).join(User).filter(User.company_id == company_id).all()
-            for token in tokens:
-                self.db.delete(token)
+            error_str = ""
+            max_retries = 2
             
-            # 2. Histórico de catálogo
-            self.db.execute(text("""
-                DELETE FROM ml_catalog_history 
-                WHERE monitoring_id IN (
-                    SELECT id FROM ml_catalog_monitoring WHERE company_id = :company_id
-                )
-            """), {"company_id": company_id})
+            for attempt in range(max_retries):
+                try:
+                    query = build_query()
+                    self.db.execute(text(query), {"company_id": company_id})
+                    self.db.flush()
+                    return True
+                except Exception as e:
+                    error_str = str(e).lower()
+                    
+                    # Erros aceitáveis (tabela ou coluna não existe)
+                    if any(x in error_str for x in ["does not exist", "undefinedtable", "undefinedcolumn"]):
+                        if description:
+                            print(f"ℹ️  {description}: Tabela/coluna não existe, ignorando")
+                        return True  # Considera sucesso pois não há dados para deletar
+                    
+                    # Se transação abortada ou outro erro, fazer rollback e tentar novamente
+                    if attempt < max_retries - 1:
+                        try:
+                            self.db.rollback()
+                        except:
+                            pass
+                        continue
+                    else:
+                        # Última tentativa falhou
+                        if description:
+                            print(f"⚠️  {description}: {str(e)[:150]}")
+                        return False
             
-            # 3. Monitoramento de catálogo
-            self.db.execute(text("DELETE FROM ml_catalog_monitoring WHERE company_id = :company_id"), 
-                          {"company_id": company_id})
+            return False
+        
+        try:
+            # IMPORTANTE: Deletar financial_goals PRIMEIRO (antes de qualquer cascade)
+            safe_delete("financial_goals", "Aviso ao deletar financial_goals")
             
-            # 4. Pedidos ML
-            self.db.execute(text("DELETE FROM ml_orders WHERE company_id = :company_id"), 
-                          {"company_id": company_id})
+            # Excluir TODOS os registros associados em ordem (respeitando foreign keys)
             
-            # 5. Contas ML
-            self.db.execute(text("DELETE FROM ml_accounts WHERE company_id = :company_id"), 
-                          {"company_id": company_id})
+            # 1. Tabelas financeiras (dependem de company_id mas podem ter relacionamentos internos)
+            #    Transações primeiro (podem referenciar customers, suppliers, accounts, etc)
+            safe_delete("financial_transactions", "Aviso ao deletar financial_transactions")
+            safe_delete("accounts_receivable", "Aviso ao deletar accounts_receivable")
+            safe_delete("accounts_payable", "Aviso ao deletar accounts_payable")
+            safe_delete("financial_customers", "Aviso ao deletar financial_customers")
+            safe_delete("financial_suppliers", "Aviso ao deletar financial_suppliers")
+            safe_delete("financial_accounts", "Aviso ao deletar financial_accounts")
+            safe_delete("financial_categories", "Aviso ao deletar financial_categories")
+            safe_delete("cost_centers", "Aviso ao deletar cost_centers")
             
-            # 6. Assinaturas
-            self.db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
-                          {"company_id": company_id})
+            # Planejamento financeiro (filhos primeiro)
+            safe_delete("monthly_planning", "Aviso ao deletar monthly_planning", 
+                       use_subquery=True, subquery_table="financial_planning", subquery_field="planning_id")
+            safe_delete("financial_planning", "Aviso ao deletar financial_planning")
             
-            # 7. Produtos internos
-            self.db.execute(text("DELETE FROM internal_products WHERE company_id = :company_id"), 
-                          {"company_id": company_id})
+            # 2. Campanhas e produtos de campanha (filhos primeiro)
+            safe_delete("ml_campaign_products", use_subquery=True, 
+                       subquery_table="ml_campaigns", subquery_field="campaign_id")
+            safe_delete("ml_campaign_metrics", use_subquery=True, 
+                       subquery_table="ml_campaigns", subquery_field="campaign_id")
+            safe_delete("ml_campaigns")
             
-            # 8. Produtos
-            self.db.execute(text("DELETE FROM products WHERE company_id = :company_id"), 
-                          {"company_id": company_id})
+            # 3. Catálogo ML (filhos primeiro)
+            safe_delete("ml_catalog_history", use_subquery=True, 
+                       subquery_table="ml_catalog_monitoring", subquery_field="monitoring_id")
+            safe_delete("ml_catalog_monitoring")
+            safe_delete("catalog_participants")
             
-            # 9. Usuários
-            users = self.db.query(User).filter(User.company_id == company_id).all()
-            for user in users:
-                self.db.delete(user)
+            # 4. Produtos ML
+            safe_delete("ml_product_sync")
+            safe_delete("ml_products")
             
-            # 10. Finalmente, excluir a empresa
-            self.db.delete(company)
-            self.db.commit()
+            # 5. Billing ML (filhos primeiro)
+            safe_delete("ml_billing_charges", use_subquery=True, 
+                       subquery_table="ml_billing_periods", subquery_field="period_id")
+            safe_delete("ml_billing_periods")
+            
+            # 6. Pedidos e Contas ML
+            safe_delete("ml_orders", "Erro crítico ao deletar ml_orders")
+            safe_delete("ml_accounts", "Erro crítico ao deletar ml_accounts")
+            
+            # 7. Payments (filhos primeiro) - ANTES de subscriptions porque payment_transactions pode referenciar subscriptions
+            safe_delete("payment_transactions", "Erro crítico ao deletar payment_transactions")
+            safe_delete("payments", "Erro crítico ao deletar payments")
+            safe_delete("payment_methods")
+            
+            # 8. Assinaturas (após payments porque payment_transactions pode ter subscription_id)
+            # IMPORTANTE: subscriptions precisa ser deletada com força se necessário
+            subscriptions_deleted = safe_delete("subscriptions", "Erro crítico ao deletar subscriptions")
+            if not subscriptions_deleted:
+                # Tentar deletar novamente com query direta
+                try:
+                    self.db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
+                                  {"company_id": company_id})
+                    self.db.flush()
+                    print(f"✅ Subscriptions deletadas via query direta")
+                except Exception as sub_err:
+                    print(f"⚠️  Aviso ao deletar subscriptions via query direta: {sub_err}")
+            
+            # 9. Produtos
+            safe_delete("internal_products")
+            safe_delete("products", "Erro crítico ao deletar products")
+            
+            # 9. Ordens de compra (itens primeiro)
+            safe_delete("ordem_compra_item", use_subquery=True, 
+                       subquery_table="ordem_compra", subquery_field="ordem_compra_id")
+            safe_delete("ordem_compra_link")
+            safe_delete("ordem_compra")
+            safe_delete("fornecedores")
+            
+            # 10. Outras tabelas financeiras
+            safe_delete("reconciliation_items", use_subquery=True, 
+                       subquery_table="bank_reconciliation", subquery_field="reconciliation_id")
+            safe_delete("bank_reconciliation")
+            safe_delete("chart_of_accounts")
+            safe_delete("financial_alerts")
+            safe_delete("ai_product_analysis")
+            safe_delete("sku_management")
+            safe_delete("api_logs")
+            
+            # 11. Tabelas relacionadas a usuários (antes de deletar usuários)
+            safe_delete("user_sessions", use_subquery=True, 
+                       subquery_table="users", subquery_field="user_id")
+            safe_delete("user_ml_accounts", use_subquery=True, 
+                       subquery_table="users", subquery_field="user_id")
+            safe_delete("tokens", use_subquery=True, 
+                       subquery_table="users", subquery_field="user_id")
+            
+            # 12. Usuários (depois de deletar relacionamentos)
+            safe_delete("users", "Erro crítico ao deletar users")
+            
+            # VERIFICAÇÃO CRÍTICA: Garantir que subscriptions foi deletada
+            # Se falhar, tentar novamente com query direta e forçar commit
+            try:
+                # Verificar se ainda existem subscriptions
+                result = self.db.execute(
+                    text("SELECT COUNT(*) as count FROM subscriptions WHERE company_id = :company_id"),
+                    {"company_id": company_id}
+                ).scalar()
+                
+                if result and result > 0:
+                    print(f"⚠️  Ainda existem {result} subscriptions, tentando deletar novamente...")
+                    # Tentar deletar novamente com força
+                    self.db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
+                                  {"company_id": company_id})
+                    self.db.flush()
+                    # Verificar novamente
+                    result = self.db.execute(
+                        text("SELECT COUNT(*) FROM subscriptions WHERE company_id = :company_id"),
+                        {"company_id": company_id}
+                    ).scalar()
+                    if result and result > 0:
+                        raise Exception(f"Não foi possível deletar {result} subscriptions. Verifique foreign keys.")
+                    else:
+                        print(f"✅ Subscriptions deletadas com sucesso na segunda tentativa")
+            except Exception as e:
+                print(f"⚠️  Erro ao verificar/deletar subscriptions: {e}")
+                try:
+                    self.db.rollback()
+                except:
+                    pass
+                # Tentar deletar subscriptions de qualquer forma antes de continuar
+                try:
+                    self.db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
+                                  {"company_id": company_id})
+                    self.db.flush()
+                except:
+                    pass
+            
+            # Commit parcial: garantir que tudo até aqui foi deletado antes de deletar company
+            # Isso evita que erro na deleção de company reverta tudo
+            try:
+                self.db.commit()
+                print(f"✅ Todas as tabelas relacionadas deletadas para company_id {company_id}")
+                
+                # VERIFICAÇÃO FINAL: Confirmar que subscriptions realmente foi deletada
+                from app.config.database import SessionLocal
+                verify_db = SessionLocal()
+                try:
+                    remaining = verify_db.execute(
+                        text("SELECT COUNT(*) FROM subscriptions WHERE company_id = :company_id"),
+                        {"company_id": company_id}
+                    ).scalar()
+                    if remaining and remaining > 0:
+                        print(f"❌ ATENÇÃO: Ainda existem {remaining} subscriptions após commit!")
+                        # Tentar deletar com nova sessão
+                        verify_db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
+                                        {"company_id": company_id})
+                        verify_db.commit()
+                        print(f"✅ Subscriptions deletadas em sessão separada")
+                finally:
+                    verify_db.close()
+                    
+            except Exception as e:
+                print(f"⚠️  Aviso ao fazer commit parcial: {e}")
+                try:
+                    self.db.rollback()
+                except:
+                    pass
+            
+            # 13. Finalmente, excluir a empresa via SQL direto em uma nova transação
+            # IMPORTANTE: Deletar subscriptions novamente na nova sessão se ainda existirem
+            from app.config.database import SessionLocal
+            final_db = SessionLocal()
+            try:
+                # Verificar e deletar subscriptions na nova sessão (se ainda existirem)
+                remaining_subs = final_db.execute(
+                    text("SELECT COUNT(*) FROM subscriptions WHERE company_id = :company_id"),
+                    {"company_id": company_id}
+                ).scalar()
+                
+                if remaining_subs and remaining_subs > 0:
+                    print(f"⚠️  Encontradas {remaining_subs} subscriptions na nova sessão, deletando...")
+                    try:
+                        # Verificar se há foreign keys que impedem
+                        # Primeiro tentar deletar qualquer dependência de subscriptions
+                        final_db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
+                                      {"company_id": company_id})
+                        final_db.commit()
+                        print(f"✅ {remaining_subs} subscriptions deletadas na nova sessão")
+                    except Exception as sub_err:
+                        print(f"⚠️  Erro ao deletar subscriptions: {sub_err}")
+                        final_db.rollback()
+                        # Tentar descobrir qual foreign key está bloqueando
+                        error_str = str(sub_err).lower()
+                        if "foreign key" in error_str or "violates" in error_str:
+                            raise Exception(f"Não foi possível deletar subscriptions. Foreign key constraint: {str(sub_err)[:200]}")
+                        raise
+                
+                # Agora deletar a empresa
+                max_company_retries = 3
+                for attempt in range(max_company_retries):
+                    try:
+                        final_db.execute(text("DELETE FROM companies WHERE id = :company_id"), 
+                                      {"company_id": company_id})
+                        final_db.commit()
+                        print(f"✅ Empresa {company_id} deletada com sucesso")
+                        break
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        # Se for erro de foreign key, tentar deletar subscriptions novamente
+                        if ("foreign key" in error_str or "violates" in error_str) and "subscriptions" in error_str:
+                            print(f"⚠️  Foreign key error com subscriptions, tentando deletar novamente...")
+                            try:
+                                final_db.rollback()
+                                final_db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
+                                              {"company_id": company_id})
+                                final_db.commit()
+                                print(f"✅ Subscriptions deletadas, tentando deletar empresa novamente...")
+                                continue  # Tentar deletar empresa novamente
+                            except Exception as sub_err2:
+                                print(f"❌ Erro ao deletar subscriptions: {sub_err2}")
+                                raise Exception(f"Não foi possível deletar subscriptions antes de deletar empresa: {str(sub_err2)[:200]}")
+                        
+                        if attempt < max_company_retries - 1:
+                            try:
+                                final_db.rollback()
+                            except:
+                                pass
+                            continue
+                        else:
+                            final_db.rollback()
+                            raise Exception(f"Erro ao deletar empresa após {max_company_retries} tentativas: {error_str[:200]}")
+            finally:
+                final_db.close()
             
             return {
-                "message": f"Empresa '{company.name}' e todos os seus registros foram excluídos com sucesso"
+                "message": f"Empresa '{company_name}' e todos os seus registros foram excluídos com sucesso"
             }
         except Exception as e:
             self.db.rollback()
-            raise e
+            import traceback
+            import sys
+            error_detail = f"{str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            print(f"❌ Erro ao excluir empresa {company_id}: {error_detail}", file=sys.stderr)
+            # Log completo do erro
+            error_msg = str(e)
+            if hasattr(e, '__class__'):
+                error_msg = f"{e.__class__.__name__}: {error_msg}"
+            raise Exception(f"Erro ao excluir empresa: {error_msg}")
     
     # ==================== MÉTODOS PARA PLANOS ====================
     

@@ -7,12 +7,21 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func
 
-# URL do banco de dados
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial"
-)
+# Verificar se DATABASE_URL está definida diretamente (prioridade)
+# Se não estiver, usar lógica baseada no ambiente
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+if not DATABASE_URL:
+    # Determinar ambiente: production usa celx_prod, local usa comercial
+    environment = os.getenv("ENVIRONMENT", "local").lower()
+    is_production = environment == "production"
+    
+    if is_production:
+        # Banco de produção
+        DATABASE_URL = "postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/celx_prod"
+    else:
+        # Banco local/desenvolvimento
+        DATABASE_URL = "postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial"
 # Criar engine do SQLAlchemy
 engine = create_engine(
     DATABASE_URL,
