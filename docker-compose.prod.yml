@@ -59,6 +59,11 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 3
+      ports:
+        - target: 8000
+          published: 8000
+          protocol: tcp
+          mode: host
       labels:
         # Traefik labels para proxy reverso e SSL
         - "traefik.enable=true"
