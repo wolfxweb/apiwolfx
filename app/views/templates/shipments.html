@@ -30,18 +30,6 @@
                             </select>
                         </div>
                         <div class="col-auto">
-                            <label for="filter-shipping-type" class="form-label mb-0 small">Forma de Envio</label>
-                            <select class="form-select" id="filter-shipping-type">
-                                <option value="">Todos</option>
-                                <option value="fulfillment">Full</option>
-                                <option value="coleta">Coleta</option>
-                                <option value="cross_docking">Cross Docking</option>
-                                <option value="me2">Mercado Envios</option>
-                                <option value="custom_shipping">Envio Personalizado</option>
-                                <option value="not_specified">Não Especificado</option>
-                            </select>
-                        </div>
-                        <div class="col-auto">
                             <label for="filter-customer" class="form-label mb-0 small">Buscar</label>
                             <input type="text" class="form-control" id="filter-customer" placeholder="Nome do cliente ou código do pedido" style="min-width: 280px;">
                         </div>
@@ -536,78 +524,6 @@
 </style>
 
 <script>
-    // Funções globais que precisam estar acessíveis para onclick
-    async function syncOrder(orderId, event) {
-        try {
-            const btn = event ? event.target.closest('button') : document.querySelector(`button[onclick*="syncOrder('${orderId}')"]`);
-            if (!btn) {
-                console.error('Botão não encontrado');
-                return;
-            }
-            
-            const originalHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-            
-            const response = await fetch(`/api/shipments/sync-single-order/${orderId}`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                alert('✅ Pedido atualizado com sucesso!');
-                // Recarregar a aba atual
-                const activeTab = document.querySelector('.nav-link.active');
-                if (activeTab) {
-                    const tabId = activeTab.getAttribute('data-bs-target');
-                    if (tabId === '#ready-to-prepare') {
-                        if (typeof loadReadyToPrepareOrders === 'function') {
-                            loadReadyToPrepareOrders();
-                        }
-                    } else if (tabId === '#pending') {
-                        if (typeof loadPendingOrders === 'function') {
-                            loadPendingOrders();
-                        }
-                    } else if (tabId === '#confirmed') {
-                        if (typeof loadConfirmedOrders === 'function') {
-                            loadConfirmedOrders();
-                        }
-                    } else if (tabId === '#shipped') {
-                        if (typeof loadShippedOrders === 'function') {
-                            loadShippedOrders();
-                        }
-                    } else if (tabId === '#delivered') {
-                        if (typeof loadDeliveredOrders === 'function') {
-                            loadDeliveredOrders();
-                        }
-                    } else if (tabId === '#waiting-shipment') {
-                        if (typeof loadWaitingShipmentOrders === 'function') {
-                            loadWaitingShipmentOrders();
-                        }
-                    }
-                }
-            } else {
-                alert('❌ Erro ao atualizar pedido: ' + (result.error || 'Erro desconhecido'));
-            }
-            
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
-        } catch (err) {
-            console.error('Erro ao atualizar pedido:', err);
-            alert('❌ Erro ao atualizar pedido: ' + err.message);
-            const btn = event ? event.target.closest('button') : document.querySelector(`button[onclick*="syncOrder('${orderId}')"]`);
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>';
-            }
-        }
-    }
-
 document.addEventListener('DOMContentLoaded', function() {
     // Variável global para armazenar todos os pedidos carregados
     let allOrdersLoaded = [];
@@ -831,15 +747,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 500); // Aguarda 500ms após parar de digitar
     });
     
-    // Event listener para filtro de forma de envio
-    document.getElementById('filter-shipping-type').addEventListener('change', function() {
-        if (ordersLoaded) {
-            applyFiltersToLoadedOrders();
-        } else {
-            loadReadyToPrepareOrders(1);
-        }
-    });
-    
     // Botão Atualizar Pedidos (últimos 2 dias)
     document.getElementById('sync-orders-btn').addEventListener('click', async function() {
         const btn = this;
@@ -894,7 +801,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Botão Limpar filtros
     document.getElementById('clear-filters').addEventListener('click', function() {
         document.getElementById('filter-period').value = '';
-        document.getElementById('filter-shipping-type').value = '';
         document.getElementById('filter-customer').value = '';
         document.getElementById('filter-start-date').value = '';
         document.getElementById('filter-end-date').value = '';
@@ -937,15 +843,9 @@ document.addEventListener('DOMContentLoaded', function() {
             let hasMore = true;
             let page = 1;
             const limit = 1000; // Carregar 1000 pedidos por página
-            const timeout = 60000; // Timeout de 60 segundos
             
             // Resetar array para evitar duplicações em recarregamentos
             allOrdersLoaded = [];
-            
-            // Criar timeout para evitar travamento
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Timeout: Carregamento demorou muito')), timeout);
-            });
 
             // Buscar pedidos aplicando filtros de data por padrão
             // Removido limite de 10 páginas (10.000 pedidos) para suportar mais pedidos
@@ -955,95 +855,76 @@ document.addEventListener('DOMContentLoaded', function() {
             const startDate = document.getElementById('filter-start-date').value;
             const endDate = document.getElementById('filter-end-date').value;
             
-            try {
-                // Usar Promise.race para aplicar timeout
-                await Promise.race([
-                    (async () => {
-                        while (hasMore) {
-                            // Construir URL com filtros de data
-                            let url = `/api/shipments/pending?page=${page}&limit=${limit}`;
-                            if (startDate) url += `&start_date=${startDate}`;
-                            if (endDate) url += `&end_date=${endDate}`;
-                            
-                            const response = await fetch(url, {
-                                credentials: 'include'  // Enviar cookies (session_token)
-                            });
-                            
-                            if (handle401Error(response)) {
-                                throw new Error('Não autenticado');
-                            }
-                            
-                            if (!response.ok) {
-                                const errorText = await response.text().catch(() => 'Erro desconhecido');
-                                console.error(`❌ Erro ao carregar pedidos: ${response.status} - ${errorText}`);
-                                throw new Error(`Erro ao carregar pedidos: ${response.status}`);
-                            }
-                            
-                            const data = await response.json();
-                            
-                            if (!data.success) {
-                                console.error(`❌ Erro na resposta: ${data.error || 'Erro desconhecido'}`);
-                                hasMore = false;
-                                break;
-                            }
-                            
-                            if (data.orders && data.orders.length > 0) {
-                                allOrdersLoaded = allOrdersLoaded.concat(data.orders);
-                                hasMore = data.total_pages > page;
-                                page++;
-                                console.log(`📦 Carregou página ${page - 1}/${data.total_pages || '?'} - Total: ${allOrdersLoaded.length} pedidos`);
-                            } else {
-                                hasMore = false;
-                            }
-                            
-                            // Limite de segurança: máximo 50 páginas (50.000 pedidos)
-                            if (page > 50) {
-                                console.warn('⚠️ Limite de 50 páginas atingido. Parando carregamento.');
-                                hasMore = false;
-                            }
-                        }
-                    })(),
-                    timeoutPromise
-                ]);
+            while (hasMore) {
+                // Construir URL com filtros de data
+                let url = `/api/shipments/pending?page=${page}&limit=${limit}`;
+                if (startDate) url += `&start_date=${startDate}`;
+                if (endDate) url += `&end_date=${endDate}`;
                 
-                ordersLoaded = true; // Marcar como carregado para evitar novos carregamentos
-                console.log(`✅ Carregamento concluído: ${allOrdersLoaded.length} pedidos carregados`);
-            } catch (error) {
-                console.error('❌ Erro ao carregar pedidos:', error);
-                const tbody = document.getElementById('ready-to-prepare-orders');
-                if (tbody) {
-                    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">
-                        <i class="bi bi-exclamation-triangle"></i> Erro ao carregar pedidos: ${error.message}
-                        <br><small>Recarregue a página ou verifique sua conexão.</small>
-                        ${error.message.includes('Timeout') ? '<br><button class="btn btn-sm btn-primary mt-2" onclick="location.reload()">Recarregar Página</button>' : ''}
-                    </td></tr>`;
+                const response = await fetch(url, {
+                    credentials: 'include'  // Enviar cookies (session_token)
+                });
+                if (handle401Error(response)) return;
+                if (!response.ok) throw new Error('Erro ao carregar pedidos');
+        const data = await response.json();
+                if (data.success && data.orders && data.orders.length > 0) {
+                    allOrdersLoaded = allOrdersLoaded.concat(data.orders);
+                    hasMore = data.total_pages > page;
+                    page++;
+                    console.log(`📦 Carregou página ${page - 1}/${data.total_pages || '?'} - Total: ${allOrdersLoaded.length} pedidos`);
+                } else {
+                    hasMore = false;
                 }
-                ordersLoaded = false; // Marcar como não carregado para permitir nova tentativa
-            } finally {
-                loadingPromise = null; // Limpar a promise após carregar
+                // REMOVIDO: if (page > 10) hasMore = false; // Limite antigo de 10 páginas
             }
+            ordersLoaded = true; // Marcar como carregado para evitar novos carregamentos
+            console.log(`✅ Carregamento concluído: ${allOrdersLoaded.length} pedidos carregados`);
         })();
         
-        try {
-            await loadingPromise;
-        } catch (error) {
-            console.error('❌ Erro no carregamento:', error);
-            const tbody = document.getElementById('ready-to-prepare-orders');
-            if (tbody && (tbody.innerHTML.includes('Carregando pedidos') || tbody.innerHTML.trim() === '')) {
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">
-                    <i class="bi bi-exclamation-triangle"></i> Erro ao carregar pedidos: ${error.message}
-                    <br><button class="btn btn-sm btn-primary mt-2" onclick="location.reload()">Recarregar Página</button>
-                </td></tr>`;
-            }
-        }
+        await loadingPromise;
+        loadingPromise = null; // Limpar a promise após carregar para permitir novo carregamento se necessário
+    }
 
     // Aplicar filtros localmente nos pedidos já carregados
     function applyFiltersToLoadedOrders() {
         const tbody = document.getElementById('ready-to-prepare-orders');
         if (!tbody) return;
         
-        // Aplicar filtros comuns (busca, data, envio)
-        let filteredOrders = applyCommonFilters(allOrdersLoaded);
+        // Coletar filtros do formulário
+        const customerName = document.getElementById('filter-customer').value.trim();
+        const startDate = document.getElementById('filter-start-date').value;
+        const endDate = document.getElementById('filter-end-date').value;
+
+        let filteredOrders = [...allOrdersLoaded];
+
+        // Aplicar filtro de busca (cliente ou código pedido)
+        if (customerName) {
+            const searchLower = customerName.toLowerCase();
+            filteredOrders = filteredOrders.filter(order => {
+                const orderId = String(order.order_id || '');
+                const mlOrderId = String(order.ml_order_id || '');
+                const nickname = String(order.buyer_nickname || '').toLowerCase();
+                const firstName = String(order.buyer_first_name || '').toLowerCase();
+                return orderId.includes(searchLower) || 
+                       mlOrderId.includes(searchLower) || 
+                       nickname.includes(searchLower) || 
+                       firstName.includes(searchLower);
+            });
+        }
+
+        // Aplicar filtro de data
+        if (startDate) {
+            filteredOrders = filteredOrders.filter(order => {
+                const orderDate = new Date(order.date_created).toISOString().split('T')[0];
+                return orderDate >= startDate;
+            });
+        }
+        if (endDate) {
+            filteredOrders = filteredOrders.filter(order => {
+                const orderDate = new Date(order.date_created).toISOString().split('T')[0];
+                return orderDate <= endDate;
+            });
+        }
 
         // Aplicar filtro lógico da aba (Pronto para Preparar, etc)
         filteredOrders = filterReadyToPrepareOrders(filteredOrders);
@@ -1069,86 +950,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Função genérica para aplicar filtro de forma de envio
-    function applyShippingTypeFilter(orders) {
-        const shippingType = document.getElementById('filter-shipping-type')?.value;
-        if (!shippingType) return orders;
-        
-        return orders.filter(order => {
-            // Verificar shipping_type do pedido
-            const orderShippingType = order.shipping_type;
-            // Verificar shipping_details.logistic_type
-            const logisticType = order.shipping_details?.logistic_type || 
-                               order.shipping_details?.logistic?.type;
-            
-            // Mapear valores do filtro para os tipos de envio
-            if (shippingType === 'fulfillment') {
-                return orderShippingType === 'fulfillment' || logisticType === 'fulfillment';
-            } else if (shippingType === 'coleta') {
-                // Coleta: ambos os tipos de drop_off (xd_drop_off e drop_off)
-                return orderShippingType === 'xd_drop_off' || 
-                       orderShippingType === 'drop_off' ||
-                       logisticType === 'xd_drop_off' ||
-                       logisticType === 'drop_off';
-            } else if (shippingType === 'cross_docking') {
-                return orderShippingType === 'cross_docking' || logisticType === 'cross_docking';
-            } else if (shippingType === 'me2') {
-                return orderShippingType === 'me2' || logisticType === 'me2';
-            } else if (shippingType === 'custom_shipping') {
-                // Envio personalizado: qualquer tipo não padrão
-                return orderShippingType && 
-                       !['fulfillment', 'xd_drop_off', 'drop_off', 'cross_docking', 'me2'].includes(orderShippingType);
-            } else if (shippingType === 'not_specified') {
-                // Não especificado: sem shipping_type ou logistic_type
-                return !orderShippingType && !logisticType;
-            }
-            return false;
-        });
-    }
-    
-    // Função genérica para aplicar filtros comuns (busca, data, envio)
-    function applyCommonFilters(orders) {
-        const customerName = document.getElementById('filter-customer')?.value.trim();
-        const startDate = document.getElementById('filter-start-date')?.value;
-        const endDate = document.getElementById('filter-end-date')?.value;
-        
-        let filtered = [...orders];
-        
-        // Aplicar filtro de busca (cliente ou código pedido)
-        if (customerName) {
-            const searchLower = customerName.toLowerCase();
-            filtered = filtered.filter(order => {
-                const orderId = String(order.order_id || '');
-                const mlOrderId = String(order.ml_order_id || '');
-                const nickname = String(order.buyer_nickname || '').toLowerCase();
-                const firstName = String(order.buyer_first_name || '').toLowerCase();
-                return orderId.includes(searchLower) || 
-                       mlOrderId.includes(searchLower) || 
-                       nickname.includes(searchLower) || 
-                       firstName.includes(searchLower);
-            });
-        }
-        
-        // Aplicar filtro de data
-        if (startDate) {
-            filtered = filtered.filter(order => {
-                const orderDate = new Date(order.date_created).toISOString().split('T')[0];
-                return orderDate >= startDate;
-            });
-        }
-        if (endDate) {
-            filtered = filtered.filter(order => {
-                const orderDate = new Date(order.date_created).toISOString().split('T')[0];
-                return orderDate <= endDate;
-            });
-        }
-        
-        // Aplicar filtro de forma de envio
-        filtered = applyShippingTypeFilter(filtered);
-        
-        return filtered;
-    }
-
     // Função reutilizável que aplica o MESMO filtro da aba "Pronto para Preparar"
     function filterReadyToPrepareOrders(allOrders) {
         return allOrders.filter(order => {
@@ -1328,7 +1129,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Filtrar pedidos: status = DELIVERED ou shipping_status com valores de entregue
-            let filteredOrders = allOrdersLoaded.filter(order => {
+            const filteredOrders = allOrdersLoaded.filter(order => {
                 const shippingStatus = order.shipping_details?.status || order.shipping_status;
                 
                 // Mostrar pedidos com status DELIVERED
@@ -1343,9 +1144,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 return false;
             });
-            
-            // Aplicar filtros comuns (busca, data, envio)
-            filteredOrders = applyCommonFilters(filteredOrders);
             
             if (filteredOrders.length > 0) {
                 renderDeliveredOrders(tbody, filteredOrders);
@@ -1572,12 +1370,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Filtrar pedidos: status = CONFIRMED
-            let filteredOrders = allOrdersLoaded.filter(order => {
+            const filteredOrders = allOrdersLoaded.filter(order => {
                 return order.status === 'CONFIRMED';
             });
-            
-            // Aplicar filtros comuns (busca, data, envio)
-            filteredOrders = applyCommonFilters(filteredOrders);
             
             if (filteredOrders.length > 0) {
                 renderConfirmedOrders(tbody, filteredOrders);
@@ -1613,7 +1408,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Filtrar pedidos: status = PAID AND shipping_status = pending (ou não tem shipping_status)
-            let filteredOrders = allOrdersLoaded.filter(order => {
+            const filteredOrders = allOrdersLoaded.filter(order => {
                 // Verificar shipping_status
                 const shippingStatus = order.shipping_details?.status || order.shipping_status;
                 
@@ -1629,9 +1424,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 return false;
             });
-            
-            // Aplicar filtros comuns (busca, data, envio)
-            filteredOrders = applyCommonFilters(filteredOrders);
             
             if (filteredOrders.length > 0) {
                 renderPendingOrders(tbody, filteredOrders);
@@ -2060,7 +1852,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Filtrar pedidos: status = PAID e READY_TO_SHIP (prontos para envio)
-            let filteredOrders = allOrdersLoaded.filter(order => {
+            const filteredOrders = allOrdersLoaded.filter(order => {
                 const shippingStatus = order.shipping_details?.status || order.shipping_status;
                 const substatus = order.shipping_details?.substatus;
                 
@@ -2081,9 +1873,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Mostrar apenas se TEM substatus de ready_to_ship
                 return is_ready_to_ship;
             });
-            
-            // Aplicar filtros comuns (busca, data, envio)
-            filteredOrders = applyCommonFilters(filteredOrders);
             
             if (filteredOrders.length > 0) {
                 renderWaitingShipmentOrders(tbody, filteredOrders);
@@ -2138,7 +1927,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Filtrar pedidos: status = SHIPPED ou shipping_status com valores de em trânsito
-            let filteredOrders = allOrdersLoaded.filter(order => {
+            const filteredOrders = allOrdersLoaded.filter(order => {
                 const shippingStatus = order.shipping_details?.status || order.shipping_status;
                 const substatus = order.shipping_details?.substatus;
                 
@@ -2165,9 +1954,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 return false;
             });
-            
-            // Aplicar filtros comuns (busca, data, envio)
-            filteredOrders = applyCommonFilters(filteredOrders);
             
             if (filteredOrders.length > 0) {
                 renderShippedOrders(tbody, filteredOrders);
@@ -2348,9 +2134,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-info" onclick="syncOrder('${orderId}', event)" title="Atualizar dados do pedido">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
                             </button>
@@ -2455,12 +2238,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            let filteredOrders = allOrdersLoaded.filter(order => {
+            const filteredOrders = allOrdersLoaded.filter(order => {
                 return order.status === 'CANCELLED' || order.status === 'PENDING_CANCEL';
             });
-            
-            // Aplicar filtros comuns (busca, data, envio)
-            filteredOrders = applyCommonFilters(filteredOrders);
             
             if (filteredOrders.length > 0) {
                 renderCancelledOrders(tbody, filteredOrders);
@@ -2527,9 +2307,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-info" onclick="syncOrder('${orderId}', event)" title="Atualizar dados do pedido">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
                             </button>
@@ -2587,12 +2364,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            let filteredOrders = allOrdersLoaded.filter(order => {
+            const filteredOrders = allOrdersLoaded.filter(order => {
                 return order.status === 'REFUNDED' || order.status === 'PARTIALLY_REFUNDED';
             });
-            
-            // Aplicar filtros comuns (busca, data, envio)
-            filteredOrders = applyCommonFilters(filteredOrders);
             
             if (filteredOrders.length > 0) {
                 renderRefundedOrders(tbody, filteredOrders);
@@ -2658,9 +2432,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-info" onclick="syncOrder('${orderId}', event)" title="Atualizar dados do pedido">
-                                <i class="bi bi-arrow-clockwise"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
@@ -2912,9 +2683,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-info" onclick="syncOrder('${orderId}', event)" title="Atualizar dados do pedido">
-                                <i class="bi bi-arrow-clockwise"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
