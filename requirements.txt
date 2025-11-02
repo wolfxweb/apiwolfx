@@ -26,3 +26,5 @@ openpyxl==3.1.2
 Pillow==10.1.0
 # Geração de PDF (para conversão de ZPL)
 reportlab==4.0.7
+# Conversão ZPL local
+zebrafy==1.1.0
