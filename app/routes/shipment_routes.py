@@ -336,6 +336,169 @@ async def download_invoice(
             "error": f"Erro interno: {str(e)}"
         }, status_code=500)
 
+@router.get("/download-label/{order_id}")
+async def download_shipping_label(
+    order_id: str,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Download da etiqueta de envio do pedido (para ponto de coleta)"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Buscar pedido no banco
+        from app.models.saas_models import MLOrder
+        order = db.query(MLOrder).filter(
+            MLOrder.ml_order_id == order_id,
+            MLOrder.company_id == company_id
+        ).first()
+        
+        if not order:
+            return JSONResponse(content={"error": "Pedido não encontrado"}, status_code=404)
+        
+        if not order.shipping_id:
+            return JSONResponse(content={"error": "Etiqueta de envio não disponível (sem shipping_id)"}, status_code=404)
+        
+        # Verificar detalhes do envio
+        import json
+        shipping_details = None
+        if order.shipping_details:
+            if isinstance(order.shipping_details, str):
+                try:
+                    shipping_details = json.loads(order.shipping_details)
+                except:
+                    shipping_details = {}
+            else:
+                shipping_details = order.shipping_details
+        
+        logistic_type = shipping_details.get('logistic_type') if shipping_details else order.shipping_type
+        
+        # Tipos de logística que suportam etiquetas (segundo documentação ML)
+        supported_logistic_types = ['drop_off', 'xd_drop_off', 'cross_docking', 'self_service']
+        is_supported = (
+            logistic_type in supported_logistic_types or
+            order.shipping_type in supported_logistic_types
+        )
+        
+        # Não bloquear tentativa, mas logar aviso se não for tipo suportado
+        if not is_supported:
+            logger.warning(f"⚠️ Tipo de logística '{logistic_type}' pode não suportar etiquetas, mas tentando mesmo assim...")
+        
+        # Buscar token de acesso
+        token_manager = TokenManager(db)
+        from app.models.saas_models import User
+        user_db = db.query(User).filter(
+            User.company_id == company_id,
+            User.is_active == True
+        ).first()
+        
+        if not user_db:
+            return JSONResponse(content={"error": "Usuário não encontrado"}, status_code=404)
+        
+        access_token = token_manager.get_valid_token(user_db.id)
+        if not access_token:
+            return JSONResponse(content={"error": "Token inválido"}, status_code=401)
+        
+        # Buscar etiqueta na API do Mercado Livre
+        # Endpoint correto: GET /shipment_labels?shipment_ids={shipping_id}&response_type=pdf
+        shipping_id = str(order.shipping_id)
+        
+        # Verificar status do envio antes de tentar baixar
+        # A etiqueta só está disponível se status = "ready_to_ship" e substatus = "ready_to_print"
+        shipment_status = shipping_details.get('status') if shipping_details else None
+        shipment_substatus = shipping_details.get('substatus') if shipping_details else None
+        
+        logger.info(f"📦 Verificando etiqueta para shipping_id {shipping_id}: status={shipment_status}, substatus={shipment_substatus}")
+        
+        # Tentar baixar a etiqueta usando o endpoint correto
+        label_url = f"https://api.mercadolibre.com/shipment_labels"
+        
+        params = {
+            "shipment_ids": shipping_id,
+            "response_type": "pdf"
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/pdf"
+        }
+        
+        # Se não tiver status no banco, tentar buscar da API antes de baixar etiqueta
+        if not shipment_status:
+            try:
+                shipment_url = f"https://api.mercadolibre.com/shipments/{shipping_id}"
+                headers_api = {"Authorization": f"Bearer {access_token}"}
+                async with httpx.AsyncClient() as check_client:
+                    shipment_response = await check_client.get(shipment_url, headers=headers_api, timeout=10.0)
+                    if shipment_response.status_code == 200:
+                        shipment_data = shipment_response.json()
+                        shipment_status = shipment_data.get('status')
+                        shipment_substatus = shipment_data.get('substatus')
+                        logger.info(f"📦 Status obtido da API: status={shipment_status}, substatus={shipment_substatus}")
+            except Exception as e:
+                logger.warning(f"⚠️ Não foi possível verificar status do shipment na API: {e}")
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(label_url, headers=headers, params=params, timeout=30.0)
+            
+            if response.status_code == 200:
+                # Verificar se a resposta é realmente um PDF
+                content_type = response.headers.get("content-type", "")
+                if "application/pdf" in content_type or "pdf" in content_type.lower():
+                    # Preparar nome do arquivo
+                    label_filename = f"Etiqueta-{order_id}.pdf"
+                    
+                    # Retornar arquivo como download
+                    return StreamingResponse(
+                        io.BytesIO(response.content),
+                        media_type="application/pdf",
+                        headers={
+                            "Content-Disposition": f'attachment; filename="{label_filename}"'
+                        }
+                    )
+                else:
+                    # Resposta pode ser JSON com erro
+                    try:
+                        error_data = response.json()
+                        logger.error(f"Erro na API: {error_data}")
+                        error_msg = error_data.get("message", "Etiqueta não disponível")
+                        return JSONResponse(content={"error": error_msg}, status_code=404)
+                    except:
+                        logger.error(f"Resposta inesperada: {response.text[:200]}")
+                        return JSONResponse(content={"error": "Resposta inesperada da API do Mercado Livre"}, status_code=500)
+            elif response.status_code == 404:
+                logger.warning(f"Etiqueta não encontrada para shipping_id {shipping_id}")
+                return JSONResponse(content={"error": "Etiqueta de envio não disponível no Mercado Livre"}, status_code=404)
+            else:
+                # Tentar obter mensagem de erro da resposta
+                error_msg = "Erro ao baixar etiqueta"
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("message", error_data.get("error", error_msg))
+                    logger.error(f"Erro ao baixar etiqueta: {response.status_code} - {error_msg}")
+                except:
+                    logger.error(f"Erro ao baixar etiqueta: {response.status_code} - {response.text[:200]}")
+                
+                return JSONResponse(content={
+                    "error": error_msg,
+                    "status_code": response.status_code,
+                    "hint": "Verifique se o envio está com status 'ready_to_ship' e substatus 'ready_to_print'"
+                }, status_code=response.status_code)
+    
+    except Exception as e:
+        logger.error(f"Erro ao baixar etiqueta de envio: {e}", exc_info=True)
+        return JSONResponse(content={
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
 @router.get("/stats")
 async def get_stats(
     session_token: Optional[str] = Cookie(None),

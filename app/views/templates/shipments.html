@@ -1192,11 +1192,33 @@ document.addEventListener('DOMContentLoaded', function() {
             const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
             
             let shippingInfo = '';
+            let isPickupPoint = false;
             if (order.shipping_details) {
                 const status = order.shipping_details.status;
                 const substatus = order.shipping_details.substatus;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                // Identificar se é ponto de coleta
+                isPickupPoint = (
+                    logisticType === 'xd_drop_off' || 
+                    logisticType === 'drop_off' || 
+                    order.shipping_type === 'xd_drop_off' || 
+                    order.shipping_type === 'drop_off' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff'
+                );
+                
+                // Debug: log para verificar detecção
+                if (isPickupPoint) {
+                    console.log(`🔍 [DEBUG] Pedido ${orderId} detectado como ponto de coleta:`, {
+                        logisticType,
+                        shipping_type: order.shipping_type,
+                        substatus,
+                        shipping_id: order.shipping_id,
+                        has_shipping_id: !!order.shipping_id
+                    });
+                }
                 
                 const statusHistory = order.shipping_details.status_history || {};
                 const dateDelivered = statusHistory.date_delivered;
@@ -1298,6 +1320,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </a>` : 
                                 '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            ${isPickupPoint ? 
+                                (order.shipping_id ? 
+                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>` : 
+                                    `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
+                                        <i class="bi bi-printer"></i>
+                                    </button>`
+                                ) : 
+                                ''
                             }
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
@@ -1425,10 +1458,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
             
             let shippingInfo = '';
+            let isPickupPoint = false;
             if (order.shipping_details) {
                 const status = order.shipping_details.status;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                // Identificar se é ponto de coleta
+                isPickupPoint = (
+                    logisticType === 'xd_drop_off' || 
+                    logisticType === 'drop_off' || 
+                    order.shipping_type === 'xd_drop_off' || 
+                    order.shipping_type === 'drop_off' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff'
+                );
+                
+                // Debug: log para verificar detecção
+                if (isPickupPoint) {
+                    console.log(`🔍 [DEBUG] Pedido ${orderId} detectado como ponto de coleta:`, {
+                        logisticType,
+                        shipping_type: order.shipping_type,
+                        substatus,
+                        shipping_id: order.shipping_id,
+                        has_shipping_id: !!order.shipping_id
+                    });
+                }
                 
                 const estimatedDelivery = order.shipping_details.shipping_option?.estimated_delivery_final?.date 
                                        || order.shipping_details.shipping_option?.estimated_delivery_limit?.date
@@ -1520,12 +1575,20 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </a>` : 
                                 '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
                             }
+                            ${isPickupPoint ? 
+                                (order.shipping_id ? 
+                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>` : 
+                                    `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
+                                        <i class="bi bi-printer"></i>
+                                    </button>`
+                                ) : 
+                                ''
+                            }
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
-                                <i class="bi bi-clipboard"></i>
-                            </button>
                         </div>
             </td>
                 </tr>
@@ -1560,10 +1623,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
             
             let shippingInfo = '';
+            let isPickupPoint = false;
             if (order.shipping_details) {
                 const status = order.shipping_details.status;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                // Identificar se é ponto de coleta
+                isPickupPoint = (
+                    logisticType === 'xd_drop_off' || 
+                    logisticType === 'drop_off' || 
+                    order.shipping_type === 'xd_drop_off' || 
+                    order.shipping_type === 'drop_off' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff'
+                );
+                
+                // Debug: log para verificar detecção
+                if (isPickupPoint) {
+                    console.log(`🔍 [DEBUG] Pedido ${orderId} detectado como ponto de coleta:`, {
+                        logisticType,
+                        shipping_type: order.shipping_type,
+                        substatus,
+                        shipping_id: order.shipping_id,
+                        has_shipping_id: !!order.shipping_id
+                    });
+                }
                 
                 const statusHistory = order.shipping_details.status_history || {};
                 const estimatedDelivery = order.shipping_details.shipping_option?.estimated_delivery_final?.date 
@@ -1678,6 +1763,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </a>` : 
                                 '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            ${isPickupPoint ? 
+                                (order.shipping_id ? 
+                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>` : 
+                                    `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
+                                        <i class="bi bi-printer"></i>
+                                    </button>`
+                                ) : 
+                                ''
                             }
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
@@ -1864,10 +1960,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
             
             let shippingInfo = '';
+            let isPickupPoint = false;
             if (order.shipping_details) {
                 const status = order.shipping_details.status;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                // Identificar se é ponto de coleta
+                isPickupPoint = (
+                    logisticType === 'xd_drop_off' || 
+                    logisticType === 'drop_off' || 
+                    order.shipping_type === 'xd_drop_off' || 
+                    order.shipping_type === 'drop_off' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff'
+                );
+                
+                // Debug: log para verificar detecção
+                if (isPickupPoint) {
+                    console.log(`🔍 [DEBUG] Pedido ${orderId} detectado como ponto de coleta:`, {
+                        logisticType,
+                        shipping_type: order.shipping_type,
+                        substatus,
+                        shipping_id: order.shipping_id,
+                        has_shipping_id: !!order.shipping_id
+                    });
+                }
                 
                 const statusHistory = order.shipping_details.status_history || {};
                 const dateShipped = statusHistory.date_shipped;
@@ -1982,6 +2100,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </a>` : 
                                 '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            ${isPickupPoint ? 
+                                (order.shipping_id ? 
+                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>` : 
+                                    `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
+                                        <i class="bi bi-printer"></i>
+                                    </button>`
+                                ) : 
+                                ''
                             }
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
@@ -2131,6 +2260,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </a>` : 
                                 '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
                             }
+                            ${isPickupPoint ? 
+                                (order.shipping_id ? 
+                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>` : 
+                                    `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
+                                        <i class="bi bi-printer"></i>
+                                    </button>`
+                                ) : 
+                                ''
+                            }
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
@@ -2232,6 +2372,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </a>` : 
                                 '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
                             }
+                            ${isPickupPoint ? 
+                                (order.shipping_id ? 
+                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>` : 
+                                    `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
+                                        <i class="bi bi-printer"></i>
+                                    </button>`
+                                ) : 
+                                ''
+                            }
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
@@ -2271,11 +2422,33 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Extrair informações de envio de shipping_details
             let shippingInfo = '';
+            let isPickupPoint = false;
             if (order.shipping_details) {
                 const status = order.shipping_details.status;  // Status principal: "delivered", "shipped", "ready_to_ship", etc.
                 const substatus = order.shipping_details.substatus;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                // Identificar se é ponto de coleta
+                isPickupPoint = (
+                    logisticType === 'xd_drop_off' || 
+                    logisticType === 'drop_off' || 
+                    order.shipping_type === 'xd_drop_off' || 
+                    order.shipping_type === 'drop_off' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff'
+                );
+                
+                // Debug: log para verificar detecção
+                if (isPickupPoint) {
+                    console.log(`🔍 [DEBUG] Pedido ${orderId} detectado como ponto de coleta:`, {
+                        logisticType,
+                        shipping_type: order.shipping_type,
+                        substatus,
+                        shipping_id: order.shipping_id,
+                        has_shipping_id: !!order.shipping_id
+                    });
+                }
                 
                 // Extrair datas importantes
                 const statusHistory = order.shipping_details.status_history || {};
@@ -2343,6 +2516,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 shippingInfo = '<span class="badge bg-secondary">N/A</span>';
+                // Verificar se é ponto de coleta mesmo sem shipping_details
+                isPickupPoint = order.shipping_type === 'xd_drop_off' || order.shipping_type === 'drop_off';
+                
+                // Debug: log para verificar detecção
+                if (isPickupPoint) {
+                    console.log(`🔍 [DEBUG] Pedido ${orderId} detectado como ponto de coleta (sem shipping_details):`, {
+                        shipping_type: order.shipping_type,
+                        shipping_id: order.shipping_id,
+                        has_shipping_id: !!order.shipping_id
+                    });
+                }
             }
             
             return `
@@ -2424,6 +2608,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </a>` : 
                                 '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
+                            }
+                            ${isPickupPoint ? 
+                                (order.shipping_id ? 
+                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>` : 
+                                    `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
+                                        <i class="bi bi-printer"></i>
+                                    </button>`
+                                ) : 
+                                ''
                             }
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>

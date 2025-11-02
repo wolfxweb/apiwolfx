@@ -151,6 +151,7 @@ class ShipmentController:
                     "ml_order_id": row.ml_order_id,
                     "buyer_name": row.buyer_first_name,
                     "buyer_nickname": row.buyer_nickname,
+                    "buyer_first_name": row.buyer_first_name,
                     "total_amount": float(row.total_amount) if row.total_amount else 0,
                     "paid_amount": float(row.paid_amount) if row.paid_amount else 0,
                     "status": status_str,
@@ -166,7 +167,14 @@ class ShipmentController:
                     "shipping_details": shipping_details_data,
                     "payments": row.payments if row.payments else None,
                     "order_items": row.order_items if row.order_items else None,
-                    "shipping_address": row.shipping_address if row.shipping_address else None
+                    "shipping_address": row.shipping_address if row.shipping_address else None,
+                    # Campos de envio necessários para detecção de ponto de coleta
+                    "shipping_id": str(row.shipping_id) if row.shipping_id else None,
+                    "shipping_type": row.shipping_type if row.shipping_type else None,
+                    "shipping_status": row.shipping_status if row.shipping_status else None,
+                    "shipping_method": row.shipping_method if row.shipping_method else None,
+                    "shipping_date": row.shipping_date.isoformat() if row.shipping_date and hasattr(row.shipping_date, 'isoformat') else (str(row.shipping_date) if row.shipping_date else None),
+                    "estimated_delivery_date": row.estimated_delivery_date.isoformat() if row.estimated_delivery_date and hasattr(row.estimated_delivery_date, 'isoformat') else (str(row.estimated_delivery_date) if row.estimated_delivery_date else None)
                 }
                 
                 result.append(order_dict)
