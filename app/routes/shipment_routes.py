@@ -40,55 +40,147 @@ async def convert_zpl_to_pdf(zpl_content: str, order_id: str) -> Optional[bytes]
             logger.error("ReportLab não está disponível. Instale com: pip install reportlab")
             return create_pdf_from_zpl_text(zpl_content, order_id)
         
-        # Tentar usar API de conversão online ZPL to PDF
-        # API pública: https://api.labelary.com/v1/zpl
-        conversion_url = "https://api.labelary.com/v1/zpl"
+        # Tentar usar API de conversão online ZPL to PNG
+        # API pública Labelary tem vários formatos:
+        # Formato 1: http://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/ (formato antigo)
+        # Formato 2: http://api.labelary.com/v1/zpl (formato mais simples)
+        # Tentar primeiro o formato simples
+        conversion_url = "http://api.labelary.com/v1/zpl"
         
         async with httpx.AsyncClient() as client:
             # Primeiro, tentar converter ZPL para PNG usando Labelary API
             # API Labelary espera ZPL no body como texto/plain
+            # Garantir que o ZPL está bem formatado
+            zpl_bytes = zpl_content.encode('utf-8')
+            
+            logger.info(f"📤 Enviando ZPL para Labelary - Tamanho: {len(zpl_bytes)} bytes")
+            logger.info(f"📤 Preview ZPL (primeiros 200 chars): {zpl_content[:200]}")
+            
+            # Tentar primeiro com o formato simples
             response = await client.post(
                 conversion_url,
-                content=zpl_content.encode('utf-8'),
+                content=zpl_bytes,
                 headers={"Content-Type": "text/plain"},
                 params={"density": "8", "format": "png"},  # 8 = 203 DPI (comum para etiquetas)
                 timeout=30.0
             )
             
+            # Se retornar 404, tentar formato alternativo
+            if response.status_code == 404:
+                logger.warning("⚠️ Endpoint /v1/zpl retornou 404, tentando formato alternativo...")
+                conversion_url_alt = "http://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/"
+                response = await client.post(
+                    conversion_url_alt,
+                    content=zpl_bytes,
+                    headers={"Content-Type": "text/plain"},
+                    timeout=30.0
+                )
+                logger.info(f"📥 Resposta Labelary (alternativa) - Status: {response.status_code}")
+            
+            logger.info(f"📥 Resposta Labelary - Status: {response.status_code}, Content-Type: {response.headers.get('content-type', 'N/A')}, Tamanho: {len(response.content)} bytes")
+            
             if response.status_code == 200:
+                # Verificar se realmente recebeu uma imagem PNG
+                if len(response.content) == 0:
+                    logger.error("❌ Resposta Labelary vazia (200 mas sem conteúdo)")
+                    return create_pdf_from_zpl_text(zpl_content, order_id)
+                
+                # Verificar se é realmente uma imagem PNG
+                if not response.content.startswith(b'\x89PNG'):
+                    logger.error(f"❌ Resposta Labelary não é PNG (primeiros bytes: {response.content[:10].hex()})")
+                    logger.error(f"❌ Resposta texto: {response.text[:500] if hasattr(response, 'text') else 'N/A'}")
+                    return create_pdf_from_zpl_text(zpl_content, order_id)
+                
                 # Converter PNG para PDF usando PIL
                 from io import BytesIO
-                img = Image.open(BytesIO(response.content))
+                try:
+                    img = Image.open(BytesIO(response.content))
+                    logger.info(f"✅ Imagem PNG carregada: {img.size[0]}x{img.size[1]}px, Modo: {img.mode}")
+                except Exception as e:
+                    logger.error(f"❌ Erro ao abrir imagem PNG: {e}")
+                    return create_pdf_from_zpl_text(zpl_content, order_id)
                 
-                # Criar PDF com a imagem
-                pdf_buffer = BytesIO()
-                img_width, img_height = img.size
+                # Tamanho desejado da etiqueta: 10cm x 15cm (100mm x 150mm)
+                # Converter para pontos (1 ponto = 1/72 de polegada)
+                # 1 cm = 0.393701 polegadas = 28.3465 pontos
+                TARGET_WIDTH_CM = 10  # 10cm
+                TARGET_HEIGHT_CM = 15  # 15cm
+                CM_TO_POINTS = 28.3465
                 
-                # Converter pixels para pontos (72 DPI padrão PDF)
-                # Labelary retorna em 203 DPI, então ajustar escala
-                pdf_width = (img_width / 203) * 72  # Converter para pontos
-                pdf_height = (img_height / 203) * 72
+                pdf_width = TARGET_WIDTH_CM * CM_TO_POINTS   # ~283.465 pontos (10cm)
+                pdf_height = TARGET_HEIGHT_CM * CM_TO_POINTS  # ~425.197 pontos (15cm)
+                
+                logger.info(f"📏 Criando PDF de etiqueta: {TARGET_WIDTH_CM}cm x {TARGET_HEIGHT_CM}cm ({pdf_width:.2f} x {pdf_height:.2f} pontos)")
                 
                 # Usar reportlab para criar PDF
-                from reportlab.lib.pagesizes import letter
-                from reportlab.lib.units import inch
+                from reportlab.lib.units import cm
+                from reportlab.lib.pagesizes import A4
                 
-                # Criar PDF com tamanho da etiqueta
+                # Criar PDF com tamanho exato da etiqueta (10x15cm)
+                pdf_buffer = BytesIO()
                 c = canvas.Canvas(pdf_buffer, pagesize=(pdf_width, pdf_height))
+                
+                # Redimensionar imagem para caber no tamanho da etiqueta
+                img_width, img_height = img.size
+                
+                # Ajustar imagem para preencher todo o espaço da etiqueta (10x15cm)
+                # Calcular escala para preencher mantendo proporção
+                # Usar escala que preenche a maior dimensão (pode cortar bordas se necessário)
+                scale_x = pdf_width / img_width
+                scale_y = pdf_height / img_height
+                scale = max(scale_x, scale_y)  # Usar maior escala para preencher toda a área
+                
+                scaled_width = img_width * scale
+                scaled_height = img_height * scale
+                
+                # Centralizar imagem na etiqueta (pode haver recorte se proporções forem diferentes)
+                x_offset = (pdf_width - scaled_width) / 2
+                y_offset = (pdf_height - scaled_height) / 2
+                
+                logger.info(f"📐 Imagem original: {img_width}x{img_height}px (Labelary 203 DPI)")
+                logger.info(f"📐 Escala aplicada: {scale:.4f}")
+                logger.info(f"📐 Tamanho escalado: {scaled_width:.2f}x{scaled_height:.2f} pontos")
+                logger.info(f"📐 Área da etiqueta: {pdf_width:.2f}x{pdf_height:.2f} pontos (10cm x 15cm)")
+                logger.info(f"📐 Offset (centralização): x={x_offset:.2f}, y={y_offset:.2f}")
                 
                 # Converter imagem para buffer
                 img_buffer = BytesIO()
                 img.save(img_buffer, format='PNG')
                 img_buffer.seek(0)
                 
-                # Adicionar imagem ao PDF
-                c.drawImage(img_buffer, 0, 0, width=pdf_width, height=pdf_height)
+                # Adicionar imagem ao PDF preenchendo toda a área da etiqueta (10x15cm)
+                # Mantém proporção mas pode cortar bordas se necessário para preencher o espaço
+                c.drawImage(
+                    img_buffer, 
+                    x_offset, 
+                    y_offset, 
+                    width=scaled_width, 
+                    height=scaled_height,
+                    preserveAspectRatio=True,  # Manter proporção original
+                    mask='auto'  # Preservar transparência se houver
+                )
+                
+                # Adicionar marca de corte/guia visual opcional (comentado por padrão)
+                # Descomente se quiser adicionar linhas guia para corte
+                # c.setStrokeColorRGB(0.8, 0.8, 0.8)  # Cinza claro
+                # c.setLineWidth(0.5)
+                # c.rect(0, 0, pdf_width, pdf_height, stroke=1, fill=0)
+                
                 c.save()
                 
                 pdf_buffer.seek(0)
                 return pdf_buffer.getvalue()
+            elif response.status_code == 400:
+                # Erro de sintaxe no ZPL
+                error_text = response.text[:500] if response.text else "Sem detalhes"
+                logger.error(f"❌ Erro 400 na API Labelary (ZPL inválido): {error_text}")
+                logger.error(f"❌ ZPL enviado (primeiros 500 chars): {zpl_content[:500]}")
+                # Tentar fallback mesmo assim
+                return create_pdf_from_zpl_text(zpl_content, order_id)
             else:
-                logger.warning(f"Erro na API Labelary: {response.status_code}. Usando fallback de renderização.")
+                error_text = response.text[:500] if response.text else "Sem detalhes"
+                logger.warning(f"⚠️ Erro na API Labelary (Status {response.status_code}): {error_text}")
+                logger.warning("⚠️ Usando fallback de renderização com texto ZPL")
                 # Fallback: criar PDF com o texto ZPL
                 return create_pdf_from_zpl_text(zpl_content, order_id)
     
@@ -633,10 +725,24 @@ async def download_shipping_label(
                             zpl_content = zpl_content_bytes.decode('latin-1', errors='replace')
                             logger.warning("ZPL decodificado com substituição de caracteres inválidos")
                     
-                    logger.info(f"📄 ZPL para conversão - Tamanho original: {len(zpl_content_bytes)} bytes, String: {len(zpl_content)} chars")
+                    # Validar que o ZPL está completo (deve começar com ^XA e terminar com ^XZ)
+                    zpl_preview = zpl_content[:500] if len(zpl_content) > 500 else zpl_content
+                    zpl_ends = zpl_content[-100:] if len(zpl_content) > 100 else zpl_content
+                    
+                    if not zpl_content.strip().startswith('^XA'):
+                        logger.warning(f"⚠️ ZPL pode estar incompleto - não começa com ^XA. Preview: {zpl_preview[:200]}")
+                    if not zpl_content.strip().endswith('^XZ'):
+                        logger.warning(f"⚠️ ZPL pode estar incompleto - não termina com ^XZ. Final: {zpl_ends[-100:]}")
+                    
+                    logger.info(f"📄 ZPL para conversão - Tamanho: {len(zpl_content_bytes)} bytes, String: {len(zpl_content)} chars")
+                    logger.info(f"📄 ZPL começa com: {zpl_content[:50]}")
+                    logger.info(f"📄 ZPL termina com: {zpl_content[-50:]}")
                     
                     # Converter ZPL para PDF
                     pdf_bytes = await convert_zpl_to_pdf(zpl_content, order_id)
+                    
+                    if not pdf_bytes:
+                        logger.error("❌ Falha na conversão ZPL→PDF - retornando None")
                     
                     if pdf_bytes:
                         label_filename = f"Etiqueta-{order_id}.pdf"
