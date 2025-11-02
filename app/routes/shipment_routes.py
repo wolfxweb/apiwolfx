@@ -9,6 +9,7 @@ from datetime import datetime
 import io
 import logging
 import httpx
+import zipfile
 
 from app.config.database import get_db
 from app.controllers.shipment_controller import ShipmentController
@@ -18,7 +19,127 @@ from app.views.template_renderer import render_template
 
 logger = logging.getLogger(__name__)
 
+# Tentar importar bibliotecas para conversão ZPL
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    from PIL import Image
+    HAS_REPORTLAB = True
+except ImportError:
+    HAS_REPORTLAB = False
+    logger.warning("ReportLab não instalado. Conversão ZPL para PDF pode não funcionar corretamente.")
+
 router = APIRouter(prefix="/shipments", tags=["Expedição"])
+
+async def convert_zpl_to_pdf(zpl_content: str, order_id: str) -> Optional[bytes]:
+    """
+    Converte conteúdo ZPL para PDF usando API externa ou renderização básica
+    """
+    try:
+        if not HAS_REPORTLAB:
+            logger.error("ReportLab não está disponível. Instale com: pip install reportlab")
+            return create_pdf_from_zpl_text(zpl_content, order_id)
+        
+        # Tentar usar API de conversão online ZPL to PDF
+        # API pública: https://api.labelary.com/v1/zpl
+        conversion_url = "https://api.labelary.com/v1/zpl"
+        
+        async with httpx.AsyncClient() as client:
+            # Primeiro, tentar converter ZPL para PNG usando Labelary API
+            # API Labelary espera ZPL no body como texto/plain
+            response = await client.post(
+                conversion_url,
+                content=zpl_content.encode('utf-8'),
+                headers={"Content-Type": "text/plain"},
+                params={"density": "8", "format": "png"},  # 8 = 203 DPI (comum para etiquetas)
+                timeout=30.0
+            )
+            
+            if response.status_code == 200:
+                # Converter PNG para PDF usando PIL
+                from io import BytesIO
+                img = Image.open(BytesIO(response.content))
+                
+                # Criar PDF com a imagem
+                pdf_buffer = BytesIO()
+                img_width, img_height = img.size
+                
+                # Converter pixels para pontos (72 DPI padrão PDF)
+                # Labelary retorna em 203 DPI, então ajustar escala
+                pdf_width = (img_width / 203) * 72  # Converter para pontos
+                pdf_height = (img_height / 203) * 72
+                
+                # Usar reportlab para criar PDF
+                from reportlab.lib.pagesizes import letter
+                from reportlab.lib.units import inch
+                
+                # Criar PDF com tamanho da etiqueta
+                c = canvas.Canvas(pdf_buffer, pagesize=(pdf_width, pdf_height))
+                
+                # Converter imagem para buffer
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
+                
+                # Adicionar imagem ao PDF
+                c.drawImage(img_buffer, 0, 0, width=pdf_width, height=pdf_height)
+                c.save()
+                
+                pdf_buffer.seek(0)
+                return pdf_buffer.getvalue()
+            else:
+                logger.warning(f"Erro na API Labelary: {response.status_code}. Usando fallback de renderização.")
+                # Fallback: criar PDF com o texto ZPL
+                return create_pdf_from_zpl_text(zpl_content, order_id)
+    
+    except Exception as e:
+        logger.error(f"Erro ao converter ZPL para PDF: {e}", exc_info=True)
+        # Fallback: criar PDF com o texto ZPL
+        return create_pdf_from_zpl_text(zpl_content, order_id)
+
+def create_pdf_from_zpl_text(zpl_content: str, order_id: str) -> Optional[bytes]:
+    """
+    Cria PDF básico com o conteúdo ZPL como texto (fallback)
+    """
+    try:
+        if not HAS_REPORTLAB:
+            logger.error("ReportLab não está disponível. Não é possível criar PDF.")
+            return None
+        
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.units import inch
+        from io import BytesIO
+        
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=letter)
+        
+        # Adicionar título
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(1*inch, 10*inch, f"Etiqueta de Envio - Pedido {order_id}")
+        
+        # Adicionar conteúdo ZPL
+        c.setFont("Courier", 8)
+        y_position = 9.5*inch
+        
+        # Quebrar ZPL em linhas e adicionar ao PDF
+        lines = zpl_content.split('\n')
+        for i, line in enumerate(lines[:80]):  # Limitar a 80 linhas
+            if y_position < 0.5*inch:
+                break
+            c.drawString(0.5*inch, y_position, line[:100])  # Limitar largura da linha
+            y_position -= 0.15*inch
+        
+        # Nota no rodapé
+        c.setFont("Helvetica", 8)
+        c.drawString(0.5*inch, 0.3*inch, "Nota: Este PDF contém o código ZPL original. Use o formato ZPL2 para impressora térmica.")
+        
+        c.save()
+        buffer.seek(0)
+        return buffer.getvalue()
+    
+    except Exception as e:
+        logger.error(f"Erro ao criar PDF do texto ZPL: {e}")
+        return None
 
 @router.get("/", response_class=HTMLResponse)
 async def shipments_page(
@@ -338,10 +459,11 @@ async def download_invoice(
 
 @router.get("/download-label/{order_id}")
 async def download_shipping_label(
-    order_id: str,
-    session_token: Optional[str] = Cookie(None),
-    db: Session = Depends(get_db)
-):
+        order_id: str,
+        format: str = Query("pdf", description="Formato da etiqueta: 'pdf' ou 'zpl2'"),
+        session_token: Optional[str] = Cookie(None),
+        db: Session = Depends(get_db)
+    ):
     """Download da etiqueta de envio do pedido (para ponto de coleta)"""
     try:
         if not session_token:
@@ -418,18 +540,151 @@ async def download_shipping_label(
         
         logger.info(f"📦 Verificando etiqueta para shipping_id {shipping_id}: status={shipment_status}, substatus={shipment_substatus}")
         
+        # Validar formato solicitado
+        format_lower = format.lower()
+        if format_lower not in ['pdf', 'zpl2', 'zpl2pdf']:
+            return JSONResponse(content={
+                "error": "Formato inválido. Use 'pdf', 'zpl2' ou 'zpl2pdf'"
+            }, status_code=400)
+        
         # Tentar baixar a etiqueta usando o endpoint correto
         label_url = f"https://api.mercadolibre.com/shipment_labels"
         
+        # Se for zpl2pdf, primeiro baixar ZPL e depois converter
+        if format_lower == 'zpl2pdf':
+            # Baixar ZPL primeiro
+            params_zpl = {
+                "shipment_ids": shipping_id,
+                "response_type": "zpl2"
+            }
+            headers_zpl = {
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "*/*"  # Aceitar qualquer formato da API
+            }
+            
+            async with httpx.AsyncClient() as zpl_client:
+                zpl_response = await zpl_client.get(label_url, headers=headers_zpl, params=params_zpl, timeout=30.0)
+                
+                if zpl_response.status_code == 200:
+                    # Garantir encoding correto do ZPL - manter como bytes primeiro
+                    raw_content = zpl_response.content
+                    
+                    if not raw_content or len(raw_content) == 0:
+                        logger.error("Conteúdo vazio recebido para conversão!")
+                        return JSONResponse(content={"error": "Conteúdo vazio recebido da API"}, status_code=500)
+                    
+                    # Verificar se é um arquivo ZIP (começa com PK)
+                    zpl_content_bytes = None
+                    if raw_content.startswith(b'PK'):
+                        logger.info("📦 Conteúdo para conversão é um arquivo ZIP - extraindo ZPL...")
+                        try:
+                            with zipfile.ZipFile(io.BytesIO(raw_content), 'r') as zip_file:
+                                # Listar arquivos no ZIP
+                                file_list = zip_file.namelist()
+                                logger.info(f"📦 Arquivos no ZIP: {file_list}")
+                                
+                                # Procurar arquivo ZPL (geralmente .txt ou .zpl)
+                                zpl_file = None
+                                for filename in file_list:
+                                    if filename.lower().endswith(('.txt', '.zpl')) or 'etiqueta' in filename.lower():
+                                        zpl_file = filename
+                                        break
+                                
+                                if zpl_file:
+                                    logger.info(f"📄 Extraindo arquivo ZPL: {zpl_file}")
+                                    zpl_content_bytes = zip_file.read(zpl_file)
+                                else:
+                                    # Se não encontrar por extensão, pegar o primeiro arquivo de texto
+                                    for filename in file_list:
+                                        if not filename.lower().endswith('.pdf'):
+                                            zpl_file = filename
+                                            zpl_content_bytes = zip_file.read(zpl_file)
+                                            logger.info(f"📄 Usando arquivo: {zpl_file}")
+                                            break
+                                
+                                if not zpl_content_bytes:
+                                    logger.error("Não foi possível encontrar arquivo ZPL no ZIP para conversão")
+                                    return JSONResponse(content={"error": "Arquivo ZPL não encontrado no ZIP recebido"}, status_code=500)
+                        except zipfile.BadZipFile:
+                            logger.warning("Conteúdo não é um ZIP válido, tratando como ZPL direto")
+                            zpl_content_bytes = raw_content
+                        except Exception as e:
+                            logger.error(f"Erro ao extrair ZIP para conversão: {e}", exc_info=True)
+                            return JSONResponse(content={"error": f"Erro ao extrair arquivo ZIP: {str(e)}"}, status_code=500)
+                    else:
+                        # Não é ZIP, tratar como ZPL direto
+                        zpl_content_bytes = raw_content
+                        logger.info("📄 Conteúdo para conversão é ZPL direto")
+                    
+                    # Remover BOM se existir
+                    if zpl_content_bytes.startswith(b'\xef\xbb\xbf'):
+                        zpl_content_bytes = zpl_content_bytes[3:]
+                    
+                    # Decodificar para string (para a função de conversão)
+                    # Tentar UTF-8 primeiro, depois latin-1 (mais comum em ZPL)
+                    try:
+                        zpl_content = zpl_content_bytes.decode('utf-8')
+                    except UnicodeDecodeError:
+                        try:
+                            zpl_content = zpl_content_bytes.decode('latin-1')
+                            logger.info("ZPL decodificado como latin-1")
+                        except:
+                            # Último recurso: usar errors='replace' para substituir caracteres inválidos
+                            zpl_content = zpl_content_bytes.decode('latin-1', errors='replace')
+                            logger.warning("ZPL decodificado com substituição de caracteres inválidos")
+                    
+                    logger.info(f"📄 ZPL para conversão - Tamanho original: {len(zpl_content_bytes)} bytes, String: {len(zpl_content)} chars")
+                    
+                    # Converter ZPL para PDF
+                    pdf_bytes = await convert_zpl_to_pdf(zpl_content, order_id)
+                    
+                    if pdf_bytes:
+                        label_filename = f"Etiqueta-{order_id}.pdf"
+                        return StreamingResponse(
+                            io.BytesIO(pdf_bytes),
+                            media_type="application/pdf",
+                            headers={
+                                "Content-Disposition": f'attachment; filename="{label_filename}"'
+                            }
+                        )
+                    else:
+                        return JSONResponse(content={
+                            "error": "Erro ao converter ZPL para PDF"
+                        }, status_code=500)
+                else:
+                    error_msg = "Erro ao baixar ZPL"
+                    try:
+                        error_data = zpl_response.json()
+                        error_msg = error_data.get("message", error_data.get("error", error_msg))
+                    except:
+                        error_msg = zpl_response.text[:200] if zpl_response.text else error_msg
+                    
+                    return JSONResponse(content={
+                        "error": error_msg,
+                        "status_code": zpl_response.status_code
+                    }, status_code=zpl_response.status_code)
+        
+        # Para PDF e ZPL2 direto
         params = {
             "shipment_ids": shipping_id,
-            "response_type": "pdf"
+            "response_type": format_lower if format_lower != 'zpl2pdf' else 'zpl2'
         }
         
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/pdf"
-        }
+        # Ajustar headers conforme formato
+        if format_lower == 'pdf':
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/pdf"
+            }
+            media_type = "application/pdf"
+            file_extension = "pdf"
+        else:  # zpl2
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "*/*"  # Aceitar qualquer formato da API
+            }
+            media_type = "application/zpl"
+            file_extension = "zpl"
         
         # Se não tiver status no banco, tentar buscar da API antes de baixar etiqueta
         if not shipment_status:
@@ -446,24 +701,118 @@ async def download_shipping_label(
             except Exception as e:
                 logger.warning(f"⚠️ Não foi possível verificar status do shipment na API: {e}")
         
+        # Fazer requisição à API do Mercado Livre
         async with httpx.AsyncClient() as client:
-            response = await client.get(label_url, headers=headers, params=params, timeout=30.0)
+            response = await client.get(
+                label_url, 
+                headers=headers, 
+                params=params, 
+                timeout=30.0,
+                follow_redirects=True
+            )
+            
+            # Para debug: logar resposta
+            logger.info(f"📦 Resposta da API ML - Status: {response.status_code}, Content-Type: {response.headers.get('content-type', 'N/A')}, Tamanho: {len(response.content)} bytes")
             
             if response.status_code == 200:
-                # Verificar se a resposta é realmente um PDF
+                # Verificar tipo de conteúdo baseado no formato
                 content_type = response.headers.get("content-type", "")
-                if "application/pdf" in content_type or "pdf" in content_type.lower():
+                is_valid_response = False
+                
+                if format_lower == 'pdf':
+                    is_valid_response = "application/pdf" in content_type or "pdf" in content_type.lower()
+                else:  # zpl2
+                    is_valid_response = "text/plain" in content_type or "zpl" in content_type.lower() or len(response.content) > 0
+                
+                if is_valid_response:
                     # Preparar nome do arquivo
-                    label_filename = f"Etiqueta-{order_id}.pdf"
+                    label_filename = f"Etiqueta-{order_id}.{file_extension}"
                     
-                    # Retornar arquivo como download
-                    return StreamingResponse(
-                        io.BytesIO(response.content),
-                        media_type="application/pdf",
-                        headers={
-                            "Content-Disposition": f'attachment; filename="{label_filename}"'
-                        }
-                    )
+                    # Para ZPL, garantir encoding correto
+                    if format_lower == 'zpl2':
+                        # Obter conteúdo como bytes (httpx já retorna como bytes em response.content)
+                        raw_content = response.content
+                        
+                        # Verificar se está vazio
+                        if not raw_content or len(raw_content) == 0:
+                            logger.error("Conteúdo recebido está vazio!")
+                            return JSONResponse(content={"error": "Conteúdo vazio recebido da API"}, status_code=500)
+                        
+                        # Verificar se é um arquivo ZIP (começa com PK)
+                        zpl_content = None
+                        if raw_content.startswith(b'PK'):
+                            logger.info("📦 Conteúdo recebido é um arquivo ZIP - extraindo ZPL...")
+                            try:
+                                with zipfile.ZipFile(io.BytesIO(raw_content), 'r') as zip_file:
+                                    # Listar arquivos no ZIP
+                                    file_list = zip_file.namelist()
+                                    logger.info(f"📦 Arquivos no ZIP: {file_list}")
+                                    
+                                    # Procurar arquivo ZPL (geralmente .txt ou .zpl)
+                                    zpl_file = None
+                                    for filename in file_list:
+                                        if filename.lower().endswith(('.txt', '.zpl')) or 'etiqueta' in filename.lower():
+                                            zpl_file = filename
+                                            break
+                                    
+                                    if zpl_file:
+                                        logger.info(f"📄 Extraindo arquivo ZPL: {zpl_file}")
+                                        zpl_content = zip_file.read(zpl_file)
+                                    else:
+                                        # Se não encontrar por extensão, pegar o primeiro arquivo de texto
+                                        for filename in file_list:
+                                            if not filename.lower().endswith('.pdf'):
+                                                zpl_file = filename
+                                                zpl_content = zip_file.read(zpl_file)
+                                                logger.info(f"📄 Usando arquivo: {zpl_file}")
+                                                break
+                                    
+                                    if not zpl_content:
+                                        logger.error("Não foi possível encontrar arquivo ZPL no ZIP")
+                                        return JSONResponse(content={"error": "Arquivo ZPL não encontrado no ZIP recebido"}, status_code=500)
+                            except zipfile.BadZipFile:
+                                logger.warning("Conteúdo não é um ZIP válido, tratando como ZPL direto")
+                                zpl_content = raw_content
+                            except Exception as e:
+                                logger.error(f"Erro ao extrair ZIP: {e}", exc_info=True)
+                                return JSONResponse(content={"error": f"Erro ao extrair arquivo ZIP: {str(e)}"}, status_code=500)
+                        else:
+                            # Não é ZIP, tratar como ZPL direto
+                            zpl_content = raw_content
+                            logger.info("📄 Conteúdo recebido é ZPL direto")
+                        
+                        # Verificar se há BOM (Byte Order Mark) UTF-8 e remover se existir
+                        if zpl_content.startswith(b'\xef\xbb\xbf'):
+                            zpl_content = zpl_content[3:]
+                            logger.info("Removido BOM UTF-8 do ZPL")
+                        
+                        # Log para debug (primeiros 100 bytes em hex e texto)
+                        try:
+                            preview = zpl_content[:200].decode('latin-1', errors='replace')
+                            logger.info(f"📄 ZPL final - Tamanho: {len(zpl_content)} bytes")
+                            logger.info(f"📄 Preview (primeiros 200 chars): {preview[:200]}")
+                        except Exception as e:
+                            logger.warning(f"Erro ao fazer preview do ZPL: {e}")
+                        
+                        # Retornar arquivo como download - conteúdo exato do ZPL
+                        return StreamingResponse(
+                            io.BytesIO(zpl_content),
+                            media_type="application/zpl",
+                            headers={
+                                "Content-Disposition": f'attachment; filename="{label_filename}"',
+                                "Content-Type": "application/zpl",
+                                "Content-Length": str(len(zpl_content))
+                            }
+                        )
+                    else:
+                        # Para PDF, retornar normalmente
+                        return StreamingResponse(
+                            io.BytesIO(response.content),
+                            media_type=media_type,
+                            headers={
+                                "Content-Disposition": f'attachment; filename="{label_filename}"'
+                            }
+                        )
                 else:
                     # Resposta pode ser JSON com erro
                     try:
@@ -472,8 +821,16 @@ async def download_shipping_label(
                         error_msg = error_data.get("message", "Etiqueta não disponível")
                         return JSONResponse(content={"error": error_msg}, status_code=404)
                     except:
-                        logger.error(f"Resposta inesperada: {response.text[:200]}")
-                        return JSONResponse(content={"error": "Resposta inesperada da API do Mercado Livre"}, status_code=500)
+                        # Se não for JSON, pode ser que seja o conteúdo esperado mesmo sem content-type correto
+                        # Tentar retornar como está
+                        label_filename = f"Etiqueta-{order_id}.{file_extension}"
+                        return StreamingResponse(
+                            io.BytesIO(response.content),
+                            media_type=media_type,
+                            headers={
+                                "Content-Disposition": f'attachment; filename="{label_filename}"'
+                            }
+                        )
             elif response.status_code == 404:
                 logger.warning(f"Etiqueta não encontrada para shipping_id {shipping_id}")
                 return JSONResponse(content={"error": "Etiqueta de envio não disponível no Mercado Livre"}, status_code=404)

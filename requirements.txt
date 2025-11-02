@@ -24,3 +24,5 @@ APScheduler==3.10.4
 openpyxl==3.1.2
 # Processamento de imagens
 Pillow==10.1.0
+# Geração de PDF (para conversão de ZPL)
+reportlab==4.0.7

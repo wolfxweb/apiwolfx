@@ -1323,9 +1323,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
-                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
-                                        <i class="bi bi-printer"></i>
-                                    </a>` : 
+                                    `<div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir Etiqueta de Envio">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
+                                                <i class="bi bi-printer-fill"></i> ZPL2 (Impressora Térmica)
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
+                                                <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF (Converter)
+                                            </a></li>
+                                        </ul>
+                                    </div>` : 
                                     `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
                                         <i class="bi bi-printer"></i>
                                     </button>`
@@ -1577,9 +1591,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
-                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
-                                        <i class="bi bi-printer"></i>
-                                    </a>` : 
+                                    `<div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir Etiqueta de Envio">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
+                                                <i class="bi bi-printer-fill"></i> ZPL2 (Impressora Térmica)
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
+                                                <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF (Converter)
+                                            </a></li>
+                                        </ul>
+                                    </div>` : 
                                     `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
                                         <i class="bi bi-printer"></i>
                                     </button>`
@@ -1766,9 +1794,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
-                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
-                                        <i class="bi bi-printer"></i>
-                                    </a>` : 
+                                    `<div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir Etiqueta de Envio">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
+                                                <i class="bi bi-printer-fill"></i> ZPL2 (Impressora Térmica)
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
+                                                <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF (Converter)
+                                            </a></li>
+                                        </ul>
+                                    </div>` : 
                                     `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
                                         <i class="bi bi-printer"></i>
                                     </button>`
@@ -2103,9 +2145,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
-                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
-                                        <i class="bi bi-printer"></i>
-                                    </a>` : 
+                                    `<div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir Etiqueta de Envio">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
+                                                <i class="bi bi-printer-fill"></i> ZPL2 (Impressora Térmica)
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
+                                                <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF (Converter)
+                                            </a></li>
+                                        </ul>
+                                    </div>` : 
                                     `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
                                         <i class="bi bi-printer"></i>
                                     </button>`
@@ -2262,9 +2318,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
-                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
-                                        <i class="bi bi-printer"></i>
-                                    </a>` : 
+                                    `<div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir Etiqueta de Envio">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
+                                                <i class="bi bi-printer-fill"></i> ZPL2 (Impressora Térmica)
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
+                                                <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF (Converter)
+                                            </a></li>
+                                        </ul>
+                                    </div>` : 
                                     `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
                                         <i class="bi bi-printer"></i>
                                     </button>`
@@ -2374,9 +2444,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
-                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
-                                        <i class="bi bi-printer"></i>
-                                    </a>` : 
+                                    `<div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir Etiqueta de Envio">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
+                                                <i class="bi bi-printer-fill"></i> ZPL2 (Impressora Térmica)
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
+                                                <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF (Converter)
+                                            </a></li>
+                                        </ul>
+                                    </div>` : 
                                     `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
                                         <i class="bi bi-printer"></i>
                                     </button>`
@@ -2611,9 +2695,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
-                                    `<a href="/api/shipments/download-label/${orderId}" class="btn btn-sm btn-outline-warning" title="Imprimir Etiqueta de Envio" target="_blank">
-                                        <i class="bi bi-printer"></i>
-                                    </a>` : 
+                                    `<div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir Etiqueta de Envio">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
+                                                <i class="bi bi-printer-fill"></i> ZPL2 (Impressora Térmica)
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
+                                                <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF (Converter)
+                                            </a></li>
+                                        </ul>
+                                    </div>` : 
                                     `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
                                         <i class="bi bi-printer"></i>
                                     </button>`
