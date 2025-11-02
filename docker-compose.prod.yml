@@ -9,8 +9,9 @@ services:
       sh -c "
         apt-get update && 
         apt-get install -y git gcc default-libmysqlclient-dev pkg-config &&
-        git clone https://${GITHUB_TOKEN}@github.com/wolfxweb/apiwolfx.git /tmp/ &&
-        cp -r /tmp/app/* /app/ &&
+        git clone https://${GITHUB_TOKEN}@github.com/wolfxweb/apiwolfx.git /tmp/cel &&
+        cp -r /tmp/cel/* /app/ &&
+        cd /app &&
         pip install --no-cache-dir -r requirements.txt &&
         python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
@@ -31,6 +32,9 @@ services:
       - MP_PUBLIC_KEY=APP_USR-a77d3ee7-7c94-443e-b910-d4e0c3e41e63
       - MP_WEBHOOK_SECRET=7c315606ea2ebac4cb8410755f6bd42af5f8d7d5af0e5bcdcb1d4b5440068bb2
       - MP_WEBHOOK_URL=https://celx.com.br/payment/webhooks/mercadopago
+      - MP_SUCCESS_URL=https://celx.com.br/payment/success
+      - MP_FAILURE_URL=https://celx.com.br/payment/failure
+      - MP_PENDING_URL=https://celx.com.br/payment/pending
       
       # Application
       - API_HOST=0.0.0.0
