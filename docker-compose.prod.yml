@@ -22,25 +22,28 @@ services:
       # Mercado Livre API
       - ML_APP_ID=6987936494418444
       - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
-      - ML_REDIRECT_URI=https://wolfx.com.br/api/callback
-      - ML_NOTIFICATION_URL=https://wolfx.com.br/api/notifications
+      - ML_REDIRECT_URI=https://celx.com.br/api/callback
+      - ML_NOTIFICATION_URL=https://celx.com.br/api/notifications
       
       # Mercado Pago API
       - MP_ACCESS_TOKEN=APP_USR-6987936494418444-101415-df063090488cd09fd99bb0e75ba91dc5-534913383560219
       - MP_PUBLIC_KEY=APP_USR-a77d3ee7-7c94-443e-b910-d4e0c3e41e63
       - MP_WEBHOOK_SECRET=7c315606ea2ebac4cb8410755f6bd42af5f8d7d5af0e5bcdcb1d4b5440068bb2
-      - MP_WEBHOOK_URL=https://wolfx.com.br/payment/webhooks/mercadopago
+      - MP_WEBHOOK_URL=https://celx.com.br/payment/webhooks/mercadopago
+      - MP_SUCCESS_URL=https://celx.com.br/payment/success
+      - MP_FAILURE_URL=https://celx.com.br/payment/failure
+      - MP_PENDING_URL=https://celx.com.br/payment/pending
       
       # Application
       - API_HOST=0.0.0.0
       - API_PORT=8000
       - DEBUG=False
       - ENVIRONMENT=production
-      - DOMAIN=wolfx.com.br
+      - DOMAIN=celx.com.br
       
       # Security
       - SECRET_KEY=x9k2mP8vL3nR7qT5wY1jH6fD4sA0bN9cE8gU2iO7lK3mQ6rT1wZ5yX8h
-      - ALLOWED_HOSTS=wolfx.com.br,www.wolfx.com.br
+      - ALLOWED_HOSTS=celx.com.br,www.celx.com.br
       
       # OpenAI API
       - OPENAI_API_KEY=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
@@ -55,13 +58,13 @@ services:
       labels:
         # Traefik labels para proxy reverso e SSL
         - "traefik.enable=true"
-        - "traefik.http.routers.apiwolfx.rule=Host(`wolfx.com.br`)"
+        - "traefik.http.routers.apiwolfx.rule=Host(`celx.com.br`)"
         - "traefik.http.routers.apiwolfx.entrypoints=websecure"
         - "traefik.http.routers.apiwolfx.tls=true"
         - "traefik.http.routers.apiwolfx.tls.certresolver=letsencryptresolver"
         - "traefik.http.services.apiwolfx.loadbalancer.server.port=8000"
         # Redirect HTTP to HTTPS
-        - "traefik.http.routers.apiwolfx-http.rule=Host(`wolfx.com.br`)"
+        - "traefik.http.routers.apiwolfx-http.rule=Host(`celx.com.br`)"
         - "traefik.http.routers.apiwolfx-http.entrypoints=web"
         - "traefik.http.routers.apiwolfx-http.middlewares=redirect-to-https"
         - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"

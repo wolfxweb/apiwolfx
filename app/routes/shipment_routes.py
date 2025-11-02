@@ -476,6 +476,53 @@ async def bulk_update_orders(
             "error": f"Erro interno: {str(e)}"
         }, status_code=500)
 
+@router.post("/sync-single-order/{order_id}")
+async def sync_single_order(
+    order_id: str,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Atualiza todos os dados de um pedido específico do Mercado Livre"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        user_id = user_data["id"]
+        
+        # Buscar token de acesso usando TokenManager
+        token_manager = TokenManager(db)
+        access_token = token_manager.get_valid_token(user_id)
+        
+        if not access_token:
+            return JSONResponse(content={"error": "Token de acesso inválido ou expirado"}, status_code=401)
+        
+        controller = ShipmentController(db)
+        result = controller.sync_single_order_invoice(order_id, company_id, access_token)
+        
+        if result.get("success"):
+            return JSONResponse(content={
+                "success": True,
+                "message": result.get("message", "Pedido atualizado com sucesso"),
+                "data": result
+            })
+        else:
+            return JSONResponse(content={
+                "success": False,
+                "error": result.get("error", "Erro ao atualizar pedido")
+            }, status_code=400)
+        
+    except Exception as e:
+        logger.error(f"Erro ao atualizar pedido {order_id}: {e}", exc_info=True)
+        return JSONResponse(content={
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
 @router.get("/download-invoice/{order_id}")
 async def download_invoice(
     order_id: str,
