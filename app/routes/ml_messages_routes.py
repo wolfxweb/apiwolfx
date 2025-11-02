@@ -198,9 +198,19 @@ async def sync_messages_api(
     user_id = user_data["id"]
     
     ml_account_id = body.get("ml_account_id")
+    date_from = body.get("date_from")  # Formato: YYYY-MM-DD ou YYYY-MM-DDTHH:mm:ss
+    date_to = body.get("date_to")      # Formato: YYYY-MM-DD ou YYYY-MM-DDTHH:mm:ss
+    fetch_all = body.get("fetch_all", True)  # Por padrão busca todas as páginas
     
     controller = MLMessagesController(db)
-    result = controller.sync_messages(company_id, user_id, ml_account_id)
+    result = controller.sync_messages(
+        company_id, 
+        user_id, 
+        ml_account_id,
+        date_from=date_from,
+        date_to=date_to,
+        fetch_all=fetch_all
+    )
     
     return JSONResponse(content=result)
 

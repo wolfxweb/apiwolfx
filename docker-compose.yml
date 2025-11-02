@@ -7,6 +7,8 @@ services:
     container_name: apiwolfx-api
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "pgadmin.wolfx.com.br:108.181.221.183"
     environment:
       - DATABASE_URL=postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial
       - ENVIRONMENT=local

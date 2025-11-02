@@ -111,7 +111,32 @@ class MLMessagesController:
                     "error": "Token de acesso não encontrado ou expirado"
                 }
             
-            result = self.service.create_message_thread(package_id, reason, message_text, access_token)
+            # Buscar account ML baseado no package/thread criado
+            ml_accounts = self.db.query(MLAccount).filter(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
+            ).all()
+            
+            if not ml_accounts:
+                return {
+                    "success": False,
+                    "error": "Nenhuma conta ML ativa encontrada"
+                }
+            
+            ml_account = ml_accounts[0]  # Usar primeira conta ativa
+            seller_id = str(ml_account.ml_user_id)
+            # buyer_id precisa ser fornecido pelo frontend ou extraído do package_id/order_id
+            # Por enquanto, vamos tentar sem buyer_id primeiro e deixar o serviço buscar
+            buyer_id = None  # Será necessário obter do frontend ou da API
+            
+            result = self.service.create_message_thread(
+                package_id, 
+                reason, 
+                message_text, 
+                access_token,
+                seller_id=seller_id,
+                buyer_id=buyer_id
+            )
             
             if "error" in result:
                 return {
@@ -119,19 +144,11 @@ class MLMessagesController:
                     "error": result["error"]
                 }
             
-            # Buscar account ML baseado no package/thread criado
-            ml_accounts = self.db.query(MLAccount).filter(
-                MLAccount.company_id == company_id,
-                MLAccount.status == MLAccountStatus.ACTIVE
-            ).all()
-            
-            if ml_accounts:
-                # Tentar salvar no banco se possível
-                try:
-                    ml_account = ml_accounts[0]  # Usar primeira conta ativa
-                    self.service.save_thread_to_db(result, company_id, ml_account.id, str(ml_account.ml_user_id))
-                except Exception as e:
-                    logger.warning(f"Erro ao salvar thread no banco: {e}")
+            # Tentar salvar no banco se possível
+            try:
+                self.service.save_thread_to_db(result, company_id, ml_account.id, seller_id)
+            except Exception as e:
+                logger.warning(f"Erro ao salvar thread no banco: {e}")
             
             return {
                 "success": True,
@@ -167,7 +184,27 @@ class MLMessagesController:
                     "error": "Token de acesso não encontrado ou expirado"
                 }
             
-            result = self.service.send_message(thread.ml_package_id, message_text, access_token)
+            # Obter seller_id e buyer_id da thread
+            ml_account = self.db.query(MLAccount).filter(
+                MLAccount.id == thread.ml_account_id
+            ).first()
+            
+            if not ml_account:
+                return {
+                    "success": False,
+                    "error": "Conta ML não encontrada"
+                }
+            
+            seller_id = str(ml_account.ml_user_id)
+            buyer_id = str(thread.ml_buyer_id) if thread.ml_buyer_id else None
+            
+            result = self.service.send_message(
+                thread.ml_package_id, 
+                message_text, 
+                access_token,
+                seller_id=seller_id,
+                buyer_id=buyer_id
+            )
             
             if "error" in result:
                 return {
@@ -177,17 +214,12 @@ class MLMessagesController:
             
             # Atualizar thread e mensagens no banco
             try:
-                ml_account = self.db.query(MLAccount).filter(
-                    MLAccount.id == thread.ml_account_id
-                ).first()
-                
-                if ml_account:
-                    # Buscar detalhes atualizados
-                    thread_details = self.service.get_thread_messages(thread.ml_package_id, access_token)
-                    if thread_details:
-                        thread_data = {"id": thread.ml_package_id, "package_id": thread.ml_package_id}
-                        thread_data.update(thread_details)
-                        self.service.save_thread_to_db(thread_data, company_id, thread.ml_account_id, str(ml_account.ml_user_id))
+                # Buscar detalhes atualizados
+                thread_details = self.service.get_thread_messages(thread.ml_package_id, access_token, seller_id=seller_id)
+                if thread_details:
+                    thread_data = {"id": thread.ml_package_id, "package_id": thread.ml_package_id}
+                    thread_data.update(thread_details)
+                    self.service.save_thread_to_db(thread_data, company_id, thread.ml_account_id, str(ml_account.ml_user_id))
             except Exception as e:
                 logger.warning(f"Erro ao atualizar thread no banco: {e}")
             
@@ -202,10 +234,29 @@ class MLMessagesController:
                 "error": str(e)
             }
     
-    def sync_messages(self, company_id: int, user_id: int, ml_account_id: int = None) -> Dict:
-        """Sincroniza mensagens pós-venda"""
+    def sync_messages(self, company_id: int, user_id: int, ml_account_id: int = None,
+                     date_from: Optional[str] = None, date_to: Optional[str] = None,
+                     fetch_all: bool = True) -> Dict:
+        """
+        Sincroniza mensagens pós-venda
+        
+        Args:
+            company_id: ID da empresa
+            user_id: ID do usuário
+            ml_account_id: ID específico da conta ML (opcional)
+            date_from: Data inicial para filtrar mensagens (formato ISO: YYYY-MM-DD)
+            date_to: Data final para filtrar mensagens (formato ISO: YYYY-MM-DD)
+            fetch_all: Se True, busca todas as páginas disponíveis (padrão: True)
+        """
         try:
-            result = self.service.sync_messages(company_id, user_id, ml_account_id)
+            result = self.service.sync_messages(
+                company_id, 
+                user_id, 
+                ml_account_id,
+                date_from=date_from,
+                date_to=date_to,
+                fetch_all=fetch_all
+            )
             
             global_logger.log_event(
                 event_type="messages_synced",
@@ -213,8 +264,12 @@ class MLMessagesController:
                     "company_id": company_id,
                     "ml_account_id": ml_account_id,
                     "synced_count": result.get("synced", 0),
+                    "processed_count": result.get("processed", 0),
+                    "date_from": date_from,
+                    "date_to": date_to,
+                    "fetch_all": fetch_all,
                     "errors": result.get("errors"),
-                    "description": f"Sincronização de mensagens concluída: {result.get('synced', 0)} conversas"
+                    "description": f"Sincronização de mensagens concluída: {result.get('synced', 0)}/{result.get('processed', 0)} conversas"
                 },
                 company_id=company_id,
                 success=result.get("success", False),
@@ -368,7 +423,8 @@ class MLMessagesController:
             
             # Buscar detalhes do pacote/thread
             logger.info(f"🌐 Buscando detalhes do pacote/thread {resource} na API do Mercado Livre...")
-            thread_details = self.service.get_thread_messages(resource, access_token)
+            seller_id = str(ml_account.ml_user_id)
+            thread_details = self.service.get_thread_messages(resource, access_token, seller_id=seller_id)
             
             if thread_details:
                 logger.info(f"✅ Detalhes do thread recebidos da API!")
