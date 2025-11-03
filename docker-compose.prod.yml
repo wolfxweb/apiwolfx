@@ -68,6 +68,7 @@ services:
         - "traefik.http.routers.celx-api.entrypoints=websecure"
         - "traefik.http.routers.celx-api.tls=true"
         - "traefik.http.routers.celx-api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.celx-api.service=celx-api"
         - "traefik.http.services.celx-api.loadbalancer.server.port=8000"
         - "traefik.http.services.celx-api.loadbalancer.passHostHeader=true"
         # Redirect HTTP to HTTPS
