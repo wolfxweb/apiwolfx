@@ -8,6 +8,30 @@ Este documento contém os comandos para atualizar a aplicação em produção.
 - Permissões de root ou sudo no servidor
 - Docker Swarm configurado
 - Rede `server` criada no Docker Swarm
+- Chave SSH configurada para acesso ao GitHub
+
+## Configuração Inicial: Secret SSH do GitHub
+
+**IMPORTANTE:** Execute este passo apenas uma vez, antes do primeiro deploy:
+
+```bash
+# No servidor, criar o secret do Docker Swarm com a chave SSH
+# (Substitua /root/.ssh/id_rsa pelo caminho da sua chave SSH)
+cat /root/.ssh/id_rsa | docker secret create github_ssh_key -
+
+# Verificar se o secret foi criado
+docker secret ls | grep github_ssh_key
+```
+
+**Nota:** Se você não tiver uma chave SSH configurada no servidor, crie uma:
+
+```bash
+# Gerar nova chave SSH (se não existir)
+ssh-keygen -t ed25519 -C "deploy@celx.com.br" -f /root/.ssh/id_rsa -N ""
+
+# Adicionar a chave pública ao GitHub (copie o conteúdo e adicione em GitHub Settings > SSH Keys)
+cat /root/.ssh/id_rsa.pub
+```
 
 ## Comandos para Atualizar Produção
 
