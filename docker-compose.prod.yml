@@ -8,25 +8,16 @@ services:
     command: >
       sh -c "
         apt-get update && 
-        apt-get install -y git gcc default-libmysqlclient-dev pkg-config curl unzip openssh-client &&
+        apt-get install -y git gcc default-libmysqlclient-dev pkg-config curl unzip &&
         rm -rf /tmp/cel /app/* &&
-        mkdir -p /root/.ssh &&
-        cp /host-ssh/id_ed25519 /root/.ssh/ 2>/dev/null || true &&
-        cp /host-ssh/id_ed25519.pub /root/.ssh/ 2>/dev/null || true &&
-        cp /host-ssh/known_hosts /root/.ssh/ 2>/dev/null || echo \"github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\" > /root/.ssh/known_hosts &&
-        chmod 600 /root/.ssh/id_ed25519 2>/dev/null || true &&
-        chmod 644 /root/.ssh/id_ed25519.pub 2>/dev/null || true &&
         export GIT_TERMINAL_PROMPT=0 &&
-        git config --global url.\"git@github.com:\".insteadOf \"https://github.com/\" &&
-        git clone git@github.com:wolfxweb/apiwolfx.git /tmp/cel &&
+        git clone https://github.com/wolfxweb/apiwolfx.git /tmp/cel &&
         cp -r /tmp/cel/* /app/ &&
         rm -rf /tmp/cel &&
         cd /app &&
         pip install --no-cache-dir -r requirements.txt &&
         python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
-    volumes:
-      - /root/.ssh:/host-ssh:ro
     environment:
       # Database
       - DATABASE_URL=postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/celx_prod
