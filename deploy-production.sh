@@ -15,35 +15,48 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Verificar se está no servidor
-if [ ! -f "/root/docker-compose.prod.yml" ] && [ "$EUID" -ne 0 ]; then 
-   echo -e "${RED}❌ Este script deve ser executado como root no servidor${NC}"
+# Verificar se está executando como root
+if [ "$EUID" -ne 0 ]; then 
+   echo -e "${RED}❌ Este script deve ser executado como root${NC}"
    exit 1
 fi
 
-# Verificar se o docker-compose.prod.yml existe localmente
-if [ ! -f "docker-compose.prod.yml" ]; then
-    echo -e "${RED}❌ Arquivo docker-compose.prod.yml não encontrado no diretório atual${NC}"
-    echo "Execute este script a partir do diretório do projeto"
+# Verificar se o docker-compose.prod.yml existe localmente ou baixar do repositório
+if [ -f "docker-compose.prod.yml" ]; then
+    echo "📁 Arquivo docker-compose.prod.yml encontrado localmente, copiando..."
+    cp docker-compose.prod.yml /root/docker-compose.prod.yml
+elif [ -f "/root/docker-compose.prod.yml" ]; then
+    echo "📁 Usando arquivo existente em /root/docker-compose.prod.yml"
+else
+    echo "📥 Baixando docker-compose.prod.yml do repositório..."
+    
+    # Tentar baixar usando git clone (com token se disponível)
+    if [ -n "$GITHUB_TOKEN" ]; then
+        echo "🔑 Usando token do GitHub..."
+        rm -rf /tmp/apiwolfx-clone
+        git clone https://${GITHUB_TOKEN}@github.com/wolfxweb/apiwolfx.git /tmp/apiwolfx-clone
+        cp /tmp/apiwolfx-clone/docker-compose.prod.yml /root/docker-compose.prod.yml
+        rm -rf /tmp/apiwolfx-clone
+    else
+        echo "⚠️  GITHUB_TOKEN não definido, tentando repositório público..."
+        curl -s https://raw.githubusercontent.com/wolfxweb/apiwolfx/main/docker-compose.prod.yml \
+            -o /root/docker-compose.prod.yml
+        
+        if [ $? -ne 0 ] || [ ! -s /root/docker-compose.prod.yml ]; then
+            echo -e "${RED}❌ Erro ao baixar arquivo. Verifique se o repositório é público ou configure GITHUB_TOKEN${NC}"
+            exit 1
+        fi
+    fi
+fi
+
+# Verificar se o arquivo existe e não está vazio
+if [ ! -f "/root/docker-compose.prod.yml" ] || [ ! -s "/root/docker-compose.prod.yml" ]; then
+    echo -e "${RED}❌ Arquivo docker-compose.prod.yml não encontrado ou vazio${NC}"
     exit 1
 fi
 
-echo "📁 Copiando arquivo docker-compose.prod.yml para /root/..."
-cp docker-compose.prod.yml /root/docker-compose.prod.yml
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Erro ao copiar arquivo${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ Arquivo copiado com sucesso${NC}"
+echo -e "${GREEN}✅ Arquivo docker-compose.prod.yml pronto${NC}"
 echo ""
-
-# Verificar se o arquivo foi copiado corretamente
-if [ ! -f "/root/docker-compose.prod.yml" ]; then
-    echo -e "${RED}❌ Arquivo não encontrado em /root/${NC}"
-    exit 1
-fi
 
 echo "🔍 Verificando arquivo..."
 head -5 /root/docker-compose.prod.yml
