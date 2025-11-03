@@ -60,10 +60,9 @@ services:
         delay: 5s
         max_attempts: 3
       labels:
-        # Traefik labels para proxy reverso e SSL
+        # Traefik labels para proxy reverso e SSL (Swarm mode)
         - "traefik.enable=true"
         - "traefik.docker.network=server"
-        - "traefik.docker.swarmmode=true"
         - "traefik.http.routers.celx-api.rule=Host(`celx.com.br`) || Host(`www.celx.com.br`)"
         - "traefik.http.routers.celx-api.entrypoints=websecure"
         - "traefik.http.routers.celx-api.tls=true"
