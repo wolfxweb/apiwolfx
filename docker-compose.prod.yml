@@ -8,11 +8,12 @@ services:
     command: >
       sh -c "
         apt-get update && 
-        apt-get install -y git gcc default-libmysqlclient-dev pkg-config &&
-        rm -rf /tmp/cel &&
-        git clone https://${GITHUB_TOKEN}@github.com/wolfxweb/apiwolfx.git /tmp/cel &&
+        apt-get install -y git gcc default-libmysqlclient-dev pkg-config curl unzip &&
+        rm -rf /tmp/cel /tmp/apiwolfx.zip &&
+        curl -L -H 'Authorization: token $${GITHUB_TOKEN}' -H 'Accept: application/vnd.github.v3.raw' https://api.github.com/repos/wolfxweb/apiwolfx/zipball/main -o /tmp/apiwolfx.zip &&
+        unzip -q /tmp/apiwolfx.zip -d /tmp &&
+        mv /tmp/wolfxweb-apiwolfx-* /tmp/cel &&
         cp -r /tmp/cel/* /app/ &&
-        cp -r /tmp/cel/.git /app/ 2>/dev/null || true &&
         cd /app &&
         pip install --no-cache-dir -r requirements.txt &&
         python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
