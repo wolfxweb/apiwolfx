@@ -59,21 +59,18 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 3
-      ports:
-        - target: 8000
-          published: 8000
-          protocol: tcp
-          mode: host
       labels:
         # Traefik labels para proxy reverso e SSL
         - "traefik.enable=true"
-        - "traefik.http.routers.apiwolfx.rule=Host(`celx.com.br`)"
+        - "traefik.docker.network=server"
+        - "traefik.http.routers.apiwolfx.rule=Host(`celx.com.br`) || Host(`www.celx.com.br`)"
         - "traefik.http.routers.apiwolfx.entrypoints=websecure"
         - "traefik.http.routers.apiwolfx.tls=true"
         - "traefik.http.routers.apiwolfx.tls.certresolver=letsencryptresolver"
         - "traefik.http.services.apiwolfx.loadbalancer.server.port=8000"
+        - "traefik.http.services.apiwolfx.loadbalancer.passHostHeader=true"
         # Redirect HTTP to HTTPS
-        - "traefik.http.routers.apiwolfx-http.rule=Host(`celx.com.br`)"
+        - "traefik.http.routers.apiwolfx-http.rule=Host(`celx.com.br`) || Host(`www.celx.com.br`)"
         - "traefik.http.routers.apiwolfx-http.entrypoints=web"
         - "traefik.http.routers.apiwolfx-http.middlewares=redirect-to-https"
         - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
