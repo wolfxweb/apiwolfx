@@ -10,7 +10,7 @@ services:
         apt-get update && 
         apt-get install -y git gcc default-libmysqlclient-dev pkg-config curl unzip &&
         rm -rf /tmp/cel /tmp/apiwolfx.zip &&
-        curl -L -H 'Authorization: token $${GITHUB_TOKEN}' -H 'Accept: application/vnd.github.v3.raw' https://api.github.com/repos/wolfxweb/apiwolfx/zipball/main -o /tmp/apiwolfx.zip &&
+        curl -L -H 'Authorization: token $${GITHUB_TOKEN}' https://api.github.com/repos/wolfxweb/apiwolfx/zipball/main -o /tmp/apiwolfx.zip &&
         unzip -q /tmp/apiwolfx.zip -d /tmp &&
         mv /tmp/wolfxweb-apiwolfx-* /tmp/cel &&
         cp -r /tmp/cel/* /app/ &&
