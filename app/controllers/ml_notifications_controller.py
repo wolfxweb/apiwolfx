@@ -392,25 +392,141 @@ class MLNotificationsController:
             return None
 
     def _get_user_token(self, ml_user_id: int, db: Session) -> str:
-        """Busca o token de acesso do usuário ML"""
+        """Busca o token de acesso do usuário ML, renovando automaticamente se expirado"""
         try:
             from sqlalchemy import text
             
+            # Primeiro, tentar buscar token válido (não expirado)
             query = text("""
-                SELECT t.access_token
+                SELECT t.access_token, t.refresh_token, t.expires_at, t.ml_account_id, t.user_id
                 FROM tokens t
                 JOIN ml_accounts ma ON ma.id = t.ml_account_id
                 WHERE ma.ml_user_id = CAST(:ml_user_id AS VARCHAR)
                 AND t.is_active = true
+                AND t.expires_at > NOW()
                 ORDER BY t.expires_at DESC
                 LIMIT 1
             """)
             
             result = db.execute(query, {"ml_user_id": str(ml_user_id)}).fetchone()
-            return result[0] if result else None
+            
+            if result and result[0]:
+                logger.info(f"✅ Token válido encontrado para ml_user_id: {ml_user_id}")
+                return result[0]
+            
+            # Se não encontrou token válido, tentar renovar com refresh token
+            logger.info(f"🔄 Token expirado para ml_user_id: {ml_user_id}, tentando renovar...")
+            
+            # Buscar refresh token
+            refresh_query = text("""
+                SELECT t.refresh_token, t.ml_account_id, t.user_id
+                FROM tokens t
+                JOIN ml_accounts ma ON ma.id = t.ml_account_id
+                WHERE ma.ml_user_id = CAST(:ml_user_id AS VARCHAR)
+                AND t.is_active = true
+                AND t.refresh_token IS NOT NULL
+                ORDER BY t.expires_at DESC
+                LIMIT 1
+            """)
+            
+            refresh_result = db.execute(refresh_query, {"ml_user_id": str(ml_user_id)}).fetchone()
+            
+            if refresh_result and refresh_result[0]:
+                # Tentar renovar o token
+                new_token = self._refresh_token_for_ml_user(
+                    refresh_result[0], 
+                    refresh_result[1],  # ml_account_id
+                    refresh_result[2] if len(refresh_result) > 2 else None,  # user_id
+                    db
+                )
+                if new_token:
+                    logger.info(f"✅ Token renovado com sucesso para ml_user_id: {ml_user_id}")
+                    return new_token
+            
+            logger.warning(f"⚠️ Nenhum token ativo encontrado para ml_user_id: {ml_user_id}")
+            return None
             
         except Exception as e:
-            logger.error(f"❌ Erro ao buscar token: {e}")
+            logger.error(f"❌ Erro ao buscar token: {e}", exc_info=True)
+            return None
+    
+    def _refresh_token_for_ml_user(self, refresh_token: str, ml_account_id: int, user_id: Optional[int], db: Session) -> Optional[str]:
+        """Renova token usando refresh token para uma conta ML"""
+        try:
+            from app.models.saas_models import Token
+            from datetime import timedelta
+            from sqlalchemy import text
+            
+            # Dados para renovar token
+            data = {
+                "grant_type": "refresh_token",
+                "client_id": "6987936494418444",
+                "client_secret": "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl",
+                "refresh_token": refresh_token
+            }
+            
+            headers = {
+                "accept": "application/json",
+                "content-type": "application/x-www-form-urlencoded"
+            }
+            
+            # Chamar API do ML para renovar token
+            response = httpx.post(
+                "https://api.mercadolibre.com/oauth/token",
+                data=data,
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                
+                # Desativar tokens antigos desta conta
+                db.execute(text("""
+                    UPDATE tokens 
+                    SET is_active = false 
+                    WHERE ml_account_id = :ml_account_id
+                """), {"ml_account_id": ml_account_id})
+                
+                # Buscar user_id se não foi fornecido
+                if not user_id:
+                    user_query = text("""
+                        SELECT id FROM users 
+                        WHERE company_id = (SELECT company_id FROM ml_accounts WHERE id = :ml_account_id) 
+                        LIMIT 1
+                    """)
+                    user_result = db.execute(user_query, {"ml_account_id": ml_account_id}).fetchone()
+                    user_id = user_result[0] if user_result else None
+                
+                if not user_id:
+                    logger.error(f"❌ user_id não encontrado para ml_account_id: {ml_account_id}")
+                    return None
+                
+                # Criar novo token
+                new_token = Token(
+                    user_id=user_id,
+                    ml_account_id=ml_account_id,
+                    access_token=token_data["access_token"],
+                    refresh_token=token_data.get("refresh_token"),
+                    token_type=token_data.get("token_type", "Bearer"),
+                    expires_in=token_data.get("expires_in", 21600),
+                    scope=token_data.get("scope", ""),
+                    expires_at=datetime.utcnow() + timedelta(seconds=token_data.get("expires_in", 21600)),
+                    is_active=True
+                )
+                
+                db.add(new_token)
+                db.commit()
+                
+                logger.info(f"✅ Novo token salvo para ml_account_id: {ml_account_id}")
+                return token_data["access_token"]
+            else:
+                logger.error(f"❌ Erro ao renovar token: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao renovar token: {e}", exc_info=True)
+            db.rollback()
             return None
     
     async def _fetch_order_details(self, order_id: str, access_token: str) -> Dict[str, Any]:
