@@ -20,20 +20,30 @@ Este documento contém os comandos para atualizar a aplicação em produção.
 git add .
 git commit -m "Atualização para produção"
 git push
+```
 
+**No servidor:**
+
+```bash
 # 2. Conectar ao servidor
 ssh root@seu-servidor
 
-# 3. No servidor, baixar o script (se não existir)
-# OU copiar o arquivo docker-compose.prod.yml para o servidor via SCP
-scp docker-compose.prod.yml root@seu-servidor:/root/
+# 3. Copiar o script para o servidor (se não existir)
+# Do seu computador local:
 scp deploy-production.sh root@seu-servidor:/root/
 
-# 4. No servidor, executar o script
+# 4. No servidor, dar permissão de execução e executar
 cd /root
 chmod +x deploy-production.sh
+
+# 5. Se o repositório for privado, definir o token do GitHub
+export GITHUB_TOKEN=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
+
+# 6. Executar o script
 ./deploy-production.sh
 ```
+
+**Nota:** O script baixa automaticamente o `docker-compose.prod.yml` do repositório. Se o repositório for privado, defina a variável `GITHUB_TOKEN` antes de executar.
 
 ### Método 2: Manual (Passo a Passo)
 
