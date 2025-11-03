@@ -11,7 +11,11 @@ services:
         apt-get install -y git gcc default-libmysqlclient-dev pkg-config curl unzip &&
         rm -rf /tmp/cel /app/* &&
         export GIT_TERMINAL_PROMPT=0 &&
-        git clone https://$${GITHUB_TOKEN}@github.com/wolfxweb/apiwolfx.git /tmp/cel &&
+        if [ -n \"$${GITHUB_TOKEN}\" ]; then
+          git clone https://$${GITHUB_TOKEN}@github.com/wolfxweb/apiwolfx.git /tmp/cel || git clone https://github.com/wolfxweb/apiwolfx.git /tmp/cel;
+        else
+          git clone https://github.com/wolfxweb/apiwolfx.git /tmp/cel;
+        fi &&
         cp -r /tmp/cel/* /app/ &&
         rm -rf /tmp/cel &&
         cd /app &&
