@@ -11,7 +11,42 @@ Este documento contém os comandos para atualizar a aplicação em produção.
 
 ## Comandos para Atualizar Produção
 
-### Método 1: Usando Script Automatizado (Recomendado)
+### Método Rápido: Redeploy Simples (Recomendado)
+
+**No servidor, após fazer commit e push no git:**
+
+```bash
+# 1. Garantir que o docker-compose.prod.yml está atualizado no /root
+# (O container já faz git clone automaticamente, mas se quiser forçar atualização)
+
+# 2. Executar redeploy simples
+docker stack deploy -c /root/docker-compose.prod.yml celx_ml_api
+
+# 3. Aguardar e verificar
+sleep 20
+docker service logs celx_ml_api_api --tail 20
+```
+
+**Ou usar o script simples:**
+
+```bash
+# No servidor, criar o script:
+cat > /root/redeploy.sh << 'EOF'
+#!/bin/bash
+echo "🚀 Redeploy..."
+docker stack deploy -c /root/docker-compose.prod.yml celx_ml_api
+sleep 20
+docker service logs celx_ml_api_api --tail 10
+echo "✅ Pronto!"
+EOF
+
+chmod +x /root/redeploy.sh
+
+# Depois, sempre que quiser atualizar:
+/root/redeploy.sh
+```
+
+### Método 1: Usando Script Completo (Mais Detalhado)
 
 **No seu computador local:**
 
