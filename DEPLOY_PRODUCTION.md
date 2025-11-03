@@ -11,16 +11,47 @@ Este documento contém os comandos para atualizar a aplicação em produção.
 
 ## Comandos para Atualizar Produção
 
+### Método 1: Usando Script Automatizado (Recomendado)
+
+**No seu computador local:**
+
+```bash
+# 1. Fazer commit e push das alterações
+git add .
+git commit -m "Atualização para produção"
+git push
+
+# 2. Conectar ao servidor
+ssh root@seu-servidor
+
+# 3. No servidor, baixar o script (se não existir)
+# OU copiar o arquivo docker-compose.prod.yml para o servidor via SCP
+scp docker-compose.prod.yml root@seu-servidor:/root/
+scp deploy-production.sh root@seu-servidor:/root/
+
+# 4. No servidor, executar o script
+cd /root
+chmod +x deploy-production.sh
+./deploy-production.sh
+```
+
+### Método 2: Manual (Passo a Passo)
+
 ### 1. Conectar ao Servidor
 
 ```bash
 ssh root@seu-servidor
 ```
 
-### 2. Atualizar o Arquivo docker-compose.prod.yml
+### 2. Copiar Arquivo docker-compose.prod.yml
 
+**No seu computador local:**
 ```bash
-# Baixar o arquivo atualizado do repositório
+scp docker-compose.prod.yml root@seu-servidor:/root/
+```
+
+**OU no servidor (se o repositório for público):**
+```bash
 curl https://raw.githubusercontent.com/wolfxweb/apiwolfx/main/docker-compose.prod.yml \
   -o /root/docker-compose.prod.yml
 
