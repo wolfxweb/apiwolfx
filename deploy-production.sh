@@ -28,24 +28,13 @@ if [ -f "docker-compose.prod.yml" ]; then
 elif [ -f "/root/docker-compose.prod.yml" ]; then
     echo "📁 Usando arquivo existente em /root/docker-compose.prod.yml"
 else
-    echo "📥 Baixando docker-compose.prod.yml do repositório..."
+    echo "📥 Baixando docker-compose.prod.yml do repositório público..."
+    curl -s https://raw.githubusercontent.com/wolfxweb/apiwolfx/main/docker-compose.prod.yml \
+        -o /root/docker-compose.prod.yml
     
-    # Tentar baixar usando git clone (com token se disponível)
-    if [ -n "$GITHUB_TOKEN" ]; then
-        echo "🔑 Usando token do GitHub..."
-        rm -rf /tmp/apiwolfx-clone
-        git clone https://${GITHUB_TOKEN}@github.com/wolfxweb/apiwolfx.git /tmp/apiwolfx-clone
-        cp /tmp/apiwolfx-clone/docker-compose.prod.yml /root/docker-compose.prod.yml
-        rm -rf /tmp/apiwolfx-clone
-    else
-        echo "⚠️  GITHUB_TOKEN não definido, tentando repositório público..."
-        curl -s https://raw.githubusercontent.com/wolfxweb/apiwolfx/main/docker-compose.prod.yml \
-            -o /root/docker-compose.prod.yml
-        
-        if [ $? -ne 0 ] || [ ! -s /root/docker-compose.prod.yml ]; then
-            echo -e "${RED}❌ Erro ao baixar arquivo. Verifique se o repositório é público ou configure GITHUB_TOKEN${NC}"
-            exit 1
-        fi
+    if [ $? -ne 0 ] || [ ! -s /root/docker-compose.prod.yml ]; then
+        echo -e "${RED}❌ Erro ao baixar arquivo${NC}"
+        exit 1
     fi
 fi
 
