@@ -353,16 +353,42 @@ class MLNotificationsController:
         """Busca company_id a partir do ml_user_id do Mercado Livre"""
         try:
             from app.models.saas_models import MLAccount, MLAccountStatus
-            # Usar ORM ao invés de SQL direto para garantir compatibilidade com Enum
+            
+            # Buscar conta ATIVA
             ml_account = db.query(MLAccount).filter(
                 MLAccount.ml_user_id == str(ml_user_id),
                 MLAccount.status == MLAccountStatus.ACTIVE
             ).first()
             
-            return ml_account.company_id if ml_account else None
+            if ml_account:
+                logger.info(f"✅ Conta ML encontrada: ml_user_id={ml_user_id}, company_id={ml_account.company_id}")
+                return ml_account.company_id
+            
+            # Se não encontrou, verificar se existe conta inativa (para debug)
+            ml_account_any = db.query(MLAccount).filter(
+                MLAccount.ml_user_id == str(ml_user_id)
+            ).first()
+            
+            if ml_account_any:
+                logger.warning(f"⚠️ Conta ML existe mas está inativa: ml_user_id={ml_user_id}, status={ml_account_any.status}, company_id={ml_account_any.company_id}")
+            else:
+                logger.warning(f"⚠️ Conta ML não encontrada: ml_user_id={ml_user_id}")
+                # Debug: listar algumas contas para verificar formato
+                all_accounts = db.query(
+                    MLAccount.ml_user_id, 
+                    MLAccount.company_id, 
+                    MLAccount.status,
+                    MLAccount.nickname
+                ).limit(5).all()
+                if all_accounts:
+                    logger.info(f"📋 Exemplo de contas cadastradas (primeiras 5): {[(str(acc.ml_user_id), acc.company_id, str(acc.status), acc.nickname) for acc in all_accounts]}")
+                else:
+                    logger.warning(f"⚠️ Nenhuma conta ML cadastrada no sistema")
+            
+            return None
             
         except Exception as e:
-            logger.error(f"❌ Erro ao buscar company_id: {e}")
+            logger.error(f"❌ Erro ao buscar company_id: {e}", exc_info=True)
             return None
 
     def _get_user_token(self, ml_user_id: int, db: Session) -> str:
