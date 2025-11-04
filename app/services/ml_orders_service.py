@@ -1047,8 +1047,13 @@ class MLOrdersService:
                 "refunded": "REFUNDED"
             }
             
-            status = order_data.get("status", "pending")
+            status = order_data.get("status")
+            if not status:
+                logger.warning(f"⚠️ Status não encontrado no order_data, usando 'pending' como padrão")
+                status = "pending"
+            
             order_status = status_mapping.get(status, "PENDING")
+            logger.info(f"📊 Status do pedido: '{status}' -> '{order_status}'")
             
             # Converter datas
             date_created = None
