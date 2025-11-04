@@ -46,8 +46,23 @@ async def receive_ml_notification(
         ml_user_id = notification_data.get('user_id')
         notification_id = notification_data.get('_id')
         
-        logger.info(f"📬 Notificação recebida do ML: topic={topic}, resource={resource}, user_id={ml_user_id}, _id={notification_id}")
-        logger.info(f"📋 Dados completos da notificação: {json.dumps(notification_data, indent=2, default=str)}")
+        logger.info(f"📬 ========== NOTIFICAÇÃO RECEBIDA DO ML ==========")
+        logger.info(f"📬 Topic: {topic}")
+        logger.info(f"📬 Resource: {resource}")
+        logger.info(f"📬 User ID (ml_user_id): {ml_user_id} (tipo: {type(ml_user_id)})")
+        logger.info(f"📬 Notification ID: {notification_id}")
+        logger.info(f"📬 Dados completos: {json.dumps(notification_data, indent=2, default=str)}")
+        
+        # Validar se ml_user_id está presente
+        if ml_user_id is None:
+            error_msg = "user_id não encontrado na notificação"
+            logger.error(f"❌ ERRO CRÍTICO: {error_msg}")
+            logger.error(f"❌ Dados recebidos: {json.dumps(notification_data, indent=2, default=str)}")
+            # Mesmo com erro, retornar 200 para evitar reenvios
+            return JSONResponse(
+                status_code=200,
+                content={"status": "error", "message": error_msg}
+            )
         
         # IMPORTANTE: Criar cópia dos dados e nova sessão no background
         # para evitar problemas com sessão fechada antes do processamento terminar
@@ -59,9 +74,13 @@ async def receive_ml_notification(
             db_background = SessionLocal()
             topic_bg = notification_data_copy.get('topic')
             resource_bg = notification_data_copy.get('resource')
+            ml_user_id_bg = notification_data_copy.get('user_id')
             
             try:
-                logger.info(f"🔄 Iniciando processamento em background: topic={topic_bg}, resource={resource_bg}")
+                logger.info(f"🔄 ========== INICIANDO PROCESSAMENTO EM BACKGROUND ==========")
+                logger.info(f"🔄 Topic: {topic_bg}")
+                logger.info(f"🔄 Resource: {resource_bg}")
+                logger.info(f"🔄 ML User ID: {ml_user_id_bg} (tipo: {type(ml_user_id_bg)})")
                 
                 # Criar novo event loop se necessário
                 try:
@@ -71,13 +90,21 @@ async def receive_ml_notification(
                     asyncio.set_event_loop(loop)
                 
                 # Executar função assíncrona
+                logger.info(f"🔄 Chamando process_notification...")
                 loop.run_until_complete(
                     notifications_controller.process_notification(notification_data_copy, db_background)
                 )
-                logger.info(f"✅ Notificação processada com sucesso em background: topic={topic_bg}, resource={resource_bg}")
+                logger.info(f"✅ ========== NOTIFICAÇÃO PROCESSADA COM SUCESSO ==========")
+                logger.info(f"✅ Topic: {topic_bg}, Resource: {resource_bg}")
             except Exception as e:
-                logger.error(f"❌ Erro no processamento em background: topic={topic_bg}, resource={resource_bg}, error={e}", exc_info=True)
-                logger.error(f"📋 Dados da notificação que falhou: {json.dumps(notification_data_copy, indent=2, default=str)}")
+                logger.error(f"❌ ========== ERRO NO PROCESSAMENTO EM BACKGROUND ==========")
+                logger.error(f"❌ Topic: {topic_bg}")
+                logger.error(f"❌ Resource: {resource_bg}")
+                logger.error(f"❌ ML User ID: {ml_user_id_bg}")
+                logger.error(f"❌ Erro: {str(e)}")
+                logger.error(f"❌ Tipo da exceção: {type(e).__name__}")
+                logger.error(f"❌ Traceback completo:", exc_info=True)
+                logger.error(f"❌ Dados da notificação que falhou: {json.dumps(notification_data_copy, indent=2, default=str)}")
             finally:
                 db_background.close()
                 logger.info(f"🔒 Sessão do banco fechada para notificação: topic={topic_bg}")

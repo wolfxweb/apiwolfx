@@ -463,14 +463,30 @@ class MLNotificationsController:
         """Busca company_id a partir do ml_user_id do Mercado Livre"""
         try:
             from app.models.saas_models import MLAccount, MLAccountStatus
+            from sqlalchemy import or_
             
-            logger.info(f"🔍 Buscando company_id para ml_user_id: {ml_user_id} (tipo: {type(ml_user_id)})")
+            # Normalizar ml_user_id: converter para string e remover espaços
+            ml_user_id_str = str(ml_user_id).strip() if ml_user_id is not None else None
             
-            # Buscar conta ATIVA primeiro
+            logger.info(f"🔍 Buscando company_id para ml_user_id: {ml_user_id} (original), '{ml_user_id_str}' (normalizado), tipo: {type(ml_user_id)}")
+            
+            if not ml_user_id_str:
+                logger.error(f"❌ ml_user_id é None ou vazio após normalização")
+                return None
+            
+            # Buscar conta ATIVA primeiro - tentar com diferentes formatos
             ml_account = db.query(MLAccount).filter(
-                MLAccount.ml_user_id == str(ml_user_id),
+                MLAccount.ml_user_id == ml_user_id_str,
                 MLAccount.status == MLAccountStatus.ACTIVE
             ).first()
+            
+            # Se não encontrou, tentar buscar sem considerar espaços extras (usando func.trim)
+            if not ml_account:
+                from sqlalchemy import func
+                ml_account = db.query(MLAccount).filter(
+                    func.trim(MLAccount.ml_user_id) == ml_user_id_str,
+                    MLAccount.status == MLAccountStatus.ACTIVE
+                ).first()
             
             if ml_account:
                 logger.info(f"✅ Conta ML ATIVA encontrada: ml_user_id={ml_user_id}, company_id={ml_account.company_id}, nickname={ml_account.nickname}")
@@ -489,10 +505,17 @@ class MLNotificationsController:
                 return ml_account.company_id
             
             # Se não encontrou ATIVA, buscar qualquer conta (ativa ou inativa)
-            logger.warning(f"⚠️ Conta ATIVA não encontrada, buscando qualquer conta para ml_user_id: {ml_user_id}")
+            logger.warning(f"⚠️ Conta ATIVA não encontrada, buscando qualquer conta para ml_user_id: {ml_user_id_str}")
             ml_account_any = db.query(MLAccount).filter(
-                MLAccount.ml_user_id == str(ml_user_id)
+                MLAccount.ml_user_id == ml_user_id_str
             ).first()
+            
+            # Se ainda não encontrou, tentar sem considerar espaços
+            if not ml_account_any:
+                from sqlalchemy import func
+                ml_account_any = db.query(MLAccount).filter(
+                    func.trim(MLAccount.ml_user_id) == ml_user_id_str
+                ).first()
             
             if ml_account_any:
                 logger.warning(f"⚠️ Conta ML existe mas está INATIVA: ml_user_id={ml_user_id}, status={ml_account_any.status}, company_id={ml_account_any.company_id}, nickname={ml_account_any.nickname}")
@@ -974,7 +997,7 @@ class MLNotificationsController:
         except Exception as e:
             logger.error(f"❌ Erro ao salvar pedido {order_id}: {e}", exc_info=True)
             try:
-                db.rollback()
+            db.rollback()
             except Exception as rollback_error:
                 logger.error(f"❌ Erro ao fazer rollback: {rollback_error}", exc_info=True)
             raise  # Re-raise para que o erro seja logado no nível superior
