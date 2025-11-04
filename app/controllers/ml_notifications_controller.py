@@ -38,19 +38,44 @@ class MLNotificationsController:
         ml_user_id = notification_data.get("user_id")
         
         try:
-            logger.info(f"🔄 Processando notificação: topic={topic}, resource={resource}, ml_user_id={ml_user_id}")
+            logger.info(f"🔄 ========== NOVA NOTIFICAÇÃO RECEBIDA ==========")
+            logger.info(f"🔄 Topic: {topic}")
+            logger.info(f"🔄 Resource: {resource}")
+            logger.info(f"🔄 ML User ID: {ml_user_id} (tipo: {type(ml_user_id)})")
+            logger.info(f"🔄 Notification Data Completo: {notification_data}")
             
             # 1. Determinar company_id a partir do ml_user_id
+            logger.info(f"🔍 Iniciando busca de company_id para ml_user_id: {ml_user_id}")
             company_id = self._get_company_id_from_ml_user(ml_user_id, db)
             if not company_id:
-                logger.warning(f"⚠️ Company não encontrada para ml_user_id: {ml_user_id}")
+                error_msg = f"Company não encontrada para ml_user_id: {ml_user_id}"
+                logger.error(f"❌ ========== ERRO: COMPANY NÃO ENCONTRADA ==========")
+                logger.error(f"❌ ML User ID: {ml_user_id}")
+                logger.error(f"❌ Topic: {topic}")
+                logger.error(f"❌ Resource: {resource}")
+                logger.error(f"❌ Esta notificação NÃO será processada!")
                 global_logger.log_notification_processed(
                     notification_data, 
                     None, 
                     False, 
-                    f"Company não encontrada para ml_user_id: {ml_user_id}"
+                    error_msg
+                )
+                global_logger.log_event(
+                    event_type="notification_rejected_no_company",
+                    data={
+                        "topic": topic,
+                        "resource": resource,
+                        "ml_user_id": ml_user_id,
+                        "ml_user_id_type": type(ml_user_id).__name__,
+                        "description": f"Notificação rejeitada: company não encontrada para ml_user_id {ml_user_id}"
+                    },
+                    company_id=None,
+                    success=False,
+                    error_message=error_msg
                 )
                 return
+            
+            logger.info(f"✅ Company ID encontrado: {company_id}")
             
             # Log da notificação recebida
             global_logger.log_notification_received(notification_data, company_id)
@@ -113,34 +138,119 @@ class MLNotificationsController:
         order_id = resource.split("/")[-1]
         
         try:
-            logger.info(f"📦 Processando pedido: {order_id} para company_id: {company_id}")
+            logger.info(f"📦 ========== INICIANDO PROCESSAMENTO DE PEDIDO ==========")
+            logger.info(f"📦 Order ID: {order_id}")
+            logger.info(f"📦 Resource: {resource}")
+            logger.info(f"📦 ML User ID: {ml_user_id}")
+            logger.info(f"📦 Company ID: {company_id}")
+            
+            global_logger.log_event(
+                event_type="order_notification_start",
+                data={
+                    "order_id": order_id,
+                    "resource": resource,
+                    "ml_user_id": ml_user_id,
+                    "company_id": company_id,
+                    "description": f"Iniciando processamento do pedido {order_id}"
+                },
+                company_id=company_id,
+                success=True
+            )
             
             # Buscar token do usuário ML
+            logger.info(f"🔑 Buscando token para ml_user_id: {ml_user_id}")
             access_token = self._get_user_token(ml_user_id, db)
             if not access_token:
                 error_msg = f"Token não encontrado para ml_user_id: {ml_user_id}"
-                logger.warning(f"⚠️ {error_msg}")
+                logger.error(f"❌ {error_msg}")
+                logger.error(f"❌ Não foi possível processar pedido {order_id} sem token")
                 global_logger.log_order_processed(order_id, company_id, False, "error", error_msg)
+                global_logger.log_event(
+                    event_type="order_notification_token_error",
+                    data={
+                        "order_id": order_id,
+                        "ml_user_id": ml_user_id,
+                        "error": error_msg,
+                        "description": f"Falha ao obter token para processar pedido {order_id}"
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=error_msg
+                )
                 return
             
+            logger.info(f"✅ Token obtido com sucesso para ml_user_id: {ml_user_id}")
+            
             # Buscar detalhes do pedido na API do ML
+            logger.info(f"🌐 Buscando detalhes do pedido {order_id} na API do Mercado Livre...")
             order_data = await self._fetch_order_details(order_id, access_token)
             if not order_data:
                 error_msg = f"Não foi possível buscar dados do pedido {order_id} na API"
-                logger.warning(f"⚠️ {error_msg}")
+                logger.error(f"❌ {error_msg}")
                 global_logger.log_order_processed(order_id, company_id, False, "error", error_msg)
+                global_logger.log_event(
+                    event_type="order_notification_api_error",
+                    data={
+                        "order_id": order_id,
+                        "ml_user_id": ml_user_id,
+                        "error": error_msg,
+                        "description": f"Falha ao buscar dados do pedido {order_id} na API"
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=error_msg
+                )
                 return
             
+            logger.info(f"✅ Dados do pedido obtidos: {order_id}")
+            logger.info(f"📊 Status do pedido: {order_data.get('status')}")
+            logger.info(f"📊 Total: R$ {order_data.get('total_amount', 0)}")
+            
             # Atualizar ou criar pedido no banco com company_id
+            logger.info(f"💾 Salvando/atualizando pedido {order_id} no banco de dados...")
             await self._upsert_order(order_data, company_id, db, access_token)
             
+            logger.info(f"✅ ========== PEDIDO PROCESSADO COM SUCESSO ==========")
             logger.info(f"✅ Pedido {order_id} atualizado com sucesso para company_id: {company_id}")
             global_logger.log_order_processed(order_id, company_id, True, "updated")
+            global_logger.log_event(
+                event_type="order_notification_success",
+                data={
+                    "order_id": order_id,
+                    "ml_user_id": ml_user_id,
+                    "company_id": company_id,
+                    "status": order_data.get('status'),
+                    "total_amount": order_data.get('total_amount', 0),
+                    "description": f"Pedido {order_id} processado com sucesso"
+                },
+                company_id=company_id,
+                success=True
+            )
             
         except Exception as e:
             error_msg = f"Erro ao processar pedido {order_id}: {str(e)}"
-            logger.error(f"❌ {error_msg}")
+            logger.error(f"❌ ========== ERRO AO PROCESSAR PEDIDO ==========")
+            logger.error(f"❌ Order ID: {order_id}")
+            logger.error(f"❌ ML User ID: {ml_user_id}")
+            logger.error(f"❌ Company ID: {company_id}")
+            logger.error(f"❌ Erro: {error_msg}")
+            logger.error(f"❌ Tipo da exceção: {type(e).__name__}")
+            logger.error(f"❌ Traceback completo:", exc_info=True)
             global_logger.log_order_processed(order_id, company_id, False, "error", error_msg)
+            global_logger.log_event(
+                event_type="order_notification_exception",
+                data={
+                    "order_id": order_id,
+                    "ml_user_id": ml_user_id,
+                    "company_id": company_id,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "description": f"Exceção ao processar pedido {order_id}"
+                },
+                company_id=company_id,
+                success=False,
+                error_message=str(e)
+            )
     
     async def _process_item_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de produto (items)"""
@@ -354,41 +464,97 @@ class MLNotificationsController:
         try:
             from app.models.saas_models import MLAccount, MLAccountStatus
             
-            # Buscar conta ATIVA
+            logger.info(f"🔍 Buscando company_id para ml_user_id: {ml_user_id} (tipo: {type(ml_user_id)})")
+            
+            # Buscar conta ATIVA primeiro
             ml_account = db.query(MLAccount).filter(
                 MLAccount.ml_user_id == str(ml_user_id),
                 MLAccount.status == MLAccountStatus.ACTIVE
             ).first()
             
             if ml_account:
-                logger.info(f"✅ Conta ML encontrada: ml_user_id={ml_user_id}, company_id={ml_account.company_id}")
+                logger.info(f"✅ Conta ML ATIVA encontrada: ml_user_id={ml_user_id}, company_id={ml_account.company_id}, nickname={ml_account.nickname}")
+                global_logger.log_event(
+                    event_type="ml_account_found",
+                    data={
+                        "ml_user_id": ml_user_id,
+                        "company_id": ml_account.company_id,
+                        "status": "ACTIVE",
+                        "nickname": ml_account.nickname,
+                        "description": f"Conta ML encontrada para ml_user_id {ml_user_id}"
+                    },
+                    company_id=ml_account.company_id,
+                    success=True
+                )
                 return ml_account.company_id
             
-            # Se não encontrou, verificar se existe conta inativa (para debug)
+            # Se não encontrou ATIVA, buscar qualquer conta (ativa ou inativa)
+            logger.warning(f"⚠️ Conta ATIVA não encontrada, buscando qualquer conta para ml_user_id: {ml_user_id}")
             ml_account_any = db.query(MLAccount).filter(
                 MLAccount.ml_user_id == str(ml_user_id)
             ).first()
             
             if ml_account_any:
-                logger.warning(f"⚠️ Conta ML existe mas está inativa: ml_user_id={ml_user_id}, status={ml_account_any.status}, company_id={ml_account_any.company_id}")
+                logger.warning(f"⚠️ Conta ML existe mas está INATIVA: ml_user_id={ml_user_id}, status={ml_account_any.status}, company_id={ml_account_any.company_id}, nickname={ml_account_any.nickname}")
+                logger.warning(f"⚠️ Processando notificação mesmo com conta INATIVA para ml_user_id: {ml_user_id}")
+                global_logger.log_event(
+                    event_type="ml_account_inactive_found",
+                    data={
+                        "ml_user_id": ml_user_id,
+                        "company_id": ml_account_any.company_id,
+                        "status": str(ml_account_any.status),
+                        "nickname": ml_account_any.nickname,
+                        "description": f"Conta ML INATIVA encontrada para ml_user_id {ml_user_id}, mas processando notificação"
+                    },
+                    company_id=ml_account_any.company_id,
+                    success=True
+                )
+                # Retornar mesmo se inativa, pois a notificação deve ser processada
+                return ml_account_any.company_id
             else:
-                logger.warning(f"⚠️ Conta ML não encontrada: ml_user_id={ml_user_id}")
+                logger.error(f"❌ Conta ML NÃO encontrada: ml_user_id={ml_user_id}")
                 # Debug: listar algumas contas para verificar formato
                 all_accounts = db.query(
                     MLAccount.ml_user_id, 
                     MLAccount.company_id, 
                     MLAccount.status,
                     MLAccount.nickname
-                ).limit(5).all()
+                ).limit(10).all()
                 if all_accounts:
-                    logger.info(f"📋 Exemplo de contas cadastradas (primeiras 5): {[(str(acc.ml_user_id), acc.company_id, str(acc.status), acc.nickname) for acc in all_accounts]}")
+                    logger.info(f"📋 Exemplo de contas cadastradas (primeiras 10): {[(str(acc.ml_user_id), acc.company_id, str(acc.status), acc.nickname) for acc in all_accounts]}")
+                    logger.info(f"📋 Buscando exatamente: ml_user_id='{ml_user_id}' (tipo: {type(ml_user_id).__name__})")
                 else:
                     logger.warning(f"⚠️ Nenhuma conta ML cadastrada no sistema")
+                
+                global_logger.log_event(
+                    event_type="ml_account_not_found",
+                    data={
+                        "ml_user_id": ml_user_id,
+                        "ml_user_id_type": type(ml_user_id).__name__,
+                        "example_accounts": [(str(acc.ml_user_id), acc.company_id, str(acc.status)) for acc in all_accounts[:5]],
+                        "description": f"Conta ML não encontrada para ml_user_id {ml_user_id}"
+                    },
+                    company_id=None,
+                    success=False,
+                    error_message=f"Conta ML não encontrada para ml_user_id {ml_user_id}"
+                )
             
             return None
             
         except Exception as e:
             logger.error(f"❌ Erro ao buscar company_id: {e}", exc_info=True)
+            global_logger.log_event(
+                event_type="ml_account_search_error",
+                data={
+                    "ml_user_id": ml_user_id,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "description": f"Erro ao buscar conta ML para ml_user_id {ml_user_id}"
+                },
+                company_id=None,
+                success=False,
+                error_message=str(e)
+            )
             return None
 
     def _get_user_token(self, ml_user_id: int, db: Session) -> str:
