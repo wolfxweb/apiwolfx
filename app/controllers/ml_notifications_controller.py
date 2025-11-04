@@ -997,7 +997,7 @@ class MLNotificationsController:
         except Exception as e:
             logger.error(f"❌ Erro ao salvar pedido {order_id}: {e}", exc_info=True)
             try:
-            db.rollback()
+                db.rollback()
             except Exception as rollback_error:
                 logger.error(f"❌ Erro ao fazer rollback: {rollback_error}", exc_info=True)
             raise  # Re-raise para que o erro seja logado no nível superior
