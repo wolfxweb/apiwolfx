@@ -43,19 +43,29 @@ async def receive_ml_notification(
         
         topic = notification_data.get('topic')
         resource = notification_data.get('resource')
-        ml_user_id = notification_data.get('user_id')
         notification_id = notification_data.get('_id')
+        
+        # Segundo a documentação do ML, o campo principal é 'user_id' que identifica o vendedor
+        # Documentação: https://developers.mercadolivre.com.br/pt_br/recebendo-notificacoes
+        ml_user_id = notification_data.get('user_id')
         
         logger.info(f"📬 ========== NOTIFICAÇÃO RECEBIDA DO ML ==========")
         logger.info(f"📬 Topic: {topic}")
         logger.info(f"📬 Resource: {resource}")
         logger.info(f"📬 User ID (ml_user_id): {ml_user_id} (tipo: {type(ml_user_id)})")
+        logger.info(f"📬 Application ID: {notification_data.get('application_id')}")
         logger.info(f"📬 Notification ID: {notification_id}")
+        logger.info(f"📬 Todos os campos da notificação: {list(notification_data.keys())}")
         logger.info(f"📬 Dados completos: {json.dumps(notification_data, indent=2, default=str)}")
         
-        # Validar se ml_user_id está presente
-        if ml_user_id is None:
-            error_msg = "user_id não encontrado na notificação"
+        # Segundo a documentação, se user_id não vier, devemos buscar do pedido via API
+        # GET /orders/{ORDER_ID} para obter o seller_id
+        if ml_user_id is None and topic == "orders_v2" and resource:
+            logger.warning(f"⚠️ user_id não encontrado na notificação (campo padrão do ML)")
+            logger.warning(f"⚠️ Segundo a documentação, vamos buscar do pedido via resource: {resource}")
+            logger.warning(f"⚠️ A notificação será processada, mas o user_id será extraído do pedido")
+        elif ml_user_id is None:
+            error_msg = "user_id não encontrado na notificação e não é possível extrair do resource (topic não é orders_v2)"
             logger.error(f"❌ ERRO CRÍTICO: {error_msg}")
             logger.error(f"❌ Dados recebidos: {json.dumps(notification_data, indent=2, default=str)}")
             # Mesmo com erro, retornar 200 para evitar reenvios

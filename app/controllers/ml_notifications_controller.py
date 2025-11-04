@@ -35,18 +35,42 @@ class MLNotificationsController:
         """
         topic = notification_data.get("topic")
         resource = notification_data.get("resource")
+        
+        # Segundo a documentação oficial do Mercado Livre:
+        # https://developers.mercadolivre.com.br/pt_br/recebendo-notificacoes
+        # O campo 'user_id' identifica o vendedor (seller) na notificação
+        # Se não vier, devemos buscar do pedido via GET /orders/{ORDER_ID} para obter seller_id
         ml_user_id = notification_data.get("user_id")
         
         try:
             logger.info(f"🔄 ========== NOVA NOTIFICAÇÃO RECEBIDA ==========")
             logger.info(f"🔄 Topic: {topic}")
             logger.info(f"🔄 Resource: {resource}")
-            logger.info(f"🔄 ML User ID: {ml_user_id} (tipo: {type(ml_user_id)})")
+            logger.info(f"🔄 ML User ID (user_id da notificação): {ml_user_id} (tipo: {type(ml_user_id)})")
+            logger.info(f"🔄 Application ID: {notification_data.get('application_id')}")
+            logger.info(f"🔄 Todos os campos: {list(notification_data.keys())}")
             logger.info(f"🔄 Notification Data Completo: {notification_data}")
             
+            # Segundo a documentação: se user_id não vier, buscar do pedido via API
+            # GET /orders/{ORDER_ID} retorna seller_id que é equivalente ao ml_user_id
+            if not ml_user_id and topic == "orders_v2" and resource:
+                logger.info(f"🔍 user_id não veio na notificação, buscando seller_id do pedido via API...")
+                logger.info(f"🔍 Segundo documentação ML: GET /orders/{resource.split('/')[-1]}")
+                order_id = resource.split("/")[-1]
+                ml_user_id = await self._extract_ml_user_id_from_order(order_id, db)
+                if ml_user_id:
+                    logger.info(f"✅ seller_id extraído do pedido {order_id}: {ml_user_id}")
+                else:
+                    logger.error(f"❌ Não foi possível extrair seller_id do pedido {order_id}")
+                    logger.error(f"❌ Isso pode indicar que nenhum token ativo está disponível")
+            
             # 1. Determinar company_id a partir do ml_user_id
-            logger.info(f"🔍 Iniciando busca de company_id para ml_user_id: {ml_user_id}")
-            company_id = self._get_company_id_from_ml_user(ml_user_id, db)
+            if ml_user_id:
+                logger.info(f"🔍 Iniciando busca de company_id para ml_user_id: {ml_user_id}")
+                company_id = self._get_company_id_from_ml_user(ml_user_id, db)
+            else:
+                company_id = None
+                
             if not company_id:
                 error_msg = f"Company não encontrada para ml_user_id: {ml_user_id}"
                 logger.error(f"❌ ========== ERRO: COMPANY NÃO ENCONTRADA ==========")
@@ -716,6 +740,49 @@ class MLNotificationsController:
         except Exception as e:
             logger.error(f"❌ Erro ao renovar token: {e}", exc_info=True)
             db.rollback()
+            return None
+    
+    async def _extract_ml_user_id_from_order(self, order_id: str, db: Session) -> Optional[int]:
+        """Extrai ml_user_id (seller_id) de um pedido quando não vem na notificação"""
+        try:
+            from sqlalchemy import text
+            
+            # Buscar qualquer token ativo para fazer a requisição
+            query = text("""
+                SELECT t.access_token, ma.ml_user_id
+                FROM tokens t
+                JOIN ml_accounts ma ON ma.id = t.ml_account_id
+                WHERE t.is_active = true
+                AND t.expires_at > NOW()
+                ORDER BY t.expires_at DESC
+                LIMIT 1
+            """)
+            
+            result = db.execute(query).fetchone()
+            if not result or not result[0]:
+                logger.error(f"❌ Nenhum token ativo disponível para buscar pedido {order_id}")
+                return None
+            
+            access_token = result[0]
+            
+            # Buscar detalhes do pedido
+            order_data = await self._fetch_order_details(order_id, access_token)
+            if not order_data:
+                logger.error(f"❌ Não foi possível buscar pedido {order_id} para extrair seller_id")
+                return None
+            
+            # Extrair seller_id do pedido
+            seller_id = order_data.get("seller_id") or order_data.get("sellerId")
+            if seller_id:
+                logger.info(f"✅ seller_id extraído do pedido {order_id}: {seller_id}")
+                return int(seller_id)
+            else:
+                logger.error(f"❌ seller_id não encontrado nos dados do pedido {order_id}")
+                logger.error(f"📋 Campos disponíveis no pedido: {list(order_data.keys())}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao extrair ml_user_id do pedido {order_id}: {e}", exc_info=True)
             return None
     
     async def _fetch_order_details(self, order_id: str, access_token: str) -> Dict[str, Any]:

@@ -919,11 +919,22 @@ class MLOrdersService:
         try:
             ml_order_id = order_data.get("id")
             
+            logger.info(f"💾 ========== SALVANDO PEDIDO NO BANCO ==========")
+            logger.info(f"💾 ML Order ID: {ml_order_id}")
+            logger.info(f"💾 ML Account ID: {ml_account_id}")
+            logger.info(f"💾 Company ID: {company_id}")
+            
             # Verificar se a order já existe (filtrando por company_id para evitar conflitos entre empresas)
+            logger.info(f"🔍 Verificando se pedido já existe: ml_order_id={ml_order_id}, company_id={company_id}")
             existing_order = self.db.query(MLOrder).filter(
                 MLOrder.ml_order_id == ml_order_id,
                 MLOrder.company_id == company_id
             ).first()
+            
+            if existing_order:
+                logger.info(f"✅ Pedido EXISTENTE encontrado: ID={existing_order.id}, company_id={existing_order.company_id}")
+            else:
+                logger.info(f"✨ Novo pedido - será criado com company_id={company_id}")
             
             # Obter token para buscar informações adicionais
             access_token = self._get_active_token(ml_account_id)
@@ -936,20 +947,36 @@ class MLOrdersService:
             # O sale_fee de cada item já é extraído e salvo corretamente
             
             # Converter dados da API para o modelo
+            logger.info(f"🔄 Convertendo dados da API para o modelo...")
             order_dict = self._convert_api_order_to_model(complete_order_data, ml_account_id, company_id)
+            
+            # Verificar se company_id está no order_dict
+            if "company_id" in order_dict:
+                logger.info(f"✅ company_id incluído no order_dict: {order_dict['company_id']}")
+            else:
+                logger.error(f"❌ ERRO CRÍTICO: company_id NÃO está no order_dict!")
+                logger.error(f"❌ Campos no order_dict: {list(order_dict.keys())}")
             
             if existing_order:
                 # Atualizar order existente
+                logger.info(f"📝 Atualizando pedido existente ID={existing_order.id}")
+                logger.info(f"📝 Company ID atual do pedido: {existing_order.company_id}")
+                logger.info(f"📝 Company ID que será usado: {company_id}")
+                
                 for key, value in order_dict.items():
                     if key not in ["id", "ml_order_id", "created_at"]:
                         setattr(existing_order, key, value)
                 
                 existing_order.updated_at = datetime.utcnow()
+                logger.info(f"✅ Pedido atualizado: ID={existing_order.id}, company_id={existing_order.company_id}")
                 return {"action": "updated", "order": existing_order}
             else:
                 # Criar nova order
+                logger.info(f"✨ Criando novo pedido com company_id={company_id}")
                 new_order = MLOrder(**order_dict)
+                logger.info(f"✅ Objeto MLOrder criado: company_id={new_order.company_id}, ml_order_id={new_order.ml_order_id}")
                 self.db.add(new_order)
+                logger.info(f"✅ Pedido adicionado à sessão do banco")
                 return {"action": "created", "order": new_order}
                 
         except Exception as e:
@@ -1006,6 +1033,7 @@ class MLOrdersService:
     def _convert_api_order_to_model(self, order_data: Dict, ml_account_id: int, company_id: int) -> Dict:
         """Converte dados da API para formato do modelo - Versão Completa"""
         try:
+            logger.info(f"🔄 Convertendo dados da API para modelo: company_id={company_id}, ml_account_id={ml_account_id}")
             # Converter status - usar valores diretos do enum
             status_mapping = {
                 "confirmed": "CONFIRMED",
@@ -1069,7 +1097,7 @@ class MLOrdersService:
             # Extrair cupom
             coupon = order_data.get("coupon", {})
             
-            return {
+            order_dict = {
                 # === DADOS BÁSICOS ===
                 "company_id": company_id,
                 "ml_account_id": ml_account_id,
