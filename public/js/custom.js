@@ -250,23 +250,25 @@ async function makeRequest(url, options = {}) {
     }
 }
 
-// 🎨 Adicionar CSS para Animações
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideInRight {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    
-    @keyframes slideOutRight {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-    }
-    
-    .ripple {
-        position: absolute;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.6);
+// 🎨 Adicionar CSS para Animações (verifica se já existe para evitar duplicação)
+if (!document.getElementById('custom-animations-style')) {
+    const style = document.createElement('style');
+    style.id = 'custom-animations-style';
+    style.textContent = `
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.6);
         transform: scale(0);
         animation: ripple-animation 0.6s linear;
         pointer-events: none;
@@ -279,7 +281,8 @@ style.textContent = `
         }
     }
 `;
-document.head.appendChild(style);
+    document.head.appendChild(style);
+}
 
 // 🌟 Exportar API Global
 window.MLAPI = {

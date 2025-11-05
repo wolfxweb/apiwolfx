@@ -20,8 +20,8 @@ class Settings:
             default_base_url = "https://c7bf5baecfca.ngrok-free.app"
         
         # Mercado Livre API Configuration
-        self.ml_app_id = os.getenv("ML_APP_ID", "8660307122558740")
-        self.ml_client_secret = os.getenv("ML_CLIENT_SECRET", "MRHlPRctnjmFIgEcnP8qvLJmwe4b8Zsi")
+        self.ml_app_id = os.getenv("ML_APP_ID", "6987936494418444")
+        self.ml_client_secret = os.getenv("ML_CLIENT_SECRET", "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl")
         
         # ML Redirect URI - usa variável de ambiente ou padrão baseado no ambiente
         self.ml_redirect_uri = os.getenv(
