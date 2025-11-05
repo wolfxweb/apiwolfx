@@ -980,7 +980,7 @@ class MLOrdersService:
                 return {"action": "created", "order": new_order}
                 
         except Exception as e:
-            logger.error(f"Erro ao salvar order no banco: {e}")
+            logger.error(f"Erro ao salvar order no banco: {e}", exc_info=True)
             raise e
     
     def _extract_shipping_cost(self, order_data: Dict) -> float:
@@ -1207,8 +1207,11 @@ class MLOrdersService:
                 "marketplace_fee_breakdown": None  # Disponível apenas em relatórios mensais
             }
             
+            logger.info(f"✅ Dicionário order_dict criado com sucesso")
+            return order_dict
+            
         except Exception as e:
-            logger.error(f"Erro ao converter dados da order: {e}")
+            logger.error(f"Erro ao converter dados da order: {e}", exc_info=True)
             raise e
     
     def _get_active_token(self, ml_account_id: int) -> Optional[str]:

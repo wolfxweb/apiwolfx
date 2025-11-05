@@ -139,6 +139,18 @@ async def receive_ml_notification(
             content={"status": "error", "message": str(e)}
         )
 
+@ml_notifications_router.post("/notification")
+async def receive_ml_notification_singular(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint alternativo para /api/notification (sem 's')
+    Redireciona para a função principal de notificações
+    """
+    return await receive_ml_notification(request, background_tasks, db)
+
 @ml_notifications_router.get("/notifications/test")
 async def test_notifications_endpoint():
     """Endpoint de teste para verificar se as notificações estão funcionando"""
@@ -146,6 +158,7 @@ async def test_notifications_endpoint():
         "status": "ok",
         "message": "Endpoint de notificações funcionando",
         "url": "/api/notifications",
+        "url_alternativa": "/api/notification",
         "method": "POST"
     }
 
