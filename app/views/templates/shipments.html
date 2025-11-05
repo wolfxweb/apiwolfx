@@ -2,6 +2,13 @@
 
 {% block title %}Pedidos{% endblock %}
 
+{% block head %}
+<!-- Cache buster para forçar atualização do JS - v2024.11.05 -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row">
@@ -747,14 +754,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 500); // Aguarda 500ms após parar de digitar
     });
     
-    // Botão Atualizar Pedidos (últimos 2 dias)
+    // Botão Atualizar Pedidos (últimos 2 dias) - OTIMIZADO
     document.getElementById('sync-orders-btn').addEventListener('click', async function() {
         const btn = this;
         const originalHtml = btn.innerHTML;
         
-        // Desabilitar botão e mostrar loading
+        // Contador de tempo para feedback visual
+        let seconds = 0;
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando... 0s';
+        
+        const timer = setInterval(() => {
+            seconds++;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Sincronizando... ${seconds}s`;
+        }, 1000);
         
         try {
             const response = await fetch('/api/shipments/sync-recent', {
@@ -765,34 +778,64 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             
+            clearInterval(timer);
+            
             if (handle401Error(response)) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
                 return;
+            }
+            
+            // Verificar se a resposta é válida antes de parsear JSON
+            if (!response.ok) {
+                throw new Error(`Erro ${response.status}: ${response.statusText}`);
             }
             
             const data = await response.json();
             
             if (data.success) {
+                btn.innerHTML = `✅ Concluído em ${seconds}s!`;
+                
                 // Resetar flags para recarregar os dados
                 ordersLoaded = false;
                 allOrdersLoaded = [];
                 loadingPromise = null;
                 
                 // Recarregar pedidos da aba atual
-                await loadReadyToPrepareOrders();
-                
-                // Mostrar feedback de sucesso em modal
-                showSyncModal('success', 'Sincronização concluída!', data.message || 'Pedidos atualizados com sucesso', {
-                    total_saved: data.total_saved || 0,
-                    total_updated: data.total_updated || 0
-                });
+                setTimeout(async () => {
+                    await loadReadyToPrepareOrders();
+                    
+                    // Mostrar feedback de sucesso em modal
+                    showSyncModal('success', 'Sincronização concluída!', 
+                        `${data.total_saved || 0} novos pedidos, ${data.total_updated || 0} atualizados`, {
+                        total_saved: data.total_saved || 0,
+                        total_updated: data.total_updated || 0
+                    });
+                    
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }, 1500);
             } else {
                 // Mostrar erro em modal
                 showSyncModal('error', 'Erro na sincronização', data.error || 'Erro ao sincronizar pedidos');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
             }
         } catch (error) {
+            clearInterval(timer);
             console.error('Erro ao sincronizar pedidos:', error);
-            showSyncModal('error', 'Erro na sincronização', 'Erro ao sincronizar pedidos. Tente novamente.');
-        } finally {
+            
+            // Mensagem de erro mais detalhada
+            let errorMsg = 'Erro ao sincronizar pedidos. ';
+            if (error.message.includes('503')) {
+                errorMsg += 'O servidor demorou muito para responder (timeout). Tente novamente.';
+            } else if (error.message.includes('JSON')) {
+                errorMsg += 'Resposta inválida do servidor. Tente novamente.';
+            } else {
+                errorMsg += error.message;
+            }
+            
+            showSyncModal('error', 'Erro na sincronização', errorMsg);
             btn.disabled = false;
             btn.innerHTML = originalHtml;
         }
@@ -1656,6 +1699,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const status = order.shipping_details.status;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                const substatus = order.shipping_details.substatus;
                 
                 // Identificar se é ponto de coleta
                 isPickupPoint = (
@@ -2007,6 +2051,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const status = order.shipping_details.status;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                const substatus = order.shipping_details.substatus;
                 
                 // Identificar se é ponto de coleta
                 isPickupPoint = (
@@ -2285,10 +2330,35 @@ document.addEventListener('DOMContentLoaded', function() {
             const orderTime = order.date_created ? new Date(order.date_created).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : '-';
             const orderDateTime = `${orderDate} ${orderTime}`;
             const totalAmount = order.total_amount ? `R$ ${parseFloat(order.total_amount).toFixed(2).replace('.', ',')}` : '-';
+            const invoiceNumber = order.invoice_number ? `${order.invoice_number}${order.invoice_series ? '/' + order.invoice_series : ''}` : 'Sem NF';
             
             const statusBadge = order.status === 'CANCELLED' ? 
                 '<span class="badge bg-danger">Cancelado</span>' : 
                 '<span class="badge bg-warning">Pendente Cancelamento</span>';
+            
+            let shippingInfo = '';
+            let isPickupPoint = false;
+            
+            if (order.shipping_details) {
+                const status = order.shipping_details.status;
+                const substatus = order.shipping_details.substatus;
+                const logistic = order.shipping_details.logistic;
+                const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
+                
+                isPickupPoint = (
+                    logisticType === 'xd_drop_off' || 
+                    logisticType === 'drop_off' || 
+                    order.shipping_type === 'xd_drop_off' || 
+                    order.shipping_type === 'drop_off' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff'
+                );
+                
+                shippingInfo = '<span class="badge bg-secondary">Cancelado</span>';
+            } else {
+                shippingInfo = '<span class="badge bg-secondary">N/A</span>';
+                isPickupPoint = order.shipping_type === 'xd_drop_off' || order.shipping_type === 'drop_off';
+            }
             
             return `
                 <tr>
@@ -2310,37 +2380,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
                             </button>
-                            ${order.invoice_pdf_url ? 
-                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>` : 
-                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
-                            }
-                            ${isPickupPoint ? 
-                                (order.shipping_id ? 
-                                    `<div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir Etiqueta de Envio">
-                                            <i class="bi bi-printer"></i>
-                                        </button>
-                                        <ul class="dropdown-menu">
-                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
-                                                <i class="bi bi-file-pdf"></i> PDF
-                                            </a></li>
-                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
-                                                <i class="bi bi-printer-fill"></i> ZPL2 (Impressora Térmica)
-                                            </a></li>
-                                            <li><hr class="dropdown-divider"></li>
-                                            <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
-                                                <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF (Converter)
-                                            </a></li>
-                                        </ul>
-                                    </div>` : 
-                                    `<button class="btn btn-sm btn-outline-warning" disabled title="Etiqueta disponível após processamento do envio (sem shipping_id)">
-                                        <i class="bi bi-printer"></i>
-                                    </button>`
-                                ) : 
-                                ''
-                            }
                             <a href="/ml/orders/${orderId}" class="btn btn-sm btn-outline-info" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
@@ -2415,6 +2454,22 @@ document.addEventListener('DOMContentLoaded', function() {
             const statusBadge = order.status === 'REFUNDED' ? 
                 '<span class="badge bg-danger">Reembolsado</span>' : 
                 '<span class="badge bg-warning">Parcialmente Reembolsado</span>';
+            
+            let isPickupPoint = false;
+            if (order.shipping_details) {
+                const logisticType = order.shipping_details.logistic_type;
+                const substatus = order.shipping_details.substatus;
+                isPickupPoint = (
+                    logisticType === 'xd_drop_off' || 
+                    logisticType === 'drop_off' || 
+                    order.shipping_type === 'xd_drop_off' || 
+                    order.shipping_type === 'drop_off' ||
+                    substatus === 'ready_for_pickup' ||
+                    substatus === 'ready_for_dropoff'
+                );
+            } else {
+                isPickupPoint = order.shipping_type === 'xd_drop_off' || order.shipping_type === 'drop_off';
+            }
             
             return `
                 <tr>

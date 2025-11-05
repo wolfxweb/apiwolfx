@@ -306,13 +306,13 @@ class MLOrdersService:
             updated_count = 0
             
             # Adicionar delay entre processamentos para evitar sobrecarga
-            import time
+            # import time  # ⚡ OTIMIZAÇÃO: Removido sleep para acelerar sincronização
             
             for i, order_data in enumerate(orders_data):
-                # Adicionar delay a cada 5 pedidos para evitar sobrecarga
-                if i > 0 and i % 5 == 0:
-                    logger.info(f"Processando pedido {i+1}/{len(orders_data)} - pausa para evitar sobrecarga")
-                    time.sleep(5)  # Pausa de 5 segundos
+                # ⚡ OTIMIZADO: Removido delay de 5s a cada 5 pedidos (causava timeout no ngrok)
+                # if i > 0 and i % 5 == 0:
+                #     logger.info(f"Processando pedido {i+1}/{len(orders_data)} - pausa para evitar sobrecarga")
+                #     time.sleep(5)
                 try:
                     result = self._save_order_to_database(order_data, ml_account_id, company_id)
                     if result["action"] == "created":
@@ -386,9 +386,9 @@ class MLOrdersService:
                 
                 offset += limit
                 
-                # Pequena pausa entre requisições para não sobrecarregar a API
-                import time
-                time.sleep(0.5)
+                # ⚡ OTIMIZADO: Removido pausa entre requisições para acelerar
+                # import time
+                # time.sleep(0.5)
             
             logger.info(f"Importação completa finalizada: {len(all_orders)} orders totais")
             return all_orders
@@ -489,10 +489,10 @@ class MLOrdersService:
                     logger.error(f"   ❌ Erro no lote {page + 1}: {response.status_code}")
                     break
                 
-                # Pequena pausa entre requisições para não sobrecarregar a API
-                if page < total_pages - 1:  # Não pausar no último
-                    import time
-                    time.sleep(0.5)  # 500ms entre requisições
+                # ⚡ OTIMIZADO: Removido pausa entre requisições para acelerar
+                # if page < total_pages - 1:  # Não pausar no último
+                #     import time
+                #     time.sleep(0.5)  # 500ms entre requisições
             
             logger.info(f"✅ CONCLUÍDO: {len(all_orders)}/{total_orders} pedidos baixados com sucesso")
             
