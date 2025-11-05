@@ -8,12 +8,14 @@ from typing import Optional
 
 from app.config.database import get_db
 from app.controllers.auth_controller import AuthController
+from app.config.settings import Settings
 
 # Router para autenticação
 auth_router = APIRouter()
 
-# Instância do controller
+# Instância do controller e settings
 auth_controller = AuthController()
+settings = Settings()
 
 @auth_router.get("/login", response_class=HTMLResponse)
 async def login_page(
@@ -43,12 +45,12 @@ async def login(
     # Criar resposta de redirecionamento
     response = RedirectResponse(url="/dashboard", status_code=302)
     
-    # Definir cookie de sessão
+    # Definir cookie de sessão (secure=True em produção HTTPS)
     response.set_cookie(
         key="session_token",
         value=result["session_token"],
         httponly=False,  # Permitir acesso via JavaScript
-        secure=False,  # False para desenvolvimento (HTTP)
+        secure=settings.is_production,  # True em produção (HTTPS), False em dev (HTTP)
         samesite="lax",
         max_age=86400 if remember else 3600  # 1 dia ou 1 hora
     )
@@ -137,12 +139,12 @@ async def register(
     # Criar resposta de redirecionamento
     response = RedirectResponse(url="/dashboard", status_code=302)
     
-    # Definir cookie de sessão
+    # Definir cookie de sessão (secure=True em produção HTTPS)
     response.set_cookie(
         key="session_token",
         value=result["session_token"],
         httponly=False,  # Permitir acesso via JavaScript
-        secure=False,  # False para desenvolvimento
+        secure=settings.is_production,  # True em produção (HTTPS), False em dev (HTTP)
         samesite="lax",
         max_age=86400  # 1 dia
     )

@@ -319,6 +319,17 @@ class MLOrdersService:
                         saved_count += 1
                     elif result["action"] == "updated":
                         updated_count += 1
+                    
+                    # ✅ NOVO: Verificar nota fiscal após salvar pedido (se status for PAID/CONFIRMED)
+                    order_status = order_data.get("status", "").lower()
+                    order_id = order_data.get("id")
+                    if order_status in ["paid", "confirmed"] and order_id:
+                        try:
+                            logger.info(f"🧾 Verificando nota fiscal para pedido {order_id} (status: {order_status})")
+                            self._check_invoice_for_order_sync(order_id, company_id, access_token)
+                        except Exception as invoice_error:
+                            # Não falhar a sincronização se houver erro na verificação de NF
+                            logger.warning(f"⚠️ Erro ao verificar NF do pedido {order_id}: {invoice_error}")
                 except Exception as e:
                     logger.error(f"Erro ao salvar order {order_data.get('id')}: {e}")
                     continue
@@ -1268,12 +1279,15 @@ class MLOrdersService:
         """Tenta renovar token usando refresh token"""
         try:
             import requests
+            from app.config.settings import Settings
             
-            # Dados para renovar token
+            settings = Settings()
+            
+            # Dados para renovar token (usa credenciais do ambiente)
             data = {
                 "grant_type": "refresh_token",
-                "client_id": "6987936494418444",
-                "client_secret": "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl",
+                "client_id": settings.ml_app_id,
+                "client_secret": settings.ml_client_secret,
                 "refresh_token": refresh_token
             }
             
@@ -1534,3 +1548,80 @@ class MLOrdersService:
         except Exception as e:
             logger.error(f"Erro ao sincronizar custos de publicidade: {e}")
             return None
+    
+    def _check_invoice_for_order_sync(self, order_id: str, company_id: int, access_token: str):
+        """
+        Verifica automaticamente se um pedido tem nota fiscal emitida (versão síncrona)
+        Chamado quando um pedido é sincronizado com status PAID/CONFIRMED
+        """
+        try:
+            from sqlalchemy import text
+            
+            # Buscar dados do pedido incluindo pack_id e shipping_id
+            order_query = text("""
+                SELECT id, ml_order_id, pack_id, shipping_id, invoice_emitted 
+                FROM ml_orders 
+                WHERE ml_order_id = :order_id AND company_id = :company_id
+            """)
+            
+            order_result = self.db.execute(order_query, {"order_id": str(order_id), "company_id": company_id}).fetchone()
+            
+            if not order_result:
+                logger.warning(f"⚠️ Pedido {order_id} não encontrado para verificação de NF")
+                return
+            
+            order_db_id, ml_order_id, pack_id, shipping_id, current_invoice_status = order_result
+            
+            if current_invoice_status:
+                logger.info(f"ℹ️ Pedido {order_id} já tem NF marcada - pulando verificação")
+                return
+            
+            # Verificar NF no ML usando ShipmentService
+            from app.services.shipment_service import ShipmentService
+            shipment_service = ShipmentService(self.db)
+            
+            # Tentar buscar NF por pack_id primeiro
+            invoice_data = None
+            if pack_id:
+                logger.info(f"🔍 Buscando NF pelo pack_id {pack_id} para pedido {order_id}")
+                invoice_data = shipment_service._check_pack_invoice(pack_id, access_token)
+            
+            # Se não encontrou pelo pack_id e tem shipping_id, tentar pelo shipping_id (fulfillment)
+            if not invoice_data and shipping_id:
+                logger.info(f"🔍 Buscando NF pelo shipping_id {shipping_id} para pedido {order_id} (fulfillment)")
+                invoice_data = shipment_service._check_shipment_invoice(shipping_id, company_id, access_token)
+            
+            if invoice_data and invoice_data.get('has_invoice'):
+                # Atualizar pedido com dados da NF
+                update_invoice_query = text("""
+                    UPDATE ml_orders SET
+                        invoice_emitted = true,
+                        invoice_emitted_at = NOW(),
+                        invoice_number = :invoice_number,
+                        invoice_series = :invoice_series,
+                        invoice_key = :invoice_key,
+                        invoice_xml_url = :invoice_xml_url,
+                        invoice_pdf_url = :invoice_pdf_url,
+                        updated_at = NOW()
+                    WHERE id = :order_db_id
+                """)
+                
+                self.db.execute(update_invoice_query, {
+                    "order_db_id": order_db_id,
+                    "invoice_number": invoice_data.get('number'),
+                    "invoice_series": invoice_data.get('series'),
+                    "invoice_key": invoice_data.get('key'),
+                    "invoice_xml_url": invoice_data.get('xml_url'),
+                    "invoice_pdf_url": invoice_data.get('pdf_url')
+                })
+                
+                # Commit imediato para garantir que a NF seja salva
+                self.db.commit()
+                
+                logger.info(f"✅ [AUTO-NF] Nota fiscal detectada e atualizada para pedido {order_id}")
+                
+            else:
+                logger.info(f"ℹ️ [AUTO-NF] Pedido {order_id} ainda não tem nota fiscal emitida")
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao verificar NF do pedido {order_id}: {e}", exc_info=True)

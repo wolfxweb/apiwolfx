@@ -78,12 +78,15 @@ class MLProductService:
         try:
             import requests
             from datetime import datetime, timedelta
+            from app.config.settings import Settings
             
-            # Dados para renovar token
+            settings = Settings()
+            
+            # Dados para renovar token (usa credenciais do ambiente)
             data = {
                 "grant_type": "refresh_token",
-                "client_id": "6987936494418444",
-                "client_secret": "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl",
+                "client_id": settings.ml_app_id,
+                "client_secret": settings.ml_client_secret,
                 "refresh_token": refresh_token
             }
             

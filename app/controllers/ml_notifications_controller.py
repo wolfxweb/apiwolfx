@@ -110,6 +110,9 @@ class MLNotificationsController:
             success = True
             error_message = None
             
+            # Lista de notificações ignoradas intencionalmente (não são erros)
+            ignored_topics = ["price_suggestion", "items_prices"]
+            
             try:
                 if topic == "orders_v2":
                     await self._process_order_notification(resource, ml_user_id, company_id, db)
@@ -125,10 +128,16 @@ class MLNotificationsController:
                     await self._process_shipment_notification(resource, ml_user_id, company_id, db)
                 elif topic == "claims" or topic == "post_purchase":
                     await self._process_claim_notification(resource, ml_user_id, company_id, db)
+                elif topic in ignored_topics:
+                    # Notificações ignoradas intencionalmente - não são erros
+                    logger.info(f"ℹ️ Notificação '{topic}' recebida e ignorada (não implementada)")
+                    success = True  # Marcar como sucesso para não gerar alarmes
+                    error_message = None
                 else:
-                    logger.warning(f"⚠️ Tipo de notificação não suportado: {topic}")
+                    # Tipo realmente desconhecido
+                    logger.warning(f"⚠️ Tipo de notificação desconhecido: {topic}")
                     success = False
-                    error_message = f"Tipo de notificação não suportado: {topic}"
+                    error_message = f"Tipo de notificação desconhecido: {topic}"
                 
             except Exception as e:
                 success = False
@@ -669,12 +678,15 @@ class MLNotificationsController:
             from app.models.saas_models import Token
             from datetime import timedelta
             from sqlalchemy import text
+            from app.config.settings import Settings
             
-            # Dados para renovar token
+            settings = Settings()
+            
+            # Dados para renovar token (usa credenciais do ambiente)
             data = {
                 "grant_type": "refresh_token",
-                "client_id": "6987936494418444",
-                "client_secret": "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl",
+                "client_id": settings.ml_app_id,
+                "client_secret": settings.ml_client_secret,
                 "refresh_token": refresh_token
             }
             
@@ -1046,6 +1058,12 @@ class MLNotificationsController:
                         # IMPORTANTE: Garantir commit após criar/atualizar pedido
                         db.commit()
                         logger.info(f"✅ Commit realizado para pedido {order_id}")
+                        
+                        # ✅ NOVO: Verificar nota fiscal após criar pedido (se status for PAID/CONFIRMED)
+                        order_status = order_data.get("status", "").lower()
+                        if order_status in ["paid", "confirmed"]:
+                            logger.info(f"🧾 Verificando nota fiscal para pedido recém-criado {order_id}")
+                            await self._check_invoice_for_order(order_id, company_id, db)
                     else:
                         error_msg = f"MLAccount não encontrada para company_id {company_id}"
                         logger.warning(f"⚠️ {error_msg}")

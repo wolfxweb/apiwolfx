@@ -25,8 +25,8 @@ services:
 
       
       # Mercado Livre API
-      - ML_APP_ID=6987936494418444
-      - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
+      - ML_APP_ID=8660307122558740
+      - ML_CLIENT_SECRET=MRHlPRctnjmFIgEcnP8qvLJmwe4b8Zsi
       - ML_REDIRECT_URI=https://celx.com.br/api/callback
       - ML_NOTIFICATION_URL=https://celx.com.br/api/notifications
       

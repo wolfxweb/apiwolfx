@@ -16,9 +16,12 @@ class TokenManager:
     """Gerenciador centralizado de tokens do Mercado Livre"""
     
     def __init__(self, db: Session):
+        from app.config.settings import Settings
+        
         self.db = db
-        self.client_id = "6987936494418444"
-        self.client_secret = "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl"
+        settings = Settings()
+        self.client_id = settings.ml_app_id
+        self.client_secret = settings.ml_client_secret
         self.token_url = "https://api.mercadolibre.com/oauth/token"
     
     def get_valid_token(self, user_id: int) -> Optional[str]:
