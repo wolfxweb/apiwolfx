@@ -1182,6 +1182,18 @@ class MLNotificationsController:
             check_query = text("SELECT id FROM ml_products WHERE ml_item_id = :item_id AND company_id = :company_id")
             existing = db.execute(check_query, {"item_id": item_id, "company_id": company_id}).fetchone()
             
+            # ⚡ Mapear status da API ML (minúsculas) para enum do banco (MAIÚSCULAS)
+            status_mapping = {
+                "active": "ACTIVE",
+                "paused": "PAUSED",
+                "closed": "CLOSED",
+                "under_review": "UNDER_REVIEW",
+                "inactive": "INACTIVE"
+            }
+            
+            api_status = item_data.get("status", "active")
+            db_status = status_mapping.get(api_status, "ACTIVE")
+            
             if existing:
                 # Atualizar produto
                 update_query = text("""
@@ -1202,7 +1214,7 @@ class MLNotificationsController:
                     "price": item_data.get("price"),
                     "available_quantity": item_data.get("available_quantity"),
                     "sold_quantity": item_data.get("sold_quantity"),
-                    "status": item_data.get("status")
+                    "status": db_status
                 })
                 
                 db.commit()
