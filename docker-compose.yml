@@ -14,13 +14,13 @@ services:
       - ENVIRONMENT=local
       - ML_APP_ID=6987936494418444
       - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
-      - ML_REDIRECT_URI=https://c7bf5baecfca.ngrok-free.app/api/callback
-      - ML_NOTIFICATION_URL=https://c7bf5baecfca.ngrok-free.app/api/notifications
+      - ML_REDIRECT_URI=https://a2a7bd2c74d8.ngrok-free.app/api/callback
+      - ML_NOTIFICATION_URL=https://a2a7bd2c74d8.ngrok-free.app/api/notifications
       # Mercado Pago URLs (para produção, altere para seu domínio)
-      - MP_SUCCESS_URL=https://c7bf5baecfca.ngrok-free.app/payment/success
-      - MP_FAILURE_URL=https://c7bf5baecfca.ngrok-free.app/payment/failure
-      - MP_PENDING_URL=https://c7bf5baecfca.ngrok-free.app/payment/pending
-      - MP_WEBHOOK_URL=https://c7bf5baecfca.ngrok-free.app/api/payments/webhooks/mercadopago
+      - MP_SUCCESS_URL=https://a2a7bd2c74d8.ngrok-free.app/payment/success
+      - MP_FAILURE_URL=https://a2a7bd2c74d8.ngrok-free.app/payment/failure
+      - MP_PENDING_URL=https://a2a7bd2c74d8.ngrok-free.app/payment/pending
+      - MP_WEBHOOK_URL=https://a2a7bd2c74d8.ngrok-free.app/api/payments/webhooks/mercadopago
       
       # Mercado Pago Credentials
       - MP_ACCESS_TOKEN=APP_USR-6252941991597570-101508-8d44441cc0d386eee063ba11e1ea5a18-1979794691

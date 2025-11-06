@@ -17,7 +17,7 @@ class Settings:
             default_base_url = f"https://{default_domain}"
         else:
             # Desenvolvimento: usa ngrok
-            default_base_url = "https://c7bf5baecfca.ngrok-free.app"
+            default_base_url = "https://a2a7bd2c74d8.ngrok-free.app"
         
         # Mercado Livre API Configuration
         # IMPORTANTE: SEMPRE usar variáveis de ambiente (sem fallback hardcoded)
