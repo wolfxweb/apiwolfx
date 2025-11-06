@@ -102,14 +102,25 @@ class MLController:
     def get_user_ml_accounts(self, user_id: int, company_id: int, db: Session) -> dict:
         """Obtém contas ML do usuário"""
         try:
+            logger.info(f"🔍 get_user_ml_accounts - Buscando contas ML para company_id: {company_id}")
+            
             # Buscar contas ML da empresa (sem JOIN com UserMLAccount)
             accounts = db.query(MLAccount).filter(
                 MLAccount.company_id == company_id,
                 MLAccount.status == MLAccountStatus.ACTIVE
             ).all()
             
+            logger.info(f"🔍 Encontradas {len(accounts)} contas ML para company_id {company_id}")
+            
             accounts_data = []
             for account in accounts:
+                logger.info(f"  - Conta ML ID: {account.id}, Nickname: {account.nickname}, ml_user_id: {account.ml_user_id}, company_id: {account.company_id}")
+                
+                # Validação adicional: verificar se realmente pertence ao company
+                if account.company_id != company_id:
+                    logger.error(f"❌ ATENÇÃO: Conta ML {account.id} tem company_id {account.company_id} mas foi buscada para company_id {company_id}!")
+                    continue  # Pular esta conta
+                
                 # Formatar data de criação
                 created_at_formatted = account.created_at.strftime('%d/%m/%Y') if account.created_at else 'N/A'
                 

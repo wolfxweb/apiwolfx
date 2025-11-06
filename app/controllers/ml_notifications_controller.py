@@ -821,10 +821,53 @@ class MLNotificationsController:
                     return response.json()
                 else:
                     logger.error(f"❌ Erro ao buscar pedido: {response.status_code}")
+                    logger.error(f"❌ Response: {response.text if hasattr(response, 'text') else 'N/A'}")
                     return None
                     
         except Exception as e:
             logger.error(f"❌ Erro ao buscar detalhes do pedido: {e}")
+            return None
+    
+    async def _get_order_from_invoice_api(self, invoice_id: str, ml_user_id: int, access_token: str) -> Optional[str]:
+        """Busca order_id através do invoice_id na API do ML"""
+        try:
+            async with httpx.AsyncClient() as client:
+                headers = {"Authorization": f"Bearer {access_token}"}
+                # Endpoint para buscar invoice: GET /users/{user_id}/invoices/{invoice_id}
+                response = await client.get(
+                    f"{self.api_base_url}/users/{ml_user_id}/invoices/{invoice_id}",
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    invoice_data = response.json()
+                    # A resposta da API de invoice contém order_id ou pack_id
+                    order_id = invoice_data.get("order_id") or invoice_data.get("pack_id")
+                    if order_id:
+                        logger.info(f"✅ Order ID {order_id} encontrado no invoice {invoice_id}")
+                        return str(order_id)
+                    else:
+                        logger.warning(f"⚠️ Invoice {invoice_id} não contém order_id ou pack_id")
+                        logger.warning(f"⚠️ Dados do invoice: {invoice_data}")
+                        return None
+                elif response.status_code == 404:
+                    logger.warning(f"⚠️ Invoice {invoice_id} não encontrado na API (404)")
+                    return None
+                elif response.status_code == 401:
+                    logger.error(f"❌ Token inválido ao buscar invoice {invoice_id} (401 Unauthorized)")
+                    return None
+                elif response.status_code == 403:
+                    logger.error(f"❌ Acesso negado ao buscar invoice {invoice_id} (403 Forbidden)")
+                    logger.error(f"❌ Possível problema: ml_user_id {ml_user_id} não é dono deste invoice")
+                    return None
+                else:
+                    logger.error(f"❌ Erro ao buscar invoice via API: {response.status_code}")
+                    logger.error(f"❌ Response: {response.text if hasattr(response, 'text') else 'N/A'}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"❌ Exceção ao buscar invoice via API: {e}")
             return None
     
     async def _fetch_item_details(self, item_id: str, access_token: str) -> Dict[str, Any]:
@@ -1228,12 +1271,14 @@ class MLNotificationsController:
             
             # O resource geralmente vem no formato:
             # /orders/{order_id}/invoice ou /packs/{pack_id}/invoice
+            # Também pode vir como: /users/{user_id}/invoices/{invoice_id}
             
             # Extrair order_id ou pack_id do resource
             parts = resource.split("/")
             
             order_id = None
             pack_id = None
+            invoice_id = None
             
             if "orders" in parts:
                 # Formato: /orders/123456/invoice
@@ -1264,6 +1309,44 @@ class MLNotificationsController:
                     if result:
                         order_id = result[0]
                         logger.info(f"🧾 Pack ID {pack_id} corresponde ao Order ID {order_id}")
+            
+            elif "invoices" in parts:
+                # Formato: /users/{user_id}/invoices/{invoice_id}
+                invoice_index = parts.index("invoices")
+                if len(parts) > invoice_index + 1:
+                    invoice_id = parts[invoice_index + 1]
+                    logger.info(f"🧾 Invoice ID detectado: {invoice_id}")
+                    
+                    # Buscar order_id pelo invoice_id no banco
+                    from sqlalchemy import text
+                    invoice_query = text("""
+                        SELECT ml_order_id 
+                        FROM ml_orders 
+                        WHERE invoice_number = :invoice_id 
+                        AND company_id = :company_id
+                        LIMIT 1
+                    """)
+                    
+                    result = db.execute(invoice_query, {
+                        "invoice_id": str(invoice_id),
+                        "company_id": company_id
+                    }).fetchone()
+                    
+                    if result:
+                        order_id = result[0]
+                        logger.info(f"🧾 Invoice ID {invoice_id} corresponde ao Order ID {order_id}")
+                    else:
+                        # Se não encontrou pelo invoice_number, buscar pela API do ML
+                        logger.info(f"🔍 Buscando order_id do invoice {invoice_id} via API do ML...")
+                        token = self._get_user_token_by_company(company_id, db)
+                        if token:
+                            order_id = await self._get_order_from_invoice_api(invoice_id, ml_user_id, token)
+                            if order_id:
+                                logger.info(f"✅ Order ID {order_id} obtido via API do ML para invoice {invoice_id}")
+                        
+                        if not order_id:
+                            logger.warning(f"⚠️ Não foi possível encontrar pedido para invoice {invoice_id}. Notificação será ignorada.")
+                            return
             
             if not order_id:
                 logger.warning(f"⚠️ Não foi possível extrair order_id do resource: {resource}")

@@ -256,7 +256,9 @@ class MLOrdersService:
                            limit: int = 50, is_full_import: bool = False, days_back: Optional[int] = None, access_token: Optional[str] = None) -> Dict:
         """Sincroniza orders da API do Mercado Libre para o banco"""
         try:
-            logger.info(f"Sincronizando orders para ml_account_id: {ml_account_id}")
+            logger.info(f"🔄 ========== INICIANDO SINCRONIZAÇÃO DE PEDIDOS ==========")
+            logger.info(f"🔄 ml_account_id: {ml_account_id}")
+            logger.info(f"🔄 company_id: {company_id}")
             
             # Verificar se a conta pertence à empresa
             account = self.db.query(MLAccount).filter(
@@ -266,20 +268,37 @@ class MLOrdersService:
             ).first()
             
             if not account:
+                logger.error(f"❌ Conta ML {ml_account_id} não encontrada ou não pertence ao company_id {company_id}")
                 return {
                     "success": False,
                     "error": "Conta não encontrada ou inativa"
                 }
+            
+            logger.info(f"✅ Conta ML encontrada: {account.nickname} (ml_user_id: {account.ml_user_id})")
+            logger.info(f"✅ Seller ID que será usado na API: {account.ml_user_id}")
             
             # Obter token ativo: usar o fornecido (via TokenManager) ou buscar por ml_account_id
             if not access_token:
                 access_token = self._get_active_token(ml_account_id)
             
             if not access_token:
+                logger.error(f"❌ Token não encontrado para conta {account.nickname} (ml_account_id: {ml_account_id})")
                 return {
                     "success": False,
-                    "error": "Token não encontrado ou expirado"
+                    "error": f"Token não encontrado para conta {account.nickname}. Reconecte a conta em 'Contas ML'."
                 }
+            
+            # Testar token antes de sincronizar
+            logger.info(f"🔑 Testando token antes de sincronizar...")
+            token_test = self._test_token_validity(access_token, account.ml_user_id)
+            if not token_test["valid"]:
+                logger.error(f"❌ Token inválido para conta {account.nickname}: {token_test.get('error', 'Token expirado')}")
+                return {
+                    "success": False,
+                    "error": f"Token inválido ou expirado para conta {account.nickname}. {token_test.get('error', 'Reconecte a conta em Contas ML.')}"
+                }
+            
+            logger.info(f"✅ Token válido! Iniciando sincronização...")
             
             # Buscar orders da API
             if is_full_import:
@@ -295,10 +314,18 @@ class MLOrdersService:
                 logger.info("Sincronização rápida - buscando pedidos dos últimos 7 dias")
                 orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=7)
             
+            # Se retornou lista vazia, pode ser erro de API ou realmente não há pedidos
             if not orders_data:
+                # Verificar se houve erro de autenticação testando o token
+                logger.warning(f"⚠️ Nenhum pedido retornado para conta {account.nickname} (ml_user_id: {account.ml_user_id})")
+                logger.warning(f"⚠️ Isso pode indicar: 1) Não há pedidos no período, 2) Token inválido, 3) Erro 403/401")
+                
+                # Retornar SUCESSO mas com 0 pedidos (não é um erro crítico)
                 return {
-                    "success": False,
-                    "error": "Nenhuma order encontrada na API"
+                    "success": True,
+                    "message": f"Nenhum pedido encontrado no período para conta {account.nickname}",
+                    "saved_count": 0,
+                    "updated_count": 0
                 }
             
             # Salvar orders no banco
@@ -449,7 +476,20 @@ class MLOrdersService:
             response_first = requests.get(orders_url, headers=headers, params=params_first, timeout=30)
             
             if response_first.status_code != 200:
-                logger.error(f"Erro ao consultar total: {response_first.status_code} - {response_first.text[:200]}")
+                error_text = response_first.text[:500] if hasattr(response_first, 'text') else 'N/A'
+                logger.error(f"Erro ao consultar total: {response_first.status_code} - {error_text}")
+                
+                # Log específico para erro 403 (acesso negado)
+                if response_first.status_code == 403:
+                    logger.error(f"❌ ERRO 403: Tentando acessar pedidos com seller_id={seller_id}")
+                    logger.error(f"❌ Este token pode não pertencer a este seller_id")
+                    logger.error(f"❌ Verifique se o ml_user_id da conta ML está correto")
+                
+                # Log específico para erro 401 (não autorizado)
+                elif response_first.status_code == 401:
+                    logger.error(f"❌ ERRO 401: Token inválido ou expirado para seller_id={seller_id}")
+                    logger.error(f"❌ Necessário reconectar a conta ML")
+                
                 return []
             
             first_data = response_first.json()
@@ -458,7 +498,8 @@ class MLOrdersService:
             logger.info(f"✅ Total de pedidos disponíveis na API: {total_orders}")
             
             if total_orders == 0:
-                logger.info("Nenhum pedido encontrado no período")
+                logger.info(f"✅ API retornou com sucesso, mas não há pedidos no período para seller_id={seller_id}")
+                logger.info(f"📅 Período consultado: {date_from_str} até {date_to_str}")
                 return []
             
             # PASSO 2: Calcular quantas páginas precisamos buscar
@@ -1224,6 +1265,58 @@ class MLOrdersService:
         except Exception as e:
             logger.error(f"Erro ao converter dados da order: {e}", exc_info=True)
             raise e
+    
+    def _test_token_validity(self, access_token: str, seller_id: str) -> Dict[str, Any]:
+        """Testa se o token é válido fazendo uma chamada simples à API"""
+        try:
+            import requests
+            headers = {"Authorization": f"Bearer {access_token}"}
+            
+            # Testar com endpoint simples de usuário
+            response = requests.get(
+                f"{self.base_url}/users/me",
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                user_data = response.json()
+                returned_user_id = str(user_data.get("id", ""))
+                
+                # Verificar se o user_id do token corresponde ao seller_id esperado
+                if returned_user_id != str(seller_id):
+                    logger.warning(f"⚠️ Token pertence a user_id {returned_user_id}, mas esperado {seller_id}")
+                    return {
+                        "valid": False,
+                        "error": f"Token pertence a outro usuário (ID: {returned_user_id})"
+                    }
+                
+                return {"valid": True}
+            
+            elif response.status_code == 401:
+                return {
+                    "valid": False,
+                    "error": "Token expirado ou inválido (401 Unauthorized)"
+                }
+            
+            elif response.status_code == 403:
+                return {
+                    "valid": False,
+                    "error": "Acesso negado (403 Forbidden)"
+                }
+            
+            else:
+                return {
+                    "valid": False,
+                    "error": f"Erro ao validar token: HTTP {response.status_code}"
+                }
+                
+        except Exception as e:
+            logger.error(f"Erro ao testar token: {e}")
+            return {
+                "valid": False,
+                "error": f"Erro ao validar token: {str(e)}"
+            }
     
     def _get_active_token(self, ml_account_id: int) -> Optional[str]:
         """Obtém token ativo para uma conta ML específica, tentando renovar se expirado"""

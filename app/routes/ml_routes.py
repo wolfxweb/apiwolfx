@@ -38,10 +38,16 @@ async def ml_accounts(
     user_id = user_data["id"]
     company_id = user_data["company"]["id"]
     
+    logger.info(f"📋 /ml/accounts - user_id: {user_id}, company_id: {company_id}")
+    
     # Buscar contas ML do usuário
     accounts_result = ml_controller.get_user_ml_accounts(user_id, company_id, db)
     accounts = accounts_result.get("accounts", []) if accounts_result.get("success") else []
     total_accounts = accounts_result.get("total_accounts", 0) if accounts_result.get("success") else 0
+    
+    logger.info(f"📋 Contas ML encontradas: {total_accounts}")
+    for acc in accounts:
+        logger.info(f"  - ID: {acc['id']}, Nickname: {acc['nickname']}")
     
     from app.views.template_renderer import render_template
     return render_template("ml_accounts.html", 

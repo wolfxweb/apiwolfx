@@ -1090,6 +1090,12 @@ async def sync_recent_orders(
         company_id = user_data["company"]["id"]
         user_id = user_data["id"]  # ID do usuário logado
         
+        logger.info(f"🔄 ========== SYNC-RECENT: SINCRONIZAR PEDIDOS ==========")
+        logger.info(f"🔄 Usuário logado: {user_data.get('name', 'N/A')} (ID: {user_id})")
+        logger.info(f"🔄 Company ID: {company_id}")
+        logger.info(f"🔄 Company Name: {user_data['company'].get('name', 'N/A')}")
+        logger.info(f"🔄 Vai sincronizar TODAS as contas ML do company_id {company_id}")
+        
         # Usar MLOrdersController como as outras rotas (/sync-invoices, /sync-single-invoice)
         from app.controllers.ml_orders_controller import MLOrdersController
         
@@ -1101,6 +1107,12 @@ async def sync_recent_orders(
             days_back=2,  # Últimos 2 dias
             user_id=user_id  # Passar user_id para usar TokenManager
         )
+        
+        logger.info(f"🔄 Resultado da sincronização: {result.get('success', False)}")
+        if result.get('success'):
+            logger.info(f"✅ {result.get('total_saved', 0)} novos, {result.get('total_updated', 0)} atualizados")
+        else:
+            logger.error(f"❌ Erro: {result.get('error', 'Desconhecido')}")
         
         # Se houver erro relacionado a token, retornar 401 (igual às outras rotas)
         if not result.get("success"):

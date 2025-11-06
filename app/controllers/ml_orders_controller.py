@@ -193,7 +193,11 @@ class MLOrdersController:
     def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None, is_full_import: bool = False, days_back: Optional[int] = None, user_id: Optional[int] = None) -> Dict:
         """Sincroniza orders da API do Mercado Libre"""
         try:
-            logger.info(f"Sincronizando orders para company_id: {company_id}")
+            logger.info(f"🔄 ========== CONTROLLER: SYNC_ORDERS ==========")
+            logger.info(f"🔄 Company ID recebido: {company_id}")
+            logger.info(f"🔄 ML Account ID específico: {ml_account_id or 'TODAS as contas'}")
+            logger.info(f"🔄 User ID para token: {user_id}")
+            logger.info(f"🔄 Dias para trás: {days_back}")
             
             # Se user_id foi fornecido, obter token usando TokenManager
             access_token = None
@@ -208,18 +212,25 @@ class MLOrdersController:
             
             # Se ml_account_id não foi especificado, sincronizar todas as contas
             if ml_account_id:
+                logger.info(f"🔍 Buscando conta ML específica: {ml_account_id}")
                 accounts = self.db.query(MLAccount).filter(
                     MLAccount.id == ml_account_id,
                     MLAccount.company_id == company_id,
                     MLAccount.status == MLAccountStatus.ACTIVE
                 ).all()
             else:
+                logger.info(f"🔍 Buscando TODAS as contas ML ativas do company_id: {company_id}")
                 accounts = self.db.query(MLAccount).filter(
                     MLAccount.company_id == company_id,
                     MLAccount.status == MLAccountStatus.ACTIVE
                 ).all()
             
+            logger.info(f"📋 Encontradas {len(accounts)} contas ML para company_id {company_id}:")
+            for acc in accounts:
+                logger.info(f"  - ID: {acc.id}, Nickname: {acc.nickname}, ml_user_id: {acc.ml_user_id}, company_id: {acc.company_id}")
+            
             if not accounts:
+                logger.error(f"❌ Nenhuma conta ML ativa encontrada para company_id {company_id}")
                 return {
                     "success": False,
                     "error": "Nenhuma conta ML ativa encontrada"
