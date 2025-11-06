@@ -31,23 +31,32 @@
     
     .image-preview .remove-btn {
         position: absolute;
-        top: 2px;
-        right: 2px;
+        top: 4px;
+        right: 4px;
         background: #dc3545;
         color: white;
         border: none;
         border-radius: 50%;
-        width: 20px;
-        height: 20px;
-        font-size: 12px;
+        width: 24px;
+        height: 24px;
+        font-size: 14px;
+        font-weight: bold;
         cursor: pointer;
-        display: none;
-    }
-    
-    .image-preview:hover .remove-btn {
+        opacity: 0;
+        transition: opacity 0.2s;
+        z-index: 10;
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+    
+    .image-preview:hover .remove-btn {
+        opacity: 1;
+    }
+    
+    .image-preview .remove-btn:hover {
+        background: #c82333;
+        transform: scale(1.1);
     }
     
     .required-field::after {
@@ -194,9 +203,18 @@
                 </div>
                 
                 <div class="col-md-6 mb-3">
-                    <label for="warranty" class="form-label">Garantia</label>
-                    <input type="text" class="form-control" id="warranty" name="warranty" 
-                           placeholder="Ex: 12 meses">
+                    <label class="form-label">Garantia</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="warranty_time" 
+                               placeholder="Quantidade" min="0" max="999">
+                        <select class="form-select" id="warranty_unit" style="max-width: 120px;">
+                            <option value="">Selecione...</option>
+                            <option value="meses">Meses</option>
+                            <option value="dias">Dias</option>
+                            <option value="anos">Anos</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="warranty" name="warranty">
                 </div>
             </div>
             
@@ -216,7 +234,6 @@
                             <i class="bi bi-camera fs-3 text-muted"></i>
                             <div class="small text-muted">Principal</div>
                         </div>
-                        <button type="button" class="remove-btn" onclick="removeImage(0, event)">×</button>
                     </div>
                     <input type="file" id="image0" class="d-none" accept="image/*" onchange="previewImage(0)">
                 </div>
@@ -267,6 +284,22 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('title').addEventListener('input', function() {
         document.getElementById('titleCount').textContent = this.value.length;
     });
+
+    // ========== GARANTIA - Combinar campos ==========
+    function updateWarrantyField() {
+        const time = document.getElementById('warranty_time').value;
+        const unit = document.getElementById('warranty_unit').value;
+        const warrantyField = document.getElementById('warranty');
+        
+        if (time && unit) {
+            warrantyField.value = `${time} ${unit}`;
+        } else {
+            warrantyField.value = '';
+        }
+    }
+    
+    document.getElementById('warranty_time').addEventListener('input', updateWarrantyField);
+    document.getElementById('warranty_unit').addEventListener('change', updateWarrantyField);
 
     // ========== BUSCA DE CATEGORIA ==========
     // Botão de busca de categoria - usa o título do anúncio automaticamente
@@ -530,31 +563,33 @@ function selectCategory(categoryId, categoryName) {
 // Upload de imagens
 function previewImage(index) {
     const file = document.getElementById(`image${index}`).files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const container = document.getElementById(index === 0 ? 'imageSlot1' : `imageSlot${index}`).parentElement.querySelector('.image-preview');
-            if (index === 0) {
-                // Imagem principal - buscar o container correto
-                const mainContainer = document.querySelector('.image-preview');
-                mainContainer.innerHTML = `
-                    <img src="${e.target.result}" alt="Preview">
-                    <button type="button" class="remove-btn" onclick="removeImage(${index}, event)">×</button>
-                `;
-            } else {
-                const slot = document.getElementById(`imageSlot${index}`);
-                if (slot) {
-                    const preview = slot.querySelector('.image-preview');
-                    preview.innerHTML = `
-                        <img src="${e.target.result}" alt="Preview">
-                        <button type="button" class="remove-btn" onclick="removeImage(${index}, event)">×</button>
-                    `;
-                }
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        let preview;
+        
+        if (index === 0) {
+            // Imagem principal - buscar o primeiro .image-preview
+            preview = document.querySelector('#imageContainer .image-preview');
+        } else {
+            // Outras imagens
+            const slot = document.getElementById(`imageSlot${index}`);
+            if (slot) {
+                preview = slot.querySelector('.image-preview');
             }
+        }
+        
+        if (preview) {
+            preview.innerHTML = `
+                <img src="${e.target.result}" alt="Preview">
+                <button type="button" class="remove-btn" onclick="removeImage(${index}, event)">×</button>
+            `;
             uploadedImages[index] = file;
-        };
-        reader.readAsDataURL(file);
-    }
+            console.log(`✅ Preview carregado para imagem ${index}`);
+        }
+    };
+    reader.readAsDataURL(file);
 }
 
 function removeImage(index, event) {
@@ -565,13 +600,12 @@ function removeImage(index, event) {
     
     if (index === 0) {
         // Resetar imagem principal
-        const mainContainer = document.querySelector('.image-preview');
+        const mainContainer = document.querySelector('#imageContainer .image-preview');
         mainContainer.innerHTML = `
             <div class="text-center">
                 <i class="bi bi-camera fs-3 text-muted"></i>
                 <div class="small text-muted">Principal</div>
             </div>
-            <button type="button" class="remove-btn" onclick="removeImage(0, event)">×</button>
         `;
     } else {
         const slot = document.getElementById(`imageSlot${index}`);
@@ -580,6 +614,7 @@ function removeImage(index, event) {
             preview.innerHTML = `<i class="bi bi-plus-lg fs-3 text-muted"></i>`;
         }
     }
+    console.log(`🗑️ Imagem ${index} removida`);
 }
 
 function addMoreImageSlots() {
