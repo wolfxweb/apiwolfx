@@ -142,9 +142,24 @@ async def startup_event():
     try:
         print("🚀 [STARTUP] Iniciando aplicação...")
         
-        # Criar tabelas se não existirem
-        Base.metadata.create_all(bind=engine)
-        print("✅ Banco de dados inicializado")
+        # Criar tabelas se não existirem (com retry para conexões lentas)
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"🔄 [STARTUP] Tentando conectar ao banco de dados (tentativa {attempt + 1}/{max_retries})...")
+                Base.metadata.create_all(bind=engine)
+                print("✅ Banco de dados inicializado")
+                break
+            except Exception as db_error:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ [STARTUP] Falha na conexão, tentando novamente em {retry_delay}s...")
+                    import time
+                    time.sleep(retry_delay)
+                else:
+                    print(f"❌ [STARTUP] Falha ao conectar após {max_retries} tentativas")
+                    raise db_error
         
         # Scheduler comentado - Webhook orders_v2 mantém pedidos atualizados automaticamente
         # print(f"🔧 [STARTUP] Scheduler rodando antes: {scheduler.running}")

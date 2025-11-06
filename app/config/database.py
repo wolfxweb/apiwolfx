@@ -32,7 +32,7 @@ engine = create_engine(
     pool_timeout=30,
     pool_recycle=3600,  # Reciclar conexões a cada hora
     connect_args={
-        "connect_timeout": 10,
+        "connect_timeout": 30,  # Aumentado de 10 para 30 segundos
         "application_name": "apiwolfx"
     }
 )
