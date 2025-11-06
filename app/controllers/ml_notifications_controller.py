@@ -116,7 +116,8 @@ class MLNotificationsController:
                 "items_prices",          # Mudança de preço (não implementado)
                 "stock-locations",       # Localização de estoque (não implementado)
                 "fbm_stock_operations",  # Operações FBM (não implementado)
-                "catalog_item_competition_status"  # Status de competição (não implementado)
+                "catalog_item_competition_status",  # Status de competição (não implementado)
+                "public_candidates"      # Candidatos públicos (não implementado)
             ]
             
             try:
@@ -1078,9 +1079,48 @@ class MLNotificationsController:
                         raise Exception(error_msg)
                 
                 except Exception as e:
-                    logger.error(f"❌ Erro ao criar pedido {order_id} via webhook: {e}", exc_info=True)
-                    db.rollback()
-                    raise  # Re-raise para ser capturado no except externo
+                    from sqlalchemy.exc import IntegrityError
+                    
+                    # Se for erro de chave duplicada, tentar atualizar o pedido existente
+                    if isinstance(e, IntegrityError) and "duplicate key" in str(e).lower():
+                        logger.warning(f"⚠️ Pedido {order_id} já existe (erro de chave duplicada), tentando atualizar...")
+                        db.rollback()
+                        
+                        try:
+                            # Buscar o pedido existente e atualizar
+                            from app.models.database_models import MLOrder as MLOrderModel
+                            from sqlalchemy import text
+                            
+                            existing = db.query(MLOrderModel).filter(
+                                MLOrderModel.ml_order_id == str(order_id),
+                                MLOrderModel.company_id == company_id
+                            ).first()
+                            
+                            if existing:
+                                logger.info(f"🔄 Pedido {order_id} encontrado, atualizando via webhook")
+                                
+                                # Usar a mesma lógica de atualização do bloco "if existing_order"
+                                orders_service = MLOrdersService(db)
+                                result = orders_service._save_order_to_database(order_data, ml_account.id, company_id)
+                                
+                                db.commit()
+                                logger.info(f"✅ Pedido {order_id} atualizado com sucesso após erro de chave duplicada")
+                                
+                                # Verificar nota fiscal
+                                order_status = order_data.get("status", "").lower()
+                                if order_status in ["paid", "confirmed"]:
+                                    await self._check_invoice_for_order(order_id, company_id, db)
+                            else:
+                                logger.error(f"❌ Pedido {order_id} não encontrado após erro de chave duplicada")
+                                raise
+                        except Exception as retry_error:
+                            logger.error(f"❌ Erro ao tentar atualizar pedido {order_id} após chave duplicada: {retry_error}")
+                            db.rollback()
+                            raise
+                    else:
+                        logger.error(f"❌ Erro ao criar pedido {order_id} via webhook: {e}", exc_info=True)
+                        db.rollback()
+                        raise
             
             # Não precisa fazer commit aqui pois:
             # - Pedidos existentes: commit já foi feito acima (linha ~467)

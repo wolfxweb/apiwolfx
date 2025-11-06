@@ -33,8 +33,15 @@ class Settings:
     
     def __init__(self):
         # Mercado Livre API Configuration
-        self.ml_app_id = os.getenv("ML_APP_ID", "6987936494418444")
-        self.ml_client_secret = os.getenv("ML_CLIENT_SECRET", "puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl")
+        # IMPORTANTE: SEMPRE usar variáveis de ambiente (sem fallback hardcoded)
+        self.ml_app_id = os.getenv("ML_APP_ID")
+        self.ml_client_secret = os.getenv("ML_CLIENT_SECRET")
+        
+        # Validar se as credenciais foram definidas
+        if not self.ml_app_id or not self.ml_client_secret:
+            raise ValueError(
+                "❌ ERRO: ML_APP_ID e ML_CLIENT_SECRET devem ser definidos nas variáveis de ambiente!"
+            )
         self.ml_redirect_uri = "{ngrok_url}/api/callback"
         
         # API Configuration
