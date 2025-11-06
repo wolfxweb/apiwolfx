@@ -1770,6 +1770,106 @@ async def get_ml_categories(
         )
 
 
+# ⚠️ IMPORTANTE: Esta rota DEVE vir ANTES de /categories/{category_id}
+# para evitar que "predict" seja interpretado como um category_id
+@ml_product_router.get("/categories/predict")
+async def predict_ml_category(
+    q: str = Query(..., description="Título do produto para predição"),
+    site_id: str = Query("MLB", description="Site ID (MLB para Brasil)"),
+    limit: int = Query(5, description="Número máximo de sugestões"),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Prediz categorias do Mercado Livre com base no título do produto
+    usando a API de Domain Discovery com token do usuário
+    """
+    logger.info(f"🎯 INÍCIO predict_ml_category - q='{q}'")
+    try:
+        import requests
+        from app.models.saas_models import Token, MLAccount
+        from datetime import datetime
+        
+        logger.info(f"✅ Imports OK - user={user.get('email') if isinstance(user, dict) else 'N/A'}")
+        
+        # Buscar token ativo da empresa do usuário
+        company_id = user["company"]["id"]
+        logger.info(f"✅ Company ID: {company_id}")
+        
+        token = db.query(Token).join(MLAccount).filter(
+            MLAccount.company_id == company_id,
+            Token.is_active == True,
+            Token.expires_at > datetime.utcnow()
+        ).order_by(Token.expires_at.desc()).first()
+        
+        # Endpoint de predição de categorias do Mercado Livre
+        url = f"https://api.mercadolibre.com/sites/{site_id}/domain_discovery/search"
+        params = {
+            "q": q,
+            "limit": limit
+        }
+        
+        headers = {
+            "Accept": "application/json"
+        }
+        
+        # Se tiver token, adicionar ao header
+        if token:
+            headers["Authorization"] = f"Bearer {token.access_token}"
+            logger.info(f"🔍 Buscando categorias para: '{q}' com token do ML")
+        else:
+            logger.warning(f"⚠️ Nenhum token encontrado! Buscando categorias para: '{q}' sem autenticação")
+        
+        logger.info(f"📡 URL completa: {url}")
+        logger.info(f"📋 Parâmetros: {params}")
+        logger.info(f"📋 Headers: {headers}")
+        
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        logger.info(f"📥 Status da resposta: {response.status_code}")
+        logger.info(f"📥 Corpo da resposta: {response.text[:500]}")
+        
+        if response.status_code == 200:
+            predictions = response.json()
+            
+            # Formatar resposta para o frontend
+            suggestions = []
+            for pred in predictions:
+                suggestions.append({
+                    "category_id": pred.get("category_id"),
+                    "category_name": pred.get("category_name"),
+                    "domain_id": pred.get("domain_id"),
+                    "domain_name": pred.get("domain_name"),
+                    "attributes": pred.get("attributes", [])
+                })
+            
+            logger.info(f"✅ {len(suggestions)} categorias encontradas")
+            
+            return JSONResponse(content={
+                "success": True,
+                "suggestions": suggestions,
+                "total": len(suggestions)
+            })
+        else:
+            logger.error(f"❌ Erro da API ML: {response.status_code} - {response.text}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": f"Erro ao buscar categorias: {response.status_code}"
+                }
+            )
+    except Exception as e:
+        logger.error(f"❌ Erro ao predizer categorias: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+        )
+
+
 @ml_product_router.get("/categories/{category_id}")
 async def get_ml_category_children(
     category_id: str,
@@ -1827,93 +1927,6 @@ async def get_ml_category_children(
             )
     except Exception as e:
         logger.error(f"❌ Erro ao buscar categoria: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False,
-                "error": f"Erro interno: {str(e)}"
-            }
-        )
-
-
-@ml_product_router.get("/categories/predict")
-async def predict_ml_category(
-    q: str = Query(..., description="Título do produto para predição"),
-    site_id: str = Query("MLB", description="Site ID (MLB para Brasil)"),
-    limit: int = Query(5, description="Número máximo de sugestões"),
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user)
-):
-    """
-    Prediz categorias do Mercado Livre com base no título do produto
-    usando a API de Domain Discovery com token do usuário
-    """
-    try:
-        import requests
-        from app.models.saas_models import Token, MLAccount
-        from datetime import datetime
-        
-        # Buscar token ativo da empresa do usuário
-        company_id = user["company"]["id"]
-        
-        token = db.query(Token).join(MLAccount).filter(
-            MLAccount.company_id == company_id,
-            Token.is_active == True,
-            Token.expires_at > datetime.utcnow()
-        ).order_by(Token.expires_at.desc()).first()
-        
-        # Endpoint de predição de categorias do Mercado Livre
-        url = f"https://api.mercadolibre.com/sites/{site_id}/domain_discovery/search"
-        params = {
-            "q": q,
-            "limit": limit
-        }
-        
-        headers = {
-            "Accept": "application/json"
-        }
-        
-        # Se tiver token, adicionar ao header
-        if token:
-            headers["Authorization"] = f"Bearer {token.access_token}"
-            logger.info(f"🔍 Buscando categorias para: '{q}' com token do ML")
-        else:
-            logger.info(f"🔍 Buscando categorias para: '{q}' sem autenticação")
-        
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            predictions = response.json()
-            
-            # Formatar resposta para o frontend
-            suggestions = []
-            for pred in predictions:
-                suggestions.append({
-                    "category_id": pred.get("category_id"),
-                    "category_name": pred.get("category_name"),
-                    "domain_id": pred.get("domain_id"),
-                    "domain_name": pred.get("domain_name"),
-                    "attributes": pred.get("attributes", [])
-                })
-            
-            logger.info(f"✅ {len(suggestions)} categorias encontradas")
-            
-            return JSONResponse(content={
-                "success": True,
-                "suggestions": suggestions,
-                "total": len(suggestions)
-            })
-        else:
-            logger.error(f"❌ Erro da API ML: {response.status_code} - {response.text}")
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "success": False,
-                    "error": f"Erro ao buscar categorias: {response.status_code}"
-                }
-            )
-    except Exception as e:
-        logger.error(f"❌ Erro ao predizer categorias: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={
