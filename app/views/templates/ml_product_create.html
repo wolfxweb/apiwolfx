@@ -3,60 +3,53 @@
 {% block title %}Cadastrar Produto no Mercado Livre - {{ user.company.name }}{% endblock %}
 
 {% block head %}
+<!-- Cache buster v3 - Novo sistema de imagens + debug atributos -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <style>
-    .image-preview {
+    .product-image-thumbnail {
         width: 100px;
         height: 100px;
-        border: 2px dashed #dee2e6;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .image-preview:hover {
-        border-color: #0d6efd;
-        background: #f8f9fa;
-    }
-    
-    .image-preview img {
-        max-width: 100%;
-        max-height: 100%;
         object-fit: cover;
+        cursor: pointer;
+        border: 2px solid #dee2e6;
+        transition: all 0.3s;
     }
     
-    .image-preview .remove-btn {
+    .product-image-thumbnail:hover {
+        border-color: #0d6efd;
+        transform: scale(1.05);
+    }
+    
+    .image-item {
+        position: relative;
+        display: inline-block;
+        margin-right: 10px;
+        margin-bottom: 10px;
+    }
+    
+    .remove-image-btn {
         position: absolute;
-        top: 4px;
-        right: 4px;
+        top: -8px;
+        right: -8px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
         background: #dc3545;
         color: white;
         border: none;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        font-size: 14px;
-        font-weight: bold;
         cursor: pointer;
-        opacity: 0;
-        transition: opacity 0.2s;
-        z-index: 10;
         display: flex;
         align-items: center;
         justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     
-    .image-preview:hover .remove-btn {
-        opacity: 1;
-    }
-    
-    .image-preview .remove-btn:hover {
+    .remove-image-btn:hover {
         background: #c82333;
-        transform: scale(1.1);
     }
     
     .required-field::after {
@@ -146,6 +139,17 @@
                 </div>
             </div>
             
+            <!-- Características do Produto (atributos dinâmicos por categoria) -->
+            <div id="attributesContainer" class="d-none mb-3">
+                <hr class="my-4">
+                <h5 class="mb-3">Características do Produto</h5>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Preencha as características desta categoria. Campos com <strong class="text-danger">*</strong> são obrigatórios.
+                </div>
+                <div id="attributesFields"></div>
+            </div>
+            
             <!-- Condição e Tipo de Anúncio -->
             <div class="row">
                 <div class="col-md-6 mb-3">
@@ -226,30 +230,16 @@
                 Adicione até 12 imagens. A primeira será a foto principal.
             </div>
             
-            <div id="imageContainer" class="row g-3 mb-3">
-                <!-- Imagem principal -->
-                <div class="col-auto">
-                    <div class="image-preview" onclick="document.getElementById('image0').click()">
-                        <div class="text-center">
-                            <i class="bi bi-camera fs-3 text-muted"></i>
-                            <div class="small text-muted">Principal</div>
-                        </div>
-                    </div>
-                    <input type="file" id="image0" class="d-none" accept="image/*" onchange="previewImage(0)">
-                </div>
-                
-                <!-- Slots para mais imagens -->
-                <div class="col-auto" id="imageSlot1">
-                    <div class="image-preview" onclick="document.getElementById('image1').click()">
-                        <i class="bi bi-plus-lg fs-3 text-muted"></i>
-                    </div>
-                    <input type="file" id="image1" class="d-none" accept="image/*" onchange="previewImage(1)">
-                </div>
-            </div>
+            <!-- Input oculto para múltiplas imagens -->
+            <input type="file" id="imageInput" class="d-none" accept="image/*" multiple onchange="handleImageSelect(event)">
             
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addMoreImageSlots()">
-                <i class="bi bi-plus-circle"></i> Adicionar Mais Imagens
+            <!-- Botão de adicionar imagens -->
+            <button type="button" class="btn btn-primary mb-3" onclick="document.getElementById('imageInput').click()">
+                <i class="bi bi-plus-circle"></i> Adicionar Imagens
             </button>
+            
+            <!-- Container de thumbnails -->
+            <div id="imageContainer" class="d-flex flex-wrap"></div>
             
             <hr class="my-4">
             
@@ -545,7 +535,7 @@ function displayCategorySuggestions(suggestions) {
 }
 
 // Selecionar categoria
-function selectCategory(categoryId, categoryName) {
+async function selectCategory(categoryId, categoryName) {
     // Preencher campo oculto
     document.getElementById('category_id').value = categoryId;
     
@@ -558,84 +548,214 @@ function selectCategory(categoryId, categoryName) {
     document.getElementById('categorySuggestions').style.display = 'none';
     
     console.log('✅ Categoria selecionada:', categoryId, '-', categoryName);
+    
+    // Buscar atributos obrigatórios desta categoria
+    await loadCategoryAttributes(categoryId);
 }
 
-// Upload de imagens
-function previewImage(index) {
-    const file = document.getElementById(`image${index}`).files[0];
-    if (!file) return;
+// Buscar atributos obrigatórios da categoria
+async function loadCategoryAttributes(categoryId) {
+    console.log('🔍 Buscando atributos para categoria:', categoryId);
     
+    const attributesContainer = document.getElementById('attributesContainer');
+    const attributesFields = document.getElementById('attributesFields');
+    
+    attributesFields.innerHTML = '<div class="text-center text-muted my-3"><span class="spinner-border spinner-border-sm"></span> Carregando características...</div>';
+    attributesContainer.classList.remove('d-none');
+    
+    try {
+        const url = `https://api.mercadolibre.com/categories/${categoryId}`;
+        console.log('📡 URL:', url);
+        
+        const response = await fetch(url, {
+            method: 'GET'
+        });
+        
+        console.log('📥 Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`Erro ${response.status} ao buscar atributos`);
+        }
+        
+        const data = await response.json();
+        console.log('📦 Dados recebidos:', data);
+        
+        const attributes = data.attributes || [];
+        console.log('📋 Total de atributos:', attributes.length);
+        
+        // Mostrar TODOS os atributos (obrigatórios e opcionais)
+        const allAttributes = attributes.filter(attr => 
+            attr.id && attr.name // Filtrar apenas atributos válidos
+        );
+        
+        if (allAttributes.length === 0) {
+            attributesContainer.classList.add('d-none');
+            console.log('ℹ️ Esta categoria não possui atributos');
+            return;
+        }
+        
+        // Separar obrigatórios e opcionais
+        const requiredAttributes = allAttributes.filter(attr => 
+            attr.tags && attr.tags.includes('required')
+        );
+        const optionalAttributes = allAttributes.filter(attr => 
+            !attr.tags || !attr.tags.includes('required')
+        );
+        
+        console.log(`✅ Encontrados ${requiredAttributes.length} obrigatórios + ${optionalAttributes.length} opcionais`);
+        
+        // Gerar campos dinâmicos
+        attributesFields.innerHTML = '';
+        
+        // Primeiro os obrigatórios
+        if (requiredAttributes.length > 0) {
+            attributesFields.insertAdjacentHTML('beforeend', '<div class="mb-2"><strong>Obrigatórios:</strong></div>');
+            requiredAttributes.forEach(attr => {
+                const fieldHtml = createAttributeField(attr);
+                attributesFields.insertAdjacentHTML('beforeend', fieldHtml);
+            });
+        }
+        
+        // Depois os opcionais
+        if (optionalAttributes.length > 0) {
+            attributesFields.insertAdjacentHTML('beforeend', '<hr><div class="mb-2"><strong>Opcionais:</strong></div>');
+            optionalAttributes.forEach(attr => {
+                const fieldHtml = createAttributeField(attr);
+                attributesFields.insertAdjacentHTML('beforeend', fieldHtml);
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar atributos:', error);
+        attributesFields.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Não foi possível carregar as características desta categoria.
+            </div>
+        `;
+    }
+}
+
+// Criar campo HTML baseado no tipo de atributo
+function createAttributeField(attribute) {
+    const fieldId = `attr_${attribute.id}`;
+    const isRequired = attribute.tags && attribute.tags.includes('required');
+    const requiredClass = isRequired ? 'required-field' : '';
+    const requiredAttr = isRequired ? 'required' : '';
+    
+    let fieldHTML = `<div class="mb-3"><label for="${fieldId}" class="form-label ${requiredClass}">${attribute.name}</label>`;
+    
+    // Se tem valores predefinidos (select)
+    if (attribute.values && attribute.values.length > 0) {
+        fieldHTML += `
+            <select class="form-select" id="${fieldId}" name="attribute_${attribute.id}" ${requiredAttr}>
+                <option value="">Selecione...</option>
+        `;
+        
+        attribute.values.forEach(value => {
+            fieldHTML += `<option value="${value.id}">${value.name}</option>`;
+        });
+        
+        fieldHTML += `</select>`;
+    } 
+    // Número
+    else if (attribute.value_type === 'number' || attribute.value_type === 'number_unit') {
+        fieldHTML += `
+            <input type="number" class="form-control" id="${fieldId}" 
+                   name="attribute_${attribute.id}" 
+                   placeholder="Digite o valor"
+                   ${requiredAttr}>
+        `;
+        if (attribute.value_type === 'number_unit' && attribute.allowed_units) {
+            fieldHTML += `<small class="text-muted">Unidades: ${attribute.allowed_units.map(u => u.name).join(', ')}</small>`;
+        }
+    }
+    // Boolean
+    else if (attribute.value_type === 'boolean') {
+        fieldHTML += `
+            <select class="form-select" id="${fieldId}" name="attribute_${attribute.id}" ${requiredAttr}>
+                <option value="">Selecione...</option>
+                <option value="true">Sim</option>
+                <option value="false">Não</option>
+            </select>
+        `;
+    }
+    // Texto padrão
+    else {
+        fieldHTML += `
+            <input type="text" class="form-control" id="${fieldId}" 
+                   name="attribute_${attribute.id}" 
+                   placeholder="Digite o valor"
+                   maxlength="255"
+                   ${requiredAttr}>
+        `;
+    }
+    
+    // Dica/tooltip se houver
+    if (attribute.hint) {
+        fieldHTML += `<small class="form-text text-muted"><i class="bi bi-info-circle"></i> ${attribute.hint}</small>`;
+    }
+    
+    fieldHTML += `</div>`;
+    
+    return fieldHTML;
+}
+
+// Upload de imagens - NOVO SISTEMA
+function handleImageSelect(event) {
+    const files = Array.from(event.target.files);
+    
+    // Verificar limite de 12 imagens
+    if (uploadedImages.length + files.length > 12) {
+        showAlert('warning', `⚠️ Você pode adicionar no máximo 12 imagens. Atualmente você tem ${uploadedImages.length} imagens.`);
+        return;
+    }
+    
+    files.forEach(file => {
+        if (file.type.startsWith('image/')) {
+            uploadedImages.push(file);
+            addImageThumbnail(file, uploadedImages.length - 1);
+        }
+    });
+    
+    // Limpar input para permitir selecionar as mesmas imagens novamente
+    event.target.value = '';
+    
+    console.log(`✅ ${files.length} imagem(ns) adicionada(s). Total: ${uploadedImages.length}`);
+}
+
+function addImageThumbnail(file, index) {
+    const container = document.getElementById('imageContainer');
     const reader = new FileReader();
+    
     reader.onload = function(e) {
-        let preview;
+        const imageDiv = document.createElement('div');
+        imageDiv.className = 'image-item';
+        imageDiv.id = `image-item-${index}`;
         
-        if (index === 0) {
-            // Imagem principal - buscar o primeiro .image-preview
-            preview = document.querySelector('#imageContainer .image-preview');
-        } else {
-            // Outras imagens
-            const slot = document.getElementById(`imageSlot${index}`);
-            if (slot) {
-                preview = slot.querySelector('.image-preview');
-            }
-        }
+        imageDiv.innerHTML = `
+            <img src="${e.target.result}" class="rounded img-thumbnail product-image-thumbnail" alt="Imagem ${index + 1} style="width: 200px; height: 200px;"">
+            <button type="button" class="remove-image-btn" onclick="removeImage(${index})">×</button>
+            ${index === 0 ? '<div class="badge bg-primary position-absolute bottom-0 start-0 m-1">Principal</div>' : ''}
+        `;
         
-        if (preview) {
-            preview.innerHTML = `
-                <img src="${e.target.result}" alt="Preview">
-                <button type="button" class="remove-btn" onclick="removeImage(${index}, event)">×</button>
-            `;
-            uploadedImages[index] = file;
-            console.log(`✅ Preview carregado para imagem ${index}`);
-        }
+        container.appendChild(imageDiv);
     };
+    
     reader.readAsDataURL(file);
 }
 
-function removeImage(index, event) {
-    event.stopPropagation();
-    const input = document.getElementById(`image${index}`);
-    input.value = '';
+function removeImage(index) {
+    // Remover do DOM
+    const imageItem = document.getElementById(`image-item-${index}`);
+    if (imageItem) {
+        imageItem.remove();
+    }
+    
+    // Remover do array
     uploadedImages[index] = null;
     
-    if (index === 0) {
-        // Resetar imagem principal
-        const mainContainer = document.querySelector('#imageContainer .image-preview');
-        mainContainer.innerHTML = `
-            <div class="text-center">
-                <i class="bi bi-camera fs-3 text-muted"></i>
-                <div class="small text-muted">Principal</div>
-            </div>
-        `;
-    } else {
-        const slot = document.getElementById(`imageSlot${index}`);
-        if (slot) {
-            const preview = slot.querySelector('.image-preview');
-            preview.innerHTML = `<i class="bi bi-plus-lg fs-3 text-muted"></i>`;
-        }
-    }
     console.log(`🗑️ Imagem ${index} removida`);
-}
-
-function addMoreImageSlots() {
-    const container = document.getElementById('imageContainer');
-    const currentSlots = container.querySelectorAll('.col-auto').length;
-    
-    if (currentSlots < 12) {
-        const newIndex = currentSlots;
-        const newSlot = document.createElement('div');
-        newSlot.className = 'col-auto';
-        newSlot.id = `imageSlot${newIndex}`;
-        newSlot.innerHTML = `
-            <div class="image-preview" onclick="document.getElementById('image${newIndex}').click()">
-                <i class="bi bi-plus-lg fs-3 text-muted"></i>
-            </div>
-            <input type="file" id="image${newIndex}" class="d-none" accept="image/*" onchange="previewImage(${newIndex})">
-        `;
-        container.appendChild(newSlot);
-    } else {
-        showAlert('warning', 'Você pode adicionar no máximo 12 imagens');
-    }
 }
 
 // Submissão do formulário
@@ -645,18 +765,26 @@ document.getElementById('productForm').addEventListener('submit', async function
     // Validar campos obrigatórios
     const requiredFields = this.querySelectorAll('[required]');
     let isValid = true;
+    let firstInvalidField = null;
     
     requiredFields.forEach(field => {
-        if (!field.value) {
+        if (!field.value || field.value.trim() === '') {
             field.classList.add('is-invalid');
             isValid = false;
+            if (!firstInvalidField) {
+                firstInvalidField = field;
+            }
         } else {
             field.classList.remove('is-invalid');
         }
     });
     
     if (!isValid) {
-        showAlert('danger', 'Por favor, preencha todos os campos obrigatórios (*)');
+        showAlert('danger', '❌ Por favor, preencha todos os campos obrigatórios (marcados com *)');
+        if (firstInvalidField) {
+            firstInvalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            firstInvalidField.focus();
+        }
         return;
     }
     
@@ -667,12 +795,36 @@ document.getElementById('productForm').addEventListener('submit', async function
     try {
         const formData = new FormData(this);
         
+        // Coletar atributos dinâmicos (características do produto)
+        const attributes = [];
+        const attributeInputs = document.querySelectorAll('[name^="attribute_"]');
+        
+        attributeInputs.forEach(input => {
+            const attributeId = input.name.replace('attribute_', '');
+            const value = input.value.trim();
+            
+            // Adicionar apenas se o campo foi preenchido
+            if (value && value !== '') {
+                attributes.push({
+                    id: attributeId,
+                    value_name: value
+                });
+            }
+        });
+        
+        // Adicionar atributos ao FormData como JSON
+        if (attributes.length > 0) {
+            formData.append('attributes', JSON.stringify(attributes));
+        }
+        
         // Adicionar imagens
         uploadedImages.forEach((file, index) => {
             if (file) {
                 formData.append(`images`, file);
             }
         });
+        
+        console.log('📤 Enviando produto com', attributes.length, 'atributos');
         
         const response = await fetch('/api/ml/products/create', {
             method: 'POST',

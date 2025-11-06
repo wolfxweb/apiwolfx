@@ -111,7 +111,13 @@ class MLNotificationsController:
             error_message = None
             
             # Lista de notificações ignoradas intencionalmente (não são erros)
-            ignored_topics = ["price_suggestion", "items_prices"]
+            ignored_topics = [
+                "price_suggestion",      # Sugestão de preço (não implementado)
+                "items_prices",          # Mudança de preço (não implementado)
+                "stock-locations",       # Localização de estoque (não implementado)
+                "fbm_stock_operations",  # Operações FBM (não implementado)
+                "catalog_item_competition_status"  # Status de competição (não implementado)
+            ]
             
             try:
                 if topic == "orders_v2":
@@ -126,6 +132,8 @@ class MLNotificationsController:
                     await self._process_payment_notification(resource, ml_user_id, company_id, db)
                 elif topic == "shipments":
                     await self._process_shipment_notification(resource, ml_user_id, company_id, db)
+                elif topic == "invoices":
+                    await self._process_invoice_notification(resource, ml_user_id, company_id, db)
                 elif topic == "claims" or topic == "post_purchase":
                     await self._process_claim_notification(resource, ml_user_id, company_id, db)
                 elif topic in ignored_topics:
@@ -1166,6 +1174,71 @@ class MLNotificationsController:
             
         except Exception as e:
             logger.error(f"❌ Erro ao verificar NF do pedido {order_id}: {e}")
+    
+    async def _process_invoice_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
+        """
+        Processa notificação de nota fiscal (invoices)
+        Quando o ML notifica que uma NF foi emitida ou atualizada
+        """
+        try:
+            logger.info(f"🧾 ========== PROCESSANDO NOTIFICAÇÃO DE NOTA FISCAL ==========")
+            logger.info(f"🧾 Resource: {resource}")
+            logger.info(f"🧾 ML User ID: {ml_user_id}")
+            logger.info(f"🧾 Company ID: {company_id}")
+            
+            # O resource geralmente vem no formato:
+            # /orders/{order_id}/invoice ou /packs/{pack_id}/invoice
+            
+            # Extrair order_id ou pack_id do resource
+            parts = resource.split("/")
+            
+            order_id = None
+            pack_id = None
+            
+            if "orders" in parts:
+                # Formato: /orders/123456/invoice
+                order_index = parts.index("orders")
+                if len(parts) > order_index + 1:
+                    order_id = parts[order_index + 1]
+            
+            elif "packs" in parts:
+                # Formato: /packs/123456/invoice
+                pack_index = parts.index("packs")
+                if len(parts) > pack_index + 1:
+                    pack_id = parts[pack_index + 1]
+                    
+                    # Buscar order_id pelo pack_id
+                    from sqlalchemy import text
+                    pack_query = text("""
+                        SELECT ml_order_id 
+                        FROM ml_orders 
+                        WHERE pack_id = :pack_id AND company_id = :company_id
+                        LIMIT 1
+                    """)
+                    
+                    result = db.execute(pack_query, {
+                        "pack_id": str(pack_id),
+                        "company_id": company_id
+                    }).fetchone()
+                    
+                    if result:
+                        order_id = result[0]
+                        logger.info(f"🧾 Pack ID {pack_id} corresponde ao Order ID {order_id}")
+            
+            if not order_id:
+                logger.warning(f"⚠️ Não foi possível extrair order_id do resource: {resource}")
+                return
+            
+            logger.info(f"🧾 Verificando nota fiscal para pedido: {order_id}")
+            
+            # Chamar a função existente para verificar e atualizar a NF
+            await self._check_invoice_for_order(order_id, company_id, db)
+            
+            logger.info(f"✅ Notificação de nota fiscal processada para pedido {order_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao processar notificação de nota fiscal: {e}", exc_info=True)
+            raise
     
     def _get_user_token_by_company(self, company_id: int, db: Session) -> Optional[str]:
         """Busca token de acesso para uma empresa específica"""
