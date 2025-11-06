@@ -1,0 +1,688 @@
+{% extends "base.html" %}
+
+{% block title %}Cadastrar Produto no Mercado Livre - {{ user.company.name }}{% endblock %}
+
+{% block head %}
+<style>
+    .image-preview {
+        width: 100px;
+        height: 100px;
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .image-preview:hover {
+        border-color: #0d6efd;
+        background: #f8f9fa;
+    }
+    
+    .image-preview img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: cover;
+    }
+    
+    .image-preview .remove-btn {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
+        cursor: pointer;
+        display: none;
+    }
+    
+    .image-preview:hover .remove-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .required-field::after {
+        content: " *";
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-plus-square"></i> Cadastrar Produto no Mercado Livre
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="/ml/products" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+
+<!-- Alerta de feedback -->
+<div id="alertContainer"></div>
+
+<!-- Card único com formulário -->
+<div class="card">
+    <div class="card-body">
+        <form id="productForm">
+            
+            <h5 class="mb-3">Informações Básicas</h5>
+            
+            <!-- Título -->
+            <div class="mb-3">
+                <label for="title" class="form-label required-field">Título do Anúncio</label>
+                <input type="text" class="form-control" id="title" name="title" 
+                       placeholder="Ex: Notebook Dell Inspiron 15 Core i7 16GB RAM 512GB SSD"
+                       maxlength="60" required>
+                <div class="form-text">
+                    <span id="titleCount">0</span>/60 caracteres
+                </div>
+            </div>
+            
+            <!-- Categoria com busca inteligente -->
+            <div class="mb-3">
+                <label class="form-label required-field">Categoria</label>
+                
+                <div class="form-text text-muted mb-2">
+                    <i class="bi bi-lightbulb"></i> Escolha uma das opções abaixo para selecionar a categoria
+                </div>
+                
+                <!-- Opções de seleção -->
+                <div class="btn-group mb-2" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="searchCategoryBtn">
+                        <i class="bi bi-magic"></i> Sugerir Automaticamente
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="browseCategoryBtn">
+                        <i class="bi bi-folder-fill"></i> Navegar por Categorias
+                    </button>
+                </div>
+                
+                <!-- Loading spinner -->
+                <div id="categoryLoading" class="text-center d-none my-2">
+                    <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <span class="ms-2 text-muted">Carregando categorias...</span>
+                </div>
+                
+                <!-- Breadcrumb de navegação -->
+                <nav id="categoryBreadcrumb" class="d-none" aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="#" onclick="loadRootCategories(); return false;">Categorias</a></li>
+                    </ol>
+                </nav>
+                
+                <!-- Lista de sugestões/navegação -->
+                <div id="categorySuggestions" class="list-group mb-2" style="display: none;"></div>
+                
+                <!-- Campo oculto para category_id (valor final) -->
+                <input type="hidden" id="category_id" name="category_id" required>
+                
+                <!-- Categoria selecionada -->
+                <div id="selectedCategory" class="alert alert-light border d-none mt-2">
+                    <i class="bi bi-check-circle text-success"></i> <strong>Categoria selecionada:</strong>
+                    <span id="selectedCategoryName"></span>
+                    <span class="badge bg-secondary ms-1" id="selectedCategoryId"></span>
+                </div>
+            </div>
+            
+            <!-- Condição e Tipo de Anúncio -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="condition" class="form-label required-field">Condição</label>
+                    <select class="form-select" id="condition" name="condition" required>
+                        <option value="">Selecione...</option>
+                        <option value="new">Novo</option>
+                        <option value="used">Usado</option>
+                        <option value="not_specified">Não especificado</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="listing_type_id" class="form-label required-field">Tipo de Anúncio</label>
+                    <select class="form-select" id="listing_type_id" name="listing_type_id" required>
+                        <option value="">Selecione...</option>
+                        <option value="gold_special">Clássico</option>
+                        <option value="gold_pro">Premium</option>
+                        <option value="free">Gratuito</option>
+                    </select>
+                </div>
+            </div>
+            
+            <hr class="my-4">
+            <h5 class="mb-3">Preço e Estoque</h5>
+            
+            <!-- Preço e Quantidade -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="price" class="form-label required-field">Preço (R$)</label>
+                    <input type="number" class="form-control" id="price" name="price" 
+                           placeholder="0.00" step="0.01" min="0" required>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="available_quantity" class="form-label required-field">Quantidade Disponível</label>
+                    <input type="number" class="form-control" id="available_quantity" 
+                           name="available_quantity" placeholder="0" min="0" required>
+                </div>
+            </div>
+            
+            <!-- Descrição -->
+            <div class="mb-3">
+                <label for="description" class="form-label">Descrição do Produto</label>
+                <textarea class="form-control" id="description" name="description" 
+                          rows="6" placeholder="Descreva as características do produto..."></textarea>
+            </div>
+            
+            <!-- SKU e Garantia -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="seller_custom_field" class="form-label">SKU / Código Interno</label>
+                    <input type="text" class="form-control" id="seller_custom_field" 
+                           name="seller_custom_field" placeholder="Ex: NB-DELL-15-I7">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="warranty" class="form-label">Garantia</label>
+                    <input type="text" class="form-control" id="warranty" name="warranty" 
+                           placeholder="Ex: 12 meses">
+                </div>
+            </div>
+            
+            <hr class="my-4">
+            <h5 class="mb-3">Imagens do Produto</h5>
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                Adicione até 12 imagens. A primeira será a foto principal.
+            </div>
+            
+            <div id="imageContainer" class="row g-3 mb-3">
+                <!-- Imagem principal -->
+                <div class="col-auto">
+                    <div class="image-preview" onclick="document.getElementById('image0').click()">
+                        <div class="text-center">
+                            <i class="bi bi-camera fs-3 text-muted"></i>
+                            <div class="small text-muted">Principal</div>
+                        </div>
+                        <button type="button" class="remove-btn" onclick="removeImage(0, event)">×</button>
+                    </div>
+                    <input type="file" id="image0" class="d-none" accept="image/*" onchange="previewImage(0)">
+                </div>
+                
+                <!-- Slots para mais imagens -->
+                <div class="col-auto" id="imageSlot1">
+                    <div class="image-preview" onclick="document.getElementById('image1').click()">
+                        <i class="bi bi-plus-lg fs-3 text-muted"></i>
+                    </div>
+                    <input type="file" id="image1" class="d-none" accept="image/*" onchange="previewImage(1)">
+                </div>
+            </div>
+            
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addMoreImageSlots()">
+                <i class="bi bi-plus-circle"></i> Adicionar Mais Imagens
+            </button>
+            
+            <hr class="my-4">
+            
+            <!-- Botões de ação -->
+            <div class="d-flex justify-content-end gap-2">
+                <a href="/ml/products" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </a>
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <i class="bi bi-check-circle"></i> Publicar no Mercado Livre
+                </button>
+            </div>
+            
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+console.log('📄 Script iniciado - ANTES do DOMContentLoaded');
+
+let uploadedImages = [];
+
+// Garantir que o DOM esteja carregado antes de vincular eventos
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 DOMContentLoaded disparado - Página de cadastro de produto carregada');
+    console.log('Tentando encontrar botão searchCategoryBtn...');
+    
+    // Contador de caracteres do título
+    document.getElementById('title').addEventListener('input', function() {
+        document.getElementById('titleCount').textContent = this.value.length;
+    });
+
+    // ========== BUSCA DE CATEGORIA ==========
+    // Botão de busca de categoria - usa o título do anúncio automaticamente
+    const searchCategoryBtn = document.getElementById('searchCategoryBtn');
+    if (searchCategoryBtn) {
+        console.log('✅ Botão de busca de categoria encontrado');
+        searchCategoryBtn.addEventListener('click', async function() {
+            console.log('🔍 Botão clicado!');
+    const titleInput = document.getElementById('title');
+    const searchQuery = titleInput.value.trim();
+    
+    if (!searchQuery) {
+        showAlert('warning', '⚠️ Por favor, digite o título do produto primeiro para sugerir categorias.');
+        titleInput.focus();
+        return;
+    }
+    
+    // Mostrar loading
+    document.getElementById('categoryLoading').classList.remove('d-none');
+    document.getElementById('categorySuggestions').style.display = 'none';
+    document.getElementById('selectedCategory').classList.add('d-none');
+    
+    try {
+        console.log('🔍 Buscando categorias para:', searchQuery);
+        
+        const response = await fetch(`/ml/products/categories/predict?q=${encodeURIComponent(searchQuery)}&limit=5`, {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        document.getElementById('categoryLoading').classList.add('d-none');
+        
+        if (data.success && data.suggestions && data.suggestions.length > 0) {
+            console.log('✅ Encontradas', data.suggestions.length, 'categorias');
+            displayCategorySuggestions(data.suggestions);
+        } else {
+            showAlert('info', '📋 Nenhuma categoria encontrada. Tente ajustar o título do produto.');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao buscar categorias:', error);
+        document.getElementById('categoryLoading').classList.add('d-none');
+        showAlert('danger', '❌ Erro ao buscar categorias. Tente novamente.');
+    }
+        });
+    } else {
+        console.error('❌ Botão de busca de categoria não encontrado!');
+    }
+    
+    // Botão de navegar por categorias
+    const browseCategoryBtn = document.getElementById('browseCategoryBtn');
+    if (browseCategoryBtn) {
+        console.log('✅ Botão de navegar categorias encontrado');
+        browseCategoryBtn.addEventListener('click', function() {
+            console.log('📂 Navegação manual iniciada');
+            loadRootCategories();
+        });
+    } else {
+        console.error('❌ Botão de navegar categorias não encontrado!');
+    }
+}); // Fecha o DOMContentLoaded
+
+// ========== FUNÇÕES GLOBAIS ==========
+
+// Variável global para controlar o caminho de navegação
+let categoryPath = [];
+
+// Carregar categorias principais
+async function loadRootCategories() {
+    categoryPath = [];
+    document.getElementById('categoryLoading').classList.remove('d-none');
+    document.getElementById('categorySuggestions').style.display = 'none';
+    document.getElementById('selectedCategory').classList.add('d-none');
+    document.getElementById('categoryBreadcrumb').classList.add('d-none');
+    
+    try {
+        const response = await fetch('/ml/products/categories', {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        document.getElementById('categoryLoading').classList.add('d-none');
+        
+        if (data.success && data.categories) {
+            displayCategoriesTree(data.categories, true);
+        } else {
+            showAlert('danger', '❌ Erro ao carregar categorias principais.');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao carregar categorias:', error);
+        document.getElementById('categoryLoading').classList.add('d-none');
+        showAlert('danger', '❌ Erro ao carregar categorias.');
+    }
+}
+
+// Carregar subcategorias
+async function loadCategoryChildren(categoryId, categoryName) {
+    document.getElementById('categoryLoading').classList.remove('d-none');
+    document.getElementById('categorySuggestions').style.display = 'none';
+    
+    try {
+        const response = await fetch(`/ml/products/categories/${categoryId}`, {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        document.getElementById('categoryLoading').classList.add('d-none');
+        
+        if (data.success && data.category) {
+            const category = data.category;
+            
+            // Adicionar ao caminho de navegação
+            categoryPath.push({ id: categoryId, name: categoryName });
+            
+            // Se tem subcategorias, mostrar
+            if (category.children_categories && category.children_categories.length > 0) {
+                updateBreadcrumb();
+                displayCategoriesTree(category.children_categories, false);
+            } else {
+                // É categoria final, selecionar automaticamente
+                selectCategory(categoryId, categoryName);
+            }
+        } else {
+            showAlert('danger', '❌ Erro ao carregar subcategorias.');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao carregar subcategorias:', error);
+        document.getElementById('categoryLoading').classList.add('d-none');
+        showAlert('danger', '❌ Erro ao carregar subcategorias.');
+    }
+}
+
+// Exibir árvore de categorias
+function displayCategoriesTree(categories, isRoot = false) {
+    const container = document.getElementById('categorySuggestions');
+    container.innerHTML = '';
+    
+    categories.forEach((cat) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+        
+        item.innerHTML = `
+            <span>${cat.name}</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+        `;
+        
+        item.addEventListener('click', function() {
+            loadCategoryChildren(cat.id, cat.name);
+        });
+        
+        container.appendChild(item);
+    });
+    
+    container.style.display = 'block';
+}
+
+// Atualizar breadcrumb
+function updateBreadcrumb() {
+    const breadcrumb = document.getElementById('categoryBreadcrumb');
+    const ol = breadcrumb.querySelector('ol');
+    
+    // Limpar breadcrumb exceto o primeiro item
+    ol.innerHTML = '<li class="breadcrumb-item"><a href="#" onclick="loadRootCategories(); return false;">Categorias</a></li>';
+    
+    // Adicionar itens do caminho
+    categoryPath.forEach((path, index) => {
+        const li = document.createElement('li');
+        li.className = 'breadcrumb-item';
+        
+        if (index === categoryPath.length - 1) {
+            li.classList.add('active');
+            li.textContent = path.name;
+        } else {
+            const a = document.createElement('a');
+            a.href = '#';
+            a.textContent = path.name;
+            a.onclick = function() {
+                navigateToPath(index);
+                return false;
+            };
+            li.appendChild(a);
+        }
+        
+        ol.appendChild(li);
+    });
+    
+    breadcrumb.classList.remove('d-none');
+}
+
+// Navegar para um ponto específico do caminho
+function navigateToPath(index) {
+    if (index === -1) {
+        loadRootCategories();
+    } else {
+        const targetCategory = categoryPath[index];
+        categoryPath = categoryPath.slice(0, index + 1);
+        loadCategoryChildren(targetCategory.id, targetCategory.name);
+    }
+}
+// Exibir sugestões de categoria (modo automático)
+function displayCategorySuggestions(suggestions) {
+    const container = document.getElementById('categorySuggestions');
+    container.innerHTML = '';
+    document.getElementById('categoryBreadcrumb').classList.add('d-none');
+    
+    suggestions.forEach((suggestion, index) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+        
+        // Destacar a primeira sugestão (mais relevante) com borda
+        if (index === 0) {
+            item.classList.add('border-success');
+            item.style.borderWidth = '2px';
+        }
+        
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <strong>${suggestion.category_name}</strong>
+            ${index === 0 ? '<span class="badge bg-success ms-2">Recomendada</span>' : ''}
+            <br>
+            <small class="text-muted">ID: ${suggestion.category_id}</small>
+            ${suggestion.domain_name ? `<br><small class="text-secondary"><i class="bi bi-tag"></i> ${suggestion.domain_name}</small>` : ''}
+        `;
+        
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-check-circle text-muted';
+        
+        item.appendChild(content);
+        item.appendChild(icon);
+        
+        item.addEventListener('click', function() {
+            selectCategory(suggestion.category_id, suggestion.category_name);
+        });
+        
+        container.appendChild(item);
+    });
+    
+    container.style.display = 'block';
+}
+
+// Selecionar categoria
+function selectCategory(categoryId, categoryName) {
+    // Preencher campo oculto
+    document.getElementById('category_id').value = categoryId;
+    
+    // Mostrar categoria selecionada
+    document.getElementById('selectedCategoryName').textContent = categoryName;
+    document.getElementById('selectedCategoryId').textContent = categoryId;
+    document.getElementById('selectedCategory').classList.remove('d-none');
+    
+    // Ocultar sugestões
+    document.getElementById('categorySuggestions').style.display = 'none';
+    
+    console.log('✅ Categoria selecionada:', categoryId, '-', categoryName);
+}
+
+// Upload de imagens
+function previewImage(index) {
+    const file = document.getElementById(`image${index}`).files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const container = document.getElementById(index === 0 ? 'imageSlot1' : `imageSlot${index}`).parentElement.querySelector('.image-preview');
+            if (index === 0) {
+                // Imagem principal - buscar o container correto
+                const mainContainer = document.querySelector('.image-preview');
+                mainContainer.innerHTML = `
+                    <img src="${e.target.result}" alt="Preview">
+                    <button type="button" class="remove-btn" onclick="removeImage(${index}, event)">×</button>
+                `;
+            } else {
+                const slot = document.getElementById(`imageSlot${index}`);
+                if (slot) {
+                    const preview = slot.querySelector('.image-preview');
+                    preview.innerHTML = `
+                        <img src="${e.target.result}" alt="Preview">
+                        <button type="button" class="remove-btn" onclick="removeImage(${index}, event)">×</button>
+                    `;
+                }
+            }
+            uploadedImages[index] = file;
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function removeImage(index, event) {
+    event.stopPropagation();
+    const input = document.getElementById(`image${index}`);
+    input.value = '';
+    uploadedImages[index] = null;
+    
+    if (index === 0) {
+        // Resetar imagem principal
+        const mainContainer = document.querySelector('.image-preview');
+        mainContainer.innerHTML = `
+            <div class="text-center">
+                <i class="bi bi-camera fs-3 text-muted"></i>
+                <div class="small text-muted">Principal</div>
+            </div>
+            <button type="button" class="remove-btn" onclick="removeImage(0, event)">×</button>
+        `;
+    } else {
+        const slot = document.getElementById(`imageSlot${index}`);
+        if (slot) {
+            const preview = slot.querySelector('.image-preview');
+            preview.innerHTML = `<i class="bi bi-plus-lg fs-3 text-muted"></i>`;
+        }
+    }
+}
+
+function addMoreImageSlots() {
+    const container = document.getElementById('imageContainer');
+    const currentSlots = container.querySelectorAll('.col-auto').length;
+    
+    if (currentSlots < 12) {
+        const newIndex = currentSlots;
+        const newSlot = document.createElement('div');
+        newSlot.className = 'col-auto';
+        newSlot.id = `imageSlot${newIndex}`;
+        newSlot.innerHTML = `
+            <div class="image-preview" onclick="document.getElementById('image${newIndex}').click()">
+                <i class="bi bi-plus-lg fs-3 text-muted"></i>
+            </div>
+            <input type="file" id="image${newIndex}" class="d-none" accept="image/*" onchange="previewImage(${newIndex})">
+        `;
+        container.appendChild(newSlot);
+    } else {
+        showAlert('warning', 'Você pode adicionar no máximo 12 imagens');
+    }
+}
+
+// Submissão do formulário
+document.getElementById('productForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Validar campos obrigatórios
+    const requiredFields = this.querySelectorAll('[required]');
+    let isValid = true;
+    
+    requiredFields.forEach(field => {
+        if (!field.value) {
+            field.classList.add('is-invalid');
+            isValid = false;
+        } else {
+            field.classList.remove('is-invalid');
+        }
+    });
+    
+    if (!isValid) {
+        showAlert('danger', 'Por favor, preencha todos os campos obrigatórios (*)');
+        return;
+    }
+    
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Publicando...';
+    
+    try {
+        const formData = new FormData(this);
+        
+        // Adicionar imagens
+        uploadedImages.forEach((file, index) => {
+            if (file) {
+                formData.append(`images`, file);
+            }
+        });
+        
+        const response = await fetch('/api/ml/products/create', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('success', `✅ Produto publicado com sucesso! ID: ${data.item_id}`);
+            setTimeout(() => {
+                window.location.href = '/ml/products';
+            }, 2000);
+        } else {
+            showAlert('danger', data.error || 'Erro ao publicar produto');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Publicar no Mercado Livre';
+        }
+        
+    } catch (error) {
+        console.error('Erro ao publicar produto:', error);
+        showAlert('danger', 'Erro ao publicar produto. Tente novamente.');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Publicar no Mercado Livre';
+    }
+});
+
+// Função auxiliar para exibir alertas
+function showAlert(type, message) {
+    const alertContainer = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    alertContainer.innerHTML = '';
+    alertContainer.appendChild(alert);
+    
+    // Rolar para o topo
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Auto-remover após 5s
+    setTimeout(() => alert.remove(), 5000);
+}
+</script>
+{% endblock %}

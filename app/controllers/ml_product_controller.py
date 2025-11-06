@@ -518,3 +518,196 @@ class MLProductController:
         except Exception as e:
             logger.error(f"Erro ao renderizar página de análise: {e}")
             raise
+
+    async def create_product_in_ml(self, company_id: int, product_data: dict, images: list = None):
+        """
+        Cria/publica um novo produto no Mercado Livre
+        
+        Args:
+            company_id: ID da empresa
+            product_data: Dados do produto (título, preço, categoria, etc)
+            images: Lista de imagens do produto
+            
+        Returns:
+            dict: Resultado da operação com success, item_id ou error
+        """
+        try:
+            logger.info(f"🆕 Iniciando cadastro de produto no ML para company {company_id}")
+            
+            # 1. Buscar token ativo da empresa
+            from app.services.token_manager import TokenManager
+            from app.models.saas_models import Token, MLAccount
+            from datetime import datetime
+            
+            # Buscar token ativo mais recente
+            token = self.db.query(Token).join(MLAccount).filter(
+                MLAccount.company_id == company_id,
+                Token.is_active == True,
+                Token.expires_at > datetime.utcnow()
+            ).order_by(Token.expires_at.desc()).first()
+            
+            if not token:
+                logger.error(f"❌ Nenhum token ativo encontrado para company {company_id}")
+                return {
+                    "success": False,
+                    "error": "Nenhuma conta do Mercado Livre conectada ou autorizada. Por favor, conecte uma conta primeiro."
+                }
+            
+            access_token = token.access_token
+            ml_account = token.ml_account
+            
+            logger.info(f"✅ Token encontrado para conta ML: {ml_account.nickname}")
+            
+            # 2. Validar dados obrigatórios
+            required_fields = ["title", "category_id", "price", "available_quantity", "condition", "listing_type_id"]
+            missing_fields = [field for field in required_fields if not product_data.get(field)]
+            
+            if missing_fields:
+                return {
+                    "success": False,
+                    "error": f"Campos obrigatórios faltando: {', '.join(missing_fields)}"
+                }
+            
+            # 3. Fazer upload das imagens primeiro (se houver)
+            image_urls = []
+            if images:
+                logger.info(f"📸 Fazendo upload de {len(images)} imagem(ns)...")
+                
+                import requests
+                import base64
+                
+                for idx, image in enumerate(images):
+                    try:
+                        # Upload de imagem para o ML
+                        upload_url = "https://api.mercadolibre.com/pictures/upload"
+                        headers = {
+                            "Authorization": f"Bearer {access_token}",
+                        }
+                        
+                        # Enviar imagem como multipart/form-data
+                        files = {
+                            'file': (image.get('filename', f'image_{idx}.jpg'), image.get('content'), 'image/jpeg')
+                        }
+                        
+                        upload_response = requests.post(upload_url, headers=headers, files=files, timeout=30)
+                        
+                        if upload_response.status_code == 200:
+                            upload_data = upload_response.json()
+                            image_url = upload_data.get('secure_url') or upload_data.get('variations', [{}])[0].get('secure_url')
+                            
+                            if image_url:
+                                image_urls.append({"source": image_url})
+                                logger.info(f"✅ Imagem {idx + 1} enviada com sucesso")
+                        else:
+                            logger.warning(f"⚠️ Erro ao enviar imagem {idx + 1}: {upload_response.text}")
+                            
+                    except Exception as img_error:
+                        logger.error(f"❌ Erro ao processar imagem {idx + 1}: {img_error}")
+            
+            # 4. Montar payload do produto
+            item_payload = {
+                "title": product_data.get("title"),
+                "category_id": product_data.get("category_id"),
+                "price": float(product_data.get("price")),
+                "currency_id": "BRL",
+                "available_quantity": int(product_data.get("available_quantity")),
+                "condition": product_data.get("condition"),
+                "listing_type_id": product_data.get("listing_type_id"),
+                "buying_mode": "buy_it_now",
+            }
+            
+            # Adicionar descrição se fornecida
+            if product_data.get("description"):
+                item_payload["description"] = {
+                    "plain_text": product_data.get("description")
+                }
+            
+            # Adicionar imagens se houver
+            if image_urls:
+                item_payload["pictures"] = image_urls
+            
+            # Adicionar campos opcionais
+            if product_data.get("seller_custom_field"):
+                item_payload["seller_custom_field"] = product_data.get("seller_custom_field")
+            
+            if product_data.get("warranty"):
+                item_payload["warranty"] = product_data.get("warranty")
+            
+            logger.info(f"📦 Payload preparado: {item_payload.get('title')} - R$ {item_payload.get('price')}")
+            
+            # 5. Criar produto no Mercado Livre
+            import requests
+            
+            create_url = "https://api.mercadolibre.com/items"
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.post(create_url, json=item_payload, headers=headers, timeout=30)
+            
+            if response.status_code in [200, 201]:
+                item_data = response.json()
+                item_id = item_data.get("id")
+                
+                logger.info(f"🎉 Produto criado com sucesso no ML! ID: {item_id}")
+                
+                # 6. Salvar produto no banco de dados local
+                try:
+                    new_product = MLProduct(
+                        ml_item_id=item_id,
+                        ml_account_id=ml_account.id,
+                        company_id=company_id,
+                        title=item_data.get("title"),
+                        price=item_data.get("price"),
+                        available_quantity=item_data.get("available_quantity"),
+                        sold_quantity=item_data.get("sold_quantity", 0),
+                        status=item_data.get("status", "active").upper(),
+                        condition=item_data.get("condition"),
+                        listing_type_id=item_data.get("listing_type_id"),
+                        category_id=item_data.get("category_id"),
+                        thumbnail=item_data.get("thumbnail"),
+                        permalink=item_data.get("permalink"),
+                        seller_custom_field=item_data.get("seller_custom_field")
+                    )
+                    
+                    self.db.add(new_product)
+                    self.db.commit()
+                    
+                    logger.info(f"💾 Produto salvo no banco de dados local")
+                    
+                except Exception as db_error:
+                    logger.error(f"⚠️ Erro ao salvar produto no banco: {db_error}")
+                    # Não falhar a operação por causa disso
+                
+                return {
+                    "success": True,
+                    "item_id": item_id,
+                    "permalink": item_data.get("permalink"),
+                    "message": f"Produto criado com sucesso! ID: {item_id}"
+                }
+                
+            else:
+                error_msg = response.text
+                logger.error(f"❌ Erro ao criar produto no ML: {response.status_code} - {error_msg}")
+                
+                try:
+                    error_data = response.json()
+                    if "message" in error_data:
+                        error_msg = error_data["message"]
+                    elif "error" in error_data:
+                        error_msg = error_data["error"]
+                except:
+                    pass
+                
+                return {
+                    "success": False,
+                    "error": f"Erro ao publicar no Mercado Livre: {error_msg}"
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao criar produto no ML: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": f"Erro interno ao criar produto: {str(e)}"
+            }

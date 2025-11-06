@@ -4,7 +4,7 @@ Rotas para produtos do Mercado Livre
 import logging
 import requests
 from fastapi import APIRouter, Depends, Request, Query, HTTPException, Cookie
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 ml_product_router = APIRouter(prefix="/products", tags=["ML Products"])
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):
-    """Obtém usuário atual da sessão"""
+    """Obtém usuário atual da sessão - Para APIs JSON"""
     session_token = request.cookies.get('session_token')
     if not session_token:
         raise HTTPException(status_code=401, detail="Sessão não encontrada")
@@ -27,6 +27,21 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         raise HTTPException(status_code=401, detail=result["error"])
+    
+    return result["user"]
+
+def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db)):
+    """Obtém usuário atual da sessão - Para páginas HTML (redireciona para login se não autenticado)"""
+    session_token = request.cookies.get('session_token')
+    if not session_token:
+        # Redirecionar para login preservando a URL atual
+        return None
+    
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        # Sessão inválida, redirecionar para login
+        return None
     
     return result["user"]
 
@@ -41,9 +56,13 @@ async def ml_products_page(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    user = Depends(get_current_user_or_redirect)
 ):
     """Página de produtos ML"""
+    # Verificar se usuário está autenticado
+    if user is None:
+        return RedirectResponse(url="/login?redirect=/ml/products", status_code=302)
+    
     try:
         controller = MLProductController(db)
         return controller.get_products_page(
@@ -576,9 +595,13 @@ async def get_product_analysis_page(
     product_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+    user = Depends(get_current_user_or_redirect)
 ):
     """Página de análise do produto"""
+    # Verificar se usuário está autenticado
+    if user is None:
+        return RedirectResponse(url=f"/login?redirect=/ml/products/analysis/{product_id}", status_code=302)
+    
     try:
         controller = MLProductController(db)
         return controller.get_product_analysis_page(request, user, product_id)
@@ -1676,4 +1699,325 @@ async def ai_analyze_product(
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": f"Erro interno: {str(e)}"}
+        )
+
+
+@ml_product_router.get("/categories")
+async def get_ml_categories(
+    site_id: str = Query("MLB", description="Site ID (MLB para Brasil)"),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Busca categorias principais do Mercado Livre usando token do usuário
+    """
+    try:
+        import requests
+        from app.models.saas_models import Token, MLAccount
+        from datetime import datetime
+        
+        # Buscar token ativo da empresa do usuário
+        company_id = user["company"]["id"]
+        
+        token = db.query(Token).join(MLAccount).filter(
+            MLAccount.company_id == company_id,
+            Token.is_active == True,
+            Token.expires_at > datetime.utcnow()
+        ).order_by(Token.expires_at.desc()).first()
+        
+        url = f"https://api.mercadolibre.com/sites/{site_id}/categories"
+        
+        headers = {
+            "Accept": "application/json"
+        }
+        
+        # Se tiver token, adicionar ao header
+        if token:
+            headers["Authorization"] = f"Bearer {token.access_token}"
+            logger.info(f"🔍 Buscando categorias com token do ML")
+        else:
+            logger.info(f"🔍 Buscando categorias sem autenticação (público)")
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            categories = response.json()
+            
+            logger.info(f"✅ {len(categories)} categorias principais encontradas")
+            
+            return JSONResponse(content={
+                "success": True,
+                "categories": categories,
+                "total": len(categories)
+            })
+        else:
+            logger.error(f"❌ Erro da API ML: {response.status_code}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": f"Erro ao buscar categorias: {response.status_code}"
+                }
+            )
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar categorias: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+        )
+
+
+@ml_product_router.get("/categories/{category_id}")
+async def get_ml_category_children(
+    category_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Busca detalhes de uma categoria e suas subcategorias usando token do usuário
+    """
+    try:
+        import requests
+        from app.models.saas_models import Token, MLAccount
+        from datetime import datetime
+        
+        # Buscar token ativo da empresa do usuário
+        company_id = user["company"]["id"]
+        
+        token = db.query(Token).join(MLAccount).filter(
+            MLAccount.company_id == company_id,
+            Token.is_active == True,
+            Token.expires_at > datetime.utcnow()
+        ).order_by(Token.expires_at.desc()).first()
+        
+        url = f"https://api.mercadolibre.com/categories/{category_id}"
+        
+        headers = {
+            "Accept": "application/json"
+        }
+        
+        # Se tiver token, adicionar ao header
+        if token:
+            headers["Authorization"] = f"Bearer {token.access_token}"
+        
+        logger.info(f"🔍 Buscando detalhes da categoria {category_id}")
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            category_data = response.json()
+            
+            logger.info(f"✅ Categoria encontrada: {category_data.get('name')}")
+            
+            return JSONResponse(content={
+                "success": True,
+                "category": category_data
+            })
+        else:
+            logger.error(f"❌ Erro da API ML: {response.status_code}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": f"Erro ao buscar categoria: {response.status_code}"
+                }
+            )
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar categoria: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+        )
+
+
+@ml_product_router.get("/categories/predict")
+async def predict_ml_category(
+    q: str = Query(..., description="Título do produto para predição"),
+    site_id: str = Query("MLB", description="Site ID (MLB para Brasil)"),
+    limit: int = Query(5, description="Número máximo de sugestões"),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Prediz categorias do Mercado Livre com base no título do produto
+    usando a API de Domain Discovery com token do usuário
+    """
+    try:
+        import requests
+        from app.models.saas_models import Token, MLAccount
+        from datetime import datetime
+        
+        # Buscar token ativo da empresa do usuário
+        company_id = user["company"]["id"]
+        
+        token = db.query(Token).join(MLAccount).filter(
+            MLAccount.company_id == company_id,
+            Token.is_active == True,
+            Token.expires_at > datetime.utcnow()
+        ).order_by(Token.expires_at.desc()).first()
+        
+        # Endpoint de predição de categorias do Mercado Livre
+        url = f"https://api.mercadolibre.com/sites/{site_id}/domain_discovery/search"
+        params = {
+            "q": q,
+            "limit": limit
+        }
+        
+        headers = {
+            "Accept": "application/json"
+        }
+        
+        # Se tiver token, adicionar ao header
+        if token:
+            headers["Authorization"] = f"Bearer {token.access_token}"
+            logger.info(f"🔍 Buscando categorias para: '{q}' com token do ML")
+        else:
+            logger.info(f"🔍 Buscando categorias para: '{q}' sem autenticação")
+        
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            predictions = response.json()
+            
+            # Formatar resposta para o frontend
+            suggestions = []
+            for pred in predictions:
+                suggestions.append({
+                    "category_id": pred.get("category_id"),
+                    "category_name": pred.get("category_name"),
+                    "domain_id": pred.get("domain_id"),
+                    "domain_name": pred.get("domain_name"),
+                    "attributes": pred.get("attributes", [])
+                })
+            
+            logger.info(f"✅ {len(suggestions)} categorias encontradas")
+            
+            return JSONResponse(content={
+                "success": True,
+                "suggestions": suggestions,
+                "total": len(suggestions)
+            })
+        else:
+            logger.error(f"❌ Erro da API ML: {response.status_code} - {response.text}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": f"Erro ao buscar categorias: {response.status_code}"
+                }
+            )
+    except Exception as e:
+        logger.error(f"❌ Erro ao predizer categorias: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+        )
+
+
+@ml_product_router.get("/create", response_class=HTMLResponse)
+async def ml_product_create_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user_or_redirect)
+):
+    """
+    Página de cadastro de novo produto no Mercado Livre
+    """
+    # Verificar se usuário está autenticado
+    if user is None:
+        return RedirectResponse(url="/login?redirect=/ml/products/create", status_code=302)
+    
+    try:
+        from app.views.template_renderer import render_template
+        
+        return render_template(
+            template_name="ml_product_create.html",
+            request=request,
+            user=user
+        )
+    except Exception as e:
+        logger.error(f"Erro ao renderizar página de cadastro: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@ml_product_router.post("/create")
+async def create_ml_product(
+    request: Request,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    API endpoint para criar/publicar um novo produto no Mercado Livre
+    """
+    try:
+        company_id = user["company"]["id"]
+        
+        # Obter dados do formulário
+        form_data = await request.form()
+        
+        # Preparar dados do produto
+        product_data = {
+            "title": form_data.get("title"),
+            "category_id": form_data.get("category_id"),
+            "price": float(form_data.get("price", 0)),
+            "available_quantity": int(form_data.get("available_quantity", 0)),
+            "condition": form_data.get("condition"),
+            "listing_type_id": form_data.get("listing_type_id"),
+            "description": form_data.get("description"),
+            "seller_custom_field": form_data.get("seller_custom_field"),
+            "warranty": form_data.get("warranty"),
+        }
+        
+        # Processar imagens
+        images = []
+        image_files = form_data.getlist("images")
+        for image_file in image_files:
+            if image_file and hasattr(image_file, 'file'):
+                # Ler conteúdo da imagem
+                image_content = await image_file.read()
+                images.append({
+                    "filename": image_file.filename,
+                    "content": image_content
+                })
+        
+        # Chamar controller para publicar no ML
+        controller = MLProductController(db)
+        result = await controller.create_product_in_ml(
+            company_id=company_id,
+            product_data=product_data,
+            images=images
+        )
+        
+        if result.get("success"):
+            return JSONResponse(content={
+                "success": True,
+                "item_id": result.get("item_id"),
+                "message": "Produto publicado com sucesso no Mercado Livre!"
+            })
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": result.get("error", "Erro ao publicar produto")
+                }
+            )
+        
+    except Exception as e:
+        logger.error(f"Erro ao criar produto no ML: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
         )

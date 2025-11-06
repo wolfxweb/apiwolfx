@@ -31,7 +31,7 @@ class AuthController:
     def __init__(self):
         self.pwd_context = pwd_context
     
-    def get_login_page(self, error: str = None, success: str = None, session_token: str = None, db: Session = None) -> HTMLResponse:
+    def get_login_page(self, error: str = None, success: str = None, session_token: str = None, db: Session = None, redirect: str = None) -> HTMLResponse:
         """Renderiza página de login"""
         user_data = None
         
@@ -44,7 +44,8 @@ class AuthController:
         return render_template("login.html", 
                              user=user_data,
                              error=error or "", 
-                             success=success or "")
+                             success=success or "",
+                             redirect=redirect or "")
     
     def get_register_page(self, error: str = None, success: str = None, session_token: str = None, selected_plan: int = None, plans: list = None, db: Session = None) -> HTMLResponse:
         """Renderiza página de cadastro"""

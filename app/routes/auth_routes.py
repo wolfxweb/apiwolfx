@@ -22,11 +22,12 @@ async def login_page(
     request: Request, 
     error: str = None, 
     success: str = None,
+    redirect: str = None,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
     """Página de login"""
-    return auth_controller.get_login_page(error=error, success=success, session_token=session_token, db=db)
+    return auth_controller.get_login_page(error=error, success=success, session_token=session_token, db=db, redirect=redirect)
 
 @auth_router.post("/login")
 async def login(
@@ -34,16 +35,18 @@ async def login(
     email: str = Form(...),
     password: str = Form(...),
     remember: bool = Form(False),
+    redirect: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """Processa login do usuário"""
     result = auth_controller.login(email, password, remember, db)
     
     if result.get("error"):
-        return auth_controller.get_login_page(error=result["error"])
+        return auth_controller.get_login_page(error=result["error"], redirect=redirect)
     
-    # Criar resposta de redirecionamento
-    response = RedirectResponse(url="/dashboard", status_code=302)
+    # Redirecionar para a URL especificada ou dashboard por padrão
+    redirect_url = redirect if redirect else "/dashboard"
+    response = RedirectResponse(url=redirect_url, status_code=302)
     
     # Definir cookie de sessão (secure=True em produção HTTPS)
     response.set_cookie(
