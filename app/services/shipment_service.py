@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.models.saas_models import MLOrder, OrderStatus
+from app.models.saas_models import MLOrder, OrderStatus, MLAccount
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +229,13 @@ class ShipmentService:
                             invoice_data = self._check_pack_invoice(order.pack_id, access_token)
                         
                         if not invoice_data and order.shipping_id:
-                            invoice_data = self._check_shipment_invoice(order.shipping_id, company_id, access_token)
+                            invoice_data = self._check_shipment_invoice(
+                                shipment_id=order.shipping_id,
+                                company_id=company_id,
+                                access_token=access_token,
+                                seller_id=getattr(order, "seller_id", None),
+                                ml_account_id=getattr(order, "ml_account_id", None)
+                            )
                         
                         if invoice_data and invoice_data.get('has_invoice'):
                             if not order.invoice_emitted:
@@ -701,7 +707,13 @@ class ShipmentService:
             if (not invoice_data or not invoice_data.get('has_invoice')) and order.shipping_id:
                 logger.info(f"🔍 [STEP 4.2] Buscando NF pelo shipment_id {order.shipping_id}")
                 try:
-                    invoice_data = self._check_shipment_invoice(order.shipping_id, order.company_id, access_token)
+                    invoice_data = self._check_shipment_invoice(
+                        shipment_id=order.shipping_id,
+                        company_id=order.company_id,
+                        access_token=access_token,
+                        seller_id=getattr(order, "seller_id", None),
+                        ml_account_id=getattr(order, "ml_account_id", None)
+                    )
                     logger.info(f"   Resultado: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
                 except Exception as e:
                     logger.error(f"❌ Erro ao buscar NF pelo shipment_id: {e}")
@@ -829,7 +841,14 @@ class ShipmentService:
             logger.warning(f"Erro ao consultar pack {pack_id}: {e}")
             return {"has_invoice": False, "error": str(e)}
     
-    def _check_shipment_invoice(self, shipment_id: str, company_id: int, access_token: str) -> Optional[Dict]:
+    def _check_shipment_invoice(
+        self,
+        shipment_id: str,
+        company_id: int,
+        access_token: str,
+        seller_id: Optional[str] = None,
+        ml_account_id: Optional[int] = None
+    ) -> Optional[Dict]:
         """
         Verifica se um shipment tem nota fiscal emitida
         Usa endpoint: /users/{user_id}/invoices/shipments/{shipment_id}
@@ -838,21 +857,24 @@ class ShipmentService:
         try:
             import requests
             
-            # Buscar seller_id da empresa - filtrar por company_id específico
-            ml_account = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id
-            ).first()
+            # Definir seller_id prioritariamente a partir dos parâmetros
+            if not seller_id:
+                # Se não foi informado seller_id, tentar obter via ml_account_id
+                if ml_account_id:
+                    account = self.db.query(MLAccount).filter(MLAccount.id == ml_account_id).first()
+                    if account and account.ml_user_id:
+                        seller_id = account.ml_user_id
+                
+                # Como fallback final, buscar primeiro pedido da empresa para descobrir seller_id
+                if not seller_id:
+                    ml_order = self.db.query(MLOrder).filter(MLOrder.company_id == company_id).first()
+                    if ml_order and ml_order.seller_id:
+                        seller_id = ml_order.seller_id
             
-            if not ml_account:
-                logger.error(f"❌ Não encontrou MLOrder para company_id {company_id}")
+            if not seller_id:
+                logger.error(f"❌ Não foi possível obter seller_id para company_id {company_id} e shipment {shipment_id}")
                 return {"has_invoice": False}
             
-            # Verificar se tem seller_id
-            if not ml_account.seller_id:
-                logger.error(f"❌ MLOrder para company_id {company_id} não tem seller_id")
-                return {"has_invoice": False}
-            
-            seller_id = ml_account.seller_id
             logger.info(f"🔑 Seller ID obtido: {seller_id} para shipment {shipment_id} (company_id: {company_id})")
             
             # Buscar NF no endpoint de invoices por shipment

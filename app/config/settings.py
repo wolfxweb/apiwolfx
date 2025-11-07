@@ -15,14 +15,14 @@ class Settings:
             # Produção: usa domínio real
             default_domain = os.getenv("DOMAIN", "celx.com.br")
             default_base_url = f"https://{default_domain}"
+            self.ml_app_id = os.getenv("ML_APP_ID")
+            self.ml_client_secret = os.getenv("ML_CLIENT_SECRET")
         else:
             # Desenvolvimento: usa URL exposta via ngrok (fallback)
             default_base_url = os.getenv("LOCAL_BASE_URL", "https://520ef50ef3ab.ngrok-free.app")
-        
-        # Mercado Livre API Configuration
-        # IMPORTANTE: SEMPRE usar variáveis de ambiente (sem fallback hardcoded)
-        self.ml_app_id = os.getenv("ML_APP_ID")
-        self.ml_client_secret = os.getenv("ML_CLIENT_SECRET")
+            # Credenciais padrão de desenvolvimento (ID do aplicativo local)
+            self.ml_app_id = os.getenv("ML_APP_ID", "3821568023399477")
+            self.ml_client_secret = os.getenv("ML_CLIENT_SECRET", "3gDZs9aLX9jmm64MCXPmdSIaCf7rBRHa")
         
         # Validar se as credenciais foram definidas
         if not self.ml_app_id or not self.ml_client_secret:

@@ -1108,6 +1108,14 @@ async def sync_recent_orders(
             user_id=user_id  # Passar user_id para usar TokenManager
         )
         
+        # Sincronizar status de envio e notas fiscais para os pedidos sincronizados
+        from app.services.shipment_service import ShipmentService
+        shipment_service = ShipmentService(db)
+        shipment_result = shipment_service.sync_shipment_status_and_invoices(company_id, user_id=user_id)
+        
+        if shipment_result.get("invoice_updated"):
+            result["invoice_updated"] = shipment_result["invoice_updated"]
+        
         logger.info(f"🔄 Resultado da sincronização: {result.get('success', False)}")
         if result.get('success'):
             logger.info(f"✅ {result.get('total_saved', 0)} novos, {result.get('total_updated', 0)} atualizados")
@@ -1122,7 +1130,10 @@ async def sync_recent_orders(
                     "error": "Token de acesso do Mercado Livre inválido ou expirado. Por favor, reconecte sua conta ML em 'Contas ML'."
                 }, status_code=401)
         
-        return JSONResponse(content=result)
+        return JSONResponse(content={
+            **result,
+            "shipment_sync": shipment_result
+        })
         
     except Exception as e:
         logger.error(f"Erro ao sincronizar pedidos recentes: {e}", exc_info=True)

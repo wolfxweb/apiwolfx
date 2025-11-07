@@ -543,6 +543,68 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar período padrão como "Últimos 7 dias" ao carregar a página
     const today = new Date();
     const formatDate = (date) => date.toISOString().split('T')[0];
+    
+    const shippingStatusLabels = {
+        pending: 'Pendente',
+        handling: 'Em preparação',
+        ready_to_ship: 'Pronto para envio',
+        ready_to_print: 'Pronto para imprimir',
+        printed: 'Etiqueta impressa',
+        ready_to_pack: 'Pronto para embalar',
+        packed: 'Embalado',
+        shipped: 'Enviado',
+        in_transit: 'Em trânsito',
+        out_for_delivery: 'Saiu para entrega',
+        soon_deliver: 'Próximo da entrega',
+        delivered: 'Entregue',
+        not_delivered: 'Não entregue',
+        cancelled: 'Cancelado',
+        to_be_agreed: 'A combinar',
+        error: 'Erro',
+        invoice_pending: 'Nota fiscal pendente',
+        waiting_for_carrier_authorization: 'Aguardando transportadora',
+        ready_for_pickup: 'Pronto para coleta',
+        ready_for_dropoff: 'Pronto para postagem',
+        dropped_off: 'Postado',
+        picked_up: 'Coletado',
+        in_hub: 'No centro de distribuição',
+        shipment_paid: 'Envio pago',
+        active: 'Ativo',
+        ready_to_prepare: 'Pronto para preparar'
+    };
+    
+    const translateShippingLabel = (value) => {
+        if (!value) return '-';
+        const normalized = (typeof value === 'string') ? value.toLowerCase() : value;
+        if (shippingStatusLabels[normalized]) {
+            return shippingStatusLabels[normalized];
+        }
+        if (typeof value === 'string') {
+            return value.replace(/_/g, ' ');
+        }
+        return value;
+    };
+    
+    const formatDateToBR = (value) => {
+        if (!value) return null;
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        return date.toLocaleDateString('pt-BR');
+    };
+    
+    const formatDateTimeToBR = (value) => {
+        if (!value) return null;
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        const datePart = date.toLocaleDateString('pt-BR');
+        const timePart = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        return `${datePart} ${timePart}`;
+    };
+    
     const sevenDaysAgo = new Date(today);
     sevenDaysAgo.setDate(today.getDate() - 7);
     
@@ -1574,7 +1636,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
                     }
                 } else {
-                    shippingInfo += `<br><small class="text-muted">${status}</small>`;
+                    const translatedStatus = translateShippingLabel(status);
+                    shippingInfo += `<br><small class="text-muted">${translatedStatus}</small>`;
                     if (deliveryDate) {
                         shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
                     }
@@ -1696,10 +1759,12 @@ document.addEventListener('DOMContentLoaded', function() {
             let shippingInfo = '';
             let isPickupPoint = false;
             if (order.shipping_details) {
-                const status = order.shipping_details.status;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
-                const substatus = order.shipping_details.substatus;
+                const rawStatus = order.shipping_details.status || order.shipping_status;
+                const status = rawStatus ? rawStatus.toLowerCase() : rawStatus;
+                const rawSubstatus = order.shipping_details.substatus;
+                const substatus = rawSubstatus ? rawSubstatus.toLowerCase() : rawSubstatus;
                 
                 // Identificar se é ponto de coleta
                 isPickupPoint = (
@@ -2048,10 +2113,12 @@ document.addEventListener('DOMContentLoaded', function() {
             let shippingInfo = '';
             let isPickupPoint = false;
             if (order.shipping_details) {
-                const status = order.shipping_details.status;
                 const logistic = order.shipping_details.logistic;
                 const logisticType = order.shipping_details.logistic_type || (logistic && logistic.type);
-                const substatus = order.shipping_details.substatus;
+                const rawStatus = order.shipping_details.status || order.shipping_status;
+                const status = rawStatus ? rawStatus.toLowerCase() : rawStatus;
+                const rawSubstatus = order.shipping_details.substatus;
+                const substatus = rawSubstatus ? rawSubstatus.toLowerCase() : rawSubstatus;
                 
                 // Identificar se é ponto de coleta
                 isPickupPoint = (
@@ -2080,8 +2147,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                        || order.shipping_details.shipping_option?.estimated_delivery_limit?.date
                                        || order.shipping_details.estimated_delivery
                                        || order.estimated_delivery_date;
-                
-                const shippedDate = dateShipped ? new Date(dateShipped).toLocaleDateString('pt-BR') : null;
+                const shippedDate = formatDateToBR(order.shipping_date || dateShipped);
                 const deliveryDate = estimatedDelivery ? new Date(estimatedDelivery).toLocaleDateString('pt-BR') : null;
                 
                 // Badge do tipo de envio
@@ -2097,20 +2163,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     shippingInfo = `<span class="badge bg-secondary">${logisticType || 'N/A'}</span>`;
                 }
                 
-                // Status de envio - Mostrar como "Em Trânsito"
-                if (status === 'shipped' || status === 'in_transit' || status === 'out_for_delivery' || status === 'soon_deliver') {
-                    shippingInfo += `<br><small class="text-info">🚚 Em Trânsito</small>`;
-                    if (shippedDate) {
-                        shippingInfo += `<br><small class="text-muted">🚛 Enviado: ${shippedDate}</small>`;
-                    }
-                    if (deliveryDate) {
-                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
-                    }
+                const translatedStatus = translateShippingLabel(status || rawStatus);
+                const translatedSubstatus = translateShippingLabel(substatus || rawSubstatus);
+                const transitStatuses = ['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver'];
+                if (status && transitStatuses.includes(status)) {
+                    shippingInfo += `<br><small class="text-info">🚚 ${translatedStatus}</small>`;
                 } else {
-                    shippingInfo += `<br><small class="text-muted">${status}</small>`;
-                    if (deliveryDate) {
-                        shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
-                    }
+                    shippingInfo += `<br><small class="text-muted">🚚 ${translatedStatus}</small>`;
+                }
+                if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
+                    shippingInfo += `<br><small class="text-muted">📍 ${translatedSubstatus}</small>`;
+                }
+                if (shippedDate) {
+                    shippingInfo += `<br><small class="text-muted">📦 Enviado: ${shippedDate}</small>`;
+                }
+                if (deliveryDate) {
+                    shippingInfo += `<br><small class="text-muted">📅 Previsão: ${deliveryDate}</small>`;
                 }
             } else {
                 shippingInfo = '<span class="badge bg-secondary">N/A</span>';
@@ -3088,15 +3156,18 @@ document.addEventListener('DOMContentLoaded', function() {
         textContent += `FORMA DE ENVIO\n`;
         textContent += `${'-'.repeat(50)}\n`;
         textContent += `Tipo: ${order.shipping_type || '-'}\n`;
-        if (order.shipping_details) {
-            textContent += `Status: ${order.shipping_details.status || '-'}\n`;
-            textContent += `Substatus: ${order.shipping_details.substatus || '-'}\n`;
-        }
-        if (order.shipping_date) {
-            textContent += `Data de Envio: ${order.shipping_date}\n`;
+        const modalStatus = order.shipping_details?.status || order.shipping_status;
+        const modalSubstatus = order.shipping_details?.substatus;
+        textContent += `Status: ${translateShippingLabel(modalStatus)}\n`;
+        textContent += `Substatus: ${translateShippingLabel(modalSubstatus)}\n`;
+        const modalShippingDate = order.shipping_date || order.shipping_details?.status_history?.date_shipped;
+        const formattedModalShippingDate = formatDateTimeToBR(modalShippingDate);
+        if (formattedModalShippingDate) {
+            textContent += `Data de Envio: ${formattedModalShippingDate}\n`;
         }
         if (order.estimated_delivery_date) {
-            textContent += `Previsão de Entrega: ${order.estimated_delivery_date}\n`;
+            const formattedEstimate = formatDateToBR(order.estimated_delivery_date);
+            textContent += `Previsão de Entrega: ${formattedEstimate || order.estimated_delivery_date}\n`;
         }
         textContent += `\n`;
         

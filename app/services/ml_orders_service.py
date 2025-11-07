@@ -1652,7 +1652,7 @@ class MLOrdersService:
             
             # Buscar dados do pedido incluindo pack_id e shipping_id
             order_query = text("""
-                SELECT id, ml_order_id, pack_id, shipping_id, invoice_emitted 
+                SELECT id, ml_order_id, pack_id, shipping_id, invoice_emitted, ml_account_id, seller_id
                 FROM ml_orders 
                 WHERE ml_order_id = :order_id AND company_id = :company_id
             """)
@@ -1663,7 +1663,7 @@ class MLOrdersService:
                 logger.warning(f"⚠️ Pedido {order_id} não encontrado para verificação de NF")
                 return
             
-            order_db_id, ml_order_id, pack_id, shipping_id, current_invoice_status = order_result
+            order_db_id, ml_order_id, pack_id, shipping_id, current_invoice_status, ml_account_id, seller_id = order_result
             
             if current_invoice_status:
                 logger.info(f"ℹ️ Pedido {order_id} já tem NF marcada - pulando verificação")
@@ -1682,7 +1682,13 @@ class MLOrdersService:
             # Se não encontrou pelo pack_id e tem shipping_id, tentar pelo shipping_id (fulfillment)
             if not invoice_data and shipping_id:
                 logger.info(f"🔍 Buscando NF pelo shipping_id {shipping_id} para pedido {order_id} (fulfillment)")
-                invoice_data = shipment_service._check_shipment_invoice(shipping_id, company_id, access_token)
+                invoice_data = shipment_service._check_shipment_invoice(
+                    shipment_id=shipping_id,
+                    company_id=company_id,
+                    access_token=access_token,
+                    seller_id=seller_id,
+                    ml_account_id=ml_account_id
+                )
             
             if invoice_data and invoice_data.get('has_invoice'):
                 # Atualizar pedido com dados da NF
