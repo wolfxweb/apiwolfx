@@ -289,6 +289,60 @@ class ShipmentService:
                 "updated": 0
             }
 
+    def sync_shipment_status_and_invoices(self, company_id: int, user_id: Optional[int] = None) -> Dict:
+        """
+        Obtém automaticamente um token válido e executa a sincronização completa
+        de status de envio + notas fiscais para todos os pedidos da empresa.
+
+        Caso user_id não seja informado, usa o primeiro usuário ativo da empresa.
+        """
+        try:
+            from app.services.token_manager import TokenManager
+            from app.models.saas_models import User
+
+            token_manager = TokenManager(self.db)
+
+            target_user_id = user_id
+            if not target_user_id:
+                user = (
+                    self.db.query(User)
+                    .filter(User.company_id == company_id, User.is_active == True)
+                    .order_by(User.id.asc())
+                    .first()
+                )
+                if not user:
+                    logger.error(f"❌ Nenhum usuário ativo encontrado para company_id={company_id}")
+                    return {
+                        "success": False,
+                        "error": "Nenhum usuário ativo encontrado para esta empresa",
+                    }
+                target_user_id = user.id
+
+            access_token = token_manager.get_valid_token(target_user_id)
+            if not access_token:
+                logger.error(
+                    f"❌ Token não encontrado ou inválido para user_id={target_user_id}, company_id={company_id}"
+                )
+                return {
+                    "success": False,
+                    "error": "Token do Mercado Livre inválido ou expirado. Reconecte a conta em Contas ML.",
+                }
+
+            logger.info(
+                f"🔄 Sincronizando status e notas fiscais (company_id={company_id}, user_id={target_user_id})"
+            )
+            return self.sync_invoice_status(company_id, access_token)
+
+        except Exception as exc:
+            logger.error(
+                f"❌ Erro ao sincronizar status/notas (company_id={company_id}): {exc}",
+                exc_info=True,
+            )
+            return {
+                "success": False,
+                "error": f"Erro ao sincronizar status e notas fiscais: {exc}",
+            }
+
     def sync_single_order_invoice(self, order_id: str, company_id: int, access_token: str) -> Dict:
         """
         Sincroniza COMPLETAMENTE um pedido específico com o Mercado Livre
