@@ -8,10 +8,13 @@ from datetime import datetime, timedelta
 import requests
 import secrets
 import string
+import logging
 
 from app.config.settings import settings
 from app.models.saas_models import MLAccount, UserMLAccount, Token, User, Company
 from app.models.saas_models import MLAccountStatus
+
+logger = logging.getLogger(__name__)
 
 class MLController:
     """Controller para integração com Mercado Livre"""

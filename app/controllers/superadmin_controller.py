@@ -478,7 +478,7 @@ class SuperAdminController:
         import traceback
         import sys
         
-        # Buscar empresa sem carregar relacionamentos que podem ter problemas
+        # Buscar empresa
         try:
             company = self.db.query(Company).filter(Company.id == company_id).first()
             if not company:
@@ -488,302 +488,457 @@ class SuperAdminController:
             self.db.rollback()
             raise ValueError(f"Erro ao buscar empresa: {str(e)}")
         
-        # Função helper para deletar com tratamento de erro isolado
-        def safe_delete(table_name: str, description: str = "", use_subquery: bool = False, subquery_table: str = "", subquery_field: str = "id"):
-            """Deleta de uma tabela com tratamento de erro isolado"""
-            def build_query():
-                if use_subquery and subquery_table:
-                    return f"""
-                        DELETE FROM {table_name} 
-                        WHERE {subquery_field} IN (
-                            SELECT {subquery_field} FROM {subquery_table} WHERE company_id = :company_id
-                        )
-                    """
-                else:
-                    return f"DELETE FROM {table_name} WHERE company_id = :company_id"
+        print(f"\n{'='*80}")
+        print(f"🗑️  DELETANDO EMPRESA: {company_name} (ID: {company_id})")
+        print(f"{'='*80}\n")
+        
+        try:
+            # Rollback de qualquer transação anterior
+            self.db.rollback()
             
-            error_str = ""
-            max_retries = 2
+            # ============================================================
+            # ESTRATÉGIA DE EXCLUSÃO BASEADA EM ORDEM TOPOLÓGICA DE FKs
+            # ============================================================
+            # Ordenação baseada nas dependências de Foreign Keys:
+            # Nível 1: Tabelas folha (dependem de outras, não são dependidas)
+            # Nível 2: Tabelas intermediárias (dependem de outras e são dependidas)
+            # Nível 3: Tabelas que dependem de companies + outras tabelas
+            # Nível 4: Tabelas que dependem apenas de companies
+            # Nível 5: companies (deletada por último)
+            # ============================================================
             
-            for attempt in range(max_retries):
-                try:
-                    query = build_query()
-                    self.db.execute(text(query), {"company_id": company_id})
-                    self.db.flush()
-                    return True
-                except Exception as e:
-                    error_str = str(e).lower()
-                    
-                    # Erros aceitáveis (tabela ou coluna não existe)
-                    if any(x in error_str for x in ["does not exist", "undefinedtable", "undefinedcolumn"]):
-                        if description:
-                            print(f"ℹ️  {description}: Tabela/coluna não existe, ignorando")
-                        return True  # Considera sucesso pois não há dados para deletar
-                    
-                    # Se transação abortada ou outro erro, fazer rollback e tentar novamente
-                    if attempt < max_retries - 1:
+            # NÍVEL 1: Tabelas folha (dependem de outras, não são dependidas)
+            # Nota: ordem_compra_item e ordem_compra_link não têm company_id direto,
+            # então serão deletadas via subquery
+            level_1 = [
+                "ml_campaign_metrics",           # FK: ml_campaigns
+                "ml_campaign_products",          # FK: ml_campaigns, ml_products
+                "category_planning",             # FK: cost_center_planning, financial_categories
+                "cost_center_planning",          # FK: monthly_planning, cost_centers
+                "ml_product_attributes",         # FK: ml_products
+                "ai_product_analysis",           # FK: ml_products
+                "ml_catalog_history",           # FK: ml_catalog_monitoring, ml_products
+                "ml_messages",                  # FK: ml_message_threads
+            ]
+            
+            # Tabelas sem company_id direto (deletadas via subquery)
+            level_1_special = [
+                ("ordem_compra_item", "ordem_compra_id", "ordem_compra"),      # FK: ordem_compra
+                ("ordem_compra_link", "ordem_compra_id", "ordem_compra"),      # FK: ordem_compra
+            ]
+            
+            # NÍVEL 2: Tabelas intermediárias (dependem de outras e são dependidas)
+            # IMPORTANTE: tokens e user_ml_accounts devem ser deletados ANTES de users e ml_accounts
+            level_2 = [
+                "monthly_planning",              # FK: financial_planning
+                "ml_product_sync",               # FK: ml_products, ml_accounts
+                "accounts_receivable",           # FK: accounts_receivable (self), financial_accounts, financial_categories, cost_centers
+                "accounts_payable",              # FK: fornecedores, ordem_compra, accounts_payable (self), financial_accounts, financial_categories, cost_centers
+                "financial_transactions",        # FK: financial_accounts, financial_categories, cost_centers, financial_customers, financial_suppliers
+                "ml_orders",                     # FK: ml_accounts, financial_accounts
+                "ml_questions",                 # FK: ml_accounts
+                "ml_message_threads",           # FK: ml_accounts
+                "tokens",                        # FK: users, ml_accounts (deletar ANTES de users e ml_accounts)
+                "user_ml_accounts",             # FK: users, ml_accounts (deletar ANTES de users e ml_accounts)
+                "user_sessions",                # FK: users
+                "api_logs",                     # FK: users
+            ]
+            
+            # NÍVEL 3: Tabelas que dependem de companies + outras tabelas
+            level_3 = [
+                "ml_campaigns",                  # FK: ml_accounts
+                "ml_catalog_monitoring",        # FK: ml_products
+                "sku_management",               # FK: products, internal_products
+                "internal_products",            # FK: products
+                "ml_products",                  # FK: ml_accounts
+            ]
+            
+            # NÍVEL 4: Tabelas que dependem apenas de companies
+            # IMPORTANTE: users e ml_accounts devem ser deletados DEPOIS de todas as suas dependências
+            level_4 = [
+                "financial_accounts",           # FK: companies
+                "financial_categories",         # FK: companies
+                "cost_centers",                 # FK: companies
+                "financial_customers",          # FK: companies
+                "financial_suppliers",          # FK: companies
+                "financial_goals",              # FK: companies
+                "financial_alerts",             # FK: companies
+                "financial_planning",           # FK: companies
+                "fornecedores",                 # FK: companies
+                "ordem_compra",                 # FK: companies, fornecedores
+                "products",                     # FK: companies
+                "subscriptions",                # FK: companies
+                "catalog_participants",         # FK: companies
+                "payment_methods",              # FK: companies (se existir)
+                "payments",                     # FK: subscriptions (se existir)
+                "ml_billing_charges",           # FK: companies (se existir)
+                "ml_billing_periods",           # FK: companies (se existir)
+                "notification_logs",            # FK: companies (se existir)
+                "ml_accounts",                   # FK: companies (deletar DEPOIS de tokens, user_ml_accounts, ml_products, etc)
+                "users",                        # FK: companies (deletar DEPOIS de tokens, user_ml_accounts, user_sessions, etc)
+            ]
+            
+            # Combinar todos os níveis em ordem
+            tables_by_level = [level_1, level_2, level_3, level_4]
+            
+            print("🔄 Deletando registros por nível de dependência...")
+            deleted_count = 0
+            
+            # Deletar por nível, garantindo que dependências sejam resolvidas
+            for level_num, level_tables in enumerate(tables_by_level, 1):
+                print(f"\n📊 Nível {level_num}: {len(level_tables)} tabela(s)")
+                deleted_in_level = 0
+                
+                # Deletar tabelas normais (com company_id)
+                for table in level_tables:
+                    try:
+                        # Rollback de qualquer erro anterior
                         try:
                             self.db.rollback()
                         except:
                             pass
-                        continue
-                    else:
-                        # Última tentativa falhou
-                        if description:
-                            print(f"⚠️  {description}: {str(e)[:150]}")
-                        return False
-            
-            return False
-        
-        try:
-            # IMPORTANTE: Deletar financial_goals PRIMEIRO (antes de qualquer cascade)
-            safe_delete("financial_goals", "Aviso ao deletar financial_goals")
-            
-            # Excluir TODOS os registros associados em ordem (respeitando foreign keys)
-            
-            # 1. Tabelas financeiras (dependem de company_id mas podem ter relacionamentos internos)
-            #    Transações primeiro (podem referenciar customers, suppliers, accounts, etc)
-            safe_delete("financial_transactions", "Aviso ao deletar financial_transactions")
-            safe_delete("accounts_receivable", "Aviso ao deletar accounts_receivable")
-            safe_delete("accounts_payable", "Aviso ao deletar accounts_payable")
-            safe_delete("financial_customers", "Aviso ao deletar financial_customers")
-            safe_delete("financial_suppliers", "Aviso ao deletar financial_suppliers")
-            safe_delete("financial_accounts", "Aviso ao deletar financial_accounts")
-            safe_delete("financial_categories", "Aviso ao deletar financial_categories")
-            safe_delete("cost_centers", "Aviso ao deletar cost_centers")
-            
-            # Planejamento financeiro (filhos primeiro)
-            safe_delete("monthly_planning", "Aviso ao deletar monthly_planning", 
-                       use_subquery=True, subquery_table="financial_planning", subquery_field="planning_id")
-            safe_delete("financial_planning", "Aviso ao deletar financial_planning")
-            
-            # 2. Campanhas e produtos de campanha (filhos primeiro)
-            safe_delete("ml_campaign_products", use_subquery=True, 
-                       subquery_table="ml_campaigns", subquery_field="campaign_id")
-            safe_delete("ml_campaign_metrics", use_subquery=True, 
-                       subquery_table="ml_campaigns", subquery_field="campaign_id")
-            safe_delete("ml_campaigns")
-            
-            # 3. Catálogo ML (filhos primeiro)
-            safe_delete("ml_catalog_history", use_subquery=True, 
-                       subquery_table="ml_catalog_monitoring", subquery_field="monitoring_id")
-            safe_delete("ml_catalog_monitoring")
-            safe_delete("catalog_participants")
-            
-            # 4. Produtos ML
-            safe_delete("ml_product_sync")
-            safe_delete("ml_products")
-            
-            # 5. Billing ML (filhos primeiro)
-            safe_delete("ml_billing_charges", use_subquery=True, 
-                       subquery_table="ml_billing_periods", subquery_field="period_id")
-            safe_delete("ml_billing_periods")
-            
-            # 6. Pedidos e Contas ML
-            safe_delete("ml_orders", "Erro crítico ao deletar ml_orders")
-            safe_delete("ml_accounts", "Erro crítico ao deletar ml_accounts")
-            
-            # 7. Payments (filhos primeiro) - ANTES de subscriptions porque payment_transactions pode referenciar subscriptions
-            safe_delete("payment_transactions", "Erro crítico ao deletar payment_transactions")
-            safe_delete("payments", "Erro crítico ao deletar payments")
-            safe_delete("payment_methods")
-            
-            # 8. Assinaturas (após payments porque payment_transactions pode ter subscription_id)
-            # IMPORTANTE: subscriptions precisa ser deletada com força se necessário
-            subscriptions_deleted = safe_delete("subscriptions", "Erro crítico ao deletar subscriptions")
-            if not subscriptions_deleted:
-                # Tentar deletar novamente com query direta
-                try:
-                    self.db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
-                                  {"company_id": company_id})
-                    self.db.flush()
-                    print(f"✅ Subscriptions deletadas via query direta")
-                except Exception as sub_err:
-                    print(f"⚠️  Aviso ao deletar subscriptions via query direta: {sub_err}")
-            
-            # 9. Produtos
-            safe_delete("internal_products")
-            safe_delete("products", "Erro crítico ao deletar products")
-            
-            # 9. Ordens de compra (itens primeiro)
-            safe_delete("ordem_compra_item", use_subquery=True, 
-                       subquery_table="ordem_compra", subquery_field="ordem_compra_id")
-            safe_delete("ordem_compra_link")
-            safe_delete("ordem_compra")
-            safe_delete("fornecedores")
-            
-            # 10. Outras tabelas financeiras
-            safe_delete("reconciliation_items", use_subquery=True, 
-                       subquery_table="bank_reconciliation", subquery_field="reconciliation_id")
-            safe_delete("bank_reconciliation")
-            safe_delete("chart_of_accounts")
-            safe_delete("financial_alerts")
-            safe_delete("ai_product_analysis")
-            safe_delete("sku_management")
-            safe_delete("api_logs")
-            
-            # 11. Tabelas relacionadas a usuários (antes de deletar usuários)
-            safe_delete("user_sessions", use_subquery=True, 
-                       subquery_table="users", subquery_field="user_id")
-            safe_delete("user_ml_accounts", use_subquery=True, 
-                       subquery_table="users", subquery_field="user_id")
-            safe_delete("tokens", use_subquery=True, 
-                       subquery_table="users", subquery_field="user_id")
-            
-            # 12. Usuários (depois de deletar relacionamentos)
-            safe_delete("users", "Erro crítico ao deletar users")
-            
-            # VERIFICAÇÃO CRÍTICA: Garantir que subscriptions foi deletada
-            # Se falhar, tentar novamente com query direta e forçar commit
-            try:
-                # Verificar se ainda existem subscriptions
-                result = self.db.execute(
-                    text("SELECT COUNT(*) as count FROM subscriptions WHERE company_id = :company_id"),
-                    {"company_id": company_id}
-                ).scalar()
-                
-                if result and result > 0:
-                    print(f"⚠️  Ainda existem {result} subscriptions, tentando deletar novamente...")
-                    # Tentar deletar novamente com força
-                    self.db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
-                                  {"company_id": company_id})
-                    self.db.flush()
-                    # Verificar novamente
-                    result = self.db.execute(
-                        text("SELECT COUNT(*) FROM subscriptions WHERE company_id = :company_id"),
-                        {"company_id": company_id}
-                    ).scalar()
-                    if result and result > 0:
-                        raise Exception(f"Não foi possível deletar {result} subscriptions. Verifique foreign keys.")
-                    else:
-                        print(f"✅ Subscriptions deletadas com sucesso na segunda tentativa")
-            except Exception as e:
-                print(f"⚠️  Erro ao verificar/deletar subscriptions: {e}")
-                try:
-                    self.db.rollback()
-                except:
-                    pass
-                # Tentar deletar subscriptions de qualquer forma antes de continuar
-                try:
-                    self.db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
-                                  {"company_id": company_id})
-                    self.db.flush()
-                except:
-                    pass
-            
-            # Commit parcial: garantir que tudo até aqui foi deletado antes de deletar company
-            # Isso evita que erro na deleção de company reverta tudo
-            try:
-                self.db.commit()
-                print(f"✅ Todas as tabelas relacionadas deletadas para company_id {company_id}")
-                
-                # VERIFICAÇÃO FINAL: Confirmar que subscriptions realmente foi deletada
-                from app.config.database import SessionLocal
-                verify_db = SessionLocal()
-                try:
-                    remaining = verify_db.execute(
-                        text("SELECT COUNT(*) FROM subscriptions WHERE company_id = :company_id"),
-                        {"company_id": company_id}
-                    ).scalar()
-                    if remaining and remaining > 0:
-                        print(f"❌ ATENÇÃO: Ainda existem {remaining} subscriptions após commit!")
-                        # Tentar deletar com nova sessão
-                        verify_db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
-                                        {"company_id": company_id})
-                        verify_db.commit()
-                        print(f"✅ Subscriptions deletadas em sessão separada")
-                finally:
-                    verify_db.close()
-                    
-            except Exception as e:
-                print(f"⚠️  Aviso ao fazer commit parcial: {e}")
-                try:
-                    self.db.rollback()
-                except:
-                    pass
-            
-            # 13. Finalmente, excluir a empresa via SQL direto em uma nova transação
-            # IMPORTANTE: Deletar subscriptions novamente na nova sessão se ainda existirem
-            from app.config.database import SessionLocal
-            final_db = SessionLocal()
-            try:
-                # Verificar e deletar subscriptions na nova sessão (se ainda existirem)
-                remaining_subs = final_db.execute(
-                    text("SELECT COUNT(*) FROM subscriptions WHERE company_id = :company_id"),
-                    {"company_id": company_id}
-                ).scalar()
-                
-                if remaining_subs and remaining_subs > 0:
-                    print(f"⚠️  Encontradas {remaining_subs} subscriptions na nova sessão, deletando...")
-                    try:
-                        # Verificar se há foreign keys que impedem
-                        # Primeiro tentar deletar qualquer dependência de subscriptions
-                        final_db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
-                                      {"company_id": company_id})
-                        final_db.commit()
-                        print(f"✅ {remaining_subs} subscriptions deletadas na nova sessão")
-                    except Exception as sub_err:
-                        print(f"⚠️  Erro ao deletar subscriptions: {sub_err}")
-                        final_db.rollback()
-                        # Tentar descobrir qual foreign key está bloqueando
-                        error_str = str(sub_err).lower()
-                        if "foreign key" in error_str or "violates" in error_str:
-                            raise Exception(f"Não foi possível deletar subscriptions. Foreign key constraint: {str(sub_err)[:200]}")
-                        raise
-                
-                # Agora deletar a empresa
-                max_company_retries = 3
-                for attempt in range(max_company_retries):
-                    try:
-                        final_db.execute(text("DELETE FROM companies WHERE id = :company_id"), 
-                                      {"company_id": company_id})
-                        final_db.commit()
-                        print(f"✅ Empresa {company_id} deletada com sucesso")
-                        break
+                        
+                        result = self.db.execute(
+                            text(f"DELETE FROM {table} WHERE company_id = :company_id"),
+                            {"company_id": company_id}
+                        )
+                        count = result.rowcount if hasattr(result, 'rowcount') else 0
+                        
+                        # COMMIT imediatamente se deletou algo
+                        if count > 0:
+                            self.db.commit()
+                            deleted_count += count
+                            deleted_in_level += count
+                            print(f"  ✅ {table}: {count} registro(s) deletado(s)")
+                        
                     except Exception as e:
                         error_str = str(e).lower()
-                        # Se for erro de foreign key, tentar deletar subscriptions novamente
-                        if ("foreign key" in error_str or "violates" in error_str) and "subscriptions" in error_str:
-                            print(f"⚠️  Foreign key error com subscriptions, tentando deletar novamente...")
-                            try:
-                                final_db.rollback()
-                                final_db.execute(text("DELETE FROM subscriptions WHERE company_id = :company_id"), 
-                                              {"company_id": company_id})
-                                final_db.commit()
-                                print(f"✅ Subscriptions deletadas, tentando deletar empresa novamente...")
-                                continue  # Tentar deletar empresa novamente
-                            except Exception as sub_err2:
-                                print(f"❌ Erro ao deletar subscriptions: {sub_err2}")
-                                raise Exception(f"Não foi possível deletar subscriptions antes de deletar empresa: {str(sub_err2)[:200]}")
+                        # Rollback do erro
+                        try:
+                            self.db.rollback()
+                        except:
+                            pass
                         
-                        if attempt < max_company_retries - 1:
+                        # Ignorar apenas se for tabela inexistente ou FK esperada
+                        if "does not exist" not in error_str and "undefinedtable" not in error_str:
+                            if "foreign key" in error_str or "violates" in error_str:
+                                # FK error - pode ser que a tabela ainda tenha dependências
+                                # Tentaremos novamente nas próximas passadas
+                                print(f"  ⚠️  {table}: bloqueada por FK (será tentada novamente)")
+                            else:
+                                print(f"  ⏭️  {table}: {str(e)[:80]}")
+                
+                # Deletar tabelas especiais (sem company_id direto) no nível 1
+                if level_num == 1:
+                    for table_name, fk_column, parent_table in level_1_special:
+                        try:
                             try:
-                                final_db.rollback()
+                                self.db.rollback()
                             except:
                                 pass
-                            continue
+                            
+                            # Deletar via subquery: DELETE FROM table WHERE fk_column IN (SELECT id FROM parent WHERE company_id = X)
+                            result = self.db.execute(
+                                text(f"""
+                                    DELETE FROM {table_name} 
+                                    WHERE {fk_column} IN (
+                                        SELECT id FROM {parent_table} WHERE company_id = :company_id
+                                    )
+                                """),
+                                {"company_id": company_id}
+                            )
+                            count = result.rowcount if hasattr(result, 'rowcount') else 0
+                            
+                            if count > 0:
+                                self.db.commit()
+                                deleted_count += count
+                                deleted_in_level += count
+                                print(f"  ✅ {table_name}: {count} registro(s) deletado(s)")
+                                
+                        except Exception as e:
+                            error_str = str(e).lower()
+                            try:
+                                self.db.rollback()
+                            except:
+                                pass
+                            
+                            if "does not exist" not in error_str and "undefinedtable" not in error_str:
+                                if "foreign key" in error_str or "violates" in error_str:
+                                    print(f"  ⚠️  {table_name}: bloqueada por FK (será tentada novamente)")
+                                else:
+                                    print(f"  ⏭️  {table_name}: {str(e)[:80]}")
+                
+                if deleted_in_level > 0:
+                    print(f"   Total deletado no nível {level_num}: {deleted_in_level}")
+            
+            # Fazer passadas adicionais para pegar tabelas que falharam por FK
+            print(f"\n🔄 Passadas adicionais para resolver FKs restantes...")
+            max_additional_passes = 5  # Aumentar para 5 passadas
+            for pass_num in range(max_additional_passes):
+                deleted_in_pass = 0
+                all_tables = level_1 + level_2 + level_3 + level_4
+                
+                print(f"\n  🔄 Passada adicional {pass_num + 1}/{max_additional_passes}:")
+                
+                for table in all_tables:
+                    try:
+                        try:
+                            self.db.rollback()
+                        except:
+                            pass
+                        
+                        result = self.db.execute(
+                            text(f"DELETE FROM {table} WHERE company_id = :company_id"),
+                            {"company_id": company_id}
+                        )
+                        count = result.rowcount if hasattr(result, 'rowcount') else 0
+                        
+                        if count > 0:
+                            self.db.commit()
+                            deleted_count += count
+                            deleted_in_pass += count
+                            print(f"    ✅ {table}: {count} registro(s) deletado(s)")
+                        
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        try:
+                            self.db.rollback()
+                        except:
+                            pass
+                        
+                        if "does not exist" not in error_str and "undefinedtable" not in error_str:
+                            if "foreign key" not in error_str and "violates" not in error_str:
+                                print(f"    ⏭️  {table}: {str(e)[:80]}")
+                
+                if deleted_in_pass == 0:
+                    print(f"  ✅ Nenhum registro restante nas passadas adicionais")
+                    break
+                else:
+                    print(f"  📊 Total deletado na passada {pass_num + 1}: {deleted_in_pass}")
+            
+            # Verificação final: garantir que ml_accounts foi deletada
+            print(f"\n🔍 Verificação final antes de deletar empresa...")
+            try:
+                self.db.rollback()
+            except:
+                pass
+            
+            # Verificar se ainda há ml_accounts
+            ml_accounts_check = self.db.execute(
+                text("SELECT COUNT(*) FROM ml_accounts WHERE company_id = :company_id"),
+                {"company_id": company_id}
+            ).scalar()
+            
+            if ml_accounts_check > 0:
+                print(f"  ⚠️  Ainda há {ml_accounts_check} conta(s) ML. Tentando deletar forçadamente...")
+                
+                # Deletar todas as dependências de ml_accounts primeiro
+                ml_account_ids = self.db.execute(
+                    text("SELECT id FROM ml_accounts WHERE company_id = :company_id"),
+                    {"company_id": company_id}
+                ).fetchall()
+                
+                if ml_account_ids:
+                    ml_account_ids_list = [row[0] for row in ml_account_ids]
+                    print(f"  🔍 Encontradas {len(ml_account_ids_list)} conta(s) ML: {ml_account_ids_list}")
+                    
+                    # Deletar dependências de ml_accounts (em múltiplas passadas recursivas)
+                    dependent_tables = [
+                        # Nível 1: Dependências diretas de ml_accounts
+                        ("ml_campaign_metrics", "campaign_id", "ml_campaigns", "ml_account_id"),
+                        ("ml_campaign_products", "campaign_id", "ml_campaigns", "ml_account_id"),
+                        ("ml_product_attributes", "ml_product_id", "ml_products", "ml_account_id"),
+                        ("ai_product_analysis", "ml_product_id", "ml_products", "ml_account_id"),
+                        ("ml_catalog_history", "monitoring_id", "ml_catalog_monitoring", "ml_account_id"),
+                        ("ml_messages", "thread_id", "ml_message_threads", "ml_account_id"),
+                        # Nível 2: Dependências diretas
+                        ("tokens", "ml_account_id", None, None),
+                        ("ml_products", "ml_account_id", None, None),
+                        ("ml_orders", "ml_account_id", None, None),
+                        ("ml_questions", "ml_account_id", None, None),
+                        ("ml_message_threads", "ml_account_id", None, None),
+                        ("ml_campaigns", "ml_account_id", None, None),
+                        ("ml_product_sync", "ml_account_id", None, None),
+                        ("ml_catalog_monitoring", "ml_account_id", None, None),
+                        ("user_ml_accounts", "ml_account_id", None, None),
+                    ]
+                    
+                    # Fazer múltiplas passadas para deletar dependências recursivas
+                    max_force_passes = 5
+                    for force_pass in range(max_force_passes):
+                        deleted_in_pass = 0
+                        print(f"    🔄 Passada forçada {force_pass + 1}/{max_force_passes}:")
+                        
+                        for dep_info in dependent_tables:
+                            if len(dep_info) == 4:
+                                dep_table, fk_column, parent_table, parent_fk = dep_info
+                            else:
+                                dep_table, fk_column = dep_info[:2]
+                                parent_table, parent_fk = None, None
+                            
+                            try:
+                                self.db.rollback()
+                            except:
+                                pass
+                            
+                            try:
+                                # Se tem parent_table, deletar via subquery
+                                if parent_table and parent_fk:
+                                    placeholders = ','.join([':id' + str(i) for i in range(len(ml_account_ids_list))])
+                                    params = {f'id{i}': ml_id for i, ml_id in enumerate(ml_account_ids_list)}
+                                    result = self.db.execute(
+                                        text(f"""
+                                            DELETE FROM {dep_table} 
+                                            WHERE {fk_column} IN (
+                                                SELECT id FROM {parent_table} 
+                                                WHERE {parent_fk} IN ({placeholders})
+                                            )
+                                        """),
+                                        params
+                                    )
+                                else:
+                                    # Deletar diretamente
+                                    placeholders = ','.join([':id' + str(i) for i in range(len(ml_account_ids_list))])
+                                    params = {f'id{i}': ml_id for i, ml_id in enumerate(ml_account_ids_list)}
+                                    result = self.db.execute(
+                                        text(f"DELETE FROM {dep_table} WHERE {fk_column} IN ({placeholders})"),
+                                        params
+                                    )
+                                
+                                count = result.rowcount if hasattr(result, 'rowcount') else 0
+                                if count > 0:
+                                    self.db.commit()
+                                    deleted_count += count
+                                    deleted_in_pass += count
+                                    print(f"      ✅ {dep_table}: {count} registro(s) deletado(s)")
+                            except Exception as e:
+                                error_str = str(e).lower()
+                                try:
+                                    self.db.rollback()
+                                except:
+                                    pass
+                                if "does not exist" not in error_str and "undefinedtable" not in error_str:
+                                    if "foreign key" in error_str or "violates" in error_str:
+                                        # FK error - pode ter dependências ainda
+                                        pass  # Tentar na próxima passada
+                                    else:
+                                        print(f"      ⚠️  {dep_table}: {str(e)[:60]}")
+                        
+                        if deleted_in_pass == 0:
+                            break
+                    
+                    # Verificar se ainda há dependências antes de deletar ml_accounts
+                    print(f"    🔍 Verificando dependências restantes...")
+                    remaining_deps = []
+                    for dep_info in dependent_tables:
+                        dep_table = dep_info[0]
+                        fk_column = dep_info[1] if len(dep_info) > 1 else "ml_account_id"
+                        try:
+                            placeholders = ','.join([':id' + str(i) for i in range(len(ml_account_ids_list))])
+                            params = {f'id{i}': ml_id for i, ml_id in enumerate(ml_account_ids_list)}
+                            count = self.db.execute(
+                                text(f"SELECT COUNT(*) FROM {dep_table} WHERE {fk_column} IN ({placeholders})"),
+                                params
+                            ).scalar()
+                            if count > 0:
+                                remaining_deps.append(f"{dep_table}: {count}")
+                        except:
+                            pass
+                    
+                    if remaining_deps:
+                        print(f"    ⚠️  Dependências restantes: {', '.join(remaining_deps)}")
+                        print(f"    🔧 Tentando deletar ml_accounts mesmo assim...")
+                    else:
+                        print(f"    ✅ Nenhuma dependência restante")
+                    
+                    # Agora deletar ml_accounts
+                    try:
+                        self.db.rollback()
+                    except:
+                        pass
+                    
+                    try:
+                        result = self.db.execute(
+                            text("DELETE FROM ml_accounts WHERE company_id = :company_id"),
+                            {"company_id": company_id}
+                        )
+                        count = result.rowcount if hasattr(result, 'rowcount') else 0
+                        if count > 0:
+                            self.db.commit()
+                            deleted_count += count
+                            print(f"    ✅ ml_accounts: {count} conta(s) deletada(s) (forçado)")
                         else:
-                            final_db.rollback()
-                            raise Exception(f"Erro ao deletar empresa após {max_company_retries} tentativas: {error_str[:200]}")
-            finally:
-                final_db.close()
+                            print(f"    ⚠️  ml_accounts: nenhum registro deletado (já estava vazio?)")
+                    except Exception as e:
+                        error_msg = str(e)
+                        print(f"    ❌ Erro ao deletar ml_accounts: {error_msg[:150]}")
+                        # Se ainda falhar, tentar deletar diretamente por ID
+                        try:
+                            self.db.rollback()
+                            for ml_acc_id in ml_account_ids_list:
+                                try:
+                                    self.db.execute(
+                                        text("DELETE FROM ml_accounts WHERE id = :id"),
+                                        {"id": ml_acc_id}
+                                    )
+                                    self.db.commit()
+                                    print(f"    ✅ ml_accounts ID {ml_acc_id}: deletado individualmente")
+                                except:
+                                    self.db.rollback()
+                        except:
+                            pass
+            
+            # Verificar outras tabelas críticas
+            critical_tables = ["users", "ml_accounts", "subscriptions"]
+            for table in critical_tables:
+                try:
+                    count = self.db.execute(
+                        text(f"SELECT COUNT(*) FROM {table} WHERE company_id = :company_id"),
+                        {"company_id": company_id}
+                    ).scalar()
+                    if count > 0:
+                        print(f"  ⚠️  Ainda há {count} registro(s) em {table}")
+                except:
+                    pass  # Tabela pode não existir
+            
+            # Deletar a empresa
+            print(f"\n🔧 Deletando empresa {company_id}...")
+            try:
+                self.db.rollback()
+            except:
+                pass
+            
+            self.db.execute(
+                text("DELETE FROM companies WHERE id = :company_id"),
+                {"company_id": company_id}
+            )
+            
+            # COMMIT final
+            print(f"\n💾 Salvando exclusão da empresa...")
+            self.db.commit()
+            print(f"\n{'='*80}")
+            print(f"✅ EMPRESA DELETADA COM SUCESSO!")
+            print(f"   Total de registros relacionados deletados: {deleted_count}")
+            print(f"{'='*80}\n")
             
             return {
-                "message": f"Empresa '{company_name}' e todos os seus registros foram excluídos com sucesso"
+                "success": True,
+                "message": f"Empresa '{company_name}' excluída com sucesso",
+                "deleted_records": deleted_count
             }
+            
         except Exception as e:
             self.db.rollback()
-            import traceback
-            import sys
-            error_detail = f"{str(e)}\n\nTraceback:\n{traceback.format_exc()}"
-            print(f"❌ Erro ao excluir empresa {company_id}: {error_detail}", file=sys.stderr)
-            # Log completo do erro
             error_msg = str(e)
-            if hasattr(e, '__class__'):
-                error_msg = f"{e.__class__.__name__}: {error_msg}"
+            print(f"\n{'='*80}")
+            print(f"❌ ERRO AO DELETAR EMPRESA")
+            print(f"   Erro: {error_msg[:200]}")
+            print(f"{'='*80}\n")
+            traceback.print_exc()
             raise Exception(f"Erro ao excluir empresa: {error_msg}")
     
     # ==================== MÉTODOS PARA PLANOS ====================
+    
     
     def get_plans_overview(self) -> Dict:
         """Retorna visão geral dos planos"""

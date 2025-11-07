@@ -6,10 +6,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta
+import logging
 
 from app.config.database import get_db
 from app.controllers.auth_controller import AuthController
 from app.controllers.ml_controller import MLController
+
+logger = logging.getLogger(__name__)
 
 # Router para Mercado Livre
 ml_router = APIRouter()

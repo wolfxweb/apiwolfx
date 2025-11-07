@@ -628,6 +628,9 @@ function confirmAction(action, id, name) {
     const body = document.getElementById('confirmModalBody');
     const button = document.getElementById('confirmButton');
     
+    // Garantir que o botão esteja habilitado ao abrir o modal
+    button.disabled = false;
+    
     switch (action) {
         case 'delete':
             title.textContent = 'Confirmar Exclusão Completa';
@@ -646,6 +649,13 @@ function confirmAction(action, id, name) {
                     </ul>
                     <p class="mt-2 mb-0"><strong>Esta ação NÃO PODE ser desfeita!</strong></p>
                 </div>
+                <div id="deleteProgress" class="d-none mt-3">
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" role="progressbar" style="width: 100%;">
+                            <span class="fw-bold">Excluindo empresa e todos os dados...</span>
+                        </div>
+                    </div>
+                </div>
             `;
             button.className = 'btn btn-danger';
             button.innerHTML = '<i class="bi bi-trash-fill"></i> Excluir Tudo';
@@ -659,6 +669,28 @@ function confirmAction(action, id, name) {
 // Executar ação confirmada
 async function executeConfirmedAction() {
     if (!currentAction || !currentCompanyId) return;
+    
+    // Pegar o botão de confirmação
+    const confirmButton = document.getElementById('confirmButton');
+    
+    // Verificar se já está processando (evitar duplo clique)
+    if (confirmButton.disabled) {
+        console.log('Ação já está sendo processada...');
+        return;
+    }
+    
+    // Desabilitar botão e mostrar loading
+    const originalButtonHTML = confirmButton.innerHTML;
+    confirmButton.disabled = true;
+    confirmButton.innerHTML = '<i class="spinner-border spinner-border-sm me-2"></i> Processando...';
+    
+    // Mostrar barra de progresso se for delete
+    if (currentAction === 'delete') {
+        const deleteProgress = document.getElementById('deleteProgress');
+        if (deleteProgress) {
+            deleteProgress.classList.remove('d-none');
+        }
+    }
     
     try {
         showLoading();
@@ -683,8 +715,18 @@ async function executeConfirmedAction() {
     } catch (error) {
         console.error('Erro:', error);
         showAlert('Erro ao executar ação: ' + error.message, 'danger');
+        
+        // Re-habilitar botão em caso de erro
+        confirmButton.disabled = false;
+        confirmButton.innerHTML = originalButtonHTML;
     } finally {
         hideLoading();
+        
+        // Garantir que o botão seja re-habilitado após fechar o modal
+        setTimeout(() => {
+            confirmButton.disabled = false;
+            confirmButton.innerHTML = originalButtonHTML;
+        }, 1000);
     }
 }
 
