@@ -7,49 +7,31 @@ services:
     container_name: apiwolfx-api
     ports:
       - "8000:8000"
-    extra_hosts:
-      - "pgadmin.wolfx.com.br:108.181.221.183"
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/celx_prod
-      - ENVIRONMENT=production
-      - ML_APP_ID=8660307122558740
-      - ML_CLIENT_SECRET=MRHlPRctnjmFIgEcnP8qvLJmwe4b8Zsi
-      - ML_REDIRECT_URI=https://a2a7bd2c74d8.ngrok-free.app/api/callback
-      - ML_NOTIFICATION_URL=https://a2a7bd2c74d8.ngrok-free.app/api/notifications
-      # Mercado Pago URLs (para produção, altere para seu domínio)
-      - MP_SUCCESS_URL=https://a2a7bd2c74d8.ngrok-free.app/payment/success
-      - MP_FAILURE_URL=https://a2a7bd2c74d8.ngrok-free.app/payment/failure
-      - MP_PENDING_URL=https://a2a7bd2c74d8.ngrok-free.app/payment/pending
-      - MP_WEBHOOK_URL=https://a2a7bd2c74d8.ngrok-free.app/api/payments/webhooks/mercadopago
-      
-      # Mercado Pago Credentials (PRODUÇÃO)
-      - MP_ACCESS_TOKEN=APP_USR-6987936494418444-101415-df063090488cd09fd99bb0e75ba91dc5-534913383560219
-      - MP_PUBLIC_KEY=APP_USR-a77d3ee7-7c94-443e-b910-d4e0c3e41e63
-      - MP_WEBHOOK_SECRET=7c315606ea2ebac4cb8410755f6bd42af5f8d7d5af0e5bcdcb1d4b5440068bb2
-      - OPENAI_API_KEY=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
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - ML_APP_ID=${ML_APP_ID}
+      - ML_CLIENT_SECRET=${ML_CLIENT_SECRET}
+      - ML_REDIRECT_URI=${ML_REDIRECT_URI:-https://520ef50ef3ab.ngrok-free.app/api/callback}
+      - ML_NOTIFICATION_URL=${ML_NOTIFICATION_URL:-https://520ef50ef3ab.ngrok-free.app/api/notifications}
+      # URLs Mercado Pago
+      - MP_SUCCESS_URL=${MP_SUCCESS_URL:-https://520ef50ef3ab.ngrok-free.app/payment/success}
+      - MP_FAILURE_URL=${MP_FAILURE_URL:-https://520ef50ef3ab.ngrok-free.app/payment/failure}
+      - MP_PENDING_URL=${MP_PENDING_URL:-https://520ef50ef3ab.ngrok-free.app/payment/pending}
+      - MP_WEBHOOK_URL=${MP_WEBHOOK_URL:-https://520ef50ef3ab.ngrok-free.app/api/payments/webhooks/mercadopago}
+      # Credenciais Mercado Pago / OpenAI devem ser definidas no .env local
+      - MP_ACCESS_TOKEN=${MP_ACCESS_TOKEN}
+      - MP_PUBLIC_KEY=${MP_PUBLIC_KEY}
+      - MP_WEBHOOK_SECRET=${MP_WEBHOOK_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:
       - ./public:/app/public
     networks:
       - apiwolfx-network
     restart: unless-stopped
 
-
-  # Banco de dados PostgreSQL - REMOVIDO (usando banco externo)
-  # db:
-  #   image: postgres:15
-  #   container_name: apiwolfx-db
-  #   environment:
-  #     POSTGRES_DB: apiwolfx
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: password
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #     - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-  #   networks:
-  #     - apiwolfx-network
-  #   restart: unless-stopped
 
   # phpMyAdmin - REMOVIDO (usando PostgreSQL externo)
   # phpmyadmin:

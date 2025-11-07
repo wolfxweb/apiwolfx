@@ -16,8 +16,8 @@ class Settings:
             default_domain = os.getenv("DOMAIN", "celx.com.br")
             default_base_url = f"https://{default_domain}"
         else:
-            # Desenvolvimento: usa ngrok
-            default_base_url = "https://a2a7bd2c74d8.ngrok-free.app"
+            # Desenvolvimento: usa URL exposta via ngrok (fallback)
+            default_base_url = os.getenv("LOCAL_BASE_URL", "https://520ef50ef3ab.ngrok-free.app")
         
         # Mercado Livre API Configuration
         # IMPORTANTE: SEMPRE usar variáveis de ambiente (sem fallback hardcoded)

@@ -12,8 +12,8 @@ from sqlalchemy.sql import func
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    # Determinar ambiente: production usa celx_prod, local usa comercial
-    environment = os.getenv("ENVIRONMENT", "local").lower()
+    # Determinar ambiente: produção usa base externa, desenvolvimento usa container local
+    environment = os.getenv("ENVIRONMENT", "development").lower()
     is_production = environment == "production"
     
     if is_production:
@@ -21,7 +21,7 @@ if not DATABASE_URL:
         DATABASE_URL = "postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/celx_prod"
     else:
         # Banco local/desenvolvimento
-        DATABASE_URL = "postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial"
+        DATABASE_URL = "postgresql://postgres:postgres@db:5432/apiwolfx"
 # Criar engine do SQLAlchemy
 engine = create_engine(
     DATABASE_URL,

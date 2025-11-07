@@ -888,6 +888,60 @@ class SuperAdminController:
                         except:
                             pass
             
+            # Verificar se ainda há usuários vinculados a esta empresa
+            try:
+                remaining_users = self.db.execute(
+                    text("SELECT id FROM users WHERE company_id = :company_id"),
+                    {"company_id": company_id}
+                ).fetchall()
+            except Exception as e:
+                remaining_users = []
+                print(f"  ⚠️  Erro ao verificar usuários restantes: {str(e)[:120]}")
+
+            if remaining_users:
+                user_ids = [row[0] for row in remaining_users]
+                print(f"  🔧 Usuários restantes vinculados à empresa: {user_ids}")
+                deleted_users = 0
+                for user_id in user_ids:
+                    try:
+                        self.db.rollback()
+                    except:
+                        pass
+
+                    try:
+                        # Remover sessões vinculadas ao usuário
+                        self.db.execute(
+                            text("DELETE FROM user_sessions WHERE user_id = :user_id"),
+                            {"user_id": user_id}
+                        )
+                        self.db.commit()
+                    except Exception as e:
+                        print(f"  ⚠️  Erro ao remover sessões do usuário {user_id}: {str(e)[:150]}")
+                        try:
+                            self.db.rollback()
+                        except:
+                            pass
+
+                    try:
+                        result = self.db.execute(
+                            text("DELETE FROM users WHERE id = :user_id"),
+                            {"user_id": user_id}
+                        )
+                        deleted = result.rowcount if hasattr(result, 'rowcount') else 0
+                        if deleted > 0:
+                            self.db.commit()
+                            deleted_users += deleted
+                            print(f"  ✅ users: usuário {user_id} removido (forçado)")
+                    except Exception as e:
+                        print(f"  ❌ Erro ao remover usuário {user_id}: {str(e)[:150]}")
+                        try:
+                            self.db.rollback()
+                        except:
+                            pass
+
+                if deleted_users > 0:
+                    deleted_count += deleted_users
+            
             # Verificar outras tabelas críticas
             critical_tables = ["users", "ml_accounts", "subscriptions"]
             for table in critical_tables:
