@@ -1098,6 +1098,28 @@ function updateAttributeCounts() {
     document.getElementById('secondaryAttrCount').textContent = secondaryFilled;
 }
 
+function fillAttributeWithGTIN(fieldId) {
+    const gtinInput = document.getElementById('gtin');
+    const target = document.getElementById(fieldId);
+
+    if (!target) {
+        return;
+    }
+
+    if (!gtinInput || !gtinInput.value) {
+        showAlert('warning', 'Preencha o campo GTIN antes de copiar para as características.');
+        gtinInput?.focus();
+        return;
+    }
+
+    target.value = gtinInput.value;
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.classList.add('border-success');
+    setTimeout(() => target.classList.remove('border-success'), 800);
+
+    updateAttributeCounts();
+}
+
 // Criar campo HTML baseado no tipo de atributo
 function createAttributeField(attribute, isMainAttribute = false) {
     const fieldId = `attr_${attribute.id}`;
@@ -1105,7 +1127,71 @@ function createAttributeField(attribute, isMainAttribute = false) {
     const requiredClass = isRequired ? 'required-field' : '';
     const requiredAttr = isRequired ? 'required' : '';
     const hint = attribute.hint || 'Por favor, inclua este dado para que seus compradores tenham mais informações para te escolher.';
-    
+    const attributeIdUpper = attribute.id ? attribute.id.toUpperCase() : '';
+    const attributeNameLower = attribute.name ? attribute.name.toLowerCase() : '';
+    const isUniversalCodeAttribute = attributeIdUpper.includes('GTIN') ||
+        attributeIdUpper.includes('UNIVERSAL') ||
+        attributeNameLower.includes('código universal de produto');
+    const isModelAttribute = attributeIdUpper.includes('MODEL') || attributeNameLower === 'modelo';
+
+    if (isUniversalCodeAttribute) {
+        return `
+            <div class="mb-3 border-bottom pb-3">
+                <label for="${fieldId}" class="form-label ${requiredClass}">
+                    ${attribute.name}
+                    ${isRequired ? ' <span class="text-danger">(obrigatório)</span>' : ''}
+                </label>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-8">
+                        <input type="text" class="form-control" id="${fieldId}" 
+                               name="attr_${attribute.id}" 
+                               placeholder="Copie o GTIN acima ou informe outro código"
+                               maxlength="14"
+                               ${requiredAttr}>
+                    </div>
+                    <div class="col-md-4 d-grid">
+                        <button type="button" class="btn btn-outline-secondary" onclick="fillAttributeWithGTIN('${fieldId}')">
+                            Usar GTIN preenchido acima
+                        </button>
+                    </div>
+                </div>
+                <input type="hidden" name="attr_type_${attribute.id}" value="${attribute.value_type || ''}">
+                <div class="form-text">
+                    <i class="bi bi-info-circle"></i> Pode ser um EAN, UPC ou outro GTIN. Este campo será enviado como característica da categoria.
+                </div>
+            </div>
+        `;
+    }
+
+    if (isModelAttribute) {
+        return `
+            <div class="mb-3 border-bottom pb-3">
+                <label for="${fieldId}" class="form-label ${requiredClass}">
+                    ${attribute.name}
+                    ${isRequired ? ' <span class="text-danger">(obrigatório)</span>' : ''}
+                </label>
+                <input type="text" class="form-control" id="${fieldId}" 
+                       name="attr_${attribute.id}" 
+                       placeholder="Informe o modelo exato do produto"
+                       maxlength="120"
+                       ${requiredAttr}>
+                <input type="hidden" name="attr_type_${attribute.id}" value="${attribute.value_type || ''}">
+                ${!isRequired ? `
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="${fieldId}_na" 
+                               onchange="toggleNotApplicable('${fieldId}', this.checked)">
+                        <label class="form-check-label text-muted" for="${fieldId}_na">
+                            Não se aplica
+                        </label>
+                    </div>
+                ` : ''}
+                <div class="form-text">
+                    <i class="bi bi-info-circle"></i> Por favor, inclua este dado para que seus compradores tenham mais informações para te escolher.
+                </div>
+            </div>
+        `;
+    }
+
     let fieldHTML = `
         <div class="mb-3 border-bottom pb-3">
             <label for="${fieldId}" class="form-label ${requiredClass}">
@@ -1181,6 +1267,8 @@ function createAttributeField(attribute, isMainAttribute = false) {
                    ${requiredAttr}>
         `;
     }
+    
+    fieldHTML += `<input type="hidden" name="attr_type_${attribute.id}" value="${attribute.value_type || ''}">`;
     
     // Botão "Não se aplica" para atributos opcionais
     if (!isRequired) {

@@ -6,7 +6,7 @@ import requests
 from fastapi import APIRouter, Depends, Request, Query, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from app.config.database import get_db
 from app.controllers.ml_product_controller import MLProductController
@@ -2106,16 +2106,50 @@ async def create_ml_product(
         
         # Processar atributos dinâmicos da categoria
         attributes = []
+        attribute_values: Dict[str, Dict[str, Optional[str]]] = {}
+        attribute_types: Dict[str, str] = {}
+
         for key in form_data.keys():
+            if key.startswith("attr_type_"):
+                attr_type_id = key.replace("attr_type_", "")
+                attr_type_value = form_data.get(key)
+                if attr_type_value:
+                    attribute_types[attr_type_id] = attr_type_value
+                continue
+
             if key.startswith("attr_"):
-                attr_id = key.replace("attr_", "")
                 attr_value = form_data.get(key)
-                if attr_value:
-                    attributes.append({
-                        "id": attr_id,
-                        "value_name": attr_value
-                    })
-        
+                if not attr_value:
+                    continue
+
+                is_unit_field = key.endswith("_unit")
+                attr_id = key[len("attr_"):]
+                if is_unit_field:
+                    attr_id = attr_id[:-5]  # remover sufixo _unit
+
+                entry = attribute_values.setdefault(attr_id, {})
+                if is_unit_field:
+                    entry["unit"] = attr_value
+                else:
+                    entry["value"] = attr_value
+
+        for attr_id, data in attribute_values.items():
+            value = data.get("value")
+            if not value:
+                continue
+
+            attr_type = attribute_types.get(attr_id, "")
+            unit = data.get("unit")
+            attribute_payload: Dict[str, Any] = {"id": attr_id}
+
+            if unit:
+                combined_value = f"{value} {unit}".strip()
+                attribute_payload["value_name"] = combined_value
+            else:
+                attribute_payload["value_name"] = value
+
+            attributes.append(attribute_payload)
+
         if attributes:
             product_data["attributes"] = attributes
             logger.info(f"📋 {len(attributes)} atributo(s) adicionado(s)")
