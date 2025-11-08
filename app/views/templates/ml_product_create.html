@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}Cadastrar Produto no Mercado Livre - {{ user.company.name }}{% endblock %}
+{% set editing = is_edit|default(False) %}
+
+{% block title %}{{ 'Editar' if editing else 'Cadastrar' }} Produto no Mercado Livre - {{ user.company.name }}{% endblock %}
 
 {% block head %}
 <!-- Cache buster v3 - Novo sistema de imagens + debug atributos -->
@@ -62,7 +64,11 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">
-        <i class="bi bi-plus-square"></i> Cadastrar Produto no Mercado Livre
+        {% if editing %}
+            <i class="bi bi-pencil-square"></i> Editar Produto do Mercado Livre
+        {% else %}
+            <i class="bi bi-plus-square"></i> Cadastrar Produto no Mercado Livre
+        {% endif %}
     </h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <a href="/ml/products" class="btn btn-outline-secondary">
@@ -78,6 +84,9 @@
 <div class="card">
     <div class="card-body">
         <form id="productForm">
+            {% if editing %}
+            <input type="hidden" id="product_id" value="{{ product.id }}">
+            {% endif %}
             
             <h5 class="mb-3">Informações Básicas</h5>
             
@@ -140,26 +149,20 @@
                 <div id="categorySuggestions" class="list-group mb-2" style="display: none;"></div>
                 
                 <!-- Campo oculto para category_id (valor final) -->
-                <input type="hidden" id="category_id" name="category_id" required>
+                <input type="hidden" id="category_id" name="category_id" required value="{% if editing and product.category_id %}{{ product.category_id }}{% endif %}">
                 
                 <!-- Categoria selecionada -->
-                <div id="selectedCategory" class="alert alert-light border d-none mt-2">
+                <div id="selectedCategory" class="alert alert-light border mt-2 {% if editing and product.category_id %}{% else %}d-none{% endif %}">
                     <i class="bi bi-check-circle text-success"></i> <strong>Categoria selecionada:</strong>
-                    <span id="selectedCategoryName"></span>
-                    <span class="badge bg-secondary ms-1" id="selectedCategoryId"></span>
+                    <span id="selectedCategoryName">{% if editing %}{{ product.category_name or product.category_id }}{% endif %}</span>
+                    <span class="badge bg-secondary ms-1" id="selectedCategoryId">{% if editing %}{{ product.category_id }}{% endif %}</span>
                 </div>
             </div>
             
-            <!-- Dados Fiscais -->
-            <div class="mb-3">
+            <div class="step-section" data-step="4">
                 <hr class="my-4">
-                <h5 class="mb-3"><i class="bi bi-file-earmark-text"></i> Dados Fiscais (NF-e)</h5>
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <strong>Importante:</strong> Campos obrigatórios para emissão de Nota Fiscal Eletrônica e produtos no Mercado Full.
-                </div>
+                <h5 class="mb-3"><i class="bi bi-list-check"></i> Identificadores e Características</h5>
                 
-                <!-- EAN/GTIN e SKU -->
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="gtin" class="form-label required-field">EAN / GTIN</label>
@@ -189,223 +192,32 @@
                             </button>
                         </div>
                         <div class="form-text">
-                            SKU para identificar o produto na NF-e
+                            SKU para identificar o produto e vincular nas suas notas fiscais
                         </div>
                     </div>
                 </div>
                 
-                <!-- Nome na NF-e e Custo Unitário -->
-                <div class="row">
-                    <div class="col-md-8 mb-3">
-                        <label for="fiscal_product_name" class="form-label">Nome do produto na nota fiscal</label>
-                        <input type="text" class="form-control" id="fiscal_product_name" name="fiscal_product_name" 
-                               placeholder="Ex: Placa de Desenvolvimento ESP32-S3"
-                               maxlength="120">
-                        <div class="form-text">
-                            <span id="fiscalNameCount">0</span>/120 caracteres
-                        </div>
+                <div id="attributesContainer" class="d-none mb-3">
+                    <hr class="my-4">
+                    <h5 class="mb-3"><i class="bi bi-list-check"></i> Características do Produto</h5>
+                    
+                    <div id="mainAttributesSection" class="mb-4">
+                        <h6 class="text-primary mb-3">
+                            <i class="bi bi-star-fill"></i> Características Principais
+                            <span class="badge bg-danger ms-2">Obrigatórias</span>
+                        </h6>
+                        <span id="mainAttrCount" class="visually-hidden">0</span>
+                        <div id="mainAttributesFields"></div>
                     </div>
                     
-                    <div class="col-md-4 mb-3">
-                        <label for="unit_cost" class="form-label">Custo unitário (opcional)</label>
-                        <div class="input-group">
-                            <span class="input-group-text">R$</span>
-                            <input type="number" class="form-control" id="unit_cost" name="unit_cost" 
-                                   placeholder="0.00"
-                                   step="0.01"
-                                   min="0">
-                        </div>
-                        <div class="form-text">
-                            Utilizado na NF-e de transferência
-                        </div>
+                    <div id="secondaryAttributesSection" class="mb-4">
+                        <h6 class="text-muted mb-3">
+                            <i class="bi bi-list-ul"></i> Características Secundárias
+                            <span class="badge bg-secondary ms-2">Opcionais</span>
+                        </h6>
+                        <span id="secondaryAttrCount" class="visually-hidden">0</span>
+                        <div id="secondaryAttributesFields"></div>
                     </div>
-                </div>
-                
-                <!-- Pesos -->
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label for="net_weight" class="form-label">Peso líquido</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="net_weight" name="net_weight" 
-                                   placeholder="0.000"
-                                   step="0.001"
-                                   min="0">
-                            <span class="input-group-text">kg</span>
-                        </div>
-                        <div class="form-text">
-                            Peso do produto sem embalagem
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-4 mb-3">
-                        <label for="gross_weight" class="form-label">Peso bruto</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="gross_weight" name="gross_weight" 
-                                   placeholder="0.000"
-                                   step="0.001"
-                                   min="0">
-                            <span class="input-group-text">kg</span>
-                        </div>
-                        <div class="form-text">
-                            Peso total com embalagem
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-4 mb-3">
-                        <label for="commercial_unit" class="form-label">Unidade de medida comercial</label>
-                        <select class="form-select" id="commercial_unit" name="commercial_unit">
-                            <option value="PEÇA" selected>PEÇA</option>
-                            <option value="UN">UNIDADE</option>
-                            <option value="KG">QUILOGRAMA</option>
-                            <option value="MT">METRO</option>
-                            <option value="M2">METRO QUADRADO</option>
-                            <option value="M3">METRO CÚBICO</option>
-                            <option value="LT">LITRO</option>
-                            <option value="CX">CAIXA</option>
-                            <option value="PAR">PAR</option>
-                            <option value="JOGO">JOGO</option>
-                        </select>
-                        <div class="form-text">
-                            Máx. 6 caracteres
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- NCM e CEST -->
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label for="ncm" class="form-label required-field">NCM (Nomenclatura Comum do Mercosul)</label>
-                        <input type="text" class="form-control" id="ncm" name="ncm" 
-                               placeholder="Ex: 84439960"
-                               pattern="[0-9]{8}"
-                               maxlength="8">
-                        <div class="form-text">
-                            <i class="bi bi-info-circle"></i> Consulte na NF-e de compra ou no 
-                            <a href="https://www.gov.br/receitafederal/pt-br/assuntos/aduana-e-comercio-exterior/manuais/importacao-e-exportacao/topicos-1/nomenclatura-comum-do-mercosul-ncm" target="_blank">site da Receita Federal</a>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <label for="cest" class="form-label">CEST (Código Especificador da Substituição Tributária)</label>
-                        <input type="text" class="form-control" id="cest" name="cest" 
-                               placeholder="Ex: 2101800"
-                               pattern="[0-9]{7}"
-                               maxlength="7">
-                        <div class="form-text">
-                            Apenas produtos com substituição tributária
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Origem e Tributação -->
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label for="origin_type" class="form-label required-field">Tipo de origem</label>
-                        <select class="form-select" id="origin_type" name="origin_type">
-                            <option value="">Selecione...</option>
-                            <option value="0">0 - Nacional</option>
-                            <option value="1" selected>1 - Estrangeira - Importação direta</option>
-                            <option value="2">2 - Estrangeira - Adquirida no mercado interno</option>
-                            <option value="3">3 - Nacional com conteúdo importado (40% a 70%)</option>
-                            <option value="4">4 - Nacional - Conforme processos produtivos básicos</option>
-                            <option value="5">5 - Nacional com conteúdo importado (< 40%)</option>
-                            <option value="6">6 - Estrangeira - Importação direta, sem similar nacional</option>
-                            <option value="7">7 - Estrangeira - Adquirida no mercado interno, sem similar nacional</option>
-                            <option value="8">8 - Nacional com conteúdo importado (> 70%)</option>
-                        </select>
-                        <div class="form-text">
-                            Define regras de IPI e ICMS
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-4 mb-3">
-                        <label for="csosn_icms" class="form-label required-field">CSOSN do ICMS</label>
-                        <select class="form-select" id="csosn_icms" name="csosn_icms">
-                            <option value="">Selecione...</option>
-                            <option value="101">101 - Tributada pelo Simples Nacional com permissão de crédito</option>
-                            <option value="102" selected>102 - Tributada pelo Simples Nacional sem permissão de crédito</option>
-                            <option value="103">103 - Isenção do ICMS no Simples Nacional</option>
-                            <option value="201">201 - Tributada pelo Simples Nacional com permissão de crédito e com cobrança do ICMS por ST</option>
-                            <option value="202">202 - Tributada pelo Simples Nacional sem permissão de crédito e com cobrança do ICMS por ST</option>
-                            <option value="203">203 - Isenção do ICMS no Simples Nacional e com cobrança do ICMS por ST</option>
-                            <option value="300">300 - Imune</option>
-                            <option value="400">400 - Não tributada pelo Simples Nacional</option>
-                            <option value="500">500 - ICMS cobrado anteriormente por ST ou por antecipação</option>
-                            <option value="900">900 - Outros</option>
-                        </select>
-                        <div class="form-text">
-                            Para empresas no Simples Nacional
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-4 mb-3">
-                        <label for="ipi_exception" class="form-label">Ex. da TIPI (Exceção IPI)</label>
-                        <input type="text" class="form-control" id="ipi_exception" name="ipi_exception" 
-                               placeholder="Ex: 01"
-                               pattern="[0-9]{2,3}"
-                               maxlength="3">
-                        <div class="form-text">
-                            Código de exceção da TIPI (2-3 dígitos)
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Dados Fiscais Opcionais -->
-                <div class="mt-3">
-                    <h6 class="text-muted">Dados Fiscais Opcionais</h6>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="fci_key" class="form-label">Chave da FCI</label>
-                            <input type="text" class="form-control" id="fci_key" name="fci_key" 
-                                   placeholder="Ex: 12345678-1234-1234-1234-123456789012"
-                                   maxlength="36">
-                            <div class="form-text">
-                                Ficha de Conteúdo de Importação (produtos importados)
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label for="mpn" class="form-label">MPN (Part Number do Fabricante)</label>
-                            <input type="text" class="form-control" id="mpn" name="mpn" 
-                                   placeholder="Ex: ABC-123-XYZ">
-                            <div class="form-text">
-                                Código do fabricante (opcional)
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Características do Produto (atributos dinâmicos por categoria) -->
-            <div id="attributesContainer" class="d-none mb-3">
-                <hr class="my-4">
-                <h5 class="mb-3"><i class="bi bi-list-check"></i> Características do Produto</h5>
-                
-                <!-- Características Principais (Obrigatórias) -->
-                <div id="mainAttributesSection" class="mb-4">
-                    <h6 class="text-primary mb-3">
-                        <i class="bi bi-star-fill"></i> Características Principais
-                        <span class="badge bg-danger ms-2">Obrigatórias</span>
-                    </h6>
-                    <div class="alert alert-warning mb-3">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        Você tem <strong><span id="mainAttrCount">0</span> características completas</strong>.
-                    </div>
-                    <div id="mainAttributesFields"></div>
-                </div>
-                
-                <!-- Características Secundárias (Opcionais) -->
-                <div id="secondaryAttributesSection" class="mb-4">
-                    <h6 class="text-muted mb-3">
-                        <i class="bi bi-list-ul"></i> Características Secundárias
-                        <span class="badge bg-secondary ms-2">Opcionais</span>
-                    </h6>
-                    <div class="alert alert-info mb-3">
-                        <i class="bi bi-info-circle"></i>
-                        Você tem <strong><span id="secondaryAttrCount">0</span> características completas</strong>.
-                        <br><small>Inclua estes dados para que seus compradores tenham mais informações para te escolher.</small>
-                    </div>
-                    <div id="secondaryAttributesFields"></div>
                 </div>
             </div>
             
@@ -517,23 +329,46 @@
             <!-- SKU e Garantia -->
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="seller_custom_field" class="form-label">SKU / Código Interno</label>
-                    <input type="text" class="form-control" id="seller_custom_field" 
-                           name="seller_custom_field" placeholder="Ex: NB-DELL-15-I7">
-                </div>
-                
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Garantia</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="warranty_time" 
-                               placeholder="Quantidade" min="0" max="999">
-                        <select class="form-select" id="warranty_unit" style="max-width: 120px;">
-                            <option value="">Selecione...</option>
-                            <option value="meses">Meses</option>
-                            <option value="dias">Dias</option>
-                            <option value="anos">Anos</option>
-                        </select>
+                    <label class="form-label required-field">Garantia</label>
+                    <div class="border rounded p-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="warranty_type" id="warranty_none"
+                                   value="none" data-label="Sem garantia (Você não oferece garantia)" checked>
+                            <label class="form-check-label" for="warranty_none">
+                                Sem garantia (Você não oferece garantia)
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="warranty_type" id="warranty_seller"
+                                   value="seller" data-label="Garantia do vendedor">
+                            <label class="form-check-label" for="warranty_seller">
+                                Garantia do vendedor
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="warranty_type" id="warranty_factory"
+                                   value="factory" data-label="Garantia de fábrica">
+                            <label class="form-check-label" for="warranty_factory">
+                                Garantia de fábrica
+                            </label>
+                        </div>
                     </div>
+
+                    <div id="warrantyDurationGroup" class="mt-3 d-none">
+                        <label class="form-label">Tempo de garantia</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="warranty_duration_value" name="warranty_duration_value"
+                                   placeholder="Quantidade" min="0" max="999">
+                            <select class="form-select" id="warranty_duration_unit" name="warranty_duration_unit" style="max-width: 140px;">
+                                <option value="">Selecione...</option>
+                                <option value="dias">Dias</option>
+                                <option value="meses">Meses</option>
+                                <option value="anos">Anos</option>
+                            </select>
+                        </div>
+                        <small class="text-muted">Informe o tempo total oferecido quando houver garantia.</small>
+                    </div>
+
                     <input type="hidden" id="warranty" name="warranty">
                 </div>
             </div>
@@ -565,7 +400,11 @@
                     <i class="bi bi-x-circle"></i> Cancelar
                 </a>
                 <button type="submit" class="btn btn-primary" id="submitBtn">
+                    {% if editing %}
+                    <i class="bi bi-check-circle"></i> Salvar alterações
+                    {% else %}
                     <i class="bi bi-check-circle"></i> Publicar no Mercado Livre
+                    {% endif %}
                 </button>
             </div>
             
@@ -577,9 +416,20 @@
 
 {% block extra_js %}
 <script>
-console.log('📄 Script iniciado - ANTES do DOMContentLoaded');
+const isEditMode = {{ 'true' if editing else 'false' }};
+const initialProductData = {{ product_json | tojson if editing else 'null' }};
+const initialWarrantyContext = {{ warranty_context | tojson if editing else 'null' }};
+const initialCategoryAttributes = {{ category_attributes | tojson if editing else 'null' }};
+console.log('🧭 initialCategoryAttributes', initialCategoryAttributes);
+
+console.log('📄 Script iniciado - ANTES do DOMContentLoaded', { isEditMode, initialProductData });
 
 let uploadedImages = [];
+let attributePrefillMap = {};
+
+function getActiveImageCount() {
+    return uploadedImages.filter(item => item !== null).length;
+}
 
 // Garantir que o DOM esteja carregado antes de vincular eventos
 document.addEventListener('DOMContentLoaded', function() {
@@ -609,11 +459,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     option.textContent = `${account.nickname} (${account.email})`;
                     if (account.is_primary) {
                         option.textContent += ' ⭐ Principal';
-                        option.selected = true;
+                        if (!isEditMode) {
+                            option.selected = true;
+                        }
                     }
                     accountSelect.appendChild(option);
                 });
                 
+                if (isEditMode && initialProductData?.ml_account_id) {
+                    accountSelect.value = String(initialProductData.ml_account_id);
+                }
+
                 console.log(`✅ ${data.accounts.length} conta(s) ML carregada(s)`);
             } else {
                 accountSelect.innerHTML = '<option value="">Nenhuma conta encontrada</option>';
@@ -628,7 +484,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Carregar contas ao iniciar
-    loadMLAccounts();
+    const accountsPromise = loadMLAccounts();
     
     // ========== GERAR GTIN (EAN-13) ==========
     function generateEAN13() {
@@ -690,29 +546,58 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('titleCount').textContent = this.value.length;
     });
     
-    // Contador de caracteres do nome fiscal
-    const fiscalNameInput = document.getElementById('fiscal_product_name');
-    if (fiscalNameInput) {
-        fiscalNameInput.addEventListener('input', function() {
-            document.getElementById('fiscalNameCount').textContent = this.value.length;
-        });
+    // ========== GARANTIA ==========
+    const warrantyHiddenInput = document.getElementById('warranty');
+    const warrantyTypeInputs = document.querySelectorAll('input[name="warranty_type"]');
+    const warrantyDurationGroup = document.getElementById('warrantyDurationGroup');
+    const warrantyDurationValue = document.getElementById('warranty_duration_value');
+    const warrantyDurationUnit = document.getElementById('warranty_duration_unit');
+
+    function updateWarrantySummary() {
+        if (!warrantyHiddenInput) {
+            return;
+        }
+
+        const selectedType = document.querySelector('input[name="warranty_type"]:checked');
+        const typeValue = selectedType ? selectedType.value : 'none';
+        const typeLabel = selectedType ? selectedType.dataset.label : '';
+        const requiresDuration = typeValue === 'seller' || typeValue === 'factory';
+
+        if (requiresDuration) {
+            warrantyDurationGroup.classList.remove('d-none');
+            warrantyDurationValue.required = true;
+            warrantyDurationUnit.required = true;
+        } else {
+            warrantyDurationGroup.classList.add('d-none');
+            warrantyDurationValue.required = false;
+            warrantyDurationUnit.required = false;
+            warrantyDurationValue.value = '';
+            warrantyDurationUnit.value = '';
+        }
+
+        let summary = typeLabel;
+        if (requiresDuration && warrantyDurationValue.value && warrantyDurationUnit.value) {
+            const unitOption = warrantyDurationUnit.options[warrantyDurationUnit.selectedIndex];
+            const unitLabel = unitOption ? unitOption.text : warrantyDurationUnit.value;
+            summary = `${typeLabel} - ${warrantyDurationValue.value} ${unitLabel}`;
+        }
+
+        warrantyHiddenInput.value = summary;
     }
 
-    // ========== GARANTIA - Combinar campos ==========
-    function updateWarrantyField() {
-        const time = document.getElementById('warranty_time').value;
-        const unit = document.getElementById('warranty_unit').value;
-        const warrantyField = document.getElementById('warranty');
-        
-        if (time && unit) {
-            warrantyField.value = `${time} ${unit}`;
-        } else {
-            warrantyField.value = '';
-        }
+    warrantyTypeInputs.forEach(input => {
+        input.addEventListener('change', updateWarrantySummary);
+    });
+
+    if (warrantyDurationValue) {
+        warrantyDurationValue.addEventListener('input', updateWarrantySummary);
     }
-    
-    document.getElementById('warranty_time').addEventListener('input', updateWarrantyField);
-    document.getElementById('warranty_unit').addEventListener('change', updateWarrantyField);
+
+    if (warrantyDurationUnit) {
+        warrantyDurationUnit.addEventListener('change', updateWarrantySummary);
+    }
+
+    updateWarrantySummary();
 
     // ========== BUSCA DE CATEGORIA ==========
     // Botão de busca de categoria - usa o título do anúncio automaticamente
@@ -773,7 +658,156 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.error('❌ Botão de navegar categorias não encontrado!');
     }
+
+    if (isEditMode) {
+        accountsPromise.then(() => initializeEditMode());
+    }
 }); // Fecha o DOMContentLoaded
+
+async function initializeEditMode() {
+    if (!isEditMode || !initialProductData) {
+        return;
+    }
+
+    console.log('✏️ Inicializando modo edição', initialProductData);
+
+    const titleInput = document.getElementById('title');
+    if (titleInput) {
+        titleInput.value = initialProductData.title || '';
+        document.getElementById('titleCount').textContent = titleInput.value.length;
+    }
+
+    const priceInput = document.getElementById('price');
+    if (priceInput && initialProductData.price) {
+        const numericPrice = parseFloat(String(initialProductData.price).replace(',', '.'));
+        if (!Number.isNaN(numericPrice)) {
+            priceInput.value = numericPrice.toFixed(2);
+        } else {
+            priceInput.value = initialProductData.price;
+        }
+    }
+
+    const quantityInput = document.getElementById('available_quantity');
+    if (quantityInput && initialProductData.available_quantity !== undefined && initialProductData.available_quantity !== null) {
+        quantityInput.value = initialProductData.available_quantity;
+    }
+
+    const descriptionInput = document.getElementById('description');
+    if (descriptionInput) {
+        descriptionInput.value = initialProductData.description || '';
+    }
+
+    const listingTypeSelect = document.getElementById('listing_type_id');
+    if (listingTypeSelect && initialProductData.listing_type_id) {
+        listingTypeSelect.value = initialProductData.listing_type_id;
+    }
+
+    const conditionSelect = document.getElementById('condition');
+    if (conditionSelect && initialProductData.condition) {
+        conditionSelect.value = initialProductData.condition;
+    }
+
+    const skuInput = document.getElementById('seller_custom_field');
+    if (skuInput) {
+        skuInput.value = initialProductData.seller_custom_field || initialProductData.seller_sku || '';
+    }
+
+    const warrantyHiddenInput = document.getElementById('warranty');
+    if (warrantyHiddenInput && initialProductData.warranty) {
+        warrantyHiddenInput.value = initialProductData.warranty;
+    }
+
+    const shipping = initialProductData.shipping || {};
+    const shippingModeSelect = document.getElementById('shipping_mode');
+    if (shippingModeSelect && shipping.mode) {
+        shippingModeSelect.value = shipping.mode;
+    }
+
+    const freeShippingCheckbox = document.getElementById('free_shipping');
+    if (freeShippingCheckbox) {
+        freeShippingCheckbox.checked = Boolean(initialProductData.free_shipping);
+    }
+
+    if (shipping.dimensions) {
+        const [dimensionsPart, weightPart] = shipping.dimensions.split(',');
+        if (dimensionsPart) {
+            const [length, width, height] = dimensionsPart.split('x');
+            const lengthInput = document.getElementById('package_length');
+            const widthInput = document.getElementById('package_width');
+            const heightInput = document.getElementById('package_height');
+            if (lengthInput && length) lengthInput.value = length;
+            if (widthInput && width) widthInput.value = width;
+            if (heightInput && height) heightInput.value = height;
+        }
+        if (weightPart) {
+            const weightInput = document.getElementById('package_weight');
+            if (weightInput) weightInput.value = weightPart;
+        }
+    }
+
+    seedExistingImages(initialProductData.pictures || []);
+
+    if (initialWarrantyContext) {
+        const typeRadio = document.querySelector(`input[name="warranty_type"][value="${initialWarrantyContext.type || 'none'}"]`);
+        if (typeRadio) {
+            typeRadio.checked = true;
+        }
+        const durationValueInput = document.getElementById('warranty_duration_value');
+        if (durationValueInput && initialWarrantyContext.duration_value) {
+            durationValueInput.value = initialWarrantyContext.duration_value;
+        }
+        const durationUnitSelect = document.getElementById('warranty_duration_unit');
+        if (durationUnitSelect && initialWarrantyContext.duration_unit) {
+            durationUnitSelect.value = initialWarrantyContext.duration_unit;
+        }
+    }
+
+    updateWarrantySummary();
+
+    const prefillMap = {};
+    (initialProductData.attributes || []).forEach(attr => {
+        if (attr && attr.id) {
+            prefillMap[attr.id] = attr;
+        }
+    });
+
+    const gtinField = document.getElementById('gtin');
+    const mpnField = document.getElementById('mpn');
+    if (gtinField) {
+        const gtinAttr = prefillMap['GTIN'] || prefillMap['EAN'] || prefillMap['UPC'] || null;
+        if (gtinAttr) {
+            gtinField.value = gtinAttr.value_name || gtinAttr.value_id || '';
+        }
+    }
+    if (mpnField && prefillMap['MPN']) {
+        mpnField.value = prefillMap['MPN'].value_name || prefillMap['MPN'].value_id || '';
+    }
+
+    if (initialProductData.category_id) {
+        let categoryName = initialProductData.category_name || initialProductData.category_id;
+        let pathFromRoot = null;
+
+        const categoryDetails = await fetchCategoryDetails(initialProductData.category_id);
+        if (categoryDetails) {
+            if (categoryDetails.name) {
+                categoryName = categoryDetails.name;
+            }
+            if (Array.isArray(categoryDetails.path_from_root)) {
+                pathFromRoot = buildPathFromRoot(categoryDetails.path_from_root);
+            }
+        }
+
+        await selectCategory(
+            initialProductData.category_id,
+            categoryName,
+            prefillMap,
+            pathFromRoot,
+            initialCategoryAttributes
+        );
+    }
+
+    updateAttributeCounts();
+}
 
 // ========== FUNÇÕES GLOBAIS ==========
 
@@ -807,6 +841,40 @@ async function loadRootCategories() {
         document.getElementById('categoryLoading').classList.add('d-none');
         showAlert('danger', '❌ Erro ao carregar categorias.');
     }
+}
+
+async function fetchCategoryDetails(categoryId) {
+    try {
+        const response = await fetch(`/ml/products/categories/${categoryId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json();
+        if (!data.success || !data.category) {
+            return null;
+        }
+
+        return data.category;
+    } catch (error) {
+        console.warn('⚠️ Não foi possível carregar detalhes da categoria', categoryId, error);
+        return null;
+    }
+}
+
+function buildPathFromRoot(pathArray) {
+    if (!Array.isArray(pathArray)) {
+        return [];
+    }
+
+    return pathArray.map(node => ({
+        id: node.id,
+        name: node.name
+    }));
 }
 
 // Carregar subcategorias
@@ -958,95 +1026,107 @@ function displayCategorySuggestions(suggestions) {
 }
 
 // Selecionar categoria
-async function selectCategory(categoryId, categoryName) {
+async function selectCategory(categoryId, categoryName, prefillValues = null, pathFromRoot = null, prefetchedAttributes = null) {
     // Preencher campo oculto
     document.getElementById('category_id').value = categoryId;
+
+    attributePrefillMap = prefillValues || {};
     
     // Mostrar categoria selecionada
     document.getElementById('selectedCategoryName').textContent = categoryName;
     document.getElementById('selectedCategoryId').textContent = categoryId;
     document.getElementById('selectedCategory').classList.remove('d-none');
+
+    if (Array.isArray(pathFromRoot) && pathFromRoot.length > 0) {
+        categoryPath = pathFromRoot.map(node => ({ id: node.id, name: node.name }));
+        updateBreadcrumb();
+    } else {
+        categoryPath = [];
+        document.getElementById('categoryBreadcrumb').classList.add('d-none');
+    }
     
     // Ocultar sugestões
     document.getElementById('categorySuggestions').style.display = 'none';
     
     console.log('✅ Categoria selecionada:', categoryId, '-', categoryName);
     
-    // Buscar atributos obrigatórios desta categoria
+    if (prefetchedAttributes && (prefetchedAttributes.main_attributes || prefetchedAttributes.other_attributes)) {
+        renderCategoryAttributes(
+            prefetchedAttributes.main_attributes || [],
+            prefetchedAttributes.other_attributes || []
+        );
+    }
+
     await loadCategoryAttributes(categoryId);
 }
 
-// Buscar atributos da categoria (principais e secundários)
-async function loadCategoryAttributes(categoryId) {
-    console.log('🔍 Buscando atributos para categoria:', categoryId);
-    
+function renderCategoryAttributes(mainAttributes, otherAttributes) {
     const attributesContainer = document.getElementById('attributesContainer');
     const mainAttributesFields = document.getElementById('mainAttributesFields');
     const secondaryAttributesFields = document.getElementById('secondaryAttributesFields');
     const mainAttrCount = document.getElementById('mainAttrCount');
     const secondaryAttrCount = document.getElementById('secondaryAttrCount');
-    
-    // Mostrar loading
+
+    attributesContainer.classList.remove('d-none');
+
+    if (Array.isArray(mainAttributes) && mainAttributes.length > 0) {
+        mainAttributesFields.innerHTML = '';
+        mainAttributes.forEach(attr => {
+            const fieldHtml = createAttributeField(attr, true);
+            if (fieldHtml) {
+                mainAttributesFields.insertAdjacentHTML('beforeend', fieldHtml);
+            }
+        });
+        mainAttrCount.textContent = '0';
+    } else {
+        mainAttributesFields.innerHTML = '<p class="text-muted"><i class="bi bi-check-circle"></i> Nenhuma característica principal obrigatória para esta categoria.</p>';
+        mainAttrCount.textContent = '0';
+    }
+
+    if (Array.isArray(otherAttributes) && otherAttributes.length > 0) {
+        secondaryAttributesFields.innerHTML = '';
+        otherAttributes.forEach(attr => {
+            const fieldHtml = createAttributeField(attr, false);
+            if (fieldHtml) {
+                secondaryAttributesFields.insertAdjacentHTML('beforeend', fieldHtml);
+            }
+        });
+        secondaryAttrCount.textContent = '0';
+    } else {
+        secondaryAttributesFields.innerHTML = '<p class="text-muted"><i class="bi bi-info-circle"></i> Nenhuma característica secundária disponível para esta categoria.</p>';
+        secondaryAttrCount.textContent = '0';
+    }
+
+    addAttributeCountListeners();
+    updateAttributeCounts();
+}
+
+async function loadCategoryAttributes(categoryId) {
+    console.log('🔍 Buscando atributos para categoria:', categoryId);
+
+    const mainAttributesFields = document.getElementById('mainAttributesFields');
+    const secondaryAttributesFields = document.getElementById('secondaryAttributesFields');
+
     mainAttributesFields.innerHTML = '<div class="text-center text-muted my-3"><span class="spinner-border spinner-border-sm"></span> Carregando características principais...</div>';
     secondaryAttributesFields.innerHTML = '<div class="text-center text-muted my-3"><span class="spinner-border spinner-border-sm"></span> Carregando características secundárias...</div>';
-    attributesContainer.classList.remove('d-none');
-    
+
     try {
-        const url = `/ml/products/categories/${categoryId}/attributes`;
-        console.log('📡 URL:', url);
-        
-        const response = await fetch(url, {
+        const response = await fetch(`/ml/products/categories/${categoryId}/attributes`, {
             method: 'GET',
             credentials: 'include'
         });
-        
-        console.log('📥 Response status:', response.status);
-        
+
         if (!response.ok) {
             throw new Error(`Erro ${response.status} ao buscar atributos`);
         }
-        
+
         const data = await response.json();
-        console.log('📦 Dados recebidos:', data);
-        
         if (!data.success) {
             throw new Error(data.error || 'Erro ao buscar atributos');
         }
-        
-        const mainAttributes = data.main_attributes || [];
-        const otherAttributes = data.other_attributes || [];
-        
-        console.log(`✅ Encontrados ${mainAttributes.length} principais + ${otherAttributes.length} secundários`);
-        
-        // Renderizar características principais (obrigatórias)
-        if (mainAttributes.length > 0) {
-            mainAttributesFields.innerHTML = '';
-            mainAttributes.forEach(attr => {
-                const fieldHtml = createAttributeField(attr, true);
-                mainAttributesFields.insertAdjacentHTML('beforeend', fieldHtml);
-            });
-            mainAttrCount.textContent = '0';
-        } else {
-            mainAttributesFields.innerHTML = '<p class="text-muted"><i class="bi bi-check-circle"></i> Nenhuma característica principal obrigatória para esta categoria.</p>';
-            mainAttrCount.textContent = '0';
-        }
-        
-        // Renderizar características secundárias (opcionais)
-        if (otherAttributes.length > 0) {
-            secondaryAttributesFields.innerHTML = '';
-            otherAttributes.forEach(attr => {
-                const fieldHtml = createAttributeField(attr, false);
-                secondaryAttributesFields.insertAdjacentHTML('beforeend', fieldHtml);
-            });
-            secondaryAttrCount.textContent = '0';
-        } else {
-            secondaryAttributesFields.innerHTML = '<p class="text-muted"><i class="bi bi-info-circle"></i> Nenhuma característica secundária disponível para esta categoria.</p>';
-            secondaryAttrCount.textContent = '0';
-        }
-        
-        // Adicionar listeners para contar campos preenchidos
-        addAttributeCountListeners();
-        
+
+        renderCategoryAttributes(data.main_attributes || [], data.other_attributes || []);
+
     } catch (error) {
         console.error('❌ Erro ao carregar atributos:', error);
         mainAttributesFields.innerHTML = `
@@ -1123,18 +1203,39 @@ function fillAttributeWithGTIN(fieldId) {
 // Criar campo HTML baseado no tipo de atributo
 function createAttributeField(attribute, isMainAttribute = false) {
     const fieldId = `attr_${attribute.id}`;
-    const isRequired = isMainAttribute; // Principais são obrigatórias
+    const tags = attribute.tags || {};
+    const tagsArray = Array.isArray(tags) ? tags : null;
+    const tagsObject = !tagsArray ? tags : {};
+
+    const existingAttr = attributePrefillMap ? attributePrefillMap[attribute.id] : null;
+    const sanitizeValue = (val) => val ? String(val).replace(/"/g, '&quot;') : '';
+    const existingValueId = existingAttr?.value_id || '';
+    const existingValueName = existingAttr?.value_name || '';
+    const existingStruct = existingAttr?.value_struct || null;
+
+    const hasRequiredTag = attribute.__is_required === true
+        || attribute.required === true
+        || (tagsArray ? tagsArray.includes('required') : false)
+        || (tagsObject && (tagsObject.required || tagsObject.mandatory || tagsObject.catalog_required));
+
+    const isRequired = isMainAttribute || hasRequiredTag;
     const requiredClass = isRequired ? 'required-field' : '';
     const requiredAttr = isRequired ? 'required' : '';
+    let valueMode = 'name';
     const hint = attribute.hint || 'Por favor, inclua este dado para que seus compradores tenham mais informações para te escolher.';
     const attributeIdUpper = attribute.id ? attribute.id.toUpperCase() : '';
     const attributeNameLower = attribute.name ? attribute.name.toLowerCase() : '';
-    const isUniversalCodeAttribute = attributeIdUpper.includes('GTIN') ||
-        attributeIdUpper.includes('UNIVERSAL') ||
+
+    if (attributeIdUpper.includes('GTIN')) {
+        return '';
+    }
+
+    const isUniversalCodeAttribute = attributeIdUpper.includes('UNIVERSAL') ||
         attributeNameLower.includes('código universal de produto');
     const isModelAttribute = attributeIdUpper.includes('MODEL') || attributeNameLower === 'modelo';
 
     if (isUniversalCodeAttribute) {
+        valueMode = 'name';
         return `
             <div class="mb-3 border-bottom pb-3">
                 <label for="${fieldId}" class="form-label ${requiredClass}">
@@ -1147,6 +1248,7 @@ function createAttributeField(attribute, isMainAttribute = false) {
                                name="attr_${attribute.id}" 
                                placeholder="Copie o GTIN acima ou informe outro código"
                                maxlength="14"
+                               value="${sanitizeValue(existingValueName)}"
                                ${requiredAttr}>
                     </div>
                     <div class="col-md-4 d-grid">
@@ -1155,6 +1257,7 @@ function createAttributeField(attribute, isMainAttribute = false) {
                         </button>
                     </div>
                 </div>
+                <input type="hidden" name="attr_mode_${attribute.id}" value="${valueMode}">
                 <input type="hidden" name="attr_type_${attribute.id}" value="${attribute.value_type || ''}">
                 <div class="form-text">
                     <i class="bi bi-info-circle"></i> Pode ser um EAN, UPC ou outro GTIN. Este campo será enviado como característica da categoria.
@@ -1164,6 +1267,7 @@ function createAttributeField(attribute, isMainAttribute = false) {
     }
 
     if (isModelAttribute) {
+        valueMode = 'name';
         return `
             <div class="mb-3 border-bottom pb-3">
                 <label for="${fieldId}" class="form-label ${requiredClass}">
@@ -1174,7 +1278,9 @@ function createAttributeField(attribute, isMainAttribute = false) {
                        name="attr_${attribute.id}" 
                        placeholder="Informe o modelo exato do produto"
                        maxlength="120"
+                       value="${sanitizeValue(existingValueName)}"
                        ${requiredAttr}>
+                <input type="hidden" name="attr_mode_${attribute.id}" value="${valueMode}">
                 <input type="hidden" name="attr_type_${attribute.id}" value="${attribute.value_type || ''}">
                 ${!isRequired ? `
                     <div class="form-check mt-2">
@@ -1202,34 +1308,60 @@ function createAttributeField(attribute, isMainAttribute = false) {
     
     // Se tem valores predefinidos (select dropdown)
     if (attribute.values && attribute.values.length > 0) {
+        valueMode = 'id';
         fieldHTML += `
             <select class="form-select" id="${fieldId}" name="attr_${attribute.id}" ${requiredAttr}>
                 <option value="">Selecione...</option>
         `;
         
         attribute.values.forEach(value => {
-            fieldHTML += `<option value="${value.id}">${value.name}</option>`;
+            const selected = value.id === existingValueId ? 'selected' : '';
+            fieldHTML += `<option value="${value.id}" ${selected}>${value.name}</option>`;
         });
         
         fieldHTML += `</select>`;
     } 
     // Número com unidade (ex: 240 MHz, 512 KB)
     else if (attribute.value_type === 'number_unit') {
+        valueMode = 'name';
         const unitId = `${fieldId}_unit`;
+        let defaultNumber = '';
+        let defaultUnit = '';
+        if (existingStruct && typeof existingStruct.number !== 'undefined') {
+            defaultNumber = existingStruct.number;
+            defaultUnit = existingStruct.unit || '';
+        } else if (existingValueName) {
+            const regex = /(\d+[\.,]?\d*)\s*(.+)?/;
+            const match = existingValueName.match(regex);
+            if (match) {
+                defaultNumber = match[1].replace(',', '.');
+                defaultUnit = match[2]?.trim() || '';
+            }
+        }
         fieldHTML += `
             <div class="row g-2">
-                <div class="col-8">
+                <div class="col-md-6">
                     <input type="number" class="form-control" id="${fieldId}" 
                            name="attr_${attribute.id}" 
-                           placeholder="Digite o valor"
-                           step="any"
+                           placeholder="Ex: 240"
+                           value="${sanitizeValue(defaultNumber)}"
+                           step="0.01"
                            ${requiredAttr}>
                 </div>
-                <div class="col-4">
-                    <input type="text" class="form-control" id="${unitId}" 
-                           name="attr_${attribute.id}_unit" 
-                           placeholder="Unidade"
-                           value="${attribute.default_unit || ''}">
+                <div class="col-md-6">
+                    <select class="form-select" id="${unitId}" name="attr_${attribute.id}_unit" ${requiredAttr}>
+                        <option value="">Selecione...</option>
+        `;
+        
+        if (attribute.allowed_units) {
+            attribute.allowed_units.forEach(unit => {
+                const selected = unit.id === defaultUnit || unit.name === defaultUnit ? 'selected' : '';
+                fieldHTML += `<option value="${unit.id}" ${selected}>${unit.name}</option>`;
+            });
+        }
+        
+        fieldHTML += `
+                    </select>
                 </div>
             </div>
         `;
@@ -1239,35 +1371,48 @@ function createAttributeField(attribute, isMainAttribute = false) {
     }
     // Número simples
     else if (attribute.value_type === 'number') {
+        valueMode = 'name';
         fieldHTML += `
             <input type="number" class="form-control" id="${fieldId}" 
                    name="attr_${attribute.id}" 
                    placeholder="Digite o valor"
                    step="any"
+                   value="${sanitizeValue(existingValueName)}"
                    ${requiredAttr}>
         `;
     }
     // Boolean (Sim/Não)
     else if (attribute.value_type === 'boolean') {
+        valueMode = 'name';
+        let boolChecked = false;
+        if (typeof existingValueName === 'string') {
+            const normalized = existingValueName.toLowerCase();
+            boolChecked = ['true', 'sim', 'yes', '1'].includes(normalized);
+        } else if (existingValueName) {
+            boolChecked = Boolean(existingValueName);
+        }
         fieldHTML += `
-            <select class="form-select" id="${fieldId}" name="attr_${attribute.id}" ${requiredAttr}>
-                <option value="">Selecione...</option>
-                <option value="true">Sim</option>
-                <option value="false">Não</option>
-            </select>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="${fieldId}" name="attr_${attribute.id}" ${boolChecked ? 'checked' : ''}>
+                <label class="form-check-label" for="${fieldId}">
+                    ${hint}
+                </label>
+            </div>
         `;
     }
     // Texto padrão (string, list)
     else {
+        valueMode = 'name';
         fieldHTML += `
             <input type="text" class="form-control" id="${fieldId}" 
                    name="attr_${attribute.id}" 
-                   placeholder="${hint}"
-                   maxlength="255"
+                   placeholder="Ex: ${attribute.value_type === 'number' ? '100' : 'Azul'}"
+                   value="${sanitizeValue(existingValueName)}"
                    ${requiredAttr}>
         `;
     }
     
+    fieldHTML += `<input type="hidden" name="attr_mode_${attribute.id}" value="${valueMode}">`;
     fieldHTML += `<input type="hidden" name="attr_type_${attribute.id}" value="${attribute.value_type || ''}">`;
     
     // Botão "Não se aplica" para atributos opcionais
@@ -1318,59 +1463,126 @@ function toggleNotApplicable(fieldId, isChecked) {
 
 // Upload de imagens - NOVO SISTEMA
 function handleImageSelect(event) {
-    const files = Array.from(event.target.files);
-    
-    // Verificar limite de 12 imagens
-    if (uploadedImages.length + files.length > 12) {
-        showAlert('warning', `⚠️ Você pode adicionar no máximo 12 imagens. Atualmente você tem ${uploadedImages.length} imagens.`);
+    const files = Array.from(event.target.files || []);
+    const currentCount = getActiveImageCount();
+
+    if (currentCount + files.length > 12) {
+        showAlert('warning', `⚠️ Você pode adicionar no máximo 12 imagens. Atualmente você tem ${currentCount} imagens.`);
         return;
     }
-    
+
     files.forEach(file => {
-        if (file.type.startsWith('image/')) {
-            uploadedImages.push(file);
-            addImageThumbnail(file, uploadedImages.length - 1);
+        if (!file.type.startsWith('image/')) {
+            showAlert('warning', `⚠️ O arquivo ${file.name} não é uma imagem válida.`);
+            return;
         }
+
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            showAlert('warning', `⚠️ ${file.name} ultrapassa o limite de 10 MB.`);
+            return;
+        }
+
+        const validTypes = ['image/jpeg', 'image/png'];
+        if (!validTypes.includes(file.type)) {
+            showAlert('warning', `⚠️ ${file.name} precisa estar em JPEG ou PNG.`);
+            return;
+        }
+
+        const imageObj = { type: 'file', file };
+        let slotIndex = uploadedImages.findIndex(item => item === null);
+        if (slotIndex === -1) {
+            slotIndex = uploadedImages.length;
+            uploadedImages.push(imageObj);
+        } else {
+            uploadedImages[slotIndex] = imageObj;
+        }
+
+        renderImageThumbnail(imageObj, slotIndex);
     });
-    
-    // Limpar input para permitir selecionar as mesmas imagens novamente
-    event.target.value = '';
-    
-    console.log(`✅ ${files.length} imagem(ns) adicionada(s). Total: ${uploadedImages.length}`);
+
+    if (event.target) {
+        event.target.value = '';
+    }
+
+    console.log(`✅ ${files.length} imagem(ns) adicionada(s). Total: ${getActiveImageCount()}`);
 }
 
-function addImageThumbnail(file, index) {
+function renderImageThumbnail(imageObj, index) {
     const container = document.getElementById('imageContainer');
-    const reader = new FileReader();
-    
-    reader.onload = function(e) {
+    if (!container) return;
+
+    const existingItem = document.getElementById(`image-item-${index}`);
+    if (existingItem) {
+        existingItem.remove();
+    }
+
+    const createThumbnail = (src) => {
         const imageDiv = document.createElement('div');
         imageDiv.className = 'image-item';
         imageDiv.id = `image-item-${index}`;
-        
+
+        const badges = [];
+        if (index === 0) {
+            badges.push('<div class="badge bg-primary position-absolute bottom-0 start-0 m-1">Principal</div>');
+        }
+        if (imageObj.type === 'existing') {
+            badges.push('<div class="badge bg-info position-absolute top-0 start-0 m-1">Atual</div>');
+        }
+
         imageDiv.innerHTML = `
-            <img src="${e.target.result}" class="rounded img-thumbnail product-image-thumbnail" alt="Imagem ${index + 1} style="width: 200px; height: 200px;"">
+            <img src="${src}" class="rounded img-thumbnail product-image-thumbnail" alt="Imagem ${index + 1}" style="width: 200px; height: 200px;">
             <button type="button" class="remove-image-btn" onclick="removeImage(${index})">×</button>
-            ${index === 0 ? '<div class="badge bg-primary position-absolute bottom-0 start-0 m-1">Principal</div>' : ''}
+            ${badges.join('')}
         `;
-        
+
         container.appendChild(imageDiv);
     };
-    
-    reader.readAsDataURL(file);
+
+    if (imageObj.type === 'file') {
+        const reader = new FileReader();
+        reader.onload = (e) => createThumbnail(e.target.result);
+        reader.readAsDataURL(imageObj.file);
+    } else if (imageObj.type === 'existing' && imageObj.source) {
+        createThumbnail(imageObj.source);
+    }
 }
 
 function removeImage(index) {
-    // Remover do DOM
     const imageItem = document.getElementById(`image-item-${index}`);
     if (imageItem) {
         imageItem.remove();
     }
-    
-    // Remover do array
+
     uploadedImages[index] = null;
-    
+
     console.log(`🗑️ Imagem ${index} removida`);
+}
+
+function seedExistingImages(pictures) {
+    if (!Array.isArray(pictures)) {
+        return;
+    }
+
+    const container = document.getElementById('imageContainer');
+    if (container) {
+        container.innerHTML = '';
+    }
+
+    uploadedImages = [];
+
+    pictures.slice(0, 12).forEach((picture, idx) => {
+        const source = picture?.secure_url || picture?.url || picture?.source || null;
+        if (!source) {
+            return;
+        }
+
+        const imageObj = { type: 'existing', source };
+        uploadedImages.push(imageObj);
+        renderImageThumbnail(imageObj, idx);
+    });
+
+    console.log(`📷 Imagens existentes carregadas: ${getActiveImageCount()}`);
 }
 
 // Submissão do formulário
@@ -1405,8 +1617,10 @@ document.getElementById('productForm').addEventListener('submit', async function
     
     const submitBtn = document.getElementById('submitBtn');
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Publicando...';
-    
+    submitBtn.innerHTML = isEditMode
+        ? '<span class="spinner-border spinner-border-sm"></span> Salvando...'
+        : '<span class="spinner-border spinner-border-sm"></span> Publicando...';
+ 
     try {
         const formData = new FormData(this);
         
@@ -1427,21 +1641,29 @@ document.getElementById('productForm').addEventListener('submit', async function
             }
         });
         
-        // Adicionar atributos ao FormData como JSON
         if (attributes.length > 0) {
             formData.append('attributes', JSON.stringify(attributes));
         }
-        
-        // Adicionar imagens
-        uploadedImages.forEach((file, index) => {
-            if (file) {
-                formData.append(`images`, file);
+
+        uploadedImages.forEach((imageObj) => {
+            if (!imageObj) {
+                return;
+            }
+            if (imageObj.type === 'file' && imageObj.file) {
+                formData.append('images', imageObj.file);
+            } else if (imageObj.type === 'existing' && imageObj.source) {
+                formData.append('existing_images', imageObj.source);
             }
         });
         
-        console.log('📤 Enviando produto com', attributes.length, 'atributos');
-        
-        const response = await fetch('/api/ml/products/create', {
+        console.log('📤 Enviando produto...', { isEditMode });
+
+        const productId = document.getElementById('product_id')?.value || (initialProductData?.id ?? '');
+        const submitUrl = isEditMode && productId
+            ? `/ml/products/edit/${productId}`
+            : '/ml/products/create';
+
+        const response = await fetch(submitUrl, {
             method: 'POST',
             body: formData,
             credentials: 'include'
@@ -1450,21 +1672,30 @@ document.getElementById('productForm').addEventListener('submit', async function
         const data = await response.json();
         
         if (data.success) {
-            showAlert('success', `✅ Produto publicado com sucesso! ID: ${data.item_id}`);
+            const successMessage = isEditMode
+                ? (data.message || '✅ Anúncio atualizado com sucesso!')
+                : `✅ Produto publicado com sucesso! ID: ${data.item_id}`;
+            showAlert('success', successMessage);
             setTimeout(() => {
                 window.location.href = '/ml/products';
             }, 2000);
         } else {
-            showAlert('danger', data.error || 'Erro ao publicar produto');
+            const errorMessage = data.error || (isEditMode ? 'Erro ao atualizar anúncio.' : 'Erro ao publicar produto');
+            showAlert('danger', errorMessage);
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Publicar no Mercado Livre';
+            submitBtn.innerHTML = isEditMode
+                ? '<i class="bi bi-check-circle"></i> Salvar alterações'
+                : '<i class="bi bi-check-circle"></i> Publicar no Mercado Livre';
         }
         
     } catch (error) {
         console.error('Erro ao publicar produto:', error);
-        showAlert('danger', 'Erro ao publicar produto. Tente novamente.');
+        const genericError = isEditMode ? 'Erro ao atualizar anúncio. Tente novamente.' : 'Erro ao publicar produto. Tente novamente.';
+        showAlert('danger', genericError);
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Publicar no Mercado Livre';
+        submitBtn.innerHTML = isEditMode
+            ? '<i class="bi bi-check-circle"></i> Salvar alterações'
+            : '<i class="bi bi-check-circle"></i> Publicar no Mercado Livre';
     }
 });
 

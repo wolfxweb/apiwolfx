@@ -26,6 +26,10 @@ services:
       - MP_PUBLIC_KEY=${MP_PUBLIC_KEY}
       - MP_WEBHOOK_SECRET=${MP_WEBHOOK_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Supabase Storage
+      - SUPABASE_URL=${SUPABASE_URL:-https://supabase.wolfx.com.br}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogInNlcnZpY2Vfcm9sZSIsCiAgImlzcyI6ICJzdXBhYmFzZSIsCiAgImlhdCI6IDE3MTUwNTA4MDAsCiAgImV4cCI6IDE4NzI4MTcyMDAKfQ.JkkevDN7zY6HpQ54lc9iETFihaZ5F1-aXhE46byNQ64}
+      - SUPABASE_BUCKET=${SUPABASE_BUCKET:-ml-product-images}
     volumes:
       - ./public:/app/public
     networks:

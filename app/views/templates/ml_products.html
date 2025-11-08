@@ -703,7 +703,7 @@ function renderProducts(products) {
         html += `
             <tr>
                 <td>
-                    <input type="checkbox" class="form-check-input product-checkbox" value="${product.id}" onchange="updateSelectAllCheckbox()">
+                    <input type="checkbox" class="form-check-input product-checkbox" value="${product.id || ''}" onchange="updateSelectAllCheckbox()">
                 </td>
                 <td>
                     <div class="d-flex align-items-center">
@@ -748,14 +748,23 @@ function renderProducts(products) {
                            title="Ver detalhes">
                             <i class="bi bi-eye"></i>
                         </a>
+                        ${product.id ? `
                         <a href="/ml/products/analysis/${product.id}" class="btn btn-outline-success btn-sm" title="Análise do Produto">
                             <i class="bi bi-calculator"></i>
                         </a>
+                        ` : ''}
+                        ${product.id ? `
+                        <a href="/ml/products/edit/${product.id}" class="btn btn-outline-primary btn-sm" title="Editar anúncio">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        ` : ''}
+                        ${product.id ? `
                         <button onclick="updateInternalProduct(${product.id}, '${product.title}', '${product.ml_item_id}')" 
                                 class="btn btn-outline-warning btn-sm" 
                                 title="Atualizar Produto Interno">
                             <i class="bi bi-arrow-clockwise"></i>
                         </button>
+                        ` : ''}
                     </div>
                 </td>
             </tr>

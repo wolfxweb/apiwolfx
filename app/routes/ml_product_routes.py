@@ -3,19 +3,66 @@ Rotas para produtos do Mercado Livre
 """
 import logging
 import requests
+import httpx
 from fastapi import APIRouter, Depends, Request, Query, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from pathlib import Path
+from uuid import uuid4
 
 from app.config.database import get_db
 from app.controllers.ml_product_controller import MLProductController
 from app.controllers.auth_controller import AuthController
 from app.models.saas_models import MLProduct, CatalogParticipant
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 ml_product_router = APIRouter(prefix="/products", tags=["ML Products"])
+
+async def upload_image_to_supabase(content: bytes, object_name: str, content_type: Optional[str]) -> Optional[str]:
+    """Envia imagem para o Supabase Storage e retorna URL pública se sucesso."""
+    if not content:
+        return None
+
+    supabase_url = getattr(settings, "supabase_url", "")
+    supabase_key = getattr(settings, "supabase_service_key", "")
+    supabase_bucket = getattr(settings, "supabase_bucket", "")
+
+    if not supabase_url or not supabase_key or not supabase_bucket:
+        logger.warning("⚠️ Configuração do Supabase ausente; pulando upload externo da imagem")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {supabase_key}",
+        "apikey": supabase_key,
+        "Content-Type": content_type or "image/jpeg",
+        "x-upsert": "true",
+    }
+
+    object_path = object_name.lstrip("/")
+    upload_endpoint = f"{supabase_url}/storage/v1/object/{supabase_bucket}/{object_path}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(upload_endpoint, content=content, headers=headers)
+
+        if response.status_code not in (200, 201):
+            logger.error(
+                "❌ Falha ao enviar imagem para Supabase: status=%s, body=%s",
+                response.status_code,
+                response.text,
+            )
+            return None
+
+        public_url = f"{supabase_url}/storage/v1/object/public/{supabase_bucket}/{object_path}"
+        logger.info("🌐 Imagem carregada no Supabase: %s", public_url)
+        return public_url
+
+    except httpx.HTTPError as exc:
+        logger.error("❌ Erro de comunicação com Supabase: %r", exc)
+        return None
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):
     """Obtém usuário atual da sessão - Para APIs JSON"""
@@ -511,10 +558,11 @@ async def search_products(
         )
 
 @ml_product_router.get("/details/{product_id}", response_class=HTMLResponse)
-async def ml_product_details_page(
-    product_id: int,
+async def product_details_page(
     request: Request,
-    db: Session = Depends(get_db)
+    product_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user_or_redirect)
 ):
     """Página de detalhes do produto (sem autenticação temporariamente)"""
     try:
@@ -1976,24 +2024,43 @@ async def get_category_attributes(
         if response.status_code == 200:
             attributes_data = response.json()
             
-            # Filtrar apenas atributos relevantes (não hidden e do grupo MAIN)
+            # Filtrar apenas atributos relevantes (não hidden) e destacar os obrigatórios
             main_attributes = []
             other_attributes = []
+
+            def _tag_bool(tags_obj, key: str) -> bool:
+                if isinstance(tags_obj, dict):
+                    return bool(tags_obj.get(key))
+                if isinstance(tags_obj, list):
+                    return key in tags_obj
+                return False
             
             for attr in attributes_data:
                 tags = attr.get("tags", {})
                 
                 # Pular atributos hidden ou read_only
-                if tags.get("hidden") or tags.get("read_only"):
+                if _tag_bool(tags, "hidden") or _tag_bool(tags, "read_only"):
                     continue
-                
-                # Separar por grupo
-                if attr.get("attribute_group_id") == "MAIN":
+
+                is_required = (
+                    bool(attr.get("required"))
+                    or _tag_bool(tags, "required")
+                    or _tag_bool(tags, "mandatory")
+                    or _tag_bool(tags, "catalog_required")
+                )
+
+                attr["__is_required"] = is_required
+
+                # Atributos fixos não precisam ser preenchidos manualmente
+                if _tag_bool(tags, "fixed"):
+                    continue
+
+                if is_required or attr.get("attribute_group_id") == "MAIN":
                     main_attributes.append(attr)
-                elif not tags.get("fixed"):  # Atributos fixos não precisam ser preenchidos
+                else:
                     other_attributes.append(attr)
-            
-            logger.info(f"✅ {len(main_attributes)} atributos principais, {len(other_attributes)} outros")
+
+            logger.info(f"✅ {len(main_attributes)} atributos principais (inclui obrigatórios), {len(other_attributes)} outros")
             
             return JSONResponse(content={
                 "success": True,
@@ -2039,7 +2106,9 @@ async def ml_product_create_page(
         return render_template(
             template_name="ml_product_create.html",
             request=request,
-            user=user
+            user=user,
+            is_edit=False,
+            category_attributes=None
         )
     except Exception as e:
         logger.error(f"Erro ao renderizar página de cadastro: {e}", exc_info=True)
@@ -2069,6 +2138,7 @@ async def create_ml_product(
         logger.info(f"📝 Criando produto para company_id: {company_id}, ml_account_id: {ml_account_id}")
         
         # Preparar dados do produto
+        warranty_type = (form_data.get("warranty_type") or "none").strip().lower()
         product_data = {
             "title": form_data.get("title"),
             "category_id": form_data.get("category_id"),
@@ -2079,6 +2149,9 @@ async def create_ml_product(
             "description": form_data.get("description"),
             "seller_custom_field": form_data.get("seller_custom_field"),
             "warranty": form_data.get("warranty"),
+            "warranty_type": warranty_type if warranty_type else "none",
+            "warranty_time_value": form_data.get("warranty_duration_value"),
+            "warranty_time_unit": form_data.get("warranty_duration_unit"),
             # Dados de envio
             "shipping_mode": form_data.get("shipping_mode", "me2"),
             "free_shipping": form_data.get("free_shipping") == "on",
@@ -2090,26 +2163,22 @@ async def create_ml_product(
             # Dados fiscais básicos
             "gtin": form_data.get("gtin"),
             "mpn": form_data.get("mpn"),
-            # Dados fiscais detalhados (NF-e)
-            "fiscal_product_name": form_data.get("fiscal_product_name"),
-            "unit_cost": float(form_data.get("unit_cost")) if form_data.get("unit_cost") else None,
-            "net_weight": float(form_data.get("net_weight")) if form_data.get("net_weight") else None,
-            "gross_weight": float(form_data.get("gross_weight")) if form_data.get("gross_weight") else None,
-            "commercial_unit": form_data.get("commercial_unit", "PEÇA"),
-            "ncm": form_data.get("ncm"),
-            "cest": form_data.get("cest"),
-            "origin_type": form_data.get("origin_type"),
-            "csosn_icms": form_data.get("csosn_icms"),
-            "ipi_exception": form_data.get("ipi_exception"),
-            "fci_key": form_data.get("fci_key"),
         }
         
         # Processar atributos dinâmicos da categoria
         attributes = []
         attribute_values: Dict[str, Dict[str, Optional[str]]] = {}
         attribute_types: Dict[str, str] = {}
+        attribute_modes: Dict[str, str] = {}
 
         for key in form_data.keys():
+            if key.startswith("attr_mode_"):
+                attr_mode_id = key.replace("attr_mode_", "")
+                attr_mode_value = form_data.get(key)
+                if attr_mode_value:
+                    attribute_modes[attr_mode_id] = attr_mode_value
+                continue
+
             if key.startswith("attr_type_"):
                 attr_type_id = key.replace("attr_type_", "")
                 attr_type_value = form_data.get(key)
@@ -2142,11 +2211,16 @@ async def create_ml_product(
             unit = data.get("unit")
             attribute_payload: Dict[str, Any] = {"id": attr_id}
 
-            if unit:
-                combined_value = f"{value} {unit}".strip()
-                attribute_payload["value_name"] = combined_value
+            mode = attribute_modes.get(attr_id, "name")
+
+            if mode == "id":
+                attribute_payload["value_id"] = value
             else:
-                attribute_payload["value_name"] = value
+                if unit:
+                    combined_value = f"{value} {unit}".strip()
+                    attribute_payload["value_name"] = combined_value
+                else:
+                    attribute_payload["value_name"] = value
 
             attributes.append(attribute_payload)
 
@@ -2159,11 +2233,49 @@ async def create_ml_product(
         image_files = form_data.getlist("images")
         for image_file in image_files:
             if image_file and hasattr(image_file, 'file'):
-                # Ler conteúdo da imagem
                 image_content = await image_file.read()
+                if not image_content:
+                    logger.warning("⚠️ Imagem recebida vazia, ignorando")
+                    continue
+
+                original_suffix = Path(image_file.filename or "").suffix.lower()
+                if original_suffix not in {".jpg", ".jpeg", ".png"}:
+                    original_suffix = ".jpg"
+
+                unique_filename = f"{uuid4().hex}{original_suffix}"
+                raw_content_type = getattr(image_file, "content_type", None)
+                if raw_content_type not in {"image/jpeg", "image/png"}:
+                    content_type = "image/png" if original_suffix == ".png" else "image/jpeg"
+                else:
+                    content_type = raw_content_type
+
+                public_url = await upload_image_to_supabase(
+                    image_content,
+                    unique_filename,
+                    content_type,
+                )
+
+                if not public_url:
+                    upload_dir = Path("public/uploads/ml_products")
+                    upload_dir.mkdir(parents=True, exist_ok=True)
+
+                    fallback_path = upload_dir / unique_filename
+                    with open(fallback_path, "wb") as fp:
+                        fp.write(image_content)
+
+                    base_url = getattr(settings, "base_url", "")
+                    if base_url:
+                        public_url = f"{base_url}/static/uploads/ml_products/{unique_filename}"
+                    else:
+                        public_url = f"/static/uploads/ml_products/{unique_filename}"
+
+                    logger.info("💾 Imagem salva localmente como fallback: %s", public_url)
+
                 images.append({
-                    "filename": image_file.filename,
-                    "content": image_content
+                    "filename": image_file.filename or unique_filename,
+                    "content": image_content,
+                    "content_type": content_type,
+                    "source_url": public_url
                 })
         
         # Chamar controller para publicar no ML
@@ -2198,4 +2310,186 @@ async def create_ml_product(
                 "success": False,
                 "error": f"Erro interno: {str(e)}"
             }
+        )
+
+@ml_product_router.get("/edit/{product_id}", response_class=HTMLResponse)
+async def edit_ml_product_page(
+    request: Request,
+    product_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user_or_redirect)
+):
+    if user is None:
+        return RedirectResponse(
+            url=f"/login?redirect=/ml/products/edit/{product_id}",
+            status_code=302,
+        )
+
+    controller = MLProductController(db)
+    return controller.get_product_edit_page(request, user, product_id)
+
+
+@ml_product_router.post("/edit/{product_id}")
+async def update_ml_product(
+    product_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    try:
+        company_id = user["company"]["id"]
+        form_data = await request.form()
+
+        logger.info("✏️ Atualizando produto %s para company_id %s", product_id, company_id)
+
+        warranty_type = (form_data.get("warranty_type") or "none").strip().lower()
+        product_data: Dict[str, Any] = {
+            "title": form_data.get("title"),
+            "category_id": form_data.get("category_id"),
+            "price": form_data.get("price"),
+            "available_quantity": form_data.get("available_quantity"),
+            "condition": form_data.get("condition"),
+            "listing_type_id": form_data.get("listing_type_id"),
+            "description": form_data.get("description"),
+            "seller_custom_field": form_data.get("seller_custom_field"),
+            "warranty": form_data.get("warranty"),
+            "warranty_type": warranty_type if warranty_type else "none",
+            "warranty_time_value": form_data.get("warranty_duration_value"),
+            "warranty_time_unit": form_data.get("warranty_duration_unit"),
+            "shipping_mode": form_data.get("shipping_mode"),
+            "free_shipping": form_data.get("free_shipping") == "on",
+            "package_length": form_data.get("package_length"),
+            "package_width": form_data.get("package_width"),
+            "package_height": form_data.get("package_height"),
+            "package_weight": form_data.get("package_weight"),
+            "gtin": form_data.get("gtin"),
+            "mpn": form_data.get("mpn"),
+            "status": form_data.get("status"),
+        }
+
+        attributes: List[Dict[str, Any]] = []
+        attribute_values: Dict[str, Dict[str, Optional[str]]] = {}
+        attribute_types: Dict[str, str] = {}
+        attribute_modes: Dict[str, str] = {}
+
+        for key in form_data.keys():
+            if key.startswith("attr_mode_"):
+                attr_mode_id = key.replace("attr_mode_", "")
+                attr_mode_value = form_data.get(key)
+                if attr_mode_value:
+                    attribute_modes[attr_mode_id] = attr_mode_value
+                continue
+
+            if key.startswith("attr_type_"):
+                attr_type_id = key.replace("attr_type_", "")
+                attr_type_value = form_data.get(key)
+                if attr_type_value:
+                    attribute_types[attr_type_id] = attr_type_value
+                continue
+
+            if key.startswith("attr_"):
+                attr_value = form_data.get(key)
+                if attr_value is None or attr_value == "":
+                    continue
+
+                is_unit_field = key.endswith("_unit")
+                attr_id = key[len("attr_"):]
+                if is_unit_field:
+                    attr_id = attr_id[:-5]
+
+                entry = attribute_values.setdefault(attr_id, {})
+                if is_unit_field:
+                    entry["unit"] = attr_value
+                else:
+                    entry["value"] = attr_value
+
+        for attr_id, data in attribute_values.items():
+            value = data.get("value")
+            if not value:
+                continue
+
+            unit = data.get("unit")
+            mode = attribute_modes.get(attr_id, "name")
+            attribute_payload: Dict[str, Any] = {"id": attr_id}
+
+            if mode == "id":
+                attribute_payload["value_id"] = value
+            else:
+                if unit:
+                    attribute_payload["value_name"] = f"{value} {unit}".strip()
+                else:
+                    attribute_payload["value_name"] = value
+
+            attributes.append(attribute_payload)
+
+        if attributes:
+            product_data["attributes"] = attributes
+
+        images: List[Dict[str, Any]] = []
+        image_files = form_data.getlist("images")
+        for image_file in image_files:
+            if image_file and hasattr(image_file, 'file'):
+                image_content = await image_file.read()
+                if not image_content:
+                    continue
+
+                original_suffix = Path(image_file.filename or "").suffix.lower()
+                if original_suffix not in {".jpg", ".jpeg", ".png"}:
+                    original_suffix = ".jpg"
+
+                unique_filename = f"{uuid4().hex}{original_suffix}"
+                raw_content_type = getattr(image_file, "content_type", None)
+                if raw_content_type not in {"image/jpeg", "image/png"}:
+                    content_type = "image/png" if original_suffix == ".png" else "image/jpeg"
+                else:
+                    content_type = raw_content_type
+
+                public_url = await upload_image_to_supabase(
+                    image_content,
+                    unique_filename,
+                    content_type,
+                )
+
+                if not public_url:
+                    upload_dir = Path("public/uploads/ml_products")
+                    upload_dir.mkdir(parents=True, exist_ok=True)
+
+                    fallback_path = upload_dir / unique_filename
+                    with open(fallback_path, "wb") as fp:
+                        fp.write(image_content)
+
+                    base_url = getattr(settings, "base_url", "")
+                    if base_url:
+                        public_url = f"{base_url}/static/uploads/ml_products/{unique_filename}"
+                    else:
+                        public_url = f"/static/uploads/ml_products/{unique_filename}"
+
+                    logger.info("💾 Imagem salva localmente como fallback: %s", public_url)
+
+                images.append({
+                    "filename": image_file.filename or unique_filename,
+                    "content": image_content,
+                    "content_type": content_type,
+                    "source_url": public_url
+                })
+
+        existing_images = form_data.getlist("existing_images")
+
+        controller = MLProductController(db)
+        result = await controller.update_product_in_ml(
+            company_id=company_id,
+            product_id=product_id,
+            product_data=product_data,
+            images=images,
+            existing_pictures=existing_images,
+        )
+
+        status_code = 200 if result.get("success") else 400
+        return JSONResponse(status_code=status_code, content=result)
+
+    except Exception as exc:
+        logger.error("Erro ao atualizar produto: %s", exc, exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno: {exc}"}
         )

@@ -24,6 +24,8 @@ class Settings:
             self.ml_app_id = os.getenv("ML_APP_ID", "3821568023399477")
             self.ml_client_secret = os.getenv("ML_CLIENT_SECRET", "3gDZs9aLX9jmm64MCXPmdSIaCf7rBRHa")
         
+        self.base_url = default_base_url
+        
         # Validar se as credenciais foram definidas
         if not self.ml_app_id or not self.ml_client_secret:
             raise ValueError(
@@ -107,6 +109,14 @@ class Settings:
             "MP_WEBHOOK_URL",
             f"{default_base_url}/api/payments/webhooks/mercadopago"
         )
+
+        # Supabase Storage (para imagens ML)
+        self.supabase_url = os.getenv("SUPABASE_URL", "https://supabase.wolfx.com.br").rstrip("/")
+        self.supabase_service_key = os.getenv(
+            "SUPABASE_SERVICE_KEY",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogInNlcnZpY2Vfcm9sZSIsCiAgImlzcyI6ICJzdXBhYmFzZSIsCiAgImlhdCI6IDE3MTUwNTA4MDAsCiAgImV4cCI6IDE4NzI4MTcyMDAKfQ.JkkevDN7zY6HpQ54lc9iETFihaZ5F1-aXhE46byNQ64"
+        )
+        self.supabase_bucket = os.getenv("SUPABASE_BUCKET", "ml-product-images")
     
     def update_redirect_uri(self, new_uri: str):
         """Atualiza a URL de redirecionamento"""
