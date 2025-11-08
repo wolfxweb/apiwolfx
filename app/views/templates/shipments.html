@@ -1529,7 +1529,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).join('');
         
         // Configurar eventos dos checkboxes após renderizar
-        setupCheckboxEventsGeneric('select-all-delivered', updateDeliveredCount);
+        setupCheckboxEventsGeneric('select-all-delivered', 'delivered-orders', updateDeliveredCount);
     }
     
     async function loadConfirmedOrders() {
@@ -1994,7 +1994,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).join('');
         
         // Configurar eventos dos checkboxes após renderizar
-        setupCheckboxEventsGeneric('select-all-pending', updatePendingCount);
+        setupCheckboxEventsGeneric('select-all-pending', 'pending-orders', updatePendingCount);
     }
     
     // Função para copiar número do pedido
@@ -2344,7 +2344,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).join('');
         
         // Configurar eventos dos checkboxes após renderizar
-        setupCheckboxEventsGeneric('select-all-shipped', updateShippedCount);
+        setupCheckboxEventsGeneric('select-all-shipped', 'shipped-orders', updateShippedCount);
     }
     
     function renderManualOrders(tbody, orders) {
@@ -2391,7 +2391,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).join('');
         
         // Configurar eventos dos checkboxes após renderizar
-        setupCheckboxEventsGeneric('select-all-manual-prepare', updateManualPrepareCount);
+        setupCheckboxEventsGeneric('select-all-manual-prepare', 'manual-prepare-orders', updateManualPrepareCount);
     }
     
     async function loadCancelledOrders() {
@@ -2511,7 +2511,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).join('');
         
         // Configurar eventos dos checkboxes após renderizar
-        setupCheckboxEventsGeneric('select-all-cancelled', updateCancelledCount);
+        setupCheckboxEventsGeneric('select-all-cancelled', 'cancelled-orders', updateCancelledCount);
     }
     
     async function loadRefundedOrders() {
@@ -2648,7 +2648,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).join('');
         
         // Configurar eventos dos checkboxes após renderizar
-        setupCheckboxEventsGeneric('select-all-refunded', updateRefundedCount);
+        setupCheckboxEventsGeneric('select-all-refunded', 'refunded-orders', updateRefundedCount);
     }
     
     function renderOrders(tbody, orders) {
@@ -3057,7 +3057,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             return response.json();
         })
-        .then(data => {
+        .then(async data => {
             console.log('✅ [FRONTEND] Dados recebidos:', data);
             
             if (data.success) {
