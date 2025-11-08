@@ -1215,15 +1215,24 @@ class MLNotificationsController:
             from app.services.shipment_service import ShipmentService
             shipment_service = ShipmentService(db)
             
-            # Tentar buscar NF por pack_id primeiro
+            # Prioridade: order_id -> pack_id -> shipment_id (mesma estratégia do serviço)
             invoice_data = None
-            if pack_id:
-                logger.info(f"🔍 Buscando NF pelo pack_id {pack_id} para pedido {order_id}")
+            
+            logger.info(f"🔍 [AUTO-NF] Buscando NF por order_id {order_id}")
+            invoice_data = shipment_service._check_order_invoice(
+                order_id=str(order_id),
+                company_id=company_id,
+                access_token=access_token,
+                seller_id=seller_id,
+                ml_account_id=ml_account_id
+            )
+            
+            if (not invoice_data or not invoice_data.get('has_invoice')) and pack_id:
+                logger.info(f"🔍 [AUTO-NF] Buscando NF pelo pack_id {pack_id} para pedido {order_id}")
                 invoice_data = shipment_service._check_pack_invoice(pack_id, access_token)
             
-            # Se não encontrou pelo pack_id e tem shipping_id, tentar pelo shipping_id (fulfillment)
-            if not invoice_data and shipping_id:
-                logger.info(f"🔍 Buscando NF pelo shipping_id {shipping_id} para pedido {order_id} (fulfillment)")
+            if (not invoice_data or not invoice_data.get('has_invoice')) and shipping_id:
+                logger.info(f"🔍 [AUTO-NF] Buscando NF pelo shipping_id {shipping_id} para pedido {order_id} (fulfillment)")
                 invoice_data = shipment_service._check_shipment_invoice(
                     shipment_id=shipping_id,
                     company_id=company_id,

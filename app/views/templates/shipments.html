@@ -3022,49 +3022,42 @@ document.addEventListener('DOMContentLoaded', function() {
         updateButton.disabled = true;
         updateButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Atualizando...';
         
-        // Criar AbortController para timeout de 5 minutos
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutos
-        
-        console.log('📡 [FRONTEND] Enviando requisição POST para /api/shipments/bulk-update');
-        
-        // Fazer requisição para atualizar os pedidos
-        fetch('/api/shipments/bulk-update', {
-            method: 'POST',
-            credentials: 'include',  // Enviar cookies (session_token)
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                order_ids: orderIds
-            }),
-            signal: controller.signal
-        })
-        .then(response => {
-            console.log(`📡 [FRONTEND] Resposta recebida: status=${response.status}`);
-            clearTimeout(timeoutId);
-            
-            // Tratar erro 401
-            if (handle401Error(response)) {
-                return Promise.reject('not_authenticated');
-            }
-            
-            if (!response.ok) {
-                return response.text().then(text => {
-                    console.error(`❌ [FRONTEND] Erro na resposta HTTP: status=${response.status}, body=${text}`);
-                    throw new Error(`Erro HTTP ${response.status}: ${text}`);
-                });
-            }
-            return response.json();
-        })
-        .then(async data => {
-            console.log('✅ [FRONTEND] Dados recebidos:', data);
-            
-            if (data.success) {
-                console.log(`✅ [FRONTEND] ${data.success_count || 0} pedido(s) atualizado(s) com sucesso, ${data.failure_count || 0} falharam`);
-                console.log('🔄 [FRONTEND] Recarregando lista de pedidos...');
+        (async () => {
+            try {
+                let successCount = 0;
+                let failureCount = 0;
+                let notAuthenticated = false;
                 
-                // Recarregar a lista usando a função fornecida
+                for (const orderId of orderIds) {
+                    try {
+                        const response = await fetch(`/api/shipments/sync-single-invoice/${orderId}`, {
+                            method: 'POST',
+                            credentials: 'include'
+                        });
+                        
+                        if (handle401Error(response)) {
+                            notAuthenticated = true;
+                            break;
+                        }
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok && data.success) {
+                            successCount += 1;
+                        } else {
+                            failureCount += 1;
+                            console.error(`❌ [FRONTEND] Falha ao sincronizar pedido ${orderId}:`, data.error || 'Erro desconhecido');
+                        }
+                    } catch (orderError) {
+                        failureCount += 1;
+                        console.error(`❌ [FRONTEND] Erro ao sincronizar pedido ${orderId}:`, orderError);
+                    }
+                }
+                
+                if (notAuthenticated) {
+                    return;
+                }
+                
                 // Forçar recarga dos dados no próximo load
                 ordersLoaded = false;
                 allOrdersLoaded = [];
@@ -3087,23 +3080,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 const countEl = document.getElementById(countId);
                 if (countEl) countEl.textContent = '0 selecionado(s)';
                 
-                console.log('✅ [FRONTEND] Atualização concluída com sucesso');
-            } else {
-                console.error('❌ [FRONTEND] Resposta indicou erro:', data.error);
-                throw new Error(data.error || 'Erro ao atualizar pedidos');
+                if (successCount > 0 || failureCount > 0) {
+                    const message = `${successCount} pedido(s) atualizado(s), ${failureCount} falha(s)`;
+                    showSyncModal(
+                        failureCount === 0 ? 'success' : 'error',
+                        failureCount === 0 ? 'Sincronização concluída!' : 'Sincronização finalizada com erros',
+                        message
+                    );
+                }
+            } finally {
+                console.log('🏁 [FRONTEND] Finalizando atualização');
+                updateButton.disabled = false;
+                updateButton.innerHTML = originalText;
             }
-        })
-        .catch(error => {
-            console.error('❌ [FRONTEND] Erro ao atualizar pedidos:', error);
-            if (error.name === 'AbortError') {
-                console.error('❌ [FRONTEND] Timeout na requisição (5 minutos)');
-            }
-        })
-        .finally(() => {
-            console.log('🏁 [FRONTEND] Finalizando atualização');
-            updateButton.disabled = false;
-            updateButton.innerHTML = originalText;
-        });
+        })();
     }
     
     // Função para ver detalhes do pedido completo

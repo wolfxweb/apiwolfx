@@ -7,7 +7,8 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.models.saas_models import MLOrder, OrderStatus, MLAccount
+from app.models.saas_models import MLOrder, OrderStatus, MLAccount, Token, User
+from sqlalchemy import or_
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +299,6 @@ class ShipmentService:
         """
         try:
             from app.services.token_manager import TokenManager
-            from app.models.saas_models import User
 
             token_manager = TokenManager(self.db)
 
@@ -320,8 +320,31 @@ class ShipmentService:
 
             access_token = token_manager.get_valid_token(target_user_id)
             if not access_token:
+                logger.warning(
+                    f"⚠️ Token não encontrado para user_id={target_user_id} (company_id={company_id}). Tentando fallback."
+                )
+                fallback_user = (
+                    self.db.query(User)
+                    .join(Token, Token.user_id == User.id)
+                    .filter(
+                        User.company_id == company_id,
+                        User.is_active == True,
+                        Token.access_token.isnot(None),
+                    )
+                    .order_by(Token.expires_at.desc())
+                    .first()
+                )
+
+                if fallback_user:
+                    logger.info(
+                        f"🔄 Usando fallback user_id={fallback_user.id} para sincronização de NF."
+                    )
+                    target_user_id = fallback_user.id
+                    access_token = token_manager.get_valid_token(target_user_id)
+
+            if not access_token:
                 logger.error(
-                    f"❌ Token não encontrado ou inválido para user_id={target_user_id}, company_id={company_id}"
+                    f"❌ Token não encontrado ou inválido após fallback para company_id={company_id}"
                 )
                 return {
                     "success": False,
@@ -746,18 +769,35 @@ class ShipmentService:
             # 2. SINCRONIZAR NOTA FISCAL
             logger.info(f"📄 [STEP 4] Iniciando busca de NF para pedido {order_id_for_logs}")
             
-            # Tentar buscar NF usando pack_id OU shipment_id OU sale_id
+            # Tentar buscar NF diretamente pelo order_id primeiro
             invoice_data = None
+            logger.info(f"📄 [STEP 4.0] Buscando NF diretamente pelo order_id {order_id_for_logs}")
+            try:
+                invoice_data = self._check_order_invoice(
+                    order_id=str(order_id_for_logs),
+                    company_id=order.company_id,
+                    access_token=access_token,
+                    seller_id=getattr(order, "seller_id", None),
+                    ml_account_id=getattr(order, "ml_account_id", None)
+                )
+                if invoice_data:
+                    logger.info(
+                        f"   Resultado order_id: has_invoice={invoice_data.get('has_invoice')}, "
+                        f"status={invoice_data.get('status')}, number={invoice_data.get('number')}"
+                    )
+            except Exception as e:
+                logger.error(f"❌ Erro ao buscar NF pelo order_id: {e}")
             
-            if order.pack_id:
+            # Se não encontrou pela order, tentar pelo pack_id
+            if (not invoice_data or not invoice_data.get('has_invoice')) and order.pack_id:
                 logger.info(f"📦 [STEP 4.1] Buscando NF pelo pack_id: {order.pack_id}")
                 try:
                     invoice_data = self._check_pack_invoice(order.pack_id, access_token)
-                    logger.info(f"   Resultado: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
+                    logger.info(f"   Resultado pack: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
                 except Exception as e:
                     logger.error(f"❌ Erro ao buscar NF pelo pack_id: {e}")
             
-            # Se não encontrou pelo pack_id e tem shipment_id, tentar pelo shipment_id (fulfillment)
+            # Se ainda não encontrou e tem shipment_id, tentar pelo shipment_id (fulfillment)
             if (not invoice_data or not invoice_data.get('has_invoice')) and order.shipping_id:
                 logger.info(f"🔍 [STEP 4.2] Buscando NF pelo shipment_id {order.shipping_id}")
                 try:
@@ -768,7 +808,7 @@ class ShipmentService:
                         seller_id=getattr(order, "seller_id", None),
                         ml_account_id=getattr(order, "ml_account_id", None)
                     )
-                    logger.info(f"   Resultado: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
+                    logger.info(f"   Resultado shipment: has_invoice={invoice_data.get('has_invoice') if invoice_data else False}")
                 except Exception as e:
                     logger.error(f"❌ Erro ao buscar NF pelo shipment_id: {e}")
             
@@ -820,13 +860,20 @@ class ShipmentService:
         Busca tanto notas fiscais carregadas pelo vendedor quanto emitidas pelo faturador do ML
         """
         try:
+            if not pack_id or str(pack_id).lower() in {"none", "null", "0"}:
+                logger.info(f"ℹ️ [PACK] pack_id inválido ({pack_id}) - pulando verificação.")
+                return {"has_invoice": False}
+            
             import requests
             
             headers = {"Authorization": f"Bearer {access_token}"}
             
+            logger.info(f"🔍 [PACK] Verificando NF para pack_id={pack_id}")
+            
             # 1. Primeiro verificar notas fiscais carregadas no pack (/packs/{pack_id}/fiscal_documents)
             fiscal_docs_url = f"https://api.mercadolibre.com/packs/{pack_id}/fiscal_documents"
             fiscal_response = requests.get(fiscal_docs_url, headers=headers, timeout=30)
+            logger.info(f"🔍 [PACK] /fiscal_documents -> {fiscal_response.status_code}")
             
             if fiscal_response.status_code == 200:
                 fiscal_data = fiscal_response.json()
@@ -846,6 +893,7 @@ class ShipmentService:
             # 2. Buscar nota fiscal emitida pelo faturador ML (/packs/{pack_id})
             pack_url = f"https://api.mercadolibre.com/packs/{pack_id}"
             pack_response = requests.get(pack_url, headers=headers, timeout=30)
+            logger.info(f"🔍 [PACK] /packs -> {pack_response.status_code}")
             
             if pack_response.status_code == 200:
                 pack_data = pack_response.json()
@@ -863,6 +911,7 @@ class ShipmentService:
                         # Endpoint da documentação: /users/{user_id}/invoices/shipments/{shipment_id}
                         invoice_url = f"https://api.mercadolibre.com/users/{seller_id}/invoices/shipments/{shipment_id}"
                         invoice_response = requests.get(invoice_url, headers=headers, timeout=30)
+                        logger.info(f"🔍 [PACK] /users/{seller_id}/invoices/shipments/{shipment_id} -> {invoice_response.status_code}")
                         
                         if invoice_response.status_code == 200:
                             invoice_data = invoice_response.json()
@@ -971,7 +1020,14 @@ class ShipmentService:
             logger.warning(f"Erro ao consultar invoice do shipment {shipment_id}: {e}")
             return {"has_invoice": False, "error": str(e)}
     
-    def _check_order_invoice(self, order_id: str, company_id: int, access_token: str) -> Optional[Dict]:
+    def _check_order_invoice(
+        self,
+        order_id: str,
+        company_id: int,
+        access_token: str,
+        seller_id: Optional[str] = None,
+        ml_account_id: Optional[int] = None
+    ) -> Optional[Dict]:
         """
         Verifica se um order tem nota fiscal emitida
         Usa endpoint: /users/{seller_id}/invoices/orders/{order_id}
@@ -980,16 +1036,33 @@ class ShipmentService:
         try:
             import requests
             
-            # Buscar seller_id da empresa - filtrar por company_id específico
-            ml_account = self.db.query(MLOrder).filter(
-                MLOrder.company_id == company_id
-            ).first()
+            # Se seller_id não foi informado, tentar obter do próprio pedido
+            if not seller_id:
+                order_id_str = str(order_id)
+                ml_order = self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    or_(
+                        MLOrder.ml_order_id == order_id,
+                        MLOrder.ml_order_id == order_id_str,
+                        MLOrder.order_id == order_id_str
+                    )
+                ).first()
+                
+                if ml_order and ml_order.seller_id:
+                    seller_id = ml_order.seller_id
+                elif ml_account_id:
+                    account = self.db.query(MLAccount).filter(MLAccount.id == ml_account_id).first()
+                    seller_id = account.ml_user_id if account else None
+                else:
+                    fallback_order = self.db.query(MLOrder).filter(
+                        MLOrder.company_id == company_id
+                    ).first()
+                    seller_id = fallback_order.seller_id if fallback_order else None
             
-            if not ml_account or not ml_account.seller_id:
-                logger.error(f"❌ Não encontrou seller_id para company_id {company_id}")
+            if not seller_id:
+                logger.error(f"❌ Não encontrou seller_id para company_id {company_id} ao consultar order {order_id}")
                 return {"has_invoice": False}
             
-            seller_id = ml_account.seller_id
             logger.info(f"🔑 Buscando NF para order {order_id} pelo seller_id {seller_id}")
             
             # Usar endpoint correto conforme documentação

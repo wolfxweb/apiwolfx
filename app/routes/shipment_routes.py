@@ -1112,6 +1112,7 @@ async def sync_recent_orders(
         from app.services.shipment_service import ShipmentService
         shipment_service = ShipmentService(db)
         shipment_result = shipment_service.sync_shipment_status_and_invoices(company_id, user_id=user_id)
+        logger.info(f"🔄 Resultado sincronização de envios/NF: {shipment_result}")
         
         if shipment_result.get("invoice_updated"):
             result["invoice_updated"] = shipment_result["invoice_updated"]
