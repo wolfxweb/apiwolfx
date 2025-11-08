@@ -530,7 +530,7 @@
     }
 </style>
 
-<script>
+<script type="module">
 document.addEventListener('DOMContentLoaded', function() {
     // Variável global para armazenar todos os pedidos carregados
     let allOrdersLoaded = [];
@@ -606,6 +606,77 @@ document.addEventListener('DOMContentLoaded', function() {
         const timePart = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         return `${datePart} ${timePart}`;
     };
+
+    function renderInvoiceDropdown(order) {
+        const orderId = order.ml_order_id || order.order_id || '';
+        const hasInvoice = Boolean(order.invoice_pdf_url);
+        const downloadItem = hasInvoice
+            ? `<li><a class="dropdown-item" href="/api/shipments/download-invoice/${orderId}" target="_blank">
+                    <i class="bi bi-file-earmark-pdf"></i> Baixar nota
+               </a></li>`
+            : `<li><button class="dropdown-item disabled" type="button">
+                    <i class="bi bi-file-earmark"></i> Nota indisponível
+               </button></li>`;
+
+        return `
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Opções de nota fiscal">
+                    <i class="bi bi-file-earmark-text"></i>
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <button class="dropdown-item" type="button" onclick="syncInvoiceForOrder('${orderId}', this)">
+                            <i class="bi bi-arrow-repeat"></i> Sincronizar com ML
+                        </button>
+                    </li>
+                    ${downloadItem}
+                </ul>
+            </div>
+        `;
+    }
+
+    async function reloadActiveTabOrders() {
+        ordersLoaded = false;
+        allOrdersLoaded = [];
+        loadingPromise = null;
+
+        const activeTab = document.querySelector('#statusTabs .nav-link.active');
+        if (!activeTab) return;
+
+        const tabId = activeTab.id;
+        switch (tabId) {
+            case 'pending-tab':
+                await loadPendingOrders();
+                break;
+            case 'confirmed-tab':
+                await loadConfirmedOrders();
+                break;
+            case 'ready-to-prepare-tab':
+                await loadReadyToPrepareOrders();
+                break;
+            case 'manual-prepare-tab':
+                await loadManualPrepareOrders();
+                break;
+            case 'waiting-shipment-tab':
+                await loadWaitingShipmentOrders();
+                break;
+            case 'shipped-tab':
+                await loadShippedOrders();
+                break;
+            case 'delivered-tab':
+                await loadDeliveredOrders();
+                break;
+            case 'cancelled-tab':
+                await loadCancelledOrders();
+                break;
+            case 'refunded-tab':
+                await loadRefundedOrders();
+                break;
+            default:
+                await loadReadyToPrepareOrders();
+                break;
+        }
+    }
     
     const sevenDaysAgo = new Date(today);
     sevenDaysAgo.setDate(today.getDate() - 7);
@@ -1422,12 +1493,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                         <i class="bi bi-clipboard"></i>
                     </button>
-                            ${order.invoice_pdf_url ? 
-                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>` : 
-                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
-                            }
+                            ${renderInvoiceDropdown(order)}
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
                                     `<div class="btn-group" role="group">
@@ -1691,12 +1757,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Visualizar detalhes">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            ${order.invoice_pdf_url ?
-                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>` : 
-                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
-                            }
+                            ${renderInvoiceDropdown(order)}
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
                                     `<div class="btn-group" role="group">
@@ -1897,12 +1958,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
                     </button>
-                            ${order.invoice_pdf_url ? 
-                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>` : 
-                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
-                            }
+                            ${renderInvoiceDropdown(order)}
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
                                     `<div class="btn-group" role="group">
@@ -2252,12 +2308,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
                             </button>
-                            ${order.invoice_pdf_url ? 
-                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>` : 
-                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
-                            }
+                            ${renderInvoiceDropdown(order)}
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
                                     `<div class="btn-group" role="group">
@@ -2561,12 +2612,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
                             </button>
-                            ${order.invoice_pdf_url ? 
-                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>` : 
-                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
-                            }
+                            ${renderInvoiceDropdown(order)}
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
                                     `<div class="btn-group" role="group">
@@ -2812,12 +2858,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyOrderNumber('${orderId}')" title="Copiar número do pedido">
                                 <i class="bi bi-clipboard"></i>
                             </button>
-                            ${order.invoice_pdf_url ? 
-                                `<a href="/api/shipments/download-invoice/${orderId}" class="btn btn-sm btn-outline-success" title="Baixar Nota Fiscal">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>` : 
-                                '<button class="btn btn-sm btn-outline-secondary" disabled title="Nota Fiscal não disponível"><i class="bi bi-file-earmark-pdf"></i></button>'
-                            }
+                            ${renderInvoiceDropdown(order)}
                             ${isPickupPoint ? 
                                 (order.shipping_id ? 
                                     `<div class="btn-group" role="group">
@@ -2955,7 +2996,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Função genérica para atualizar pedidos de qualquer aba
-    function updateSelectedOrders(buttonId, selectAllId, checkboxClass, countId, reloadFunction, tbodyId) {
+    async function updateSelectedOrders(buttonId, selectAllId, checkboxClass, countId, reloadFunction, tbodyId) {
         let selectedCheckboxes = [];
         if (tbodyId) {
             const tbody = document.getElementById(tbodyId);
@@ -3024,8 +3065,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('🔄 [FRONTEND] Recarregando lista de pedidos...');
                 
                 // Recarregar a lista usando a função fornecida
+                // Forçar recarga dos dados no próximo load
+                ordersLoaded = false;
+                allOrdersLoaded = [];
+                loadingPromise = null;
+
                 if (reloadFunction && typeof reloadFunction === 'function') {
-                    reloadFunction();
+                    try {
+                        await reloadFunction();
+                    } catch (reloadError) {
+                        console.error('❌ [FRONTEND] Erro ao recarregar pedidos após atualização:', reloadError);
+                    }
                 }
                 
                 // Desmarcar todos os checkboxes
@@ -3197,6 +3247,55 @@ document.addEventListener('DOMContentLoaded', function() {
         // Mostrar modal
         const modal = new bootstrap.Modal(document.getElementById('jsonModal'));
         modal.show();
+    };
+
+    window.syncInvoiceForOrder = async function(orderId, triggerElement) {
+        if (!orderId) return;
+        
+        const button = triggerElement;
+        const originalContent = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+        
+        const dropdownMenu = button.closest('.dropdown-menu');
+        const dropdownToggle = dropdownMenu?.parentElement?.querySelector('.dropdown-toggle');
+        const originalToggleContent = dropdownToggle ? dropdownToggle.innerHTML : null;
+        if (dropdownToggle) {
+            dropdownToggle.disabled = true;
+            dropdownToggle.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        }
+        
+        try {
+            const response = await fetch(`/api/shipments/sync-single-invoice/${orderId}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            if (handle401Error(response)) {
+                button.disabled = false;
+                button.innerHTML = originalContent;
+                return;
+            }
+            
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || `Erro ${response.status}: ${response.statusText}`);
+            }
+            
+            showSyncModal('success', 'Nota sincronizada', `Nota fiscal do pedido ${orderId} sincronizada com sucesso!`);
+            await reloadActiveTabOrders();
+        } catch (error) {
+            console.error('Erro ao sincronizar nota:', error);
+            showSyncModal('error', 'Erro ao sincronizar', error.message || 'Falha ao sincronizar nota fiscal. Tente novamente.');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            if (dropdownToggle) {
+                dropdownToggle.disabled = false;
+                dropdownToggle.innerHTML = originalToggleContent;
+            }
+        }
     };
     
     // ============================================

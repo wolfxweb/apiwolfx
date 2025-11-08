@@ -222,32 +222,32 @@ function hideLoading(elementId, content) {
 }
 
 // 🌐 Requisições AJAX Modernas
-async function makeRequest(url, options = {}) {
-    try {
-        showLoading('content', 'Processando requisição...');
-        
-        const response = await fetch(url, {
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                ...options.headers
-            },
-            ...options
-        });
-        
+function makeRequest(url, options = {}) {
+    showLoading('content', 'Processando requisição...');
+    
+    return fetch(url, {
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(options.headers || {})
+        },
+        ...options
+    })
+    .then(response => {
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
-        const data = await response.json();
+        return response.json();
+    })
+    .then(data => {
         hideLoading('content', data);
         return data;
-        
-    } catch (error) {
+    })
+    .catch(error => {
         console.error('Erro na requisição:', error);
         showNotification('Erro na requisição: ' + error.message, 'error');
         throw error;
-    }
+    });
 }
 
 // 🎨 Adicionar CSS para Animações (verifica se já existe para evitar duplicação)
