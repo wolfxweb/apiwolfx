@@ -1936,6 +1936,90 @@ async def get_ml_category_children(
         )
 
 
+@ml_product_router.get("/categories/{category_id}/attributes")
+async def get_category_attributes(
+    category_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Busca os atributos obrigatórios e recomendados de uma categoria
+    """
+    try:
+        import requests
+        from app.models.saas_models import Token, MLAccount
+        from datetime import datetime
+        
+        # Buscar token ativo da empresa do usuário
+        company_id = user["company"]["id"]
+        
+        token = db.query(Token).join(MLAccount).filter(
+            MLAccount.company_id == company_id,
+            Token.is_active == True,
+            Token.expires_at > datetime.utcnow()
+        ).order_by(Token.expires_at.desc()).first()
+        
+        url = f"https://api.mercadolibre.com/categories/{category_id}/attributes"
+        
+        headers = {
+            "Accept": "application/json"
+        }
+        
+        # Se tiver token, adicionar ao header
+        if token:
+            headers["Authorization"] = f"Bearer {token.access_token}"
+        
+        logger.info(f"🔍 Buscando atributos da categoria {category_id}")
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            attributes_data = response.json()
+            
+            # Filtrar apenas atributos relevantes (não hidden e do grupo MAIN)
+            main_attributes = []
+            other_attributes = []
+            
+            for attr in attributes_data:
+                tags = attr.get("tags", {})
+                
+                # Pular atributos hidden ou read_only
+                if tags.get("hidden") or tags.get("read_only"):
+                    continue
+                
+                # Separar por grupo
+                if attr.get("attribute_group_id") == "MAIN":
+                    main_attributes.append(attr)
+                elif not tags.get("fixed"):  # Atributos fixos não precisam ser preenchidos
+                    other_attributes.append(attr)
+            
+            logger.info(f"✅ {len(main_attributes)} atributos principais, {len(other_attributes)} outros")
+            
+            return JSONResponse(content={
+                "success": True,
+                "main_attributes": main_attributes,
+                "other_attributes": other_attributes
+            })
+        else:
+            logger.error(f"❌ Erro da API ML: {response.status_code}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": f"Erro ao buscar atributos: {response.status_code}"
+                }
+            )
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar atributos: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+        )
+
+
 @ml_product_router.get("/create", response_class=HTMLResponse)
 async def ml_product_create_page(
     request: Request,
@@ -1977,6 +2061,13 @@ async def create_ml_product(
         # Obter dados do formulário
         form_data = await request.form()
         
+        # Obter ml_account_id do formulário
+        ml_account_id = form_data.get("ml_account_id")
+        if ml_account_id:
+            ml_account_id = int(ml_account_id)
+        
+        logger.info(f"📝 Criando produto para company_id: {company_id}, ml_account_id: {ml_account_id}")
+        
         # Preparar dados do produto
         product_data = {
             "title": form_data.get("title"),
@@ -1988,7 +2079,46 @@ async def create_ml_product(
             "description": form_data.get("description"),
             "seller_custom_field": form_data.get("seller_custom_field"),
             "warranty": form_data.get("warranty"),
+            # Dados de envio
+            "shipping_mode": form_data.get("shipping_mode", "me2"),
+            "free_shipping": form_data.get("free_shipping") == "on",
+            # Dimensões do pacote
+            "package_length": float(form_data.get("package_length")) if form_data.get("package_length") else None,
+            "package_width": float(form_data.get("package_width")) if form_data.get("package_width") else None,
+            "package_height": float(form_data.get("package_height")) if form_data.get("package_height") else None,
+            "package_weight": float(form_data.get("package_weight")) if form_data.get("package_weight") else None,
+            # Dados fiscais básicos
+            "gtin": form_data.get("gtin"),
+            "mpn": form_data.get("mpn"),
+            # Dados fiscais detalhados (NF-e)
+            "fiscal_product_name": form_data.get("fiscal_product_name"),
+            "unit_cost": float(form_data.get("unit_cost")) if form_data.get("unit_cost") else None,
+            "net_weight": float(form_data.get("net_weight")) if form_data.get("net_weight") else None,
+            "gross_weight": float(form_data.get("gross_weight")) if form_data.get("gross_weight") else None,
+            "commercial_unit": form_data.get("commercial_unit", "PEÇA"),
+            "ncm": form_data.get("ncm"),
+            "cest": form_data.get("cest"),
+            "origin_type": form_data.get("origin_type"),
+            "csosn_icms": form_data.get("csosn_icms"),
+            "ipi_exception": form_data.get("ipi_exception"),
+            "fci_key": form_data.get("fci_key"),
         }
+        
+        # Processar atributos dinâmicos da categoria
+        attributes = []
+        for key in form_data.keys():
+            if key.startswith("attr_"):
+                attr_id = key.replace("attr_", "")
+                attr_value = form_data.get(key)
+                if attr_value:
+                    attributes.append({
+                        "id": attr_id,
+                        "value_name": attr_value
+                    })
+        
+        if attributes:
+            product_data["attributes"] = attributes
+            logger.info(f"📋 {len(attributes)} atributo(s) adicionado(s)")
         
         # Processar imagens
         images = []
@@ -2007,7 +2137,8 @@ async def create_ml_product(
         result = await controller.create_product_in_ml(
             company_id=company_id,
             product_data=product_data,
-            images=images
+            images=images,
+            ml_account_id=ml_account_id
         )
         
         if result.get("success"):

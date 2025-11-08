@@ -81,6 +81,17 @@
             
             <h5 class="mb-3">Informações Básicas</h5>
             
+            <!-- Seletor de Conta ML -->
+            <div class="mb-3">
+                <label for="ml_account_id" class="form-label required-field">Conta do Mercado Livre</label>
+                <select class="form-select" id="ml_account_id" name="ml_account_id" required>
+                    <option value="">Carregando contas...</option>
+                </select>
+                <div class="form-text">
+                    <i class="bi bi-info-circle"></i> Selecione a conta onde o produto será publicado
+                </div>
+            </div>
+            
             <!-- Título -->
             <div class="mb-3">
                 <label for="title" class="form-label required-field">Título do Anúncio</label>
@@ -139,15 +150,263 @@
                 </div>
             </div>
             
+            <!-- Dados Fiscais -->
+            <div class="mb-3">
+                <hr class="my-4">
+                <h5 class="mb-3"><i class="bi bi-file-earmark-text"></i> Dados Fiscais (NF-e)</h5>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Importante:</strong> Campos obrigatórios para emissão de Nota Fiscal Eletrônica e produtos no Mercado Full.
+                </div>
+                
+                <!-- EAN/GTIN e SKU -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="gtin" class="form-label required-field">EAN / GTIN</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="gtin" name="gtin" 
+                                   placeholder="Ex: 7891234567890"
+                                   pattern="[0-9]{8,14}"
+                                   maxlength="14"
+                                   title="Código de barras de 8 a 14 dígitos">
+                            <button class="btn btn-outline-secondary" type="button" id="generateGtinBtn" title="Gerar código EAN-13 válido">
+                                <i class="bi bi-arrow-repeat"></i> Gerar
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            Código de barras do produto (EAN-13, EAN-8, UPC, etc.)
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label for="seller_custom_field" class="form-label">Código (SKU)</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="seller_custom_field" name="seller_custom_field" 
+                                   placeholder="Ex: ESP32-S3-N16R8"
+                                   maxlength="46">
+                            <button class="btn btn-outline-secondary" type="button" id="generateSkuBtn" title="Gerar SKU automático">
+                                <i class="bi bi-gear"></i> G/A
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            SKU para identificar o produto na NF-e
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Nome na NF-e e Custo Unitário -->
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label for="fiscal_product_name" class="form-label">Nome do produto na nota fiscal</label>
+                        <input type="text" class="form-control" id="fiscal_product_name" name="fiscal_product_name" 
+                               placeholder="Ex: Placa de Desenvolvimento ESP32-S3"
+                               maxlength="120">
+                        <div class="form-text">
+                            <span id="fiscalNameCount">0</span>/120 caracteres
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label for="unit_cost" class="form-label">Custo unitário (opcional)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">R$</span>
+                            <input type="number" class="form-control" id="unit_cost" name="unit_cost" 
+                                   placeholder="0.00"
+                                   step="0.01"
+                                   min="0">
+                        </div>
+                        <div class="form-text">
+                            Utilizado na NF-e de transferência
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pesos -->
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="net_weight" class="form-label">Peso líquido</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="net_weight" name="net_weight" 
+                                   placeholder="0.000"
+                                   step="0.001"
+                                   min="0">
+                            <span class="input-group-text">kg</span>
+                        </div>
+                        <div class="form-text">
+                            Peso do produto sem embalagem
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label for="gross_weight" class="form-label">Peso bruto</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="gross_weight" name="gross_weight" 
+                                   placeholder="0.000"
+                                   step="0.001"
+                                   min="0">
+                            <span class="input-group-text">kg</span>
+                        </div>
+                        <div class="form-text">
+                            Peso total com embalagem
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label for="commercial_unit" class="form-label">Unidade de medida comercial</label>
+                        <select class="form-select" id="commercial_unit" name="commercial_unit">
+                            <option value="PEÇA" selected>PEÇA</option>
+                            <option value="UN">UNIDADE</option>
+                            <option value="KG">QUILOGRAMA</option>
+                            <option value="MT">METRO</option>
+                            <option value="M2">METRO QUADRADO</option>
+                            <option value="M3">METRO CÚBICO</option>
+                            <option value="LT">LITRO</option>
+                            <option value="CX">CAIXA</option>
+                            <option value="PAR">PAR</option>
+                            <option value="JOGO">JOGO</option>
+                        </select>
+                        <div class="form-text">
+                            Máx. 6 caracteres
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- NCM e CEST -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="ncm" class="form-label required-field">NCM (Nomenclatura Comum do Mercosul)</label>
+                        <input type="text" class="form-control" id="ncm" name="ncm" 
+                               placeholder="Ex: 84439960"
+                               pattern="[0-9]{8}"
+                               maxlength="8">
+                        <div class="form-text">
+                            <i class="bi bi-info-circle"></i> Consulte na NF-e de compra ou no 
+                            <a href="https://www.gov.br/receitafederal/pt-br/assuntos/aduana-e-comercio-exterior/manuais/importacao-e-exportacao/topicos-1/nomenclatura-comum-do-mercosul-ncm" target="_blank">site da Receita Federal</a>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label for="cest" class="form-label">CEST (Código Especificador da Substituição Tributária)</label>
+                        <input type="text" class="form-control" id="cest" name="cest" 
+                               placeholder="Ex: 2101800"
+                               pattern="[0-9]{7}"
+                               maxlength="7">
+                        <div class="form-text">
+                            Apenas produtos com substituição tributária
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Origem e Tributação -->
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="origin_type" class="form-label required-field">Tipo de origem</label>
+                        <select class="form-select" id="origin_type" name="origin_type">
+                            <option value="">Selecione...</option>
+                            <option value="0">0 - Nacional</option>
+                            <option value="1" selected>1 - Estrangeira - Importação direta</option>
+                            <option value="2">2 - Estrangeira - Adquirida no mercado interno</option>
+                            <option value="3">3 - Nacional com conteúdo importado (40% a 70%)</option>
+                            <option value="4">4 - Nacional - Conforme processos produtivos básicos</option>
+                            <option value="5">5 - Nacional com conteúdo importado (< 40%)</option>
+                            <option value="6">6 - Estrangeira - Importação direta, sem similar nacional</option>
+                            <option value="7">7 - Estrangeira - Adquirida no mercado interno, sem similar nacional</option>
+                            <option value="8">8 - Nacional com conteúdo importado (> 70%)</option>
+                        </select>
+                        <div class="form-text">
+                            Define regras de IPI e ICMS
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label for="csosn_icms" class="form-label required-field">CSOSN do ICMS</label>
+                        <select class="form-select" id="csosn_icms" name="csosn_icms">
+                            <option value="">Selecione...</option>
+                            <option value="101">101 - Tributada pelo Simples Nacional com permissão de crédito</option>
+                            <option value="102" selected>102 - Tributada pelo Simples Nacional sem permissão de crédito</option>
+                            <option value="103">103 - Isenção do ICMS no Simples Nacional</option>
+                            <option value="201">201 - Tributada pelo Simples Nacional com permissão de crédito e com cobrança do ICMS por ST</option>
+                            <option value="202">202 - Tributada pelo Simples Nacional sem permissão de crédito e com cobrança do ICMS por ST</option>
+                            <option value="203">203 - Isenção do ICMS no Simples Nacional e com cobrança do ICMS por ST</option>
+                            <option value="300">300 - Imune</option>
+                            <option value="400">400 - Não tributada pelo Simples Nacional</option>
+                            <option value="500">500 - ICMS cobrado anteriormente por ST ou por antecipação</option>
+                            <option value="900">900 - Outros</option>
+                        </select>
+                        <div class="form-text">
+                            Para empresas no Simples Nacional
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label for="ipi_exception" class="form-label">Ex. da TIPI (Exceção IPI)</label>
+                        <input type="text" class="form-control" id="ipi_exception" name="ipi_exception" 
+                               placeholder="Ex: 01"
+                               pattern="[0-9]{2,3}"
+                               maxlength="3">
+                        <div class="form-text">
+                            Código de exceção da TIPI (2-3 dígitos)
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dados Fiscais Opcionais -->
+                <div class="mt-3">
+                    <h6 class="text-muted">Dados Fiscais Opcionais</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="fci_key" class="form-label">Chave da FCI</label>
+                            <input type="text" class="form-control" id="fci_key" name="fci_key" 
+                                   placeholder="Ex: 12345678-1234-1234-1234-123456789012"
+                                   maxlength="36">
+                            <div class="form-text">
+                                Ficha de Conteúdo de Importação (produtos importados)
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="mpn" class="form-label">MPN (Part Number do Fabricante)</label>
+                            <input type="text" class="form-control" id="mpn" name="mpn" 
+                                   placeholder="Ex: ABC-123-XYZ">
+                            <div class="form-text">
+                                Código do fabricante (opcional)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Características do Produto (atributos dinâmicos por categoria) -->
             <div id="attributesContainer" class="d-none mb-3">
                 <hr class="my-4">
-                <h5 class="mb-3">Características do Produto</h5>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
-                    Preencha as características desta categoria. Campos com <strong class="text-danger">*</strong> são obrigatórios.
+                <h5 class="mb-3"><i class="bi bi-list-check"></i> Características do Produto</h5>
+                
+                <!-- Características Principais (Obrigatórias) -->
+                <div id="mainAttributesSection" class="mb-4">
+                    <h6 class="text-primary mb-3">
+                        <i class="bi bi-star-fill"></i> Características Principais
+                        <span class="badge bg-danger ms-2">Obrigatórias</span>
+                    </h6>
+                    <div class="alert alert-warning mb-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Você tem <strong><span id="mainAttrCount">0</span> características completas</strong>.
+                    </div>
+                    <div id="mainAttributesFields"></div>
                 </div>
-                <div id="attributesFields"></div>
+                
+                <!-- Características Secundárias (Opcionais) -->
+                <div id="secondaryAttributesSection" class="mb-4">
+                    <h6 class="text-muted mb-3">
+                        <i class="bi bi-list-ul"></i> Características Secundárias
+                        <span class="badge bg-secondary ms-2">Opcionais</span>
+                    </h6>
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i>
+                        Você tem <strong><span id="secondaryAttrCount">0</span> características completas</strong>.
+                        <br><small>Inclua estes dados para que seus compradores tenham mais informações para te escolher.</small>
+                    </div>
+                    <div id="secondaryAttributesFields"></div>
+                </div>
             </div>
             
             <!-- Condição e Tipo de Anúncio -->
@@ -170,6 +429,63 @@
                         <option value="gold_pro">Premium</option>
                         <option value="free">Gratuito</option>
                     </select>
+                </div>
+            </div>
+            
+            <hr class="my-4">
+            <h5 class="mb-3">Envio e Logística</h5>
+            
+            <!-- Modo de Envio -->
+            <div class="mb-3">
+                <label for="shipping_mode" class="form-label required-field">Modo de Envio</label>
+                <select class="form-select" id="shipping_mode" name="shipping_mode" required>
+                    <option value="">Selecione...</option>
+                    <option value="me2" selected>Mercado Envios (Recomendado)</option>
+                    <option value="custom">Envio Personalizado</option>
+                    <option value="not_specified">Não Especificado (combinar com comprador)</option>
+                </select>
+                <div class="form-text">
+                    <i class="bi bi-info-circle"></i> Mercado Envios gerencia toda a logística automaticamente
+                </div>
+            </div>
+            
+            <!-- Frete Grátis -->
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="free_shipping" name="free_shipping" checked>
+                    <label class="form-check-label" for="free_shipping">
+                        <strong>Frete Grátis</strong> (aumenta as vendas)
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Dimensões e Peso -->
+            <div class="mb-3">
+                <label class="form-label">Dimensões e Peso do Pacote</label>
+                <div class="form-text mb-2">
+                    <i class="bi bi-box"></i> Necessário para calcular o frete. Informe as medidas da embalagem.
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <input type="number" class="form-control" id="package_length" name="package_length" 
+                               placeholder="Comprimento (cm)" min="1" step="0.1">
+                        <small class="text-muted">Comprimento</small>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <input type="number" class="form-control" id="package_width" name="package_width" 
+                               placeholder="Largura (cm)" min="1" step="0.1">
+                        <small class="text-muted">Largura</small>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <input type="number" class="form-control" id="package_height" name="package_height" 
+                               placeholder="Altura (cm)" min="1" step="0.1">
+                        <small class="text-muted">Altura</small>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <input type="number" class="form-control" id="package_weight" name="package_weight" 
+                               placeholder="Peso (g)" min="1" step="1">
+                        <small class="text-muted">Peso em gramas</small>
+                    </div>
                 </div>
             </div>
             
@@ -270,10 +586,117 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOMContentLoaded disparado - Página de cadastro de produto carregada');
     console.log('Tentando encontrar botão searchCategoryBtn...');
     
+    // ========== CARREGAR CONTAS ML ==========
+    async function loadMLAccounts() {
+        try {
+            const response = await fetch('/ml/products/api/accounts', {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Erro ao carregar contas');
+            }
+            
+            const data = await response.json();
+            const accountSelect = document.getElementById('ml_account_id');
+            
+            if (data.success && data.accounts && data.accounts.length > 0) {
+                accountSelect.innerHTML = '<option value="">Selecione uma conta...</option>';
+                
+                data.accounts.forEach(account => {
+                    const option = document.createElement('option');
+                    option.value = account.id;
+                    option.textContent = `${account.nickname} (${account.email})`;
+                    if (account.is_primary) {
+                        option.textContent += ' ⭐ Principal';
+                        option.selected = true;
+                    }
+                    accountSelect.appendChild(option);
+                });
+                
+                console.log(`✅ ${data.accounts.length} conta(s) ML carregada(s)`);
+            } else {
+                accountSelect.innerHTML = '<option value="">Nenhuma conta encontrada</option>';
+                showAlert('warning', '⚠️ Nenhuma conta do Mercado Livre encontrada. <a href="/ml/accounts">Conecte uma conta</a> primeiro.');
+            }
+        } catch (error) {
+            console.error('❌ Erro ao carregar contas ML:', error);
+            const accountSelect = document.getElementById('ml_account_id');
+            accountSelect.innerHTML = '<option value="">Erro ao carregar contas</option>';
+            showAlert('danger', '❌ Erro ao carregar contas do Mercado Livre. Recarregue a página.');
+        }
+    }
+    
+    // Carregar contas ao iniciar
+    loadMLAccounts();
+    
+    // ========== GERAR GTIN (EAN-13) ==========
+    function generateEAN13() {
+        // Gerar 12 dígitos aleatórios (começando com 789 para Brasil)
+        let code = '789' + Math.floor(Math.random() * 1000000000).toString().padStart(9, '0');
+        
+        // Calcular dígito verificador
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+            let digit = parseInt(code[i]);
+            // Multiplica por 1 se posição ímpar, por 3 se posição par (contando da direita)
+            sum += (i % 2 === 0) ? digit : digit * 3;
+        }
+        
+        // Dígito verificador = 10 - (soma % 10), ou 0 se der 10
+        let checkDigit = (10 - (sum % 10)) % 10;
+        
+        return code + checkDigit;
+    }
+    
+    document.getElementById('generateGtinBtn').addEventListener('click', function() {
+        const gtinInput = document.getElementById('gtin');
+        const newGtin = generateEAN13();
+        gtinInput.value = newGtin;
+        
+        // Feedback visual
+        gtinInput.classList.add('border-success');
+        setTimeout(() => {
+            gtinInput.classList.remove('border-success');
+        }, 1000);
+        
+        console.log('✅ GTIN/EAN-13 gerado:', newGtin);
+    });
+    
+    // ========== GERAR SKU AUTOMÁTICO (G/A) ==========
+    function generateAutoSKU() {
+        // Gera SKU baseado em timestamp + random (ex: SKU-2025110812345-ABC)
+        const timestamp = Date.now().toString().slice(-10);
+        const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+        return `SKU-${timestamp}-${random}`;
+    }
+    
+    document.getElementById('generateSkuBtn').addEventListener('click', function() {
+        const skuInput = document.getElementById('seller_custom_field');
+        const newSku = generateAutoSKU();
+        skuInput.value = newSku;
+        
+        // Feedback visual
+        skuInput.classList.add('border-success');
+        setTimeout(() => {
+            skuInput.classList.remove('border-success');
+        }, 1000);
+        
+        console.log('✅ SKU automático gerado:', newSku);
+    });
+    
     // Contador de caracteres do título
     document.getElementById('title').addEventListener('input', function() {
         document.getElementById('titleCount').textContent = this.value.length;
     });
+    
+    // Contador de caracteres do nome fiscal
+    const fiscalNameInput = document.getElementById('fiscal_product_name');
+    if (fiscalNameInput) {
+        fiscalNameInput.addEventListener('input', function() {
+            document.getElementById('fiscalNameCount').textContent = this.value.length;
+        });
+    }
 
     // ========== GARANTIA - Combinar campos ==========
     function updateWarrantyField() {
@@ -553,22 +976,28 @@ async function selectCategory(categoryId, categoryName) {
     await loadCategoryAttributes(categoryId);
 }
 
-// Buscar atributos obrigatórios da categoria
+// Buscar atributos da categoria (principais e secundários)
 async function loadCategoryAttributes(categoryId) {
     console.log('🔍 Buscando atributos para categoria:', categoryId);
     
     const attributesContainer = document.getElementById('attributesContainer');
-    const attributesFields = document.getElementById('attributesFields');
+    const mainAttributesFields = document.getElementById('mainAttributesFields');
+    const secondaryAttributesFields = document.getElementById('secondaryAttributesFields');
+    const mainAttrCount = document.getElementById('mainAttrCount');
+    const secondaryAttrCount = document.getElementById('secondaryAttrCount');
     
-    attributesFields.innerHTML = '<div class="text-center text-muted my-3"><span class="spinner-border spinner-border-sm"></span> Carregando características...</div>';
+    // Mostrar loading
+    mainAttributesFields.innerHTML = '<div class="text-center text-muted my-3"><span class="spinner-border spinner-border-sm"></span> Carregando características principais...</div>';
+    secondaryAttributesFields.innerHTML = '<div class="text-center text-muted my-3"><span class="spinner-border spinner-border-sm"></span> Carregando características secundárias...</div>';
     attributesContainer.classList.remove('d-none');
     
     try {
-        const url = `https://api.mercadolibre.com/categories/${categoryId}`;
+        const url = `/ml/products/categories/${categoryId}/attributes`;
         console.log('📡 URL:', url);
         
         const response = await fetch(url, {
-            method: 'GET'
+            method: 'GET',
+            credentials: 'include'
         });
         
         console.log('📥 Response status:', response.status);
@@ -580,75 +1009,115 @@ async function loadCategoryAttributes(categoryId) {
         const data = await response.json();
         console.log('📦 Dados recebidos:', data);
         
-        const attributes = data.attributes || [];
-        console.log('📋 Total de atributos:', attributes.length);
-        
-        // Mostrar TODOS os atributos (obrigatórios e opcionais)
-        const allAttributes = attributes.filter(attr => 
-            attr.id && attr.name // Filtrar apenas atributos válidos
-        );
-        
-        if (allAttributes.length === 0) {
-            attributesContainer.classList.add('d-none');
-            console.log('ℹ️ Esta categoria não possui atributos');
-            return;
+        if (!data.success) {
+            throw new Error(data.error || 'Erro ao buscar atributos');
         }
         
-        // Separar obrigatórios e opcionais
-        const requiredAttributes = allAttributes.filter(attr => 
-            attr.tags && attr.tags.includes('required')
-        );
-        const optionalAttributes = allAttributes.filter(attr => 
-            !attr.tags || !attr.tags.includes('required')
-        );
+        const mainAttributes = data.main_attributes || [];
+        const otherAttributes = data.other_attributes || [];
         
-        console.log(`✅ Encontrados ${requiredAttributes.length} obrigatórios + ${optionalAttributes.length} opcionais`);
+        console.log(`✅ Encontrados ${mainAttributes.length} principais + ${otherAttributes.length} secundários`);
         
-        // Gerar campos dinâmicos
-        attributesFields.innerHTML = '';
-        
-        // Primeiro os obrigatórios
-        if (requiredAttributes.length > 0) {
-            attributesFields.insertAdjacentHTML('beforeend', '<div class="mb-2"><strong>Obrigatórios:</strong></div>');
-            requiredAttributes.forEach(attr => {
-                const fieldHtml = createAttributeField(attr);
-                attributesFields.insertAdjacentHTML('beforeend', fieldHtml);
+        // Renderizar características principais (obrigatórias)
+        if (mainAttributes.length > 0) {
+            mainAttributesFields.innerHTML = '';
+            mainAttributes.forEach(attr => {
+                const fieldHtml = createAttributeField(attr, true);
+                mainAttributesFields.insertAdjacentHTML('beforeend', fieldHtml);
             });
+            mainAttrCount.textContent = '0';
+        } else {
+            mainAttributesFields.innerHTML = '<p class="text-muted"><i class="bi bi-check-circle"></i> Nenhuma característica principal obrigatória para esta categoria.</p>';
+            mainAttrCount.textContent = '0';
         }
         
-        // Depois os opcionais
-        if (optionalAttributes.length > 0) {
-            attributesFields.insertAdjacentHTML('beforeend', '<hr><div class="mb-2"><strong>Opcionais:</strong></div>');
-            optionalAttributes.forEach(attr => {
-                const fieldHtml = createAttributeField(attr);
-                attributesFields.insertAdjacentHTML('beforeend', fieldHtml);
+        // Renderizar características secundárias (opcionais)
+        if (otherAttributes.length > 0) {
+            secondaryAttributesFields.innerHTML = '';
+            otherAttributes.forEach(attr => {
+                const fieldHtml = createAttributeField(attr, false);
+                secondaryAttributesFields.insertAdjacentHTML('beforeend', fieldHtml);
             });
+            secondaryAttrCount.textContent = '0';
+        } else {
+            secondaryAttributesFields.innerHTML = '<p class="text-muted"><i class="bi bi-info-circle"></i> Nenhuma característica secundária disponível para esta categoria.</p>';
+            secondaryAttrCount.textContent = '0';
         }
+        
+        // Adicionar listeners para contar campos preenchidos
+        addAttributeCountListeners();
         
     } catch (error) {
         console.error('❌ Erro ao carregar atributos:', error);
-        attributesFields.innerHTML = `
+        mainAttributesFields.innerHTML = `
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-triangle"></i>
-                Não foi possível carregar as características desta categoria.
+                Não foi possível carregar as características desta categoria: ${error.message}
             </div>
         `;
+        secondaryAttributesFields.innerHTML = '';
     }
 }
 
+// Adicionar listeners para contar atributos preenchidos
+function addAttributeCountListeners() {
+    const mainInputs = document.querySelectorAll('#mainAttributesFields input, #mainAttributesFields select');
+    const secondaryInputs = document.querySelectorAll('#secondaryAttributesFields input, #secondaryAttributesFields select');
+    
+    mainInputs.forEach(input => {
+        input.addEventListener('change', updateAttributeCounts);
+        input.addEventListener('input', updateAttributeCounts);
+    });
+    
+    secondaryInputs.forEach(input => {
+        input.addEventListener('change', updateAttributeCounts);
+        input.addEventListener('input', updateAttributeCounts);
+    });
+}
+
+// Atualizar contadores de atributos preenchidos
+function updateAttributeCounts() {
+    // Contar principais
+    const mainInputs = document.querySelectorAll('#mainAttributesFields input, #mainAttributesFields select');
+    let mainFilled = 0;
+    mainInputs.forEach(input => {
+        if (input.value && input.value.trim() !== '' && input.value !== 'Selecione...') {
+            mainFilled++;
+        }
+    });
+    document.getElementById('mainAttrCount').textContent = mainFilled;
+    
+    // Contar secundários
+    const secondaryInputs = document.querySelectorAll('#secondaryAttributesFields input, #secondaryAttributesFields select');
+    let secondaryFilled = 0;
+    secondaryInputs.forEach(input => {
+        if (input.value && input.value.trim() !== '' && input.value !== 'Selecione...') {
+            secondaryFilled++;
+        }
+    });
+    document.getElementById('secondaryAttrCount').textContent = secondaryFilled;
+}
+
 // Criar campo HTML baseado no tipo de atributo
-function createAttributeField(attribute) {
+function createAttributeField(attribute, isMainAttribute = false) {
     const fieldId = `attr_${attribute.id}`;
-    const isRequired = attribute.tags && attribute.tags.includes('required');
+    const isRequired = isMainAttribute; // Principais são obrigatórias
     const requiredClass = isRequired ? 'required-field' : '';
     const requiredAttr = isRequired ? 'required' : '';
+    const hint = attribute.hint || 'Por favor, inclua este dado para que seus compradores tenham mais informações para te escolher.';
     
-    let fieldHTML = `<div class="mb-3"><label for="${fieldId}" class="form-label ${requiredClass}">${attribute.name}</label>`;
+    let fieldHTML = `
+        <div class="mb-3 border-bottom pb-3">
+            <label for="${fieldId}" class="form-label ${requiredClass}">
+                ${attribute.name}
+                ${isRequired ? ' <span class="text-danger">(obrigatório)</span>' : ''}
+            </label>
+    `;
     
-    // Se tem valores predefinidos (select)
+    // Se tem valores predefinidos (select dropdown)
     if (attribute.values && attribute.values.length > 0) {
         fieldHTML += `
-            <select class="form-select" id="${fieldId}" name="attribute_${attribute.id}" ${requiredAttr}>
+            <select class="form-select" id="${fieldId}" name="attr_${attribute.id}" ${requiredAttr}>
                 <option value="">Selecione...</option>
         `;
         
@@ -658,47 +1127,105 @@ function createAttributeField(attribute) {
         
         fieldHTML += `</select>`;
     } 
-    // Número
-    else if (attribute.value_type === 'number' || attribute.value_type === 'number_unit') {
+    // Número com unidade (ex: 240 MHz, 512 KB)
+    else if (attribute.value_type === 'number_unit') {
+        const unitId = `${fieldId}_unit`;
         fieldHTML += `
-            <input type="number" class="form-control" id="${fieldId}" 
-                   name="attribute_${attribute.id}" 
-                   placeholder="Digite o valor"
-                   ${requiredAttr}>
+            <div class="row g-2">
+                <div class="col-8">
+                    <input type="number" class="form-control" id="${fieldId}" 
+                           name="attr_${attribute.id}" 
+                           placeholder="Digite o valor"
+                           step="any"
+                           ${requiredAttr}>
+                </div>
+                <div class="col-4">
+                    <input type="text" class="form-control" id="${unitId}" 
+                           name="attr_${attribute.id}_unit" 
+                           placeholder="Unidade"
+                           value="${attribute.default_unit || ''}">
+                </div>
+            </div>
         `;
-        if (attribute.value_type === 'number_unit' && attribute.allowed_units) {
-            fieldHTML += `<small class="text-muted">Unidades: ${attribute.allowed_units.map(u => u.name).join(', ')}</small>`;
+        if (attribute.allowed_units && attribute.allowed_units.length > 0) {
+            fieldHTML += `<small class="text-muted">Unidades sugeridas: ${attribute.allowed_units.map(u => u.name).join(', ')}</small>`;
         }
     }
-    // Boolean
+    // Número simples
+    else if (attribute.value_type === 'number') {
+        fieldHTML += `
+            <input type="number" class="form-control" id="${fieldId}" 
+                   name="attr_${attribute.id}" 
+                   placeholder="Digite o valor"
+                   step="any"
+                   ${requiredAttr}>
+        `;
+    }
+    // Boolean (Sim/Não)
     else if (attribute.value_type === 'boolean') {
         fieldHTML += `
-            <select class="form-select" id="${fieldId}" name="attribute_${attribute.id}" ${requiredAttr}>
+            <select class="form-select" id="${fieldId}" name="attr_${attribute.id}" ${requiredAttr}>
                 <option value="">Selecione...</option>
                 <option value="true">Sim</option>
                 <option value="false">Não</option>
             </select>
         `;
     }
-    // Texto padrão
+    // Texto padrão (string, list)
     else {
         fieldHTML += `
             <input type="text" class="form-control" id="${fieldId}" 
-                   name="attribute_${attribute.id}" 
-                   placeholder="Digite o valor"
+                   name="attr_${attribute.id}" 
+                   placeholder="${hint}"
                    maxlength="255"
                    ${requiredAttr}>
         `;
     }
     
-    // Dica/tooltip se houver
-    if (attribute.hint) {
-        fieldHTML += `<small class="form-text text-muted"><i class="bi bi-info-circle"></i> ${attribute.hint}</small>`;
+    // Botão "Não se aplica" para atributos opcionais
+    if (!isRequired) {
+        fieldHTML += `
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="${fieldId}_na" 
+                       onchange="toggleNotApplicable('${fieldId}', this.checked)">
+                <label class="form-check-label text-muted" for="${fieldId}_na">
+                    Não se aplica
+                </label>
+            </div>
+        `;
+    }
+    
+    // Dica/hint
+    if (hint && hint !== attribute.name) {
+        fieldHTML += `<div class="form-text"><i class="bi bi-info-circle"></i> ${hint}</div>`;
     }
     
     fieldHTML += `</div>`;
     
     return fieldHTML;
+}
+
+// Toggle "Não se aplica" para atributos opcionais
+function toggleNotApplicable(fieldId, isChecked) {
+    const field = document.getElementById(fieldId);
+    const unitField = document.getElementById(`${fieldId}_unit`);
+    
+    if (isChecked) {
+        field.value = '';
+        field.disabled = true;
+        field.removeAttribute('required');
+        if (unitField) {
+            unitField.value = '';
+            unitField.disabled = true;
+        }
+    } else {
+        field.disabled = false;
+        if (unitField) {
+            unitField.disabled = false;
+        }
+    }
+    
+    updateAttributeCounts();
 }
 
 // Upload de imagens - NOVO SISTEMA
@@ -873,3 +1400,4 @@ function showAlert(type, message) {
 }
 </script>
 {% endblock %}
+

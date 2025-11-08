@@ -519,7 +519,7 @@ class MLProductController:
             logger.error(f"Erro ao renderizar página de análise: {e}")
             raise
 
-    async def create_product_in_ml(self, company_id: int, product_data: dict, images: list = None):
+    async def create_product_in_ml(self, company_id: int, product_data: dict, images: list = None, ml_account_id: int = None):
         """
         Cria/publica um novo produto no Mercado Livre
         
@@ -527,27 +527,38 @@ class MLProductController:
             company_id: ID da empresa
             product_data: Dados do produto (título, preço, categoria, etc)
             images: Lista de imagens do produto
+            ml_account_id: ID da conta ML específica (opcional, usa primeira ativa se não fornecido)
             
         Returns:
             dict: Resultado da operação com success, item_id ou error
         """
         try:
-            logger.info(f"🆕 Iniciando cadastro de produto no ML para company {company_id}")
+            logger.info(f"🆕 Iniciando cadastro de produto no ML para company {company_id}, ml_account_id: {ml_account_id}")
             
             # 1. Buscar token ativo da empresa
             from app.services.token_manager import TokenManager
             from app.models.saas_models import Token, MLAccount
             from datetime import datetime
             
-            # Buscar token ativo mais recente
-            token = self.db.query(Token).join(MLAccount).filter(
+            # Buscar token ativo mais recente para a conta especificada ou qualquer conta ativa
+            query = self.db.query(Token).join(MLAccount).filter(
                 MLAccount.company_id == company_id,
                 Token.is_active == True,
                 Token.expires_at > datetime.utcnow()
-            ).order_by(Token.expires_at.desc()).first()
+            )
+            
+            # Se ml_account_id foi especificado, filtrar por ele
+            if ml_account_id:
+                query = query.filter(MLAccount.id == ml_account_id)
+                logger.info(f"🔍 Buscando token para conta ML específica: {ml_account_id}")
+            
+            token = query.order_by(Token.expires_at.desc()).first()
             
             if not token:
-                logger.error(f"❌ Nenhum token ativo encontrado para company {company_id}")
+                error_msg = f"Nenhum token ativo encontrado para company {company_id}"
+                if ml_account_id:
+                    error_msg += f" e conta ML {ml_account_id}"
+                logger.error(f"❌ {error_msg}")
                 return {
                     "success": False,
                     "error": "Nenhuma conta do Mercado Livre conectada ou autorizada. Por favor, conecte uma conta primeiro."
@@ -556,7 +567,7 @@ class MLProductController:
             access_token = token.access_token
             ml_account = token.ml_account
             
-            logger.info(f"✅ Token encontrado para conta ML: {ml_account.nickname}")
+            logger.info(f"✅ Token encontrado para conta ML: {ml_account.nickname} (ID: {ml_account.id})")
             
             # 2. Validar dados obrigatórios
             required_fields = ["title", "category_id", "price", "available_quantity", "condition", "listing_type_id"]
@@ -632,6 +643,145 @@ class MLProductController:
             
             if product_data.get("warranty"):
                 item_payload["warranty"] = product_data.get("warranty")
+            
+            # 4.5. Configurar envio (shipping)
+            shipping_mode = product_data.get("shipping_mode", "me2")
+            free_shipping = product_data.get("free_shipping", True)
+            
+            shipping_config = {
+                "mode": shipping_mode,
+                "free_shipping": free_shipping
+            }
+            
+            # Se tiver dimensões, adicionar
+            if product_data.get("package_length") or product_data.get("package_width") or \
+               product_data.get("package_height") or product_data.get("package_weight"):
+                dimensions = {}
+                
+                if product_data.get("package_length"):
+                    dimensions["length"] = str(product_data.get("package_length"))
+                if product_data.get("package_width"):
+                    dimensions["width"] = str(product_data.get("package_width"))
+                if product_data.get("package_height"):
+                    dimensions["height"] = str(product_data.get("package_height"))
+                if product_data.get("package_weight"):
+                    dimensions["weight"] = str(product_data.get("package_weight"))
+                
+                if dimensions:
+                    shipping_config["dimensions"] = dimensions
+                    logger.info(f"📐 Dimensões do pacote: {dimensions}")
+            
+            item_payload["shipping"] = shipping_config
+            logger.info(f"🚚 Configuração de envio: mode={shipping_mode}, free_shipping={free_shipping}")
+            
+            # 4.6. Adicionar atributos (fiscais + categoria)
+            attributes = []
+            
+            # Dados fiscais obrigatórios
+            if product_data.get("gtin"):
+                attributes.append({
+                    "id": "GTIN",
+                    "value_name": product_data.get("gtin")
+                })
+                logger.info(f"📊 GTIN adicionado: {product_data.get('gtin')}")
+            
+            if product_data.get("mpn"):
+                attributes.append({
+                    "id": "MPN",
+                    "value_name": product_data.get("mpn")
+                })
+            
+            # Atributos dinâmicos da categoria
+            if product_data.get("attributes"):
+                attributes.extend(product_data.get("attributes"))
+                logger.info(f"📋 {len(product_data.get('attributes'))} atributos da categoria adicionados")
+            
+            if attributes:
+                item_payload["attributes"] = attributes
+            
+            # 4.7. Adicionar dados fiscais detalhados (sale_terms)
+            sale_terms = []
+            
+            # NCM (obrigatório para NF-e)
+            if product_data.get("ncm"):
+                sale_terms.append({
+                    "id": "INVOICE_CODES_NCM",
+                    "value_name": product_data.get("ncm")
+                })
+                logger.info(f"📋 NCM adicionado: {product_data.get('ncm')}")
+            
+            # Nome do produto na NF-e
+            if product_data.get("fiscal_product_name"):
+                sale_terms.append({
+                    "id": "INVOICE_PRODUCT_NAME",
+                    "value_name": product_data.get("fiscal_product_name")
+                })
+            
+            # Pesos (líquido e bruto)
+            if product_data.get("net_weight"):
+                sale_terms.append({
+                    "id": "NET_WEIGHT",
+                    "value_name": str(product_data.get("net_weight"))
+                })
+            
+            if product_data.get("gross_weight"):
+                sale_terms.append({
+                    "id": "GROSS_WEIGHT",
+                    "value_name": str(product_data.get("gross_weight"))
+                })
+            
+            # Unidade de medida comercial
+            if product_data.get("commercial_unit"):
+                sale_terms.append({
+                    "id": "COMMERCIAL_UNIT",
+                    "value_name": product_data.get("commercial_unit")
+                })
+            
+            # CEST
+            if product_data.get("cest"):
+                sale_terms.append({
+                    "id": "INVOICE_CODES_CEST",
+                    "value_name": product_data.get("cest")
+                })
+            
+            # Tipo de origem
+            if product_data.get("origin_type"):
+                sale_terms.append({
+                    "id": "ORIGIN_TYPE",
+                    "value_name": product_data.get("origin_type")
+                })
+            
+            # CSOSN do ICMS
+            if product_data.get("csosn_icms"):
+                sale_terms.append({
+                    "id": "CSOSN_ICMS",
+                    "value_name": product_data.get("csosn_icms")
+                })
+            
+            # Exceção da TIPI
+            if product_data.get("ipi_exception"):
+                sale_terms.append({
+                    "id": "IPI_EXCEPTION",
+                    "value_name": product_data.get("ipi_exception")
+                })
+            
+            # Chave da FCI
+            if product_data.get("fci_key"):
+                sale_terms.append({
+                    "id": "FCI_KEY",
+                    "value_name": product_data.get("fci_key")
+                })
+            
+            # Custo unitário
+            if product_data.get("unit_cost"):
+                sale_terms.append({
+                    "id": "UNIT_COST",
+                    "value_name": str(product_data.get("unit_cost"))
+                })
+            
+            if sale_terms:
+                item_payload["sale_terms"] = sale_terms
+                logger.info(f"📄 {len(sale_terms)} termo(s) fiscal(is) adicionado(s) para NF-e")
             
             logger.info(f"📦 Payload preparado: {item_payload.get('title')} - R$ {item_payload.get('price')}")
             
