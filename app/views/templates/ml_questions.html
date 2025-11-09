@@ -79,37 +79,6 @@
     </div>
 </div>
 
-<!-- Modal para Responder Pergunta -->
-<div class="modal fade" id="answerModal" tabindex="-1" aria-labelledby="answerModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="answerModalLabel">
-                    <i class="bi bi-reply"></i> Responder Pergunta
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="question-details">
-                    <!-- Detalhes da pergunta serão inseridos aqui -->
-                </div>
-                <hr>
-                <div class="mb-3">
-                    <label for="answer-text" class="form-label">Sua Resposta</label>
-                    <textarea class="form-control" id="answer-text" rows="4" placeholder="Digite sua resposta aqui..."></textarea>
-                    <small class="text-muted">A resposta será publicada no Mercado Livre</small>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="submitAnswer()">
-                    <i class="bi bi-send"></i> Enviar Resposta
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Modal Genérico para Mensagens -->
 <div class="modal fade" id="messageModal" tabindex="-1" aria-labelledby="messageModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -172,7 +141,6 @@
 </div>
 
 <script>
-let currentQuestionId = null;
 let searchTimeout = null;
 
 // Carregar perguntas ao abrir a página
@@ -483,23 +451,23 @@ function renderQuestions(questions) {
                         <div class="col-md-3 text-end">
                             ${statusBadge}
                             <div class="mt-2">
-                                ${q.status === 'UNANSWERED' ? 
-                                    `<button class="btn btn-sm btn-primary" onclick="openAnswerModal(${q.id})">
-                                        <i class="bi bi-reply"></i> Responder
-                                    </button>` :
-                                    '<span class="text-muted"><i class="bi bi-check-circle"></i> Respondida</span>'
-                                }
+                                <div class="btn-group btn-group-sm w-100" role="group">
+                                    ${q.status === 'UNANSWERED' ? 
+                                        `<a class="btn btn-primary" href="/ml/questions/${q.id}">
+                                            <i class="bi bi-reply"></i>
+                                        </a>` :
+                                        `<a class="btn btn-outline-secondary" href="/ml/questions/${q.id}">
+                                            <i class="bi bi-eye"></i>
+                                        </a>`
+                                    }
+                                    ${q.ml_item_id ? 
+                                        `<a class="btn btn-outline-secondary" href="https://produto.mercadolivre.com.br/MLB-${q.ml_item_id.replace('MLB', '')}" target="_blank" rel="noopener noreferrer">
+                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>` :
+                                        ''
+                                    }
+                                </div>
                             </div>
-                            ${q.ml_item_id ? 
-                                `<div class="mt-2">
-                                    <a href="https://produto.mercadolivre.com.br/MLB-${q.ml_item_id.replace('MLB', '')}" 
-                                       target="_blank" 
-                                       class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-box-arrow-up-right"></i> Ver Produto
-                                    </a>
-                                </div>` :
-                                ''
-                            }
                         </div>
                     </div>
                 </div>
@@ -508,121 +476,25 @@ function renderQuestions(questions) {
     }).join('');
 }
 
+function openConversationFromQuestion(accountId, buyerId, questionId, itemId) {
+    if (!accountId || !buyerId) {
+        showMessage('warning', 'Conversa indisponível', 'Não encontramos os dados necessários para abrir a conversa desse comprador.');
+        return;
+    }
+
+    const params = new URLSearchParams();
+    params.append('ml_account_id', accountId);
+    params.append('buyer_id', buyerId);
+    if (questionId) params.append('question_id', questionId);
+    if (itemId) params.append('item_id', itemId);
+
+    window.open(`/ml/messages?${params.toString()}`, '_blank', 'noopener,noreferrer');
+}
+
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-}
-
-async function openAnswerModal(questionId) {
-    currentQuestionId = questionId;
-    
-    try {
-        const response = await fetch(`/api/questions/${questionId}`, {
-            credentials: 'include'
-        });
-        
-        if (response.status === 401) {
-            window.location.href = '/auth/login';
-            return;
-        }
-        
-        const data = await response.json();
-        
-        if (data.success && data.question) {
-            const q = data.question;
-            
-            document.getElementById('question-details').innerHTML = `
-                <div class="mb-3">
-                    <strong>Produto:</strong> ${escapeHtml(q.item_title || 'N/A')}
-                </div>
-                <div class="mb-3">
-                    <strong>Pergunta:</strong>
-                    <div class="alert alert-light mt-2">
-                        ${escapeHtml(q.question_text || 'N/A')}
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <strong>Comprador:</strong> ${escapeHtml(q.buyer_nickname || 'N/A')}
-                </div>
-            `;
-            
-            document.getElementById('answer-text').value = '';
-            
-            const modal = new bootstrap.Modal(document.getElementById('answerModal'));
-            modal.show();
-        } else {
-            showMessage('error', 'Erro ao carregar pergunta', data.error || 'Erro desconhecido ao carregar detalhes da pergunta.');
-        }
-    } catch (error) {
-        console.error('Erro ao abrir modal:', error);
-        showMessage('error', 'Erro', 'Erro ao carregar pergunta. Tente novamente.');
-    }
-}
-
-async function submitAnswer() {
-    const answerText = document.getElementById('answer-text').value.trim();
-    
-    if (!answerText) {
-        showMessage('warning', 'Campo obrigatório', 'Por favor, digite uma resposta.');
-        return;
-    }
-    
-    if (!currentQuestionId) {
-        showMessage('error', 'Erro', 'ID da pergunta não encontrado.');
-        return;
-    }
-    
-    // Desabilitar botão durante envio
-    const submitBtn = document.querySelector('#answerModal button[onclick="submitAnswer()"]');
-    const originalText = submitBtn ? submitBtn.innerHTML : '';
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="bi bi-hourglass-split spinner-border spinner-border-sm"></i> Enviando...';
-    }
-    
-    try {
-        const response = await fetch(`/api/questions/${currentQuestionId}/answer`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({ text: answerText })
-        });
-        
-        if (response.status === 401) {
-            window.location.href = '/auth/login';
-            return;
-        }
-        
-        const data = await response.json();
-        
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalText;
-        }
-        
-        if (data.success) {
-            showMessage('success', 'Sucesso', 'Resposta enviada com sucesso!');
-            
-            // Fechar modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('answerModal'));
-            modal.hide();
-            
-            // Recarregar perguntas
-            loadQuestions();
-        } else {
-            showMessage('error', 'Erro ao enviar resposta', data.error || 'Erro desconhecido ao enviar resposta.');
-        }
-    } catch (error) {
-        console.error('Erro ao enviar resposta:', error);
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalText;
-        }
-        showMessage('error', 'Erro', 'Erro ao enviar resposta. Tente novamente.');
-    }
 }
 
 async function syncQuestions() {

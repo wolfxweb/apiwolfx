@@ -35,6 +35,15 @@ async def messages_page(
     from app.views.template_renderer import render_template
     return render_template("ml_messages.html", user=user_data)
 
+@ml_messages_router.get("/ml/messages", response_class=HTMLResponse)
+async def messages_page_with_prefix(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Alias com prefixo /ml para compatibilidade"""
+    return await messages_page(request, session_token=session_token, db=db)
+
 @ml_messages_router.get("/api/messages")
 async def get_threads_api(
     request: Request,

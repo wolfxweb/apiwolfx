@@ -347,6 +347,150 @@
     <!-- Custom JS -->
     <script src="/static/js/custom.js"></script>
     
+    {% if user %}
+    <script>
+    (function () {
+        const POLL_INTERVAL = 60000; // 60 segundos
+        const companyId = {{ user.company.id if user and user.company else 'null' }};
+        if (!companyId) {
+            return;
+        }
+
+        const STORAGE_PREFIX = `ml_activity_company_${companyId}`;
+        const QUESTION_KEY = `${STORAGE_PREFIX}_question`;
+        const MESSAGE_KEY = `${STORAGE_PREFIX}_message`;
+
+        let firstRun = true;
+        let pollTimer = null;
+
+        function getStored(key) {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : null;
+            } catch (error) {
+                console.warn('Não foi possível ler storage para', key, error);
+                return null;
+            }
+        }
+
+        function setStored(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (error) {
+                console.warn('Não foi possível atualizar storage para', key, error);
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                window.MLAPI.showNotification(message, type, 8000);
+            } else {
+                console.info('[Notif]', message);
+            }
+        }
+
+        function processQuestionSummary(data) {
+            if (!data || !data.latest_question_date) {
+                return;
+            }
+
+            const latestInfo = {
+                id: data.latest_db_id,
+                ts: data.latest_question_date,
+            };
+
+            const stored = getStored(QUESTION_KEY);
+            const isDifferent =
+                !stored ||
+                stored.ts !== latestInfo.ts ||
+                stored.id !== latestInfo.id;
+
+            if (isDifferent) {
+                setStored(QUESTION_KEY, latestInfo);
+                if (!firstRun) {
+                    const buyer = data.latest_buyer || 'comprador';
+                    const title = data.latest_item_title || 'produto';
+                    showToast(`📨 Nova pergunta de ${buyer} sobre ${title}`, 'info');
+                }
+            }
+        }
+
+        function processMessageSummary(data) {
+            if (!data || !data.latest_message_date) {
+                return;
+            }
+
+            const latestInfo = {
+                id: data.latest_thread_id,
+                ts: data.latest_message_date,
+            };
+
+            const stored = getStored(MESSAGE_KEY);
+            const isDifferent =
+                !stored ||
+                stored.ts !== latestInfo.ts ||
+                stored.id !== latestInfo.id;
+
+            if (isDifferent) {
+                setStored(MESSAGE_KEY, latestInfo);
+                if (!firstRun) {
+                    const buyer = data.latest_buyer || 'cliente';
+                    const snippet = data.latest_text
+                        ? `“${data.latest_text.substring(0, 80)}${data.latest_text.length > 80 ? '…' : ''}”`
+                        : 'Nova mensagem recebida.';
+                    showToast(`💬 Nova mensagem pós-venda de ${buyer}. ${snippet}`, 'info');
+                }
+            }
+        }
+
+        async function pollActivity() {
+            try {
+                const response = await fetch('/api/activity/summary', {
+                    credentials: 'include',
+                });
+
+                if (response.status === 401) {
+                    clearInterval(pollTimer);
+                    return;
+                }
+
+                const data = await response.json();
+                if (!data || !data.success) {
+                    return;
+                }
+
+                processQuestionSummary(data.questions);
+                processMessageSummary(data.messages);
+            } catch (error) {
+                console.warn('Não foi possível obter resumo de atividades:', error);
+            } finally {
+                firstRun = false;
+            }
+        }
+
+        function startPolling() {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+            }
+            pollActivity();
+            pollTimer = setInterval(() => {
+                if (!document.hidden) {
+                    pollActivity();
+                }
+            }, POLL_INTERVAL);
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                pollActivity();
+            }
+        });
+
+        startPolling();
+    })();
+    </script>
+    {% endif %}
+    
     {% block extra_js %}{% endblock %}
 </body>
 </html>

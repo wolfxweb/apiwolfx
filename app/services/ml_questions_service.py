@@ -130,6 +130,33 @@ class MLQuestionsService:
             logger.error(f"Erro ao responder pergunta {question_id}: {e}", exc_info=True)
             return {}
     
+    def get_item_details(self, item_id: str, access_token: str) -> Optional[Dict]:
+        """Busca detalhes de um item para enriquecer a pergunta"""
+        try:
+            if not item_id:
+                return None
+
+            url = f"{self.base_url}/items/{item_id}"
+            headers = {
+                **self.headers,
+                "Authorization": f"Bearer {access_token}"
+            }
+
+            response = requests.get(url, headers=headers, timeout=15)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(
+                    "Erro ao buscar detalhes do item %s: %s - %s",
+                    item_id,
+                    response.status_code,
+                    response.text[:200]
+                )
+                return None
+        except Exception as e:
+            logger.error(f"Erro ao buscar detalhes do item {item_id}: {e}", exc_info=True)
+            return None
+
     def save_question_to_db(self, question_data: Dict, company_id: int, ml_account_id: int) -> Optional[MLQuestion]:
         """Salva ou atualiza pergunta no banco"""
         try:

@@ -2,6 +2,7 @@
 Controller para gerenciar perguntas do Mercado Livre
 """
 import logging
+from datetime import datetime
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 
@@ -50,6 +51,12 @@ class MLQuestionsController:
                     pass
             
             questions = query.order_by(MLQuestion.question_date.desc()).limit(limit).all()
+            questions_updated = False
+            for question in questions:
+                if self._ensure_question_item_details(question, company_id):
+                    questions_updated = True
+            if questions_updated:
+                self.db.commit()
             
             return {
                 "success": True,
@@ -367,6 +374,9 @@ class MLQuestionsController:
             "id": question.id,
             "ml_question_id": question.ml_question_id,
             "ml_item_id": question.ml_item_id,
+            "ml_account_id": question.ml_account_id,
+            "ml_buyer_id": question.ml_buyer_id,
+            "ml_seller_id": question.ml_seller_id,
             "item_title": question.item_title,
             "item_thumbnail": question.item_thumbnail,
             "question_text": question.question_text,
@@ -382,4 +392,94 @@ class MLQuestionsController:
             "deleted_from_list": question.deleted_from_list,
             "hold": question.hold
         }
+
+    def _ensure_question_item_details(self, question: MLQuestion, company_id: int) -> bool:
+        """Garante que a pergunta possui dados essenciais do produto e comprador"""
+        try:
+            needs_title = not question.item_title or not question.item_title.strip()
+            needs_thumbnail = not question.item_thumbnail or not question.item_thumbnail.strip()
+            needs_buyer = not question.buyer_nickname or not question.buyer_nickname.strip() or not question.ml_buyer_id
+
+            if not (needs_title or needs_thumbnail or needs_buyer):
+                return False
+
+            if not question.ml_item_id:
+                # Ainda podemos tentar preencher via question details
+                needs_item_id = True
+            else:
+                needs_item_id = False
+
+            token_manager = TokenManager(self.db)
+            token_record = token_manager.get_token_record_for_account(question.ml_account_id, company_id)
+            if not token_record:
+                logger.debug(
+                    "Token não encontrado para enriquecer pergunta %s (ml_account_id=%s)",
+                    question.id,
+                    question.ml_account_id,
+                )
+                return False
+
+            # Buscar detalhes completos da pergunta quando faltarem dados do comprador ou item
+            question_data = None
+            buyer_updated = False
+            if needs_buyer or needs_item_id or needs_title or needs_thumbnail:
+                question_data = self.service.get_question_details(question.ml_question_id, token_record.access_token)
+                if question_data:
+                    from_data = question_data.get("from", {})
+                    if from_data:
+                        if needs_buyer and from_data.get("nickname"):
+                            question.buyer_nickname = from_data.get("nickname")
+                            buyer_updated = True
+                        if from_data.get("id"):
+                            question.ml_buyer_id = str(from_data.get("id"))
+                            buyer_updated = True
+                    if not question.question_text and question_data.get("text"):
+                        question.question_text = question_data.get("text")
+                    if (needs_item_id or not question.ml_item_id) and question_data.get("item_id"):
+                        question.ml_item_id = str(question_data.get("item_id"))
+                    # Algumas respostas trazem campos básicos do item
+                    item_block = question_data.get("item") if isinstance(question_data.get("item"), dict) else None
+                    if item_block:
+                        if needs_title and item_block.get("title"):
+                            question.item_title = item_block.get("title")
+                            needs_title = False
+                        if needs_thumbnail and item_block.get("thumbnail"):
+                            question.item_thumbnail = item_block.get("thumbnail")
+                            needs_thumbnail = False
+
+            # Após possível hidratação, reavaliar se ainda precisamos buscar o item completo
+            if not question.ml_item_id:
+                return buyer_updated
+
+            item_data = None
+            if needs_title or needs_thumbnail:
+                item_data = self.service.get_item_details(question.ml_item_id, token_record.access_token)
+                if not item_data:
+                    return buyer_updated
+
+            updated = False
+            if item_data:
+                if needs_title and item_data.get("title"):
+                    question.item_title = item_data["title"]
+                    updated = True
+
+                if needs_thumbnail:
+                    thumb = item_data.get("secure_thumbnail") or item_data.get("thumbnail")
+                    if not thumb and item_data.get("pictures"):
+                        first_pic = item_data["pictures"][0]
+                        thumb = first_pic.get("secure_url") or first_pic.get("url")
+                    if thumb:
+                        question.item_thumbnail = thumb
+                        updated = True
+
+            if buyer_updated:
+                updated = True
+
+            if updated:
+                question.updated_at = datetime.utcnow()
+                return True
+            return False
+        except Exception as e:
+            logger.error("Erro ao enriquecer dados da pergunta %s: %s", question.id, e, exc_info=True)
+            return False
 

@@ -208,12 +208,32 @@
 let currentThreadId = null;
 let threadsData = [];
 let searchTimeout = null;
+let pendingThreadParams = null;
 
 // Carregar dados iniciais
-document.addEventListener('DOMContentLoaded', function() {
-    loadAccounts();
-    loadReasons();
-    loadThreads();
+document.addEventListener('DOMContentLoaded', async function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    pendingThreadParams = {
+        accountId: urlParams.get('ml_account_id'),
+        buyerId: urlParams.get('buyer_id'),
+        threadId: urlParams.get('thread_id'),
+        itemId: urlParams.get('item_id'),
+        questionId: urlParams.get('question_id')
+    };
+
+    if (!pendingThreadParams.accountId && !pendingThreadParams.buyerId && !pendingThreadParams.threadId && !pendingThreadParams.itemId && !pendingThreadParams.questionId) {
+        pendingThreadParams = null;
+    }
+
+    await loadAccounts();
+    if (pendingThreadParams && pendingThreadParams.accountId) {
+        const accountSelect = document.getElementById('account_filter');
+        if (accountSelect) {
+            accountSelect.value = pendingThreadParams.accountId;
+        }
+    }
+    await loadReasons();
+    await loadThreads(true);
 });
 
 function debounceSearch() {
@@ -267,7 +287,7 @@ async function loadReasons() {
     }
 }
 
-async function loadThreads() {
+async function loadThreads(applyPendingSelection = false) {
     const statusFilter = document.getElementById('status_filter').value;
     const accountFilter = document.getElementById('account_filter').value;
     const searchFilter = document.getElementById('search_filter').value.toLowerCase();
@@ -297,6 +317,10 @@ async function loadThreads() {
             }
             
             renderThreadsList(filtered);
+            if (applyPendingSelection || pendingThreadParams) {
+                // Garantir que o DOM foi atualizado antes de tentar abrir o thread
+                setTimeout(() => applyPendingThreadSelection(), 50);
+            }
         } else {
             document.getElementById('threads-list').innerHTML = '<p class="text-center text-muted p-3">Nenhuma conversa encontrada</p>';
         }
@@ -332,6 +356,30 @@ function renderThreadsList(threads) {
             </div>
         `;
     }).join('');
+}
+
+function applyPendingThreadSelection() {
+    if (!pendingThreadParams) {
+        return;
+    }
+
+    let targetThread = null;
+
+    if (pendingThreadParams.threadId) {
+        targetThread = threadsData.find(t => 
+            String(t.id) === String(pendingThreadParams.threadId) ||
+            String(t.ml_thread_id) === String(pendingThreadParams.threadId)
+        );
+    }
+
+    if (!targetThread && pendingThreadParams.buyerId) {
+        targetThread = threadsData.find(t => String(t.ml_buyer_id) === String(pendingThreadParams.buyerId));
+    }
+
+    if (targetThread) {
+        openThread(targetThread.id);
+        pendingThreadParams = null;
+    }
 }
 
 async function openThread(threadId) {

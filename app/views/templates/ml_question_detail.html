@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Pergunta #{{ question.ml_question_id }}{% endblock %}
+
+{% block content %}
+{% set _item_id = question.ml_item_id or '' %}
+{% set _item_slug = _item_id %}
+{% if _item_id and not _item_id.startswith('MLB') %}
+    {% set _item_slug = 'MLB-' ~ _item_id.replace('MLB', '') %}
+{% endif %}
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <a href="/ml/questions" class="btn btn-link ps-0 text-decoration-none">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+            <h3 class="mb-0 mt-2">
+                Pergunta #{{ question.ml_question_id }}
+            </h3>
+            <small class="text-muted">
+                {% if question.status == 'UNANSWERED' %}
+                    <span class="badge bg-warning text-dark">Não respondida</span>
+                {% elif question.status == 'ANSWERED' %}
+                    <span class="badge bg-success">Respondida</span>
+                {% elif question.status == 'CLOSED_UNANSWERED' %}
+                    <span class="badge bg-secondary">Fechada</span>
+                {% else %}
+                    <span class="badge bg-light text-dark">{{ question.status or 'Desconhecido' }}</span>
+                {% endif %}
+            </small>
+        </div>
+        <div class="d-flex gap-2">
+            {% if _item_id %}
+            <a class="btn btn-light border"
+               href="https://produto.mercadolivre.com.br/{{ _item_slug }}"
+               target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-box-arrow-up-right"></i> Ver anúncio
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <div class="d-flex align-items-start gap-3 flex-wrap">
+                <div>
+                    {% if question.item_thumbnail %}
+                        <img src="{{ question.item_thumbnail }}"
+                             alt="{{ question.item_title or 'Produto' }}"
+                             class="rounded border"
+                             style="width: 96px; height: 96px; object-fit: cover;">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center bg-light border rounded"
+                             style="width: 96px; height: 96px;">
+                            <i class="bi bi-image text-muted" style="font-size: 2rem;"></i>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="flex-grow-1">
+                    <p class="text-muted small mb-1">
+                        Produto
+                    </p>
+                    <h5 class="mb-2">{{ question.item_title or 'Produto sem título' }}</h5>
+                    <div class="d-flex flex-wrap gap-3 text-muted small">
+                        <span>ID anúncio: <code>{{ question.ml_item_id or 'N/A' }}</code></span>
+                        <span>Perguntado em: {{ question.question_date or 'N/A' }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div>
+                <p class="text-muted small mb-1">Pergunta do comprador</p>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-light text-dark">
+                        <i class="bi bi-person"></i> {{ question.buyer_nickname or 'Comprador' }}
+                    </span>
+                    {% if question.ml_buyer_id %}
+                        <span class="text-muted small">ID: {{ question.ml_buyer_id }}</span>
+                    {% endif %}
+                </div>
+                <div class="p-3 bg-light rounded border mb-3">
+                    {{ question.question_text or 'Sem texto disponível' }}
+                </div>
+            </div>
+
+            {% if question.answer_text %}
+                <div class="mt-4">
+                    <p class="text-muted small mb-1">Resposta enviada</p>
+                    <div class="p-3 border rounded bg-white">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-success">Respondido</span>
+                            <small class="text-muted">{{ question.answered_at or 'Data indisponível' }}</small>
+                        </div>
+                        <p class="mb-0">{{ question.answer_text }}</p>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="mt-4">
+                <p class="text-muted small mb-1">Detalhes</p>
+                <div class="row g-3 text-muted small">
+                    <div class="col-sm-4">
+                        <strong>Conta ML</strong><br>
+                        {{ question.ml_account_id or 'N/A' }}
+                    </div>
+                    <div class="col-sm-4">
+                        <strong>Seller ID</strong><br>
+                        {{ question.ml_seller_id or 'N/A' }}
+                    </div>
+                    <div class="col-sm-4">
+                        <strong>Atualizado em</strong><br>
+                        {{ question.updated_at or 'N/A' }}
+                    </div>
+                </div>
+            </div>
+
+            {% if question.status == 'UNANSWERED' %}
+            <hr class="my-4">
+            <div>
+                <p class="text-muted small mb-2">Responder pergunta</p>
+                <div id="answer-feedback" class="alert" role="alert" style="display: none;"></div>
+                <form id="answer-form" class="d-grid gap-3">
+                    <textarea id="answer-text"
+                              class="form-control"
+                              rows="5"
+                              placeholder="Escreva sua resposta para o comprador..."
+                              required></textarea>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <small class="text-muted">
+                            A resposta será enviada ao Mercado Livre e ficará visível para o comprador.
+                        </small>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> Enviar resposta
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+const answerForm = document.getElementById('answer-form');
+const feedbackBox = document.getElementById('answer-feedback');
+
+if (answerForm) {
+    answerForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const message = document.getElementById('answer-text').value.trim();
+        if (!message) {
+            showFeedback('Por favor, digite uma resposta.', 'warning');
+            return;
+        }
+
+        const submitButton = answerForm.querySelector('button[type="submit"]');
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="bi bi-hourglass-split spinner-border spinner-border-sm"></i> Enviando...';
+
+        try {
+            const response = await fetch(`/api/questions/{{ question.id }}/answer`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ text: message })
+            });
+
+            if (response.status === 401) {
+                window.location.href = '/auth/login';
+                return;
+            }
+
+            const data = await response.json();
+            if (data.success) {
+                showFeedback('Resposta enviada com sucesso!', 'success');
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                showFeedback(data.error || 'Erro ao enviar resposta. Tente novamente.', 'danger');
+            }
+        } catch (error) {
+            console.error('Erro ao enviar resposta:', error);
+            showFeedback('Erro ao enviar resposta. Verifique sua conexão e tente novamente.', 'danger');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        }
+    });
+}
+
+function showFeedback(message, type) {
+    if (!feedbackBox) return;
+    feedbackBox.className = `alert alert-${type}`;
+    feedbackBox.textContent = message;
+    feedbackBox.style.display = 'block';
+}
+</script>
+{% endblock %}
+
+

@@ -35,6 +35,56 @@ async def questions_page(
     from app.views.template_renderer import render_template
     return render_template("ml_questions.html", user=user_data)
 
+@ml_questions_router.get("/ml/questions", response_class=HTMLResponse)
+async def questions_page_with_prefix(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Alias com prefixo /ml para compatibilidade"""
+    return await questions_page(request, session_token=session_token, db=db)
+
+@ml_questions_router.get("/ml/questions/{question_id}", response_class=HTMLResponse)
+async def question_detail_page_with_prefix(
+    question_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Alias com prefixo /ml para página de detalhes de pergunta"""
+    return await question_detail_page(question_id, request, session_token=session_token, db=db)
+
+@ml_questions_router.get("/questions/{question_id}", response_class=HTMLResponse)
+async def question_detail_page(
+    question_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de detalhes de uma pergunta específica"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    company_id = user_data["company"]["id"]
+    
+    controller = MLQuestionsController(db)
+    question_result = controller.get_question(question_id, company_id)
+    
+    if not question_result.get("success"):
+        return RedirectResponse(url="/ml/questions?error=not_found", status_code=302)
+    
+    from app.views.template_renderer import render_template
+    return render_template(
+        "ml_question_detail.html",
+        user=user_data,
+        question=question_result["question"]
+    )
+
 @ml_questions_router.get("/api/questions")
 async def get_questions_api(
     request: Request,

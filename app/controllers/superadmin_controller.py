@@ -592,55 +592,47 @@ class SuperAdminController:
                 # Deletar tabelas normais (com company_id)
                 for table in level_tables:
                     try:
-                        # Rollback de qualquer erro anterior
                         try:
                             self.db.rollback()
-                        except:
+                        except Exception:
                             pass
-                        
+
                         result = self.db.execute(
                             text(f"DELETE FROM {table} WHERE company_id = :company_id"),
                             {"company_id": company_id}
                         )
                         count = result.rowcount if hasattr(result, 'rowcount') else 0
-                        
-                        # COMMIT imediatamente se deletou algo
+
                         if count > 0:
                             self.db.commit()
                             deleted_count += count
                             deleted_in_level += count
                             print(f"  ✅ {table}: {count} registro(s) deletado(s)")
-                        
                     except Exception as e:
                         error_str = str(e).lower()
-                        # Rollback do erro
                         try:
                             self.db.rollback()
-                        except:
+                        except Exception:
                             pass
-                        
-                        # Ignorar apenas se for tabela inexistente ou FK esperada
+
                         if "does not exist" not in error_str and "undefinedtable" not in error_str:
                             if "foreign key" in error_str or "violates" in error_str:
-                                # FK error - pode ser que a tabela ainda tenha dependências
-                                # Tentaremos novamente nas próximas passadas
                                 print(f"  ⚠️  {table}: bloqueada por FK (será tentada novamente)")
                             else:
                                 print(f"  ⏭️  {table}: {str(e)[:80]}")
-                
+
                 # Deletar tabelas especiais (sem company_id direto) no nível 1
                 if level_num == 1:
                     for table_name, fk_column, parent_table in level_1_special:
                         try:
                             try:
                                 self.db.rollback()
-                            except:
+                            except Exception:
                                 pass
-                            
-                            # Deletar via subquery: DELETE FROM table WHERE fk_column IN (SELECT id FROM parent WHERE company_id = X)
+
                             result = self.db.execute(
                                 text(f"""
-                                    DELETE FROM {table_name} 
+                                    DELETE FROM {table_name}
                                     WHERE {fk_column} IN (
                                         SELECT id FROM {parent_table} WHERE company_id = :company_id
                                     )
@@ -648,20 +640,19 @@ class SuperAdminController:
                                 {"company_id": company_id}
                             )
                             count = result.rowcount if hasattr(result, 'rowcount') else 0
-                            
+
                             if count > 0:
                                 self.db.commit()
                                 deleted_count += count
                                 deleted_in_level += count
                                 print(f"  ✅ {table_name}: {count} registro(s) deletado(s)")
-                                
                         except Exception as e:
                             error_str = str(e).lower()
                             try:
                                 self.db.rollback()
-                            except:
+                            except Exception:
                                 pass
-                            
+
                             if "does not exist" not in error_str and "undefinedtable" not in error_str:
                                 if "foreign key" in error_str or "violates" in error_str:
                                     print(f"  ⚠️  {table_name}: bloqueada por FK (será tentada novamente)")
@@ -731,27 +722,23 @@ class SuperAdminController:
             
             if ml_accounts_check > 0:
                 print(f"  ⚠️  Ainda há {ml_accounts_check} conta(s) ML. Tentando deletar forçadamente...")
-                
-                # Deletar todas as dependências de ml_accounts primeiro
+
                 ml_account_ids = self.db.execute(
                     text("SELECT id FROM ml_accounts WHERE company_id = :company_id"),
                     {"company_id": company_id}
                 ).fetchall()
-                
+
                 if ml_account_ids:
                     ml_account_ids_list = [row[0] for row in ml_account_ids]
                     print(f"  🔍 Encontradas {len(ml_account_ids_list)} conta(s) ML: {ml_account_ids_list}")
-                    
-                    # Deletar dependências de ml_accounts (em múltiplas passadas recursivas)
+
                     dependent_tables = [
-                        # Nível 1: Dependências diretas de ml_accounts
                         ("ml_campaign_metrics", "campaign_id", "ml_campaigns", "ml_account_id"),
                         ("ml_campaign_products", "campaign_id", "ml_campaigns", "ml_account_id"),
                         ("ml_product_attributes", "ml_product_id", "ml_products", "ml_account_id"),
                         ("ai_product_analysis", "ml_product_id", "ml_products", "ml_account_id"),
                         ("ml_catalog_history", "monitoring_id", "ml_catalog_monitoring", "ml_account_id"),
                         ("ml_messages", "thread_id", "ml_message_threads", "ml_account_id"),
-                        # Nível 2: Dependências diretas
                         ("tokens", "ml_account_id", None, None),
                         ("ml_products", "ml_account_id", None, None),
                         ("ml_orders", "ml_account_id", None, None),
@@ -762,51 +749,42 @@ class SuperAdminController:
                         ("ml_catalog_monitoring", "ml_account_id", None, None),
                         ("user_ml_accounts", "ml_account_id", None, None),
                     ]
-                    
-                    # Fazer múltiplas passadas para deletar dependências recursivas
+
                     max_force_passes = 5
                     for force_pass in range(max_force_passes):
                         deleted_in_pass = 0
                         print(f"    🔄 Passada forçada {force_pass + 1}/{max_force_passes}:")
-                        
+
                         for dep_info in dependent_tables:
                             if len(dep_info) == 4:
                                 dep_table, fk_column, parent_table, parent_fk = dep_info
                             else:
                                 dep_table, fk_column = dep_info[:2]
                                 parent_table, parent_fk = None, None
-                            
+
                             try:
                                 self.db.rollback()
-                            except:
+                            except Exception:
                                 pass
-                            
+
                             try:
-                                # Se tem parent_table, deletar via subquery
+                                placeholders = ','.join([':id' + str(i) for i in range(len(ml_account_ids_list))])
+                                params = {f'id{i}': ml_id for i, ml_id in enumerate(ml_account_ids_list)}
+
                                 if parent_table and parent_fk:
-                                    placeholders = ','.join([':id' + str(i) for i in range(len(ml_account_ids_list))])
-                                    params = {f'id{i}': ml_id for i, ml_id in enumerate(ml_account_ids_list)}
-                                    result = self.db.execute(
-                                        text(f"""
-                                            DELETE FROM {dep_table} 
-                                            WHERE {fk_column} IN (
-                                                SELECT id FROM {parent_table} 
-                                                WHERE {parent_fk} IN ({placeholders})
-                                            )
-                                        """),
-                                        params
-                                    )
+                                    query = text(f"""
+                                        DELETE FROM {dep_table}
+                                        WHERE {fk_column} IN (
+                                            SELECT id FROM {parent_table}
+                                            WHERE {parent_fk} IN ({placeholders})
+                                        )
+                                    """)
                                 else:
-                                    # Deletar diretamente
-                                    placeholders = ','.join([':id' + str(i) for i in range(len(ml_account_ids_list))])
-                                    params = {f'id{i}': ml_id for i, ml_id in enumerate(ml_account_ids_list)}
-                                    result = self.db.execute(
-                                        text(f"DELETE FROM {dep_table} WHERE {fk_column} IN ({placeholders})"),
-                                        params
-                                    )
-                                
+                                    query = text(f"DELETE FROM {dep_table} WHERE {fk_column} IN ({placeholders})")
+
+                                result = self.db.execute(query, params)
                                 count = result.rowcount if hasattr(result, 'rowcount') else 0
-                                if count > 0:
+                                if count and count > 0:
                                     self.db.commit()
                                     deleted_count += count
                                     deleted_in_pass += count
@@ -815,19 +793,17 @@ class SuperAdminController:
                                 error_str = str(e).lower()
                                 try:
                                     self.db.rollback()
-                                except:
+                                except Exception:
                                     pass
                                 if "does not exist" not in error_str and "undefinedtable" not in error_str:
                                     if "foreign key" in error_str or "violates" in error_str:
-                                        # FK error - pode ter dependências ainda
-                                        pass  # Tentar na próxima passada
+                                        pass
                                     else:
                                         print(f"      ⚠️  {dep_table}: {str(e)[:60]}")
-                        
+
                         if deleted_in_pass == 0:
                             break
-                    
-                    # Verificar se ainda há dependências antes de deletar ml_accounts
+
                     print(f"    🔍 Verificando dependências restantes...")
                     remaining_deps = []
                     for dep_info in dependent_tables:
@@ -840,30 +816,29 @@ class SuperAdminController:
                                 text(f"SELECT COUNT(*) FROM {dep_table} WHERE {fk_column} IN ({placeholders})"),
                                 params
                             ).scalar()
-                            if count > 0:
+                            if count and count > 0:
                                 remaining_deps.append(f"{dep_table}: {count}")
-                        except:
+                        except Exception:
                             pass
-                    
+
                     if remaining_deps:
                         print(f"    ⚠️  Dependências restantes: {', '.join(remaining_deps)}")
                         print(f"    🔧 Tentando deletar ml_accounts mesmo assim...")
                     else:
                         print(f"    ✅ Nenhuma dependência restante")
-                    
-                    # Agora deletar ml_accounts
+
                     try:
                         self.db.rollback()
-                    except:
+                    except Exception:
                         pass
-                    
+
                     try:
                         result = self.db.execute(
                             text("DELETE FROM ml_accounts WHERE company_id = :company_id"),
                             {"company_id": company_id}
                         )
                         count = result.rowcount if hasattr(result, 'rowcount') else 0
-                        if count > 0:
+                        if count and count > 0:
                             self.db.commit()
                             deleted_count += count
                             print(f"    ✅ ml_accounts: {count} conta(s) deletada(s) (forçado)")
@@ -872,7 +847,6 @@ class SuperAdminController:
                     except Exception as e:
                         error_msg = str(e)
                         print(f"    ❌ Erro ao deletar ml_accounts: {error_msg[:150]}")
-                        # Se ainda falhar, tentar deletar diretamente por ID
                         try:
                             self.db.rollback()
                             for ml_acc_id in ml_account_ids_list:
@@ -883,11 +857,12 @@ class SuperAdminController:
                                     )
                                     self.db.commit()
                                     print(f"    ✅ ml_accounts ID {ml_acc_id}: deletado individualmente")
-                                except:
+                                except Exception as inner_exc:
                                     self.db.rollback()
-                        except:
+                                    print(f"    ⚠️  Erro ao deletar ml_account {ml_acc_id}: {str(inner_exc)[:150]}")
+                        except Exception:
                             pass
-            
+
             # Verificar se ainda há usuários vinculados a esta empresa
             try:
                 remaining_users = self.db.execute(
@@ -936,7 +911,7 @@ class SuperAdminController:
                         print(f"  ❌ Erro ao remover usuário {user_id}: {str(e)[:150]}")
                         try:
                             self.db.rollback()
-                        except:
+                        except Exception:
                             pass
 
                 if deleted_users > 0:

@@ -2,12 +2,14 @@
 Controller para gerenciar mensagens pós-venda do Mercado Livre
 """
 import logging
+from datetime import datetime
 from typing import Dict, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 
 from app.models.saas_models import MLMessageThread, MLMessage, MLAccount, MLAccountStatus, MLMessageThreadStatus
 from app.services.ml_messages_service import MLMessagesService
+from app.services.token_manager import TokenManager
 from app.utils.notification_logger import global_logger
 
 logger = logging.getLogger(__name__)
@@ -326,6 +328,7 @@ class MLMessagesController:
             "id": thread.id,
             "ml_thread_id": thread.ml_thread_id,
             "ml_package_id": thread.ml_package_id,
+            "ml_account_id": thread.ml_account_id,
             "ml_buyer_id": thread.ml_buyer_id,
             "buyer_nickname": thread.buyer_nickname,
             "reason": thread.reason,
@@ -359,114 +362,147 @@ class MLMessagesController:
     def process_notification(self, resource: str, ml_user_id: int, company_id: int) -> Dict:
         """Processa notificação de nova mensagem"""
         try:
-            # Buscar token baseado em ml_user_id
-            from sqlalchemy import text
-            logger.info(f"🔍 Buscando token para ml_user_id={ml_user_id}, company_id={company_id}")
-            
-            token_query = text("""
-                SELECT t.access_token 
-                FROM tokens t
-                JOIN ml_accounts mla ON t.ml_account_id = mla.id
-                WHERE mla.ml_user_id = :ml_user_id 
-                  AND mla.company_id = :company_id
-                  AND t.is_active = true
-                ORDER BY t.expires_at DESC
-                LIMIT 1
-            """)
-            
-            logger.info(f"📝 Executando query SQL para buscar token...")
-            result = self.db.execute(token_query, {"ml_user_id": str(ml_user_id), "company_id": company_id})
-            token_row = result.fetchone()
-            
-            if not token_row:
-                logger.error(f"❌ Token não encontrado para ml_user_id: {ml_user_id}, company_id: {company_id}")
-                logger.error(f"❌ Verificando se há contas ML cadastradas para este company_id...")
-                
-                # Verificar se existe conta ML
-                accounts_count = self.db.query(MLAccount).filter(
-                    MLAccount.company_id == company_id
-                ).count()
-                logger.error(f"❌ Total de contas ML para company_id {company_id}: {accounts_count}")
-                
-                return {
-                    "success": False,
-                    "error": "Token não encontrado"
-                }
-            
-            access_token = token_row[0]
-            logger.info(f"✅ Token encontrado! (últimos 10 caracteres: ...{access_token[-10:]})")
-            
-            # Buscar account ML
-            logger.info(f"🔍 Buscando MLAccount para ml_user_id={ml_user_id}, company_id={company_id}")
+            package_id = (resource.split('/')[-1] if resource else '').strip()
+            if not package_id:
+                logger.error(f"❌ Package ID vazio ou inválido: {resource}")
+                return {"success": False, "error": "Package ID inválido"}
+
+            logger.info(f"📦 Package ID normalizado: {package_id}")
+
             ml_account = self.db.query(MLAccount).filter(
                 MLAccount.ml_user_id == str(ml_user_id),
                 MLAccount.company_id == company_id
             ).first()
-            
+
             if not ml_account:
-                logger.error(f"❌ MLAccount não encontrado para ml_user_id: {ml_user_id}, company_id: {company_id}")
-                
-                # Listar todas as contas disponíveis para debug
-                all_accounts = self.db.query(MLAccount).filter(
-                    MLAccount.company_id == company_id
-                ).all()
-                logger.error(f"❌ Contas ML disponíveis para company_id {company_id}:")
-                for acc in all_accounts:
-                    logger.error(f"   - ml_account_id: {acc.id}, ml_user_id: {acc.ml_user_id}, status: {acc.status}")
-                
-                return {
-                    "success": False,
-                    "error": "Conta ML não encontrada"
+                logger.error(
+                    "❌ MLAccount não encontrado para ml_user_id: %s, company_id: %s",
+                    ml_user_id,
+                    company_id,
+                )
+                return {"success": False, "error": "Conta ML não encontrada"}
+
+            existing_thread = self.db.query(MLMessageThread).filter(
+                MLMessageThread.ml_thread_id == str(package_id),
+                MLMessageThread.company_id == company_id
+            ).first()
+
+            token_manager = TokenManager(self.db)
+            token_record = token_manager.get_token_record_for_account(ml_account.id, company_id)
+            access_token = token_record.access_token if token_record else None
+
+            if not access_token:
+                logger.warning(
+                    "⚠️ Token indisponível para ml_account_id=%s. Criando registro básico do thread.",
+                    ml_account.id,
+                )
+                if existing_thread:
+                    return {"success": True, "thread_id": existing_thread.id, "pending_sync": True}
+
+                stub_data = {
+                    "id": package_id,
+                    "package_id": package_id,
+                    "status": "open",
+                    "reason": "post_sale",
+                    "subject": None,
+                    "buyer": {},
+                    "messages": [],
+                    "orders": [],
+                    "metadata": {
+                        "pending_sync": True,
+                        "created_at": datetime.utcnow().isoformat(),
+                        "source": "notification_stub",
+                        "details": "token_unavailable"
+                    }
                 }
-            
-            logger.info(f"✅ MLAccount encontrado! ID: {ml_account.id}, ml_user_id: {ml_account.ml_user_id}, status: {ml_account.status}")
-            
-            # Buscar detalhes do pacote/thread
-            logger.info(f"🌐 Buscando detalhes do pacote/thread {resource} na API do Mercado Livre...")
+                saved_stub = self.service.save_thread_to_db(stub_data, company_id, ml_account.id, str(ml_user_id))
+                if saved_stub:
+                    global_logger.log_event(
+                        event_type="message_notification_stub",
+                        data={
+                            "ml_package_id": package_id,
+                            "ml_account_id": ml_account.id,
+                            "thread_id": saved_stub.id,
+                            "description": "Thread criado sem detalhes por ausência de token",
+                        },
+                        company_id=company_id,
+                        success=True,
+                    )
+                    return {"success": True, "thread_id": saved_stub.id, "pending_sync": True}
+                return {"success": False, "error": "Thread não pôde ser registrado"}
+
+            logger.info(f"✅ Token válido obtido (ml_account_id={ml_account.id})")
+
             seller_id = str(ml_account.ml_user_id)
-            thread_details = self.service.get_thread_messages(resource, access_token, seller_id=seller_id)
-            
+            thread_details = self.service.get_thread_messages(package_id, access_token, seller_id=seller_id)
+
             if thread_details:
-                logger.info(f"✅ Detalhes do thread recebidos da API!")
-                logger.info(f"📊 Chaves do objeto thread_details: {list(thread_details.keys())}")
-                
-                thread_data = {"id": resource, "package_id": resource}
+                logger.info("✅ Detalhes do thread recebidos da API; salvando informações completas")
+                thread_data = {"id": package_id, "package_id": package_id}
                 thread_data.update(thread_details)
-                
-                logger.info(f"💾 Salvando thread no banco de dados...")
-                logger.info(f"📋 Dados a serem salvos: package_id={resource}, company_id={company_id}, ml_account_id={ml_account.id}")
-                
+                thread_data.setdefault("metadata", {})
+                thread_data["metadata"].update({
+                    "pending_sync": False,
+                    "last_sync": datetime.utcnow().isoformat(),
+                    "source": "notification_fetch"
+                })
+
                 saved = self.service.save_thread_to_db(thread_data, company_id, ml_account.id, str(ml_user_id))
-                
                 if saved:
-                    logger.info(f"✅ Thread salvo com sucesso! Thread ID: {saved.id}")
-                    
                     global_logger.log_event(
                         event_type="message_notification_processed",
                         data={
-                            "ml_package_id": resource,
+                            "ml_package_id": package_id,
                             "ml_account_id": ml_account.id,
-                            "action": "created" if saved else "updated",
-                            "thread_id": saved.id if saved else None,
-                            "description": f"Mensagem pós-venda {resource} processada com sucesso"
+                            "action": "created" if not existing_thread else "updated",
+                            "thread_id": saved.id,
+                            "description": f"Thread {package_id} sincronizado com sucesso"
                         },
                         company_id=company_id,
                         success=True
                     )
-                    
-                    return {
-                        "success": True,
-                        "thread_id": saved.id if saved else None
-                    }
-                else:
-                    logger.error(f"❌ Falha ao salvar thread no banco de dados")
+                    return {"success": True, "thread_id": saved.id}
+                logger.error("❌ Falha ao salvar thread completo no banco")
             else:
-                logger.error(f"❌ Não foi possível obter detalhes do thread {resource} da API")
-            
-            return {
-                "success": False,
-                "error": "Falha ao processar notificação"
-            }
+                logger.warning(
+                    "⚠️ API não retornou detalhes para o pacote %s. Criando registro básico.",
+                    package_id,
+                )
+                if existing_thread:
+                    return {"success": True, "thread_id": existing_thread.id, "pending_sync": True}
+
+                stub_data = {
+                    "id": package_id,
+                    "package_id": package_id,
+                    "status": "open",
+                    "reason": "post_sale",
+                    "subject": None,
+                    "buyer": {},
+                    "messages": [],
+                    "orders": [],
+                    "metadata": {
+                        "pending_sync": True,
+                        "created_at": datetime.utcnow().isoformat(),
+                        "source": "notification_stub",
+                        "details": "api_unavailable"
+                    }
+                }
+                saved_stub = self.service.save_thread_to_db(stub_data, company_id, ml_account.id, str(ml_user_id))
+                if saved_stub:
+                    global_logger.log_event(
+                        event_type="message_notification_stub",
+                        data={
+                            "ml_package_id": package_id,
+                            "ml_account_id": ml_account.id,
+                            "thread_id": saved_stub.id,
+                            "description": "Thread criado sem detalhes (API indisponível)",
+                        },
+                        company_id=company_id,
+                        success=True,
+                    )
+                    return {"success": True, "thread_id": saved_stub.id, "pending_sync": True}
+
+            return {"success": False, "error": "Falha ao processar notificação"}
             
         except Exception as e:
             logger.error(f"❌ ========== EXCEÇÃO EM process_notification ==========")

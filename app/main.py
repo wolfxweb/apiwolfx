@@ -31,6 +31,7 @@ from app.routes.shipment_routes import router as shipment_router
 from app.routes.highlights_routes import highlights_router
 from app.routes.ml_questions_routes import ml_questions_router
 from app.routes.ml_messages_routes import ml_messages_router
+from app.routes.activity_routes import activity_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -222,6 +223,7 @@ app.include_router(shipment_router, prefix="/api")  # Para /api/shipments
 app.include_router(highlights_router)  # Para /ml/highlights e /api/ml/highlights
 app.include_router(ml_questions_router)  # Para /questions (HTML) e /api/questions (API)
 app.include_router(ml_messages_router)  # Para /messages (HTML) e /api/messages (API)
+app.include_router(activity_router)  # Para /api/activity/summary
 # app.include_router(settings_router)  # Removido - usando /auth/profile
 
 # Rota específica para página de edição da empresa
