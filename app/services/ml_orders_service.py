@@ -5,6 +5,7 @@ import requests
 from datetime import datetime, timedelta
 
 from app.models.saas_models import MLOrder, OrderStatus, MLAccount, MLAccountStatus
+from app.services.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +172,7 @@ class MLOrdersService:
                 }
             
             # Obter token ativo
-            access_token = self._get_active_token(ml_account_id)
+            access_token = self._get_active_token(ml_account_id, company_id)
             if not access_token:
                 return {
                     "success": False,
@@ -279,7 +280,7 @@ class MLOrdersService:
             
             # Obter token ativo: usar o fornecido (via TokenManager) ou buscar por ml_account_id
             if not access_token:
-                access_token = self._get_active_token(ml_account_id)
+                access_token = self._get_active_token(ml_account_id, company_id)
             
             if not access_token:
                 logger.error(f"❌ Token não encontrado para conta {account.nickname} (ml_account_id: {ml_account_id})")
@@ -988,9 +989,13 @@ class MLOrdersService:
             else:
                 logger.info(f"✨ Novo pedido - será criado com company_id={company_id}")
             
-            # Obter token para buscar informações adicionais
-            access_token = self._get_active_token(ml_account_id)
-            
+            access_token = self._get_active_token(ml_account_id, company_id)
+
+            if not access_token:
+                raise RuntimeError(
+                    f"Token não disponível para ml_account_id={ml_account_id} (company_id={company_id}) ao salvar pedido."
+                )
+
             # Buscar informações completas da order
             complete_order_data = self._fetch_complete_order_data(order_data, access_token)
             
@@ -1318,52 +1323,51 @@ class MLOrdersService:
                 "error": f"Erro ao validar token: {str(e)}"
             }
     
-    def _get_active_token(self, ml_account_id: int) -> Optional[str]:
-        """Obtém token ativo para uma conta ML específica, tentando renovar se expirado"""
+    def _get_active_token(self, ml_account_id: int, company_id: Optional[int] = None) -> Optional[str]:
+        """Obtém token ativo usando TokenManager, tentando renovação automática se necessário"""
         try:
-            from sqlalchemy import text
-            
-            # Primeiro, tentar buscar token válido
-            query = text("""
-                SELECT access_token, refresh_token, expires_at
-                FROM tokens 
-                WHERE ml_account_id = :ml_account_id 
-                AND is_active = true 
-                AND expires_at > NOW()
-                ORDER BY expires_at DESC
-                LIMIT 1
-            """)
-            
-            result = self.db.execute(query, {"ml_account_id": ml_account_id}).fetchone()
-            
-            if result:
-                return result[0]
-            
-            # Se não encontrou token válido, tentar renovar com refresh token
-            logger.info(f"Token expirado para ml_account_id: {ml_account_id}, tentando renovar...")
-            
-            # Buscar refresh token
-            refresh_query = text("""
-                SELECT refresh_token, access_token
-                FROM tokens 
-                WHERE ml_account_id = :ml_account_id 
-                AND is_active = true 
-                AND refresh_token IS NOT NULL
-                ORDER BY expires_at DESC
-                LIMIT 1
-            """)
-            
-            refresh_result = self.db.execute(refresh_query, {"ml_account_id": ml_account_id}).fetchone()
-            
-            if refresh_result and refresh_result[0]:
-                # Tentar renovar o token
-                new_token = self._refresh_token(refresh_result[0], ml_account_id)
-                if new_token:
-                    return new_token
-            
-            logger.warning(f"Nenhum token ativo encontrado para ml_account_id: {ml_account_id}")
+            token_manager = TokenManager(self.db)
+
+            account = (
+                self.db.query(MLAccount)
+                .filter(MLAccount.id == ml_account_id)
+                .first()
+            )
+
+            if not account:
+                logger.error(
+                    "❌ Conta ML %s não encontrada ao buscar token",
+                    ml_account_id,
+                )
+                return None
+
+            resolved_company_id = company_id or account.company_id
+
+            if resolved_company_id is None:
+                logger.error(
+                    "❌ Não foi possível determinar company_id para ml_account_id=%s ao buscar token",
+                    ml_account_id,
+                )
+                return None
+
+            expected_seller_id = str(account.ml_user_id) if account.ml_user_id else None
+
+            token_record = token_manager.get_token_record_for_account(
+                ml_account_id,
+                resolved_company_id,
+                expected_ml_user_id=expected_seller_id,
+            )
+
+            if token_record and token_record.access_token:
+                return token_record.access_token
+
+            logger.warning(
+                "⚠️ Nenhum token ativo encontrado para ml_account_id=%s (company_id=%s)",
+                ml_account_id,
+                resolved_company_id,
+            )
             return None
-                
+
         except Exception as e:
             logger.error(f"Erro ao obter token ativo: {e}")
             return None

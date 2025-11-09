@@ -622,63 +622,88 @@ class MLNotificationsController:
             )
             return None
 
-    def _get_user_token(self, ml_user_id: int, db: Session) -> str:
-        """Busca o token de acesso do usuário ML, renovando automaticamente se expirado"""
+    def _get_user_token(self, ml_user_id: int, db: Session) -> Optional[str]:
+        """Busca token ativo para o seller usando TokenManager (com renovação automática)."""
         try:
+            from app.services.token_manager import TokenManager
             from sqlalchemy import text
-            
-            # Primeiro, tentar buscar token válido (não expirado)
-            query = text("""
-                SELECT t.access_token, t.refresh_token, t.expires_at, t.ml_account_id, t.user_id
-                FROM tokens t
-                JOIN ml_accounts ma ON ma.id = t.ml_account_id
-                WHERE ma.ml_user_id = CAST(:ml_user_id AS VARCHAR)
-                AND t.is_active = true
-                AND t.expires_at > NOW()
-                ORDER BY t.expires_at DESC
-                LIMIT 1
-            """)
-            
-            result = db.execute(query, {"ml_user_id": str(ml_user_id)}).fetchone()
-            
-            if result and result[0]:
-                logger.info(f"✅ Token válido encontrado para ml_user_id: {ml_user_id}")
-                return result[0]
-            
-            # Se não encontrou token válido, tentar renovar com refresh token
-            logger.info(f"🔄 Token expirado para ml_user_id: {ml_user_id}, tentando renovar...")
-            
-            # Buscar refresh token
-            refresh_query = text("""
-                SELECT t.refresh_token, t.ml_account_id, t.user_id
-                FROM tokens t
-                JOIN ml_accounts ma ON ma.id = t.ml_account_id
-                WHERE ma.ml_user_id = CAST(:ml_user_id AS VARCHAR)
-                AND t.is_active = true
-                AND t.refresh_token IS NOT NULL
-                ORDER BY t.expires_at DESC
-                LIMIT 1
-            """)
-            
-            refresh_result = db.execute(refresh_query, {"ml_user_id": str(ml_user_id)}).fetchone()
-            
-            if refresh_result and refresh_result[0]:
-                # Tentar renovar o token
-                new_token = self._refresh_token_for_ml_user(
-                    refresh_result[0], 
-                    refresh_result[1],  # ml_account_id
-                    refresh_result[2] if len(refresh_result) > 2 else None,  # user_id
-                    db
+
+            account_query = text(
+                "SELECT id, company_id FROM ml_accounts WHERE ml_user_id = CAST(:ml_user_id AS VARCHAR) LIMIT 1"
+            )
+            account_row = db.execute(account_query, {"ml_user_id": str(ml_user_id)}).fetchone()
+
+            if not account_row:
+                logger.error(f"❌ Conta ML não encontrada para ml_user_id={ml_user_id}")
+                return None
+
+            ml_account_id, company_id = account_row
+
+            token_manager = TokenManager(db)
+            token_record = token_manager.get_token_record_for_account(
+                ml_account_id,
+                company_id,
+                expected_ml_user_id=str(ml_user_id),
+            )
+
+            if not token_record or not token_record.access_token:
+                logger.warning(
+                    "⚠️ Nenhum token ativo encontrado para ml_account_id=%s (ml_user_id=%s)",
+                    ml_account_id,
+                    ml_user_id,
                 )
-                if new_token:
-                    logger.info(f"✅ Token renovado com sucesso para ml_user_id: {ml_user_id}")
-                    return new_token
-            
-            logger.warning(f"⚠️ Nenhum token ativo encontrado para ml_user_id: {ml_user_id}")
-            return None
-            
+                return None
+
+            token_ml_user = None
+            try:
+                if token_record.ml_account and token_record.ml_account.ml_user_id:
+                    token_ml_user = str(token_record.ml_account.ml_user_id)
+            except Exception:
+                token_ml_user = None
+
+            if token_ml_user and token_ml_user != str(ml_user_id):
+                logger.warning(
+                    "⚠️ Token retornado pertence a ml_user_id=%s, mas esperado %s",
+                    token_ml_user,
+                    ml_user_id,
+                )
+
+                fallback_query = text(
+                    "SELECT id FROM ml_accounts WHERE company_id = :company_id AND ml_user_id = CAST(:ml_user_id AS VARCHAR)"
+                )
+                fallback_account = db.execute(
+                    fallback_query, {"company_id": company_id, "ml_user_id": str(ml_user_id)}
+                ).fetchone()
+
+                if fallback_account:
+                    token_record = token_manager.get_token_record_for_account(
+                        fallback_account[0],
+                        company_id,
+                        expected_ml_user_id=str(ml_user_id),
+                    )
+                    if not token_record or not token_record.access_token:
+                        logger.error(
+                            "❌ Token não encontrado para ml_user_id=%s após fallback",
+                            ml_user_id,
+                        )
+                        return None
+                else:
+                    logger.error(
+                        "❌ Nenhuma conta correspondente encontrada para ml_user_id=%s no company_id=%s",
+                        ml_user_id,
+                        company_id,
+                    )
+                    return None
+
+            logger.info(
+                "✅ Token válido recuperado via TokenManager (ml_account_id=%s, ml_user_id=%s)",
+                ml_account_id,
+                ml_user_id,
+            )
+            return token_record.access_token
+
         except Exception as e:
-            logger.error(f"❌ Erro ao buscar token: {e}", exc_info=True)
+            logger.error(f"❌ Erro ao buscar token via TokenManager: {e}", exc_info=True)
             return None
     
     def _refresh_token_for_ml_user(self, refresh_token: str, ml_account_id: int, user_id: Optional[int], db: Session) -> Optional[str]:
@@ -764,46 +789,41 @@ class MLNotificationsController:
             return None
     
     async def _extract_ml_user_id_from_order(self, order_id: str, db: Session) -> Optional[int]:
-        """Extrai ml_user_id (seller_id) de um pedido quando não vem na notificação"""
+        """Extrai seller_id de um pedido (fallback quando user_id não vem na notificação)."""
         try:
-            from sqlalchemy import text
-            
-            # Buscar qualquer token ativo para fazer a requisição
-            query = text("""
-                SELECT t.access_token, ma.ml_user_id
-                FROM tokens t
-                JOIN ml_accounts ma ON ma.id = t.ml_account_id
-                WHERE t.is_active = true
-                AND t.expires_at > NOW()
-                ORDER BY t.expires_at DESC
-                LIMIT 1
-            """)
-            
-            result = db.execute(query).fetchone()
-            if not result or not result[0]:
-                logger.error(f"❌ Nenhum token ativo disponível para buscar pedido {order_id}")
+            from app.services.token_manager import TokenManager
+
+            token_manager = TokenManager(db)
+            token_record = token_manager.get_any_active_token()
+
+            if not token_record or not token_record.access_token:
+                logger.error("❌ Nenhum token ativo disponível para buscar pedido %s", order_id)
                 return None
-            
-            access_token = result[0]
-            
-            # Buscar detalhes do pedido
-            order_data = await self._fetch_order_details(order_id, access_token)
+
+            order_data = await self._fetch_order_details(order_id, token_record.access_token)
             if not order_data:
-                logger.error(f"❌ Não foi possível buscar pedido {order_id} para extrair seller_id")
+                logger.error(
+                    "❌ Não foi possível buscar pedido %s para extrair seller_id",
+                    order_id,
+                )
                 return None
-            
-            # Extrair seller_id do pedido
+
             seller_id = order_data.get("seller_id") or order_data.get("sellerId")
             if seller_id:
-                logger.info(f"✅ seller_id extraído do pedido {order_id}: {seller_id}")
+                logger.info("✅ seller_id extraído do pedido %s: %s", order_id, seller_id)
                 return int(seller_id)
-            else:
-                logger.error(f"❌ seller_id não encontrado nos dados do pedido {order_id}")
-                logger.error(f"📋 Campos disponíveis no pedido: {list(order_data.keys())}")
-                return None
-                
+
+            logger.error("❌ seller_id não encontrado nos dados do pedido %s", order_id)
+            logger.error("📋 Campos disponíveis: %s", list(order_data.keys()))
+            return None
+
         except Exception as e:
-            logger.error(f"❌ Erro ao extrair ml_user_id do pedido {order_id}: {e}", exc_info=True)
+            logger.error(
+                "❌ Erro ao extrair ml_user_id do pedido %s: %s",
+                order_id,
+                e,
+                exc_info=True,
+            )
             return None
     
     async def _fetch_order_details(self, order_id: str, access_token: str) -> Dict[str, Any]:

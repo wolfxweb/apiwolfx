@@ -244,54 +244,139 @@ class TokenManager:
 
         return self._save_new_token_record(token_record, token_data)
 
-    def get_token_record_for_account(self, ml_account_id: int, company_id: Optional[int] = None) -> Optional[Token]:
-        """Obtém token válido para uma conta ML específica, renovando se preciso"""
-        query = self.db.query(Token).filter(Token.ml_account_id == ml_account_id)
-        if company_id is not None:
-            query = query.join(MLAccount).filter(MLAccount.company_id == company_id)
+    def _get_token_owner_user_id(self, access_token: str) -> Optional[str]:
+        """Retorna o user_id associado ao access_token consultando /users/me."""
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            }
+            response = requests.get("https://api.mercadolibre.com/users/me", headers=headers, timeout=10)
+            if response.status_code == 200:
+                user_data = response.json()
+                return str(user_data.get("id")) if user_data.get("id") else None
+            return None
+        except Exception as e:
+            logger.error(f"Erro ao obter owner do token: {e}")
+            return None
 
-        token_record = query.order_by(Token.expires_at.desc()).first()
-        if not token_record:
+    def get_token_record_for_account(
+        self,
+        ml_account_id: int,
+        company_id: Optional[int] = None,
+        expected_ml_user_id: Optional[str] = None,
+    ) -> Optional[Token]:
+        """Obtém token válido para uma conta ML específica, garantindo que pertença ao seller esperado."""
+        try:
+            query = (
+                self.db.query(Token)
+                .filter(Token.ml_account_id == ml_account_id, Token.is_active == True)
+            )
+            if company_id is not None:
+                query = query.join(MLAccount).filter(MLAccount.company_id == company_id)
+
+            token_candidates = query.order_by(Token.expires_at.desc()).all()
+            if not token_candidates:
+                logger.warning(
+                    "Nenhum token encontrado para ml_account_id=%s (company=%s)",
+                    ml_account_id,
+                    company_id,
+                )
+                return None
+
+            for record in token_candidates:
+                if not record.access_token:
+                    continue
+
+                owner_id = self._get_token_owner_user_id(record.access_token)
+
+                if owner_id is None:
+                    logger.info("Token inválido ou expirado para ml_account_id=%s, tentando refresh", ml_account_id)
+                    refreshed = self._refresh_token_for_record(record)
+                    if not refreshed or not refreshed.access_token:
+                        continue
+                    record = refreshed
+                    owner_id = self._get_token_owner_user_id(record.access_token)
+
+                if expected_ml_user_id and owner_id and owner_id != str(expected_ml_user_id):
+                    logger.warning(
+                        "Token pertence ao user_id %s, mas esperado %s; ignorando token ml_account_id=%s",
+                        owner_id,
+                        expected_ml_user_id,
+                        ml_account_id,
+                    )
+                    continue
+
+                if owner_id is None:
+                    continue
+
+                logger.info(
+                    "Token válido encontrado para ml_account_id=%s (owner_id=%s)",
+                    ml_account_id,
+                    owner_id,
+                )
+                return record
+
             logger.warning(
-                "Nenhum token encontrado para ml_account_id=%s (company=%s)",
+                "Nenhum token utilizável permaneceu para ml_account_id=%s (company=%s)",
                 ml_account_id,
                 company_id,
             )
             return None
 
-        if token_record.access_token and self.test_token(token_record.access_token):
-            logger.info(
-                "Token válido encontrado para ml_account_id=%s (user_id=%s)",
-                ml_account_id,
-                token_record.user_id,
-            )
-            return token_record
-
-        logger.info(
-            "Token inválido para ml_account_id=%s, tentando refresh",
-            ml_account_id,
-        )
-        return self._refresh_token_for_record(token_record)
+        except Exception as e:
+            logger.error(f"Erro ao obter token para conta: {e}", exc_info=True)
+            return None
 
     def get_token_record_for_company(self, company_id: int) -> Optional[Token]:
-        """Obtém token válido de qualquer conta da empresa"""
-        accounts = (
-            self.db.query(MLAccount)
-            .filter(
-                MLAccount.company_id == company_id,
-                MLAccount.status == MLAccountStatus.ACTIVE,
+        """Obtém qualquer token válido ativo para uma empresa (tentando renovar se expirado)."""
+        try:
+            query = (
+                self.db.query(Token)
+                .join(MLAccount, MLAccount.id == Token.ml_account_id)
+                .filter(
+                    MLAccount.company_id == company_id,
+                    Token.is_active == True,
+                    Token.expires_at > datetime.utcnow(),
+                )
+                .order_by(Token.expires_at.desc())
             )
-            .order_by(MLAccount.id.asc())
-            .all()
-        )
 
-        for account in accounts:
-            token_record = self.get_token_record_for_account(account.id, company_id)
-            if token_record:
+            token_record = query.first()
+            if token_record and token_record.access_token and self.test_token(token_record.access_token):
                 return token_record
 
-        logger.warning("Nenhum token válido encontrado para company_id=%s", company_id)
-        return None
+            if token_record:
+                return self._refresh_token_for_record(token_record)
+
+            return None
+        except Exception as e:
+            logger.error(f"Erro ao obter token com company_id: {e}")
+            return None
+
+    def get_any_active_token(self) -> Optional[Token]:
+        """Retorna qualquer token ativo (utilidade para fallbacks pontuais)."""
+        try:
+            candidates = (
+                self.db.query(Token)
+                .filter(Token.is_active == True, Token.expires_at > datetime.utcnow())
+                .order_by(Token.expires_at.desc())
+                .all()
+            )
+
+            for record in candidates:
+                if not record.access_token:
+                    continue
+                owner_id = self._get_token_owner_user_id(record.access_token)
+                if owner_id:
+                    self.db.commit()
+                    return record
+                record.is_active = False
+                self.db.commit()
+            return None
+        except Exception as e:
+            logger.error(f"Erro ao buscar token ativo genérico: {e}")
+            return None
     
     def test_token(self, token: str) -> bool:
         """Testa se o token está funcionando"""

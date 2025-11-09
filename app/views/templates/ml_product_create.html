@@ -97,9 +97,23 @@
                     <option value="">Carregando contas...</option>
                 </select>
                 <div class="form-text">
-                    <i class="bi bi-info-circle"></i> Selecione a conta onde o produto será publicado
+                    Escolha a conta onde o produto será publicado
                 </div>
             </div>
+
+            {% if editing %}
+            <div class="mb-3">
+                <label for="status" class="form-label">Status do anúncio</label>
+                <select class="form-select" id="status" name="status">
+                    {% for option in status_options %}
+                    <option value="{{ option.value }}" {% if product.status and product.status|lower == option.value %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Defina se o anúncio deve ficar ativo, pausado ou encerrado.</div>
+            </div>
+            {% else %}
+            <input type="hidden" name="status" value="active">
+            {% endif %}
             
             <!-- Título -->
             <div class="mb-3">
@@ -713,6 +727,11 @@ async function initializeEditMode() {
     const conditionSelect = document.getElementById('condition');
     if (conditionSelect && initialProductData.condition) {
         conditionSelect.value = initialProductData.condition;
+    }
+
+    const statusSelect = document.getElementById('status');
+    if (statusSelect && initialProductData.status) {
+        statusSelect.value = String(initialProductData.status).toLowerCase();
     }
 
     const skuInput = document.getElementById('seller_custom_field');
@@ -1532,10 +1551,10 @@ function renderImageThumbnail(imageObj, index) {
 
         const badges = [];
         if (index === 0) {
-            badges.push('<div class="badge bg-primary position-absolute bottom-0 start-0 m-1">Principal</div>');
+         //   badges.push('<div class="badge bg-primary position-absolute bottom-0 start-0 m-1">Principal</div>');
         }
         if (imageObj.type === 'existing') {
-            badges.push('<div class="badge bg-info position-absolute top-0 start-0 m-1">Atual</div>');
+      //      badges.push('<div class="badge bg-info position-absolute top-0 start-0 m-1">Atual</div>');
         }
 
         imageDiv.innerHTML = `

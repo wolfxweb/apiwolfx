@@ -1411,6 +1411,10 @@ class MLProductController:
             if sale_terms:
                 payload["sale_terms"] = sale_terms
 
+            status_value = (product_data.get("status") or "").strip().lower()
+            if status_value in {"active", "paused", "closed"}:
+                payload["status"] = status_value
+
             if not payload:
                 return {"success": False, "error": "Nenhum dado para atualizar."}
 
@@ -1493,6 +1497,27 @@ class MLProductController:
                 ml_product.permalink = updated_item.get("permalink")
 
             self.db.commit()
+
+            try:
+                refresh_result = self.product_service.import_single_product(
+                    ml_product.ml_account_id,
+                    company_id,
+                    ml_product.ml_item_id,
+                )
+                if not refresh_result.get("success"):
+                    logger.warning(
+                        "⚠️ Produto %s atualizado no ML, mas não foi possível sincronizar detalhes completos: %s",
+                        ml_product.ml_item_id,
+                        refresh_result.get("error"),
+                    )
+                else:
+                    self.db.refresh(ml_product)
+            except Exception as refresh_exc:
+                logger.warning(
+                    "⚠️ Erro ao reimportar dados do anúncio %s: %s",
+                    ml_product.ml_item_id,
+                    refresh_exc,
+                )
 
             return {
                 "success": True,
