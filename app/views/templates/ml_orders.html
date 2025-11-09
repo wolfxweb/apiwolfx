@@ -4,68 +4,46 @@
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-1">Pedidos Mercado Livre</h1>
-                    <p class="text-muted mb-0">
-                        Gerencie seus pedidos do Mercado Livre
-                        <span id="orders-count" class="ms-2">
-                            <i class="bi bi-info-circle"></i> Carregando...
-                        </span>
-                    </p>
-                </div>
-                <div>
-                    <div class="dropdown">
-                        <button class="btn btn-primary dropdown-toggle" type="button" id="acoesDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-gear-fill"></i> Ações
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="acoesDropdown">
-                            <li>
-                                <a class="dropdown-item" href="#" onclick="syncOrders(); return false;">
-                                    <i class="bi bi-arrow-clockwise text-primary"></i> Sincronizar Pedidos
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="#" onclick="importOrders(); return false;">
-                                    <i class="bi bi-download text-success"></i> Importar Pedidos
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item" href="#" onclick="showDeleteOrdersModal(); return false;">
-                                    <i class="bi bi-trash text-danger"></i> Remover Pedidos
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
+    <div class="row">
+        <div class="col-12 mb-4 d-flex justify-content-between flex-wrap gap-3 align-items-start">
+            <div>
+                <h1 class="h3 mb-1"><i class="bi bi-cart-check"></i> Pedidos Mercado Livre</h1>
+                <p class="text-muted mb-0">
+                    Acompanhe todos os pedidos importados
+                    <span id="orders-count" class="ms-2 small text-secondary">
+                        <i class="bi bi-info-circle"></i> Carregando...
+                    </span>
+                </p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-primary" onclick="syncOrders()">
+                    <i class="bi bi-arrow-clockwise"></i> Atualizar pedidos
+                </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="importOrders()">
+                    <i class="bi bi-download"></i> Importar pedidos
+                </button>
+                <button type="button" class="btn btn-outline-danger" onclick="showDeleteOrdersModal()">
+                    <i class="bi bi-trash"></i> Remover pedidos
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Alertas -->
-    <div class="row mb-4" id="alerts-container">
-        <!-- Alerts serão inseridos aqui dinamicamente -->
-    </div>
+    <div class="row mb-3" id="alerts-container"></div>
 
-    <!-- Filtros -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card">
-
+            <div class="card shadow-sm border-0">
                 <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-3">
-                            <label for="account_filter" class="form-label">Conta</label>
+                    <form class="row g-3 align-items-end">
+                        <div class="col-12 col-md-3">
+                            <label for="account_filter" class="form-label small text-uppercase text-muted">Conta</label>
                             <select name="account_filter" id="account_filter" class="form-select" onchange="applyFilters()">
                                 <option value="">Todas as contas</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <label for="status_filter" class="form-label">Status</label>
+                        <div class="col-12 col-md-3">
+                            <label for="status_filter" class="form-label small text-uppercase text-muted">Status</label>
                             <select name="status_filter" id="status_filter" class="form-select" onchange="applyFilters()">
                                 <option value="">Todos os status</option>
                                 <option value="pending">Pendente</option>
@@ -77,18 +55,10 @@
                                 <option value="refunded">Reembolsado</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <label for="date_from" class="form-label">Data Inicial</label>
-                            <input type="date" name="date_from" id="date_from" class="form-control" onchange="applyFilters()">
-                        </div>
-                        <div class="col-md-2">
-                            <label for="date_to" class="form-label">Data Final</label>
-                            <input type="date" name="date_to" id="date_to" class="form-control" onchange="applyFilters()">
-                        </div>
-                        <div class="col-md-2">
-                            <label for="period_filter" class="form-label">Período</label>
+                        <div class="col-12 col-md-2">
+                            <label for="period_filter" class="form-label small text-uppercase text-muted">Período</label>
                             <select name="period_filter" id="period_filter" class="form-select" onchange="toggleCustomPeriod(); applyFilters();">
-                                <option value="">Todos os períodos</option>
+                                <option value="">Todos</option>
                                 <option value="today">Hoje</option>
                                 <option value="this_week">Esta semana</option>
                                 <option value="this_month">Este mês</option>
@@ -98,27 +68,34 @@
                                 <option value="next_60_days">Próximos 60 dias</option>
                                 <option value="next_90_days">Próximos 90 dias</option>
                                 <option value="this_year">Este ano</option>
-                                <option value="custom">Período personalizado</option>
+                                <option value="custom">Personalizado</option>
                             </select>
                         </div>
-                        <div class="col-md-1">
-                            <label class="form-label">&nbsp;</label>
-                            <div class="d-flex justify-content-center">
-                                <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()" style="white-space: nowrap;">
-                                    <i class="bi bi-x-circle"></i> Limpar
+                        <div class="col-12 col-md-2">
+                            <label for="date_from" class="form-label small text-uppercase text-muted">Data inicial</label>
+                            <input type="date" name="date_from" id="date_from" class="form-control" onchange="applyFilters()">
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label for="date_to" class="form-label small text-uppercase text-muted">Data final</label>
+                            <input type="date" name="date_to" id="date_to" class="form-control" onchange="applyFilters()">
+                        </div>
+                        <div class="col-12 col-md-auto">
+                            <label class="form-label small text-uppercase text-muted">&nbsp;</label>
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                                    <i class="bi bi-x-circle"></i> Limpar filtros
                                 </button>
                             </div>
                         </div>
-                    </div>
-                    
-                    <!-- Período personalizado (oculto por padrão) -->
+                    </form>
+
                     <div class="row g-3 mt-2" id="customPeriodRow" style="display: none;">
-                        <div class="col-md-3">
-                            <label for="customDateFrom" class="form-label">Data inicial</label>
+                        <div class="col-12 col-md-3">
+                            <label for="customDateFrom" class="form-label small text-uppercase text-muted">Data inicial</label>
                             <input type="date" class="form-control" id="customDateFrom" onchange="applyFilters()">
                         </div>
-                        <div class="col-md-3">
-                            <label for="customDateTo" class="form-label">Data final</label>
+                        <div class="col-12 col-md-3">
+                            <label for="customDateTo" class="form-label small text-uppercase text-muted">Data final</label>
                             <input type="date" class="form-control" id="customDateTo" onchange="applyFilters()">
                         </div>
                     </div>
@@ -142,25 +119,25 @@
     <!-- Lista de Orders -->
     <div class="row">
         <div class="col-12">
-            <div class="card">
-
-                <div class="card-body">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-hover table-sm">
+                        <table class="table table-hover align-middle mb-0">
                             <thead class="table-dark">
                                 <tr>
-                                    <th width="50">
+                                    <th style="width: 42px;">
                                         <input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders()">
                                     </th>
-                                    <th class="sortable" data-sort="date_created" onclick="sortTable('date_created')">
-                                        Detalhes do Pedido <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th>Ações</th>
+                                    <th style="min-width: 200px;">Pedido</th>
+                                    <th style="min-width: 200px;">Comprador</th>
+                                    <th style="min-width: 180px;">Valores</th>
+                                    <th style="min-width: 180px;">Envio</th>
+                                    <th class="text-end" style="width: 120px;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="orders-table-body">
                                 <tr>
-                                    <td colspan="3" class="text-center text-muted py-4">
+                                    <td colspan="6" class="text-center text-muted py-4">
                                         <i class="bi bi-info-circle"></i> Carregando pedidos...
                                     </td>
                                 </tr>
@@ -427,6 +404,7 @@
 let currentPage = 1;
 let currentLimit = 50;
 let currentFilters = {};
+let ordersCache = {};
 
 // Função para verificar se a resposta indica sessão expirada
 function checkSessionExpired(response) {
@@ -558,94 +536,261 @@ function loadOrders(page = 1) {
 
 function renderOrders(orders) {
     const tbody = document.getElementById('orders-table-body');
-    
+
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="3" class="text-center text-muted py-4">
+                <td colspan="6" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
         `;
         return;
     }
-    
-    tbody.innerHTML = orders.map(order => `
-        <tr class="small">
+
+    ordersCache = {};
+    tbody.innerHTML = orders.map(order => {
+        const cacheKey = order.id || order.ml_order_id || order.order_id;
+        if (cacheKey) {
+            ordersCache[cacheKey] = order;
+        }
+        return `
+        <tr>
             <td class="align-middle">
                 <input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateSelectedOrdersCount()">
             </td>
-            <td class="align-middle">
-                ${renderBillingData(order)}
-            </td>
-            <td class="align-middle text-nowrap">
-                <div class="btn-group" role="group">
-                    <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${order.ml_order_id}')" title="Ver detalhes">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="copyOrderId('${order.ml_order_id}')" title="Copiar ID">
-                        <i class="bi bi-clipboard"></i>
-                    </button>
-                </div>
-            </td>
+            <td class="align-middle">${renderOrderSummary(order)}</td>
+            <td class="align-middle">${renderBuyerSummary(order)}</td>
+            <td class="align-middle">${renderAmountSummary(order)}</td>
+            <td class="align-middle">${renderShippingSummary(order)}</td>
+            <td class="align-middle text-end">${renderOrderActions(order)}</td>
         </tr>
-    `).join('');
+    `}).join('');
 }
 
-function renderBillingData(order) {
-    if (!order) return '<span class="text-muted">N/A</span>';
-    
+function renderOrderSummary(order) {
+    if (!order) {
+        return '<span class="text-muted small">N/A</span>';
+    }
+
+    const orderId = order.ml_order_id || order.order_id || '-';
+    const createdAt = formatDate(order.date_created);
+    const accountLabel = order.account_nickname || order.account_name;
+    const statusBadge = `<span class="badge ${getStatusBadgeClass(order.status)}">${getStatusLabel(order.status)}</span>`;
+
+    const lines = [
+        `<div class="fw-semibold">${orderId}</div>`,
+        accountLabel ? `<div class="text-muted small">${accountLabel}</div>` : '',
+        createdAt ? `<div class="text-muted small">${createdAt}</div>` : '',
+        `<div class="mt-1">${statusBadge}</div>`
+    ].filter(Boolean);
+
+    return `<div class="d-flex flex-column gap-1">${lines.join('')}</div>`;
+}
+
+function renderBuyerSummary(order) {
+    const nickname = order.buyer_nickname || 'N/A';
+    const nameParts = [order.buyer_first_name, order.buyer_last_name].filter(Boolean).join(' ');
+    const email = order.buyer_email || '';
+    const phone = order.buyer_phone || order.buyer_phone_number || '';
+    const address = order.shipping_address || order.buyer_address || {};
+
+    const extractValue = (value) => {
+        if (!value) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object') {
+            return value.name || value.display_name || value.label || value.id || '';
+        }
+        return String(value);
+    };
+
+    const street = address.address_line || address.street_name || address.street_address || '';
+    const comment = address.comment || address.suburb || '';
+    const city = extractValue(address.city);
+    const state = extractValue(address.state);
+    const district = extractValue(address.neighborhood);
+    const postalCode = address.zip_code || address.postal_code;
+
+    const locationLine = [city, state].filter(Boolean).join(' - ');
+
+    const addressLines = [street, comment, district, locationLine, postalCode ? `CEP: ${postalCode}` : null].filter(Boolean);
+
+    const lines = [
+        `<div class="fw-semibold">${nickname}</div>`,
+        nameParts ? `<div class="text-muted small">${nameParts}</div>` : '',
+        email ? `<div class="text-muted small"><i class="bi bi-envelope me-1"></i>${email}</div>` : '',
+        phone ? `<div class="text-muted small"><i class="bi bi-telephone me-1"></i>${phone}</div>` : '',
+        addressLines.length ? `<div class="text-muted small">${addressLines.join('<br>')}</div>` : ''
+    ].filter(Boolean);
+
+    return `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`;
+}
+
+function renderAmountSummary(order) {
     const totalAmount = order.total_amount || 0;
     const saleFees = order.sale_fees || 0;
     const shippingCost = order.shipping_cost || 0;
     const couponAmount = order.coupon_amount || 0;
     const advertisingCost = order.advertising_cost || 0;
     const currency = order.currency_id || 'BRL';
-    
-    // Calcular líquido para o vendedor (considerando TODOS os custos do ML)
+
     const netAmount = totalAmount - saleFees - shippingCost - couponAmount;
-    
-    // Calcular percentual de comissão
-    const feePercentage = totalAmount > 0 ? ((saleFees / totalAmount) * 100).toFixed(1) : 0;
-    
-    // Calcular percentual do frete
-    const shippingPercentage = totalAmount > 0 ? ((shippingCost / totalAmount) * 100).toFixed(1) : 0;
-    
-    // Formato compacto com ícones e quebras de linha
-    let items = [];
-    
-    // Informações do cliente, pedido e data (sempre no topo)
-    items.push(`<strong class="text-dark">Cliente:</strong> ${order.buyer_nickname || 'N/A'}<br><strong class="text-dark">Pedido:</strong> ${order.ml_order_id || order.order_id || 'N/A'}<br><strong class="text-dark">Data:</strong> ${formatDate(order.date_created)}`);
-//    items.push(`<hr class="my-2">`);
-    
-    // Valor total (sempre aparece)
-    items.push(`💰 Valor Total: <strong class="text-primary">${formatCurrency(totalAmount, currency)}</strong>`);
-    
-    // Comissão ML (sempre aparece)
-    items.push(`💸 Comissão ML: <strong class="text-warning">${formatCurrency(saleFees, currency)}</strong> <small class="text-muted">(${feePercentage}%)</small>`);
-    
-    // Frete (sempre aparece para mostrar transparência)
-    if (shippingCost > 0) {
-        items.push(`🚚 Frete Vendedor: <strong class="text-info">${formatCurrency(shippingCost, currency)}</strong> <small class="text-muted">(${shippingPercentage}%)</small>`);
-    } else {
-        items.push(`🚚 Frete Vendedor: <strong class="text-success">R$ 0,00</strong>`);
-    }
-    
-    // Desconto (aparece se > 0)
+
+    const lines = [
+        `<div class="fw-semibold text-primary">${formatCurrency(totalAmount, currency)}</div>`,
+        `<div class="text-muted small">Comissão: ${formatCurrency(saleFees, currency)}</div>`,
+        `<div class="text-muted small">Frete: ${formatCurrency(shippingCost, currency)}</div>`
+    ];
+
     if (couponAmount > 0) {
-        items.push(`🎫 Desconto: <strong class="text-danger">-${formatCurrency(couponAmount, currency)}</strong>`);
+        lines.push(`<div class="text-muted small">Desconto: -${formatCurrency(couponAmount, currency)}</div>`);
     }
-    
-    // Publicidade (aparece se > 0)
+
     if (advertisingCost > 0) {
-        items.push(`📢 Publicidade: <strong class="text-danger">${formatCurrency(advertisingCost, currency)}</strong> <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Custo estimado de Product Ads distribuído proporcionalmente entre os pedidos do período" style="cursor: help; font-size: 0.85em;"></i>`);
+        lines.push(`<div class="text-muted small">Publicidade: ${formatCurrency(advertisingCost, currency)}</div>`);
     }
-    
-    // Líquido vendedor (sempre aparece, destacado)
-    items.push(`<hr class="my-2">💵 Líquido Vendedor: <strong class="text-success fs-6">${formatCurrency(netAmount, currency)}</strong>`);
-    
-    // Juntar com quebras de linha
-    return '<div class="small" style="line-height: 1.8;">' + items.join('<br>') + '</div>';
+
+    lines.push(`<div class="fw-semibold text-success mt-1">${formatCurrency(netAmount, currency)}</div>`);
+
+    return `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`;
+}
+
+function getShippingStatusClass(status) {
+    switch (status) {
+        case 'delivered':
+            return 'text-success fw-semibold';
+        case 'shipped':
+        case 'in_transit':
+        case 'out_for_delivery':
+            return 'text-info';
+        case 'ready_to_ship':
+        case 'ready_to_print':
+        case 'ready_to_pack':
+        case 'packed':
+        case 'printed':
+            return 'text-warning';
+        case 'pending':
+            return 'text-secondary';
+        case 'not_delivered':
+            return 'text-danger';
+        default:
+            return 'text-muted';
+    }
+}
+
+function renderShippingSummary(order) {
+    let shipping = order.shipping_details || order.shipping || {};
+    if (typeof shipping === 'string') {
+        try {
+            shipping = JSON.parse(shipping);
+        } catch (err) {
+            shipping = {};
+        }
+    }
+    const logisticTypeRaw = shipping.shipping_option?.logistic_type
+        || shipping.logistic_type
+        || shipping.logistic?.type
+        || order.logistic_type
+        || order.shipping_logistic_type
+        || order.shipping_type;
+    const logisticLabel = getLogisticLabel(logisticTypeRaw);
+    const statusRaw = shipping.status || order.shipping_status || '';
+    const substatusRaw = shipping.substatus || order.shipping_substatus || '';
+    const status = (statusRaw || '').toString().toLowerCase();
+    const statusDisplay = getShippingStatusDisplay(status);
+    const substatus = translateShippingSubstatus((substatusRaw || '').toString().toLowerCase());
+    const statusHistory = shipping.status_history || {};
+
+    const shippedDate = shipping.date_shipped || statusHistory.date_shipped || order.date_shipped;
+    const deliveredDate = statusHistory.date_delivered || shipping.date_delivered || order.date_delivered;
+    const estimatedDate = shipping.shipping_option?.estimated_delivery_final?.date
+        || shipping.shipping_option?.estimated_delivery_limit?.date
+        || shipping.estimated_delivery
+        || order.estimated_delivery_date;
+
+    const extractValue = (value) => {
+        if (!value) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object') {
+            return value.name || value.display_name || value.label || value.description || value.id || '';
+        }
+        return String(value);
+    };
+
+    const shippingMethodSource = extractValue(order.shipping_method)
+        || extractValue(order.shipping_mode)
+        || extractValue(shipping.shipping_option?.shipping_method)
+        || extractValue(shipping.shipping_option?.name)
+        || logisticLabel
+        || extractValue(logisticTypeRaw);
+
+    const shippingMethod = getLogisticLabel(shippingMethodSource) || 'N/A';
+    const shippingId = order.shipping_id || shipping.id;
+
+    const lines = [];
+    const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
+    if (shippingMethod) {
+        lines.push(`<span class="badge ${badgeClass}">${shippingMethod}</span>`);
+    }
+
+    if (statusDisplay) {
+        const statusClass = getShippingStatusClass(status);
+        lines.push(`<div class="${statusClass}">${statusDisplay.icon} ${statusDisplay.label}</div>`);
+    }
+
+    if (substatus && substatus !== statusDisplay?.label) {
+        lines.push(`<div class="text-muted small">📍 ${substatus}</div>`);
+    }
+
+    if (status === 'delivered' && deliveredDate) {
+        lines.push(`<div class="text-success small">📅 ${formatDateOnly(deliveredDate)}</div>`);
+    }
+
+    if (status !== 'delivered' && shippedDate) {
+        lines.push(`<div class="text-muted small">📦 Enviado: ${formatDateOnly(shippedDate)}</div>`);
+    }
+
+    if (estimatedDate && status !== 'delivered') {
+        const estimatedLabel = logisticLabel ? `${formatDateOnly(estimatedDate)} → ${logisticLabel}` : formatDateOnly(estimatedDate);
+        lines.push(`<div class="text-muted small">📅 Previsão: ${estimatedLabel}</div>`);
+    }
+
+    if (shippingId) {
+        lines.push(`<div class="text-muted small">Envio: ${shippingId}</div>`);
+    }
+
+    if (!lines.length) {
+        lines.push('<span class="text-muted small">N/A</span>');
+    }
+
+    return `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`;
+}
+
+function renderOrderActions(order) {
+    const orderId = order.ml_order_id || order.order_id || '';
+    const cacheKey = order.id || orderId;
+    const shipping = order.shipping_details || order.shipping || {};
+    const logisticType = shipping.logistic_type || shipping.logistic?.type || order.shipping_type;
+    const hasShippingId = Boolean(order.shipping_id || shipping.id);
+
+    return `
+        <div class="btn-group btn-group-sm" role="group">
+            <button class="btn btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Ver detalhes">
+                <i class="bi bi-eye"></i>
+            </button>
+            <button class="btn btn-outline-secondary" onclick="copyOrderId('${orderId}')" title="Copiar ID do pedido">
+                <i class="bi bi-clipboard"></i>
+            </button>
+            ${renderInvoiceDropdown(orderId)}
+            ${renderLabelDropdown(orderId, hasShippingId, logisticType)}
+            <button class="btn btn-outline-dark" onclick="openOrderJson('${cacheKey || orderId}')" title="Ver JSON do pedido">
+                <i class="bi bi-code-slash"></i>
+            </button>
+            <a href="/ml/orders/${orderId}" class="btn btn-outline-info" title="Abrir detalhes no painel">
+                <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+        </div>
+    `;
 }
 
 function renderPagination(total, limit, currentPage) {
@@ -1375,6 +1520,29 @@ function showSuccess(message) {
     `;
 }
 
+function showAlert(type, message) {
+    const classes = {
+        success: { alert: 'alert-success', icon: 'bi-check-circle-fill' },
+        danger: { alert: 'alert-danger', icon: 'bi-exclamation-triangle-fill' },
+        warning: { alert: 'alert-warning', icon: 'bi-exclamation-triangle-fill' },
+        info: { alert: 'alert-info', icon: 'bi-info-circle-fill' }
+    };
+
+    const current = classes[type] || classes.info;
+    const alertContainer = document.getElementById('alerts-container');
+    if (!alertContainer) return;
+
+    alertContainer.innerHTML = `
+        <div class="col-12">
+            <div class="alert ${current.alert} alert-dismissible fade show" role="alert">
+                <i class="bi ${current.icon}"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+    `;
+}
+
 function getStatusBadgeClass(status) {
     const statusClasses = {
         'pending': 'bg-warning',
@@ -1399,6 +1567,143 @@ function getStatusLabel(status) {
         'refunded': 'Reembolsado'
     };
     return statusLabels[status] || status;
+}
+
+function translateShippingStatus(status) {
+    const shippingLabels = {
+        'pending': 'Pendente',
+        'ready_to_ship': 'Pronto para envio',
+        'ready_to_print': 'Pronto para imprimir',
+        'printed': 'Etiqueta impressa',
+        'packed': 'Pacote pronto',
+        'shipped': 'Enviado',
+        'in_transit': 'Em trânsito',
+        'delivered': 'Entregue',
+        'not_delivered': 'Não entregue',
+        'cancelled': 'Cancelado'
+    };
+    return shippingLabels[status] || status;
+}
+
+function translateShippingSubstatus(substatus) {
+    const mapping = {
+        'receiver_absent': 'Comprador ausente',
+        'receiver_absent_twice': 'Comprador ausente (2x)',
+        'damaged_package': 'Pacote danificado',
+        'processing': 'Em processamento',
+        'waiting_for_withdrawal': 'Aguardando retirada',
+        'waiting_for_carrier_authorization': 'Aguardando transportadora',
+        'contact_customer': 'Contatar comprador',
+        'need_review': 'Necessário revisar',
+        'returned_to_sender': 'Devolvido ao remetente',
+        'stolen': 'Roubado'
+    };
+    if (mapping[substatus]) {
+        return mapping[substatus];
+    }
+    return substatus ? substatus.replace(/_/g, ' ') : '';
+}
+
+const shippingStatusLabels = {
+    'pending': 'Pendente',
+    'ready_to_print': 'Pronto para imprimir',
+    'ready_to_pack': 'Pronto para embalar',
+    'ready_to_ship': 'Pronto para envio',
+    'printed': 'Etiqueta impressa',
+    'packed': 'Pacote pronto',
+    'shipped': 'Enviado',
+    'in_transit': 'Em trânsito',
+    'out_for_delivery': 'Saiu para entrega',
+    'soon_deliver': 'Próximo da entrega',
+    'delivered': 'Entregue',
+    'not_delivered': 'Não entregue',
+    'cancelled': 'Cancelado',
+    'error': 'Erro',
+    'waiting_for_carrier_authorization': 'Aguardando transportadora',
+    'ready_for_pickup': 'Pronto para retirada',
+    'ready_for_dropoff': 'Pronto para postagem',
+    'to_be_agreed': 'A combinar'
+};
+
+const shippingStatusIcons = {
+    'pending': '⏳',
+    'ready_to_print': '📦',
+    'ready_to_pack': '📦',
+    'ready_to_ship': '📦',
+    'printed': '📦',
+    'packed': '📦',
+    'shipped': '🚚',
+    'in_transit': '🚚',
+    'out_for_delivery': '🚚',
+    'soon_deliver': '🚚',
+    'delivered': '✓',
+    'not_delivered': '⚠️',
+    'cancelled': '⛔',
+    'error': '⚠️',
+    'waiting_for_carrier_authorization': '🚚',
+    'ready_for_pickup': '📦',
+    'ready_for_dropoff': '📦',
+    'to_be_agreed': '🛈'
+};
+
+function getLogisticLabel(logisticType) {
+    const normalized = (logisticType || '').toString().toLowerCase();
+    switch (normalized) {
+        case 'full':
+        case 'fulfillment':
+            return 'Full';
+        case 'cross_docking':
+            return 'Cross Docking';
+        case 'me2':
+            return 'Mercado Envios';
+        case 'ponto de coleta':
+        case 'xd_drop_off':
+        case 'drop_off':
+            return 'Ponto de Coleta';
+        case 'self_service':
+            return 'Envio próprio';
+        default:
+            return logisticType || '';
+    }
+}
+
+function getLogisticBadgeClass(logisticType) {
+    const normalized = (logisticType || '').toString().toLowerCase();
+    switch (normalized) {
+        case 'full':
+        case 'fulfillment':
+            return 'bg-primary';
+        case 'cross_docking':
+            return 'bg-info';
+        case 'ponto de coleta':
+        case 'xd_drop_off':
+        case 'drop_off':
+            return 'bg-secondary';
+        case 'me2':
+            return 'bg-warning';
+        default:
+            return 'bg-secondary';
+    }
+}
+
+function formatDateOnly(dateString) {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('pt-BR');
+    } catch (err) {
+        return dateString;
+    }
+}
+
+function getShippingStatusDisplay(status) {
+    const normalized = (status || '').toString().toLowerCase();
+    const label = shippingStatusLabels[normalized] || (normalized ? normalized.replace(/_/g, ' ') : null);
+    if (!label) {
+        return null;
+    }
+    const icon = shippingStatusIcons[normalized] || '🚚';
+    return { icon, label };
 }
 
 function formatCurrency(amount, currency = 'BRL') {
@@ -1599,6 +1904,148 @@ function confirmDeleteAllOrders() {
         deleteButton.innerHTML = '<i class="bi bi-trash"></i> Remover Todos';
     });
 }
+
+function renderInvoiceDropdown(orderId) {
+    return `
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Opções de nota fiscal">
+                <i class="bi bi-file-earmark-text"></i>
+            </button>
+            <ul class="dropdown-menu">
+                <li>
+                    <button class="dropdown-item" type="button" onclick="syncInvoiceForOrder('${orderId}', this)">
+                        <i class="bi bi-arrow-repeat"></i> Sincronizar nota
+                    </button>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="/api/shipments/download-invoice/${orderId}" target="_blank">
+                        <i class="bi bi-file-earmark-pdf"></i> Baixar PDF
+                    </a>
+                </li>
+            </ul>
+        </div>
+    `;
+}
+
+function renderLabelDropdown(orderId, hasShippingId, logisticType) {
+    if (!hasShippingId) {
+        return `
+            <button class="btn btn-outline-warning" type="button" title="Etiqueta disponível após geração do envio" disabled>
+                <i class="bi bi-printer"></i>
+            </button>
+        `;
+    }
+
+    return `
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir etiqueta de envio">
+                <i class="bi bi-printer"></i>
+            </button>
+            <ul class="dropdown-menu">
+                <li>
+                    <a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
+                        <i class="bi bi-file-earmark-pdf"></i> PDF
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
+                        <i class="bi bi-printer-fill"></i> ZPL2 (térmica)
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
+                        <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF
+                    </a>
+                </li>
+            </ul>
+        </div>
+    `;
+}
+
+async function syncInvoiceForOrder(orderId, triggerElement) {
+    if (!orderId) return;
+
+    const button = triggerElement;
+    const originalContent = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+
+    try {
+        const response = await fetch(`/api/shipments/sync-single-invoice/${orderId}`, {
+            method: 'POST',
+            credentials: 'include',
+        });
+
+        if (checkSessionExpired(response)) {
+            return;
+        }
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Erro ao sincronizar nota fiscal.');
+        }
+
+        showSuccess(`Nota fiscal do pedido ${orderId} sincronizada com sucesso.`);
+        loadOrders(currentPage);
+    } catch (error) {
+        console.error('Erro ao sincronizar nota:', error);
+        showAlert('danger', error.message || 'Falha ao sincronizar nota fiscal.');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalContent;
+    }
+}
+
+function openOrderJson(cacheKey) {
+    const order = ordersCache[cacheKey];
+    if (!order) {
+        showAlert('warning', 'Não foi possível localizar os dados deste pedido.');
+        return;
+    }
+
+    const modalBody = document.getElementById('orderJsonContent');
+    if (!modalBody) return;
+
+    modalBody.textContent = JSON.stringify(order, null, 2);
+    const modal = new bootstrap.Modal(document.getElementById('orderJsonModal'));
+    modal.show();
+}
+
+</script>
+
+<div class="modal fade" id="orderJsonModal" tabindex="-1" aria-labelledby="orderJsonModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="orderJsonModalLabel"><i class="bi bi-code-slash"></i> JSON do Pedido</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <pre class="bg-light p-3 rounded" style="max-height: 60vh; white-space: pre-wrap; word-break: break-word;" id="orderJsonContent"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Fechar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="copyJsonToClipboard()">
+                    <i class="bi bi-clipboard"></i> Copiar JSON
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyJsonToClipboard() {
+    const content = document.getElementById('orderJsonContent')?.textContent || '';
+    navigator.clipboard.writeText(content).then(() => {
+        showAlert('success', 'JSON copiado com sucesso!');
+    }).catch(() => {
+        showAlert('danger', 'Não foi possível copiar o JSON.');
+    });
+}
+
 </script>
 
 <!-- Modal de Remoção de Pedidos -->
