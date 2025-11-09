@@ -174,6 +174,7 @@ class MLProductController:
             attributes_data = response.json()
             main_attributes: List[Dict[str, Any]] = []
             other_attributes: List[Dict[str, Any]] = []
+            variation_attributes: List[Dict[str, Any]] = []
 
             def tag_bool(tags_obj, key: str) -> bool:
                 if isinstance(tags_obj, dict):
@@ -186,6 +187,10 @@ class MLProductController:
                 tags = attr.get("tags", {})
 
                 if tag_bool(tags, "hidden") or tag_bool(tags, "read_only"):
+                    continue
+
+                if tag_bool(tags, "variation_attribute"):
+                    variation_attributes.append(attr)
                     continue
 
                 is_required = (
@@ -208,6 +213,7 @@ class MLProductController:
             return {
                 "main_attributes": main_attributes,
                 "other_attributes": other_attributes,
+                "variation_attributes": variation_attributes,
             }
         except Exception as exc:
             logger.warning("⚠️ Erro ao carregar atributos da categoria %s: %s", category_id, exc)
@@ -1132,9 +1138,82 @@ class MLProductController:
             
             if attributes:
                 item_payload["attributes"] = attributes
-            
-            # 4.8. Adicionar dados fiscais detalhados (sale_terms)
-            # Outros sale_terms específicos permanecem desativados
+
+            variations_data = product_data.get("variations") if product_data.get("has_variations") else None
+            variations_payload: List[Dict[str, Any]] = []
+
+            if isinstance(variations_data, list) and variations_data:
+                logger.info("🧩 Processando %s variação(ões) para publicação", len(variations_data))
+
+                for idx, raw_variation in enumerate(variations_data, start=1):
+                    combinations = raw_variation.get("attribute_combinations") or []
+                    if not combinations:
+                        logger.warning("⚠️ Variação %s ignorada: sem combinações de atributos", idx)
+                        continue
+
+                    combination_payload: List[Dict[str, Any]] = []
+                    for combo in combinations:
+                        combo_id = combo.get("id")
+                        if not combo_id:
+                            continue
+                        combo_entry: Dict[str, Any] = {"id": combo_id}
+                        if combo.get("value_id"):
+                            combo_entry["value_id"] = combo.get("value_id")
+                        if combo.get("value_name"):
+                            combo_entry["value_name"] = combo.get("value_name")
+                        combination_payload.append(combo_entry)
+
+                    if not combination_payload:
+                        logger.warning("⚠️ Variação %s ignorada: combinações inválidas", idx)
+                        continue
+
+                    variation_payload: Dict[str, Any] = {
+                        "attribute_combinations": combination_payload,
+                        "available_quantity": int(raw_variation.get("available_quantity") or 0),
+                    }
+
+                    if raw_variation.get("price") not in (None, ""):
+                        try:
+                            variation_payload["price"] = float(raw_variation.get("price"))
+                        except (TypeError, ValueError):
+                            logger.warning("⚠️ Preço inválido na variação %s", idx)
+
+                    if raw_variation.get("seller_custom_field"):
+                        variation_payload["seller_custom_field"] = raw_variation.get("seller_custom_field")[:60]
+
+                    variation_attributes_payload: List[Dict[str, Any]] = []
+                    variation_attributes_raw = raw_variation.get("attributes") or []
+
+                    for attr in variation_attributes_raw:
+                        attr_id = attr.get("id") or attr.get("name")
+                        if not attr_id:
+                            continue
+                        payload_entry = {"id": attr_id}
+                        if attr.get("value_id"):
+                            payload_entry["value_id"] = attr.get("value_id")
+                        if attr.get("value_name"):
+                            payload_entry["value_name"] = attr.get("value_name")
+                        variation_attributes_payload.append(payload_entry)
+
+                    if raw_variation.get("gtin"):
+                        variation_attributes_payload.append({
+                            "id": "GTIN",
+                            "value_name": raw_variation.get("gtin")
+                        })
+
+                    if variation_attributes_payload:
+                        variation_payload["attributes"] = variation_attributes_payload
+
+                    variations_payload.append(variation_payload)
+
+                if variations_payload:
+                    item_payload["variations"] = variations_payload
+                    total_quantity = sum(var.get("available_quantity", 0) or 0 for var in variations_payload)
+                    if total_quantity:
+                        item_payload["available_quantity"] = total_quantity
+                    primary_price = next((var.get("price") for var in variations_payload if var.get("price") is not None), None)
+                    if primary_price is not None:
+                        item_payload["price"] = primary_price
             
             logger.info(f"📦 Payload preparado: {item_payload.get('title')} - R$ {item_payload.get('price')}")
             
@@ -1411,9 +1490,85 @@ class MLProductController:
             if sale_terms:
                 payload["sale_terms"] = sale_terms
 
-            status_value = (product_data.get("status") or "").strip().lower()
-            if status_value in {"active", "paused", "closed"}:
-                payload["status"] = status_value
+            variations_data = product_data.get("variations") if product_data.get("has_variations") else None
+            variations_payload: List[Dict[str, Any]] = []
+
+            if isinstance(variations_data, list):
+                logger.info("🧩 Atualizando variações (%s recebidas)", len(variations_data))
+
+                for raw_variation in variations_data:
+                    combination_entries = raw_variation.get("attribute_combinations") or []
+                    if not combination_entries:
+                        continue
+
+                    var_payload: Dict[str, Any] = {}
+                    if raw_variation.get("ml_variation_id"):
+                        try:
+                            var_payload["id"] = int(raw_variation.get("ml_variation_id"))
+                        except (TypeError, ValueError):
+                            logger.warning("⚠️ ID inválido para variação: %s", raw_variation.get("ml_variation_id"))
+
+                    combination_payload: List[Dict[str, Any]] = []
+                    for combo in combination_entries:
+                        combo_id = combo.get("id")
+                        if not combo_id:
+                            continue
+                        combo_entry: Dict[str, Any] = {"id": combo_id}
+                        if combo.get("value_id"):
+                            combo_entry["value_id"] = combo.get("value_id")
+                        if combo.get("value_name"):
+                            combo_entry["value_name"] = combo.get("value_name")
+                        combination_payload.append(combo_entry)
+
+                    if not combination_payload:
+                        continue
+
+                    var_payload["attribute_combinations"] = combination_payload
+                    var_payload["available_quantity"] = int(raw_variation.get("available_quantity") or 0)
+
+                    if raw_variation.get("price") not in (None, ""):
+                        try:
+                            var_payload["price"] = float(raw_variation.get("price"))
+                        except (TypeError, ValueError):
+                            logger.warning("⚠️ Preço inválido na variação: %s", raw_variation.get("price"))
+
+                    if raw_variation.get("seller_custom_field"):
+                        var_payload["seller_custom_field"] = raw_variation.get("seller_custom_field")[:60]
+
+                    if raw_variation.get("status"):
+                        var_payload["status"] = raw_variation.get("status")
+
+                    variation_attributes_payload: List[Dict[str, Any]] = []
+                    for attr in raw_variation.get("attributes") or []:
+                        attr_id = attr.get("id") or attr.get("name")
+                        if not attr_id:
+                            continue
+                        entry = {"id": attr_id}
+                        if attr.get("value_id"):
+                            entry["value_id"] = attr.get("value_id")
+                        if attr.get("value_name"):
+                            entry["value_name"] = attr.get("value_name")
+                        variation_attributes_payload.append(entry)
+
+                    if raw_variation.get("gtin"):
+                        variation_attributes_payload.append({
+                            "id": "GTIN",
+                            "value_name": raw_variation.get("gtin")
+                        })
+
+                    if variation_attributes_payload:
+                        var_payload["attributes"] = variation_attributes_payload
+
+                    variations_payload.append(var_payload)
+
+                if variations_payload:
+                    payload["variations"] = variations_payload
+                    total_quantity = sum(var.get("available_quantity", 0) or 0 for var in variations_payload)
+                    if total_quantity:
+                        payload["available_quantity"] = total_quantity
+                    primary_price = next((var.get("price") for var in variations_payload if var.get("price") is not None), None)
+                    if primary_price is not None:
+                        payload["price"] = primary_price
 
             if not payload:
                 return {"success": False, "error": "Nenhum dado para atualizar."}

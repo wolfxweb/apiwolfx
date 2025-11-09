@@ -322,16 +322,62 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="price" class="form-label required-field">Preço (R$)</label>
-                    <input type="number" class="form-control" id="price" name="price" 
-                           placeholder="0.00" step="0.01" min="0" required>
+                    <input type="number" class="form-control" id="price" name="price" min="0" step="0.01" required>
+                    <div class="form-text">Informe o preço unitário do anúncio.</div>
                 </div>
-                
                 <div class="col-md-6 mb-3">
                     <label for="available_quantity" class="form-label required-field">Quantidade Disponível</label>
-                    <input type="number" class="form-control" id="available_quantity" 
-                           name="available_quantity" placeholder="0" min="0" required>
+                    <input type="number" class="form-control" id="available_quantity" name="available_quantity" min="0" step="1" required>
+                    <div class="form-text">Informe o estoque disponível. Para anúncios com variações, será utilizado o somatório.</div>
                 </div>
             </div>
+
+            <div class="mb-4 d-none" id="variationsContainer">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <label class="form-label mb-1">Variações do Anúncio</label>
+                        <div class="text-muted small" id="variationAttributesSummary"></div>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="hasVariationsToggle">
+                        <label class="form-check-label" for="hasVariationsToggle">Este produto possui variações</label>
+                    </div>
+                </div>
+
+                <div id="variationsDetails" class="mt-3 d-none">
+                    <div class="alert alert-info py-2" id="variationAttributesInfo"></div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Total de variações: <span id="variationsCount">0</span></strong>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addVariationBtn">
+                                <i class="bi bi-plus-circle"></i> Adicionar variação
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="duplicateVariationBtn" disabled>
+                                <i class="bi bi-files"></i> Duplicar última
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0" id="variationsTable">
+                            <thead class="table-light">
+                                <tr id="variationsTableHeader">
+                                    <th scope="col">Variação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="variationsTableBody">
+                                <tr class="text-center text-muted">
+                                    <td colspan="5">Ative as variações e clique em "Adicionar variação".</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <input type="hidden" id="has_variations_input" name="has_variations" value="false">
+            <input type="hidden" id="variations_json" name="variations_json" value="">
             
             <!-- Descrição -->
             <div class="mb-3">
@@ -426,6 +472,51 @@
     </div>
 </div>
 
+<!-- Modal de variações -->
+<div class="modal fade" id="variationModal" tabindex="-1" aria-labelledby="variationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="variationModalLabel">Adicionar variação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="variationModalAttributes" class="row g-3"></div>
+                <hr>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Preço (R$)</label>
+                        <input type="number" class="form-control" id="variation_price" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Estoque</label>
+                        <input type="number" class="form-control" id="variation_stock" min="0" step="1">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">SKU da variação</label>
+                        <input type="text" class="form-control" id="variation_sku" maxlength="46">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">GTIN / EAN</label>
+                        <input type="text" class="form-control" id="variation_gtin" maxlength="14" placeholder="Opcional">
+                        <div class="form-text">Informe se cada variação possui GTIN próprio.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Observações</label>
+                        <textarea class="form-control" id="variation_notes" rows="1" placeholder="Opcional"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveVariationBtn">
+                    <i class="bi bi-check-circle"></i> Salvar variação
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -440,6 +531,10 @@ console.log('📄 Script iniciado - ANTES do DOMContentLoaded', { isEditMode, in
 
 let uploadedImages = [];
 let attributePrefillMap = {};
+let variationAttributes = [];
+let variationsList = [];
+let variationModalInstance = null;
+let currentVariationEditingId = null;
 
 function getActiveImageCount() {
     return uploadedImages.filter(item => item !== null).length;
@@ -684,6 +779,17 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('❌ Botão de navegar categorias não encontrado!');
     }
 
+    variationModalInstance = new bootstrap.Modal(document.getElementById('variationModal'));
+
+    const hasVariationsToggle = document.getElementById('hasVariationsToggle');
+    if (hasVariationsToggle) {
+        hasVariationsToggle.addEventListener('change', onToggleVariations);
+    }
+
+    document.getElementById('addVariationBtn')?.addEventListener('click', () => openVariationModal());
+    document.getElementById('duplicateVariationBtn')?.addEventListener('click', duplicateLastVariation);
+    document.getElementById('saveVariationBtn')?.addEventListener('click', saveVariationFromModal);
+
 }); // Fecha o DOMContentLoaded
 
 async function initializeEditMode() {
@@ -832,6 +938,8 @@ async function initializeEditMode() {
             initialCategoryAttributes
         );
     }
+
+    prefillVariationsFromApi(initialProductData.variations || []);
 
     updateAttributeCounts();
 }
@@ -1078,10 +1186,12 @@ async function selectCategory(categoryId, categoryName, prefillValues = null, pa
     console.log('✅ Categoria selecionada:', categoryId, '-', categoryName);
     
     if (prefetchedAttributes && (prefetchedAttributes.main_attributes || prefetchedAttributes.other_attributes)) {
+        variationAttributes = prefetchedAttributes.variation_attributes || [];
         renderCategoryAttributes(
             prefetchedAttributes.main_attributes || [],
             prefetchedAttributes.other_attributes || []
         );
+        setupVariationAttributesUI();
     }
 
     await loadCategoryAttributes(categoryId);
@@ -1152,6 +1262,9 @@ async function loadCategoryAttributes(categoryId) {
             throw new Error(data.error || 'Erro ao buscar atributos');
         }
 
+        variationAttributes = data.variation_attributes || [];
+        console.log('📦 variationAttributes carregados:', variationAttributes);
+        setupVariationAttributesUI();
         renderCategoryAttributes(data.main_attributes || [], data.other_attributes || []);
 
     } catch (error) {
@@ -1651,6 +1764,34 @@ document.getElementById('productForm').addEventListener('submit', async function
     try {
         const formData = new FormData(this);
         
+        const hasVariationsEnabled = document.getElementById('hasVariationsToggle')?.checked;
+
+        if (hasVariationsEnabled) {
+            if (variationsList.length === 0) {
+                showAlert('danger', 'Adicione pelo menos uma variação ou desative o controle de variações.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = isEditMode
+                    ? '<i class="bi bi-check-circle"></i> Salvar alterações'
+                    : '<i class="bi bi-check-circle"></i> Publicar no Mercado Livre';
+                return;
+            }
+
+            const variationsHidden = document.getElementById('variations_json');
+            const hasVariationsInput = document.getElementById('has_variations_input');
+            variationsHidden.value = JSON.stringify(variationsList);
+            hasVariationsInput.value = 'true';
+
+            const totalQuantity = variationsList.reduce((sum, variation) => sum + (Number(variation.available_quantity) || 0), 0);
+            const mainPrice = variationsList.find(v => v.price !== null && v.price !== undefined)?.price;
+            formData.set('available_quantity', totalQuantity || formData.get('available_quantity') || 0);
+            if (mainPrice !== undefined && mainPrice !== null) {
+                formData.set('price', mainPrice);
+            }
+        } else {
+            document.getElementById('variations_json').value = '';
+            document.getElementById('has_variations_input').value = 'false';
+        }
+        
         // Coletar atributos dinâmicos (características do produto)
         const attributes = [];
         const attributeInputs = document.querySelectorAll('[name^="attribute_"]');
@@ -1743,6 +1884,511 @@ function showAlert(type, message) {
     
     // Auto-remover após 5s
     setTimeout(() => alert.remove(), 5000);
+}
+
+function setupVariationAttributesUI() {
+    const container = document.getElementById('variationsContainer');
+    const toggle = document.getElementById('hasVariationsToggle');
+    const info = document.getElementById('variationAttributesInfo');
+    const summary = document.getElementById('variationAttributesSummary');
+    const duplicateBtn = document.getElementById('duplicateVariationBtn');
+
+    if (!container || !toggle || !info || !summary) {
+        return;
+    }
+
+    console.log('🔎 setupVariationAttributesUI - atributos:', variationAttributes);
+
+    if (!Array.isArray(variationAttributes) || variationAttributes.length === 0) {
+        container.classList.add('d-none');
+        toggle.checked = false;
+        toggle.disabled = true;
+        document.getElementById('variationsDetails')?.classList.add('d-none');
+        variationsList = [];
+        renderVariationsTable();
+        updateVariationHiddenField();
+        if (duplicateBtn) duplicateBtn.disabled = true;
+        return;
+    }
+
+    container.classList.remove('d-none');
+    toggle.disabled = false;
+
+    const attrNames = variationAttributes.map(attr => attr.name || attr.id);
+    summary.textContent = `Disponível para matrizar por: ${attrNames.join(', ')}`;
+
+    const attrChips = variationAttributes.map(attr => {
+        const tags = attr.tags || {};
+        const required = attr.required || tags.mandatory || tags.required;
+        const badgeClass = required ? 'bg-danger' : 'bg-primary';
+        return `<span class="badge ${badgeClass} me-1">${attr.name || attr.id}</span>`;
+    }).join('');
+    info.innerHTML = `Defina pelo menos um valor para cada característica marcada. ${attrChips}`;
+
+    renderVariationsTable();
+    updateVariationHiddenField();
+    if (duplicateBtn) {
+        duplicateBtn.disabled = variationsList.length === 0;
+    }
+}
+
+function onToggleVariations(event) {
+    const enabled = event.target.checked;
+    const details = document.getElementById('variationsDetails');
+    const hasVariationsInput = document.getElementById('has_variations_input');
+
+    if (!Array.isArray(variationAttributes) || variationAttributes.length === 0) {
+        showAlert('warning', 'Esta categoria não suporta variações.');
+        event.target.checked = false;
+        details?.classList.add('d-none');
+        hasVariationsInput.value = 'false';
+        updateVariationHiddenField();
+        return;
+    }
+
+    if (details) {
+        details.classList.toggle('d-none', !enabled);
+    }
+    hasVariationsInput.value = enabled ? 'true' : 'false';
+    updateVariationHiddenField();
+}
+
+function generateUUID() {
+    if (window.crypto?.randomUUID) {
+        return window.crypto.randomUUID();
+    }
+    return `var-${Math.random().toString(36).substring(2, 10)}-${Date.now()}`;
+}
+
+function openVariationModal(variationId = null) {
+    if (!Array.isArray(variationAttributes) || variationAttributes.length === 0) {
+        showAlert('warning', 'Nenhum atributo de variação disponível para esta categoria.');
+        return;
+    }
+
+    currentVariationEditingId = variationId;
+    const modalTitle = document.getElementById('variationModalLabel');
+    const attributesContainer = document.getElementById('variationModalAttributes');
+    attributesContainer.innerHTML = '';
+
+    const existingVariation = variationsList.find(v => v.local_id === variationId);
+
+    variationAttributes.forEach(attr => {
+        const col = document.createElement('div');
+        col.className = 'col-md-6';
+
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = attr.name || attr.id;
+        if (attr.required) {
+            label.innerHTML += ' <span class="text-danger">*</span>';
+        }
+
+        col.appendChild(label);
+
+        const existingCombination = existingVariation?.attribute_combinations?.find(c => c.id === attr.id);
+        const attrValues = Array.isArray(attr.values) ? attr.values : [];
+
+        if (attrValues.length > 0) {
+            const select = document.createElement('select');
+            select.className = 'form-select variation-attribute-input';
+            select.dataset.attributeId = attr.id;
+            select.dataset.attributeName = attr.name || attr.id;
+            select.innerHTML = '<option value="">Selecione...</option>';
+
+            attrValues.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value.id || value.name;
+                option.textContent = value.name || value.id;
+                option.dataset.valueId = value.id || '';
+                option.dataset.valueName = value.name || value.id;
+                select.appendChild(option);
+            });
+
+            if (existingCombination) {
+                let matched = false;
+                if (existingCombination.value_id) {
+                    select.value = existingCombination.value_id;
+                    matched = true;
+                }
+                if (!matched && existingCombination.value_name) {
+                    const foundOption = Array.from(select.options).find(opt => opt.dataset.valueName === existingCombination.value_name);
+                    if (foundOption) {
+                        select.value = foundOption.value;
+                        matched = true;
+                    }
+                }
+                if (!matched && existingCombination.value_name) {
+                    const newOption = document.createElement('option');
+                    newOption.value = existingCombination.value_name;
+                    newOption.textContent = `${existingCombination.value_name} (custom)`;
+                    newOption.dataset.valueName = existingCombination.value_name;
+                    select.appendChild(newOption);
+                    select.value = newOption.value;
+                }
+            }
+
+            col.appendChild(select);
+        } else {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control variation-attribute-input';
+            input.dataset.attributeId = attr.id;
+            input.dataset.attributeName = attr.name || attr.id;
+            if (existingCombination?.value_name) {
+                input.value = existingCombination.value_name;
+            }
+            col.appendChild(input);
+        }
+
+        attributesContainer.appendChild(col);
+    });
+
+    const priceInput = document.getElementById('variation_price');
+    const stockInput = document.getElementById('variation_stock');
+    const skuInput = document.getElementById('variation_sku');
+    const gtinInput = document.getElementById('variation_gtin');
+    const notesInput = document.getElementById('variation_notes');
+
+    priceInput.value = existingVariation?.price ?? '';
+    stockInput.value = existingVariation?.available_quantity ?? '';
+    skuInput.value = existingVariation?.seller_custom_field ?? '';
+    gtinInput.value = existingVariation?.gtin ?? '';
+    notesInput.value = existingVariation?.notes ?? '';
+
+    if (modalTitle) {
+        modalTitle.textContent = variationId ? 'Editar variação' : 'Adicionar variação';
+    }
+
+    variationModalInstance?.show();
+}
+
+function buildVariationCombinationKey(combinationEntries) {
+    return combinationEntries
+        .map(entry => `${entry.id}:${entry.value_id || entry.value_name || ''}`)
+        .sort()
+        .join('|');
+}
+
+function saveVariationFromModal() {
+    const attributeInputs = document.querySelectorAll('.variation-attribute-input');
+    const combinations = [];
+
+    attributeInputs.forEach(input => {
+        const attrId = input.dataset.attributeId;
+        const attrName = input.dataset.attributeName;
+        const isSelect = input.tagName === 'SELECT';
+        const value = input.value?.trim();
+
+        if (!value) {
+            return;
+        }
+
+        const entry = { id: attrId };
+        if (isSelect) {
+            const selectedOption = input.selectedOptions[0];
+            if (selectedOption?.dataset.valueId) {
+                entry.value_id = selectedOption.dataset.valueId;
+            }
+            entry.value_name = selectedOption?.dataset.valueName || selectedOption?.text || value;
+        } else {
+            entry.value_name = value;
+        }
+
+        if (!entry.value_id && !entry.value_name) {
+            entry.value_name = value;
+        }
+
+        entry.name = attrName;
+        combinations.push(entry);
+    });
+
+    if (combinations.length !== variationAttributes.length) {
+        showAlert('warning', 'Preencha todas as características da variação.');
+        return;
+    }
+
+    const combinationKey = buildVariationCombinationKey(combinations);
+    const duplicate = variationsList.find(v => buildVariationCombinationKey(v.attribute_combinations) === combinationKey && v.local_id !== currentVariationEditingId);
+    if (duplicate) {
+        showAlert('warning', 'Já existe uma variação com essa combinação de atributos.');
+        return;
+    }
+
+    const priceValue = document.getElementById('variation_price').value;
+    const stockValue = document.getElementById('variation_stock').value;
+    const skuValue = document.getElementById('variation_sku').value?.trim();
+    const gtinValue = document.getElementById('variation_gtin').value?.trim();
+    const notesValue = document.getElementById('variation_notes').value?.trim();
+
+    const existingVariation = currentVariationEditingId
+        ? variationsList.find(v => v.local_id === currentVariationEditingId)
+        : null;
+
+    const preservedAttributes = existingVariation?.attributes
+        ? existingVariation.attributes.filter(attr => attr.id !== 'GTIN')
+        : [];
+
+    const variationData = {
+        local_id: currentVariationEditingId || generateUUID(),
+        ml_variation_id: null,
+        attribute_combinations: combinations,
+        price: priceValue ? parseFloat(priceValue) : null,
+        available_quantity: stockValue ? parseInt(stockValue, 10) : 0,
+        seller_custom_field: skuValue || null,
+        gtin: gtinValue || null,
+        notes: notesValue || null,
+        attributes: preservedAttributes,
+    };
+
+    if (gtinValue) {
+        variationData.attributes.push({ id: 'GTIN', value_name: gtinValue });
+    }
+
+    if (currentVariationEditingId) {
+        const index = variationsList.findIndex(v => v.local_id === currentVariationEditingId);
+        if (index >= 0) {
+            variationData.ml_variation_id = variationsList[index].ml_variation_id || null;
+            variationData.status = variationsList[index].status || null;
+            variationData.__marked_for_deletion = variationsList[index].__marked_for_deletion || false;
+            variationsList[index] = variationData;
+        }
+    } else {
+        variationsList.push(variationData);
+    }
+
+    renderVariationsTable();
+    updateVariationHiddenField();
+    variationModalInstance?.hide();
+    document.getElementById('duplicateVariationBtn').disabled = variationsList.length === 0;
+}
+
+function duplicateLastVariation() {
+    if (variationsList.length === 0) {
+        return;
+    }
+    const lastVariation = variationsList[variationsList.length - 1];
+    const duplicated = JSON.parse(JSON.stringify(lastVariation));
+    duplicated.local_id = generateUUID();
+    duplicated.ml_variation_id = null;
+    duplicated.status = null;
+    duplicated.__marked_for_deletion = false;
+    variationsList.push(duplicated);
+    renderVariationsTable();
+    updateVariationHiddenField();
+}
+
+function deleteVariation(localId) {
+    const variation = variationsList.find(v => v.local_id === localId);
+    if (!variation) {
+        return;
+    }
+
+    if (variation.ml_variation_id) {
+        variation.available_quantity = 0;
+        variation.status = 'not_available';
+        variation.__marked_for_deletion = true;
+        showAlert('info', 'A variação será desativada no Mercado Livre (estoque zero).');
+    } else {
+        variationsList = variationsList.filter(v => v.local_id !== localId);
+    }
+
+    renderVariationsTable();
+    updateVariationHiddenField();
+    const duplicateBtn = document.getElementById('duplicateVariationBtn');
+    if (duplicateBtn) {
+        duplicateBtn.disabled = variationsList.length === 0;
+    }
+}
+
+function editVariation(localId) {
+    const variation = variationsList.find(v => v.local_id === localId);
+    if (!variation) {
+        return;
+    }
+    openVariationModal(localId);
+    document.getElementById('variationModalLabel').textContent = 'Editar variação';
+    const priceInput = document.getElementById('variation_price');
+    const stockInput = document.getElementById('variation_stock');
+    const skuInput = document.getElementById('variation_sku');
+    const gtinInput = document.getElementById('variation_gtin');
+    const notesInput = document.getElementById('variation_notes');
+
+    priceInput.value = variation.price ?? '';
+    stockInput.value = variation.available_quantity ?? '';
+    skuInput.value = variation.seller_custom_field ?? '';
+    gtinInput.value = variation.gtin ?? '';
+    notesInput.value = variation.notes ?? '';
+}
+
+function renderVariationsTable() {
+    const headerRow = document.getElementById('variationsTableHeader');
+    const body = document.getElementById('variationsTableBody');
+    const duplicateBtn = document.getElementById('duplicateVariationBtn');
+
+    if (!headerRow || !body) {
+        return;
+    }
+
+    headerRow.innerHTML = '';
+    const attributeHeader = document.createElement('th');
+    attributeHeader.textContent = 'Combinação';
+    headerRow.appendChild(attributeHeader);
+
+    const priceHeader = document.createElement('th');
+    priceHeader.textContent = 'Preço (R$)';
+    headerRow.appendChild(priceHeader);
+
+    const stockHeader = document.createElement('th');
+    stockHeader.textContent = 'Estoque';
+    headerRow.appendChild(stockHeader);
+
+    const skuHeader = document.createElement('th');
+    skuHeader.textContent = 'SKU';
+    headerRow.appendChild(skuHeader);
+
+    const gtinHeader = document.createElement('th');
+    gtinHeader.textContent = 'GTIN';
+    headerRow.appendChild(gtinHeader);
+
+    const actionsHeader = document.createElement('th');
+    actionsHeader.className = 'text-end';
+    actionsHeader.textContent = 'Ações';
+    headerRow.appendChild(actionsHeader);
+
+    if (!variationsList.length) {
+        body.innerHTML = '<tr class="text-center text-muted"><td colspan="6">Nenhuma variação cadastrada.</td></tr>';
+        document.getElementById('variationsCount').textContent = '0';
+        if (duplicateBtn) duplicateBtn.disabled = true;
+        return;
+    }
+
+    body.innerHTML = '';
+    variationsList.forEach(variation => {
+        const row = document.createElement('tr');
+
+        const combinationCell = document.createElement('td');
+        const comboText = variation.attribute_combinations
+            .map(combo => `${combo.name || combo.id}: ${combo.value_name || combo.value_id || ''}`)
+            .join('<br>');
+        let combinationHtml = comboText || '<span class="text-muted">-</span>';
+        if (variation.__marked_for_deletion) {
+            combinationHtml += '<div><span class="badge bg-warning text-dark mt-1">Será desativada</span></div>';
+        }
+        combinationCell.innerHTML = combinationHtml;
+        row.appendChild(combinationCell);
+
+        const priceCell = document.createElement('td');
+        priceCell.textContent = variation.price !== null && variation.price !== undefined
+            ? Number(variation.price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+            : '--';
+        row.appendChild(priceCell);
+
+        const stockCell = document.createElement('td');
+        stockCell.textContent = variation.available_quantity ?? '--';
+        row.appendChild(stockCell);
+
+        const skuCell = document.createElement('td');
+        skuCell.textContent = variation.seller_custom_field || '--';
+        row.appendChild(skuCell);
+
+        const gtinCell = document.createElement('td');
+        gtinCell.textContent = variation.gtin || '--';
+        row.appendChild(gtinCell);
+
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'text-end';
+        actionsCell.innerHTML = `
+            <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary" onclick="editVariation('${variation.local_id}')">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger" onclick="deleteVariation('${variation.local_id}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+        row.appendChild(actionsCell);
+
+        body.appendChild(row);
+    });
+
+    document.getElementById('variationsCount').textContent = variationsList.length;
+    if (duplicateBtn) duplicateBtn.disabled = variationsList.length === 0;
+}
+
+function updateVariationHiddenField() {
+    const variationsHidden = document.getElementById('variations_json');
+    const hasInput = document.getElementById('has_variations_input');
+    const toggle = document.getElementById('hasVariationsToggle');
+
+    if (!variationsHidden || !hasInput || !toggle) {
+        return;
+    }
+
+    if (toggle.checked && variationsList.length > 0) {
+        variationsHidden.value = JSON.stringify(variationsList);
+        hasInput.value = 'true';
+    } else {
+        variationsHidden.value = '';
+        hasInput.value = 'false';
+    }
+}
+
+function prefillVariationsFromApi(apiVariations) {
+    if (!Array.isArray(apiVariations) || apiVariations.length === 0) {
+        return;
+    }
+
+    const toggle = document.getElementById('hasVariationsToggle');
+    const details = document.getElementById('variationsDetails');
+    const hasInput = document.getElementById('has_variations_input');
+
+    if (toggle) {
+        toggle.checked = true;
+    }
+    if (details) {
+        details.classList.remove('d-none');
+    }
+    if (hasInput) {
+        hasInput.value = 'true';
+    }
+
+    variationsList = apiVariations.map(variation => {
+        const combos = Array.isArray(variation.attribute_combinations)
+            ? variation.attribute_combinations.map(combo => ({
+                id: combo.id,
+                name: combo.name || combo.id,
+                value_id: combo.value_id || null,
+                value_name: combo.value_name || combo.value_id || '',
+            }))
+            : [];
+
+        const attributes = Array.isArray(variation.attributes)
+            ? variation.attributes
+            : [];
+
+        const gtinAttr = attributes.find(attr => ['GTIN', 'EAN', 'UPC', 'BARCODE'].includes(attr.id || attr.name));
+
+        return {
+            local_id: variation.id ? String(variation.id) : generateUUID(),
+            ml_variation_id: variation.id ? String(variation.id) : null,
+            attribute_combinations: combos,
+            price: variation.price !== undefined && variation.price !== null ? Number(variation.price) : null,
+            available_quantity: variation.available_quantity !== undefined && variation.available_quantity !== null
+                ? Number(variation.available_quantity)
+                : 0,
+            seller_custom_field: variation.seller_custom_field || null,
+            gtin: gtinAttr?.value_name || null,
+            notes: null,
+            attributes: attributes,
+            status: variation.status || null,
+        };
+    });
+
+    renderVariationsTable();
+    updateVariationHiddenField();
+    document.getElementById('duplicateVariationBtn').disabled = variationsList.length === 0;
 }
 </script>
 {% endblock %}

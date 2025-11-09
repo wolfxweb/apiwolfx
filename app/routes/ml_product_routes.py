@@ -4,6 +4,7 @@ Rotas para produtos do Mercado Livre
 import logging
 import requests
 import httpx
+import json
 from fastapi import APIRouter, Depends, Request, Query, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -2142,6 +2143,7 @@ async def create_ml_product(
             "warranty_type": warranty_type if warranty_type else "none",
             "warranty_time_value": form_data.get("warranty_duration_value"),
             "warranty_time_unit": form_data.get("warranty_duration_unit"),
+            "has_variations": (form_data.get("has_variations") or "false").lower() == "true",
             # Dados de envio
             "shipping_mode": form_data.get("shipping_mode", "me2"),
             "free_shipping": form_data.get("free_shipping") == "on",
@@ -2355,7 +2357,22 @@ async def update_ml_product(
             "gtin": form_data.get("gtin"),
             "mpn": form_data.get("mpn"),
             "status": form_data.get("status"),
+            "has_variations": (form_data.get("has_variations") or "false").lower() == "true",
         }
+
+        variations_payload = form_data.get("variations_json")
+        if variations_payload:
+            try:
+                product_data["variations"] = json.loads(variations_payload)
+            except json.JSONDecodeError as json_error:
+                logger.error("❌ Erro ao decodificar variations_json na edição: %s", json_error)
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "success": False,
+                        "error": "Formato inválido das variações enviadas.",
+                    },
+                )
 
         attributes: List[Dict[str, Any]] = []
         attribute_values: Dict[str, Dict[str, Optional[str]]] = {}
