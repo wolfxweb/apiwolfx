@@ -25,13 +25,19 @@ class MLMessagesService:
             "Content-Type": "application/json"
         }
     
-    def _get_access_token(self, user_id: int) -> Optional[str]:
+    def _get_access_token(self, user_id: int, ml_account_id: Optional[int] = None, company_id: Optional[int] = None) -> Optional[str]:
         """Obtém token válido usando TokenManager"""
         try:
             token_manager = TokenManager(self.db)
+
+            if ml_account_id:
+                token_record = token_manager.get_token_record_for_account(ml_account_id, company_id)
+                if token_record and token_record.access_token:
+                    return token_record.access_token
+
             return token_manager.get_valid_token(user_id)
         except Exception as e:
-            logger.error(f"Erro ao obter token para user_id {user_id}: {e}")
+            logger.error(f"Erro ao obter token para user_id {user_id} (ml_account_id={ml_account_id}): {e}")
             return None
     
     def get_reasons_to_communicate(self, access_token: str) -> List[Dict]:
@@ -594,15 +600,6 @@ class MLMessagesService:
             if date_from:
                 logger.info(f"🔄 Período: de {date_from} até {date_to or 'hoje'}")
             
-            access_token = self._get_access_token(user_id)
-            if not access_token:
-                logger.error(f"❌ Token de acesso não encontrado ou expirado")
-                return {
-                    "success": False,
-                    "error": "Token de acesso não encontrado ou expirado",
-                    "synced": 0
-                }
-            
             # Buscar contas ML ativas
             accounts_query = self.db.query(MLAccount).filter(
                 MLAccount.company_id == company_id,
@@ -632,6 +629,9 @@ class MLMessagesService:
                 try:
                     ml_user_id = str(account.ml_user_id)
                     logger.info(f"🔄 Processando conta ML: {account.nickname} (ID: {account.id}, ML User: {ml_user_id})")
+                    access_token = self._get_access_token(user_id, account.id, company_id)
+                    if not access_token:
+                        raise Exception("Token de acesso não encontrado ou expirado para esta conta")
                     
                     # Buscar pacotes/conversas com paginação completa
                     packages = self.get_packages(

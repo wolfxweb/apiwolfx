@@ -11,6 +11,7 @@ from sqlalchemy import and_, or_
 
 from app.models.saas_models import MLAccount, MLProduct, MLProductSync, Token, MLProductStatus
 from app.config.settings import settings
+from app.services.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -20,57 +21,37 @@ class MLProductService:
     def __init__(self, db: Session):
         self.db = db
         self.base_url = "https://api.mercadolibre.com"
+        self.token_manager = TokenManager(db)
     
-    def get_active_token(self, ml_account_id: int) -> Optional[str]:
-        """Obtém token ativo para a conta ML com renovação automática"""
+    def get_active_token(self, ml_account_id: int, company_id: Optional[int] = None) -> Optional[str]:
+        """Obtém access token usando o TokenManager, renovando automaticamente se necessário"""
         try:
-            logger.info(f"Buscando token ativo para ml_account_id: {ml_account_id}")
-            
-            # Primeiro, tentar buscar token válido
-            from sqlalchemy import text
-            query = text("""
-                SELECT access_token, refresh_token, expires_at
-                FROM tokens 
-                WHERE ml_account_id = :ml_account_id 
-                AND is_active = true 
-                AND expires_at > NOW()
-                ORDER BY expires_at DESC
-                LIMIT 1
-            """)
-            
-            result = self.db.execute(query, {"ml_account_id": ml_account_id}).fetchone()
-            
-            if result:
-                logger.info(f"Token encontrado: {result[0][:20]}..., expira em: {result[2]}")
-                return result[0]
-            
-            # Se não encontrou token válido, tentar renovar com refresh token
-            logger.info(f"Token expirado para ml_account_id: {ml_account_id}, tentando renovar...")
-            
-            # Buscar refresh token
-            refresh_query = text("""
-                SELECT refresh_token, access_token
-                FROM tokens 
-                WHERE ml_account_id = :ml_account_id 
-                AND is_active = true 
-                AND refresh_token IS NOT NULL
-                ORDER BY expires_at DESC
-                LIMIT 1
-            """)
-            
-            refresh_result = self.db.execute(refresh_query, {"ml_account_id": ml_account_id}).fetchone()
-            
-            if refresh_result and refresh_result[0]:
-                # Tentar renovar o token
-                new_token = self._refresh_token(refresh_result[0], ml_account_id)
-                if new_token:
-                    return new_token
-            
-            logger.warning(f"Nenhum token ativo encontrado para ml_account_id: {ml_account_id}")
+            if company_id is None:
+                account = (
+                    self.db.query(MLAccount.company_id)
+                    .filter(MLAccount.id == ml_account_id)
+                    .first()
+                )
+                if not account:
+                    logger.warning(
+                        "Conta ML %s não encontrada ao buscar token", ml_account_id
+                    )
+                    return None
+                company_id = account[0]
+
+            token_record = self.token_manager.get_token_record_for_account(
+                ml_account_id, company_id
+            )
+            if token_record and token_record.access_token:
+                return token_record.access_token
+
+            logger.warning(
+                "TokenManager não retornou token válido para ml_account_id=%s", ml_account_id
+            )
             return None
-                
+
         except Exception as e:
-            logger.error(f"Erro ao obter token ativo: {e}")
+            logger.error(f"Erro ao obter token ativo via TokenManager: {e}")
             return None
     
     def _refresh_token(self, refresh_token: str, ml_account_id: int) -> Optional[str]:
@@ -140,10 +121,16 @@ class MLProductService:
             logger.error(f"Erro ao renovar token: {e}")
             return None
     
-    def fetch_user_products(self, ml_account_id: int, limit: int = 50, offset: int = 0) -> Dict:
+    def fetch_user_products(
+        self,
+        ml_account_id: int,
+        company_id: Optional[int] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Dict:
         """Busca produtos do usuário na API do ML"""
         try:
-            token = self.get_active_token(ml_account_id)
+            token = self.get_active_token(ml_account_id, company_id)
             if not token:
                 raise Exception("Token ativo não encontrado")
             
@@ -223,7 +210,7 @@ class MLProductService:
             print(f"🔍 SERVICE DEBUG - limit: {limit}")
             
             # Obter token ativo
-            token = self.get_active_token(ml_account_id)
+            token = self.get_active_token(ml_account_id, company_id)
             if not token:
                 print(f"❌ SERVICE ERROR - Token não encontrado para ml_account_id: {ml_account_id}")
                 return {
@@ -235,7 +222,7 @@ class MLProductService:
             
             # Buscar produtos do usuário com filtro de status
             print(f"🔍 SERVICE DEBUG - Chamando fetch_user_products...")
-            products_data = self.fetch_user_products(ml_account_id, limit=limit)
+            products_data = self.fetch_user_products(ml_account_id, company_id, limit=limit)
             print(f"🔍 SERVICE DEBUG - Resultado fetch_user_products: {products_data}")
             
             if not products_data.get('success'):
@@ -320,7 +307,7 @@ class MLProductService:
         """Importa um produto específico do Mercado Livre"""
         try:
             # Obter token ativo
-            token = self.get_active_token(ml_account_id)
+            token = self.get_active_token(ml_account_id, company_id)
             if not token:
                 return {
                     "success": False,
@@ -391,7 +378,7 @@ class MLProductService:
             self.db.commit()
             
             # Buscar produtos na API
-            api_data = self.fetch_user_products(ml_account_id)
+            api_data = self.fetch_user_products(ml_account_id, company_id)
             products_data = api_data.get("results", [])
             
             items_processed = 0
@@ -1125,7 +1112,6 @@ class MLProductService:
                 return {"success": False, "error": "ID da empresa é obrigatório"}
             
             # Usar TokenManager para obter token válido
-            from app.services.token_manager import TokenManager
             token_manager = TokenManager(self.db)
             
             if not user_id:

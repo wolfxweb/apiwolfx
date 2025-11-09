@@ -106,7 +106,7 @@ class MLMessagesController:
                       company_id: int, user_id: int) -> Dict:
         """Cria uma nova mensagem pós-venda"""
         try:
-            access_token = self.service._get_access_token(user_id)
+            access_token = self.service._get_access_token(user_id, ml_account.id, company_id)
             if not access_token:
                 return {
                     "success": False,
@@ -297,10 +297,26 @@ class MLMessagesController:
                 "synced": 0
             }
     
-    def get_reasons(self, user_id: int) -> Dict:
+    def get_reasons(self, user_id: int, ml_account_id: Optional[int] = None) -> Dict:
         """Obtém motivos disponíveis para iniciar comunicação"""
         try:
-            access_token = self.service._get_access_token(user_id)
+            account = None
+            company_id = None
+            if ml_account_id:
+                account = (
+                    self.db.query(MLAccount)
+                    .filter(MLAccount.id == ml_account_id)
+                    .first()
+                )
+                if not account:
+                    return {
+                        "success": False,
+                        "error": "Conta ML não encontrada",
+                        "reasons": []
+                    }
+                company_id = account.company_id
+
+            access_token = self.service._get_access_token(user_id, ml_account_id, company_id)
             if not access_token:
                 return {
                     "success": False,

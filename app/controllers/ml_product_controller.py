@@ -74,7 +74,29 @@ class MLProductController:
                 product["seller_custom_field"] = item_data.get("seller_custom_field", product.get("seller_custom_field"))
                 product["seller_sku"] = item_data.get("seller_sku", product.get("seller_sku"))
                 product["shipping"] = item_data.get("shipping", product.get("shipping") or {})
-                product["free_shipping"] = product["shipping"].get("free_shipping", product.get("free_shipping"))
+                shipping_info = product.get("shipping") or {}
+                product["free_shipping"] = shipping_info.get("free_shipping", product.get("free_shipping"))
+
+                dimensions_str = shipping_info.get("dimensions")
+                if isinstance(dimensions_str, str) and dimensions_str:
+                    try:
+                        dims_part, weight_part = dimensions_str.split(",") if "," in dimensions_str else (dimensions_str, None)
+                        length = width = height = None
+                        if "x" in dims_part:
+                            parts = dims_part.split("x")
+                            if len(parts) >= 3:
+                                length, width, height = parts[:3]
+                        if length:
+                            product["package_length"] = length
+                        if width:
+                            product["package_width"] = width
+                        if height:
+                            product["package_height"] = height
+                        if weight_part:
+                            product["package_weight"] = weight_part
+                    except Exception as dim_exc:
+                        logger.debug("ℹ️ Não foi possível interpretar dimensions '%s': %s", dimensions_str, dim_exc)
+
                 product["pictures"] = item_data.get("pictures", product.get("pictures") or [])
                 product["attributes"] = item_data.get("attributes", product.get("attributes") or [])
                 product["sale_terms"] = item_data.get("sale_terms", product.get("sale_terms") or [])
@@ -1094,6 +1116,15 @@ class MLProductController:
                     "value_name": product_data.get("mpn")
                 })
             
+            sku_value = (product_data.get("seller_custom_field") or "").strip()
+            if sku_value:
+                if not any(attr.get("id") == "SELLER_SKU" for attr in attributes):
+                    attributes.append({
+                        "id": "SELLER_SKU",
+                        "value_name": sku_value
+                    })
+                    logger.info("📦 SKU adicionado como atributo SELLER_SKU")
+            
             # Atributos dinâmicos da categoria
             if product_data.get("attributes"):
                 attributes.extend(product_data.get("attributes"))
@@ -1123,33 +1154,23 @@ class MLProductController:
                 
                 logger.info(f"🎉 Produto criado com sucesso no ML! ID: {item_id}")
                 
-                # 6. Salvar produto no banco de dados local
+                # 6. Sincronizar produto completo a partir do Mercado Livre
                 try:
-                    new_product = MLProduct(
-                        ml_item_id=item_id,
-                        ml_account_id=ml_account.id,
-                        company_id=company_id,
-                        title=item_data.get("title"),
-                        price=item_data.get("price"),
-                        available_quantity=item_data.get("available_quantity"),
-                        sold_quantity=item_data.get("sold_quantity", 0),
-                        status=item_data.get("status", "active").upper(),
-                        condition=item_data.get("condition"),
-                        listing_type_id=item_data.get("listing_type_id"),
-                        category_id=item_data.get("category_id"),
-                        thumbnail=item_data.get("thumbnail"),
-                        permalink=item_data.get("permalink"),
-                        seller_custom_field=item_data.get("seller_custom_field")
+                    import_result = self.product_service.import_single_product(
+                        ml_account.id,
+                        company_id,
+                        item_id,
                     )
-                    
-                    self.db.add(new_product)
-                    self.db.commit()
-                    
-                    logger.info(f"💾 Produto salvo no banco de dados local")
-                    
+                    if not import_result.get("success"):
+                        logger.warning(
+                            "⚠️ Produto criado no ML, mas não foi possível importar os detalhes: %s",
+                            import_result.get("error"),
+                        )
                 except Exception as db_error:
-                    logger.error(f"⚠️ Erro ao salvar produto no banco: {db_error}")
-                    # Não falhar a operação por causa disso
+                    logger.error(
+                        "⚠️ Produto criado no ML, mas ocorreu erro ao sincronizar os dados completos: %s",
+                        db_error,
+                    )
                 
                 return {
                     "success": True,
@@ -1365,7 +1386,11 @@ class MLProductController:
                 attributes_payload.extend(product_data["attributes"])
 
             if attributes_payload:
-                attributes_payload = [attr for attr in attributes_payload if attr.get("id") not in {"GTIN", "MPN"}]
+                attributes_payload = [attr for attr in attributes_payload if attr.get("id") not in {"GTIN", "MPN", "SELLER_SKU"}]
+
+            sku_value = (product_data.get("seller_custom_field") or ml_product.seller_custom_field or "").strip()
+            if sku_value:
+                attributes_payload.append({"id": "SELLER_SKU", "value_name": sku_value})
 
             if product_data.get("gtin"):
                 attributes_payload.append({"id": "GTIN", "value_name": product_data.get("gtin")})

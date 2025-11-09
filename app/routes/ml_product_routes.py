@@ -1835,42 +1835,33 @@ async def predict_ml_category(
     logger.info(f"🎯 INÍCIO predict_ml_category - q='{q}'")
     try:
         import requests
-        from app.models.saas_models import Token, MLAccount
         from datetime import datetime
+        from app.models.saas_models import MLAccount
+        from app.services.token_manager import TokenManager
         
         logger.info(f"✅ Imports OK - user={user.get('email') if isinstance(user, dict) else 'N/A'}")
         
-        # Buscar token ativo da empresa do usuário
         company_id = user["company"]["id"]
         logger.info(f"✅ Company ID: {company_id}")
         
-        token = db.query(Token).join(MLAccount).filter(
-            MLAccount.company_id == company_id,
-            Token.is_active == True,
-            Token.expires_at > datetime.utcnow()
-        ).order_by(Token.expires_at.desc()).first()
+        token_manager = TokenManager(db)
+        token_record = token_manager.get_token_record_for_company(company_id)
         
-        # Endpoint de predição de categorias do Mercado Livre
+        if not token_record:
+            logger.warning("⚠️ Nenhum token válido encontrado para predição de categorias")
+        
         url = f"https://api.mercadolibre.com/sites/{site_id}/domain_discovery/search"
         params = {
             "q": q,
             "limit": limit
         }
         
-        headers = {
-            "Accept": "application/json"
-        }
-        
-        # Se tiver token, adicionar ao header
-        if token:
-            headers["Authorization"] = f"Bearer {token.access_token}"
-            logger.info(f"🔍 Buscando categorias para: '{q}' com token do ML")
+        headers = {"Accept": "application/json"}
+        if token_record and token_record.access_token:
+            headers["Authorization"] = f"Bearer {token_record.access_token}"
+            logger.info("🔍 Buscando categorias com token autenticado")
         else:
-            logger.warning(f"⚠️ Nenhum token encontrado! Buscando categorias para: '{q}' sem autenticação")
-        
-        logger.info(f"📡 URL completa: {url}")
-        logger.info(f"📋 Parâmetros: {params}")
-        logger.info(f"📋 Headers: {headers}")
+            logger.info("🔍 Buscando categorias sem token (modo público)")
         
         response = requests.get(url, params=params, headers=headers, timeout=10)
         
@@ -1880,7 +1871,6 @@ async def predict_ml_category(
         if response.status_code == 200:
             predictions = response.json()
             
-            # Formatar resposta para o frontend
             suggestions = []
             for pred in predictions:
                 suggestions.append({

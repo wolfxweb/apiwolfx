@@ -226,6 +226,7 @@ async def sync_messages_api(
 @ml_messages_router.get("/api/messages/reasons")
 async def get_reasons_api(
     request: Request,
+    ml_account_id: Optional[int] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -247,7 +248,7 @@ async def get_reasons_api(
     user_id = user_data["id"]
     
     controller = MLMessagesController(db)
-    result = controller.get_reasons(user_id)
+    result = controller.get_reasons(user_id, ml_account_id)
     
     return JSONResponse(content=result)
 
@@ -273,25 +274,49 @@ async def get_ml_accounts_api(
     
     user_data = result["user"]
     company_id = user_data["company"]["id"]
+    user_id = user_data["id"]
     
-    from app.models.saas_models import MLAccount, MLAccountStatus
+    from app.models.saas_models import MLAccount, MLAccountStatus, UserMLAccount
     
-    ml_accounts = db.query(MLAccount).filter(
-        MLAccount.company_id == company_id,
-        MLAccount.status == MLAccountStatus.ACTIVE
-    ).all()
+    accounts_query = (
+        db.query(MLAccount)
+        .join(UserMLAccount, UserMLAccount.ml_account_id == MLAccount.id)
+        .filter(
+            MLAccount.company_id == company_id,
+            UserMLAccount.user_id == user_id,
+            MLAccount.status == MLAccountStatus.ACTIVE,
+        )
+        .order_by(MLAccount.nickname.asc(), MLAccount.id.asc())
+    )
     
-    accounts_list = []
-    for acc in ml_accounts:
-        accounts_list.append({
+    ml_accounts = accounts_query.all()
+    
+    # Se o usuário não tiver contas vinculadas explicitamente, retornar todas da empresa
+    if not ml_accounts:
+        ml_accounts = (
+            db.query(MLAccount)
+            .filter(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE,
+            )
+            .order_by(MLAccount.nickname.asc(), MLAccount.id.asc())
+            .all()
+        )
+    
+    accounts_list = [
+        {
             "id": acc.id,
             "nickname": acc.nickname,
             "ml_user_id": acc.ml_user_id,
-            "site_id": acc.site_id
-        })
+            "site_id": acc.site_id,
+        }
+        for acc in ml_accounts
+    ]
     
-    return JSONResponse(content={
-        "success": True,
-        "accounts": accounts_list
-    })
+    return JSONResponse(
+        content={
+            "success": True,
+            "accounts": accounts_list,
+        }
+    )
 
