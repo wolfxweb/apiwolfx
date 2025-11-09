@@ -431,6 +431,48 @@ function getActiveImageCount() {
     return uploadedImages.filter(item => item !== null).length;
 }
 
+window.updateWarrantySummary = function updateWarrantySummary() {
+    const warrantyHiddenInput = document.getElementById('warranty');
+    const warrantyDurationGroup = document.getElementById('warrantyDurationGroup');
+    const warrantyDurationValue = document.getElementById('warranty_duration_value');
+    const warrantyDurationUnit = document.getElementById('warranty_duration_unit');
+    const selectedTypeInput = document.querySelector('input[name="warranty_type"]:checked');
+
+    if (!warrantyHiddenInput || !selectedTypeInput) {
+        return;
+    }
+
+    const typeLabel = selectedTypeInput.dataset.label || '';
+    const typeValue = selectedTypeInput.value || 'none';
+    const requiresDuration = ['seller', 'factory'].includes(typeValue);
+
+    if (warrantyDurationGroup) {
+        if (requiresDuration) {
+            warrantyDurationGroup.classList.remove('d-none');
+            if (warrantyDurationValue) warrantyDurationValue.required = true;
+            if (warrantyDurationUnit) warrantyDurationUnit.required = true;
+        } else {
+            warrantyDurationGroup.classList.add('d-none');
+            if (warrantyDurationValue) {
+                warrantyDurationValue.required = false;
+                warrantyDurationValue.value = '';
+            }
+            if (warrantyDurationUnit) {
+                warrantyDurationUnit.required = false;
+                warrantyDurationUnit.value = '';
+            }
+        }
+    }
+
+    let summary = typeLabel;
+    if (requiresDuration && warrantyDurationValue && warrantyDurationUnit && warrantyDurationValue.value && warrantyDurationUnit.value) {
+        const unitLabel = warrantyDurationUnit.options[warrantyDurationUnit.selectedIndex]?.text || warrantyDurationUnit.value;
+        summary = `${typeLabel} - ${warrantyDurationValue.value} ${unitLabel}`;
+    }
+
+    warrantyHiddenInput.value = summary;
+};
+
 // Garantir que o DOM esteja carregado antes de vincular eventos
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOMContentLoaded disparado - Página de cadastro de produto carregada');
@@ -547,54 +589,23 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // ========== GARANTIA ==========
-    const warrantyHiddenInput = document.getElementById('warranty');
     const warrantyTypeInputs = document.querySelectorAll('input[name="warranty_type"]');
-    const warrantyDurationGroup = document.getElementById('warrantyDurationGroup');
-    const warrantyDurationValue = document.getElementById('warranty_duration_value');
-    const warrantyDurationUnit = document.getElementById('warranty_duration_unit');
-
-    function updateWarrantySummary() {
-        if (!warrantyHiddenInput) {
-            return;
-        }
-
-        const selectedType = document.querySelector('input[name="warranty_type"]:checked');
-        const typeValue = selectedType ? selectedType.value : 'none';
-        const typeLabel = selectedType ? selectedType.dataset.label : '';
-        const requiresDuration = typeValue === 'seller' || typeValue === 'factory';
-
-        if (requiresDuration) {
-            warrantyDurationGroup.classList.remove('d-none');
-            warrantyDurationValue.required = true;
-            warrantyDurationUnit.required = true;
-        } else {
-            warrantyDurationGroup.classList.add('d-none');
-            warrantyDurationValue.required = false;
-            warrantyDurationUnit.required = false;
-            warrantyDurationValue.value = '';
-            warrantyDurationUnit.value = '';
-        }
-
-        let summary = typeLabel;
-        if (requiresDuration && warrantyDurationValue.value && warrantyDurationUnit.value) {
-            const unitOption = warrantyDurationUnit.options[warrantyDurationUnit.selectedIndex];
-            const unitLabel = unitOption ? unitOption.text : warrantyDurationUnit.value;
-            summary = `${typeLabel} - ${warrantyDurationValue.value} ${unitLabel}`;
-        }
-
-        warrantyHiddenInput.value = summary;
-    }
-
-    warrantyTypeInputs.forEach(input => {
+    warrantyTypeInputs.forEach((input) => {
         input.addEventListener('change', updateWarrantySummary);
     });
 
+    const warrantyDurationValue = document.getElementById('warranty_duration_value');
     if (warrantyDurationValue) {
         warrantyDurationValue.addEventListener('input', updateWarrantySummary);
     }
 
+    const warrantyDurationUnit = document.getElementById('warranty_duration_unit');
     if (warrantyDurationUnit) {
         warrantyDurationUnit.addEventListener('change', updateWarrantySummary);
+    }
+
+    if (isEditMode) {
+        accountsPromise.then(() => initializeEditMode());
     }
 
     updateWarrantySummary();
@@ -659,9 +670,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('❌ Botão de navegar categorias não encontrado!');
     }
 
-    if (isEditMode) {
-        accountsPromise.then(() => initializeEditMode());
-    }
 }); // Fecha o DOMContentLoaded
 
 async function initializeEditMode() {

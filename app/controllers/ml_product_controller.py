@@ -12,13 +12,13 @@ from fastapi.responses import HTMLResponse
 from app.models.saas_models import (
     MLAccount,
     MLProduct,
-    Token,
     User,
     MLAccountStatus,
     UserMLAccount,
     MLProductStatus,
 )
 from app.services.ml_product_service import MLProductService
+from app.services.token_manager import TokenManager
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import requests
@@ -37,30 +37,6 @@ class MLProductController:
         self.db = db
         self.product_service = MLProductService(db)
 
-    def _get_valid_token_for_account(self, company_id: int, ml_account_id: int):
-        from app.models.saas_models import Token, MLAccount
-        from datetime import datetime
-
-        query = (
-            self.db.query(Token)
-            .join(MLAccount)
-            .filter(
-                MLAccount.company_id == company_id,
-                MLAccount.id == ml_account_id,
-                Token.is_active == True,
-                Token.expires_at > datetime.utcnow(),
-            )
-        )
-
-        token = query.order_by(Token.expires_at.desc()).first()
-        if not token:
-            logger.warning(
-                "⚠️ Nenhum token válido encontrado para ml_account_id=%s (company=%s)",
-                ml_account_id,
-                company_id,
-            )
-        return token
-
     def _hydrate_product_from_ml_api(self, company_id: int, product: Dict[str, Any]) -> Dict[str, Any]:
         ml_item_id = product.get("ml_item_id")
         ml_account_id = product.get("ml_account_id")
@@ -68,11 +44,17 @@ class MLProductController:
         if not ml_item_id or not ml_account_id:
             return product
 
-        token = self._get_valid_token_for_account(company_id, ml_account_id)
-        if not token:
+        token_manager = TokenManager(self.db)
+        token_record = token_manager.get_token_record_for_account(ml_account_id, company_id)
+        if not token_record:
+            logger.warning(
+                "⚠️ Nenhum token válido encontrado para ml_account_id=%s (company=%s)",
+                ml_account_id,
+                company_id,
+            )
             return product
 
-        headers = {"Authorization": f"Bearer {token.access_token}"}
+        headers = {"Authorization": f"Bearer {token_record.access_token}"}
 
         try:
             item_url = f"https://api.mercadolibre.com/items/{ml_item_id}"
@@ -140,23 +122,18 @@ class MLProductController:
         if not category_id:
             return None
 
-        query = (
-            self.db.query(Token)
-            .join(MLAccount)
-            .filter(
-                MLAccount.company_id == company_id,
-                Token.is_active == True,
-                Token.expires_at > datetime.utcnow(),
+        token_manager = TokenManager(self.db)
+        token_record = token_manager.get_token_record_for_account(ml_account_id, company_id)
+        if not token_record:
+            logger.warning(
+                "⚠️ Nenhum token válido para atributos da categoria %s (company=%s, account=%s)",
+                category_id,
+                company_id,
+                ml_account_id,
             )
-        )
-        if ml_account_id:
-            query = query.filter(MLAccount.id == ml_account_id)
+            return None
 
-        token = query.order_by(Token.expires_at.desc()).first()
-
-        headers = {"Accept": "application/json"}
-        if token:
-            headers["Authorization"] = f"Bearer {token.access_token}"
+        headers = {"Accept": "application/json", "Authorization": f"Bearer {token_record.access_token}"}
 
         try:
             response = requests.get(
@@ -892,37 +869,43 @@ class MLProductController:
         try:
             logger.info(f"🆕 Iniciando cadastro de produto no ML para company {company_id}, ml_account_id: {ml_account_id}")
             
-            # 1. Buscar token ativo da empresa
-            from app.services.token_manager import TokenManager
-            from app.models.saas_models import Token, MLAccount
-            from datetime import datetime
-            
-            # Buscar token ativo mais recente para a conta especificada ou qualquer conta ativa
-            query = self.db.query(Token).join(MLAccount).filter(
-                MLAccount.company_id == company_id,
-                Token.is_active == True,
-                Token.expires_at > datetime.utcnow()
-            )
-            
-            # Se ml_account_id foi especificado, filtrar por ele
+            token_manager = TokenManager(self.db)
+
+            target_account = None
+            token_record = None
+
             if ml_account_id:
-                query = query.filter(MLAccount.id == ml_account_id)
                 logger.info(f"🔍 Buscando token para conta ML específica: {ml_account_id}")
-            
-            token = query.order_by(Token.expires_at.desc()).first()
-            
-            if not token:
-                error_msg = f"Nenhum token ativo encontrado para company {company_id}"
-                if ml_account_id:
-                    error_msg += f" e conta ML {ml_account_id}"
-                logger.error(f"❌ {error_msg}")
+                token_record = token_manager.get_token_record_for_account(ml_account_id, company_id)
+                if token_record:
+                    target_account = (
+                        self.db.query(MLAccount)
+                        .filter(MLAccount.id == ml_account_id, MLAccount.company_id == company_id)
+                        .first()
+                    )
+            else:
+                token_record = token_manager.get_token_record_for_company(company_id)
+                if token_record:
+                    target_account = (
+                        self.db.query(MLAccount)
+                        .filter(MLAccount.id == token_record.ml_account_id)
+                        .first()
+                    )
+
+            if not token_record or not target_account:
+                logger.error(
+                    "❌ Nenhum token válido disponível para publicação (company_id=%s, ml_account_id=%s)",
+                    company_id,
+                    ml_account_id,
+                )
                 return {
                     "success": False,
-                    "error": "Nenhuma conta do Mercado Livre conectada ou autorizada. Por favor, conecte uma conta primeiro."
+                    "error": "Não foi possível obter um token válido do Mercado Livre. Reautentique a conta e tente novamente.",
                 }
-            
-            access_token = token.access_token
-            ml_account = token.ml_account
+
+            access_token = token_record.access_token
+            ml_account = target_account
+            ml_account_id = ml_account.id
             
             logger.info(f"✅ Token encontrado para conta ML: {ml_account.nickname} (ID: {ml_account.id})")
             
@@ -1225,14 +1208,9 @@ class MLProductController:
             if not ml_product.ml_item_id:
                 return {"success": False, "error": "Produto sem item_id do Mercado Livre"}
 
-            token = self._get_valid_token_for_account(company_id, ml_product.ml_account_id)
-
-            if not token:
-                logger.error(
-                    "❌ Nenhum token ativo para atualizar o produto %s (account %s)",
-                    ml_product.ml_item_id,
-                    ml_product.ml_account_id,
-                )
+            token_manager = TokenManager(self.db)
+            token_record = token_manager.get_token_record_for_account(ml_product.ml_account_id, company_id)
+            if not token_record:
                 return {
                     "success": False,
                     "error": "Nenhum token ativo encontrado para a conta deste anúncio. Reautentique a conta do Mercado Livre.",
@@ -1322,7 +1300,7 @@ class MLProductController:
             if images:
                 logger.info("📸 Atualizando %d nova(s) imagem(ns) para o item", len(images))
                 upload_url = "https://api.mercadolibre.com/pictures/upload"
-                headers_upload = {"Authorization": f"Bearer {token.access_token}"}
+                headers_upload = {"Authorization": f"Bearer {token_record.access_token}"}
                 max_upload_attempts = 3
 
                 for idx, image in enumerate(images):
@@ -1412,7 +1390,7 @@ class MLProductController:
                 return {"success": False, "error": "Nenhum dado para atualizar."}
 
             headers = {
-                "Authorization": f"Bearer {token.access_token}",
+                "Authorization": f"Bearer {token_record.access_token}",
                 "Content-Type": "application/json",
             }
 

@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.models.saas_models import Token
+from app.models.saas_models import Token, MLAccount, MLAccountStatus
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +182,116 @@ class TokenManager:
             logger.error(f"Erro ao salvar novo token: {e}")
             self.db.rollback()
             return None
+
+    def _save_new_token_record(self, old_token: Token, token_data: Dict[str, Any]) -> Optional[Token]:
+        """Salva e retorna um novo token substituindo o token antigo"""
+        try:
+            user_id = old_token.user_id
+            ml_account_id = old_token.ml_account_id
+
+            # Reutilizar refresh_token anterior caso a API não retorne um novo
+            refresh_token = token_data.get("refresh_token") or old_token.refresh_token
+
+            # Remover tokens antigos do usuário
+            self.db.execute(
+                text("DELETE FROM tokens WHERE user_id = :user_id"),
+                {"user_id": user_id}
+            )
+
+            new_token = Token(
+                user_id=user_id,
+                ml_account_id=ml_account_id,
+                access_token=token_data["access_token"],
+                refresh_token=refresh_token,
+                token_type=token_data.get("token_type", "Bearer"),
+                expires_in=token_data.get("expires_in", 21600),
+                scope=token_data.get("scope", ""),
+                expires_at=datetime.utcnow() + timedelta(seconds=token_data.get("expires_in", 21600)),
+                is_active=True
+            )
+
+            self.db.add(new_token)
+            self.db.commit()
+            self.db.refresh(new_token)
+            logger.info(f"Novo token salvo para user_id: {user_id} (via refresh)")
+            return new_token
+
+        except Exception as e:
+            logger.error(f"Erro ao salvar novo token (record): {e}")
+            self.db.rollback()
+            return None
+
+    def _refresh_token_for_record(self, token_record: Token) -> Optional[Token]:
+        """Renova token a partir de um registro existente"""
+        refresh_token = token_record.refresh_token
+        if not refresh_token:
+            logger.warning(
+                "Refresh token inexistente para user_id=%s, ml_account_id=%s",
+                token_record.user_id,
+                token_record.ml_account_id,
+            )
+            return None
+
+        logger.info(
+            "Tentando renovar token via refresh para user_id=%s, ml_account_id=%s",
+            token_record.user_id,
+            token_record.ml_account_id,
+        )
+
+        token_data = self._call_refresh_api(refresh_token)
+        if not token_data:
+            return None
+
+        return self._save_new_token_record(token_record, token_data)
+
+    def get_token_record_for_account(self, ml_account_id: int, company_id: Optional[int] = None) -> Optional[Token]:
+        """Obtém token válido para uma conta ML específica, renovando se preciso"""
+        query = self.db.query(Token).filter(Token.ml_account_id == ml_account_id)
+        if company_id is not None:
+            query = query.join(MLAccount).filter(MLAccount.company_id == company_id)
+
+        token_record = query.order_by(Token.expires_at.desc()).first()
+        if not token_record:
+            logger.warning(
+                "Nenhum token encontrado para ml_account_id=%s (company=%s)",
+                ml_account_id,
+                company_id,
+            )
+            return None
+
+        if token_record.access_token and self.test_token(token_record.access_token):
+            logger.info(
+                "Token válido encontrado para ml_account_id=%s (user_id=%s)",
+                ml_account_id,
+                token_record.user_id,
+            )
+            return token_record
+
+        logger.info(
+            "Token inválido para ml_account_id=%s, tentando refresh",
+            ml_account_id,
+        )
+        return self._refresh_token_for_record(token_record)
+
+    def get_token_record_for_company(self, company_id: int) -> Optional[Token]:
+        """Obtém token válido de qualquer conta da empresa"""
+        accounts = (
+            self.db.query(MLAccount)
+            .filter(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE,
+            )
+            .order_by(MLAccount.id.asc())
+            .all()
+        )
+
+        for account in accounts:
+            token_record = self.get_token_record_for_account(account.id, company_id)
+            if token_record:
+                return token_record
+
+        logger.warning("Nenhum token válido encontrado para company_id=%s", company_id)
+        return None
     
     def test_token(self, token: str) -> bool:
         """Testa se o token está funcionando"""
