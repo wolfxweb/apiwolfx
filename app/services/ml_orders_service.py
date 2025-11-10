@@ -4,7 +4,7 @@ import logging
 import requests
 from datetime import datetime, timedelta
 
-from app.models.saas_models import MLOrder, OrderStatus, MLAccount, MLAccountStatus
+from app.models.saas_models import MLOrder, MLAccount, MLAccountStatus
 from app.services.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class MLOrdersService:
     
     def get_orders_by_account(self, ml_account_id: int, company_id: int, 
                              limit: int = 50, offset: int = 0,
-                             status_filter: Optional[str] = None,
+                             shipping_status_filter: Optional[str] = None,
                              logistic_filter: Optional[str] = None,
                              date_from: Optional[str] = None,
                              date_to: Optional[str] = None) -> Dict:
@@ -47,15 +47,11 @@ class MLOrdersService:
             )
             
             # Aplicar filtros
-            if status_filter:
-                try:
-                    status_enum = OrderStatus(status_filter)
-                    query = query.filter(MLOrder.status == status_enum)
-                except ValueError:
-                    logger.warning(f"Status inválido: {status_filter}")
+            if shipping_status_filter:
+                from sqlalchemy import func
+                query = query.filter(func.lower(MLOrder.shipping_status) == shipping_status_filter.lower())
             
             if logistic_filter:
-                from sqlalchemy import func
                 logistic_values = [value.strip().lower() for value in logistic_filter.split(',') if value.strip()]
                 mapping = {
                     "fulfillment": ["fulfillment", "full"],

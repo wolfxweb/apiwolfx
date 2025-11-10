@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import logging
 import copy
 import json
+from starlette.requests import ClientDisconnect
 
 from app.config.database import get_db, SessionLocal
 from app.controllers.ml_notifications_controller import MLNotificationsController
@@ -39,7 +40,14 @@ async def receive_ml_notification(
     """
     try:
         # Obter dados da notificação
-        notification_data = await request.json()
+        try:
+            notification_data = await request.json()
+        except ClientDisconnect:
+            logger.warning("⚠️ ClientDisconnect: corpo da notificação ausente. Retornando 200 para evitar reenvio.")
+            return JSONResponse(
+                status_code=200,
+                content={"status": "received", "message": "Notificação recebida sem corpo"}
+            )
         
         topic = notification_data.get('topic')
         resource = notification_data.get('resource')

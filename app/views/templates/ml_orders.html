@@ -43,16 +43,19 @@
                             </select>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label for="status_filter" class="form-label small text-uppercase text-muted">Status</label>
+                            <label for="status_filter" class="form-label small text-uppercase text-muted">Status do envio</label>
                             <select name="status_filter" id="status_filter" class="form-select" onchange="applyFilters()">
                                 <option value="">Todos os status</option>
-                                <option value="READY_TO_PREPARE">Pronto para envio</option>
-                                <option value="SHIPPED">Enviado</option>
-                                <option value="DELIVERED">Entregue</option>
-                                <option value="PENDING">Pendente</option>
-                                <option value="PAID">Pago</option>
-                                <option value="CANCELLED">Cancelado</option>
-                                <option value="REFUNDED">Reembolsado</option>
+                                <option value="ready_to_ship">Pronto para envio</option>
+                                <option value="shipped">Enviado</option>
+                                <option value="in_transit">Em trânsito</option>
+                                <option value="out_for_delivery">Saiu para entrega</option>
+                                <option value="delivered">Entregue</option>
+                                <option value="pending">Pendente</option>
+                                <option value="buffered">Aguardando...</option>
+                                <option value="in_warehouse">No armazém</option>
+                                <option value="receiver_absent">Comprador ausente</option>
+                                <option value="cancelled">Cancelado</option>
                             </select>
                         </div>
                         <div class="col-12 col-md-3">
@@ -515,7 +518,7 @@
 }
 
 .order-details {
-    border-top: 1px dashed rgba(0, 0, 0, 0.1);
+   
     padding-top: 1.25rem;
 }
 
@@ -640,15 +643,17 @@ function toggleCustomPeriod(skipClear = false) {
     }
 }
 
-const VALID_ORDER_STATUS = [
-    'READY_TO_PREPARE',
-    'SHIPPED',
-    'DELIVERED',
-    'PENDING',
-    'PAID',
-    'CANCELLED',
-    'REFUNDED',
-    'CONFIRMED'
+const VALID_SHIPPING_STATUS = [
+    'ready_to_ship',
+    'shipped',
+    'in_transit',
+    'out_for_delivery',
+    'delivered',
+    'pending',
+    'buffered',
+    'in_warehouse',
+    'receiver_absent',
+    'cancelled'
 ];
 
 const VALID_LOGISTICS = [
@@ -681,17 +686,17 @@ function syncFiltersWithUrl() {
     const params = new URLSearchParams(window.location.search);
     let paramsChanged = false;
 
-    const rawStatus = params.get('status_filter') || '';
-    const normalizedStatus = rawStatus ? rawStatus.toUpperCase() : '';
-    const statusValid = normalizedStatus && VALID_ORDER_STATUS.includes(normalizedStatus);
+    const rawStatus = params.get('shipping_status_filter') || '';
+    const normalizedStatus = rawStatus.toLowerCase();
+    const statusValid = normalizedStatus && VALID_SHIPPING_STATUS.includes(normalizedStatus);
     if (statusValid) {
         setSelectValue('status_filter', normalizedStatus);
         if (rawStatus !== normalizedStatus) {
-            params.set('status_filter', normalizedStatus);
+            params.set('shipping_status_filter', normalizedStatus);
             paramsChanged = true;
         }
     } else if (rawStatus) {
-        params.delete('status_filter');
+        params.delete('shipping_status_filter');
         paramsChanged = true;
         setSelectValue('status_filter', '');
     } else {
@@ -753,8 +758,7 @@ function applyFilters() {
     const params = new URLSearchParams();
 
     const accountValue = document.getElementById('account_filter')?.value || '';
-    const statusValueRaw = document.getElementById('status_filter')?.value || '';
-    const statusValue = statusValueRaw ? statusValueRaw.toUpperCase() : '';
+    const statusValue = document.getElementById('status_filter')?.value || '';
     const logisticValue = document.getElementById('logistic_filter')?.value || '';
     const selectedPeriodValue = document.getElementById('period_filter')?.value || '';
     const dateFromInput = document.getElementById('date_from');
@@ -763,7 +767,7 @@ function applyFilters() {
     const customToInput = document.getElementById('customDateTo');
 
     if (accountValue) params.set('account_filter', accountValue);
-    if (statusValue) params.set('status_filter', statusValue);
+    if (statusValue) params.set('shipping_status_filter', statusValue);
     if (logisticValue) params.set('logistic_filter', logisticValue);
     if (selectedPeriodValue) params.set('period_filter', selectedPeriodValue);
 
@@ -972,13 +976,13 @@ function loadOrders(page = 1) {
     // Coletar filtros
     var selectedLimit = 50;  // Limite fixo de 50 pedidos por página
     
-    const rawStatus = urlParams.get('status_filter') || '';
-    const normalizedStatus = rawStatus ? rawStatus.toUpperCase() : '';
-    const statusForApi = VALID_ORDER_STATUS.includes(normalizedStatus) ? normalizedStatus : '';
+    const rawStatus = urlParams.get('shipping_status_filter') || '';
+    const normalizedStatus = rawStatus.toLowerCase();
+    const statusForApi = VALID_SHIPPING_STATUS.includes(normalizedStatus) ? normalizedStatus : '';
 
     var filters = {
         ml_account_id: urlParams.get('account_filter') || '',
-        status_filter: statusForApi,
+        shipping_status_filter: statusForApi,
         logistic_filter: (urlParams.get('logistic_filter') || '').toLowerCase(),
         date_from: urlParams.get('date_from') || '',
         date_to: urlParams.get('date_to') || '',
@@ -991,7 +995,7 @@ function loadOrders(page = 1) {
     var apiUrl = `/ml/api/orders?page=${page}&limit=${filters.limit}&offset=${filters.offset}`;
     
     if (filters.ml_account_id) apiUrl += `&ml_account_id=${encodeURIComponent(filters.ml_account_id)}`;
-    if (filters.status_filter) apiUrl += `&status_filter=${encodeURIComponent(filters.status_filter)}`;
+    if (filters.shipping_status_filter) apiUrl += `&shipping_status_filter=${encodeURIComponent(filters.shipping_status_filter)}`;
     if (filters.logistic_filter) apiUrl += `&logistic_filter=${encodeURIComponent(filters.logistic_filter)}`;
     if (filters.date_from) apiUrl += `&date_from=${encodeURIComponent(filters.date_from)}`;
     if (filters.date_to) apiUrl += `&date_to=${encodeURIComponent(filters.date_to)}`;

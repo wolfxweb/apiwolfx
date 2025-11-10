@@ -16,7 +16,7 @@ class MLOrdersController:
     
     def get_orders_list(self, company_id: int, ml_account_id: Optional[int] = None,
                        limit: int = 50, offset: int = 0,
-                       status_filter: Optional[str] = None,
+                       shipping_status_filter: Optional[str] = None,
                        logistic_filter: Optional[str] = None,
                        date_from: Optional[str] = None,
                        date_to: Optional[str] = None) -> Dict:
@@ -49,8 +49,8 @@ class MLOrdersController:
                 }
             
             # Buscar orders diretamente do banco de dados
-            from app.models.saas_models import MLOrder, OrderStatus
-            from sqlalchemy import and_, or_, func
+            from app.models.saas_models import MLOrder
+            from sqlalchemy import func
             
             # Construir query base
             query = self.db.query(MLOrder).filter(
@@ -66,12 +66,8 @@ class MLOrdersController:
                 query = query.filter(MLOrder.ml_account_id.in_(account_ids))
             
             # Aplicar filtros
-            if status_filter:
-                try:
-                    status_enum = OrderStatus(status_filter)
-                    query = query.filter(MLOrder.status == status_enum)
-                except ValueError:
-                    logger.warning(f"Status inválido: {status_filter}")
+            if shipping_status_filter:
+                query = query.filter(func.lower(MLOrder.shipping_status) == shipping_status_filter.lower())
             
             if logistic_filter:
                 logistic_values = [value.strip().lower() for value in logistic_filter.split(',') if value.strip()]
