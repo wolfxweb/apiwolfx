@@ -129,7 +129,7 @@
                                         <input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders()">
                                     </th>
                                     <th style="min-width: 200px;">Pedido</th>
-                                    <th style="min-width: 200px;">Comprador</th>
+                                    <th style="min-width: 220px;">Itens</th>
                                     <th style="min-width: 180px;">Valores</th>
                                     <th style="min-width: 180px;">Envio</th>
                                     <th class="text-end" style="width: 120px;">Ações</th>
@@ -398,6 +398,56 @@
     border: none;
     padding: 1rem 2rem 2rem 2rem;
 }
+
+#loading-container .card {
+     border: none;
+     box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+ }
+
++.item-line {
++    display: flex;
++    align-items: center;
++    gap: 0.75rem;
++}
+
++.item-thumb {
++    width: 48px;
++    height: 48px;
++    border-radius: 8px;
++    overflow: hidden;
++    background: #f8f9fa;
++    border: 1px solid rgba(0, 0, 0, 0.05);
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    flex-shrink: 0;
++}
+
++.item-thumb img {
++    width: 100%;
++    height: 100%;
++    object-fit: cover;
++}
+
++.item-thumb.placeholder {
++    color: #6c757d;
++    font-size: 1.25rem;
++}
+
++.item-info {
++    min-width: 0;
++}
+
++.item-info .item-title {
++    font-weight: 500;
++    display: block;
++}
+
++.item-info .item-meta {
++    font-size: 0.75rem;
++    color: #6c757d;
++}
+
 </style>
 
 <script>
@@ -405,6 +455,86 @@ let currentPage = 1;
 let currentLimit = 50;
 let currentFilters = {};
 let ordersCache = {};
+
+// Função utilitária para formatar datas em pt-BR com hora padrão
+function formatDate(dateString) {
+    if (!dateString) {
+        return 'N/A';
+    }
+    try {
+        const date = new Date(dateString);
+        return `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    } catch (err) {
+        console.warn('Não foi possível formatar data:', dateString, err);
+        return String(dateString);
+    }
+}
+
+function formatCurrency(amount, currency = 'BRL') {
+    if (amount === null || amount === undefined) {
+        amount = 0;
+    }
+    try {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: currency || 'BRL',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(Number(amount));
+    } catch (err) {
+        console.warn('Não foi possível formatar valor:', amount, err);
+        return `R$ ${Number(amount).toFixed(2)}`;
+    }
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) {
+        return '';
+    }
+    try {
+        const date = new Date(dateString);
+        if (Number.isNaN(date.getTime())) {
+            return String(dateString);
+        }
+        return date.toLocaleString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (err) {
+        console.warn('Não foi possível formatar data/hora:', dateString, err);
+        return String(dateString);
+    }
+}
+
+function formatDateOnly(dateString) {
+    if (!dateString) {
+        return '';
+    }
+    try {
+        const date = new Date(dateString);
+        if (Number.isNaN(date.getTime())) {
+            return String(dateString);
+        }
+        return date.toLocaleDateString('pt-BR');
+    } catch (err) {
+        console.warn('Não foi possível formatar data:', dateString, err);
+        return String(dateString);
+    }
+}
+
+function showError(message) {
+    const alertContainer = document.getElementById('alerts-container');
+    if (!alertContainer) {
+        alert(message);
+        return;
+    }
+    alertContainer.innerHTML = `
+        <div class="col-12">
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+    `;
+}
 
 // Função para verificar se a resposta indica sessão expirada
 function checkSessionExpired(response) {
@@ -554,12 +684,24 @@ function renderOrders(orders) {
                 <input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateSelectedOrdersCount()">
             </td>
             <td class="align-middle">${renderOrderSummary(order)}</td>
-            <td class="align-middle">${renderBuyerSummary(order)}</td>
+            <td class="align-middle">${renderItemsSummary(order)}</td>
             <td class="align-middle">${renderAmountSummary(order)}</td>
             <td class="align-middle">${renderShippingSummary(order)}</td>
             <td class="align-middle text-end">${renderOrderActions(order)}</td>
         </tr>
     `}).join('');
+}
+
+function updateOrdersCount(total) {
+    const ordersCountElement = document.getElementById('orders-count');
+    if (ordersCountElement) {
+        ordersCountElement.innerHTML = `<i class="bi bi-info-circle"></i> ${total} pedido(s) encontrado(s)`;
+    }
+
+    const totalOrdersElement = document.getElementById('total-orders');
+    if (totalOrdersElement) {
+        totalOrdersElement.textContent = `${total} pedidos`;
+    }
 }
 
 function renderOrderSummary(order) {
@@ -579,7 +721,78 @@ function renderOrderSummary(order) {
         `<div class="mt-1">${statusBadge}</div>`
     ].filter(Boolean);
 
+    const buyerDetails = renderBuyerSummary(order);
+    if (buyerDetails) {
+        lines.push(`<div class="mt-2 pt-2 border-top">${buyerDetails}</div>`);
+    }
+
     return `<div class="d-flex flex-column gap-1">${lines.join('')}</div>`;
+}
+
+function renderPagination(total, limit, currentPage) {
+    const pagination = document.getElementById('pagination');
+    const paginationInfo = document.getElementById('pagination-info');
+    const totalPages = Math.ceil(total / limit);
+
+    if (paginationInfo) {
+        const startItem = (currentPage - 1) * limit + 1;
+        const endItem = Math.min(currentPage * limit, total);
+        paginationInfo.textContent = totalPages > 0
+            ? `Mostrando ${startItem} a ${endItem} de ${total} pedidos`
+            : 'Nenhum pedido encontrado';
+    }
+
+    if (!pagination) {
+        return;
+    }
+
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+
+    const addPageButton = (page, label, disabled = false, active = false) => {
+        html += `
+            <li class="page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}">
+                <a class="page-link" href="#" ${disabled ? 'tabindex="-1" aria-disabled="true"' : `onclick="loadOrders(${page})"`}>${label}</a>
+            </li>
+        `;
+    };
+
+    addPageButton(1, '<i class="bi bi-chevron-double-left"></i>', currentPage === 1);
+    addPageButton(Math.max(1, currentPage - 1), '<i class="bi bi-chevron-left"></i>', currentPage === 1);
+
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+
+    for (let page = start; page <= end; page++) {
+        addPageButton(page, page, false, page === currentPage);
+    }
+
+    addPageButton(Math.min(totalPages, currentPage + 1), '<i class="bi bi-chevron-right"></i>', currentPage === totalPages);
+    addPageButton(totalPages, '<i class="bi bi-chevron-double-right"></i>', currentPage === totalPages);
+
+    pagination.innerHTML = html;
+}
+
+function loadAccountsFilter(accounts) {
+    const select = document.getElementById('account_filter');
+    if (!select) {
+        return;
+    }
+
+    const currentValue = new URLSearchParams(window.location.search).get('account_filter') || '';
+    select.innerHTML = '<option value="">Todas as contas</option>';
+
+    (accounts || []).forEach(account => {
+        const option = document.createElement('option');
+        option.value = account.id;
+        option.textContent = `${account.nickname || 'Conta'} (${account.country_id || 'BR'})`;
+        option.selected = String(currentValue) === String(account.id);
+        select.appendChild(option);
+    });
 }
 
 function renderBuyerSummary(order) {
@@ -640,6 +853,86 @@ function renderBuyerSummary(order) {
     return `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`;
 }
 
+
+function getItemQuantity(entry) {
+    if (!entry) {
+        return 0;
+    }
+    if (typeof entry.quantity === 'number') {
+        return entry.quantity;
+    }
+    if (entry.requested_quantity && typeof entry.requested_quantity.value === 'number') {
+        return entry.requested_quantity.value;
+    }
+    if (entry.available_quantity && typeof entry.available_quantity === 'number') {
+        return entry.available_quantity;
+    }
+    return 0;
+}
+
+function normalizeItemImageUrl(url) {
+    if (!url) {
+        return '';
+    }
+    let normalized = String(url).trim();
+    if (!normalized) {
+        return '';
+    }
+    if (normalized.startsWith('//')) {
+        normalized = 'https:' + normalized;
+    }
+    if (normalized.startsWith('http://')) {
+        normalized = 'https://' + normalized.slice(7);
+    }
+    return normalized;
+}
+
+function sanitizeText(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getItemThumbnail(itemData) {
+    if (!itemData || typeof itemData !== 'object') {
+        return '';
+    }
+
+    if (itemData.thumbnail) {
+        return normalizeItemImageUrl(itemData.thumbnail);
+    }
+
+    if (Array.isArray(itemData.pictures) && itemData.pictures.length) {
+        const firstPicture = itemData.pictures[0];
+        if (typeof firstPicture === 'string') {
+            return normalizeItemImageUrl(firstPicture);
+        }
+        if (firstPicture && typeof firstPicture === 'object') {
+            return normalizeItemImageUrl(firstPicture.url || firstPicture.secure_url);
+        }
+    }
+
+    if (itemData.picture_url) {
+        return normalizeItemImageUrl(itemData.picture_url);
+    }
+
+    if (Array.isArray(itemData.picture_urls) && itemData.picture_urls.length) {
+        return normalizeItemImageUrl(itemData.picture_urls[0]);
+    }
+
+    if (Array.isArray(itemData.picture_ids) && itemData.picture_ids.length) {
+        return `https://http2.mlstatic.com/D_${itemData.picture_ids[0]}-O.jpg`;
+    }
+
+    return '';
+}
+
 function renderAmountSummary(order) {
     const totalAmount = order.total_amount || 0;
     const saleFees = order.sale_fees || 0;
@@ -647,9 +940,9 @@ function renderAmountSummary(order) {
     const couponAmount = order.coupon_amount || 0;
     const advertisingCost = order.advertising_cost || 0;
     const currency = order.currency_id || 'BRL';
-    
+
     const netAmount = totalAmount - saleFees - shippingCost - couponAmount;
-    
+
     const lines = [
         `<div class="fw-semibold text-primary">${formatCurrency(totalAmount, currency)}</div>`,
         `<div class="text-muted small">Comissão: ${formatCurrency(saleFees, currency)}</div>`,
@@ -669,8 +962,294 @@ function renderAmountSummary(order) {
     return `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`;
 }
 
+function renderItemsSummary(order) {
+    let itemsRaw = order.order_items;
+    
+    if (!itemsRaw) {
+        return '<span class="text-muted small">N/A</span>';
+    }
+    
+    if (typeof itemsRaw === 'string') {
+        try {
+            itemsRaw = JSON.parse(itemsRaw);
+        } catch (error) {
+            console.warn('Não foi possível parsear order_items:', error);
+            itemsRaw = [];
+        }
+    }
+    
+    if (!Array.isArray(itemsRaw) || itemsRaw.length === 0) {
+        return '<span class="text-muted small">N/A</span>';
+    }
+    
+    const itemsToShow = itemsRaw.slice(0, 3);
+    const lines = itemsToShow.map(entry => {
+        const itemData = entry.item || entry;
+        const title = sanitizeText(itemData?.title || itemData?.name || 'Item sem título');
+        const quantityValue = getItemQuantity(entry) || 1;
+        const quantityLabel = `Qtd: ${quantityValue}`;
+        const thumbnail = getItemThumbnail(itemData);
+    
+        const thumbnailHtml = thumbnail
+            ? `<div class="item-thumb"><img src="${thumbnail}" alt="${title}" loading="lazy"></div>`
+            : `<div class="item-thumb placeholder"><i class="bi bi-box-seam"></i></div>`;
+    
+        return `
+            <div class="item-line">
+                ${thumbnailHtml}
+                <div class="item-info">
+                    <span class="item-title">${title}</span>
+                    <span class="item-meta">${quantityLabel}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    if (itemsRaw.length > itemsToShow.length) {
+        lines.push(`<div class="text-muted small">+${itemsRaw.length - itemsToShow.length} item(s)</div>`);
+    }
+    
+    return `<div class="d-flex flex-column gap-2">${lines.join('')}</div>`;
+}
+
+function getStatusBadgeClass(status) {
+    switch ((status || '').toString().toLowerCase()) {
+        case 'paid':
+            return 'badge bg-primary';
+        case 'shipped':
+            return 'badge bg-info';
+        case 'delivered':
+            return 'badge bg-success';
+        case 'cancelled':
+        case 'canceled':
+            return 'badge bg-danger';
+        case 'ready_to_ship':
+            return 'badge bg-warning text-dark';
+        default:
+            return 'badge bg-secondary';
+    }
+}
+
+function getStatusLabel(status) {
+    const normalized = (status || '').toString().toLowerCase();
+    const labels = {
+        paid: 'Pago',
+        shipped: 'Enviado',
+        delivered: 'Entregue',
+        cancelled: 'Cancelado',
+        canceled: 'Cancelado',
+        ready_to_ship: 'Pronto para envio'
+    };
+    return labels[normalized] || (normalized ? normalized : 'Desconhecido');
+}
+
+function renderShippingSummary(order) {
+    let shipping = order.shipping_details || order.shipping || {};
+    if (typeof shipping === 'string') {
+        try {
+            shipping = JSON.parse(shipping);
+        } catch (err) {
+            shipping = {};
+        }
+    }
+
+    const logisticTypeRaw = shipping.shipping_option?.logistic_type
+        || shipping.logistic_type
+        || shipping.logistic?.type
+        || order.logistic_type
+        || order.shipping_logistic_type
+        || order.shipping_type;
+
+    const logisticLabel = getLogisticLabel(logisticTypeRaw);
+    const statusRaw = shipping.status || order.shipping_status || '';
+    const substatusRaw = shipping.substatus || order.shipping_substatus || '';
+    const status = (statusRaw || '').toString().toLowerCase();
+    const substatus = (substatusRaw || '').toString().toLowerCase();
+    const translatedStatus = status ? translateShippingLabel(status) : null;
+    const translatedSubstatus = substatus ? translateShippingLabel(substatus) : null;
+    const statusHistory = shipping.status_history || {};
+
+    const shippedDate = shipping.date_shipped || statusHistory.date_shipped || order.date_shipped;
+    const deliveredDate = statusHistory.date_delivered || shipping.date_delivered || order.date_delivered;
+    const estimatedDate = shipping.shipping_option?.estimated_delivery_final?.date
+        || shipping.shipping_option?.estimated_delivery_limit?.date
+        || shipping.estimated_delivery
+        || order.estimated_delivery_date;
+
+    const extractValue = (value) => {
+        if (!value) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object') {
+            return value.name || value.display_name || value.label || value.description || value.id || '';
+        }
+        return String(value);
+    };
+
+    const shippingMethodSource = logisticLabel
+        || extractValue(order.shipping_method)
+        || extractValue(order.shipping_mode)
+        || extractValue(shipping.shipping_option?.shipping_method)
+        || extractValue(shipping.shipping_option?.name)
+        || extractValue(logisticTypeRaw);
+
+    const shippingMethod = getLogisticLabel(shippingMethodSource) || logisticLabel || extractValue(logisticTypeRaw) || null;
+
+    const lines = [];
+    const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
+    if (shippingMethod) {
+        lines.push(`<div><span class="badge ${badgeClass}">${shippingMethod}</span></div>`);
+    }
+
+    if (translatedStatus) {
+        const readyStatuses = new Set(['ready_to_ship', 'ready_to_print', 'printed', 'packed', 'ready_to_pack']);
+        const transitStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']);
+
+        if (status === 'pending') {
+            lines.push(`<div><small class="text-secondary">⏳ ${translatedStatus}</small></div>`);
+        } else if (readyStatuses.has(status)) {
+            lines.push(`<div><small class="text-warning">📦 ${translatedStatus}</small></div>`);
+        } else if (status === 'delivered') {
+            lines.push(`<div><small class="text-success"><strong>✓ ${translatedStatus}</strong></small></div>`);
+        } else if (transitStatuses.has(status)) {
+            lines.push(`<div><small class="text-info">🚚 ${translatedStatus}</small></div>`);
+        } else {
+            const icon = shippingStatusIcons[status] || '🚚';
+            const statusClass = getShippingStatusClass(status);
+            const baseClass = statusClass ? `${statusClass} small` : 'text-muted small';
+            lines.push(`<div><span class="${baseClass}">${icon} ${translatedStatus}</span></div>`);
+        }
+    }
+
+    if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
+        lines.push(`<div><small class="text-muted">📍 ${translatedSubstatus}</small></div>`);
+    }
+
+    if (status === 'delivered' && deliveredDate) {
+        const deliveredFormatted = formatDateOnly(deliveredDate);
+        if (deliveredFormatted) {
+            lines.push(`<div><small class="text-success">📅 ${deliveredFormatted}</small></div>`);
+        }
+    }
+
+    if (status !== 'delivered' && shippedDate) {
+        const shippedFormatted = formatDateOnly(shippedDate);
+        if (shippedFormatted) {
+            lines.push(`<div><small class="text-muted">📦 Enviado: ${shippedFormatted}</small></div>`);
+        }
+    }
+
+    const isPickup = ['xd_drop_off', 'drop_off'].includes((logisticTypeRaw || '').toString().toLowerCase());
+    const dropOffDate = shipping.status_history?.date_handling || shipping.date_created || order.shipping_date;
+    if (isPickup) {
+        const dropOffFormatted = formatDateTime(dropOffDate);
+        if (dropOffFormatted) {
+            lines.push(`<div><small class="text-muted">📦 Registrado: ${dropOffFormatted}</small></div>`);
+        }
+
+        const bufferingDate = shipping.shipping_option?.buffering?.date;
+        const bufferingFormatted = formatDateOnly(bufferingDate);
+        if (bufferingFormatted) {
+            lines.push(`<div><small class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</small></div>`);
+        }
+    }
+
+    if (estimatedDate && status !== 'delivered') {
+        const estimatedFormatted = formatDateOnly(estimatedDate);
+        if (estimatedFormatted) {
+            lines.push(`<div><small class="text-muted">📅 Previsão: ${estimatedFormatted}</small></div>`);
+        }
+    }
+
+    if (!lines.length && (logisticLabel || shippingMethod)) {
+        const fallbackBadge = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
+        const label = logisticLabel || shippingMethod || 'N/A';
+        return `<div class="d-flex flex-column gap-1 small"><div><span class="badge ${fallbackBadge}">${label}</span></div></div>`;
+    }
+
+    return lines.length
+        ? `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`
+        : `<div class="d-flex flex-column gap-1 small"><div><span class="badge bg-secondary">N/A</span></div></div>`;
+}
+
+function getLogisticLabel(logisticType) {
+    const normalized = (logisticType || '').toString().toLowerCase();
+    switch (normalized) {
+        case 'fulfillment':
+        case 'full':
+            return 'Fulfillment';
+        case 'cross_docking':
+            return 'Cross Docking';
+        case 'me2':
+            return 'Mercado Envios';
+        case 'me1':
+            return 'Correios';
+        case 'xd_drop_off':
+        case 'drop_off':
+        case 'ponto de coleta':
+            return 'Ponto de Coleta';
+        case 'self_service':
+            return 'Envio próprio';
+        default:
+            return logisticType || 'N/A';
+    }
+}
+
+function translateShippingLabel(value) {
+    if (!value) return '-';
+    const labels = {
+        pending: 'Pendente',
+        ready_to_ship: 'Pronto para envio',
+        ready_to_print: 'Pronto para imprimir',
+        printed: 'Etiqueta impressa',
+        ready_to_pack: 'Pronto para embalar',
+        packed: 'Pacote pronto',
+        shipped: 'Enviado',
+        in_transit: 'Em trânsito',
+        out_for_delivery: 'Saiu para entrega',
+        soon_deliver: 'Próximo da entrega',
+        delivered: 'Entregue',
+        not_delivered: 'Não entregue',
+        cancelled: 'Cancelado',
+        to_be_agreed: 'A combinar',
+        error: 'Erro',
+        buffered: 'Aguardando...',
+        receiver_absent: 'Comprador ausente',
+        receiver_absent_twice: 'Comprador ausente (2x)',
+        in_warehouse: 'No armazém',
+        in_packing_list: 'Na fila de embalagem'
+    };
+    const normalized = value.toString().toLowerCase();
+    if (labels[normalized]) {
+        return labels[normalized];
+    }
+    return value.replace(/_/g, ' ');
+}
+
+const shippingStatusIcons = {
+    pending: '⏳',
+    ready_to_ship: '📦',
+    ready_to_print: '📦',
+    printed: '📦',
+    ready_to_pack: '📦',
+    packed: '📦',
+    shipped: '🚚',
+    in_transit: '🚚',
+    out_for_delivery: '🚚',
+    soon_deliver: '🚚',
+    delivered: '✓',
+    not_delivered: '⚠️',
+    cancelled: '⛔',
+    to_be_agreed: 'ℹ️',
+    error: '⚠️',
+    buffered: '⏳',
+    receiver_absent: '📍',
+    receiver_absent_twice: '📍',
+    in_warehouse: '🏬',
+    in_packing_list: '📦'
+};
+
 function getShippingStatusClass(status) {
-    switch (status) {
+    switch ((status || '').toString().toLowerCase()) {
         case 'delivered':
             return 'text-success fw-semibold';
         case 'shipped':
@@ -686,1524 +1265,84 @@ function getShippingStatusClass(status) {
         case 'pending':
             return 'text-secondary';
         case 'not_delivered':
+        case 'cancelled':
+        case 'canceled':
             return 'text-danger';
         default:
             return 'text-muted';
     }
 }
 
-function renderShippingSummary(order) {
-     let shipping = order.shipping_details || order.shipping || {};
-     if (typeof shipping === 'string') {
-         try {
-             shipping = JSON.parse(shipping);
-         } catch (err) {
-             shipping = {};
-         }
-     }
-     const logisticTypeRaw = shipping.shipping_option?.logistic_type
-         || shipping.logistic_type
-         || shipping.logistic?.type
-         || order.logistic_type
-         || order.shipping_logistic_type
-         || order.shipping_type;
-     const logisticLabel = getLogisticLabel(logisticTypeRaw);
-     const statusRaw = shipping.status || order.shipping_status || '';
-     const substatusRaw = shipping.substatus || order.shipping_substatus || '';
-     const status = (statusRaw || '').toString().toLowerCase();
-     const substatus = (substatusRaw || '').toString().toLowerCase();
-     const translatedStatus = status ? translateShippingLabel(status) : null;
-     const translatedSubstatus = substatus ? translateShippingLabel(substatus) : null;
-     const statusHistory = shipping.status_history || {};
- 
-     const shippedDate = shipping.date_shipped || statusHistory.date_shipped || order.date_shipped;
-     const deliveredDate = statusHistory.date_delivered || shipping.date_delivered || order.date_delivered;
-     const estimatedDate = shipping.shipping_option?.estimated_delivery_final?.date
-         || shipping.shipping_option?.estimated_delivery_limit?.date
-         || shipping.estimated_delivery
-         || order.estimated_delivery_date;
- 
-     const extractValue = (value) => {
-         if (!value) return '';
-         if (typeof value === 'string') return value;
-         if (typeof value === 'object') {
-             return value.name || value.display_name || value.label || value.description || value.id || '';
-         }
-         return String(value);
-     };
- 
-     const shippingMethodSource = logisticLabel
-         || extractValue(order.shipping_method)
-         || extractValue(order.shipping_mode)
-         || extractValue(shipping.shipping_option?.shipping_method)
-         || extractValue(shipping.shipping_option?.name)
-         || extractValue(logisticTypeRaw);
- 
-     const shippingMethod = getLogisticLabel(shippingMethodSource) || logisticLabel || extractValue(logisticTypeRaw) || null;
-     const shippingId = order.shipping_id || shipping.id;
- 
-     const lines = [];
-     const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
-     if (shippingMethod) {
-         lines.push(`<div><span class="badge ${badgeClass}">${shippingMethod}</span></div>`);
-     }
- 
-     if (translatedStatus) {
-         const readyStatuses = new Set(['ready_to_ship', 'ready_to_print', 'printed', 'packed', 'ready_to_pack']);
-         const transitStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']);
- 
-         if (status === 'pending') {
-             lines.push(`<div><small class="text-secondary">⏳ ${translatedStatus}</small></div>`);
-         } else if (readyStatuses.has(status)) {
-             lines.push(`<div><small class="text-warning">📦 ${translatedStatus}</small></div>`);
-         } else if (status === 'delivered') {
-             lines.push(`<div><small class="text-success"><strong>✓ ${translatedStatus}</strong></small></div>`);
-         } else if (transitStatuses.has(status)) {
-             lines.push(`<div><small class="text-info">🚚 ${translatedStatus}</small></div>`);
-    } else {
-             const icon = shippingStatusIcons[status] || '🚚';
-             const statusClass = getShippingStatusClass(status);
-             const baseClass = statusClass ? `${statusClass} small` : 'text-muted small';
-             lines.push(`<div><span class="${baseClass}">${icon} ${translatedStatus}</span></div>`);
-         }
-     }
- 
-     if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
-         lines.push(`<div><small class="text-muted">📍 ${translatedSubstatus}</small></div>`);
-     }
- 
-     if (status === 'delivered' && deliveredDate) {
-         const deliveredFormatted = formatDateOnly(deliveredDate);
-         if (deliveredFormatted) {
-             lines.push(`<div><small class="text-success">📅 ${deliveredFormatted}</small></div>`);
-         }
-     }
- 
-     if (status !== 'delivered' && shippedDate) {
-         const shippedFormatted = formatDateOnly(shippedDate);
-         if (shippedFormatted) {
-             lines.push(`<div><small class="text-muted">📦 Enviado: ${shippedFormatted}</small></div>`);
-         }
-     }
- 
-     var isPickup = ['xd_drop_off', 'drop_off'].includes((logisticTypeRaw || '').toString().toLowerCase());
-     const dropOffDate = shipping.status_history?.date_handling || shipping.date_created || order.shipping_date;
-     if (isPickup) {
-         const dropOffFormatted = formatDateTime(dropOffDate);
-         if (dropOffFormatted) {
-             lines.push(`<div><small class="text-muted">📦 Registrado: ${dropOffFormatted}</small></div>`);
-         }
- 
-         var bufferingDate = shipping.shipping_option?.buffering?.date;
-         var bufferingFormatted = formatDateOnly(bufferingDate);
-         if (bufferingFormatted) {
-             lines.push(`<div><small class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</small></div>`);
-         }
-     }
- 
-     if (estimatedDate && status !== 'delivered') {
-         const estimatedFormatted = formatDateOnly(estimatedDate);
-         if (estimatedFormatted) {
-             lines.push(`<div><small class="text-muted">📅 Previsão: ${estimatedFormatted}</small></div>`);
-         }
-     }
- 
-     if (!lines.length && (logisticLabel || shippingMethod)) {
-         const fallbackBadge = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
-         const label = logisticLabel || shippingMethod || 'N/A';
-         return `<div class="d-flex flex-column gap-1 small"><div><span class="badge ${fallbackBadge}">${label}</span></div></div>`;
-     }
- 
-     return lines.length
-         ? `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`
-         : `<div class="d-flex flex-column gap-1 small"><div><span class="badge bg-secondary">N/A</span></div></div>`;
- }
+function getLogisticBadgeClass(logisticType) {
+    const normalized = (logisticType || '').toString().toLowerCase();
+    switch (normalized) {
+        case 'fulfillment':
+        case 'full':
+            return 'badge bg-primary';
+        case 'cross_docking':
+            return 'badge bg-info';
+        case 'me2':
+            return 'badge bg-warning';
+        case 'me1':
+            return 'badge bg-secondary';
+        case 'xd_drop_off':
+        case 'drop_off':
+        case 'ponto de coleta':
+            return 'badge bg-secondary';
+        case 'self_service':
+            return 'badge bg-secondary';
+        default:
+            return 'badge bg-secondary';
+    }
+}
 
 function renderOrderActions(order) {
     const orderId = order.ml_order_id || order.order_id || '';
-    const cacheKey = order.id || orderId;
-    const shipping = order.shipping_details || order.shipping || {};
-    const logisticType = shipping.logistic_type || shipping.logistic?.type || order.shipping_type;
-    const hasShippingId = Boolean(order.shipping_id || shipping.id);
+    const permalink = order.permalink || '';
 
-    return `
-        <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Ver detalhes">
-                <i class="bi bi-eye"></i>
-            </button>
-            <button class="btn btn-outline-secondary" onclick="copyOrderId('${orderId}')" title="Copiar ID do pedido">
-                <i class="bi bi-clipboard"></i>
-            </button>
-            ${renderInvoiceDropdown(orderId)}
-            ${renderLabelDropdown(orderId, hasShippingId, logisticType)}
-            <button class="btn btn-outline-dark" onclick="openOrderJson('${cacheKey || orderId}')" title="Ver JSON do pedido">
-                <i class="bi bi-code-slash"></i>
-            </button>
-            <a href="/ml/orders/${orderId}" class="btn btn-outline-info" title="Abrir detalhes no painel">
+    const actions = [
+        `<button class="btn btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Ver detalhes">
+            <i class="bi bi-eye"></i>
+        </button>`,
+        `<button class="btn btn-outline-secondary" onclick="copyOrderId('${orderId}')" title="Copiar ID do pedido">
+            <i class="bi bi-clipboard"></i>
+        </button>`
+    ];
+
+    if (permalink) {
+        actions.push(`
+            <a href="${permalink}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-info" title="Ver no Mercado Livre">
                 <i class="bi bi-box-arrow-up-right"></i>
-            </a>
-        </div>
-    `;
-}
-
-function renderPagination(total, limit, currentPage) {
-    const pagination = document.getElementById('pagination');
-    const paginationInfo = document.getElementById('pagination-info');
-    const totalPages = Math.ceil(total / limit);
-    
-    // Atualizar informações da paginação
-    const startItem = (currentPage - 1) * limit + 1;
-    const endItem = Math.min(currentPage * limit, total);
-    paginationInfo.textContent = `Mostrando ${startItem} a ${endItem} de ${total} pedidos`;
-    
-    if (totalPages <= 1) {
-        pagination.innerHTML = '';
-        return;
+            </a>`
+        );
     }
-    
-    let paginationHTML = '';
-    
-    // Botão primeira página
-    if (currentPage > 1) {
-        paginationHTML += `
-            <li class="page-item">
-                <a class="page-link" href="#" onclick="loadOrders(1)" title="Primeira página">
-                    <i class="bi bi-chevron-double-left"></i>
-                </a>
-            </li>
-        `;
-    }
-    
-    // Botão anterior
-    if (currentPage > 1) {
-        paginationHTML += `
-            <li class="page-item">
-                <a class="page-link" href="#" onclick="loadOrders(${currentPage - 1})" title="Página anterior">
-                    <i class="bi bi-chevron-left"></i>
-                </a>
-            </li>
-        `;
-    }
-    
-    // Páginas
-    const startPage = Math.max(1, currentPage - 2);
-    const endPage = Math.min(totalPages, currentPage + 2);
-    
-    // Adicionar reticências no início se necessário
-    if (startPage > 1) {
-        paginationHTML += `
-            <li class="page-item disabled">
-                <span class="page-link">...</span>
-            </li>
-        `;
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-        paginationHTML += `
-            <li class="page-item ${i === currentPage ? 'active' : ''}">
-                <a class="page-link" href="#" onclick="loadOrders(${i})">${i}</a>
-            </li>
-        `;
-    }
-    
-    // Adicionar reticências no final se necessário
-    if (endPage < totalPages) {
-        paginationHTML += `
-            <li class="page-item disabled">
-                <span class="page-link">...</span>
-            </li>
-        `;
-    }
-    
-    // Botão próximo
-    if (currentPage < totalPages) {
-        paginationHTML += `
-            <li class="page-item">
-                <a class="page-link" href="#" onclick="loadOrders(${currentPage + 1})" title="Próxima página">
-                    <i class="bi bi-chevron-right"></i>
-                </a>
-            </li>
-        `;
-    }
-    
-    // Botão última página
-    if (currentPage < totalPages) {
-        paginationHTML += `
-            <li class="page-item">
-                <a class="page-link" href="#" onclick="loadOrders(${totalPages})" title="Última página">
-                    <i class="bi bi-chevron-double-right"></i>
-                </a>
-            </li>
-        `;
-    }
-    
-    pagination.innerHTML = paginationHTML;
-}
 
-function loadAccountsFilter(accounts) {
-    const select = document.getElementById('account_filter');
-    const currentValue = new URLSearchParams(window.location.search).get('account_filter') || '';
-    
-    select.innerHTML = '<option value="">Todas as contas</option>';
-    
-    accounts.forEach(account => {
-        const option = document.createElement('option');
-        option.value = account.id;
-        option.textContent = `${account.nickname} (${account.country_id})`;
-        option.selected = currentValue == account.id;
-        select.appendChild(option);
-    });
-}
+    actions.push(`
+        <a href="/ml/orders/${orderId}" class="btn btn-outline-dark" title="Abrir no painel">
+            <i class="bi bi-journal-text"></i>
+        </a>
+    `);
 
-function toggleCustomPeriod() {
-    const periodFilter = document.getElementById('period_filter').value;
-    const customPeriodRow = document.getElementById('customPeriodRow');
-    
-    if (periodFilter === 'custom') {
-        customPeriodRow.style.display = 'block';
-    } else {
-        customPeriodRow.style.display = 'none';
-    }
-}
-
-function getPeriodDates(period) {
-    const today = new Date();
-    const formatDate = (date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-    
-    console.log('Calculando período:', period, 'Data atual:', formatDate(today));
-    
-    switch (period) {
-        case 'today':
-            const todayFormatted = formatDate(today);
-            console.log('Período hoje:', todayFormatted, 'a', todayFormatted);
-            return { from: todayFormatted, to: todayFormatted };
-        
-        case 'this_week':
-            const startOfWeek = new Date(today);
-            startOfWeek.setDate(today.getDate() - today.getDay());
-            const endOfWeek = new Date(startOfWeek);
-            endOfWeek.setDate(startOfWeek.getDate() + 6);
-            return { from: formatDate(startOfWeek), to: formatDate(endOfWeek) };
-        
-        case 'this_month':
-            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            return { from: formatDate(startOfMonth), to: formatDate(endOfMonth) };
-        
-        case 'last_month':
-            const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-            return { from: formatDate(startOfLastMonth), to: formatDate(endOfLastMonth) };
-        
-        case 'next_month':
-            const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-            const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-            return { from: formatDate(startOfNextMonth), to: formatDate(endOfNextMonth) };
-        
-        case 'next_30_days':
-            const next30Days = new Date(today);
-            next30Days.setDate(today.getDate() + 30);
-            return { from: formatDate(today), to: formatDate(next30Days) };
-        
-        case 'next_60_days':
-            const next60Days = new Date(today);
-            next60Days.setDate(today.getDate() + 60);
-            return { from: formatDate(today), to: formatDate(next60Days) };
-        
-        case 'next_90_days':
-            const next90Days = new Date(today);
-            next90Days.setDate(today.getDate() + 90);
-            return { from: formatDate(today), to: formatDate(next90Days) };
-        
-        case 'this_year':
-            const startOfYear = new Date(today.getFullYear(), 0, 1);
-            const endOfYear = new Date(today.getFullYear(), 11, 31);
-            return { from: formatDate(startOfYear), to: formatDate(endOfYear) };
-        
-        default:
-            return null;
-    }
-}
-
-function clearFilters() {
-    // Limpar todos os filtros
-    document.getElementById('account_filter').value = '';
-    document.getElementById('status_filter').value = '';
-    document.getElementById('date_from').value = '';
-    document.getElementById('date_to').value = '';
-    document.getElementById('period_filter').value = '';
-    document.getElementById('customDateFrom').value = '';
-    document.getElementById('customDateTo').value = '';
-    
-    // Ocultar período personalizado
-    document.getElementById('customPeriodRow').style.display = 'none';
-    
-    // Limpar URL e recarregar
-    const url = new URL(window.location);
-    url.search = '';
-    window.history.pushState({}, '', url);
-    
-    // Recarregar pedidos
-    loadOrders(1);
-}
-
-function applyFilters() {
-    const periodFilter = document.getElementById('period_filter').value;
-    let dateFrom = document.getElementById('date_from').value;
-    let dateTo = document.getElementById('date_to').value;
-    
-    console.log('Aplicando filtros - Período selecionado:', periodFilter);
-    console.log('Datas iniciais - De:', dateFrom, 'Até:', dateTo);
-    
-    // Se período personalizado está selecionado, usar as datas customizadas
-    if (periodFilter === 'custom') {
-        const customDateFrom = document.getElementById('customDateFrom').value;
-        const customDateTo = document.getElementById('customDateTo').value;
-        if (customDateFrom) dateFrom = customDateFrom;
-        if (customDateTo) dateTo = customDateTo;
-        console.log('Período personalizado - De:', dateFrom, 'Até:', dateTo);
-    } else if (periodFilter) {
-        // Processar período automático
-        const dates = getPeriodDates(periodFilter);
-        if (dates) {
-            dateFrom = dates.from;
-            dateTo = dates.to;
-            console.log('Período calculado - De:', dateFrom, 'Até:', dateTo);
-            // Atualizar os campos de data visualmente
-            document.getElementById('date_from').value = dateFrom;
-            document.getElementById('date_to').value = dateTo;
-        }
-    }
-    
-    var filters = {
-         account_filter: document.getElementById('account_filter').value,
-         status_filter: document.getElementById('status_filter').value,
-         date_from: dateFrom,
-         date_to: dateTo,
-         period_filter: periodFilter,
-         limit: 50  // Limite fixo de 50 pedidos por página
-     };
- 
-    console.log('Filtros finais:', filters);
-    
-    // Atualizar URL
-    var url = new URL(window.location);
-    Object.keys(filters).forEach(key => {
-        if (filters[key]) {
-            url.searchParams.set(key, filters[key]);
-        } else {
-            url.searchParams.delete(key);
-        }
-    });
-    
-    window.history.pushState({}, '', url);
-    loadOrders(1);
-}
-
-function syncOrders() {
-    console.log('🔄 Iniciando sincronização de pedidos...');
-    console.log('🌐 URL:', window.location.origin + '/ml/api/orders/sync');
-    
-    // Mostrar loading
-    showLoading(true);
-    
-    // Mostrar alerta de início
-    showSuccess('Iniciando sincronização de pedidos...');
-    
-    console.log('📤 Enviando requisição...');
-    
-    fetch('/ml/api/orders/sync', {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-            'Accept': 'application/json'
-        }
-    })
-    .then(async response => {
-        console.log('📡 Resposta recebida!');
-        console.log('   Status:', response.status);
-        console.log('   Status Text:', response.statusText);
-        console.log('   Content-Type:', response.headers.get('content-type'));
-        console.log('   Headers:', [...response.headers.entries()]);
-        
-        if (checkSessionExpired(response)) {
-            console.log('⚠️ Sessão expirada, parando...');
-            showLoading(false);
-            return null;
-        }
-        
-        // Verificar se é JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            const text = await response.text();
-            console.error('❌ Resposta não é JSON!');
-            console.error('   Content-Type:', contentType);
-            console.error('   Primeiros 500 caracteres:', text.substring(0, 500));
-            throw new Error('Servidor retornou resposta inválida (não JSON)');
-        }
-        
-        console.log('✅ Resposta é JSON, fazendo parse...');
-        return response.json();
-    })
-    .then(data => {
-        if (!data) {
-            console.log('⚠️ Sem dados (sessão expirada?)');
-            return; // Sessão expirada ou erro
-        }
-        
-        console.log('📊 Dados da sincronização:', data);
-        if (data && data.success) {
-            if (data.status === 'processing') {
-                showSuccess(`🚀 ${data.message || 'Sincronização iniciada! Aguarde 1-2 minutos e atualize a página.'}`);
-                // Auto-atualizar após 60 segundos
-                setTimeout(() => {
-                    console.log('🔄 Auto-atualizando página...');
-                    loadOrders(currentPage);
-                }, 60000);
-            } else {
-                showSuccess(`✅ Sincronização concluída: ${data.total_saved || 0} pedidos novos, ${data.total_updated || 0} atualizados`);
-                loadOrders(currentPage);
-            }
-        } else {
-            showError('❌ Erro ao sincronizar pedidos: ' + (data?.error || 'Erro desconhecido'));
-        }
-        showLoading(false);
-    })
-    .catch(error => {
-        console.error('❌ Erro capturado no catch:', error);
-        console.error('   Mensagem:', error.message);
-        console.error('   Stack:', error.stack);
-        showError('Erro ao sincronizar pedidos: ' + error.message);
-        showLoading(false);
-    });
-}
-
-function refreshOrders() {
-    loadOrders(currentPage);
-}
-
-// Variáveis de controle de importação
-let importCancelled = false;
-let totalOrdersToImport = 0;
-let currentJobId = null;
-let statusInterval = null;
-
-function importOrders() {
-    // Resetar variáveis
-    importCancelled = false;
-    
-    // Mostrar modal de configuração
-    const modal = new bootstrap.Modal(document.getElementById('importModal'));
-    modal.show();
-    
-    // Resetar telas
-    document.getElementById('import-config').style.display = 'block';
-    document.getElementById('import-progress').style.display = 'none';
-    document.getElementById('import-complete').style.display = 'none';
-    document.getElementById('start-import-btn').style.display = 'inline-block';
-    
-    // Verificar total de pedidos disponíveis
-    checkAvailableOrders();
-}
-
-function checkAvailableOrders() {
-    document.getElementById('total-orders-available').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verificando...';
-    
-    fetch('/ml/api/orders/count', {
-        method: 'GET',
-        credentials: 'include'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data && data.success) {
-            const total = data.total_available || 0;
-            const imported = data.total_imported || 0;
-            const remaining = total - imported;
-            
-            totalOrdersToImport = remaining;
-            
-            document.getElementById('total-orders-available').innerHTML = 
-                `<strong>${total}</strong> pedidos no ML | 
-                 <strong>${imported}</strong> já importados | 
-                 <strong class="text-primary">${remaining}</strong> restantes`;
-            
-            // Calcular tempo estimado 
-            // (50 pedidos * 5seg cada) + 10seg pausa entre lotes = ~260 segundos por lote
-            const totalBatches = Math.ceil(remaining / 50);
-            const estimatedSeconds = (totalBatches * 260); // 260 segundos por lote
-            const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
-            document.getElementById('estimated-time').textContent = 
-                estimatedMinutes > 0 ? `~${estimatedMinutes} minuto(s)` : 'Menos de 1 minuto';
-        } else {
-            document.getElementById('total-orders-available').textContent = 'Erro ao verificar';
-        }
-    })
-    .catch(error => {
-        console.error('Erro ao verificar pedidos:', error);
-        document.getElementById('total-orders-available').textContent = 'Erro ao verificar';
-    });
-}
-
-async function startBatchImport() {
-    // Esconder botão de iniciar
-    document.getElementById('start-import-btn').style.display = 'none';
-    
-    // Mostrar tela de progresso
-    document.getElementById('import-config').style.display = 'none';
-    document.getElementById('import-progress').style.display = 'block';
-    
-    // Permitir fechar modal (job roda em background)
-    document.getElementById('closeImportModal').disabled = false;
-    document.getElementById('close-modal-btn').disabled = false;
-    document.getElementById('close-modal-btn').innerHTML = 
-        '<i class="bi bi-x-circle me-1"></i>Fechar (continua em background)';
-    
-    // Iniciar importação em background
-    document.getElementById('import-status').innerHTML = 
-        '<i class="bi bi-rocket me-2"></i>Iniciando importação em background...';
-    
-    try {
-        const response = await fetch('/ml/api/orders/import-background', {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Erro HTTP: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            currentJobId = data.job_id;
-            
-            // Mostrar mensagem de sucesso
-            showSuccess(`Importação iniciada em background! Job ID: ${currentJobId}`);
-            
-            // Iniciar monitoramento do status
-            startJobMonitoring(currentJobId);
-            
-        } else {
-            showError('Erro ao iniciar importação: ' + (data.error || 'Erro desconhecido'));
-            // Voltar para tela de configuração
-            document.getElementById('import-progress').style.display = 'none';
-            document.getElementById('import-config').style.display = 'block';
-            document.getElementById('start-import-btn').style.display = 'inline-block';
-        }
-        
-    } catch (error) {
-        console.error('Erro ao iniciar importação:', error);
-        showError('Erro ao iniciar importação: ' + error.message);
-        // Voltar para tela de configuração
-        document.getElementById('import-progress').style.display = 'none';
-        document.getElementById('import-config').style.display = 'block';
-        document.getElementById('start-import-btn').style.display = 'inline-block';
-    }
-}
-
-function startJobMonitoring(jobId) {
-    // Limpar intervalo anterior se existir
-    if (statusInterval) {
-        clearInterval(statusInterval);
-    }
-    
-    // Atualizar status a cada 3 segundos
-    statusInterval = setInterval(() => {
-        updateJobStatus(jobId);
-    }, 3000);
-    
-    // Primeira atualização imediata
-    updateJobStatus(jobId);
-}
-
-async function updateJobStatus(jobId) {
-    try {
-        const response = await fetch(`/ml/api/orders/import-status/${jobId}`, {
-            method: 'GET',
-            credentials: 'include'
-        });
-        
-        if (response.status === 404) {
-            // Job não existe mais (container reiniciado ou job perdido)
-            clearInterval(statusInterval);
-            document.getElementById('import-status').innerHTML = 
-                '<i class="bi bi-exclamation-triangle me-2 text-warning"></i>' +
-                'Job não encontrado. O servidor pode ter sido reiniciado.<br>' +
-                '<button class="btn btn-sm btn-primary mt-2" onclick="closeImportModal()">Fechar e Verificar Pedidos</button>';
-            document.getElementById('cancel-import-btn').style.display = 'none';
-            showWarning('Job de importação não encontrado. Verifique se os pedidos foram importados.');
-            return;
-        }
-        
-        if (!response.ok) {
-            throw new Error(`Erro HTTP: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.success && data.job) {
-            const job = data.job;
-            
-            // Atualizar contadores
-            document.getElementById('imported-count').textContent = job.imported || 0;
-            document.getElementById('updated-count').textContent = job.updated || 0;
-            document.getElementById('current-batch').textContent = 
-                `${job.current_batch || 0}/${job.total_batches || 0}`;
-            
-            // Atualizar barra de progresso
-            const percentage = job.total_orders > 0 
-                ? Math.round((job.processed / job.total_orders) * 100) 
-                : 0;
-            
-            document.getElementById('progress-bar').style.width = percentage + '%';
-            document.getElementById('progress-percentage').textContent = percentage + '%';
-            document.getElementById('progress-text').textContent = 
-                `${job.processed || 0} / ${job.total_orders || 0} (${percentage}%)`;
-            
-            // Atualizar status
-            const statusMessages = {
-                'running': '<i class="bi bi-hourglass-split me-2"></i>Importação em andamento...',
-                'completed': '<i class="bi bi-check-circle me-2 text-success"></i>Importação concluída!',
-                'cancelled': '<i class="bi bi-x-circle me-2 text-warning"></i>Importação cancelada',
-                'error': '<i class="bi bi-exclamation-triangle me-2 text-danger"></i>Erro na importação'
-            };
-            
-            document.getElementById('import-status').innerHTML = 
-                statusMessages[job.status] || 'Processando...';
-            
-            // Se completou, cancelou ou erro, parar monitoramento
-            if (['completed', 'cancelled', 'error'].includes(job.status)) {
-                clearInterval(statusInterval);
-                
-                if (job.status === 'completed') {
-                    showImportComplete(job.imported, job.updated);
-                } else if (job.status === 'cancelled') {
-                    showImportCancelled(job.imported, job.updated);
-                } else {
-                    showImportError(job.error_message || 'Erro desconhecido');
-                }
-                
-                // Recarregar pedidos
-                loadOrders(1);
-            }
-        }
-        
-    } catch (error) {
-        console.error('Erro ao verificar status do job:', error);
-    }
-}
-
-function closeImportModal() {
-    // Parar monitoramento se estiver ativo
-    if (statusInterval) {
-        clearInterval(statusInterval);
-        statusInterval = null;
-    }
-    
-    // Resetar estado
-    currentJobId = null;
-    
-    // Fechar modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('importModal'));
-    if (modal) {
-        modal.hide();
-    }
-    
-    // Recarregar pedidos para ver se algum foi importado
-    loadOrders(1);
-}
-
-async function cancelImport() {
-    if (!currentJobId) {
-        closeImportModal();
-        return;
-    }
-    
-    if (confirm('Deseja realmente cancelar a importação em background?')) {
-        document.getElementById('cancel-import-btn').disabled = true;
-        document.getElementById('import-status').innerHTML = 
-            '<i class="bi bi-x-circle me-2 text-danger"></i>Cancelando importação...';
-        
-        try {
-            const response = await fetch(`/ml/api/orders/import-cancel/${currentJobId}`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-            
-            if (response.status === 404) {
-                // Job não existe mais (container reiniciado)
-                showWarning('Job não encontrado. Fechando modal...');
-                closeImportModal();
-                return;
-            }
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    showSuccess('Importação cancelada com sucesso');
-                }
-            }
-        } catch (error) {
-            console.error('Erro ao cancelar importação:', error);
-        }
-    }
-}
-
-function showImportError(errorMessage) {
-    // Esconder progresso
-    document.getElementById('import-progress').style.display = 'none';
-    
-    // Mostrar conclusão com erro
-    document.getElementById('import-complete').style.display = 'block';
-    document.getElementById('final-message').innerHTML = 
-        `<i class="bi bi-exclamation-triangle me-2"></i>Erro na importação: ${errorMessage}`;
-    
-    // Mudar cor do alerta
-    const alertDiv = document.querySelector('#import-complete .alert');
-    alertDiv.classList.remove('alert-success');
-    alertDiv.classList.add('alert-danger');
-    
-    // Habilitar botão de fechar
-    document.getElementById('closeImportModal').disabled = false;
-    document.getElementById('close-modal-btn').disabled = false;
-    document.getElementById('close-modal-btn').innerHTML = '<i class="bi bi-x-circle me-1"></i>Fechar';
-}
-
-function showImportComplete(imported, updated) {
-    // Esconder progresso
-    document.getElementById('import-progress').style.display = 'none';
-    
-    // Mostrar conclusão
-    document.getElementById('import-complete').style.display = 'block';
-    document.getElementById('final-imported').textContent = imported;
-    document.getElementById('final-updated').textContent = updated;
-    document.getElementById('final-message').textContent = 
-        `${imported} pedidos foram importados e ${updated} foram atualizados com sucesso!`;
-    
-    // Habilitar botão de fechar
-    document.getElementById('closeImportModal').disabled = false;
-    document.getElementById('close-modal-btn').disabled = false;
-    
-    // Esconder botão de iniciar
-    document.getElementById('start-import-btn').style.display = 'none';
-}
-
-function showImportCancelled(imported, updated) {
-    // Esconder progresso
-    document.getElementById('import-progress').style.display = 'none';
-    
-    // Mostrar conclusão com aviso de cancelamento
-    document.getElementById('import-complete').style.display = 'block';
-    document.getElementById('final-imported').textContent = imported;
-    document.getElementById('final-updated').textContent = updated;
-    document.getElementById('final-message').innerHTML = 
-        `<i class="bi bi-exclamation-triangle me-2"></i>Importação cancelada pelo usuário. ${imported} pedidos foram importados antes do cancelamento.`;
-    
-    // Mudar cor do alerta
-    const alertDiv = document.querySelector('#import-complete .alert');
-    alertDiv.classList.remove('alert-success');
-    alertDiv.classList.add('alert-warning');
-    
-    // Habilitar botão de fechar
-    document.getElementById('closeImportModal').disabled = false;
-    document.getElementById('close-modal-btn').disabled = false;
-    
-    // Esconder botão de iniciar
-    document.getElementById('start-import-btn').style.display = 'none';
+    return `<div class="btn-group btn-group-sm" role="group">${actions.join('')}</div>`;
 }
 
 function viewOrderDetails(orderId) {
-    // Navegar para a página de detalhes do pedido
+    if (!orderId) return;
     window.location.href = `/ml/orders/${orderId}`;
 }
 
 function copyOrderId(orderId) {
-    navigator.clipboard.writeText(orderId).then(() => {
-        showSuccess('ID do pedido copiado!');
-    });
-}
-
-function updateOrdersCount(total) {
-    const ordersCountElement = document.getElementById('orders-count');
-    if (ordersCountElement) {
-        ordersCountElement.innerHTML = `<i class="bi bi-info-circle"></i> ${total} pedido(s) encontrado(s)`;
-    }
-    
-    const totalOrdersElement = document.getElementById('total-orders');
-    if (totalOrdersElement) {
-        totalOrdersElement.textContent = `${total} pedidos`;
-    }
-}
-
-function showLoading(show) {
-    const loadingContainer = document.getElementById('loading-container');
-    if (!loadingContainer) {
-        return;
-    }
-    loadingContainer.style.display = show ? 'block' : 'none';
-}
-
-function showError(message) {
-    const alertContainer = document.getElementById('alerts-container');
-    alertContainer.innerHTML = `
-        <div class="col-12">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-    `;
-}
-
-function showSuccess(message) {
-    const alertContainer = document.getElementById('alerts-container');
-    alertContainer.innerHTML = `
-        <div class="col-12">
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle-fill"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-    `;
-}
-
-function showAlert(type, message) {
-    const classes = {
-        success: { alert: 'alert-success', icon: 'bi-check-circle-fill' },
-        danger: { alert: 'alert-danger', icon: 'bi-exclamation-triangle-fill' },
-        warning: { alert: 'alert-warning', icon: 'bi-exclamation-triangle-fill' },
-        info: { alert: 'alert-info', icon: 'bi-info-circle-fill' }
-    };
-
-    const current = classes[type] || classes.info;
-    const alertContainer = document.getElementById('alerts-container');
-    if (!alertContainer) return;
-
-    alertContainer.innerHTML = `
-        <div class="col-12">
-            <div class="alert ${current.alert} alert-dismissible fade show" role="alert">
-                <i class="bi ${current.icon}"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-    `;
-}
-
-function getStatusBadgeClass(status) {
-    const statusClasses = {
-        'pending': 'bg-warning',
-        'confirmed': 'bg-info',
-        'paid': 'bg-primary',
-        'shipped': 'bg-secondary',
-        'delivered': 'bg-success',
-        'cancelled': 'bg-danger',
-        'refunded': 'bg-dark'
-    };
-    return statusClasses[status] || 'bg-secondary';
-}
-
-function getStatusLabel(status) {
-    const statusLabels = {
-        'pending': 'Pendente',
-        'confirmed': 'Confirmado',
-        'paid': 'Pago',
-        'shipped': 'Enviado',
-        'delivered': 'Entregue',
-        'cancelled': 'Cancelado',
-        'refunded': 'Reembolsado'
-    };
-    return statusLabels[status] || status;
-}
-
-function translateShippingStatus(status) {
-    const shippingLabels = {
-        'pending': 'Pendente',
-        'ready_to_ship': 'Pronto para envio',
-        'ready_to_print': 'Pronto para imprimir',
-        'printed': 'Etiqueta impressa',
-        'packed': 'Pacote pronto',
-        'shipped': 'Enviado',
-        'in_transit': 'Em trânsito',
-        'delivered': 'Entregue',
-        'not_delivered': 'Não entregue',
-        'cancelled': 'Cancelado'
-    };
-    return shippingLabels[status] || status;
-}
-
-function translateShippingSubstatus(substatus) {
-    const mapping = {
-        'receiver_absent': 'Comprador ausente',
-        'receiver_absent_twice': 'Comprador ausente (2x)',
-        'damaged_package': 'Pacote danificado',
-        'processing': 'Em processamento',
-        'waiting_for_withdrawal': 'Aguardando retirada',
-        'waiting_for_carrier_authorization': 'Aguardando transportadora',
-        'contact_customer': 'Contatar comprador',
-        'need_review': 'Necessário revisar',
-        'returned_to_sender': 'Devolvido ao remetente',
-        'stolen': 'Roubado'
-    };
-    if (mapping[substatus]) {
-        return mapping[substatus];
-    }
-    return substatus ? substatus.replace(/_/g, ' ') : '';
-}
-
-const shippingStatusLabels = {
-    'pending': 'Pendente',
-    'ready_to_print': 'Pronto para imprimir',
-    'ready_to_pack': 'Pronto para embalar',
-    'ready_to_ship': 'Pronto para envio',
-    'printed': 'Etiqueta impressa',
-    'packed': 'Pacote pronto',
-    'shipped': 'Enviado',
-    'in_transit': 'Em trânsito',
-    'out_for_delivery': 'Saiu para entrega',
-    'soon_deliver': 'Próximo da entrega',
-    'delivered': 'Entregue',
-    'not_delivered': 'Não entregue',
-    'cancelled': 'Cancelado',
-    'error': 'Erro',
-    'buffered': 'Aguardando...',
-    'receiver_absent': 'Comprador ausente',
-    'receiver_absent_twice': 'Comprador ausente (2x)',
-    'in_warehouse': 'No armazém',
-    'in_packing_list': 'Na fila de embalagem',
-    'waiting_for_carrier_authorization': 'Aguardando transportadora',
-    'ready_for_pickup': 'Pronto para retirada',
-    'ready_for_dropoff': 'Pronto para postagem',
-    'to_be_agreed': 'A combinar'
-};
-
-const shippingStatusIcons = {
-    'pending': '⏳',
-    'ready_to_print': '📦',
-    'ready_to_pack': '📦',
-    'ready_to_ship': '📦',
-    'printed': '📦',
-    'packed': '📦',
-    'shipped': '🚚',
-    'in_transit': '🚚',
-    'out_for_delivery': '🚚',
-    'soon_deliver': '🚚',
-    'delivered': '✓',
-    'not_delivered': '⚠️',
-    'cancelled': '⛔',
-    'error': '⚠️',
-    'buffered': '⏳',
-    'receiver_absent': '📍',
-    'receiver_absent_twice': '📍',
-    'in_warehouse': '🏬',
-    'in_packing_list': '📦',
-    'waiting_for_carrier_authorization': '🚚',
-    'ready_for_pickup': '📦',
-    'ready_for_dropoff': '📦',
-    'to_be_agreed': '🛈'
-};
-
-const translateShippingLabel = (value) => {
-    if (!value) return '-';
-    const normalized = (typeof value === 'string') ? value.toLowerCase() : value;
-    if (shippingStatusLabels[normalized]) {
-        return shippingStatusLabels[normalized];
-    }
-    if (typeof value === 'string') {
-        return value.replace(/_/g, ' ');
-    }
-    return value;
-};
-
-function getLogisticLabel(logisticType) {
-    const normalized = (logisticType || '').toString().toLowerCase();
-    switch (normalized) {
-        case 'full':
-        case 'fulfillment':
-            return 'Fulfillment';
-        case 'cross_docking':
-            return 'Cross Docking';
-        case 'me2':
-            return 'Mercado Envios';
-        case 'me1':
-            return 'Correios';
-        case 'ponto de coleta':
-        case 'xd_drop_off':
-        case 'drop_off':
-            return 'Ponto de Coleta';
-        case 'self_service':
-            return 'Envio próprio';
-        case 'flex':
-        case 'me2_flex':
-            return 'Flex';
-        default:
-            return logisticType || '';
-    }
-}
-
-function getLogisticBadgeClass(logisticType) {
-    const normalized = (logisticType || '').toString().toLowerCase();
-    switch (normalized) {
-        case 'full':
-        case 'fulfillment':
-            return 'bg-primary';
-        case 'me1':
-        case 'me2':
-            return 'bg-warning';
-        case 'cross_docking':
-            return 'bg-info';
-        case 'ponto de coleta':
-        case 'xd_drop_off':
-        case 'drop_off':
-            return 'bg-secondary';
-        default:
-            return 'bg-secondary';
-    }
-}
-
-function formatDateOnly(dateString) {
-    if (!dateString) return '';
-    try {
-        return new Date(dateString).toLocaleDateString('pt-BR');
-    } catch (_) {
-        return '';
-    }
-}
-
-function formatDateTime(dateString) {
-    if (!dateString) return '';
-    try {
-        const date = new Date(dateString);
-        return date.toLocaleString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-    } catch (_) {
-        return '';
-    }
-}
-
-function getShippingStatusDisplay(status) {
-    const normalized = (status || '').toString().toLowerCase();
-    const label = shippingStatusLabels[normalized] || (normalized ? normalized.replace(/_/g, ' ') : null);
-    if (!label) {
-        return null;
-    }
-    const icon = shippingStatusIcons[normalized] || '🚚';
-    return { icon, label };
-}
-
-function formatCurrency(amount, currency = 'BRL') {
-    if (!amount) return 'R$ 0,00';
-    
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: currency || 'BRL',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(amount); // Valor já está em reais
-}
-
-function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    
-    try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
-    } catch (e) {
-        return dateString;
-    }
-}
-
-function sortTable(column) {
-    // Implementar ordenação se necessário
-    console.log('Ordenar por:', column);
-}
-
-
-// Funções para remoção de pedidos
-function showDeleteOrdersModal() {
-    // Atualizar contador de pedidos selecionados
-    updateSelectedOrdersCount();
-    
-    // Limpar campo de confirmação
-    document.getElementById('confirmationTextOrders').value = '';
-    document.getElementById('deleteOrdersButton').disabled = true;
-    
-    // Configurar opções de remoção
-    setupDeleteOptions();
-    
-    // Mostrar modal
-    const modal = new bootstrap.Modal(document.getElementById('deleteOrdersModal'));
-    modal.show();
-}
-
-function setupDeleteOptions() {
-    const deleteSelected = document.getElementById('deleteSelected');
-    const deleteAll = document.getElementById('deleteAll');
-    const deleteSelectedButton = document.getElementById('deleteOrdersButton');
-    const deleteAllButton = document.getElementById('deleteAllOrdersButton');
-    
-    // Função para alternar entre os botões
-    function toggleButtons() {
-        if (deleteSelected.checked) {
-            deleteSelectedButton.style.display = 'inline-block';
-            deleteAllButton.style.display = 'none';
-            updateSelectedOrdersCount();
-        } else if (deleteAll.checked) {
-            deleteSelectedButton.style.display = 'none';
-            deleteAllButton.style.display = 'inline-block';
-            deleteAllButton.disabled = false;
-        }
-    }
-    
-    // Adicionar event listeners
-    deleteSelected.addEventListener('change', toggleButtons);
-    deleteAll.addEventListener('change', toggleButtons);
-    
-    // Configuração inicial
-    toggleButtons();
-}
-
-function toggleSelectAllOrders() {
-    const selectAllCheckbox = document.getElementById('select-all-orders');
-    const orderCheckboxes = document.querySelectorAll('.order-checkbox');
-    
-    orderCheckboxes.forEach(checkbox => {
-        checkbox.checked = selectAllCheckbox.checked;
-    });
-    
-    updateSelectedOrdersCount();
-}
-
-function updateSelectedOrdersCount() {
-    const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
-    const selectedCount = selectedCheckboxes.length;
-    
-    document.getElementById('selectedOrdersCount').textContent = selectedCount;
-    
-    // Habilitar/desabilitar botão de remoção
-    const deleteButton = document.getElementById('deleteOrdersButton');
-    if (deleteButton) {
-        deleteButton.disabled = selectedCount === 0;
-    }
-}
-
-function confirmDeleteOrders() {
-    const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
-    const selectedOrderIds = Array.from(selectedCheckboxes).map(cb => cb.value);
-    
-    if (selectedOrderIds.length === 0) {
-        showAlert('warning', 'Selecione pelo menos um pedido para remover');
-        return;
-    }
-    
-    const confirmationText = document.getElementById('confirmationTextOrders').value;
-    if (confirmationText !== 'CONFIRMAR') {
-        showAlert('danger', 'Digite "CONFIRMAR" para prosseguir com a remoção');
-        return;
-    }
-    
-    // Desabilitar botão durante a operação
-    const deleteButton = document.getElementById('deleteOrdersButton');
-    deleteButton.disabled = true;
-    deleteButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Removendo...';
-    
-    fetch('/ml/api/orders/delete', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-            order_ids: selectedOrderIds
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
-            
-            // Fechar modal
-            bootstrap.Modal.getInstance(document.getElementById('deleteOrdersModal')).hide();
-            
-            // Recarregar pedidos
-            setTimeout(() => {
-                loadOrders(currentPage);
-            }, 1000);
-        } else {
-            showAlert('danger', data.error || 'Erro ao remover pedidos');
-        }
-    })
-    .catch(error => {
-        console.error('Erro:', error);
-        showAlert('danger', 'Erro ao remover pedidos: ' + error.message);
-    })
-    .finally(() => {
-        // Reabilitar botão
-        deleteButton.disabled = false;
-        deleteButton.innerHTML = '<i class="bi bi-trash"></i> Confirmar Remoção';
-    });
-}
-
-function confirmDeleteAllOrders() {
-    const confirmationText = document.getElementById('confirmationTextOrders').value;
-    if (confirmationText !== 'CONFIRMAR') {
-        showAlert('danger', 'Digite "CONFIRMAR" para prosseguir com a remoção');
-        return;
-    }
-    
-    // Desabilitar botão durante a operação
-    const deleteButton = document.getElementById('deleteAllOrdersButton');
-    deleteButton.disabled = true;
-    deleteButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Removendo...';
-    
-    fetch('/ml/api/orders/delete-all', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        credentials: 'include'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
-            
-            // Fechar modal
-            bootstrap.Modal.getInstance(document.getElementById('deleteOrdersModal')).hide();
-            
-            // Recarregar pedidos
-            setTimeout(() => {
-                loadOrders(currentPage);
-            }, 1000);
-        } else {
-            showAlert('danger', data.error || 'Erro ao remover todos os pedidos');
-        }
-    })
-    .catch(error => {
-        console.error('Erro:', error);
-        showAlert('danger', 'Erro ao remover todos os pedidos: ' + error.message);
-    })
-    .finally(() => {
-        // Reabilitar botão
-        deleteButton.disabled = false;
-        deleteButton.innerHTML = '<i class="bi bi-trash"></i> Remover Todos';
-    });
-}
-
-function renderInvoiceDropdown(orderId) {
-    return `
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Opções de nota fiscal">
-                <i class="bi bi-file-earmark-text"></i>
-            </button>
-            <ul class="dropdown-menu">
-                <li>
-                    <button class="dropdown-item" type="button" onclick="syncInvoiceForOrder('${orderId}', this)">
-                        <i class="bi bi-arrow-repeat"></i> Sincronizar nota
-                    </button>
-                </li>
-                <li>
-                    <a class="dropdown-item" href="/api/shipments/download-invoice/${orderId}" target="_blank">
-                        <i class="bi bi-file-earmark-pdf"></i> Baixar PDF
-                    </a>
-                </li>
-            </ul>
-        </div>
-    `;
-}
-
-function renderLabelDropdown(orderId, hasShippingId, logisticType) {
-    if (!hasShippingId) {
-        return `
-            <button class="btn btn-outline-warning" type="button" title="Etiqueta disponível após geração do envio" disabled>
-                <i class="bi bi-printer"></i>
-            </button>
-        `;
-    }
-
-    return `
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir etiqueta de envio">
-                <i class="bi bi-printer"></i>
-            </button>
-            <ul class="dropdown-menu">
-                <li>
-                    <a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank">
-                        <i class="bi bi-file-earmark-pdf"></i> PDF
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank">
-                        <i class="bi bi-printer-fill"></i> ZPL2 (térmica)
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank">
-                        <i class="bi bi-file-earmark-pdf-fill"></i> ZPL2 → PDF
-                    </a>
-                </li>
-            </ul>
-        </div>
-    `;
-}
-
-async function syncInvoiceForOrder(orderId, triggerElement) {
     if (!orderId) return;
-
-    const button = triggerElement;
-    const originalContent = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
-
-    try {
-        const response = await fetch(`/api/shipments/sync-single-invoice/${orderId}`, {
-            method: 'POST',
-            credentials: 'include',
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(orderId).then(() => console.log(`ID do pedido ${orderId} copiado.`)).catch(err => {
+            console.warn('Falha ao copiar ID:', err);
+            alert(`ID do pedido: ${orderId}`);
         });
-
-        if (checkSessionExpired(response)) {
-            return;
-        }
-
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Erro ao sincronizar nota fiscal.');
-        }
-
-        showSuccess(`Nota fiscal do pedido ${orderId} sincronizada com sucesso.`);
-        loadOrders(currentPage);
-    } catch (error) {
-        console.error('Erro ao sincronizar nota:', error);
-        showAlert('danger', error.message || 'Falha ao sincronizar nota fiscal.');
-    } finally {
-        button.disabled = false;
-        button.innerHTML = originalContent;
+    } else {
+        alert(`ID do pedido: ${orderId}`);
     }
 }
 
-function openOrderJson(cacheKey) {
-    const order = ordersCache[cacheKey];
-    if (!order) {
-        showAlert('warning', 'Não foi possível localizar os dados deste pedido.');
-        return;
-    }
-
-    const modalBody = document.getElementById('orderJsonContent');
-    if (!modalBody) return;
-
-    modalBody.textContent = JSON.stringify(order, null, 2);
-    const modal = new bootstrap.Modal(document.getElementById('orderJsonModal'));
-    modal.show();
-}
-
-window.addEventListener('popstate', () => {
-    loadOrders(currentPage);
-});
-
 </script>
-
-<div class="modal fade" id="orderJsonModal" tabindex="-1" aria-labelledby="orderJsonModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="orderJsonModalLabel"><i class="bi bi-code-slash"></i> JSON do Pedido</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <pre class="bg-light p-3 rounded" style="max-height: 60vh; white-space: pre-wrap; word-break: break-word;" id="orderJsonContent"></pre>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Fechar
-                </button>
-                <button type="button" class="btn btn-primary" onclick="copyJsonToClipboard()">
-                    <i class="bi bi-clipboard"></i> Copiar JSON
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-function copyJsonToClipboard() {
-    const content = document.getElementById('orderJsonContent')?.textContent || '';
-    navigator.clipboard.writeText(content).then(() => {
-        showAlert('success', 'JSON copiado com sucesso!');
-    }).catch(() => {
-        showAlert('danger', 'Não foi possível copiar o JSON.');
-    });
-}
-
-</script>
-
-<!-- Modal de Remoção de Pedidos -->
-<div class="modal fade" id="deleteOrdersModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle"></i> Remover Pedidos
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <strong>Atenção:</strong> Esta ação não pode ser desfeita!
-                </div>
-                
-                <div class="mb-3">
-                    <h6>Opções de Remoção:</h6>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="deleteOption" id="deleteSelected" value="selected" checked>
-                        <label class="form-check-label" for="deleteSelected">
-                            Remover pedidos selecionados (<span id="selectedOrdersCount">0</span>)
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="deleteOption" id="deleteAll" value="all">
-                        <label class="form-check-label" for="deleteAll">
-                            Remover TODOS os pedidos
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="confirmationTextOrders" class="form-label">
-                        Para confirmar, digite <strong>CONFIRMAR</strong>:
-                    </label>
-                    <input type="text" id="confirmationTextOrders" class="form-control" placeholder="Digite CONFIRMAR aqui">
-                </div>
-                
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
-                    <strong>Importante:</strong> Os pedidos serão removidos apenas do banco de dados local. 
-                    Os pedidos originais no Mercado Libre não serão afetados.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Cancelar
-                </button>
-                <button type="button" class="btn btn-danger" id="deleteOrdersButton" onclick="confirmDeleteOrders()" disabled>
-                    <i class="bi bi-trash"></i> Remover Selecionados
-                </button>
-                <button type="button" class="btn btn-danger" id="deleteAllOrdersButton" onclick="confirmDeleteAllOrders()" style="display: none;">
-                    <i class="bi bi-trash"></i> Remover Todos
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 
 {% endblock %}
