@@ -18,6 +18,7 @@ class MLOrdersService:
     def get_orders_by_account(self, ml_account_id: int, company_id: int, 
                              limit: int = 50, offset: int = 0,
                              status_filter: Optional[str] = None,
+                             logistic_filter: Optional[str] = None,
                              date_from: Optional[str] = None,
                              date_to: Optional[str] = None) -> Dict:
         """Busca orders de uma conta ML específica"""
@@ -52,6 +53,31 @@ class MLOrdersService:
                     query = query.filter(MLOrder.status == status_enum)
                 except ValueError:
                     logger.warning(f"Status inválido: {status_filter}")
+            
+            if logistic_filter:
+                from sqlalchemy import func
+                logistic_values = [value.strip().lower() for value in logistic_filter.split(',') if value.strip()]
+                mapping = {
+                    "fulfillment": ["fulfillment", "full"],
+                    "full": ["fulfillment", "full"],
+                    "xd_drop_off": ["xd_drop_off", "drop_off"],
+                    "drop_off": ["xd_drop_off", "drop_off"],
+                    "ponto_de_coleta": ["xd_drop_off", "drop_off"],
+                    "me2": ["me2"],
+                    "me1": ["me1"],
+                    "cross_docking": ["cross_docking"],
+                    "self_service": ["self_service"]
+                }
+
+                expanded_values: List[str] = []
+                for value in logistic_values:
+                    if value in mapping:
+                        expanded_values.extend(mapping[value])
+                    else:
+                        expanded_values.append(value)
+
+                if expanded_values:
+                    query = query.filter(func.lower(MLOrder.shipping_type).in_([val.lower() for val in expanded_values]))
             
             if date_from:
                 try:

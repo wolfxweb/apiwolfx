@@ -17,6 +17,7 @@ class MLOrdersController:
     def get_orders_list(self, company_id: int, ml_account_id: Optional[int] = None,
                        limit: int = 50, offset: int = 0,
                        status_filter: Optional[str] = None,
+                       logistic_filter: Optional[str] = None,
                        date_from: Optional[str] = None,
                        date_to: Optional[str] = None) -> Dict:
         """Busca lista de orders para exibição"""
@@ -49,7 +50,7 @@ class MLOrdersController:
             
             # Buscar orders diretamente do banco de dados
             from app.models.saas_models import MLOrder, OrderStatus
-            from sqlalchemy import and_, or_
+            from sqlalchemy import and_, or_, func
             
             # Construir query base
             query = self.db.query(MLOrder).filter(
@@ -72,6 +73,31 @@ class MLOrdersController:
                 except ValueError:
                     logger.warning(f"Status inválido: {status_filter}")
             
+            if logistic_filter:
+                logistic_values = [value.strip().lower() for value in logistic_filter.split(',') if value.strip()]
+                expanded_values: List[str] = []
+
+                mapping = {
+                    "fulfillment": ["fulfillment", "full"],
+                    "full": ["fulfillment", "full"],
+                    "xd_drop_off": ["xd_drop_off", "drop_off"],
+                    "drop_off": ["xd_drop_off", "drop_off"],
+                    "ponto_de_coleta": ["xd_drop_off", "drop_off"],
+                    "me2": ["me2"],
+                    "me1": ["me1"],
+                    "cross_docking": ["cross_docking"],
+                    "self_service": ["self_service"]
+                }
+
+                for value in logistic_values:
+                    if value in mapping:
+                        expanded_values.extend(mapping[value])
+                    else:
+                        expanded_values.append(value)
+
+                if expanded_values:
+                    query = query.filter(func.lower(MLOrder.shipping_type).in_([val.lower() for val in expanded_values]))
+
             if date_from:
                 try:
                     from datetime import datetime, time

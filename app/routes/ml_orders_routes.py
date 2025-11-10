@@ -85,6 +85,7 @@ async def get_orders_api(
     limit: int = Query(50),
     offset: int = Query(0),
     status_filter: Optional[str] = Query(None),
+    logistic_filter: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     session_token: Optional[str] = Cookie(None),
@@ -109,6 +110,7 @@ async def get_orders_api(
             limit=limit,
             offset=offset,
             status_filter=status_filter,
+            logistic_filter=logistic_filter,
             date_from=date_from,
             date_to=date_to
         )

@@ -35,7 +35,7 @@
         <div class="col-12">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
-                    <form class="row g-3 align-items-end">
+                    <form class="row g-3 align-items-end" id="ordersFiltersForm">
                         <div class="col-12 col-md-3">
                             <label for="account_filter" class="form-label small text-uppercase text-muted">Conta</label>
                             <select name="account_filter" id="account_filter" class="form-select" onchange="applyFilters()">
@@ -46,16 +46,28 @@
                             <label for="status_filter" class="form-label small text-uppercase text-muted">Status</label>
                             <select name="status_filter" id="status_filter" class="form-select" onchange="applyFilters()">
                                 <option value="">Todos os status</option>
-                                <option value="pending">Pendente</option>
-                                <option value="confirmed">Confirmado</option>
-                                <option value="paid">Pago</option>
-                                <option value="shipped">Enviado</option>
-                                <option value="delivered">Entregue</option>
-                                <option value="cancelled">Cancelado</option>
-                                <option value="refunded">Reembolsado</option>
+                                <option value="READY_TO_PREPARE">Pronto para envio</option>
+                                <option value="SHIPPED">Enviado</option>
+                                <option value="DELIVERED">Entregue</option>
+                                <option value="PENDING">Pendente</option>
+                                <option value="PAID">Pago</option>
+                                <option value="CANCELLED">Cancelado</option>
+                                <option value="REFUNDED">Reembolsado</option>
                             </select>
                         </div>
-                        <div class="col-12 col-md-2">
+                        <div class="col-12 col-md-3">
+                            <label for="logistic_filter" class="form-label small text-uppercase text-muted">Modalidade de envio</label>
+                            <select name="logistic_filter" id="logistic_filter" class="form-select" onchange="applyFilters()">
+                                <option value="">Todas</option>
+                                <option value="fulfillment">Fulfillment</option>
+                                <option value="cross_docking">Cross Docking</option>
+                                <option value="me2">Mercado Envios</option>
+                                <option value="me1">Correios</option>
+                                <option value="xd_drop_off">Ponto de Coleta</option>
+                                <option value="self_service">Envio próprio</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
                             <label for="period_filter" class="form-label small text-uppercase text-muted">Período</label>
                             <select name="period_filter" id="period_filter" class="form-select" onchange="toggleCustomPeriod(); applyFilters();">
                                 <option value="">Todos</option>
@@ -71,11 +83,11 @@
                                 <option value="custom">Personalizado</option>
                             </select>
                         </div>
-                        <div class="col-12 col-md-2">
+                        <div class="col-12 col-md-3">
                             <label for="date_from" class="form-label small text-uppercase text-muted">Data inicial</label>
                             <input type="date" name="date_from" id="date_from" class="form-control" onchange="applyFilters()">
                             </div>
-                        <div class="col-12 col-md-2">
+                        <div class="col-12 col-md-3">
                             <label for="date_to" class="form-label small text-uppercase text-muted">Data final</label>
                             <input type="date" name="date_to" id="date_to" class="form-control" onchange="applyFilters()">
                         </div>
@@ -121,7 +133,7 @@
         <div class="col-12">
             <div id="orders-cards-container" class="orders-card-list d-flex flex-column gap-3">
                 <div class="text-center text-muted py-4">
-                    <i class="bi bi-info-circle"></i> Carregando pedidos...
+                                        <i class="bi bi-info-circle"></i> Carregando pedidos...
                 </div>
             </div>
         </div>
@@ -609,6 +621,185 @@ function updateSelectedOrdersCount() {
     }
 }
 
+function toggleCustomPeriod(skipClear = false) {
+    const periodSelect = document.getElementById('period_filter');
+    const customRow = document.getElementById('customPeriodRow');
+
+    if (!periodSelect || !customRow) {
+        return;
+    }
+
+    const isCustom = periodSelect.value === 'custom';
+    customRow.style.display = isCustom ? '' : 'none';
+
+    if (!isCustom && !skipClear) {
+        const customFrom = document.getElementById('customDateFrom');
+        const customTo = document.getElementById('customDateTo');
+        if (customFrom) customFrom.value = '';
+        if (customTo) customTo.value = '';
+    }
+}
+
+const VALID_ORDER_STATUS = [
+    'READY_TO_PREPARE',
+    'SHIPPED',
+    'DELIVERED',
+    'PENDING',
+    'PAID',
+    'CANCELLED',
+    'REFUNDED',
+    'CONFIRMED'
+];
+
+const VALID_LOGISTICS = [
+    'fulfillment',
+    'full',
+    'xd_drop_off',
+    'drop_off',
+    'ponto_de_coleta',
+    'me2',
+    'me1',
+    'cross_docking',
+    'self_service'
+];
+
+function setSelectValue(selectId, value) {
+    const select = document.getElementById(selectId);
+    if (!select) {
+        return false;
+    }
+    const normalized = value ?? '';
+    if ([...select.options].some(option => option.value === normalized)) {
+        select.value = normalized;
+        return true;
+    }
+    select.value = '';
+    return false;
+}
+
+function syncFiltersWithUrl() {
+    const params = new URLSearchParams(window.location.search);
+    let paramsChanged = false;
+
+    const rawStatus = params.get('status_filter') || '';
+    const normalizedStatus = rawStatus ? rawStatus.toUpperCase() : '';
+    const statusValid = normalizedStatus && VALID_ORDER_STATUS.includes(normalizedStatus);
+    if (statusValid) {
+        setSelectValue('status_filter', normalizedStatus);
+        if (rawStatus !== normalizedStatus) {
+            params.set('status_filter', normalizedStatus);
+            paramsChanged = true;
+        }
+    } else if (rawStatus) {
+        params.delete('status_filter');
+        paramsChanged = true;
+        setSelectValue('status_filter', '');
+    } else {
+        setSelectValue('status_filter', '');
+    }
+
+    const rawLogistic = params.get('logistic_filter') || '';
+    const logisticValid = rawLogistic && VALID_LOGISTICS.includes(rawLogistic);
+    if (logisticValid) {
+        setSelectValue('logistic_filter', rawLogistic);
+    } else if (rawLogistic) {
+        params.delete('logistic_filter');
+        paramsChanged = true;
+        setSelectValue('logistic_filter', '');
+    } else {
+        setSelectValue('logistic_filter', '');
+    }
+
+    const periodValue = params.get('period_filter') || '';
+    const periodValid = setSelectValue('period_filter', periodValue);
+    if (!periodValid && periodValue) {
+        params.delete('period_filter');
+        paramsChanged = true;
+    }
+
+    const accountValue = params.get('account_filter') || '';
+    const accountSelect = document.getElementById('account_filter');
+    if (accountSelect && accountValue) {
+        accountSelect.value = accountValue;
+    }
+
+    const dateFrom = params.get('date_from') || '';
+    const dateTo = params.get('date_to') || '';
+
+    const dateFromInput = document.getElementById('date_from');
+    const dateToInput = document.getElementById('date_to');
+    const customFromInput = document.getElementById('customDateFrom');
+    const customToInput = document.getElementById('customDateTo');
+
+    toggleCustomPeriod(true);
+
+    const currentPeriodValue = document.getElementById('period_filter')?.value;
+    if (currentPeriodValue === 'custom') {
+        if (customFromInput) customFromInput.value = dateFrom;
+        if (customToInput) customToInput.value = dateTo;
+    } else {
+        if (dateFromInput) dateFromInput.value = dateFrom;
+        if (dateToInput) dateToInput.value = dateTo;
+    }
+
+    if (paramsChanged) {
+        const newQuery = params.toString();
+        const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
+        history.replaceState(null, '', newUrl);
+    }
+}
+
+function applyFilters() {
+    const params = new URLSearchParams();
+
+    const accountValue = document.getElementById('account_filter')?.value || '';
+    const statusValueRaw = document.getElementById('status_filter')?.value || '';
+    const statusValue = statusValueRaw ? statusValueRaw.toUpperCase() : '';
+    const logisticValue = document.getElementById('logistic_filter')?.value || '';
+    const selectedPeriodValue = document.getElementById('period_filter')?.value || '';
+    const dateFromInput = document.getElementById('date_from');
+    const dateToInput = document.getElementById('date_to');
+    const customFromInput = document.getElementById('customDateFrom');
+    const customToInput = document.getElementById('customDateTo');
+
+    if (accountValue) params.set('account_filter', accountValue);
+    if (statusValue) params.set('status_filter', statusValue);
+    if (logisticValue) params.set('logistic_filter', logisticValue);
+    if (selectedPeriodValue) params.set('period_filter', selectedPeriodValue);
+
+    if (selectedPeriodValue === 'custom') {
+        const customFromValue = customFromInput?.value || '';
+        const customToValue = customToInput?.value || '';
+        if (customFromValue) params.set('date_from', customFromValue);
+        if (customToValue) params.set('date_to', customToValue);
+    } else {
+        const dateFromValue = dateFromInput?.value || '';
+        const dateToValue = dateToInput?.value || '';
+        if (dateFromValue) params.set('date_from', dateFromValue);
+        if (dateToValue) params.set('date_to', dateToValue);
+    }
+
+    const newQuery = params.toString();
+    const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
+    history.replaceState(null, '', newUrl);
+
+    currentPage = 1;
+    loadOrders(1);
+}
+
+function clearFilters() {
+    const form = document.getElementById('ordersFiltersForm');
+    if (form) {
+        form.reset();
+    }
+
+    toggleCustomPeriod();
+    history.replaceState(null, '', window.location.pathname);
+    syncFiltersWithUrl();
+    currentPage = 1;
+    loadOrders(1);
+}
+
 // Função utilitária para formatar datas em pt-BR com hora padrão
 function formatDate(dateString) {
     if (!dateString) {
@@ -767,21 +958,28 @@ document.addEventListener('DOMContentLoaded', function() {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
     
+    syncFiltersWithUrl();
     loadOrders();
 });
 
 
 function loadOrders(page = 1) {
     showLoading(true);
+    currentPage = page;
     
     var urlParams = new URLSearchParams(window.location.search);
     
     // Coletar filtros
     var selectedLimit = 50;  // Limite fixo de 50 pedidos por página
     
+    const rawStatus = urlParams.get('status_filter') || '';
+    const normalizedStatus = rawStatus ? rawStatus.toUpperCase() : '';
+    const statusForApi = VALID_ORDER_STATUS.includes(normalizedStatus) ? normalizedStatus : '';
+
     var filters = {
         ml_account_id: urlParams.get('account_filter') || '',
-        status_filter: urlParams.get('status_filter') || '',
+        status_filter: statusForApi,
+        logistic_filter: (urlParams.get('logistic_filter') || '').toLowerCase(),
         date_from: urlParams.get('date_from') || '',
         date_to: urlParams.get('date_to') || '',
         period_filter: urlParams.get('period_filter') || '',
@@ -794,6 +992,7 @@ function loadOrders(page = 1) {
     
     if (filters.ml_account_id) apiUrl += `&ml_account_id=${encodeURIComponent(filters.ml_account_id)}`;
     if (filters.status_filter) apiUrl += `&status_filter=${encodeURIComponent(filters.status_filter)}`;
+    if (filters.logistic_filter) apiUrl += `&logistic_filter=${encodeURIComponent(filters.logistic_filter)}`;
     if (filters.date_from) apiUrl += `&date_from=${encodeURIComponent(filters.date_from)}`;
     if (filters.date_to) apiUrl += `&date_to=${encodeURIComponent(filters.date_to)}`;
     if (filters.period_filter) apiUrl += `&period_filter=${encodeURIComponent(filters.period_filter)}`;
@@ -833,7 +1032,7 @@ function renderOrders(orders) {
     if (!container) {
         return;
     }
-
+    
     if (!orders || orders.length === 0) {
         container.innerHTML = `
             <div class="order-empty-state text-center text-muted">
@@ -845,7 +1044,7 @@ function renderOrders(orders) {
         updateSelectedOrdersCount();
         return;
     }
-
+    
     ordersCache = {};
     container.innerHTML = orders.map(order => {
         const cacheKey = order.id || order.ml_order_id || order.order_id;
@@ -901,31 +1100,21 @@ function renderOrderSummary(order) {
     const orderId = order.ml_order_id || order.order_id || '-';
     const createdAt = formatDate(order.date_created);
     const accountLabel = order.account_nickname || order.account_name;
-    const summarySegments = [];
+    const segments = [];
 
-    summarySegments.push(`<span class="summary-segment"><span class="fw-semibold">${orderId}</span></span>`);
+    if (orderId) {
+        segments.push(`<span class="fw-semibold">${orderId}</span>`);
+    }
 
     if (accountLabel) {
-        summarySegments.push(`<span class="summary-segment text-muted">${sanitizeText(accountLabel)}</span>`);
+        segments.push(`<span class="text-muted">${sanitizeText(accountLabel)}</span>`);
     }
 
     if (createdAt) {
-        summarySegments.push(`<span class="summary-segment text-muted"><i class="bi bi-clock-history me-1"></i>${createdAt}</span>`);
+        segments.push(`<span class="text-muted">${createdAt}</span>`);
     }
 
-    const summaryLine = summarySegments.join('');
-
-    const buyerDetails = renderBuyerSummary(order);
-    if (buyerDetails) {
-        return `
-            <div class="d-flex flex-column gap-2">
-                <div class="order-summary-inline">${summaryLine}</div>
-                <div class="pt-2 border-top">${buyerDetails}</div>
-            </div>
-        `;
-    }
-
-    return `<div class="order-summary-inline">${summaryLine}</div>`;
+    return `<div class="order-summary-inline">${segments.join('<span class="text-muted">•</span>')}</div>`;
 }
 
 function renderPagination(total, limit, currentPage) {
@@ -1274,16 +1463,18 @@ function renderAmountSummary(order) {
 }
 
 function renderDetailsSummary(order) {
+    const buyerDetails = renderBuyerSummary(order);
+
     let itemsRaw = order.order_items;
     
     if (!itemsRaw) {
-        return '<span class="text-muted small">N/A</span>';
+        return `${buyerDetails || ''}<span class="text-muted small">N/A</span>`;
     }
     
     if (typeof itemsRaw === 'string') {
         try {
             itemsRaw = JSON.parse(itemsRaw);
-        } catch (error) {
+    } catch (error) {
             console.warn('Não foi possível parsear order_items:', error);
             itemsRaw = [];
         }
@@ -1331,7 +1522,8 @@ function renderDetailsSummary(order) {
     const shippingInline = renderShippingSummary(order);
 
     return `
-        <div class="d-flex flex-column gap-2">
+        <div class="d-flex flex-column gap-3">
+            ${buyerDetails ? `<div class="buyer-summary">${buyerDetails}</div>` : ''}
             <div class="table-responsive">
                 <table class="table table-sm table-borderless align-middle mb-0">
                     <thead class="table-light">
@@ -1357,174 +1549,6 @@ function renderDetailsSummary(order) {
             ${shippingInline ? `<div class="pt-2 border-top">${shippingInline}</div>` : ''}
         </div>
     `;
-}
-
-function renderShippingSummary(order) {
-    let shipping = order.shipping_details || order.shipping || {};
-    if (typeof shipping === 'string') {
-        try {
-            shipping = JSON.parse(shipping);
-        } catch (err) {
-            shipping = {};
-        }
-    }
-
-    const logisticTypeRaw = shipping.shipping_option?.logistic_type
-        || shipping.logistic_type
-        || shipping.logistic?.type
-        || order.logistic_type
-        || order.shipping_logistic_type
-        || order.shipping_type;
-
-    const logisticLabel = getLogisticLabel(logisticTypeRaw);
-    const statusRaw = shipping.status || order.shipping_status || '';
-    const substatusRaw = shipping.substatus || order.shipping_substatus || '';
-    const status = (statusRaw || '').toString().toLowerCase();
-    const substatus = (substatusRaw || '').toString().toLowerCase();
-    const translatedStatus = status ? translateShippingLabel(status) : null;
-    const translatedSubstatus = substatus ? translateShippingLabel(substatus) : null;
-    const statusHistory = shipping.status_history || {};
-
-    const shippedDate = shipping.date_shipped || statusHistory.date_shipped || order.date_shipped;
-    const deliveredDate = statusHistory.date_delivered || shipping.date_delivered || order.date_delivered;
-    const estimatedDate = shipping.shipping_option?.estimated_delivery_final?.date
-        || shipping.shipping_option?.estimated_delivery_limit?.date
-        || shipping.estimated_delivery
-        || order.estimated_delivery_date;
-
-    const extractValue = (value) => {
-        if (!value) return '';
-        if (typeof value === 'string') return value;
-        if (typeof value === 'object') {
-            return value.name || value.display_name || value.label || value.description || value.id || '';
-        }
-        return String(value);
-    };
-
-    const shippingMethodSource = logisticLabel
-        || extractValue(order.shipping_method)
-        || extractValue(order.shipping_mode)
-        || extractValue(shipping.shipping_option?.shipping_method)
-        || extractValue(shipping.shipping_option?.name)
-        || extractValue(logisticTypeRaw);
-
-    const shippingMethod = getLogisticLabel(shippingMethodSource) || logisticLabel || extractValue(logisticTypeRaw) || null;
-
-    const headerSegments = [];
-    const detailSegments = [];
-    const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
-    if (shippingMethod) {
-        headerSegments.push(`<span class="badge ${badgeClass}">${shippingMethod}</span>`);
-    }
-
-    if (translatedStatus) {
-        const readyStatuses = new Set(['ready_to_ship', 'ready_to_print', 'printed', 'packed', 'ready_to_pack']);
-        const transitStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']);
-
-        if (status === 'pending') {
-            detailSegments.push(`⏳ ${translatedStatus}`);
-        } else if (readyStatuses.has(status)) {
-            detailSegments.push(`📦 ${translatedStatus}`);
-        } else if (status === 'delivered') {
-            detailSegments.push(`✓ ${translatedStatus}`);
-        } else if (transitStatuses.has(status)) {
-            detailSegments.push(`🚚 ${translatedStatus}`);
-        } else {
-            const icon = shippingStatusIcons[status] || '🚚';
-            detailSegments.push(`${icon} ${translatedStatus}`);
-        }
-    }
-
-    if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
-        detailSegments.push(`📍 ${translatedSubstatus}`);
-    }
-
-    if (status === 'delivered' && deliveredDate) {
-        const deliveredFormatted = formatDateOnly(deliveredDate);
-        if (deliveredFormatted) {
-            detailSegments.push(`📅 ${deliveredFormatted}`);
-        }
-    }
-
-    if (status !== 'delivered' && shippedDate) {
-        const shippedFormatted = formatDateOnly(shippedDate);
-        if (shippedFormatted) {
-            detailSegments.push(`📦 Enviado: ${shippedFormatted}`);
-        }
-    }
-
-    const isPickup = ['xd_drop_off', 'drop_off'].includes((logisticTypeRaw || '').toString().toLowerCase());
-    const dropOffDate = shipping.status_history?.date_handling || shipping.date_created || order.shipping_date;
-    if (isPickup) {
-        const dropOffFormatted = formatDateTime(dropOffDate);
-        if (dropOffFormatted) {
-            detailSegments.push(`📦 Registrado: ${dropOffFormatted}`);
-        }
-
-        const bufferingDate = shipping.shipping_option?.buffering?.date;
-        const bufferingFormatted = formatDateOnly(bufferingDate);
-        if (bufferingFormatted) {
-            detailSegments.push(`🗓 Liberado para envio em: ${bufferingFormatted}`);
-        }
-    }
-
-    if (estimatedDate && status !== 'delivered') {
-        const estimatedFormatted = formatDateOnly(estimatedDate);
-        if (estimatedFormatted) {
-            detailSegments.push(`📅 Previsão: ${estimatedFormatted}`);
-        }
-    }
-
-    if (!headerSegments.length && !detailSegments.length && (logisticLabel || shippingMethod)) {
-        const fallbackBadge = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
-        const label = logisticLabel || shippingMethod || 'N/A';
-        return `<div class="order-shipping-inline small text-muted"><span class="badge ${fallbackBadge}">${label}</span></div>`;
-    }
-
-    const headerHtml = headerSegments.length
-        ? `<div class="shipping-header d-flex flex-wrap align-items-center gap-2">${headerSegments.join('<span class="text-muted">•</span>')}</div>`
-        : '';
-
-    const detailsHtml = detailSegments.length
-        ? `<ul class="shipping-detail-list">${detailSegments.map(item => `<li>${sanitizeText(item)}</li>`).join('')}</ul>`
-        : '';
-
-    if (!headerHtml && !detailsHtml) {
-        return `<div class="order-shipping-inline small text-muted"><span class="badge bg-secondary">N/A</span></div>`;
-    }
-
-    return `<div class="order-shipping-inline small text-muted d-flex flex-column gap-1">${headerHtml}${detailsHtml}</div>`;
-}
-
-function getStatusBadgeClass(status) {
-    switch ((status || '').toString().toLowerCase()) {
-        case 'paid':
-            return 'badge bg-primary';
-        case 'shipped':
-            return 'badge bg-info';
-        case 'delivered':
-            return 'badge bg-success';
-        case 'cancelled':
-        case 'canceled':
-            return 'badge bg-danger';
-        case 'ready_to_ship':
-            return 'badge bg-warning text-dark';
-        default:
-            return 'badge bg-secondary';
-    }
-}
-
-function getStatusLabel(status) {
-    const normalized = (status || '').toString().toLowerCase();
-    const labels = {
-        paid: 'Pago',
-        shipped: 'Enviado',
-        delivered: 'Entregue',
-        cancelled: 'Cancelado',
-        canceled: 'Cancelado',
-        ready_to_ship: 'Pronto para envio'
-    };
-    return labels[normalized] || (normalized ? normalized : 'Desconhecido');
 }
 
 function renderShippingSummary(order) {
