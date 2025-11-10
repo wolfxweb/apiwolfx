@@ -119,13 +119,9 @@
     <!-- Lista de Orders -->
     <div class="row">
         <div class="col-12">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <div id="orders-cards-container" class="orders-card-list d-flex flex-column gap-3">
-                        <div class="text-center text-muted py-4">
-                            <i class="bi bi-info-circle"></i> Carregando pedidos...
-                        </div>
-                    </div>
+            <div id="orders-cards-container" class="orders-card-list d-flex flex-column gap-3">
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-info-circle"></i> Carregando pedidos...
                 </div>
             </div>
         </div>
@@ -412,6 +408,8 @@
     border-radius: 12px;
     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background: #fff;
+    overflow: hidden;
 }
 
 .order-card:hover {
@@ -419,14 +417,14 @@
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
 }
 
-.order-card .card-body {
-    padding: 1.5rem;
+.order-card .card-header {
+    background: #fff;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    padding: 1.1rem 1.5rem;
 }
 
-.order-card-header {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
+.order-card .card-body {
+    padding: 1.5rem;
 }
 
 .order-card-top {
@@ -859,22 +857,22 @@ function renderOrders(orders) {
         const actions = renderOrderActions(order) || '';
 
         return `
-            <div class="order-card card shadow-sm">
-                <div class="card-body">
-                    <div class="order-card-header">
-                        <div class="order-card-top flex-wrap">
-                            <div class="d-flex align-items-start gap-3 flex-grow-1">
-                                <div class="form-check mt-1">
-                                    <input class="form-check-input order-checkbox" type="checkbox" value="${checkboxValue}" onchange="updateSelectedOrdersCount()">
-                                </div>
-                                <div class="order-summary">${renderOrderSummary(order)}</div>
+            <div class="card order-card border-0">
+                <div class="card-header order-card-header">
+                    <div class="order-card-top flex-wrap">
+                        <div class="d-flex align-items-start gap-3 flex-grow-1">
+                            <div class="form-check mt-1">
+                                <input class="form-check-input order-checkbox" type="checkbox" value="${checkboxValue}" onchange="updateSelectedOrdersCount()">
                             </div>
-                           
+                            <div class="order-summary">${renderOrderSummary(order)}</div>
                         </div>
-                        <div class="order-details">${renderDetailsSummary(order)}</div>
-                        <div class="order-actions">${actions}</div>
-                              
-                    </div>
+                     </div>
+                 </div>
+                 <div class="card-body">
+                     <div class="order-details">${renderDetailsSummary(order)}</div>
+                 </div>
+                <div class="card-footer bg-white border-top-0 pt-0">
+                    <div class="order-actions">${actions}</div>
                 </div>
             </div>
         `;
