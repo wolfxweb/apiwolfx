@@ -863,7 +863,6 @@ async def download_shipping_label(
             except Exception as e:
                 logger.warning(f"⚠️ Não foi possível verificar status do shipment na API: {e}")
         
-        # Fazer requisição à API do Mercado Livre
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 label_url, 
@@ -875,7 +874,89 @@ async def download_shipping_label(
             
             # Para debug: logar resposta
             logger.info(f"📦 Resposta da API ML - Status: {response.status_code}, Content-Type: {response.headers.get('content-type', 'N/A')}, Tamanho: {len(response.content)} bytes")
-            
+
+            # Fallback: shipments/{id}/documents/labels para status drop_off/dropped_off
+            if response.status_code == 400:
+                fallback_error = response.text
+                try:
+                    fallback_json = response.json()
+                    fallback_error = fallback_json.get('message') or fallback_json.get('error') or fallback_error
+                except Exception:
+                    pass
+
+                status_combined = (shipment_status or '') + ' ' + (fallback_error or '')
+                if 'dropped_off' in status_combined.lower():
+                    logger.info("🔄 Tentando fallback em /shipments/{id}/documents/labels para status dropped_off")
+                    documents_url = f"https://api.mercadolibre.com/shipments/{shipping_id}/documents/labels"
+                    documents_headers = {
+                        "Authorization": f"Bearer {access_token}",
+                        "Accept": "application/pdf" if format_lower != 'zpl2' else "*/*"
+                    }
+                    documents_params = {}
+
+                    response = await client.get(
+                        documents_url,
+                        headers=documents_headers,
+                        params=documents_params,
+                        timeout=30.0,
+                        follow_redirects=True
+                    )
+                    logger.info(f"📦 Fallback documents/labels - Status: {response.status_code}, Content-Type: {response.headers.get('content-type', 'N/A')}, Tamanho: {len(response.content)} bytes")
+
+                    if response.status_code != 200:
+                        logger.error("❌ Fallback documents/labels também falhou")
+                        error_msg = fallback_error or "Etiqueta indisponível para status dropped_off"
+                        return JSONResponse(content={
+                            "error": error_msg,
+                            "status_code": response.status_code
+                        }, status_code=response.status_code)
+
+                    # Caso resposta seja um ZIP, extrair PDF
+                    content_type = response.headers.get("content-type", "")
+                    if response.content.startswith(b'PK'):
+                        try:
+                            with zipfile.ZipFile(io.BytesIO(response.content), 'r') as zip_file:
+                                pdf_bytes = None
+                                for name in zip_file.namelist():
+                                    if name.lower().endswith('.pdf'):
+                                        pdf_bytes = zip_file.read(name)
+                                        break
+                                if not pdf_bytes:
+                                    logger.error("❌ ZIP de documentos não contém PDF")
+                                    return JSONResponse(content={
+                                        "error": "Documento PDF não encontrado no ZIP retornado"
+                                    }, status_code=500)
+
+                                if format_lower == 'zpl2':
+                                    return JSONResponse(content={
+                                        "error": "Formato ZPL não disponível para este status"
+                                    }, status_code=400)
+
+                                label_filename = f"Etiqueta-{order_id}.pdf"
+                                return StreamingResponse(
+                                    io.BytesIO(pdf_bytes),
+                                    media_type="application/pdf",
+                                    headers={
+                                        "Content-Disposition": f'attachment; filename="{label_filename}"'
+                                    }
+                                )
+                        except zipfile.BadZipFile:
+                            logger.warning("Conteúdo de fallback não é ZIP, tratando como PDF")
+
+                    if format_lower == 'zpl2':
+                        return JSONResponse(content={
+                            "error": "Formato ZPL não disponível para este status"
+                        }, status_code=400)
+
+                    label_filename = f"Etiqueta-{order_id}.pdf"
+                    return StreamingResponse(
+                        io.BytesIO(response.content),
+                        media_type="application/pdf",
+                        headers={
+                            "Content-Disposition": f'attachment; filename="{label_filename}"'
+                        }
+                    )
+
             if response.status_code == 200:
                 # Verificar tipo de conteúdo baseado no formato
                 content_type = response.headers.get("content-type", "")
