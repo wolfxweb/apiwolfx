@@ -325,6 +325,23 @@
     </div>
 </div>
 
+<div class="modal fade" id="orderJsonModal" tabindex="-1" aria-labelledby="orderJsonModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="orderJsonModalLabel"><i class="bi bi-code-slash"></i> JSON do Pedido</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="orderJsonContent" class="bg-light p-3 rounded small" style="max-height: 60vh; overflow: auto;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 
 /* Estilos para botões em loading */
@@ -529,6 +546,23 @@ function showError(message) {
         <div class="col-12">
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
                 <i class="bi bi-exclamation-triangle-fill"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+    `;
+}
+
+function showSuccess(message) {
+    const alertContainer = document.getElementById('alerts-container');
+    if (!alertContainer) {
+        alert(message);
+        return;
+    }
+    alertContainer.innerHTML = `
+        <div class="col-12">
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle-fill"></i>
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
@@ -793,6 +827,107 @@ function loadAccountsFilter(accounts) {
         option.selected = String(currentValue) === String(account.id);
         select.appendChild(option);
     });
+}
+
+function renderInvoiceDropdown(order) {
+    const orderId = order.ml_order_id || order.order_id || '';
+    if (!orderId) {
+        return '';
+    }
+
+    const hasInvoice = Boolean(order.invoice_pdf_url);
+    const downloadItem = hasInvoice
+        ? `<li><a class="dropdown-item" href="/api/shipments/download-invoice/${orderId}" target="_blank"><i class="bi bi-file-earmark-pdf"></i> Baixar nota</a></li>`
+        : `<li><button class="dropdown-item disabled" type="button"><i class="bi bi-file-earmark"></i> Nota indisponível</button></li>`;
+
+    return `
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Opções de nota fiscal">
+                <i class="bi bi-file-earmark-text"></i>
+            </button>
+            <ul class="dropdown-menu">
+                <li><button class="dropdown-item" type="button" onclick="syncInvoiceForOrder('${orderId}', this)"><i class="bi bi-arrow-repeat"></i> Sincronizar com ML</button></li>
+                ${downloadItem}
+            </ul>
+        </div>
+    `;
+}
+
+function renderLabelDropdown(order) {
+    const orderId = order.ml_order_id || order.order_id || '';
+    const shippingId = order.shipping_id || (order.shipping_details && order.shipping_details.id);
+
+    if (!orderId) {
+        return '';
+    }
+
+    if (!shippingId) {
+        return `<button class="btn btn-outline-secondary" type="button" title="Etiqueta indisponível" disabled><i class="bi bi-printer"></i></button>`;
+    }
+
+    return `
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Imprimir etiqueta">
+                <i class="bi bi-printer"></i>
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank"><i class="bi bi-filetype-pdf"></i> PDF</a></li>
+                <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank"><i class="bi bi-printer-fill"></i> ZPL2</a></li>
+                <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank"><i class="bi bi-file-earmark-pdf"></i> ZPL2 → PDF</a></li>
+            </ul>
+        </div>
+    `;
+}
+
+async function syncInvoiceForOrder(orderId, triggerElement) {
+    if (!orderId) return;
+
+    const button = triggerElement;
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+
+    try {
+        const response = await fetch(`/api/shipments/sync-single-invoice/${orderId}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+
+        if (checkSessionExpired(response)) {
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || `Erro ${response.status}`);
+        }
+
+        showSuccess(`Nota fiscal do pedido ${orderId} sincronizada.`);
+    } catch (error) {
+        console.error('Erro ao sincronizar nota:', error);
+        showError(error.message || 'Erro ao sincronizar nota fiscal.');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
+
+function openOrderJson(orderKey) {
+    if (!orderKey || !ordersCache[orderKey]) {
+        showError('Dados do pedido não encontrados.');
+        return;
+    }
+
+    const modalElement = document.getElementById('orderJsonModal');
+    const modalBody = document.getElementById('orderJsonContent');
+    if (!modalElement || !modalBody) {
+        showError('Modal de visualização não disponível.');
+        return;
+    }
+
+    modalBody.textContent = JSON.stringify(ordersCache[orderKey], null, 2);
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
 }
 
 function renderBuyerSummary(order) {
@@ -1299,8 +1434,10 @@ function getLogisticBadgeClass(logisticType) {
 function renderOrderActions(order) {
     const orderId = order.ml_order_id || order.order_id || '';
     const permalink = order.permalink || '';
+    const shipping = order.shipping_details || order.shipping || {};
+    const cacheKey = order.id || orderId;
 
-    const actions = [
+    const segments = [
         `<button class="btn btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Ver detalhes">
             <i class="bi bi-eye"></i>
         </button>`,
@@ -1309,21 +1446,37 @@ function renderOrderActions(order) {
         </button>`
     ];
 
-    if (permalink) {
-        actions.push(`
-            <a href="${permalink}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-info" title="Ver no Mercado Livre">
-                <i class="bi bi-box-arrow-up-right"></i>
-            </a>`
-        );
+    const invoiceDropdown = renderInvoiceDropdown(order);
+    if (invoiceDropdown) {
+        segments.push(invoiceDropdown);
     }
 
-    actions.push(`
-        <a href="/ml/orders/${orderId}" class="btn btn-outline-dark" title="Abrir no painel">
-            <i class="bi bi-journal-text"></i>
+    const labelDropdown = renderLabelDropdown(order);
+    if (labelDropdown) {
+        segments.push(labelDropdown);
+    }
+
+    segments.push(`
+        <button class="btn btn-outline-dark" onclick="openOrderJson('${cacheKey || orderId}')" title="Ver JSON do pedido">
+            <i class="bi bi-code-slash"></i>
+        </button>
+    `);
+
+    if (permalink) {
+        segments.push(`
+            <a href="${permalink}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-info" title="Ver no Mercado Livre">
+                <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+        `);
+    }
+
+    segments.push(`
+        <a href="/ml/orders/${orderId}" class="btn btn-outline-secondary" title="Abrir no painel">
+            <i class="bi bi-window-sidebar"></i>
         </a>
     `);
 
-    return `<div class="btn-group btn-group-sm" role="group">${actions.join('')}</div>`;
+    return `<div class="btn-group btn-group-sm flex-wrap" role="group">${segments.join('')}</div>`;
 }
 
 function viewOrderDetails(orderId) {
