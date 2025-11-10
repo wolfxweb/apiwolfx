@@ -341,6 +341,30 @@
     </div>
 </div>
 
+<div class="modal fade" id="invoiceReleaseModal" tabindex="-1" aria-labelledby="invoiceReleaseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" id="invoiceReleaseModalLabel">
+                    <i class="bi bi-clock-history text-warning me-2"></i>
+                    Emissão indisponível
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3" id="invoiceReleaseModalMessage">Esse pedido ainda não está liberado para emissão de nota fiscal.</p>
+                <div id="invoiceReleaseModalDate" class="alert alert-warning d-flex align-items-center gap-2 d-none">
+                    <i class="bi bi-calendar-event"></i>
+                    <span>Disponível após <strong></strong>.</span>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Entendi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade product-image-modal" id="productImageModal" tabindex="-1" aria-labelledby="productImageModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content bg-dark text-white border-0">
@@ -970,6 +994,30 @@ function showError(message) {
     `;
 }
 
+function showInvoiceReleaseModal(releaseDateIso, message) {
+    const modalElement = document.getElementById('invoiceReleaseModal');
+    const messageElement = document.getElementById('invoiceReleaseModalMessage');
+    const dateElement = document.getElementById('invoiceReleaseModalDate');
+
+    if (!modalElement || !messageElement || !dateElement) {
+        showError(message);
+        return;
+    }
+
+    messageElement.textContent = message || 'Esse pedido ainda não está liberado para emissão de nota fiscal.';
+
+    if (releaseDateIso) {
+        const formatted = formatDateTime(releaseDateIso) || formatDateOnly(releaseDateIso) || releaseDateIso;
+        dateElement.classList.remove('d-none');
+        dateElement.querySelector('strong').textContent = formatted;
+    } else {
+        dateElement.classList.add('d-none');
+    }
+
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+}
+
 function showSuccess(message) {
     const alertContainer = document.getElementById('alerts-container');
     if (!alertContainer) {
@@ -1425,7 +1473,12 @@ async function emitInvoiceForOrder(orderId, triggerElement) {
                     errorMessage += ` (${mlMessage})`;
                 }
             }
-            throw new Error(errorMessage);
+            if (data.release_date || /ainda não está liberado para emissão de NF/i.test(errorMessage)) {
+                showInvoiceReleaseModal(data.release_date, errorMessage);
+            } else {
+                showError(errorMessage);
+            }
+            return;
         }
 
         showSuccess(data.message || `Nota fiscal do pedido ${orderId} emitida com sucesso.`);

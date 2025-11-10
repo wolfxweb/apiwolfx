@@ -7,7 +7,7 @@ import json
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from app.models.saas_models import MLOrder, OrderStatus, MLAccount, Token, User, Company
 from sqlalchemy import or_
@@ -936,6 +936,25 @@ class ShipmentService:
                 "name": company.razao_social or company.nome_fantasia or company.name or "Empresa"
             }
 
+            release_dt = self._get_invoice_release_datetime(shipping_details_raw)
+            if release_dt:
+                now_utc = datetime.now(timezone.utc)
+                if release_dt > now_utc:
+                    release_local = release_dt.astimezone()
+                    release_formatted = release_local.strftime("%d/%m/%Y %H:%M")
+                    logger.info(
+                        f"ℹ️ Pedido {order_id} ainda não liberado para emissão de NF. "
+                        f"Release em {release_formatted}."
+                    )
+                    return {
+                        "success": False,
+                        "error": (
+                            "Esse pedido ainda não está liberado para emissão de NF. "
+                            f"Tente novamente após {release_formatted}."
+                        ),
+                        "release_date": release_dt.isoformat()
+                    }
+
             buyer_ident = self._extract_buyer_identification(order)
             if not buyer_ident:
                 buyer_ident = self._fetch_buyer_identification_from_api(order, access_token)
@@ -1455,6 +1474,70 @@ class ShipmentService:
         except Exception as exc:
             logger.warning(f"⚠️ Erro ao buscar identificação do vendedor {seller_id}: {exc}")
             return None
+
+    def _parse_datetime_value(self, value: Optional[object]) -> Optional[datetime]:
+        if not value:
+            return None
+
+        if isinstance(value, datetime):
+            dt = value
+        else:
+            text = str(value).strip()
+            if not text:
+                return None
+            if text.endswith("Z"):
+                text = text.replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(text)
+            except ValueError:
+                try:
+                    dt = datetime.strptime(text, "%Y-%m-%d")
+                except ValueError:
+                    return None
+
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    def _get_invoice_release_datetime(self, shipping_details: Dict) -> Optional[datetime]:
+        if not shipping_details:
+            return None
+
+        lead_time = shipping_details.get("lead_time") or {}
+        shipping_option = shipping_details.get("shipping_option") or {}
+        buffering = lead_time.get("buffering") or shipping_option.get("buffering") or {}
+        estimated_delivery_time = (
+            lead_time.get("estimated_delivery_time")
+            or shipping_option.get("estimated_delivery_time")
+            or {}
+        )
+        pickup_promise = lead_time.get("pickup_promise") or {}
+
+        candidates_raw = [
+            buffering.get("date"),
+            lead_time.get("estimated_schedule_limit", {}).get("date"),
+            estimated_delivery_time.get("pay_before"),
+            estimated_delivery_time.get("from"),
+            pickup_promise.get("from"),
+            shipping_option.get("date_available"),
+        ]
+
+        candidates: List[datetime] = []
+        for candidate in candidates_raw:
+            dt = self._parse_datetime_value(candidate)
+            if dt:
+                candidates.append(dt)
+
+        if not candidates:
+            return None
+
+        now_utc = datetime.now(timezone.utc)
+        future_candidates = [dt for dt in candidates if dt > now_utc - timedelta(hours=1)]
+
+        if future_candidates:
+            return min(future_candidates)
+
+        return None
 
     def _fetch_buyer_identification_from_api(self, order: MLOrder, access_token: str) -> Optional[Dict[str, str]]:
         if not order or not order.order_id:
