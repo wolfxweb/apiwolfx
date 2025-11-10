@@ -365,6 +365,27 @@
     </div>
 </div>
 
+<div class="modal fade" id="labelErrorModal" tabindex="-1" aria-labelledby="labelErrorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" id="labelErrorModalLabel">
+                    <i class="bi bi-printer-x text-danger me-2"></i>
+                    Etiqueta indisponível
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3" id="labelErrorModalMessage">Não foi possível baixar a etiqueta.</p>
+                <div id="labelErrorModalDetails" class="d-none"></div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Entendi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade product-image-modal" id="productImageModal" tabindex="-1" aria-labelledby="productImageModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content bg-dark text-white border-0">
@@ -1018,6 +1039,64 @@ function showInvoiceReleaseModal(releaseDateIso, message) {
     modal.show();
 }
 
+function showLabelErrorModal(message, details = null) {
+    const modalElement = document.getElementById('labelErrorModal');
+    const messageElement = document.getElementById('labelErrorModalMessage');
+    const detailsElement = document.getElementById('labelErrorModalDetails');
+
+    if (!modalElement || !messageElement || !detailsElement) {
+        showError(message || 'Erro ao baixar etiqueta.');
+        return;
+    }
+
+    const fallbackMessage = 'Não foi possível baixar a etiqueta. Verifique o status do envio no Mercado Livre.';
+    const mainMessage = message || (details && (details.message || details.error)) || fallbackMessage;
+    messageElement.textContent = mainMessage;
+
+    if (details && (details.error || details.status_code || details.status)) {
+        const detailItems = [];
+        if (details.error && details.error !== mainMessage) {
+            detailItems.push({ label: 'Detalhe', value: details.error });
+        }
+        if (details.status_code) {
+            detailItems.push({ label: 'Código', value: details.status_code });
+        }
+        if (details.status) {
+            detailItems.push({ label: 'Status do envio', value: details.status });
+        }
+
+        if (detailItems.length) {
+            detailsElement.textContent = '';
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-warning mb-0';
+            const list = document.createElement('ul');
+            list.className = 'mb-0 ps-3';
+
+            detailItems.forEach(item => {
+                const li = document.createElement('li');
+                const strong = document.createElement('strong');
+                strong.textContent = `${item.label}: `;
+                li.appendChild(strong);
+                li.appendChild(document.createTextNode(item.value));
+                list.appendChild(li);
+            });
+
+            alertDiv.appendChild(list);
+            detailsElement.appendChild(alertDiv);
+            detailsElement.classList.remove('d-none');
+        } else {
+            detailsElement.classList.add('d-none');
+            detailsElement.textContent = '';
+        }
+    } else {
+        detailsElement.classList.add('d-none');
+        detailsElement.textContent = '';
+    }
+
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+}
+
 function showSuccess(message) {
     const alertContainer = document.getElementById('alerts-container');
     if (!alertContainer) {
@@ -1405,9 +1484,9 @@ function renderLabelDropdown(order) {
                 <i class="bi bi-printer"></i>
             </button>
             <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=pdf" target="_blank"><i class="bi bi-filetype-pdf"></i> PDF</a></li>
-                <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2" target="_blank"><i class="bi bi-printer-fill"></i> ZPL2</a></li>
-                <li><a class="dropdown-item" href="/api/shipments/download-label/${orderId}?format=zpl2pdf" target="_blank"><i class="bi bi-file-earmark-pdf"></i> ZPL2 → PDF</a></li>
+                <li><button class="dropdown-item" type="button" onclick="downloadShippingLabel('${orderId}', 'pdf', this)"><i class="bi bi-filetype-pdf"></i> PDF</button></li>
+                <li><button class="dropdown-item" type="button" onclick="downloadShippingLabel('${orderId}', 'zpl2', this)"><i class="bi bi-printer-fill"></i> ZPL2</button></li>
+                <li><button class="dropdown-item" type="button" onclick="downloadShippingLabel('${orderId}', 'zpl2pdf', this)"><i class="bi bi-file-earmark-pdf"></i> ZPL2 → PDF</button></li>
             </ul>
         </div>
     `;
@@ -1486,6 +1565,81 @@ async function emitInvoiceForOrder(orderId, triggerElement) {
     } catch (error) {
         console.error('Erro ao emitir nota:', error);
         showError(error.message || 'Erro ao emitir nota fiscal.');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
+
+async function downloadShippingLabel(orderId, format = 'pdf', triggerElement) {
+    if (!orderId) return;
+
+    const button = triggerElement;
+    const originalHtml = button.innerHTML;
+    const formatLabels = {
+        pdf: 'PDF',
+        zpl2: 'ZPL2',
+        zpl2pdf: 'ZPL2 → PDF'
+    };
+
+    button.disabled = true;
+    button.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Gerando ${formatLabels[format] || ''}...`;
+
+    try {
+        const response = await fetch(`/api/shipments/download-label/${orderId}?format=${format}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        if (checkSessionExpired(response)) {
+            return;
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!response.ok) {
+            if (contentType.includes('application/json')) {
+                const data = await response.json();
+                const message = data.message || data.error || `Erro ao baixar etiqueta (HTTP ${response.status}).`;
+                showLabelErrorModal(message, data);
+            } else {
+                showLabelErrorModal(`Erro ao baixar etiqueta (HTTP ${response.status}).`);
+            }
+            return;
+        }
+
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+            const message = data.message || data.error || 'Erro ao baixar etiqueta.';
+            showLabelErrorModal(message, data);
+            return;
+        }
+
+        const blob = await response.blob();
+        const extensionMap = {
+            pdf: 'pdf',
+            zpl2: 'zpl',
+            zpl2pdf: 'pdf'
+        };
+        const extension = extensionMap[format] || 'pdf';
+        const fileName = `etiqueta-${orderId}.${extension}`;
+
+        const blobUrl = window.URL.createObjectURL(blob);
+        const downloadLink = document.createElement('a');
+        downloadLink.href = blobUrl;
+        downloadLink.download = fileName;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        setTimeout(() => {
+            window.URL.revokeObjectURL(blobUrl);
+        }, 1000);
+
+        showSuccess('Etiqueta gerada com sucesso.');
+    } catch (error) {
+        console.error('Erro ao baixar etiqueta:', error);
+        showLabelErrorModal(error.message || 'Erro ao baixar etiqueta.');
     } finally {
         button.disabled = false;
         button.innerHTML = originalHtml;
@@ -1800,23 +1954,23 @@ function renderDetailsSummary(order) {
 
     if (!itemsToRender.length) {
         let itemsRaw = order.order_items;
-        if (!itemsRaw) {
-            return `${buyerDetails || ''}<span class="text-muted small">N/A</span>`;
+    if (!itemsRaw) {
+        return `${buyerDetails || ''}<span class="text-muted small">N/A</span>`;
+    }
+    
+    if (typeof itemsRaw === 'string') {
+        try {
+            itemsRaw = JSON.parse(itemsRaw);
+    } catch (error) {
+            console.warn('Não foi possível parsear order_items:', error);
+            itemsRaw = [];
         }
-
-        if (typeof itemsRaw === 'string') {
-            try {
-                itemsRaw = JSON.parse(itemsRaw);
-            } catch (error) {
-                console.warn('Não foi possível parsear order_items:', error);
-                itemsRaw = [];
-            }
-        }
-
-        if (!Array.isArray(itemsRaw) || itemsRaw.length === 0) {
-            return '<span class="text-muted small">N/A</span>';
-        }
-
+    }
+    
+    if (!Array.isArray(itemsRaw) || itemsRaw.length === 0) {
+        return '<span class="text-muted small">N/A</span>';
+    }
+    
         itemsRaw.forEach(entry => {
             const itemData = (entry && typeof entry === 'object' && entry.item && typeof entry.item === 'object')
                 ? entry.item
