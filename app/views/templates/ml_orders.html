@@ -1213,8 +1213,9 @@ function renderInvoiceDropdown(order) {
 function renderLabelDropdown(order) {
     const orderId = order.ml_order_id || order.order_id || '';
     const shippingId = order.shipping_id || (order.shipping_details && order.shipping_details.id);
+    const logisticType = (order.shipping_type || order.shipping_logistic_type || '').toString().toLowerCase();
 
-    if (!orderId) {
+    if (!orderId || logisticType === 'fulfillment' || logisticType === 'full') {
         return '';
     }
 
