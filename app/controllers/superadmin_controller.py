@@ -608,6 +608,7 @@ class SuperAdminController:
                             deleted_count += count
                             deleted_in_level += count
                             print(f"  ✅ {table}: {count} registro(s) deletado(s)")
+
                     except Exception as e:
                         error_str = str(e).lower()
                         try:
@@ -646,6 +647,7 @@ class SuperAdminController:
                                 deleted_count += count
                                 deleted_in_level += count
                                 print(f"  ✅ {table_name}: {count} registro(s) deletado(s)")
+
                         except Exception as e:
                             error_str = str(e).lower()
                             try:
@@ -789,12 +791,14 @@ class SuperAdminController:
                                     deleted_count += count
                                     deleted_in_pass += count
                                     print(f"      ✅ {dep_table}: {count} registro(s) deletado(s)")
+
                             except Exception as e:
                                 error_str = str(e).lower()
                                 try:
                                     self.db.rollback()
                                 except Exception:
                                     pass
+
                                 if "does not exist" not in error_str and "undefinedtable" not in error_str:
                                     if "foreign key" in error_str or "violates" in error_str:
                                         pass
@@ -849,19 +853,20 @@ class SuperAdminController:
                         print(f"    ❌ Erro ao deletar ml_accounts: {error_msg[:150]}")
                         try:
                             self.db.rollback()
-                            for ml_acc_id in ml_account_ids_list:
-                                try:
-                                    self.db.execute(
-                                        text("DELETE FROM ml_accounts WHERE id = :id"),
-                                        {"id": ml_acc_id}
-                                    )
-                                    self.db.commit()
-                                    print(f"    ✅ ml_accounts ID {ml_acc_id}: deletado individualmente")
-                                except Exception as inner_exc:
-                                    self.db.rollback()
-                                    print(f"    ⚠️  Erro ao deletar ml_account {ml_acc_id}: {str(inner_exc)[:150]}")
                         except Exception:
                             pass
+
+                        for ml_acc_id in ml_account_ids_list:
+                            try:
+                                self.db.execute(
+                                    text("DELETE FROM ml_accounts WHERE id = :id"),
+                                    {"id": ml_acc_id}
+                                )
+                                self.db.commit()
+                                print(f"    ✅ ml_accounts ID {ml_acc_id}: deletado individualmente")
+                            except Exception as inner_exc:
+                                self.db.rollback()
+                                print(f"    ⚠️  Erro ao deletar ml_account {ml_acc_id}: {str(inner_exc)[:150]}")
 
             # Verificar se ainda há usuários vinculados a esta empresa
             try:
@@ -933,14 +938,18 @@ class SuperAdminController:
             # Deletar a empresa
             print(f"\n🔧 Deletando empresa {company_id}...")
             try:
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
+                self.db.execute(
+                    text("DELETE FROM companies WHERE id = :company_id"),
+                    {"company_id": company_id}
+                )
+            except Exception as e:
                 self.db.rollback()
-            except:
-                pass
-            
-            self.db.execute(
-                text("DELETE FROM companies WHERE id = :company_id"),
-                {"company_id": company_id}
-            )
+                raise
             
             # COMMIT final
             print(f"\n💾 Salvando exclusão da empresa...")

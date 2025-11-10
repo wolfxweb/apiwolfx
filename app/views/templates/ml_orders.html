@@ -130,13 +130,12 @@
                                     </th>
                                     <th style="min-width: 200px;">Pedido</th>
                                     <th style="min-width: 220px;">Detalhes</th>
-                                    <th style="min-width: 180px;">Envio</th>
                                     <th class="text-end" style="width: 120px;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="orders-table-body">
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
+                                    <td colspan="4" class="text-center text-muted py-4">
                                         <i class="bi bi-info-circle"></i> Carregando pedidos...
                                     </td>
                                 </tr>
@@ -697,7 +696,7 @@ function renderOrders(orders) {
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center text-muted py-4">
+                <td colspan="4" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -718,7 +717,6 @@ function renderOrders(orders) {
             </td>
             <td class="align-middle">${renderOrderSummary(order)}</td>
             <td class="align-middle">${renderDetailsSummary(order)}</td>
-            <td class="align-middle">${renderShippingSummary(order)}</td>
             <td class="align-middle text-end">${renderOrderActions(order)}</td>
         </tr>
     `}).join('');
@@ -762,10 +760,10 @@ function renderPagination(total, limit, currentPage) {
     const pagination = document.getElementById('pagination');
     const paginationInfo = document.getElementById('pagination-info');
     const totalPages = Math.ceil(total / limit);
-
+    
     if (paginationInfo) {
-        const startItem = (currentPage - 1) * limit + 1;
-        const endItem = Math.min(currentPage * limit, total);
+    const startItem = (currentPage - 1) * limit + 1;
+    const endItem = Math.min(currentPage * limit, total);
         paginationInfo.textContent = totalPages > 0
             ? `Mostrando ${startItem} a ${endItem} de ${total} pedidos`
             : 'Nenhum pedido encontrado';
@@ -774,12 +772,12 @@ function renderPagination(total, limit, currentPage) {
     if (!pagination) {
         return;
     }
-
+    
     if (totalPages <= 1) {
         pagination.innerHTML = '';
         return;
     }
-
+    
     let html = '';
 
     const addPageButton = (page, label, disabled = false, active = false) => {
@@ -811,10 +809,10 @@ function loadAccountsFilter(accounts) {
     if (!select) {
         return;
     }
-
+    
     const currentValue = new URLSearchParams(window.location.search).get('account_filter') || '';
     select.innerHTML = '<option value="">Todas as contas</option>';
-
+    
     (accounts || []).forEach(account => {
         const option = document.createElement('option');
         option.value = account.id;
@@ -1225,7 +1223,7 @@ function renderShippingSummary(order) {
             lines.push(`<div><small class="text-success"><strong>✓ ${translatedStatus}</strong></small></div>`);
         } else if (transitStatuses.has(status)) {
             lines.push(`<div><small class="text-info">🚚 ${translatedStatus}</small></div>`);
-        } else {
+                } else {
             const icon = shippingStatusIcons[status] || '🚚';
             const statusClass = getShippingStatusClass(status);
             const baseClass = statusClass ? `${statusClass} small` : 'text-muted small';
@@ -1626,7 +1624,7 @@ function copyOrderId(orderId) {
             console.warn('Falha ao copiar ID:', err);
             alert(`ID do pedido: ${orderId}`);
         });
-    } else {
+        } else {
         alert(`ID do pedido: ${orderId}`);
     }
 }
