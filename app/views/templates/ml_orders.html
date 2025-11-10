@@ -129,8 +129,7 @@
                                         <input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders()">
                                     </th>
                                     <th style="min-width: 200px;">Pedido</th>
-                                    <th style="min-width: 220px;">Itens</th>
-                                    <th style="min-width: 180px;">Valores</th>
+                                    <th style="min-width: 220px;">Detalhes</th>
                                     <th style="min-width: 180px;">Envio</th>
                                     <th class="text-end" style="width: 120px;">Ações</th>
                                 </tr>
@@ -698,7 +697,7 @@ function renderOrders(orders) {
     if (!orders || orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center text-muted py-4">
+                <td colspan="5" class="text-center text-muted py-4">
                     <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
                 </td>
             </tr>
@@ -718,8 +717,7 @@ function renderOrders(orders) {
                 <input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateSelectedOrdersCount()">
             </td>
             <td class="align-middle">${renderOrderSummary(order)}</td>
-            <td class="align-middle">${renderItemsSummary(order)}</td>
-            <td class="align-middle">${renderAmountSummary(order)}</td>
+            <td class="align-middle">${renderDetailsSummary(order)}</td>
             <td class="align-middle">${renderShippingSummary(order)}</td>
             <td class="align-middle text-end">${renderOrderActions(order)}</td>
         </tr>
@@ -746,12 +744,9 @@ function renderOrderSummary(order) {
     const orderId = order.ml_order_id || order.order_id || '-';
     const createdAt = formatDate(order.date_created);
     const accountLabel = order.account_nickname || order.account_name;
-    const statusText = getStatusLabel(order.status);
-
     const lines = [
         `<div class="fw-semibold">${orderId}</div>`,
         accountLabel ? `<div class="text-muted small">${accountLabel}</div>` : '',
-        statusText ? `<div class="text-muted small">Status: ${statusText}</div>` : '',
         createdAt ? `<div class="text-muted small"><i class="bi bi-clock-history me-1"></i>${createdAt}</div>` : ''
     ].filter(Boolean);
 
@@ -1101,7 +1096,7 @@ function renderAmountSummary(order) {
     return `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`;
 }
 
-function renderItemsSummary(order) {
+function renderDetailsSummary(order) {
     let itemsRaw = order.order_items;
     
     if (!itemsRaw) {
@@ -1121,6 +1116,9 @@ function renderItemsSummary(order) {
         return '<span class="text-muted small">N/A</span>';
     }
     
+    let totalAmount = order.total_amount || 0;
+    const currency = order.currency_id || 'BRL';
+
     const itemsToShow = itemsRaw.slice(0, 3);
     const lines = itemsToShow.map(entry => {
         const itemData = entry.item || entry;
@@ -1129,13 +1127,13 @@ function renderItemsSummary(order) {
         const quantityLabel = `Qtd: ${quantityValue}`;
         const thumbnail = getItemThumbnail(itemData);
     
-        const thumbnailHtml = thumbnail
+        const thumbSegment = thumbnail
             ? `<div class="item-thumb"><img src="${thumbnail}" alt="${title}" loading="lazy"></div>`
-            : `<div class="item-thumb placeholder"><i class="bi bi-box-seam"></i></div>`;
-    
+            : '';
+
         return `
             <div class="item-line">
-                ${thumbnailHtml}
+                ${thumbSegment}
                 <div class="item-info">
                     <span class="item-title">${title}</span>
                     <span class="item-meta">${quantityLabel}</span>
@@ -1148,7 +1146,142 @@ function renderItemsSummary(order) {
         lines.push(`<div class="text-muted small">+${itemsRaw.length - itemsToShow.length} item(s)</div>`);
     }
     
+    lines.push(`<div class="text-muted small mt-2"><strong>Total:</strong> ${formatCurrency(totalAmount, currency)}</div>`);
+
+    const shippingInline = renderShippingSummary(order);
+    if (shippingInline) {
+        lines.push(`<div class="mt-2 pt-2 border-top">${shippingInline}</div>`);
+    }
+
     return `<div class="d-flex flex-column gap-2">${lines.join('')}</div>`;
+}
+
+function renderShippingSummary(order) {
+    let shipping = order.shipping_details || order.shipping || {};
+    if (typeof shipping === 'string') {
+        try {
+            shipping = JSON.parse(shipping);
+        } catch (err) {
+            shipping = {};
+        }
+    }
+
+    const logisticTypeRaw = shipping.shipping_option?.logistic_type
+        || shipping.logistic_type
+        || shipping.logistic?.type
+        || order.logistic_type
+        || order.shipping_logistic_type
+        || order.shipping_type;
+
+    const logisticLabel = getLogisticLabel(logisticTypeRaw);
+    const statusRaw = shipping.status || order.shipping_status || '';
+    const substatusRaw = shipping.substatus || order.shipping_substatus || '';
+    const status = (statusRaw || '').toString().toLowerCase();
+    const substatus = (substatusRaw || '').toString().toLowerCase();
+    const translatedStatus = status ? translateShippingLabel(status) : null;
+    const translatedSubstatus = substatus ? translateShippingLabel(substatus) : null;
+    const statusHistory = shipping.status_history || {};
+
+    const shippedDate = shipping.date_shipped || statusHistory.date_shipped || order.date_shipped;
+    const deliveredDate = statusHistory.date_delivered || shipping.date_delivered || order.date_delivered;
+    const estimatedDate = shipping.shipping_option?.estimated_delivery_final?.date
+        || shipping.shipping_option?.estimated_delivery_limit?.date
+        || shipping.estimated_delivery
+        || order.estimated_delivery_date;
+
+    const extractValue = (value) => {
+        if (!value) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object') {
+            return value.name || value.display_name || value.label || value.description || value.id || '';
+        }
+        return String(value);
+    };
+
+    const shippingMethodSource = logisticLabel
+        || extractValue(order.shipping_method)
+        || extractValue(order.shipping_mode)
+        || extractValue(shipping.shipping_option?.shipping_method)
+        || extractValue(shipping.shipping_option?.name)
+        || extractValue(logisticTypeRaw);
+
+    const shippingMethod = getLogisticLabel(shippingMethodSource) || logisticLabel || extractValue(logisticTypeRaw) || null;
+
+    const lines = [];
+    const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
+    if (shippingMethod) {
+        lines.push(`<div><span class="badge ${badgeClass}">${shippingMethod}</span></div>`);
+    }
+
+    if (translatedStatus) {
+        const readyStatuses = new Set(['ready_to_ship', 'ready_to_print', 'printed', 'packed', 'ready_to_pack']);
+        const transitStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']);
+
+        if (status === 'pending') {
+            lines.push(`<div><small class="text-secondary">⏳ ${translatedStatus}</small></div>`);
+        } else if (readyStatuses.has(status)) {
+            lines.push(`<div><small class="text-warning">📦 ${translatedStatus}</small></div>`);
+        } else if (status === 'delivered') {
+            lines.push(`<div><small class="text-success"><strong>✓ ${translatedStatus}</strong></small></div>`);
+        } else if (transitStatuses.has(status)) {
+            lines.push(`<div><small class="text-info">🚚 ${translatedStatus}</small></div>`);
+        } else {
+            const icon = shippingStatusIcons[status] || '🚚';
+            const statusClass = getShippingStatusClass(status);
+            const baseClass = statusClass ? `${statusClass} small` : 'text-muted small';
+            lines.push(`<div><span class="${baseClass}">${icon} ${translatedStatus}</span></div>`);
+        }
+    }
+
+    if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
+        lines.push(`<div><small class="text-muted">📍 ${translatedSubstatus}</small></div>`);
+    }
+
+    if (status === 'delivered' && deliveredDate) {
+        const deliveredFormatted = formatDateOnly(deliveredDate);
+        if (deliveredFormatted) {
+            lines.push(`<div><small class="text-success">📅 ${deliveredFormatted}</small></div>`);
+        }
+    }
+
+    if (status !== 'delivered' && shippedDate) {
+        const shippedFormatted = formatDateOnly(shippedDate);
+        if (shippedFormatted) {
+            lines.push(`<div><small class="text-muted">📦 Enviado: ${shippedFormatted}</small></div>`);
+        }
+    }
+
+    const isPickup = ['xd_drop_off', 'drop_off'].includes((logisticTypeRaw || '').toString().toLowerCase());
+    const dropOffDate = shipping.status_history?.date_handling || shipping.date_created || order.shipping_date;
+    if (isPickup) {
+        const dropOffFormatted = formatDateTime(dropOffDate);
+        if (dropOffFormatted) {
+            lines.push(`<div><small class="text-muted">📦 Registrado: ${dropOffFormatted}</small></div>`);
+        }
+
+        const bufferingDate = shipping.shipping_option?.buffering?.date;
+        const bufferingFormatted = formatDateOnly(bufferingDate);
+        if (bufferingFormatted) {
+            lines.push(`<div><small class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</small></div>`);
+        }
+    }
+
+    if (estimatedDate && status !== 'delivered') {
+        const estimatedFormatted = formatDateOnly(estimatedDate);
+        if (estimatedFormatted) {
+            lines.push(`<div><small class="text-muted">📅 Previsão: ${estimatedFormatted}</small></div>`);
+        }
+    }
+
+    if (!lines.length && (logisticLabel || shippingMethod)) {
+        const fallbackBadge = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
+        const label = logisticLabel || shippingMethod || 'N/A';
+        return `<div class="d-flex flex-column gap-1 small"><div><span class="badge ${fallbackBadge}">${label}</span></div></div>`;
+    }
+
+    return lines.length
+        ? `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`
+        : `<div class="d-flex flex-column gap-1 small"><div><span class="badge bg-secondary">N/A</span></div></div>`;
 }
 
 function getStatusBadgeClass(status) {
@@ -1438,9 +1571,6 @@ function getLogisticBadgeClass(logisticType) {
 function renderOrderActions(order) {
     const orderId = order.ml_order_id || order.order_id || '';
     const permalink = order.permalink || '';
-    const shipping = order.shipping_details || order.shipping || {};
-    const cacheKey = order.id || orderId;
-
     const segments = [
         `<button class="btn btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Ver detalhes">
             <i class="bi bi-eye"></i>
@@ -1460,6 +1590,7 @@ function renderOrderActions(order) {
         segments.push(labelDropdown);
     }
 
+    const cacheKey = order.id || orderId;
     segments.push(`
         <button class="btn btn-outline-dark" onclick="openOrderJson('${cacheKey || orderId}')" title="Ver JSON do pedido">
             <i class="bi bi-code-slash"></i>
