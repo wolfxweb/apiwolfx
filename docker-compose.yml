@@ -14,13 +14,13 @@ services:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - ML_APP_ID=${ML_APP_ID:-3821568023399477}
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-3gDZs9aLX9jmm64MCXPmdSIaCf7rBRHa}
-      - ML_REDIRECT_URI=${ML_REDIRECT_URI:-https://53b830f49c00.ngrok-free.app/api/callback}
-      - ML_NOTIFICATION_URL=${ML_NOTIFICATION_URL:-https://53b830f49c00.ngrok-free.app/api/notifications}
+      - ML_REDIRECT_URI=${ML_REDIRECT_URI:-https://ffc6fd40154e.ngrok-free.app/api/callback}
+      - ML_NOTIFICATION_URL=${ML_NOTIFICATION_URL:-https://ffc6fd40154e.ngrok-free.app/api/notifications}
       # URLs Mercado Pago
-      - MP_SUCCESS_URL=${MP_SUCCESS_URL:-https://53b830f49c00.ngrok-free.app/payment/success}
-      - MP_FAILURE_URL=${MP_FAILURE_URL:-https://53b830f49c00.ngrok-free.app/payment/failure}
-      - MP_PENDING_URL=${MP_PENDING_URL:-https://53b830f49c00.ngrok-free.app/payment/pending}
-      - MP_WEBHOOK_URL=${MP_WEBHOOK_URL:-https://53b830f49c00.ngrok-free.app/api/payments/webhooks/mercadopago}
+      - MP_SUCCESS_URL=${MP_SUCCESS_URL:-https://ffc6fd40154e.ngrok-free.app/payment/success}
+      - MP_FAILURE_URL=${MP_FAILURE_URL:-https://ffc6fd40154e.ngrok-free.app/payment/failure}
+      - MP_PENDING_URL=${MP_PENDING_URL:-https://ffc6fd40154e.ngrok-free.app/payment/pending}
+      - MP_WEBHOOK_URL=${MP_WEBHOOK_URL:-https://ffc6fd40154e.ngrok-free.app/api/payments/webhooks/mercadopago}
       # Credenciais Mercado Pago / OpenAI devem ser definidas no .env local
       - MP_ACCESS_TOKEN=${MP_ACCESS_TOKEN}
       - MP_PUBLIC_KEY=${MP_PUBLIC_KEY}
