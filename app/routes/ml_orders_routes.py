@@ -86,6 +86,7 @@ async def get_orders_api(
     offset: int = Query(0),
     shipping_status_filter: Optional[str] = Query(None),
     logistic_filter: Optional[str] = Query(None),
+    search_query: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     session_token: Optional[str] = Cookie(None),
@@ -112,7 +113,8 @@ async def get_orders_api(
             shipping_status_filter=shipping_status_filter,
             logistic_filter=logistic_filter,
             date_from=date_from,
-            date_to=date_to
+            date_to=date_to,
+            search_query=search_query
         )
         
         return JSONResponse(content=data)

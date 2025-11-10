@@ -3,9 +3,10 @@ from typing import Dict, List, Optional
 
 from fastapi.encoders import jsonable_encoder
 import logging
+import json
 
 from app.services.ml_orders_service import MLOrdersService
-from app.models.saas_models import MLAccount, MLAccountStatus
+from app.models.saas_models import MLAccount, MLAccountStatus, MLProduct
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ class MLOrdersController:
                        shipping_status_filter: Optional[str] = None,
                        logistic_filter: Optional[str] = None,
                        date_from: Optional[str] = None,
-                       date_to: Optional[str] = None) -> Dict:
+                       date_to: Optional[str] = None,
+                       search_query: Optional[str] = None) -> Dict:
         """Busca lista de orders para exibição"""
         try:
             logger.info(f"Buscando lista de orders para company_id: {company_id}")
@@ -50,7 +52,7 @@ class MLOrdersController:
             
             # Buscar orders diretamente do banco de dados
             from app.models.saas_models import MLOrder
-            from sqlalchemy import func
+            from sqlalchemy import func, or_, cast, String, Text
             
             # Construir query base
             query = self.db.query(MLOrder).filter(
@@ -115,6 +117,22 @@ class MLOrdersController:
                     query = query.filter(MLOrder.date_created <= date_to_obj)
                 except ValueError:
                     logger.warning(f"Data inválida: {date_to}")
+
+            if search_query:
+                search_term = f"%{search_query.strip()}%"
+                if search_term != "%%":
+                    query = query.filter(
+                        or_(
+                            cast(MLOrder.ml_order_id, String).ilike(search_term),
+                            MLOrder.order_id.ilike(search_term),
+                            MLOrder.buyer_nickname.ilike(search_term),
+                            MLOrder.buyer_first_name.ilike(search_term),
+                            MLOrder.buyer_last_name.ilike(search_term),
+                            func.concat(MLOrder.buyer_first_name, ' ', MLOrder.buyer_last_name).ilike(search_term),
+                            MLOrder.buyer_email.ilike(search_term),
+                            cast(MLOrder.order_items, Text).ilike(search_term)
+                        )
+                    )
             
             # Ordenar por data de criação (mais recentes primeiro)
             query = query.order_by(MLOrder.date_created.desc())
@@ -125,9 +143,339 @@ class MLOrdersController:
             # Aplicar paginação
             orders = query.offset(offset).limit(limit).all()
             
+            # Funções auxiliares para processar itens e produtos
+            def _parse_order_items(order_items_raw):
+                if not order_items_raw:
+                    return []
+                if isinstance(order_items_raw, list):
+                    return order_items_raw
+                if isinstance(order_items_raw, str):
+                    try:
+                        return json.loads(order_items_raw)
+                    except json.JSONDecodeError:
+                        logger.warning("Não foi possível converter order_items para JSON.")
+                        return []
+                return []
+
+            def _normalize_url(url_value):
+                if not url_value:
+                    return None
+                normalized = str(url_value).strip()
+                if not normalized:
+                    return None
+                if normalized.startswith("//"):
+                    normalized = "https:" + normalized
+                if normalized.startswith("http://"):
+                    normalized = "https://" + normalized[7:]
+                return normalized
+
+            def _extract_gtin_from_attributes(attributes_data):
+                if not attributes_data:
+                    return None
+                attrs = attributes_data
+                if isinstance(attrs, str):
+                    try:
+                        attrs = json.loads(attrs)
+                    except json.JSONDecodeError:
+                        return None
+                if isinstance(attrs, dict):
+                    attrs = list(attrs.values())
+                if not isinstance(attrs, list):
+                    return None
+                gtin_keys = {"GTIN", "EAN", "UPC", "BARCODE"}
+                for attr in attrs:
+                    if not isinstance(attr, dict):
+                        continue
+                    attr_id = str(attr.get("id") or attr.get("name") or "").upper()
+                    if attr_id in gtin_keys:
+                        value = (
+                            attr.get("value_name")
+                            or attr.get("value_id")
+                            or attr.get("value")
+                        )
+                        if not value and isinstance(attr.get("value_struct"), dict):
+                            value = attr["value_struct"].get("number")
+                        if value:
+                            return str(value)
+                return None
+
+            def _extract_item_thumbnail(item_payload):
+                if not isinstance(item_payload, dict):
+                    return None
+                thumbnail_fields = [
+                    item_payload.get("secure_thumbnail"),
+                    item_payload.get("thumbnail"),
+                    item_payload.get("picture_url")
+                ]
+                for candidate in thumbnail_fields:
+                    normalized = _normalize_url(candidate)
+                    if normalized:
+                        return normalized
+                pictures = item_payload.get("pictures")
+                if isinstance(pictures, str):
+                    try:
+                        pictures = json.loads(pictures)
+                    except json.JSONDecodeError:
+                        pictures = None
+                if isinstance(pictures, list):
+                    for picture in pictures:
+                        candidate = None
+                        if isinstance(picture, str):
+                            candidate = picture
+                        elif isinstance(picture, dict):
+                            candidate = picture.get("secure_url") or picture.get("url") or picture.get("source")
+                        normalized = _normalize_url(candidate)
+                        if normalized:
+                            return normalized
+                picture_ids = item_payload.get("picture_ids")
+                if isinstance(picture_ids, list) and picture_ids:
+                    return _normalize_url(f"https://http2.mlstatic.com/D_{picture_ids[0]}-O.jpg")
+                picture_urls = item_payload.get("picture_urls")
+                if isinstance(picture_urls, list) and picture_urls:
+                    return _normalize_url(picture_urls[0])
+                return None
+
+            def _build_product_info(product: MLProduct):
+                thumbnail = (
+                    _normalize_url(product.secure_thumbnail)
+                    or _normalize_url(product.thumbnail)
+                )
+                pictures = product.pictures
+                if not thumbnail and pictures:
+                    pictures_payload = pictures
+                    if isinstance(pictures_payload, str):
+                        try:
+                            pictures_payload = json.loads(pictures_payload)
+                        except json.JSONDecodeError:
+                            pictures_payload = []
+                    if isinstance(pictures_payload, list):
+                        for pic in pictures_payload:
+                            candidate = None
+                            if isinstance(pic, str):
+                                candidate = pic
+                            elif isinstance(pic, dict):
+                                candidate = pic.get("secure_url") or pic.get("url") or pic.get("source")
+                            normalized = _normalize_url(candidate)
+                            if normalized:
+                                thumbnail = normalized
+                                break
+                attributes = product.attributes
+                gtin = _extract_gtin_from_attributes(attributes)
+                return {
+                    "thumbnail": thumbnail,
+                    "seller_sku": product.seller_sku,
+                    "seller_custom_field": product.seller_custom_field,
+                    "gtin": gtin,
+                    "permalink": product.permalink
+                }
+
+            # Coletar itens para enriquecimento
+            order_items_cache = {}
+            item_ids = set()
+            seller_skus = set()
+            seller_custom_fields = set()
+
+            for order in orders:
+                items_list = _parse_order_items(order.order_items)
+                order_items_cache[order.id] = items_list
+                for entry in items_list:
+                    item_payload = entry.get("item") if isinstance(entry, dict) else {}
+                    if not item_payload and isinstance(entry, dict):
+                        item_payload = entry
+
+                    ml_item_id = item_payload.get("id") or item_payload.get("item_id") or entry.get("item_id")
+                    if ml_item_id:
+                        item_ids.add(str(ml_item_id))
+
+                    sku_candidate = (
+                        item_payload.get("seller_sku")
+                        or item_payload.get("seller_custom_field")
+                        or entry.get("seller_sku")
+                        or entry.get("seller_custom_field")
+                    )
+                    if sku_candidate:
+                        seller_skus.add(str(sku_candidate).strip())
+
+                    custom_candidate = (
+                        item_payload.get("seller_custom_field")
+                        or entry.get("seller_custom_field")
+                    )
+                    if custom_candidate:
+                        seller_custom_fields.add(str(custom_candidate).strip())
+
+            product_map_by_item = {}
+            product_map_by_sku = {}
+
+            if item_ids:
+                products_by_item = self.db.query(MLProduct).filter(
+                    MLProduct.company_id == company_id,
+                    MLProduct.ml_item_id.in_(list(item_ids))
+                ).all()
+                for product in products_by_item:
+                    info = _build_product_info(product)
+                    product_map_by_item[str(product.ml_item_id)] = info
+                    if product.seller_sku:
+                        product_map_by_sku[product.seller_sku.strip()] = info
+                    if product.seller_custom_field:
+                        product_map_by_sku[product.seller_custom_field.strip()] = info
+
+            remaining_skus = [
+                sku for sku in seller_skus
+                if sku and sku not in product_map_by_sku
+            ]
+            if remaining_skus:
+                products_by_sku = self.db.query(MLProduct).filter(
+                    MLProduct.company_id == company_id,
+                    MLProduct.seller_sku.in_(remaining_skus)
+                ).all()
+                for product in products_by_sku:
+                    info = _build_product_info(product)
+                    if product.seller_sku:
+                        product_map_by_sku.setdefault(product.seller_sku.strip(), info)
+                    if product.seller_custom_field:
+                        product_map_by_sku.setdefault(product.seller_custom_field.strip(), info)
+                    product_map_by_item.setdefault(str(product.ml_item_id), info)
+
+            remaining_custom_fields = [
+                value for value in seller_custom_fields
+                if value and value not in product_map_by_sku
+            ]
+            if remaining_custom_fields:
+                products_by_custom = self.db.query(MLProduct).filter(
+                    MLProduct.company_id == company_id,
+                    MLProduct.seller_custom_field.in_(remaining_custom_fields)
+                ).all()
+                for product in products_by_custom:
+                    info = _build_product_info(product)
+                    if product.seller_custom_field:
+                        product_map_by_sku.setdefault(product.seller_custom_field.strip(), info)
+                    if product.seller_sku:
+                        product_map_by_sku.setdefault(product.seller_sku.strip(), info)
+                    product_map_by_item.setdefault(str(product.ml_item_id), info)
+            
             # Converter para formato de resposta
             all_orders = []
             for order in orders:
+                items_list = order_items_cache.get(order.id, [])
+                enriched_items = []
+
+                for entry in items_list:
+                    item_payload = entry.get("item") if isinstance(entry, dict) else {}
+                    if not item_payload and isinstance(entry, dict):
+                        item_payload = entry
+
+                    ml_item_id = item_payload.get("id") or item_payload.get("item_id") or entry.get("item_id")
+                    ml_item_id_str = str(ml_item_id) if ml_item_id else None
+
+                    product_info = None
+                    if ml_item_id_str and ml_item_id_str in product_map_by_item:
+                        product_info = product_map_by_item[ml_item_id_str]
+                    else:
+                        sku_candidate = (
+                            item_payload.get("seller_sku")
+                            or item_payload.get("seller_custom_field")
+                            or entry.get("seller_sku")
+                            or entry.get("seller_custom_field")
+                        )
+                        if sku_candidate:
+                            product_info = product_map_by_sku.get(str(sku_candidate).strip())
+
+                    def _extract_gtin_from_item(item_data):
+                        if not isinstance(item_data, dict):
+                            return None
+                        gtin_value = item_data.get("gtin") or item_data.get("ean")
+                        if gtin_value:
+                            return str(gtin_value)
+                        return _extract_gtin_from_attributes(item_data.get("attributes"))
+
+                    thumbnail = product_info["thumbnail"] if product_info else None
+                    if not thumbnail:
+                        thumbnail = _extract_item_thumbnail(item_payload) or _extract_item_thumbnail(entry)
+
+                    seller_sku_value = (
+                        item_payload.get("seller_sku")
+                        or item_payload.get("seller_custom_field")
+                        or entry.get("seller_sku")
+                        or entry.get("seller_custom_field")
+                        or (product_info.get("seller_sku") if product_info else None)
+                        or (product_info.get("seller_custom_field") if product_info else None)
+                    )
+                    if seller_sku_value:
+                        seller_sku_value = str(seller_sku_value)
+
+                    gtin_value = product_info.get("gtin") if product_info else None
+                    if not gtin_value:
+                        gtin_value = _extract_gtin_from_item(item_payload) or _extract_gtin_from_item(entry)
+                    if gtin_value:
+                        gtin_value = str(gtin_value)
+
+                    title = (
+                        item_payload.get("title")
+                        or item_payload.get("name")
+                        or entry.get("title")
+                        or entry.get("name")
+                        or "Item sem título"
+                    )
+
+                    def _extract_quantity(item_entry):
+                        if not isinstance(item_entry, dict):
+                            return 1
+                        quantity_candidate = item_entry.get("quantity")
+                        if isinstance(quantity_candidate, (int, float)):
+                            return int(quantity_candidate)
+                        requested = item_entry.get("requested_quantity")
+                        if isinstance(requested, dict):
+                            value = requested.get("value")
+                            if isinstance(value, (int, float)):
+                                return int(value)
+                        available = item_entry.get("available_quantity")
+                        if isinstance(available, (int, float)):
+                            return int(available)
+                        item_payload_data = item_entry.get("item")
+                        if isinstance(item_payload_data, dict):
+                            qty = item_payload_data.get("quantity")
+                            if isinstance(qty, (int, float)):
+                                return int(qty)
+                        return 1
+
+                    quantity_value = _extract_quantity(entry)
+
+                    def _extract_unit_price(item_entry, payload):
+                        for candidate in [
+                            item_entry.get("unit_price"),
+                            payload.get("unit_price"),
+                            item_entry.get("base_unit_price"),
+                            payload.get("base_unit_price")
+                        ]:
+                            if isinstance(candidate, (int, float, str)):
+                                try:
+                                    return float(candidate)
+                                except (TypeError, ValueError):
+                                    continue
+                        return 0.0
+
+                    unit_price_value = _extract_unit_price(entry, item_payload)
+                    total_price_value = unit_price_value * quantity_value
+                    currency_value = (
+                        entry.get("currency_id")
+                        or item_payload.get("currency_id")
+                        or order.currency_id
+                        or "BRL"
+                    )
+
+                    enriched_items.append({
+                        "ml_item_id": ml_item_id_str,
+                        "title": str(title),
+                        "quantity": quantity_value,
+                        "unit_price": float(unit_price_value),
+                        "total_price": float(total_price_value),
+                        "currency": str(currency_value),
+                        "thumbnail": thumbnail,
+                        "seller_sku": seller_sku_value or "",
+                        "gtin": gtin_value or "",
+                        "permalink": (product_info.get("permalink") if product_info else item_payload.get("permalink", ""))
+                    })
+
                 # Buscar informações da conta ML
                 account = next((acc for acc in accounts if acc.id == order.ml_account_id), None)
                 
@@ -138,7 +486,6 @@ class MLOrdersController:
                 payment_total_paid_amount = 0
                 
                 if payments_data:
-                    import json
                     if isinstance(payments_data, str):
                         payments = json.loads(payments_data)
                     else:
@@ -204,6 +551,14 @@ class MLOrdersController:
                     "account_country": account.country_id if account else "N/A",
                     "is_advertising_sale": order.is_advertising_sale,
                     "advertising_cost": float(order.advertising_cost) if order.advertising_cost else 0.0,
+                    "invoice_emitted": order.invoice_emitted,
+                    "invoice_emitted_at": order.invoice_emitted_at.isoformat() if order.invoice_emitted_at else None,
+                    "invoice_number": order.invoice_number,
+                    "invoice_series": order.invoice_series,
+                    "invoice_key": order.invoice_key,
+                    "invoice_pdf_url": order.invoice_pdf_url,
+                    "invoice_xml_url": order.invoice_xml_url,
+                    "order_items_enriched": enriched_items,
                 }
                 all_orders.append(order_data)
             

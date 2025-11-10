@@ -36,6 +36,15 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <form class="row g-3 align-items-end" id="ordersFiltersForm">
+                        <div class="col-12 col-lg-4 col-xl-3">
+                            <label for="search_query" class="form-label small text-uppercase text-muted">Busca rápida</label>
+                            <div class="input-group">
+                                <input type="text" name="search_query" id="search_query" class="form-control" placeholder="Código, comprador ou produto" onkeydown="handleSearchKey(event)" />
+                                <button type="button" class="btn btn-outline-primary" onclick="applyFilters()">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
                         <div class="col-12 col-md-3">
                             <label for="account_filter" class="form-label small text-uppercase text-muted">Conta</label>
                             <select name="account_filter" id="account_filter" class="form-select" onchange="applyFilters()">
@@ -724,9 +733,14 @@ function syncFiltersWithUrl() {
         accountSelect.value = accountValue;
     }
 
+    const searchValue = params.get('search_query') || '';
+    const searchInput = document.getElementById('search_query');
+    if (searchInput !== null) {
+        searchInput.value = searchValue;
+    }
+
     const dateFrom = params.get('date_from') || '';
     const dateTo = params.get('date_to') || '';
-
     const dateFromInput = document.getElementById('date_from');
     const dateToInput = document.getElementById('date_to');
     const customFromInput = document.getElementById('customDateFrom');
@@ -761,6 +775,13 @@ function syncFiltersWithUrl() {
     }
 }
 
+function handleSearchKey(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        applyFilters();
+    }
+}
+
 function applyFilters() {
     const params = new URLSearchParams();
 
@@ -768,12 +789,14 @@ function applyFilters() {
     const statusValue = document.getElementById('status_filter')?.value || '';
     const logisticValue = document.getElementById('logistic_filter')?.value || '';
     const selectedPeriodValue = document.getElementById('period_filter')?.value || '';
+    const searchValue = document.getElementById('search_query')?.value.trim() || '';
     const dateFromInput = document.getElementById('date_from');
     const dateToInput = document.getElementById('date_to');
     const customFromInput = document.getElementById('customDateFrom');
     const customToInput = document.getElementById('customDateTo');
 
     if (accountValue) params.set('account_filter', accountValue);
+    if (searchValue) params.set('search_query', searchValue);
     if (statusValue) params.set('shipping_status_filter', statusValue);
     if (logisticValue) params.set('logistic_filter', logisticValue);
     if (selectedPeriodValue) params.set('period_filter', selectedPeriodValue);
@@ -1011,6 +1034,7 @@ function loadOrders(page = 1) {
         date_from: urlParams.get('date_from') || '',
         date_to: urlParams.get('date_to') || '',
         period_filter: urlParams.get('period_filter') || '',
+        search_query: (urlParams.get('search_query') || '').trim(),
         limit: selectedLimit,
         offset: (page - 1) * selectedLimit
     };
@@ -1024,6 +1048,7 @@ function loadOrders(page = 1) {
     if (filters.date_from) apiUrl += `&date_from=${encodeURIComponent(filters.date_from)}`;
     if (filters.date_to) apiUrl += `&date_to=${encodeURIComponent(filters.date_to)}`;
     if (filters.period_filter) apiUrl += `&period_filter=${encodeURIComponent(filters.period_filter)}`;
+    if (filters.search_query) apiUrl += `&search_query=${encodeURIComponent(filters.search_query)}`;
     
     fetch(apiUrl, {
         credentials: 'include'
@@ -1217,7 +1242,13 @@ function renderInvoiceDropdown(order) {
         return '';
     }
 
-    const hasInvoice = Boolean(order.invoice_pdf_url);
+    const hasInvoice = Boolean(
+        (order.invoice_pdf_url && order.invoice_pdf_url.trim()) ||
+        (order.invoice_xml_url && order.invoice_xml_url.trim()) ||
+        order.invoice_emitted ||
+        (order.invoice_number && order.invoice_number.trim()) ||
+        (order.invoice_key && order.invoice_key.trim())
+    );
     const downloadItem = hasInvoice
         ? `<li><a class="dropdown-item" href="/api/shipments/download-invoice/${orderId}" target="_blank"><i class="bi bi-file-earmark-pdf"></i> Baixar nota</a></li>`
         : `<li><button class="dropdown-item disabled" type="button"><i class="bi bi-file-earmark"></i> Nota indisponível</button></li>`;
@@ -1399,6 +1430,53 @@ function getItemQuantity(entry) {
     return 0;
 }
 
+function extractGtinFromAttributes(attributes) {
+    if (!attributes) {
+        return '';
+    }
+
+    let attrs = attributes;
+    if (typeof attrs === 'string') {
+        try {
+            attrs = JSON.parse(attrs);
+        } catch (error) {
+            return '';
+        }
+    }
+
+    if (!Array.isArray(attrs) && typeof attrs === 'object') {
+        attrs = Object.values(attrs);
+    }
+
+    if (!Array.isArray(attrs)) {
+        return '';
+    }
+
+    const gtinKeys = new Set(['GTIN', 'EAN', 'UPC', 'BARCODE']);
+    for (const attr of attrs) {
+        if (!attr || typeof attr !== 'object') {
+            continue;
+        }
+        const attrId = (attr.id || attr.name || '').toString().toUpperCase();
+        if (gtinKeys.has(attrId)) {
+            if (attr.value_name) {
+                return attr.value_name;
+            }
+            if (attr.value_id) {
+                return attr.value_id;
+            }
+            if (attr.value) {
+                return attr.value;
+            }
+            if (attr.value_struct && typeof attr.value_struct === 'object' && attr.value_struct.number) {
+                return attr.value_struct.number;
+            }
+        }
+    }
+
+    return '';
+}
+
 function normalizeItemImageUrl(url) {
     if (!url) {
         return '';
@@ -1493,47 +1571,128 @@ function renderAmountSummary(order) {
 
 function renderDetailsSummary(order) {
     const buyerDetails = renderBuyerSummary(order);
+    const defaultCurrency = order.currency_id || 'BRL';
+    const enrichedItems = Array.isArray(order.order_items_enriched) ? order.order_items_enriched : [];
+    const itemsToRender = [];
 
-    let itemsRaw = order.order_items;
-    
-    if (!itemsRaw) {
-        return `${buyerDetails || ''}<span class="text-muted small">N/A</span>`;
+    if (enrichedItems.length > 0) {
+        enrichedItems.forEach(item => {
+            const quantity = Number(item.quantity ?? 1) || 1;
+            const unitPrice = Number(item.unit_price ?? item.unitPrice ?? 0) || 0;
+            const totalPrice = Number(item.total_price ?? (unitPrice * quantity)) || 0;
+            const currency = item.currency || defaultCurrency;
+            const thumbnail = item.thumbnail ? normalizeItemImageUrl(item.thumbnail) : '';
+            const sellerSku = item.seller_sku || item.sku || '';
+            const gtin = item.gtin || '';
+            const permalink = item.permalink ? normalizeItemImageUrl(item.permalink) : '';
+            const title = item.title || 'Item sem título';
+
+            itemsToRender.push({
+                title,
+                quantity,
+                unitPrice,
+                totalPrice,
+                currency,
+                thumbnail,
+                sellerSku,
+                gtin,
+                permalink
+            });
+        });
     }
-    
-    if (typeof itemsRaw === 'string') {
-        try {
-            itemsRaw = JSON.parse(itemsRaw);
-    } catch (error) {
-            console.warn('Não foi possível parsear order_items:', error);
-            itemsRaw = [];
+
+    if (!itemsToRender.length) {
+        let itemsRaw = order.order_items;
+        if (!itemsRaw) {
+            return `${buyerDetails || ''}<span class="text-muted small">N/A</span>`;
         }
+
+        if (typeof itemsRaw === 'string') {
+            try {
+                itemsRaw = JSON.parse(itemsRaw);
+            } catch (error) {
+                console.warn('Não foi possível parsear order_items:', error);
+                itemsRaw = [];
+            }
+        }
+
+        if (!Array.isArray(itemsRaw) || itemsRaw.length === 0) {
+            return '<span class="text-muted small">N/A</span>';
+        }
+
+        itemsRaw.forEach(entry => {
+            const itemData = (entry && typeof entry === 'object' && entry.item && typeof entry.item === 'object')
+                ? entry.item
+                : (entry && typeof entry === 'object' ? entry : {});
+
+            const title = itemData?.title || itemData?.name || entry?.title || entry?.name || 'Item sem título';
+            const quantity = getItemQuantity(entry) || 1;
+            const unitPrice = Number(entry.unit_price ?? itemData?.unit_price ?? 0) || 0;
+            const totalPrice = unitPrice * quantity;
+            const currency = entry.currency_id || itemData?.currency_id || defaultCurrency;
+            const thumbnail = normalizeItemImageUrl(getItemThumbnail(itemData));
+            const sellerSku = itemData?.seller_sku
+                || itemData?.seller_custom_field
+                || entry?.seller_sku
+                || entry?.seller_custom_field
+                || '';
+            const gtin = extractGtinFromAttributes(itemData?.attributes)
+                || extractGtinFromAttributes(entry?.attributes)
+                || itemData?.gtin
+                || itemData?.ean
+                || '';
+            const permalink = itemData?.permalink ? normalizeItemImageUrl(itemData.permalink) : '';
+
+            itemsToRender.push({
+                title,
+                quantity,
+                unitPrice,
+                totalPrice,
+                currency,
+                thumbnail,
+                sellerSku,
+                gtin,
+                permalink
+            });
+        });
     }
-    
-    if (!Array.isArray(itemsRaw) || itemsRaw.length === 0) {
+
+    if (!itemsToRender.length) {
         return '<span class="text-muted small">N/A</span>';
     }
-    
-    let totalAmount = order.total_amount || 0;
-    const currency = order.currency_id || 'BRL';
 
-    const rows = itemsRaw.map(entry => {
-        const itemData = entry.item || entry;
-        const title = sanitizeText(itemData?.title || itemData?.name || 'Item sem título');
-        const quantityValue = getItemQuantity(entry) || 1;
-        const thumbnail = getItemThumbnail(itemData);
-        const unitPrice = entry.unit_price || itemData?.unit_price || 0;
-        const currency = order.currency_id || itemData?.currency_id || 'BRL';
-        const totalLine = unitPrice * quantityValue;
+    const totalAmount = order.total_amount || 0;
+    const currencyForTotal = order.currency_id || defaultCurrency;
 
-        const imageCell = thumbnail
-            ? `<img src="${thumbnail}" alt="${title}" class="img-fluid rounded" style="width:48px;height:48px;object-fit:cover;">`
+    const rows = itemsToRender.map(item => {
+        const quantityValue = item.quantity || 1;
+        const unitPrice = item.unitPrice || 0;
+        const totalLine = item.totalPrice || (unitPrice * quantityValue);
+        const currency = item.currency || defaultCurrency;
+        const thumbnailHtml = item.thumbnail
+            ? `<img src="${item.thumbnail}" alt="${sanitizeText(item.title)}" class="img-fluid rounded" style="width:48px;height:48px;object-fit:cover;">`
             : '<span class="text-muted">—</span>';
+        const infoSegments = [];
+        if (item.sellerSku) {
+            infoSegments.push(`SKU: <span class="text-dark">${sanitizeText(item.sellerSku)}</span>`);
+        }
+        if (item.gtin) {
+            infoSegments.push(`GTIN: <span class="text-dark">${sanitizeText(item.gtin)}</span>`);
+        }
+        const infoHtml = infoSegments.length
+            ? `<div class="text-muted small d-flex flex-wrap gap-2">${infoSegments.join('<span class="text-muted">•</span>')}</div>`
+            : '';
+        const normalizedPermalink = item.permalink ? normalizeItemImageUrl(item.permalink) : '';
+        const titleContent = normalizedPermalink
+            ? `<a href="${normalizedPermalink}" target="_blank" rel="noopener" class="link-primary link-underline-opacity-0 link-underline-opacity-75-hover">${sanitizeText(item.title)}</a>`
+            : sanitizeText(item.title);
 
         return `
             <tr>
-                <td class="text-center align-middle" style="width:60px;">${imageCell}</td>
+                <td class="text-center align-middle" style="width:60px;">${thumbnailHtml}</td>
                 <td class="align-middle">
-                    <div class="fw-semibold small">${title}</div>
+                    <div class="fw-semibold small">${titleContent}</div>
+                    ${infoHtml}
                 </td>
                 <td class="text-end align-middle" style="width:120px;">
                     ${formatCurrency(unitPrice, currency)}
@@ -1570,7 +1729,7 @@ function renderDetailsSummary(order) {
                     <tfoot class="table-light">
                         <tr>
                             <td colspan="4" class="text-end fw-semibold">Total:</td>
-                            <td class="text-end fw-semibold text-primary">${formatCurrency(totalAmount, currency)}</td>
+                            <td class="text-end fw-semibold text-primary">${formatCurrency(totalAmount, currencyForTotal)}</td>
                         </tr>
                     </tfoot>
                 </table>
