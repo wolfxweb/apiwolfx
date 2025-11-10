@@ -120,27 +120,11 @@
     <div class="row">
         <div class="col-12">
             <div class="card shadow-sm border-0">
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th style="width: 42px;">
-                                        <input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders()">
-                                    </th>
-                                    <th style="min-width: 200px;">Pedido</th>
-                                    <th style="min-width: 220px;">Detalhes</th>
-                                    <th class="text-end" style="width: 120px;">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="orders-table-body">
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">
-                                        <i class="bi bi-info-circle"></i> Carregando pedidos...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <div class="card-body">
+                    <div id="orders-cards-container" class="orders-card-list d-flex flex-column gap-3">
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-info-circle"></i> Carregando pedidos...
+                        </div>
                     </div>
                 </div>
             </div>
@@ -419,49 +403,152 @@
      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
  }
 
-+.item-line {
-+    display: flex;
-+    align-items: center;
-+    gap: 0.75rem;
-+}
+.orders-card-list {
+    margin: 0;
+}
 
-+.item-thumb {
-+    width: 48px;
-+    height: 48px;
-+    border-radius: 8px;
-+    overflow: hidden;
-+    background: #f8f9fa;
-+    border: 1px solid rgba(0, 0, 0, 0.05);
-+    display: flex;
-+    align-items: center;
-+    justify-content: center;
-+    flex-shrink: 0;
-+}
+.order-card {
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 12px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
 
-+.item-thumb img {
-+    width: 100%;
-+    height: 100%;
-+    object-fit: cover;
-+}
+.order-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+}
 
-+.item-thumb.placeholder {
-+    color: #6c757d;
-+    font-size: 1.25rem;
-+}
+.order-card .card-body {
+    padding: 1.5rem;
+}
 
-+.item-info {
-+    min-width: 0;
-+}
+.order-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
 
-+.item-info .item-title {
-+    font-weight: 500;
-+    display: block;
-+}
+.order-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    width: 100%;
+    flex-wrap: wrap;
+}
 
-+.item-info .item-meta {
-+    font-size: 0.75rem;
-+    color: #6c757d;
-+}
+.order-summary {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.order-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-left: auto;
+    min-width: 220px;
+}
+
+.order-summary-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.order-summary-inline .summary-segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.order-summary-inline .summary-segment:not(:last-child)::after {
+    content: '•';
+    color: #6c757d;
+}
+
+.order-actions .btn-group {
+    flex-wrap: wrap;
+}
+
+.order-actions .btn-group .btn {
+    margin-bottom: 0.25rem;
+}
+
+.order-details {
+    border-top: 1px dashed rgba(0, 0, 0, 0.1);
+    padding-top: 1.25rem;
+}
+
+.order-card .form-check-input {
+    cursor: pointer;
+}
+
+@media (max-width: 992px) {
+    .order-card-top {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .order-actions {
+        justify-content: flex-start;
+    }
+}
+
+.order-empty-state {
+    border: 1px dashed rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 2rem;
+    background: #f8fafc;
+}
+
+.item-line {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.item-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f8f9fa;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.item-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.item-thumb.placeholder {
+    color: #6c757d;
+    font-size: 1.25rem;
+}
+
+.item-info {
+    min-width: 0;
+}
+
+.item-info .item-title {
+    font-weight: 500;
+    display: block;
+}
+
+.item-info .item-meta {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
 
 </style>
 
@@ -470,6 +557,34 @@ let currentPage = 1;
 let currentLimit = 50;
 let currentFilters = {};
 let ordersCache = {};
+
+function showLoading(isLoading) {
+    const loadingContainer = document.getElementById('loading-container');
+    const cardsContainer = document.getElementById('orders-cards-container');
+
+    if (loadingContainer) {
+        loadingContainer.style.display = isLoading ? '' : 'none';
+    }
+
+    if (isLoading && cardsContainer) {
+        cardsContainer.innerHTML = '';
+    }
+
+    updateSelectedOrdersCount();
+}
+
+function getSelectedOrderIds() {
+    return Array.from(document.querySelectorAll('.order-checkbox:checked'))
+        .map(input => input.value)
+        .filter(Boolean);
+}
+
+function updateSelectedOrdersCount() {
+    const deleteBtn = document.querySelector('button[onclick="showDeleteOrdersModal()"]');
+    if (deleteBtn) {
+        deleteBtn.disabled = getSelectedOrderIds().length === 0;
+    }
+}
 
 // Função utilitária para formatar datas em pt-BR com hora padrão
 function formatDate(dateString) {
@@ -691,35 +806,54 @@ function loadOrders(page = 1) {
 }
 
 function renderOrders(orders) {
-    const tbody = document.getElementById('orders-table-body');
-    
-    if (!orders || orders.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="text-center text-muted py-4">
-                    <i class="bi bi-info-circle"></i> Nenhum pedido encontrado
-                </td>
-            </tr>
-        `;
+    const container = document.getElementById('orders-cards-container');
+    if (!container) {
         return;
     }
-    
+
+    if (!orders || orders.length === 0) {
+        container.innerHTML = `
+            <div class="order-empty-state text-center text-muted">
+                <i class="bi bi-archive"></i>
+                <div class="mt-2">Nenhum pedido encontrado para os filtros selecionados.</div>
+            </div>
+        `;
+        ordersCache = {};
+        updateSelectedOrdersCount();
+        return;
+    }
+
     ordersCache = {};
-    tbody.innerHTML = orders.map(order => {
+    container.innerHTML = orders.map(order => {
         const cacheKey = order.id || order.ml_order_id || order.order_id;
         if (cacheKey) {
             ordersCache[cacheKey] = order;
         }
+
+        const checkboxValue = cacheKey || '';
+        const actions = renderOrderActions(order) || '';
+
         return `
-        <tr>
-            <td class="align-middle">
-                <input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateSelectedOrdersCount()">
-            </td>
-            <td class="align-middle">${renderOrderSummary(order)}</td>
-            <td class="align-middle">${renderDetailsSummary(order)}</td>
-            <td class="align-middle text-end">${renderOrderActions(order)}</td>
-        </tr>
-    `}).join('');
+            <div class="order-card card shadow-sm">
+                <div class="card-body">
+                    <div class="order-card-header">
+                        <div class="order-card-top flex-wrap">
+                            <div class="d-flex align-items-start gap-3 flex-grow-1">
+                                <div class="form-check mt-1">
+                                    <input class="form-check-input order-checkbox" type="checkbox" value="${checkboxValue}" onchange="updateSelectedOrdersCount()">
+                                </div>
+                                <div class="order-summary">${renderOrderSummary(order)}</div>
+                            </div>
+                            <div class="order-actions">${actions}</div>
+                        </div>
+                        <div class="order-details">${renderDetailsSummary(order)}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    updateSelectedOrdersCount();
 }
 
 function updateOrdersCount(total) {
@@ -742,18 +876,31 @@ function renderOrderSummary(order) {
     const orderId = order.ml_order_id || order.order_id || '-';
     const createdAt = formatDate(order.date_created);
     const accountLabel = order.account_nickname || order.account_name;
-    const lines = [
-        `<div class="fw-semibold">${orderId}</div>`,
-        accountLabel ? `<div class="text-muted small">${accountLabel}</div>` : '',
-        createdAt ? `<div class="text-muted small"><i class="bi bi-clock-history me-1"></i>${createdAt}</div>` : ''
-    ].filter(Boolean);
+    const summarySegments = [];
+
+    summarySegments.push(`<span class="summary-segment"><span class="fw-semibold">${orderId}</span></span>`);
+
+    if (accountLabel) {
+        summarySegments.push(`<span class="summary-segment text-muted">${sanitizeText(accountLabel)}</span>`);
+    }
+
+    if (createdAt) {
+        summarySegments.push(`<span class="summary-segment text-muted"><i class="bi bi-clock-history me-1"></i>${createdAt}</span>`);
+    }
+
+    const summaryLine = summarySegments.join('');
 
     const buyerDetails = renderBuyerSummary(order);
     if (buyerDetails) {
-        lines.push(`<div class="mt-2 pt-2 border-top">${buyerDetails}</div>`);
+        return `
+            <div class="d-flex flex-column gap-2">
+                <div class="order-summary-inline">${summaryLine}</div>
+                <div class="pt-2 border-top">${buyerDetails}</div>
+            </div>
+        `;
     }
 
-    return `<div class="d-flex flex-column gap-1">${lines.join('')}</div>`;
+    return `<div class="order-summary-inline">${summaryLine}</div>`;
 }
 
 function renderPagination(total, limit, currentPage) {
@@ -973,14 +1120,21 @@ function renderBuyerSummary(order) {
 
     const addressLines = [street, comment, district, locationLine, postalCode ? `CEP: ${postalCode}` : null].filter(Boolean);
 
-    const lines = [
-        `<div class="fw-semibold">${mainName}</div>`,
-        nickname ? `<div class="text-muted small">${nickname}</div>` : '',
-        showDistinctReceiver ? `<div class="text-muted small">${receiverName}</div>` : '',
-        email ? `<div class="text-muted small"><i class="bi bi-envelope me-1"></i>${email}</div>` : '',
-        phone ? `<div class="text-muted small"><i class="bi bi-telephone me-1"></i>${phone}</div>` : '',
-        addressLines.length ? `<div class="text-muted small">${addressLines.join('<br>')}</div>` : ''
-    ].filter(Boolean);
+    const lines = [];
+    const namePartsInline = [
+        `<span class="fw-semibold">${mainName}</span>`
+    ];
+    if (nickname) {
+        namePartsInline.push(`<span class="text-muted">(${nickname})</span>`);
+    }
+    lines.push(`<div class="d-flex flex-wrap gap-2 align-items-center">${namePartsInline.join(' ')}</div>`);
+
+    if (showDistinctReceiver) {
+        lines.push(`<div class="text-muted small">${receiverName}</div>`);
+    }
+    lines.push(email ? `<div class="text-muted small"><i class="bi bi-envelope me-1"></i>${email}</div>` : '');
+    lines.push(phone ? `<div class="text-muted small"><i class="bi bi-telephone me-1"></i>${phone}</div>` : '');
+    lines.push(addressLines.length ? `<div class="text-muted small">${addressLines.join(' <span class="text-muted">•</span> ')}</div>` : '');
 
     return `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`;
 }
@@ -1117,41 +1271,67 @@ function renderDetailsSummary(order) {
     let totalAmount = order.total_amount || 0;
     const currency = order.currency_id || 'BRL';
 
-    const itemsToShow = itemsRaw.slice(0, 3);
-    const lines = itemsToShow.map(entry => {
+    const rows = itemsRaw.map(entry => {
         const itemData = entry.item || entry;
         const title = sanitizeText(itemData?.title || itemData?.name || 'Item sem título');
         const quantityValue = getItemQuantity(entry) || 1;
-        const quantityLabel = `Qtd: ${quantityValue}`;
         const thumbnail = getItemThumbnail(itemData);
-    
-        const thumbSegment = thumbnail
-            ? `<div class="item-thumb"><img src="${thumbnail}" alt="${title}" loading="lazy"></div>`
-            : '';
+        const unitPrice = entry.unit_price || itemData?.unit_price || 0;
+        const currency = order.currency_id || itemData?.currency_id || 'BRL';
+        const totalLine = unitPrice * quantityValue;
+
+        const imageCell = thumbnail
+            ? `<img src="${thumbnail}" alt="${title}" class="img-fluid rounded" style="width:48px;height:48px;object-fit:cover;">`
+            : '<span class="text-muted">—</span>';
 
         return `
-            <div class="item-line">
-                ${thumbSegment}
-                <div class="item-info">
-                    <span class="item-title">${title}</span>
-                    <span class="item-meta">${quantityLabel}</span>
-                </div>
-            </div>
+            <tr>
+                <td class="text-center align-middle" style="width:60px;">${imageCell}</td>
+                <td class="align-middle">
+                    <div class="fw-semibold small">${title}</div>
+                </td>
+                <td class="text-end align-middle" style="width:120px;">
+                    ${formatCurrency(unitPrice, currency)}
+                </td>
+                <td class="text-end align-middle" style="width:80px;">
+                    ${quantityValue}
+                </td>
+                <td class="text-end align-middle" style="width:120px;">
+                    ${formatCurrency(totalLine, currency)}
+                </td>
+            </tr>
         `;
     });
-    
-    if (itemsRaw.length > itemsToShow.length) {
-        lines.push(`<div class="text-muted small">+${itemsRaw.length - itemsToShow.length} item(s)</div>`);
-    }
-    
-    lines.push(`<div class="text-muted small mt-2"><strong>Total:</strong> ${formatCurrency(totalAmount, currency)}</div>`);
 
     const shippingInline = renderShippingSummary(order);
-    if (shippingInline) {
-        lines.push(`<div class="mt-2 pt-2 border-top">${shippingInline}</div>`);
-    }
 
-    return `<div class="d-flex flex-column gap-2">${lines.join('')}</div>`;
+    return `
+        <div class="d-flex flex-column gap-2">
+            <div class="table-responsive">
+                <table class="table table-sm table-borderless align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center" style="width:60px;">Imagem</th>
+                            <th>Descrição</th>
+                            <th class="text-end" style="width:120px;">Valor unitário</th>
+                            <th class="text-end" style="width:80px;">Quantidade</th>
+                            <th class="text-end" style="width:120px;">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.join('')}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="4" class="text-end fw-semibold">Total:</td>
+                            <td class="text-end fw-semibold text-primary">${formatCurrency(totalAmount, currency)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            ${shippingInline ? `<div class="pt-2 border-top">${shippingInline}</div>` : ''}
+        </div>
+    `;
 }
 
 function renderShippingSummary(order) {
@@ -1205,10 +1385,10 @@ function renderShippingSummary(order) {
 
     const shippingMethod = getLogisticLabel(shippingMethodSource) || logisticLabel || extractValue(logisticTypeRaw) || null;
 
-    const lines = [];
+    const segments = [];
     const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
     if (shippingMethod) {
-        lines.push(`<div><span class="badge ${badgeClass}">${shippingMethod}</span></div>`);
+        segments.push(`<span class="badge ${badgeClass}">${shippingMethod}</span>`);
     }
 
     if (translatedStatus) {
@@ -1216,36 +1396,36 @@ function renderShippingSummary(order) {
         const transitStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']);
 
         if (status === 'pending') {
-            lines.push(`<div><small class="text-secondary">⏳ ${translatedStatus}</small></div>`);
+            segments.push(`<span class="text-secondary">⏳ ${translatedStatus}</span>`);
         } else if (readyStatuses.has(status)) {
-            lines.push(`<div><small class="text-warning">📦 ${translatedStatus}</small></div>`);
+            segments.push(`<span class="text-warning">📦 ${translatedStatus}</span>`);
         } else if (status === 'delivered') {
-            lines.push(`<div><small class="text-success"><strong>✓ ${translatedStatus}</strong></small></div>`);
+            segments.push(`<span class="text-success fw-semibold">✓ ${translatedStatus}</span>`);
         } else if (transitStatuses.has(status)) {
-            lines.push(`<div><small class="text-info">🚚 ${translatedStatus}</small></div>`);
-                } else {
+            segments.push(`<span class="text-info">🚚 ${translatedStatus}</span>`);
+        } else {
             const icon = shippingStatusIcons[status] || '🚚';
             const statusClass = getShippingStatusClass(status);
-            const baseClass = statusClass ? `${statusClass} small` : 'text-muted small';
-            lines.push(`<div><span class="${baseClass}">${icon} ${translatedStatus}</span></div>`);
+            const baseClass = statusClass ? `${statusClass} small` : 'text-muted';
+            segments.push(`<span class="${baseClass}">${icon} ${translatedStatus}</span>`);
         }
     }
 
     if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
-        lines.push(`<div><small class="text-muted">📍 ${translatedSubstatus}</small></div>`);
+        segments.push(`<span class="text-muted">📍 ${translatedSubstatus}</span>`);
     }
 
     if (status === 'delivered' && deliveredDate) {
         const deliveredFormatted = formatDateOnly(deliveredDate);
         if (deliveredFormatted) {
-            lines.push(`<div><small class="text-success">📅 ${deliveredFormatted}</small></div>`);
+            segments.push(`<span class="text-success">📅 ${deliveredFormatted}</span>`);
         }
     }
 
     if (status !== 'delivered' && shippedDate) {
         const shippedFormatted = formatDateOnly(shippedDate);
         if (shippedFormatted) {
-            lines.push(`<div><small class="text-muted">📦 Enviado: ${shippedFormatted}</small></div>`);
+            segments.push(`<span class="text-muted">📦 Enviado: ${shippedFormatted}</span>`);
         }
     }
 
@@ -1254,32 +1434,32 @@ function renderShippingSummary(order) {
     if (isPickup) {
         const dropOffFormatted = formatDateTime(dropOffDate);
         if (dropOffFormatted) {
-            lines.push(`<div><small class="text-muted">📦 Registrado: ${dropOffFormatted}</small></div>`);
+            segments.push(`<span class="text-muted">📦 Registrado: ${dropOffFormatted}</span>`);
         }
 
         const bufferingDate = shipping.shipping_option?.buffering?.date;
         const bufferingFormatted = formatDateOnly(bufferingDate);
         if (bufferingFormatted) {
-            lines.push(`<div><small class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</small></div>`);
+            segments.push(`<span class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</span>`);
         }
     }
 
     if (estimatedDate && status !== 'delivered') {
         const estimatedFormatted = formatDateOnly(estimatedDate);
         if (estimatedFormatted) {
-            lines.push(`<div><small class="text-muted">📅 Previsão: ${estimatedFormatted}</small></div>`);
+            segments.push(`<span class="text-muted">📅 Previsão: ${estimatedFormatted}</span>`);
         }
     }
 
-    if (!lines.length && (logisticLabel || shippingMethod)) {
+    if (!segments.length && (logisticLabel || shippingMethod)) {
         const fallbackBadge = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
         const label = logisticLabel || shippingMethod || 'N/A';
-        return `<div class="d-flex flex-column gap-1 small"><div><span class="badge ${fallbackBadge}">${label}</span></div></div>`;
+        return `<div class="order-shipping-inline small"><span class="badge ${fallbackBadge}">${label}</span></div>`;
     }
 
-    return lines.length
-        ? `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`
-        : `<div class="d-flex flex-column gap-1 small"><div><span class="badge bg-secondary">N/A</span></div></div>`;
+    return segments.length
+        ? `<div class="order-shipping-inline small text-muted d-flex flex-column gap-1"><div class="d-flex flex-wrap align-items-center gap-2">${segments.join('<span class="text-muted">•</span>')}</div></div>`
+        : `<div class="order-shipping-inline small text-muted"><span class="badge bg-secondary">N/A</span></div>`;
 }
 
 function getStatusBadgeClass(status) {
@@ -1364,10 +1544,10 @@ function renderShippingSummary(order) {
 
     const shippingMethod = getLogisticLabel(shippingMethodSource) || logisticLabel || extractValue(logisticTypeRaw) || null;
 
-    const lines = [];
+    const segments = [];
     const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
     if (shippingMethod) {
-        lines.push(`<div><span class="badge ${badgeClass}">${shippingMethod}</span></div>`);
+        segments.push(`<span class="badge ${badgeClass}">${shippingMethod}</span>`);
     }
 
     if (translatedStatus) {
@@ -1375,36 +1555,36 @@ function renderShippingSummary(order) {
         const transitStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']);
 
         if (status === 'pending') {
-            lines.push(`<div><small class="text-secondary">⏳ ${translatedStatus}</small></div>`);
+            segments.push(`<span class="text-secondary">⏳ ${translatedStatus}</span>`);
         } else if (readyStatuses.has(status)) {
-            lines.push(`<div><small class="text-warning">📦 ${translatedStatus}</small></div>`);
+            segments.push(`<span class="text-warning">📦 ${translatedStatus}</span>`);
         } else if (status === 'delivered') {
-            lines.push(`<div><small class="text-success"><strong>✓ ${translatedStatus}</strong></small></div>`);
+            segments.push(`<span class="text-success fw-semibold">✓ ${translatedStatus}</span>`);
         } else if (transitStatuses.has(status)) {
-            lines.push(`<div><small class="text-info">🚚 ${translatedStatus}</small></div>`);
+            segments.push(`<span class="text-info">🚚 ${translatedStatus}</span>`);
         } else {
             const icon = shippingStatusIcons[status] || '🚚';
             const statusClass = getShippingStatusClass(status);
-            const baseClass = statusClass ? `${statusClass} small` : 'text-muted small';
-            lines.push(`<div><span class="${baseClass}">${icon} ${translatedStatus}</span></div>`);
+            const baseClass = statusClass ? `${statusClass} small` : 'text-muted';
+            segments.push(`<span class="${baseClass}">${icon} ${translatedStatus}</span>`);
         }
     }
 
     if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
-        lines.push(`<div><small class="text-muted">📍 ${translatedSubstatus}</small></div>`);
+        segments.push(`<span class="text-muted">📍 ${translatedSubstatus}</span>`);
     }
 
     if (status === 'delivered' && deliveredDate) {
         const deliveredFormatted = formatDateOnly(deliveredDate);
         if (deliveredFormatted) {
-            lines.push(`<div><small class="text-success">📅 ${deliveredFormatted}</small></div>`);
+            segments.push(`<span class="text-success">📅 ${deliveredFormatted}</span>`);
         }
     }
 
     if (status !== 'delivered' && shippedDate) {
         const shippedFormatted = formatDateOnly(shippedDate);
         if (shippedFormatted) {
-            lines.push(`<div><small class="text-muted">📦 Enviado: ${shippedFormatted}</small></div>`);
+            segments.push(`<span class="text-muted">📦 Registrado: ${shippedFormatted}</span>`);
         }
     }
 
@@ -1413,32 +1593,32 @@ function renderShippingSummary(order) {
     if (isPickup) {
         const dropOffFormatted = formatDateTime(dropOffDate);
         if (dropOffFormatted) {
-            lines.push(`<div><small class="text-muted">📦 Registrado: ${dropOffFormatted}</small></div>`);
+            segments.push(`<span class="text-muted">📦 Registrado: ${dropOffFormatted}</span>`);
         }
 
         const bufferingDate = shipping.shipping_option?.buffering?.date;
         const bufferingFormatted = formatDateOnly(bufferingDate);
         if (bufferingFormatted) {
-            lines.push(`<div><small class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</small></div>`);
+            segments.push(`<span class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</span>`);
         }
     }
 
     if (estimatedDate && status !== 'delivered') {
         const estimatedFormatted = formatDateOnly(estimatedDate);
         if (estimatedFormatted) {
-            lines.push(`<div><small class="text-muted">📅 Previsão: ${estimatedFormatted}</small></div>`);
+            segments.push(`<span class="text-muted">📅 Previsão: ${estimatedFormatted}</span>`);
         }
     }
 
-    if (!lines.length && (logisticLabel || shippingMethod)) {
+    if (!segments.length && (logisticLabel || shippingMethod)) {
         const fallbackBadge = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
         const label = logisticLabel || shippingMethod || 'N/A';
-        return `<div class="d-flex flex-column gap-1 small"><div><span class="badge ${fallbackBadge}">${label}</span></div></div>`;
+        return `<div class="order-shipping-inline small"><span class="badge ${fallbackBadge}">${label}</span></div>`;
     }
 
-    return lines.length
-        ? `<div class="d-flex flex-column gap-1 small">${lines.join('')}</div>`
-        : `<div class="d-flex flex-column gap-1 small"><div><span class="badge bg-secondary">N/A</span></div></div>`;
+    return segments.length
+        ? `<div class="order-shipping-inline small text-muted d-flex flex-column gap-1"><div class="d-flex flex-wrap align-items-center gap-2">${segments.join('<span class="text-muted">•</span>')}</div></div>`
+        : `<div class="order-shipping-inline small text-muted"><span class="badge bg-secondary">N/A</span></div>`;
 }
 
 function getLogisticLabel(logisticType) {
