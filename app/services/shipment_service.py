@@ -3,11 +3,13 @@ Serviço para gerenciar expedição e notas fiscais
 """
 import requests
 import logging
-from typing import Dict, List, Optional
+import json
+from decimal import Decimal
+from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.models.saas_models import MLOrder, OrderStatus, MLAccount, Token, User
+from app.models.saas_models import MLOrder, OrderStatus, MLAccount, Token, User, Company
 from sqlalchemy import or_
 
 logger = logging.getLogger(__name__)
@@ -854,6 +856,275 @@ class ShipmentService:
                 "error": str(e)
             }
 
+    def emit_invoice_for_order(self, order_id: str, company_id: int, access_token: str) -> Dict:
+        """
+        Solicita a emissão da nota fiscal via Faturador do Mercado Livre.
+        """
+        try:
+            logger.info(f"🧾 [EMIT] Iniciando emissão da NF para pedido {order_id} (company_id={company_id})")
+
+            order = (
+                self.db.query(MLOrder)
+                .filter(
+                    MLOrder.company_id == company_id,
+                    or_(
+                        MLOrder.ml_order_id == order_id,
+                        MLOrder.order_id == order_id,
+                        MLOrder.pack_id == order_id
+                    )
+                )
+                .first()
+            )
+
+            if not order:
+                return {"success": False, "error": "Pedido não encontrado."}
+
+            if order.invoice_emitted:
+                return {"success": False, "error": "A nota fiscal já foi emitida para este pedido."}
+
+            shipping_details_raw = self._ensure_dict(order.shipping_details)
+            logistic_type = (
+                (order.shipping_type)
+                or shipping_details_raw.get("logistic_type")
+                or self._ensure_dict(shipping_details_raw.get("shipping_option")).get("logistic_type")
+                or shipping_details_raw.get("mode")
+                or ""
+            )
+            logistic_type = str(logistic_type).lower()
+
+            shipping_id = order.shipping_id
+            if not shipping_id:
+                shipping_id = shipping_details_raw.get("shipping_id") or shipping_details_raw.get("id")
+
+            seller_id = order.seller_id
+            if not seller_id:
+                account = (
+                    self.db.query(MLAccount)
+                    .filter(MLAccount.company_id == company_id)
+                    .first()
+                )
+                if account and account.ml_user_id:
+                    seller_id = account.ml_user_id
+
+            if not seller_id:
+                return {"success": False, "error": "Não foi possível identificar o vendedor (seller_id) para emissão da nota."}
+
+            company = self.db.query(Company).filter(Company.id == company_id).first()
+            if not company:
+                return {"success": False, "error": "Empresa não encontrada."}
+
+            seller_doc_number = self._sanitize_document(company.cnpj)
+            seller_doc_type = None
+
+            if not seller_doc_number:
+                seller_identification = self._fetch_seller_identification(seller_id=seller_id, access_token=access_token)
+                if seller_identification:
+                    seller_doc_number = seller_identification.get("id_number")
+                    seller_doc_type = seller_identification.get("id_type")
+                if not seller_doc_number:
+                    return {
+                        "success": False,
+                        "error": "CNPJ da empresa não cadastrado. Configure seus dados fiscais no Mercado Livre."
+                    }
+
+            if not seller_doc_type:
+                seller_doc_type = "CNPJ" if len(seller_doc_number) > 11 else "CPF"
+
+            seller_doc = {
+                "id_type": seller_doc_type,
+                "id_number": seller_doc_number,
+                "name": company.razao_social or company.nome_fantasia or company.name or "Empresa"
+            }
+
+            buyer_ident = self._extract_buyer_identification(order)
+            if not buyer_ident:
+                buyer_ident = self._fetch_buyer_identification_from_api(order, access_token)
+            if not buyer_ident:
+                return {
+                    "success": False,
+                    "error": "Dados fiscais do comprador ausentes (CPF/CNPJ). Atualize o pedido no Mercado Livre e tente novamente."
+                }
+
+            receiver_address = self._extract_receiver_address(order)
+            missing_address_fields = [
+                key for key in ["zip_code", "street_name", "city", "state"]
+                if not receiver_address.get(key)
+            ]
+            if missing_address_fields:
+                return {
+                    "success": False,
+                    "error": f"Endereço incompleto do comprador para emissão da nota (campos ausentes: {', '.join(missing_address_fields)})."
+                }
+
+            items, items_total = self._extract_invoice_items(order)
+            if not items:
+                return {
+                    "success": False,
+                    "error": "Itens do pedido não encontrados para emissão da nota fiscal."
+                }
+
+            total_amount = self._ensure_decimal(order.total_amount)
+            if total_amount <= 0:
+                total_amount = items_total
+
+            if total_amount <= 0:
+                return {
+                    "success": False,
+                    "error": "Valor total do pedido inválido para emissão da nota fiscal."
+                }
+
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+
+            order_ids_payload = self._collect_related_order_ids(order, company_id)
+            if not order_ids_payload:
+                return {
+                    "success": False,
+                    "error": "Não foi possível identificar as vendas relacionadas para emissão da nota fiscal."
+                }
+
+            orders_url = f"{self.base_url}/users/{seller_id}/invoices/orders"
+            orders_payload = {"orders": order_ids_payload}
+
+            logger.info(f"📡 [EMIT] POST {orders_url} payload={orders_payload}")
+            response_orders = requests.post(orders_url, headers=headers, json=orders_payload, timeout=30)
+
+            try:
+                response_orders_data = response_orders.json()
+            except Exception:
+                response_orders_data = None
+
+            if response_orders.status_code in (200, 201):
+                logger.info(f"✅ [EMIT] Emissão via orders concluída (status HTTP {response_orders.status_code})")
+                invoice_data = self._check_order_invoice(
+                    order_id=str(order_ids_payload[0]),
+                    company_id=company_id,
+                    access_token=access_token,
+                    seller_id=seller_id,
+                    ml_account_id=order.ml_account_id
+                )
+
+                if invoice_data and invoice_data.get("has_invoice"):
+                    updated_count = self._apply_invoice_to_orders(order_ids_payload, company_id, invoice_data)
+                    self.db.commit()
+                    return {
+                        "success": True,
+                        "message": "Nota fiscal emitida com sucesso.",
+                        "invoice": invoice_data,
+                        "updated_orders": updated_count
+                    }
+
+                return {
+                    "success": True,
+                    "message": "Solicitação de emissão enviada. A nota fiscal será disponibilizada em alguns instantes.",
+                    "invoice": response_orders_data
+                }
+
+            error_message = None
+            if isinstance(response_orders_data, dict):
+                error_message = (
+                    response_orders_data.get("message")
+                    or response_orders_data.get("error")
+                    or response_orders.text
+                )
+                error_code = response_orders_data.get("error_code")
+                if error_code:
+                    friendly = self._fetch_invoice_error_description(error_code, access_token)
+                    if friendly:
+                        error_message = friendly
+                        response_orders_data["friendly_message"] = friendly
+            if not error_message:
+                error_message = response_orders.text
+            logger.error(
+                f"❌ Erro ao emitir NF via orders (status {response_orders.status_code}) "
+                f"para pedido {order_id}, payload {order_ids_payload}: {json.dumps(response_orders_data, default=str)}"
+            )
+
+            must_fallback_to_shipment = (
+                shipping_id
+                and logistic_type in {"fulfillment"}
+            )
+
+            if not must_fallback_to_shipment:
+                logger.error(f"❌ Erro ao emitir NF via orders (sem fallback): {error_message}")
+                return {
+                    "success": False,
+                    "error": f"Erro ao emitir nota fiscal: {error_message}",
+                    "details": response_orders_data
+                }
+
+            logger.info("ℹ️ Emissão via orders falhou; tentando endpoint de shipments como fallback (Fulfillment).")
+
+            payload = self._build_invoice_payload(
+                order=order,
+                items=items,
+                total_amount=float(total_amount),
+                seller_doc=seller_doc,
+                buyer_ident=buyer_ident,
+                receiver_address=receiver_address
+            )
+
+            url = f"{self.base_url}/users/{seller_id}/invoices/shipments/{shipping_id}"
+            logger.info(f"📡 [EMIT] POST {url} payload={payload}")
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            try:
+                response_data = response.json()
+            except Exception:
+                response_data = None
+
+            if response.status_code not in (200, 201):
+                error_message = None
+                if isinstance(response_data, dict):
+                    error_message = response_data.get("message") or response_data.get("error")
+                if not error_message:
+                    error_message = response.text
+                logger.error(
+                    f"❌ Erro ao emitir NF via shipments (status {response.status_code}) "
+                    f"para pedido {order_id}: {error_message} | response={json.dumps(response_data, default=str)}"
+                )
+                return {
+                    "success": False,
+                    "error": f"Erro ao emitir nota fiscal: {error_message}",
+                    "details": response_data
+                }
+
+            logger.info(f"✅ [EMIT] Solicitação de emissão concluída (status HTTP {response.status_code}) - response={response_data}")
+
+            invoice_data = None
+            if order.pack_id:
+                invoice_data = self._check_pack_invoice(order.pack_id, access_token)
+            if not invoice_data or not invoice_data.get("has_invoice"):
+                invoice_data = self._check_shipment_invoice(
+                    shipment_id=str(shipping_id),
+                    company_id=company_id,
+                    access_token=access_token,
+                    seller_id=seller_id,
+                    ml_account_id=order.ml_account_id
+                )
+
+            if invoice_data and invoice_data.get("has_invoice"):
+                self._apply_invoice_to_orders(order_ids_payload, company_id, invoice_data)
+                self.db.commit()
+                return {
+                    "success": True,
+                    "message": "Nota fiscal emitida com sucesso.",
+                    "invoice": invoice_data
+                }
+
+            return {
+                "success": True,
+                "message": "Solicitação de emissão enviada. A nota fiscal será disponibilizada em alguns instantes.",
+                "invoice": response_data
+            }
+
+        except Exception as exc:
+            logger.error(f"❌ Erro ao emitir nota para pedido {order_id}: {exc}", exc_info=True)
+            self.db.rollback()
+            return {"success": False, "error": f"Erro ao emitir nota fiscal: {exc}"}
+
     def _check_pack_invoice(self, pack_id: str, access_token: str) -> Optional[Dict]:
         """
         Verifica se um pack tem nota fiscal emitida
@@ -1109,4 +1380,553 @@ class ShipmentService:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return {"has_invoice": False, "error": str(e)}
+
+    # ------------------------------------------------------------------
+    # Helpers de emissão
+    # ------------------------------------------------------------------
+
+    def _ensure_dict(self, value) -> Dict:
+        if not value:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except Exception:
+                logger.debug(f"⚠️ Não foi possível converter string em JSON: {value[:120]}...")
+        return {}
+
+    def _sanitize_document(self, doc: Optional[str]) -> str:
+        if not doc:
+            return ""
+        return "".join(ch for ch in str(doc) if ch.isdigit())
+
+    def _fetch_seller_identification(self, seller_id: Optional[str], access_token: str) -> Optional[Dict[str, str]]:
+        if not seller_id:
+            return None
+
+        url = f"{self.base_url}/users/{seller_id}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            if response.status_code != 200:
+                logger.warning(
+                    f"⚠️ Não foi possível obter identificação do vendedor {seller_id}. "
+                    f"Status HTTP: {response.status_code}"
+                )
+                return None
+
+            data = response.json()
+            identification = data.get("identification") or {}
+
+            doc_number = (
+                identification.get("number")
+                or identification.get("id_number")
+                or data.get("tax_id")
+            )
+            doc_number = self._sanitize_document(doc_number)
+
+            if not doc_number:
+                return None
+
+            doc_type = (
+                identification.get("type")
+                or identification.get("id_type")
+            )
+            if not doc_type:
+                doc_type = "CNPJ" if len(doc_number) > 11 else "CPF"
+
+            name = (
+                data.get("legal_name")
+                or data.get("business_name")
+                or data.get("corporate_name")
+                or identification.get("name")
+                or f"{data.get('first_name', '')} {data.get('last_name', '')}".strip()
+            )
+
+            return {
+                "id_type": str(doc_type).upper(),
+                "id_number": doc_number,
+                "name": name or None
+            }
+
+        except Exception as exc:
+            logger.warning(f"⚠️ Erro ao buscar identificação do vendedor {seller_id}: {exc}")
+            return None
+
+    def _fetch_buyer_identification_from_api(self, order: MLOrder, access_token: str) -> Optional[Dict[str, str]]:
+        if not order or not order.order_id:
+            return None
+
+        url = f"{self.base_url}/orders/{order.order_id}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            if response.status_code != 200:
+                logger.warning(
+                    f"⚠️ Não foi possível obter dados fiscais do comprador via API para o pedido {order.order_id}. "
+                    f"Status HTTP: {response.status_code}"
+                )
+                return None
+
+            payload = response.json()
+            buyer_payload = payload.get("buyer") or {}
+            shipping_payload = payload.get("shipping") or {}
+            payments_payload = payload.get("payments")
+
+            receiver_address = (
+                shipping_payload.get("receiver_address")
+                or shipping_payload.get("destination", {}).get("receiver_address")
+                or {}
+            )
+
+            candidates: List[Dict] = []
+            candidates.append(buyer_payload.get("identification") or {})
+
+            billing_info = buyer_payload.get("billing_info") or payload.get("billing_info") or {}
+            if isinstance(billing_info, dict):
+                candidates.append({
+                    "type": billing_info.get("doc_type"),
+                    "number": billing_info.get("doc_number")
+                })
+                candidates.append(billing_info.get("identification") or {})
+
+            if receiver_address and isinstance(receiver_address, dict):
+                candidates.append(receiver_address.get("receiver_identification") or {})
+                candidates.append(receiver_address.get("identification") or {})
+
+            if payments_payload:
+                for payment in payments_payload:
+                    if not isinstance(payment, dict):
+                        continue
+                    payer = payment.get("payer") or {}
+                    candidates.append(payer.get("identification") or {})
+                    buyer_payment = payment.get("buyer") or {}
+                    candidates.append(buyer_payment.get("identification") or {})
+
+            for candidate in candidates:
+                if not candidate or not isinstance(candidate, dict):
+                    continue
+                doc_number = self._sanitize_document(
+                    candidate.get("number")
+                    or candidate.get("id_number")
+                    or candidate.get("identification_number")
+                )
+                if doc_number:
+                    doc_type = (
+                        candidate.get("type")
+                        or candidate.get("id_type")
+                        or ("CNPJ" if len(doc_number) > 11 else "CPF")
+                    )
+
+                    try:
+                        if receiver_address:
+                            order.shipping_address = receiver_address
+                        if shipping_payload:
+                            order.shipping_details = shipping_payload
+                        if payments_payload:
+                            order.payments = payments_payload
+                        self.db.flush()
+                    except Exception as exc_flush:
+                        logger.warning(f"⚠️ Não foi possível atualizar o pedido com dados do comprador: {exc_flush}")
+                        self.db.rollback()
+
+                    return {
+                        "id_type": str(doc_type).upper(),
+                        "id_number": doc_number
+                    }
+
+            shipping_id = (
+                str(shipping_payload.get("id"))
+                if isinstance(shipping_payload, dict) and shipping_payload.get("id")
+                else order.shipping_id
+            )
+            if shipping_id and not isinstance(shipping_id, str):
+                shipping_id = str(shipping_id)
+
+            if shipping_id:
+                try:
+                    billing_url = f"{self.base_url}/shipments/{shipping_id}/billing_info"
+                    billing_response = requests.get(billing_url, headers=headers, timeout=30)
+                    if billing_response.status_code == 200:
+                        billing_data = billing_response.json() or {}
+                        receiver_info = billing_data.get("receiver") or {}
+                        receiver_doc = receiver_info.get("document") or {}
+                        doc_number = self._sanitize_document(
+                            receiver_doc.get("value")
+                            or receiver_doc.get("number")
+                            or receiver_doc.get("id_number")
+                        )
+                        if doc_number:
+                            doc_type = receiver_doc.get("id") or receiver_doc.get("type")
+                            if not doc_type:
+                                doc_type = "CNPJ" if len(doc_number) > 11 else "CPF"
+
+                            try:
+                                if receiver_address:
+                                    order.shipping_address = receiver_address
+                                if shipping_payload and not order.shipping_details:
+                                    order.shipping_details = shipping_payload
+                                if payments_payload and not order.payments:
+                                    order.payments = payments_payload
+                                if shipping_id:
+                                    order.shipping_id = shipping_id
+                                self.db.flush()
+                            except Exception as exc_flush:
+                                logger.warning(f"⚠️ Não foi possível atualizar o pedido com dados do comprador (billing_info): {exc_flush}")
+                                self.db.rollback()
+
+                            return {
+                                "id_type": str(doc_type).upper(),
+                                "id_number": doc_number
+                            }
+                    else:
+                        logger.warning(
+                            f"⚠️ billing_info do shipment {shipping_id} retornou status {billing_response.status_code}"
+                        )
+                except Exception as exc_billing:
+                    logger.warning(f"⚠️ Erro ao buscar billing_info para shipment {shipping_id}: {exc_billing}")
+
+            logger.warning(
+                f"⚠️ Pedido {order.order_id} retornado pela API sem identificação fiscal do comprador."
+            )
+            return None
+
+        except Exception as exc:
+            logger.warning(f"⚠️ Erro ao buscar identificação do comprador via API para o pedido {order.order_id}: {exc}")
+            return None
+
+    def _ensure_decimal(self, value) -> Decimal:
+        try:
+            if value is None:
+                return Decimal("0")
+            if isinstance(value, Decimal):
+                return value
+            return Decimal(str(value))
+        except Exception:
+            return Decimal("0")
+
+    def _extract_buyer_identification(self, order: MLOrder) -> Optional[Dict[str, str]]:
+        shipping_details = self._ensure_dict(order.shipping_details)
+        shipping_address = self._ensure_dict(order.shipping_address)
+
+        candidates = []
+
+        destination = self._ensure_dict(shipping_details.get("destination"))
+        candidates.append(self._ensure_dict(destination.get("receiver_identification")))
+        destination_receiver = self._ensure_dict(destination.get("receiver"))
+        candidates.append(self._ensure_dict(destination_receiver.get("identification")))
+
+        receiver_address = self._ensure_dict(destination.get("receiver_address"))
+        if not receiver_address:
+            receiver_address = self._ensure_dict(shipping_details.get("receiver_address"))
+        if not receiver_address:
+            receiver_address = shipping_address
+
+        candidates.append(self._ensure_dict(receiver_address.get("receiver_identification")))
+        candidates.append(self._ensure_dict(receiver_address.get("identification")))
+
+        candidates.append(self._ensure_dict(shipping_address.get("receiver_identification")))
+        candidates.append(self._ensure_dict(shipping_address.get("identification")))
+
+        payments_data = order.payments
+        if payments_data:
+            if isinstance(payments_data, str):
+                try:
+                    payments_data = json.loads(payments_data)
+                except Exception:
+                    payments_data = []
+            if isinstance(payments_data, list):
+                for payment in payments_data:
+                    payment_dict = self._ensure_dict(payment)
+                    payer = self._ensure_dict(payment_dict.get("payer"))
+                    candidates.append(self._ensure_dict(payer.get("identification")))
+                    buyer = self._ensure_dict(payment_dict.get("buyer"))
+                    candidates.append(self._ensure_dict(buyer.get("identification")))
+
+        for candidate in candidates:
+            if not candidate:
+                continue
+            if isinstance(candidate, dict):
+                doc_type = candidate.get("type") or candidate.get("id_type") or candidate.get("identification_type")
+                doc_number = candidate.get("number") or candidate.get("id_number") or candidate.get("identification_number")
+            else:
+                doc_type = None
+                doc_number = str(candidate)
+
+            doc_number = self._sanitize_document(doc_number)
+            if doc_number:
+                if not doc_type:
+                    doc_type = "CPF" if len(doc_number) <= 11 else "CNPJ"
+                return {"id_type": doc_type.upper(), "id_number": doc_number}
+
+        return None
+
+    def _extract_receiver_address(self, order: MLOrder) -> Dict[str, str]:
+        shipping_details = self._ensure_dict(order.shipping_details)
+        shipping_address = self._ensure_dict(order.shipping_address)
+
+        destination = self._ensure_dict(shipping_details.get("destination"))
+        receiver_address = self._ensure_dict(destination.get("receiver_address"))
+
+        if not receiver_address:
+            receiver_address = self._ensure_dict(shipping_details.get("receiver_address"))
+        if not receiver_address:
+            receiver_address = shipping_address
+
+        state = receiver_address.get("state") or shipping_address.get("state") or {}
+        city = receiver_address.get("city") or shipping_address.get("city") or {}
+
+        street_name = (
+            receiver_address.get("street_name")
+            or receiver_address.get("address_line")
+            or shipping_address.get("street_name")
+            or shipping_address.get("address_line")
+        )
+
+        street_number = (
+            receiver_address.get("street_number")
+            or receiver_address.get("number")
+            or shipping_address.get("street_number")
+            or shipping_address.get("number")
+            or "SN"
+        )
+
+        state_name = state
+        if isinstance(state, dict):
+            state_name = state.get("name") or state.get("id")
+        city_name = city
+        if isinstance(city, dict):
+            city_name = city.get("name") or city.get("id")
+
+        zip_code = (
+            receiver_address.get("zip_code")
+            or shipping_address.get("zip_code")
+            or shipping_address.get("zip_code_prefix")
+        )
+
+        if zip_code and isinstance(zip_code, dict):
+            zip_code = zip_code.get("id") or zip_code.get("value")
+
+        return {
+            "street_name": (street_name or "").strip(),
+            "street_number": str(street_number).strip() if street_number else "SN",
+            "zip_code": self._sanitize_document(zip_code) if zip_code else "",
+            "city": (city_name or "").strip(),
+            "state": (state_name or "").strip(),
+            "country": (receiver_address.get("country") or shipping_address.get("country") or {}).get("id", "BR")
+            if isinstance(receiver_address.get("country") or shipping_address.get("country"), dict)
+            else (receiver_address.get("country") or shipping_address.get("country") or "BR")
+        }
+
+    def _extract_invoice_items(self, order: MLOrder) -> Tuple[List[Dict], Decimal]:
+        items_raw = order.order_items or []
+        if isinstance(items_raw, str):
+            try:
+                items_raw = json.loads(items_raw)
+            except Exception:
+                items_raw = []
+
+        items: List[Dict] = []
+        total = Decimal("0")
+
+        for idx, entry in enumerate(items_raw):
+            entry_dict = self._ensure_dict(entry)
+            item_data = self._ensure_dict(entry_dict.get("item"))
+
+            quantity = entry_dict.get("quantity") or item_data.get("quantity") or 1
+            try:
+                quantity = int(quantity)
+            except Exception:
+                quantity = 1
+
+            unit_price = (
+                entry_dict.get("unit_price")
+                or item_data.get("unit_price")
+                or entry_dict.get("full_unit_price")
+                or item_data.get("full_unit_price")
+            )
+            unit_price = float(unit_price) if unit_price is not None else 0.0
+
+            if unit_price <= 0:
+                continue
+
+            total_line = self._ensure_decimal(unit_price) * self._ensure_decimal(quantity)
+            total += total_line
+
+            sku = (
+                entry_dict.get("seller_sku")
+                or entry_dict.get("seller_custom_field")
+                or item_data.get("seller_sku")
+                or item_data.get("seller_custom_field")
+            )
+
+            items.append({
+                "code": sku or item_data.get("id") or f"ITEM-{idx + 1}",
+                "description": item_data.get("title") or entry_dict.get("title") or "Item",
+                "quantity": quantity,
+                "unit_price": float(unit_price),
+                "total_amount": float(total_line),
+                "sku": sku,
+                "category_id": item_data.get("category_id")
+            })
+
+        return items, total
+
+    def _build_invoice_payload(
+        self,
+        order: MLOrder,
+        items: List[Dict],
+        total_amount: float,
+        seller_doc: Dict[str, str],
+        buyer_ident: Dict[str, str],
+        receiver_address: Dict[str, str],
+    ) -> Dict:
+        receiver_name = (
+            receiver_address.get("receiver_name")
+            or receiver_address.get("name")
+            or self._ensure_dict(order.shipping_address).get("receiver_name")
+            or "Cliente Mercado Livre"
+        )
+
+        payload = {
+            "issuer": {
+                "name": seller_doc.get("name"),
+                "id_type": seller_doc.get("id_type"),
+                "id_number": seller_doc.get("id_number"),
+            },
+            "receiver": {
+                "name": receiver_name,
+                "id_type": buyer_ident.get("id_type"),
+                "id_number": buyer_ident.get("id_number"),
+                "address": {
+                    "zip_code": receiver_address.get("zip_code"),
+                    "street_name": receiver_address.get("street_name"),
+                    "street_number": receiver_address.get("street_number"),
+                    "city": receiver_address.get("city"),
+                    "state": receiver_address.get("state"),
+                    "country": receiver_address.get("country") or "BR",
+                },
+            },
+            "items": [
+                {
+                    "code": item.get("code"),
+                    "description": item.get("description"),
+                    "quantity": item.get("quantity"),
+                    "unit_price": item.get("unit_price"),
+                    "total_amount": item.get("total_amount"),
+                    "sku": item.get("sku"),
+                    "category_id": item.get("category_id"),
+                }
+                for item in items
+            ],
+            "total_amount": total_amount,
+            "currency_id": order.currency_id or "BRL",
+        }
+
+        # Informações adicionais opcionais
+        if order.pack_id:
+            payload["pack_id"] = order.pack_id
+        if order.shipping_id:
+            payload["shipping_id"] = str(order.shipping_id)
+
+        payments_data = order.payments
+        payment_methods = []
+        if payments_data:
+            if isinstance(payments_data, str):
+                try:
+                    payments_data = json.loads(payments_data)
+                except Exception:
+                    payments_data = []
+            if isinstance(payments_data, list):
+                for payment in payments_data:
+                    payment_dict = self._ensure_dict(payment)
+                    payment_methods.append({
+                        "transaction_amount": payment_dict.get("transaction_amount"),
+                        "currency_id": payment_dict.get("currency_id"),
+                        "payment_method": payment_dict.get("payment_method_id"),
+                        "installments": payment_dict.get("installments"),
+                    })
+        if payment_methods:
+            payload["payments"] = payment_methods
+
+        return payload
+
+    def _collect_related_order_ids(self, order: MLOrder, company_id: int) -> List[int]:
+        order_ids: List[int] = []
+
+        def _try_add(value):
+            try:
+                if value is None:
+                    return
+                numeric = int(str(value))
+                if numeric not in order_ids:
+                    order_ids.append(numeric)
+            except (TypeError, ValueError):
+                return
+
+        _try_add(order.ml_order_id)
+        _try_add(order.order_id)
+
+        if order.pack_id:
+            related_orders = (
+                self.db.query(MLOrder)
+                .filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.pack_id == order.pack_id
+                )
+                .all()
+            )
+            for related in related_orders:
+                _try_add(related.ml_order_id)
+                _try_add(related.order_id)
+
+        return order_ids
+
+    def _fetch_invoice_error_description(self, error_code: Optional[str], access_token: str) -> Optional[str]:
+        if not error_code:
+            return None
+        try:
+            url = f"{self.base_url}/users/invoices/errors/MLB/{error_code}"
+            headers = {"Authorization": f"Bearer {access_token}"}
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("display_message") or data.get("message")
+            logger.warning(f"⚠️ Não foi possível obter descrição do erro {error_code}: status {response.status_code}")
+        except Exception as exc:
+            logger.warning(f"⚠️ Falha ao consultar descrição do erro {error_code}: {exc}")
+        return None
+
+    def _apply_invoice_to_orders(self, order_ids: List[int], company_id: int, invoice_data: Dict) -> int:
+        updated = 0
+        for oid in order_ids:
+            order_record = (
+                self.db.query(MLOrder)
+                .filter(
+                    MLOrder.company_id == company_id,
+                    or_(
+                        MLOrder.ml_order_id == str(oid),
+                        MLOrder.order_id == str(oid)
+                    )
+                )
+                .first()
+            )
+            if not order_record:
+                continue
+            self._apply_invoice_to_order(order_record, invoice_data)
+            updated += 1
+        return updated
+
+    def _apply_invoice_to_order(self, order: MLOrder, invoice_data: Dict) -> None:
+        order.invoice_emitted = True
+        order.invoice_emitted_at = datetime.now()
+        order.invoice_number = invoice_data.get("number") or order.invoice_number
+        order.invoice_series = invoice_data.get("series") or order.invoice_series
+        order.invoice_key = invoice_data.get("key") or order.invoice_key
+        order.invoice_xml_url = invoice_data.get("xml_url") or order.invoice_xml_url
+        order.invoice_pdf_url = invoice_data.get("pdf_url") or order.invoice_pdf_url
 

@@ -4,7 +4,7 @@ import logging
 import requests
 from datetime import datetime, timedelta
 
-from app.models.saas_models import MLOrder, MLAccount, MLAccountStatus
+from app.models.saas_models import MLOrder, MLAccount, MLAccountStatus, OrderStatus
 from app.services.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)

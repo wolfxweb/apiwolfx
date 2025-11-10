@@ -229,6 +229,19 @@ class ShipmentController:
                 "error": str(e)
             }
 
+    def emit_invoice(self, order_id: str, company_id: int, access_token: str) -> Dict:
+        """
+        Emite nota fiscal via Faturador ML para um pedido específico.
+        """
+        try:
+            return self.service.emit_invoice_for_order(order_id, company_id, access_token)
+        except Exception as e:
+            logger.error(f"Erro ao emitir NF do pedido {order_id}: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
     def get_stats(self, company_id: int) -> Dict:
         """
         Retorna estatísticas dos pedidos para expedição

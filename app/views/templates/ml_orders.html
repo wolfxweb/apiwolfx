@@ -85,7 +85,7 @@
                                 <option value="">Todos</option>
                                 <option value="today">Hoje</option>
                                 <option value="last_7_days">Últimos 7 dias</option>
-                                <option value="last_15_days">Últimos 15 dias</option>
+                                <option value="last_15_days" selected>Últimos 15 dias</option>
                                 <option value="last_30_days">Últimos 30 dias</option>
                                 <option value="last_60_days">Últimos 60 dias</option>
                                 <option value="last_90_days">Últimos 90 dias</option>
@@ -848,15 +848,16 @@ function applyFilters() {
     if (searchValue) params.set('search_query', searchValue);
     if (statusValue) params.set('shipping_status_filter', statusValue);
     if (logisticValue) params.set('logistic_filter', logisticValue);
-    if (selectedPeriodValue) params.set('period_filter', selectedPeriodValue);
+    const finalPeriodValue = selectedPeriodValue || 'last_15_days';
+    if (finalPeriodValue) params.set('period_filter', finalPeriodValue);
 
-    if (selectedPeriodValue && selectedPeriodValue !== 'custom') {
-        const periodDates = getPeriodDates(selectedPeriodValue);
+    if (finalPeriodValue && finalPeriodValue !== 'custom') {
+        const periodDates = getPeriodDates(finalPeriodValue);
         if (periodDates) {
             params.set('date_from', periodDates.from);
             params.set('date_to', periodDates.to);
         }
-    } else if (selectedPeriodValue === 'custom') {
+    } else if (finalPeriodValue === 'custom') {
         const customFromValue = customFromInput?.value || '';
         const customToValue = customToInput?.value || '';
         if (customFromValue) params.set('date_from', customFromValue);
@@ -1291,16 +1292,36 @@ function renderInvoiceDropdown(order) {
         return '';
     }
 
+    let shippingDetailsParsed = {};
+    if (order.shipping_details) {
+        if (typeof order.shipping_details === 'string') {
+            try {
+                shippingDetailsParsed = JSON.parse(order.shipping_details);
+            } catch (err) {
+                shippingDetailsParsed = {};
+            }
+        } else {
+            shippingDetailsParsed = order.shipping_details;
+        }
+    }
+
     const hasInvoice = Boolean(
         (order.invoice_pdf_url && order.invoice_pdf_url.trim()) ||
         (order.invoice_xml_url && order.invoice_xml_url.trim()) ||
         order.invoice_emitted ||
-        (order.invoice_number && order.invoice_number.trim()) ||
+        (order.invoice_number && String(order.invoice_number).trim()) ||
         (order.invoice_key && order.invoice_key.trim())
     );
+
+    const candidateShippingId = shippingDetailsParsed?.id || shippingDetailsParsed?.shipping_id;
+
     const downloadItem = hasInvoice
         ? `<li><a class="dropdown-item" href="/api/shipments/download-invoice/${orderId}" target="_blank"><i class="bi bi-file-earmark-pdf"></i> Baixar nota</a></li>`
         : `<li><button class="dropdown-item disabled" type="button"><i class="bi bi-file-earmark"></i> Nota indisponível</button></li>`;
+
+    const emitButton = hasInvoice
+        ? `<li><button class="dropdown-item disabled" type="button" title="Nota já emitida"><i class="bi bi-check2-circle"></i> Nota já emitida</button></li>`
+        : `<li><button class="dropdown-item" type="button" onclick="emitInvoiceForOrder('${orderId}', this)"><i class="bi bi-file-earmark-plus"></i> Emitir pelo ML</button></li>`;
 
     return `
         <div class="btn-group" role="group">
@@ -1309,6 +1330,8 @@ function renderInvoiceDropdown(order) {
             </button>
             <ul class="dropdown-menu">
                 <li><button class="dropdown-item" type="button" onclick="syncInvoiceForOrder('${orderId}', this)"><i class="bi bi-arrow-repeat"></i> Sincronizar com ML</button></li>
+                ${emitButton}
+                <li><hr class="dropdown-divider"></li>
                 ${downloadItem}
             </ul>
         </div>
@@ -1369,6 +1392,47 @@ async function syncInvoiceForOrder(orderId, triggerElement) {
     } catch (error) {
         console.error('Erro ao sincronizar nota:', error);
         showError(error.message || 'Erro ao sincronizar nota fiscal.');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
+
+async function emitInvoiceForOrder(orderId, triggerElement) {
+    if (!orderId) return;
+
+    const button = triggerElement;
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Emitindo...';
+
+    try {
+        const response = await fetch(`/api/shipments/emit-invoice/${orderId}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+
+        if (checkSessionExpired(response)) {
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            let errorMessage = data.error || data.message || `Erro ${response.status}`;
+            if (data.details && typeof data.details === 'object') {
+                const mlMessage = data.details.message || data.details.error;
+                if (mlMessage && mlMessage !== errorMessage) {
+                    errorMessage += ` (${mlMessage})`;
+                }
+            }
+            throw new Error(errorMessage);
+        }
+
+        showSuccess(data.message || `Nota fiscal do pedido ${orderId} emitida com sucesso.`);
+        loadOrders(currentPage);
+    } catch (error) {
+        console.error('Erro ao emitir nota:', error);
+        showError(error.message || 'Erro ao emitir nota fiscal.');
     } finally {
         button.disabled = false;
         button.innerHTML = originalHtml;
@@ -1873,6 +1937,7 @@ function renderShippingSummary(order) {
         || extractValue(logisticTypeRaw);
 
     const shippingMethod = getLogisticLabel(shippingMethodSource) || logisticLabel || extractValue(logisticTypeRaw) || null;
+    const isPickup = ['xd_drop_off', 'drop_off'].includes((logisticTypeRaw || '').toString().toLowerCase());
 
     const segments = [];
     const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
@@ -1900,8 +1965,38 @@ function renderShippingSummary(order) {
         }
     }
 
+    const isPointCollection = logisticTypeRaw && logisticTypeRaw.toString().toLowerCase() === 'xd_drop_off';
+    const isBuffered = substatus === 'buffered';
+
     if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
         segments.push(`<span class="text-muted">📍 ${translatedSubstatus}</span>`);
+    }
+
+    let bufferingDateUsed = null;
+    if (isPointCollection) {
+        const bufferingDateRaw =
+            shipping.lead_time?.buffering?.date ||
+            shipping.lead_time?.estimated_schedule_limit?.date ||
+            shipping.lead_time?.estimated_delivery_time?.pay_before ||
+            shipping.shipping_option?.buffering?.date ||
+            shipping.lead_time?.pickup_promise?.from;
+
+        if (isBuffered) {
+            let bufferingMessage = '⚠️ Aguardando liberação do Mercado Livre para levar ao ponto de coleta.';
+            if (bufferingDateRaw) {
+                const bufferingDateFormatted = formatDateTime(bufferingDateRaw) || formatDateOnly(bufferingDateRaw);
+                if (bufferingDateFormatted) {
+                    bufferingMessage = `⚠️ Leve ao ponto de coleta a partir de ${bufferingDateFormatted}.`;
+                    bufferingDateUsed = bufferingDateFormatted;
+                }
+            }
+            segments.push(`<span class="text-warning small">${bufferingMessage}</span>`);
+        } else if (bufferingDateRaw) {
+            const bufferingDateFormatted = formatDateOnly(bufferingDateRaw);
+            if (bufferingDateFormatted) {
+                bufferingDateUsed = bufferingDateFormatted;
+            }
+        }
     }
 
     if (status === 'delivered' && deliveredDate) {
@@ -1911,14 +2006,13 @@ function renderShippingSummary(order) {
         }
     }
 
-    if (status !== 'delivered' && shippedDate) {
+    if (status !== 'delivered' && shippedDate && !isPickup) {
         const shippedFormatted = formatDateOnly(shippedDate);
         if (shippedFormatted) {
             segments.push(`<span class="text-muted">📦 Registrado: ${shippedFormatted}</span>`);
         }
     }
 
-    const isPickup = ['xd_drop_off', 'drop_off'].includes((logisticTypeRaw || '').toString().toLowerCase());
     const dropOffDate = shipping.status_history?.date_handling || shipping.date_created || order.shipping_date;
     if (isPickup) {
         const dropOffFormatted = formatDateTime(dropOffDate);
@@ -1928,7 +2022,7 @@ function renderShippingSummary(order) {
 
         const bufferingDate = shipping.shipping_option?.buffering?.date;
         const bufferingFormatted = formatDateOnly(bufferingDate);
-        if (bufferingFormatted) {
+        if (bufferingFormatted && bufferingFormatted !== bufferingDateUsed) {
             segments.push(`<span class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</span>`);
         }
     }
@@ -1996,7 +2090,9 @@ function translateShippingLabel(value) {
         receiver_absent: 'Comprador ausente',
         receiver_absent_twice: 'Comprador ausente (2x)',
         in_warehouse: 'No armazém',
-        in_packing_list: 'Na fila de embalagem'
+        in_packing_list: 'Na fila de embalagem',
+        drop_off: 'Ponto de coleta',
+        xd_drop_off: 'Ponto de coleta'
     };
     const normalized = value.toString().toLowerCase();
     if (labels[normalized]) {

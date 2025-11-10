@@ -864,6 +864,25 @@ class MLNotificationsController:
                     invoice_data = response.json()
                     # A resposta da API de invoice contém order_id ou pack_id
                     order_id = invoice_data.get("order_id") or invoice_data.get("pack_id")
+                    if not order_id:
+                        items = invoice_data.get("items") or invoice_data.get("documents") or []
+                        if isinstance(items, dict):
+                            items = items.get("results") or items.get("items") or []
+                        for item in items:
+                            if not isinstance(item, dict):
+                                continue
+                            external_order_id = item.get("external_order_id")
+                            if external_order_id:
+                                order_id = external_order_id
+                                logger.info(f"✅ Order ID {order_id} encontrado nos itens do invoice {invoice_id}")
+                                break
+                            original_item = item.get("original_item")
+                            if isinstance(original_item, dict):
+                                external_order_id = original_item.get("external_order_id")
+                                if external_order_id:
+                                    order_id = external_order_id
+                                    logger.info(f"✅ Order ID {order_id} encontrado no original_item do invoice {invoice_id}")
+                                    break
                     if order_id:
                         logger.info(f"✅ Order ID {order_id} encontrado no invoice {invoice_id}")
                         return str(order_id)

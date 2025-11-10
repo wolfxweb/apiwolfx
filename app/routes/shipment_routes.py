@@ -275,11 +275,13 @@ async def list_pending_shipments(
     """Lista pedidos para expedição com filtros e paginação"""
     try:
         if not session_token:
-            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+            login_redirect = "/auth/login?redirect=/ml/orders"
+            return RedirectResponse(url=login_redirect, status_code=302)
         
         result = AuthController().get_user_by_session(session_token, db)
         if result.get("error"):
-            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+            login_redirect = "/auth/login?redirect=/ml/orders"
+            return RedirectResponse(url=login_redirect, status_code=302)
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]
@@ -311,11 +313,13 @@ async def sync_invoice_status(
     """Sincroniza status das notas fiscais com o Mercado Livre"""
     try:
         if not session_token:
-            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+            login_redirect = "/auth/login?redirect=/ml/orders"
+            return RedirectResponse(url=login_redirect, status_code=302)
         
         result = AuthController().get_user_by_session(session_token, db)
         if result.get("error"):
-            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+            login_redirect = "/auth/login?redirect=/ml/orders"
+            return RedirectResponse(url=login_redirect, status_code=302)
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]
@@ -389,6 +393,50 @@ async def sync_single_order_invoice(
         
         return JSONResponse(content=result)
         
+    except Exception as e:
+        return JSONResponse(content={
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@router.post("/emit-invoice/{order_id}")
+async def emit_invoice(
+    order_id: str,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Emite nota fiscal via Faturador ML para um pedido específico"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+
+        token_manager = TokenManager(db)
+
+        from app.models.saas_models import User
+        user_db = db.query(User).filter(
+            User.company_id == company_id,
+            User.is_active == True
+        ).first()
+
+        if not user_db:
+            return JSONResponse(content={"error": "Nenhum usuário ativo encontrado para esta empresa"}, status_code=404)
+
+        access_token = token_manager.get_valid_token(user_db.id)
+        if not access_token:
+            return JSONResponse(content={"error": "Token de acesso inválido ou expirado"}, status_code=401)
+
+        controller = ShipmentController(db)
+        result = controller.emit_invoice(order_id, company_id, access_token)
+
+        status_code = 200 if result.get("success") else 400
+        return JSONResponse(content=result, status_code=status_code)
+
     except Exception as e:
         return JSONResponse(content={
             "error": f"Erro interno: {str(e)}"
