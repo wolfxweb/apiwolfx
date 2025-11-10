@@ -1,5 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
+
+from fastapi.encoders import jsonable_encoder
 import logging
 
 from app.services.ml_orders_service import MLOrdersService
@@ -126,6 +128,28 @@ class MLOrdersController:
                         payment_coupon_amount = payment.get("coupon_amount", 0)
                         payment_total_paid_amount = payment.get("total_paid_amount", 0)
                 
+                shipping_details_data = {}
+                if order.shipping_details:
+                    try:
+                        import json
+                        raw_shipping = json.loads(order.shipping_details) if isinstance(order.shipping_details, str) else order.shipping_details
+                        shipping_details_data = jsonable_encoder(raw_shipping) if raw_shipping else {}
+                    except Exception as err:
+                        logger.warning(f"Erro ao desserializar shipping_details do pedido {order.order_id}: {err}")
+                        shipping_details_data = {}
+
+                shipping_status_value = order.shipping_status or (shipping_details_data.get("status") if isinstance(shipping_details_data, dict) else None)
+                shipping_substatus_value = shipping_details_data.get("substatus") if isinstance(shipping_details_data, dict) else None
+
+                logistic_type_value = None
+                if isinstance(shipping_details_data, dict):
+                    logistic_type_value = (
+                        shipping_details_data.get("logistic_type")
+                        or (shipping_details_data.get("logistic") or {}).get("type")
+                        or (shipping_details_data.get("shipping_option") or {}).get("logistic_type")
+                    )
+                logistic_type_value = logistic_type_value or order.shipping_type
+
                 order_data = {
                     "id": order.id,
                     "ml_order_id": order.ml_order_id,
@@ -140,12 +164,19 @@ class MLOrdersController:
                     "payment_status": order.payment_status,
                     "shipping_cost": float(order.shipping_cost) if order.shipping_cost else 0.0,
                     "shipping_method": order.shipping_method,
+                    "shipping_status": shipping_status_value,
+                    "shipping_substatus": shipping_substatus_value,
                     "sale_fees": float(order.sale_fees) if order.sale_fees else 0.0,
                     "coupon_amount": float(payment_coupon_amount) if payment_coupon_amount else 0.0,
                     "date_created": order.date_created.isoformat() if order.date_created else None,
                     "last_updated": order.last_updated.isoformat() if order.last_updated else None,
                     "order_items": order.order_items,
                     "shipping_address": order.shipping_address,
+                    "shipping_details": shipping_details_data,
+                    "shipping_type": logistic_type_value,
+                    "shipping_logistic_type": logistic_type_value,
+                    "shipping_date": order.shipping_date.isoformat() if order.shipping_date else None,
+                    "estimated_delivery_date": order.estimated_delivery_date.isoformat() if order.estimated_delivery_date else None,
                     "account_nickname": account.nickname if account else "N/A",
                     "account_email": account.email if account else "N/A",
                     "account_country": account.country_id if account else "N/A",

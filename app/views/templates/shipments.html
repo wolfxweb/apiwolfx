@@ -561,6 +561,11 @@ document.addEventListener('DOMContentLoaded', function() {
         cancelled: 'Cancelado',
         to_be_agreed: 'A combinar',
         error: 'Erro',
+        buffered: 'Aguardando...',
+        receiver_absent: 'Comprador ausente',
+        receiver_absent_twice: 'Comprador ausente (2x)',
+        in_warehouse: 'No armazém',
+        in_packing_list: 'Na fila de embalagem',
         invoice_pending: 'Nota fiscal pendente',
         waiting_for_carrier_authorization: 'Aguardando transportadora',
         ready_for_pickup: 'Pronto para coleta',
@@ -1403,7 +1408,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Badge do tipo de envio
                 if (logisticType === 'fulfillment') {
-                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                    shippingInfo = '<span class="badge bg-primary">Fulfillment</span>';
                 } else if (logisticType === 'cross_docking') {
                     shippingInfo = '<span class="badge bg-info">Cross Docking</span>';
                 } else if (logisticType === 'xd_drop_off' || logisticType === 'drop_off') {
@@ -1681,7 +1686,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Badge do tipo de envio
                 if (logisticType === 'fulfillment') {
-                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                    shippingInfo = '<span class="badge bg-primary">Fulfillment</span>';
                 } else if (logisticType === 'cross_docking') {
                     shippingInfo = '<span class="badge bg-info">Cross Docking</span>';
                 } else if (logisticType === 'xd_drop_off' || logisticType === 'drop_off') {
@@ -2210,7 +2215,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Badge do tipo de envio
                 if (logisticType === 'fulfillment') {
-                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                    shippingInfo = '<span class="badge bg-primary">Fulfillment</span>';
                 } else if (logisticType === 'cross_docking') {
                     shippingInfo = '<span class="badge bg-info">Cross Docking</span>';
                 } else if (logisticType === 'xd_drop_off' || logisticType === 'drop_off') {
@@ -2719,7 +2724,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Montar badge com tipo de logística
                 if (logisticType === 'fulfillment') {
-                    shippingInfo = '<span class="badge bg-primary">Full</span>';
+                    shippingInfo = '<span class="badge bg-primary">Fulfillment</span>';
                 } else if (logisticType === 'cross_docking') {
                     shippingInfo = '<span class="badge bg-info">Cross Docking</span>';
                 } else if (logisticType === 'xd_drop_off' || logisticType === 'drop_off') {
