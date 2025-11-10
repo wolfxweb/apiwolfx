@@ -471,6 +471,31 @@
     color: #6c757d;
 }
 
+.order-shipping-inline .shipping-header {
+    font-weight: 600;
+}
+
+.shipping-detail-list {
+    list-style: none;
+    margin: 0;
+    padding-left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.shipping-detail-list li {
+    position: relative;
+    padding-left: 1.1rem;
+}
+
+.shipping-detail-list li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: #6c757d;
+}
+
 .order-actions .btn-group {
     flex-wrap: wrap;
 }
@@ -844,9 +869,11 @@ function renderOrders(orders) {
                                 </div>
                                 <div class="order-summary">${renderOrderSummary(order)}</div>
                             </div>
-                            <div class="order-actions">${actions}</div>
+                           
                         </div>
                         <div class="order-details">${renderDetailsSummary(order)}</div>
+                        <div class="order-actions">${actions}</div>
+                              
                     </div>
                 </div>
             </div>
@@ -1385,10 +1412,11 @@ function renderShippingSummary(order) {
 
     const shippingMethod = getLogisticLabel(shippingMethodSource) || logisticLabel || extractValue(logisticTypeRaw) || null;
 
-    const segments = [];
+    const headerSegments = [];
+    const detailSegments = [];
     const badgeClass = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
     if (shippingMethod) {
-        segments.push(`<span class="badge ${badgeClass}">${shippingMethod}</span>`);
+        headerSegments.push(`<span class="badge ${badgeClass}">${shippingMethod}</span>`);
     }
 
     if (translatedStatus) {
@@ -1396,36 +1424,34 @@ function renderShippingSummary(order) {
         const transitStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']);
 
         if (status === 'pending') {
-            segments.push(`<span class="text-secondary">⏳ ${translatedStatus}</span>`);
+            detailSegments.push(`⏳ ${translatedStatus}`);
         } else if (readyStatuses.has(status)) {
-            segments.push(`<span class="text-warning">📦 ${translatedStatus}</span>`);
+            detailSegments.push(`📦 ${translatedStatus}`);
         } else if (status === 'delivered') {
-            segments.push(`<span class="text-success fw-semibold">✓ ${translatedStatus}</span>`);
+            detailSegments.push(`✓ ${translatedStatus}`);
         } else if (transitStatuses.has(status)) {
-            segments.push(`<span class="text-info">🚚 ${translatedStatus}</span>`);
+            detailSegments.push(`🚚 ${translatedStatus}`);
         } else {
             const icon = shippingStatusIcons[status] || '🚚';
-            const statusClass = getShippingStatusClass(status);
-            const baseClass = statusClass ? `${statusClass} small` : 'text-muted';
-            segments.push(`<span class="${baseClass}">${icon} ${translatedStatus}</span>`);
+            detailSegments.push(`${icon} ${translatedStatus}`);
         }
     }
 
     if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
-        segments.push(`<span class="text-muted">📍 ${translatedSubstatus}</span>`);
+        detailSegments.push(`📍 ${translatedSubstatus}`);
     }
 
     if (status === 'delivered' && deliveredDate) {
         const deliveredFormatted = formatDateOnly(deliveredDate);
         if (deliveredFormatted) {
-            segments.push(`<span class="text-success">📅 ${deliveredFormatted}</span>`);
+            detailSegments.push(`📅 ${deliveredFormatted}`);
         }
     }
 
     if (status !== 'delivered' && shippedDate) {
         const shippedFormatted = formatDateOnly(shippedDate);
         if (shippedFormatted) {
-            segments.push(`<span class="text-muted">📦 Enviado: ${shippedFormatted}</span>`);
+            detailSegments.push(`📦 Enviado: ${shippedFormatted}`);
         }
     }
 
@@ -1434,32 +1460,42 @@ function renderShippingSummary(order) {
     if (isPickup) {
         const dropOffFormatted = formatDateTime(dropOffDate);
         if (dropOffFormatted) {
-            segments.push(`<span class="text-muted">📦 Registrado: ${dropOffFormatted}</span>`);
+            detailSegments.push(`📦 Registrado: ${dropOffFormatted}`);
         }
 
         const bufferingDate = shipping.shipping_option?.buffering?.date;
         const bufferingFormatted = formatDateOnly(bufferingDate);
         if (bufferingFormatted) {
-            segments.push(`<span class="text-muted">🗓 Liberado para envio em: ${bufferingFormatted}</span>`);
+            detailSegments.push(`🗓 Liberado para envio em: ${bufferingFormatted}`);
         }
     }
 
     if (estimatedDate && status !== 'delivered') {
         const estimatedFormatted = formatDateOnly(estimatedDate);
         if (estimatedFormatted) {
-            segments.push(`<span class="text-muted">📅 Previsão: ${estimatedFormatted}</span>`);
+            detailSegments.push(`📅 Previsão: ${estimatedFormatted}`);
         }
     }
 
-    if (!segments.length && (logisticLabel || shippingMethod)) {
+    if (!headerSegments.length && !detailSegments.length && (logisticLabel || shippingMethod)) {
         const fallbackBadge = getLogisticBadgeClass(logisticTypeRaw || shippingMethod);
         const label = logisticLabel || shippingMethod || 'N/A';
-        return `<div class="order-shipping-inline small"><span class="badge ${fallbackBadge}">${label}</span></div>`;
+        return `<div class="order-shipping-inline small text-muted"><span class="badge ${fallbackBadge}">${label}</span></div>`;
     }
 
-    return segments.length
-        ? `<div class="order-shipping-inline small text-muted d-flex flex-column gap-1"><div class="d-flex flex-wrap align-items-center gap-2">${segments.join('<span class="text-muted">•</span>')}</div></div>`
-        : `<div class="order-shipping-inline small text-muted"><span class="badge bg-secondary">N/A</span></div>`;
+    const headerHtml = headerSegments.length
+        ? `<div class="shipping-header d-flex flex-wrap align-items-center gap-2">${headerSegments.join('<span class="text-muted">•</span>')}</div>`
+        : '';
+
+    const detailsHtml = detailSegments.length
+        ? `<ul class="shipping-detail-list">${detailSegments.map(item => `<li>${sanitizeText(item)}</li>`).join('')}</ul>`
+        : '';
+
+    if (!headerHtml && !detailsHtml) {
+        return `<div class="order-shipping-inline small text-muted"><span class="badge bg-secondary">N/A</span></div>`;
+    }
+
+    return `<div class="order-shipping-inline small text-muted d-flex flex-column gap-1">${headerHtml}${detailsHtml}</div>`;
 }
 
 function getStatusBadgeClass(status) {
