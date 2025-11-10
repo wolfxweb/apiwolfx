@@ -811,7 +811,8 @@ async def download_shipping_label(
                         )
                     else:
                         return JSONResponse(content={
-                            "error": "Erro ao converter ZPL para PDF"
+                            "error": "Erro ao converter ZPL para PDF",
+                            "message": "Tente baixar no formato PDF."
                         }, status_code=500)
                 else:
                     error_msg = "Erro ao baixar ZPL"
@@ -823,7 +824,8 @@ async def download_shipping_label(
                     
                     return JSONResponse(content={
                         "error": error_msg,
-                        "status_code": zpl_response.status_code
+                        "status_code": zpl_response.status_code,
+                        "message": "Verifique o status do envio no Mercado Livre. Etiquetas só ficam disponíveis em 'ready_to_ship' com substatus 'ready_to_print'."
                     }, status_code=zpl_response.status_code)
         
         # Para PDF e ZPL2 direto
@@ -905,10 +907,11 @@ async def download_shipping_label(
 
                     if response.status_code != 200:
                         logger.error("❌ Fallback documents/labels também falhou")
-                        error_msg = fallback_error or "Etiqueta indisponível para status dropped_off"
+                        error_msg = fallback_error or "Etiqueta indisponível para este status"
                         return JSONResponse(content={
                             "error": error_msg,
-                            "status_code": response.status_code
+                            "status_code": response.status_code,
+                            "message": "De acordo com o Mercado Livre, só é possível imprimir etiquetas quando o envio está em 'ready_to_ship' com substatus 'ready_to_print' ou 'printed'. Para envios já 'dropped_off', a transportadora já recebeu o pacote e o ML não disponibiliza a etiqueta."
                         }, status_code=response.status_code)
 
                     # Caso resposta seja um ZIP, extrair PDF
@@ -929,7 +932,8 @@ async def download_shipping_label(
 
                                 if format_lower == 'zpl2':
                                     return JSONResponse(content={
-                                        "error": "Formato ZPL não disponível para este status"
+                                        "error": "Formato ZPL não disponível para este status",
+                                        "message": "O Mercado Livre não permite gerar ZPL para envios que já foram postados (dropped_off)."
                                     }, status_code=400)
 
                                 label_filename = f"Etiqueta-{order_id}.pdf"
@@ -945,7 +949,8 @@ async def download_shipping_label(
 
                     if format_lower == 'zpl2':
                         return JSONResponse(content={
-                            "error": "Formato ZPL não disponível para este status"
+                            "error": "Formato ZPL não disponível para este status",
+                            "message": "O Mercado Livre não permite gerar ZPL para envios que já foram postados (dropped_off)."
                         }, status_code=400)
 
                     label_filename = f"Etiqueta-{order_id}.pdf"
@@ -1087,10 +1092,11 @@ async def download_shipping_label(
                 except:
                     logger.error(f"Erro ao baixar etiqueta: {response.status_code} - {response.text[:200]}")
                 
+                logger.error(f"❌ Erro ao baixar etiqueta: {error_msg} (Status {response.status_code})")
                 return JSONResponse(content={
                     "error": error_msg,
                     "status_code": response.status_code,
-                    "hint": "Verifique se o envio está com status 'ready_to_ship' e substatus 'ready_to_print'"
+                    "message": "Segundo o Mercado Livre, apenas envios 'ready_to_ship' com substatus 'ready_to_print' ou 'printed' permitem impressão de etiqueta."
                 }, status_code=response.status_code)
     
     except Exception as e:
