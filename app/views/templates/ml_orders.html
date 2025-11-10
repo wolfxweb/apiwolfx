@@ -746,13 +746,13 @@ function renderOrderSummary(order) {
     const orderId = order.ml_order_id || order.order_id || '-';
     const createdAt = formatDate(order.date_created);
     const accountLabel = order.account_nickname || order.account_name;
-    const statusBadge = `<span class="badge ${getStatusBadgeClass(order.status)}">${getStatusLabel(order.status)}</span>`;
+    const statusText = getStatusLabel(order.status);
 
     const lines = [
         `<div class="fw-semibold">${orderId}</div>`,
         accountLabel ? `<div class="text-muted small">${accountLabel}</div>` : '',
-        createdAt ? `<div class="text-muted small">${createdAt}</div>` : '',
-        `<div class="mt-1">${statusBadge}</div>`
+        statusText ? `<div class="text-muted small">Status: ${statusText}</div>` : '',
+        createdAt ? `<div class="text-muted small"><i class="bi bi-clock-history me-1"></i>${createdAt}</div>` : ''
     ].filter(Boolean);
 
     const buyerDetails = renderBuyerSummary(order);
@@ -931,7 +931,7 @@ function openOrderJson(orderKey) {
 }
 
 function renderBuyerSummary(order) {
-    const nickname = order.buyer_nickname || 'N/A';
+    const nickname = order.buyer_nickname ? sanitizeText(order.buyer_nickname) : '';
     const nameParts = [order.buyer_first_name, order.buyer_last_name].filter(Boolean).join(' ');
     const email = order.buyer_email || '';
     const phone = order.buyer_phone || order.buyer_phone_number || '';
@@ -946,12 +946,12 @@ function renderBuyerSummary(order) {
         return String(value);
     };
 
-    const street = address.address_line || address.street_name || address.street_address || '';
-    const comment = address.comment || address.suburb || '';
-    const city = extractValue(address.city);
-    const state = extractValue(address.state);
-    const district = extractValue(address.neighborhood);
-    const postalCode = address.zip_code || address.postal_code;
+    const street = sanitizeText(address.address_line || address.street_name || address.street_address || '');
+    const comment = sanitizeText(address.comment || address.suburb || '');
+    const city = sanitizeText(extractValue(address.city));
+    const state = sanitizeText(extractValue(address.state));
+    const district = sanitizeText(extractValue(address.neighborhood));
+    const postalCode = sanitizeText(address.zip_code || address.postal_code);
 
     let receiverName = '';
     const shippingDetails = order.shipping_details;
@@ -969,17 +969,21 @@ function renderBuyerSummary(order) {
     }
 
     if (!receiverName && address.receiver_name) {
-        receiverName = extractValue(address.receiver_name);
+        receiverName = sanitizeText(extractValue(address.receiver_name));
     }
+
+    const formattedNameParts = sanitizeText(nameParts);
+    const mainName = formattedNameParts || receiverName || nickname || 'Comprador';
+    const showDistinctReceiver = receiverName && receiverName !== mainName && receiverName !== nickname;
 
     const locationLine = [city, state].filter(Boolean).join(' - ');
 
     const addressLines = [street, comment, district, locationLine, postalCode ? `CEP: ${postalCode}` : null].filter(Boolean);
 
     const lines = [
-        `<div class="fw-semibold">${nickname}</div>`,
-        receiverName ? `<div class="text-muted small">${receiverName}</div>` : '',
-        nameParts ? `<div class="text-muted small">${nameParts}</div>` : '',
+        `<div class="fw-semibold">${mainName}</div>`,
+        nickname ? `<div class="text-muted small">${nickname}</div>` : '',
+        showDistinctReceiver ? `<div class="text-muted small">${receiverName}</div>` : '',
         email ? `<div class="text-muted small"><i class="bi bi-envelope me-1"></i>${email}</div>` : '',
         phone ? `<div class="text-muted small"><i class="bi bi-telephone me-1"></i>${phone}</div>` : '',
         addressLines.length ? `<div class="text-muted small">${addressLines.join('<br>')}</div>` : ''
