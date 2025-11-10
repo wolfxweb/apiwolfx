@@ -1039,6 +1039,36 @@ function showInvoiceReleaseModal(releaseDateIso, message) {
     modal.show();
 }
 
+const LABEL_STATUS_HINTS = {
+    pending: 'O envio ainda está pendente. Aguarde a liberação do Mercado Livre para gerar a etiqueta.',
+    ready_to_ship: 'O envio está pronto para despacho. Assim que o substatus estiver como "Pronto para imprimir" ou "Etiqueta impressa", a etiqueta ficará disponível.',
+    ready_to_print: 'O Mercado Livre já liberou a etiqueta. Atualize a página ou tente gerar novamente em instantes.',
+    printed: 'A etiqueta já foi emitida no Mercado Livre. Utilize a versão disponível no painel do ML.',
+    shipped: 'O envio já foi despachado. Utilize a etiqueta gerada anteriormente ou consulte o Mercado Livre.',
+    delivered: 'O envio já foi entregue. O Mercado Livre não disponibiliza a etiqueta após a entrega.'
+};
+
+const STATUS_TRANSLATIONS_INLINE = {
+    pending: 'Pendente',
+    ready_to_ship: 'Pronto para envio',
+    ready_to_print: 'Pronto para imprimir',
+    printed: 'Etiqueta impressa',
+    shipped: 'Enviado',
+    delivered: 'Entregue'
+};
+
+function translateStatusesInText(text) {
+    if (!text || typeof text !== 'string') {
+        return '';
+    }
+    let result = text;
+    Object.entries(STATUS_TRANSLATIONS_INLINE).forEach(([key, value]) => {
+        const regex = new RegExp(`\\b${key}\\b`, 'gi');
+        result = result.replace(regex, value);
+    });
+    return result;
+}
+
 function showLabelErrorModal(message, details = null) {
     const modalElement = document.getElementById('labelErrorModal');
     const messageElement = document.getElementById('labelErrorModalMessage');
@@ -1050,47 +1080,72 @@ function showLabelErrorModal(message, details = null) {
     }
 
     const fallbackMessage = 'Não foi possível baixar a etiqueta. Verifique o status do envio no Mercado Livre.';
-    const mainMessage = message || (details && (details.message || details.error)) || fallbackMessage;
+    const mainMessage = message || fallbackMessage;
     messageElement.textContent = mainMessage;
 
-    if (details && (details.error || details.status_code || details.status)) {
-        const detailItems = [];
-        if (details.error && details.error !== mainMessage) {
-            detailItems.push({ label: 'Detalhe', value: details.error });
+    const buildDetailItem = (label, value) => {
+        if (!value) return null;
+        const safeValue = sanitizeText(String(value));
+        return `<li><strong>${label}:</strong> ${safeValue}</li>`;
+    };
+
+    const detailItems = [];
+
+    if (details && typeof details === 'object') {
+        const rawStatus = (details.raw_status || details.status || details.shipping_status || '').toString().toLowerCase();
+        const statusLabel = details.translated_status || (rawStatus ? translateShippingLabel(rawStatus) : null);
+        if (statusLabel) {
+            detailItems.push(buildDetailItem('Status do envio', statusLabel));
         }
-        if (details.status_code) {
-            detailItems.push({ label: 'Código', value: details.status_code });
+
+        const rawSubstatus = (details.raw_substatus || details.substatus || details.shipping_substatus || '').toString().toLowerCase();
+        const substatusLabel = details.translated_substatus || (rawSubstatus ? translateShippingLabel(rawSubstatus) : null);
+        if (substatusLabel && substatusLabel !== statusLabel) {
+            detailItems.push(buildDetailItem('Substatus', substatusLabel));
+        }
+
+        const hint = details.hint || LABEL_STATUS_HINTS[rawStatus] || '';
+        if (hint) {
+            detailItems.push(buildDetailItem('Orientação', hint));
+        }
+
+        const technicalDetailRaw = details.raw_detail || details.detail || details.error || details.message || '';
+        const technicalDetail = translateStatusesInText(technicalDetailRaw);
+        if (technicalDetail && technicalDetail !== mainMessage) {
+            detailItems.push(buildDetailItem('Detalhe', technicalDetail));
+        }
+
+        const statusCode = details.status_code || details.code || null;
+        if (statusCode) {
+            detailItems.push(buildDetailItem('Código', statusCode));
+        }
+    } else if (details) {
+        const maybeCode = details.status_code || details.code;
+        if (maybeCode) {
+            detailItems.push(buildDetailItem('Código', maybeCode));
+        }
+        if (details.error) {
+            detailItems.push(buildDetailItem('Detalhe', details.error));
         }
         if (details.status) {
-            detailItems.push({ label: 'Status do envio', value: details.status });
+            detailItems.push(buildDetailItem('Status do envio', details.status));
         }
+    }
 
-        if (detailItems.length) {
-            detailsElement.textContent = '';
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-warning mb-0';
-            const list = document.createElement('ul');
-            list.className = 'mb-0 ps-3';
+    const filteredItems = detailItems.filter(Boolean);
 
-            detailItems.forEach(item => {
-                const li = document.createElement('li');
-                const strong = document.createElement('strong');
-                strong.textContent = `${item.label}: `;
-                li.appendChild(strong);
-                li.appendChild(document.createTextNode(item.value));
-                list.appendChild(li);
-            });
-
-            alertDiv.appendChild(list);
-            detailsElement.appendChild(alertDiv);
-            detailsElement.classList.remove('d-none');
-        } else {
-            detailsElement.classList.add('d-none');
-            detailsElement.textContent = '';
-        }
+    if (filteredItems.length) {
+        detailsElement.innerHTML = `
+            <div class="alert alert-warning mb-0">
+                <ul class="mb-0 ps-3">
+                    ${filteredItems.join('')}
+                </ul>
+            </div>
+        `;
+        detailsElement.classList.remove('d-none');
     } else {
         detailsElement.classList.add('d-none');
-        detailsElement.textContent = '';
+        detailsElement.innerHTML = '';
     }
 
     const modal = new bootstrap.Modal(modalElement);
@@ -1469,8 +1524,14 @@ function renderLabelDropdown(order) {
     const orderId = order.ml_order_id || order.order_id || '';
     const shippingId = order.shipping_id || (order.shipping_details && order.shipping_details.id);
     const logisticType = (order.shipping_type || order.shipping_logistic_type || '').toString().toLowerCase();
+    const shippingStatus = (order.shipping_status || (order.shipping_details && order.shipping_details.status) || '').toString().toLowerCase();
 
     if (!orderId || logisticType === 'fulfillment' || logisticType === 'full') {
+        return '';
+    }
+
+    const hiddenStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver', 'delivered']);
+    if (hiddenStatuses.has(shippingStatus)) {
         return '';
     }
 
@@ -1600,8 +1661,7 @@ async function downloadShippingLabel(orderId, format = 'pdf', triggerElement) {
         if (!response.ok) {
             if (contentType.includes('application/json')) {
                 const data = await response.json();
-                const message = data.message || data.error || `Erro ao baixar etiqueta (HTTP ${response.status}).`;
-                showLabelErrorModal(message, data);
+                handleLabelJsonError(data, response.status);
             } else {
                 showLabelErrorModal(`Erro ao baixar etiqueta (HTTP ${response.status}).`);
             }
@@ -1610,8 +1670,7 @@ async function downloadShippingLabel(orderId, format = 'pdf', triggerElement) {
 
         if (contentType.includes('application/json')) {
             const data = await response.json();
-            const message = data.message || data.error || 'Erro ao baixar etiqueta.';
-            showLabelErrorModal(message, data);
+            handleLabelJsonError(data, response.status);
             return;
         }
 
@@ -1644,6 +1703,64 @@ async function downloadShippingLabel(orderId, format = 'pdf', triggerElement) {
         button.disabled = false;
         button.innerHTML = originalHtml;
     }
+}
+
+function handleLabelJsonError(data, statusCode) {
+    const result = buildFriendlyLabelMessage(data, statusCode);
+    showLabelErrorModal(result.message, result.details);
+}
+
+function buildFriendlyLabelMessage(data, statusCode) {
+    const baseMessage = `Segundo o Mercado Livre, apenas envios em "Pronto para envio" com etiqueta liberada ("Pronto para imprimir" ou "Etiqueta impressa") permitem gerar a etiqueta.`;
+    if (!data || typeof data !== 'object') {
+        return {
+            message: baseMessage,
+            details: {
+                status_code: statusCode || null,
+                hint: 'Verifique o status do envio no Mercado Livre e tente novamente.',
+                raw_detail: null
+            }
+        };
+    }
+
+    const normalize = (value) => {
+        if (!value) return '';
+        return value.toString().toLowerCase();
+    };
+
+    const statusRaw = normalize(data.status || data.shipping_status);
+    const substatusRaw = normalize(data.substatus || data.shipping_substatus);
+
+    const translatedStatus = statusRaw ? translateShippingLabel(statusRaw) : null;
+    const translatedSubstatus = substatusRaw ? translateShippingLabel(substatusRaw) : null;
+
+    const rawDetail = data.error || data.message || data.detail || '';
+    const detailTextRaw = typeof rawDetail === 'string' ? rawDetail : JSON.stringify(rawDetail);
+    const detailText = translateStatusesInText(detailTextRaw);
+
+    let hint = LABEL_STATUS_HINTS[statusRaw] || '';
+    if (!hint && translatedSubstatus) {
+        hint = `Substatus atual: ${translatedSubstatus}. Aguarde a liberação do Mercado Livre para gerar a etiqueta.`;
+    }
+    if (!hint) {
+        hint = 'Verifique o painel do Mercado Livre e tente novamente quando a etiqueta estiver liberada.';
+    }
+
+    const statusCodeValue = statusCode || data.status_code || data.code || null;
+
+    return {
+        message: baseMessage,
+        details: {
+            status_code: statusCodeValue,
+            raw_status: statusRaw || null,
+            translated_status: translatedStatus || null,
+            raw_substatus: substatusRaw || null,
+            translated_substatus: translatedSubstatus || null,
+            hint,
+            raw_detail: detailText,
+            error: detailText
+        }
+    };
 }
 
 function openOrderJson(orderKey) {
