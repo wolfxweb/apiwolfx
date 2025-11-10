@@ -341,6 +341,20 @@
     </div>
 </div>
 
+<div class="modal fade product-image-modal" id="productImageModal" tabindex="-1" aria-labelledby="productImageModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content bg-dark text-white border-0">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" id="productImageModalTitle">Imagem do produto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="productImageModalImg" src="" alt="Imagem do produto" class="img-fluid rounded shadow-lg">
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 
 /* Estilos para botões em loading */
@@ -446,6 +460,41 @@
 
 .order-card .card-body {
     padding: 1rem 1.25rem 1.25rem;
+}
+
+.order-image-thumb {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+}
+
+.order-image-thumb img {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.order-image-thumb:hover img {
+    transform: scale(1.08);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
+}
+
+.product-image-modal .modal-dialog {
+    max-width: min(1100px, 95vw);
+}
+
+.product-image-modal .modal-content {
+    background: rgba(0, 0, 0, 0.92);
+}
+
+.product-image-modal .modal-body {
+    padding: 1.5rem;
+}
+
+.product-image-modal img {
+    max-height: 85vh;
+    max-width: 100%;
+    width: auto;
+    object-fit: contain;
 }
 
 .order-card-top {
@@ -1477,6 +1526,37 @@ function extractGtinFromAttributes(attributes) {
     return '';
 }
 
+function handleProductImageClick(button) {
+    if (!button) {
+        return;
+    }
+    const imageUrl = button.dataset?.imageUrl;
+    if (!imageUrl) {
+        return;
+    }
+    const imageTitle = button.dataset?.imageTitle || 'Imagem do produto';
+    showProductImage(imageUrl, imageTitle);
+}
+
+function showProductImage(imageUrl, title) {
+    const modalElement = document.getElementById('productImageModal');
+    const modalImage = document.getElementById('productImageModalImg');
+    const modalTitle = document.getElementById('productImageModalTitle');
+
+    if (!modalElement || !modalImage) {
+        return;
+    }
+
+    modalImage.src = imageUrl;
+    modalImage.alt = title || 'Imagem do produto';
+    if (modalTitle) {
+        modalTitle.textContent = title || 'Imagem do produto';
+    }
+
+    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
+    modalInstance.show();
+}
+
 function normalizeItemImageUrl(url) {
     if (!url) {
         return '';
@@ -1669,8 +1749,12 @@ function renderDetailsSummary(order) {
         const unitPrice = item.unitPrice || 0;
         const totalLine = item.totalPrice || (unitPrice * quantityValue);
         const currency = item.currency || defaultCurrency;
+        const sanitizedThumbUrlAttr = sanitizeText(item.thumbnail || '');
+        const sanitizedTitleAttr = sanitizeText(item.title || 'Imagem do produto');
         const thumbnailHtml = item.thumbnail
-            ? `<img src="${item.thumbnail}" alt="${sanitizeText(item.title)}" class="img-fluid rounded" style="width:48px;height:48px;object-fit:cover;">`
+            ? `<button type="button" class="order-image-thumb btn btn-link p-0 border-0" data-image-url="${sanitizedThumbUrlAttr}" data-image-title="${sanitizedTitleAttr}" onclick="handleProductImageClick(this)">
+                    <img src="${sanitizedThumbUrlAttr}" alt="${sanitizedTitleAttr}" class="img-fluid rounded" style="width:48px;height:48px;object-fit:cover;">
+               </button>`
             : '<span class="text-muted">—</span>';
         const infoSegments = [];
         if (item.sellerSku) {
