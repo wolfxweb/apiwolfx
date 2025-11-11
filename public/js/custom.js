@@ -156,44 +156,95 @@ function copyCode(element) {
 }
 
 // 🎨 Mostrar Notificação Moderna
-function showNotification(message, type = 'info', duration = 5000) {
+function showNotification(message, type = 'info', duration = 8000) {
+    const palette = {
+        success: { headerBg: 'bg-success', headerText: 'text-white', accent: '#198754' },
+        error: { headerBg: 'bg-danger', headerText: 'text-white', accent: '#dc3545' },
+        warning: { headerBg: 'bg-warning', headerText: 'text-dark', accent: '#ffc107' },
+        info: { headerBg: 'bg-primary', headerText: 'text-white', accent: '#0d6efd' },
+    };
+    const scheme = palette[type] || palette.info;
+
     const notification = document.createElement('div');
-    notification.className = `alert-modern position-fixed`;
+    notification.classList.add(
+        'toast',
+        'position-fixed',
+        'show',
+        'bg-white',
+        'text-body',
+        'shadow-lg',
+        'border-0'
+    );
     notification.style.top = '20px';
     notification.style.right = '20px';
     notification.style.zIndex = '9999';
     notification.style.maxWidth = '400px';
-    notification.style.animation = 'slideInRight 0.5s ease-out';
-    
+    notification.style.borderRadius = '10px';
+    notification.style.overflow = 'hidden';
+    notification.style.borderLeft = `6px solid ${scheme.accent}`;
+    notification.style.setProperty('--bs-toast-bg', '#ffffff');
+    notification.style.setProperty('--bs-toast-color', '#212529');
+    notification.style.backgroundColor = '#ffffff';
+
     const icon = getNotificationIcon(type);
+    const headerCloseClass = scheme.headerText === 'text-white' ? 'btn-close-white' : '';
+
     notification.innerHTML = `
-        <div class="d-flex align-items-center">
-            <i class="bi ${icon} me-3"></i>
-            <div class="flex-grow-1">${message}</div>
-            <button type="button" class="btn-close" onclick="this.parentElement.parentElement.remove()"></button>
+        <div class="toast-header border-0 ${scheme.headerBg} ${scheme.headerText}">
+            <i class="bi ${icon} me-2"></i>
+            <strong class="me-auto">${getNotificationTitle(type)}</strong>
+            <button type="button" class="btn-close ${headerCloseClass}" data-bs-dismiss="toast" aria-label="Fechar"></button>
+        </div>
+        <div class="toast-body bg-white text-body">
+            ${message}
         </div>
     `;
     
-    document.body.appendChild(notification);
-    
-    // Remover automaticamente
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.style.animation = 'slideOutRight 0.5s ease-in';
-            setTimeout(() => notification.remove(), 500);
-        }
-    }, duration);
+    // Container para toasts
+    let container = document.getElementById('global-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'global-toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+
+    container.appendChild(notification);
+    const bsToast = new bootstrap.Toast(notification, { delay: duration });
+    notification.addEventListener('hidden.bs.toast', () => notification.remove());
+    bsToast.show();
 }
 
 // 🎯 Obter Ícone da Notificação
 function getNotificationIcon(type) {
     const icons = {
-        'success': 'bi-check-circle-fill bi-ml-green',
-        'error': 'bi-x-circle-fill bi-danger',
-        'warning': 'bi-exclamation-triangle-fill bi-warning',
-        'info': 'bi-info-circle-fill bi-ml-blue'
+        'success': 'bi-check-circle-fill',
+        'error': 'bi-x-circle-fill',
+        'warning': 'bi-exclamation-triangle-fill',
+        'info': 'bi-info-circle-fill'
     };
     return icons[type] || icons['info'];
+}
+
+function getNotificationTitle(type) {
+    const titles = {
+        'success': 'Sucesso',
+        'error': 'Erro',
+        'warning': 'Atenção',
+        'info': 'Informação'
+    };
+    return titles[type] || titles['info'];
+}
+
+function getNotificationAccent(type) {
+    const accents = {
+        'success': '#22c55e',
+        'error': '#ef4444',
+        'warning': '#f59e0b',
+        'info': '#3b82f6'
+    };
+    return accents[type] || accents['info'];
 }
 
 // 🔄 Loading State Moderno

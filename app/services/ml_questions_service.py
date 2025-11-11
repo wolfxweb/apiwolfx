@@ -46,19 +46,32 @@ class MLQuestionsService:
     def get_questions_from_item(self, item_id: str, access_token: str) -> List[Dict]:
         """Busca perguntas de um item específico"""
         try:
-            url = f"{self.base_url}/questions/{item_id}"
+            url = f"{self.base_url}/questions/search"
             headers = {
                 **self.headers,
                 "Authorization": f"Bearer {access_token}"
             }
             
-            response = requests.get(url, headers=headers, timeout=15)
+            params = {"item": item_id}
+            response = requests.get(url, headers=headers, params=params, timeout=15)
             
             if response.status_code == 200:
                 data = response.json()
                 return data.get("questions", [])
+            elif response.status_code == 404:
+                logger.info(
+                    "Nenhuma pergunta encontrada para o item %s (404). Resposta: %s",
+                    item_id,
+                    response.text[:200] if hasattr(response, "text") else "",
+                )
+                return []
             else:
-                logger.error(f"Erro ao buscar perguntas do item {item_id}: {response.status_code}")
+                logger.error(
+                    "Erro ao buscar perguntas do item %s: %s - %s",
+                    item_id,
+                    response.status_code,
+                    response.text[:200] if hasattr(response, "text") else "",
+                )
                 return []
         except Exception as e:
             logger.error(f"Erro ao buscar perguntas do item {item_id}: {e}", exc_info=True)
@@ -67,13 +80,16 @@ class MLQuestionsService:
     def get_all_questions(self, ml_user_id: str, access_token: str, status: str = None, limit: int = 50) -> List[Dict]:
         """Busca todas as perguntas do vendedor"""
         try:
-            url = f"{self.base_url}/users/{ml_user_id}/questions/search"
+            url = f"{self.base_url}/questions/search"
             headers = {
                 **self.headers,
                 "Authorization": f"Bearer {access_token}"
             }
             
-            params = {"limit": limit}
+            params = {
+                "seller_id": ml_user_id,
+                "limit": limit
+            }
             if status:
                 params["status"] = status
             
@@ -98,7 +114,20 @@ class MLQuestionsService:
                     if offset >= total:
                         break
                 else:
-                    logger.error(f"Erro ao buscar perguntas: {response.status_code}")
+                    if response.status_code == 404:
+                        logger.info(
+                            "Nenhuma pergunta encontrada (404) para usuário %s com status %s. Resposta: %s",
+                            ml_user_id,
+                            params.get("status"),
+                            response.text[:200] if hasattr(response, "text") else "",
+                        )
+                        break
+                    logger.error(
+                        "Erro ao buscar perguntas para usuário %s: %s - %s",
+                        ml_user_id,
+                        response.status_code,
+                        response.text[:200] if hasattr(response, "text") else "",
+                    )
                     break
             
             return all_questions
@@ -109,23 +138,53 @@ class MLQuestionsService:
     def answer_question(self, question_id: int, answer_text: str, access_token: str) -> Dict:
         """Responde uma pergunta"""
         try:
-            url = f"{self.base_url}/questions/{question_id}/answers"
+            url = f"{self.base_url}/answers"
             headers = {
                 **self.headers,
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
             
-            data = {"text": answer_text}
+            data = {
+                "question_id": question_id,
+                "text": answer_text
+            }
             response = requests.post(url, headers=headers, json=data, timeout=15)
             
-            if response.status_code == 200 or response.status_code == 201:
+            if response.status_code in (200, 201):
                 result = response.json()
                 logger.info(f"✅ Pergunta {question_id} respondida com sucesso")
-                return result
+                return {"success": True, "data": result}
+            elif response.status_code == 400:
+                try:
+                    error_data = response.json()
+                    if error_data.get("error") == "not_unanswered_question":
+                        logger.warning(
+                            "⚠️ Pergunta %s já foi respondida ou não está mais disponível para resposta.",
+                            question_id,
+                        )
+                        return {
+                            "success": False,
+                            "message": "Pergunta já foi respondida ou não está mais disponível para resposta.",
+                            "code": "not_unanswered_question",
+                        }
+                except Exception:
+                    pass
+                logger.error(f"Erro ao responder pergunta {question_id}: {response.status_code} - {response.text[:200]}")
+                return {
+                    "success": False,
+                    "message": response.text,
+                    "code": "api_error",
+                    "status_code": response.status_code,
+                }
             else:
                 logger.error(f"Erro ao responder pergunta {question_id}: {response.status_code} - {response.text[:200]}")
-                return {}
+                return {
+                    "success": False,
+                    "message": response.text,
+                    "code": "api_error",
+                    "status_code": response.status_code,
+                }
         except Exception as e:
             logger.error(f"Erro ao responder pergunta {question_id}: {e}", exc_info=True)
             return {}
@@ -340,32 +399,32 @@ class MLQuestionsService:
             # Sincronizar cada conta
             for ml_account in ml_accounts:
                 try:
-                    # Buscar token específico desta conta ML
-                    from app.models.saas_models import Token
-                    from datetime import datetime
-                    
-                    token_obj = self.db.query(Token).filter(
-                        Token.ml_account_id == ml_account.id,
-                        Token.is_active == True
-                    ).order_by(Token.expires_at.desc()).first()
-                    
-                    if not token_obj:
-                        logger.warning(f"Token não encontrado para conta ML {ml_account.id}")
+                    token_record = token_manager.get_token_record_for_account(ml_account.id, company_id)
+                    if not token_record or not token_record.access_token:
+                        logger.warning(
+                            "Token válido não encontrado para conta ML %s (%s)",
+                            ml_account.id,
+                            ml_account.nickname,
+                        )
                         accounts_failed.append({
                             "account_id": ml_account.id,
                             "nickname": ml_account.nickname,
-                            "error": "Token de acesso não encontrado"
+                            "error": "Token de acesso não encontrado ou inválido"
                         })
                         continue
                     
-                    # Verificar se o token está expirado
-                    access_token = token_obj.access_token
-                    if token_obj.expires_at and token_obj.expires_at < datetime.now():
-                        logger.warning(f"Token expirado para conta ML {ml_account.id}, tentando usar mesmo assim")
-                        # Continuar mesmo com token expirado - a API pode aceitar ou retornar erro específico
+                    access_token = token_record.access_token
                     
                     # Buscar todas as perguntas desta conta
                     questions = self.get_all_questions(str(ml_account.ml_user_id), access_token, status)
+                    
+                    if not questions:
+                        logger.info(
+                            "Nenhuma pergunta retornada para conta %s (%s) com status=%s",
+                            ml_account.id,
+                            ml_account.nickname,
+                            status or "ALL",
+                        )
                     
                     saved_count = 0
                     error_count = 0

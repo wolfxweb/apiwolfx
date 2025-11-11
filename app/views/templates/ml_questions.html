@@ -59,7 +59,23 @@
             <div class="card">
    
                 <div class="card-body">
-                    <span id="questions-count" class="badge bg-primary">Carregando...</span>
+                    <div id="questions-summary" class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between mb-3" style="display: none;">
+                        <div>
+                            <h6 class="mb-1">Perguntas carregadas</h6>
+                            <p class="text-muted mb-0">
+                                <span id="pagination-counter" class="fw-bold"></span>
+                                <small id="pagination-total" class="text-muted"></small>
+                            </p>
+                        </div>
+                        <div class="d-flex gap-2 mt-3 mt-md-0">
+                            <button class="btn btn-outline-secondary btn-sm" id="prev-page-btn" onclick="changePage(-1)" disabled>
+                                <i class="bi bi-chevron-left"></i> Anterior
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="next-page-btn" onclick="changePage(1)" disabled>
+                                Próxima <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
                     <div id="loading-message" class="text-center py-4">
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Carregando...</span>
@@ -142,9 +158,22 @@
 
 <script>
 let searchTimeout = null;
+const pagination = {
+    pageSize: 20,
+    currentPage: 1,
+    meta: {
+        questions: [],
+        totalItems: 0,
+        totalPages: 1,
+    },
+};
 
 // Carregar perguntas ao abrir a página
 document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.getElementById('status_filter');
+    if (statusSelect) {
+        statusSelect.value = 'UNANSWERED';
+    }
     loadQuestions();
     loadAccounts();
 });
@@ -349,6 +378,11 @@ async function loadAccounts() {
 }
 
 async function loadQuestions() {
+    pagination.currentPage = 1;
+    await fetchAndRenderQuestions();
+}
+
+async function fetchAndRenderQuestions() {
     const status = document.getElementById('status_filter')?.value || '';
     const mlAccountId = document.getElementById('account_filter')?.value || '';
     const search = document.getElementById('search_filter')?.value.trim() || '';
@@ -356,6 +390,7 @@ async function loadQuestions() {
     const params = new URLSearchParams();
     if (status) params.append('status', status);
     if (mlAccountId) params.append('ml_account_id', mlAccountId);
+    params.append('limit', 200);
     
     const url = `/api/questions?${params.toString()}`;
     
@@ -391,29 +426,35 @@ async function loadQuestions() {
             
             if (questions.length === 0) {
                 document.getElementById('empty-message').style.display = 'block';
-                document.getElementById('questions-count').textContent = '0 perguntas';
+                pagination.meta = { questions: [], totalItems: 0, totalPages: 1 };
+                document.getElementById('questions-summary').style.display = 'none';
                 return;
             }
             
             document.getElementById('questions-container').style.display = 'block';
-            document.getElementById('questions-count').textContent = `${questions.length} pergunta(s)`;
-            
-            renderQuestions(questions);
+            updatePagination(questions);
+            renderQuestions();
         } else {
             document.getElementById('empty-message').style.display = 'block';
-            document.getElementById('questions-count').textContent = '0 perguntas';
+            pagination.meta = { questions: [], totalItems: 0, totalPages: 1 };
+            document.getElementById('questions-summary').style.display = 'none';
         }
     } catch (error) {
         console.error('Erro ao carregar perguntas:', error);
         document.getElementById('loading-message').style.display = 'none';
         document.getElementById('empty-message').style.display = 'block';
+        pagination.meta = { questions: [], totalItems: 0, totalPages: 1 };
+        document.getElementById('questions-summary').style.display = 'none';
     }
 }
 
-function renderQuestions(questions) {
+function renderQuestions() {
     const container = document.getElementById('questions-container');
+    const start = (pagination.currentPage - 1) * pagination.pageSize;
+    const end = start + pagination.pageSize;
+    const subset = pagination.meta.questions.slice(start, end);
     
-    container.innerHTML = questions.map(q => {
+    container.innerHTML = subset.map(q => {
         const statusBadge = {
             'UNANSWERED': '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle"></i> Não Respondida</span>',
             'ANSWERED': '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Respondida</span>',
@@ -474,6 +515,50 @@ function renderQuestions(questions) {
             </div>
         `;
     }).join('');
+}
+
+function updatePagination(questions) {
+    pagination.meta.questions = questions;
+    pagination.meta.totalItems = questions.length;
+    pagination.meta.totalPages = Math.max(1, Math.ceil(pagination.meta.totalItems / pagination.pageSize));
+    renderPagination();
+    renderQuestions();
+}
+
+function renderPagination() {
+    const paginationContainer = document.getElementById('questions-summary');
+    const counter = document.getElementById('pagination-counter');
+    const totalLabel = document.getElementById('pagination-total');
+    const prevBtn = document.getElementById('prev-page-btn');
+    const nextBtn = document.getElementById('next-page-btn');
+
+    if (pagination.meta.totalItems === 0) {
+        paginationContainer.style.display = 'none';
+        return;
+    }
+
+    const startItem = (pagination.currentPage - 1) * pagination.pageSize + 1;
+    const endItem = Math.min(pagination.meta.totalItems, pagination.currentPage * pagination.pageSize);
+
+    counter.textContent = `Mostrando ${startItem}-${endItem}`;
+    totalLabel.textContent = `de ${pagination.meta.totalItems} pergunta(s)`;
+
+    prevBtn.disabled = pagination.currentPage === 1;
+    nextBtn.disabled = pagination.currentPage >= pagination.meta.totalPages;
+
+    paginationContainer.style.display = 'flex';
+}
+
+function changePage(delta) {
+    const newPage = pagination.currentPage + delta;
+
+    if (newPage < 1 || newPage > pagination.meta.totalPages) {
+        return;
+    }
+
+    pagination.currentPage = newPage;
+    renderPagination();
+    renderQuestions();
 }
 
 function openConversationFromQuestion(accountId, buyerId, questionId, itemId) {

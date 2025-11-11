@@ -20,8 +20,13 @@ class MLQuestionsController:
         self.db = db
         self.service = MLQuestionsService(db)
     
-    def get_questions(self, company_id: int, ml_account_id: Optional[int] = None, 
-                     status: Optional[str] = None, limit: int = 50) -> Dict:
+    def get_questions(
+        self,
+        company_id: int,
+        ml_account_id: Optional[int] = None,
+        status: Optional[str] = None,
+        limit: int = 50,
+    ) -> Dict:
         """Lista perguntas da empresa (garantindo que ml_account_id pertence ao company_id)"""
         try:
             query = self.db.query(MLQuestion).filter(MLQuestion.company_id == company_id)
@@ -50,18 +55,17 @@ class MLQuestionsController:
                 except KeyError:
                     pass
             
-            questions = query.order_by(MLQuestion.question_date.desc()).limit(limit).all()
-            questions_updated = False
-            for question in questions:
-                if self._ensure_question_item_details(question, company_id):
-                    questions_updated = True
-            if questions_updated:
-                self.db.commit()
+            total_items = query.count()
+            questions = (
+                query.order_by(MLQuestion.question_date.desc())
+                .limit(limit)
+                .all()
+            )
             
             return {
                 "success": True,
                 "questions": [self._question_to_dict(q) for q in questions],
-                "total": len(questions)
+                "total": total_items,
             }
         except Exception as e:
             logger.error(f"Erro ao listar perguntas: {e}", exc_info=True)

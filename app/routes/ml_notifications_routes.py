@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Router para notificações
 ml_notifications_router = APIRouter()
+public_ml_notifications_router = APIRouter()
 
 # Instância do controller
 notifications_controller = MLNotificationsController()
@@ -157,6 +158,26 @@ async def receive_ml_notification_singular(
     Endpoint alternativo para /api/notification (sem 's')
     Redireciona para a função principal de notificações
     """
+    return await receive_ml_notification(request, background_tasks, db)
+
+
+@public_ml_notifications_router.post("/notifications")
+async def receive_ml_notification_public(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Endpoint público (sem prefixo /api) para webhooks que apontam para /notifications"""
+    return await receive_ml_notification(request, background_tasks, db)
+
+
+@public_ml_notifications_router.post("/notification")
+async def receive_ml_notification_public_singular(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Alias público para /notification (sem prefixo /api)"""
     return await receive_ml_notification(request, background_tasks, db)
 
 @ml_notifications_router.get("/notifications/test")

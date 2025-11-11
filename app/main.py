@@ -12,7 +12,7 @@ from app.routes.auth_routes import auth_router
 from app.routes.ml_routes import ml_router
 from app.routes.ml_product_routes import ml_product_router
 from app.routes.ml_orders_routes import ml_orders_router
-from app.routes.ml_notifications_routes import ml_notifications_router
+from app.routes.ml_notifications_routes import ml_notifications_router, public_ml_notifications_router
 from app.routes.ads_analytics_routes import ads_analytics_router
 from app.routes.product_routes import product_router
 from app.routes.pricing_analysis_routes import router as pricing_analysis_router
@@ -205,6 +205,7 @@ app.include_router(ml_router, prefix="/ml")
 app.include_router(ml_product_router, prefix="/ml")
 app.include_router(ml_orders_router, prefix="/ml")
 app.include_router(ml_notifications_router, prefix="/api")  # Para /api/notifications
+app.include_router(public_ml_notifications_router)  # Para /notifications
 app.include_router(ads_analytics_router)  # Sem prefixo para /analytics
 app.include_router(product_router)  # Sem prefixo para /api/products
 app.include_router(pricing_analysis_router, prefix="/api/pricing")  # Para /api/pricing/analysis

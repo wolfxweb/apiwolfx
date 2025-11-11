@@ -89,6 +89,7 @@ async def question_detail_page(
 async def get_questions_api(
     request: Request,
     status: Optional[str] = Query(None, description="Status: UNANSWERED, ANSWERED, CLOSED_UNANSWERED"),
+    limit: int = Query(50, ge=1, le=500),
     ml_account_id: Optional[int] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
@@ -111,7 +112,7 @@ async def get_questions_api(
     company_id = user_data["company"]["id"]
     
     controller = MLQuestionsController(db)
-    result = controller.get_questions(company_id, ml_account_id, status)
+    result = controller.get_questions(company_id, ml_account_id, status, limit)
     
     return JSONResponse(content=result)
 
