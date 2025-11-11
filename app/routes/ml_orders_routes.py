@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request, Cookie, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+from pydantic import BaseModel, validator
 import logging
 import csv
 import io
@@ -13,6 +14,16 @@ from app.controllers.ml_orders_controller import MLOrdersController
 from app.controllers.auth_controller import AuthController
 
 ml_orders_router = APIRouter()
+
+class InternalStatusPayload(BaseModel):
+    status: Optional[str] = None
+
+    @validator("status")
+    def validate_status(cls, value):
+        allowed = {"separacao", "expedicao", "pronto_envio"}
+        if value is not None and value not in allowed:
+            raise ValueError("Status interno inválido.")
+        return value
 
 @ml_orders_router.get("/orders", response_class=HTMLResponse)
 async def orders_list(
@@ -121,6 +132,46 @@ async def get_orders_api(
         
     except Exception as e:
         logging.error(f"Erro no endpoint orders: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
+
+@ml_orders_router.post("/api/orders/{order_id}/internal-status")
+async def set_internal_status_api(
+    order_id: str,
+    payload: InternalStatusPayload,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Define o status interno de processamento de um pedido"""
+    try:
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        user_id = user_data.get("id")
+
+        controller = MLOrdersController(db)
+        update_result = controller.set_internal_status(
+            company_id=company_id,
+            order_identifier=order_id,
+            status=payload.status,
+            user_id=user_id
+        )
+
+        status_code = 200 if update_result.get("success") else 400
+        return JSONResponse(content=update_result, status_code=status_code)
+
+    except ValueError as ve:
+        return JSONResponse(content={"success": False, "error": str(ve)}, status_code=400)
+    except Exception as e:
+        logging.error(f"Erro ao atualizar status interno do pedido {order_id}: {e}")
         return JSONResponse(content={
             "success": False,
             "error": f"Erro interno: {str(e)}"

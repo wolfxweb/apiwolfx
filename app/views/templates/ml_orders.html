@@ -694,6 +694,15 @@ let currentPage = 1;
 let currentLimit = 50;
 let currentFilters = {};
 let ordersCache = {};
+const INTERNAL_STATUS_OPTIONS = [
+    { value: 'separacao', label: 'Separação' },
+    { value: 'expedicao', label: 'Expedição' },
+    { value: 'pronto_envio', label: 'Pronto para envio' }
+];
+const INTERNAL_STATUS_LABEL_MAP = INTERNAL_STATUS_OPTIONS.reduce((accumulator, option) => {
+    accumulator[option.value] = option.label;
+    return accumulator;
+}, {});
 
 function showLoading(isLoading) {
     const loadingContainer = document.getElementById('loading-container');
@@ -1054,7 +1063,8 @@ const STATUS_TRANSLATIONS_INLINE = {
     ready_to_print: 'Pronto para imprimir',
     printed: 'Etiqueta impressa',
     shipped: 'Enviado',
-    delivered: 'Entregue'
+    delivered: 'Entregue',
+    dropped_off: 'Postado no ponto de coleta'
 };
 
 function translateStatusesInText(text) {
@@ -1629,6 +1639,98 @@ async function emitInvoiceForOrder(orderId, triggerElement) {
     } finally {
         button.disabled = false;
         button.innerHTML = originalHtml;
+    }
+}
+
+async function syncSingleOrder(orderId, triggerElement) {
+    if (!orderId) return;
+
+    const button = triggerElement;
+    const originalContent = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+    try {
+        const response = await fetch(`/api/shipments/sync-single-order/${orderId}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+
+        if (checkSessionExpired(response)) {
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || data.message || `Erro ${response.status}`);
+        }
+
+        showSuccess(data.message || `Pedido ${orderId} sincronizado com sucesso.`);
+        loadOrders(currentPage);
+    } catch (error) {
+        console.error('Erro ao sincronizar pedido:', error);
+        showError(error.message || 'Erro ao sincronizar pedido.');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalContent;
+    }
+}
+
+async function updateInternalStatus(orderId, statusValue, triggerElement) {
+    if (!orderId) return;
+
+    const dropdownMenu = triggerElement.closest('.dropdown-menu');
+    const toggleButton = dropdownMenu ? dropdownMenu.previousElementSibling : null;
+    const originalToggleContent = toggleButton ? toggleButton.innerHTML : null;
+
+    if (toggleButton) {
+        toggleButton.disabled = true;
+        toggleButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+    }
+
+    try {
+        const response = await fetch(`/api/orders/${orderId}/internal-status`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: statusValue })
+        });
+
+        if (checkSessionExpired(response)) {
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || data.message || `Erro ${response.status}`);
+        }
+
+        const statusKey = data.status || null;
+        const label = data.status_label || 'Sem status';
+        if (statusKey) {
+            showSuccess(`Status interno atualizado para ${label}.`);
+        } else {
+            showSuccess('Status interno removido.');
+        }
+
+        const dropdownInstance = toggleButton ? bootstrap.Dropdown.getOrCreateInstance(toggleButton) : null;
+        if (dropdownInstance) {
+            dropdownInstance.hide();
+        }
+
+        loadOrders(currentPage);
+    } catch (error) {
+        console.error('Erro ao atualizar status interno:', error);
+        showError(error.message || 'Erro ao atualizar status interno.');
+    } finally {
+        if (toggleButton) {
+            toggleButton.disabled = false;
+            if (originalToggleContent !== null) {
+                toggleButton.innerHTML = originalToggleContent;
+            }
+        }
     }
 }
 
@@ -2269,6 +2371,11 @@ function renderShippingSummary(order) {
         segments.push(`<span class="badge ${badgeClass}">${shippingMethod}</span>`);
     }
 
+    if (order.internal_status_label) {
+        const internalLabel = sanitizeText(order.internal_status_label);
+        segments.push(`<span class="badge bg-dark text-uppercase">${internalLabel}</span>`);
+    }
+
     if (translatedStatus) {
         const readyStatuses = new Set(['ready_to_ship', 'ready_to_print', 'printed', 'packed', 'ready_to_pack']);
         const transitStatuses = new Set(['shipped', 'in_transit', 'out_for_delivery', 'soon_deliver']);
@@ -2341,7 +2448,10 @@ function renderShippingSummary(order) {
     if (isPickup) {
         const dropOffFormatted = formatDateTime(dropOffDate);
         if (dropOffFormatted) {
-            segments.push(`<span class="text-muted">📦 Registrado: ${dropOffFormatted}</span>`);
+            const dropOffLabel = (status === 'ready_to_ship' && substatus === 'dropped_off')
+                ? '📦 Postado:'
+                : '📦 Registrado:';
+            segments.push(`<span class="text-muted">${dropOffLabel} ${dropOffFormatted}</span>`);
         }
 
         const bufferingDate = shipping.shipping_option?.buffering?.date;
@@ -2416,7 +2526,8 @@ function translateShippingLabel(value) {
         in_warehouse: 'No armazém',
         in_packing_list: 'Na fila de embalagem',
         drop_off: 'Ponto de coleta',
-        xd_drop_off: 'Ponto de coleta'
+        xd_drop_off: 'Ponto de coleta',
+        dropped_off: 'Postado no ponto de coleta'
     };
     const normalized = value.toString().toLowerCase();
     if (labels[normalized]) {
@@ -2496,17 +2607,78 @@ function getLogisticBadgeClass(logisticType) {
     }
 }
 
+function renderInternalStatusDropdown(order) {
+    const orderId = order.ml_order_id || order.order_id || '';
+    const shippingStatus = (order.shipping_status || '').toString().toLowerCase();
+    const logisticType = (order.shipping_logistic_type || order.shipping_type || '').toString().toLowerCase();
+    if (!orderId || shippingStatus !== 'ready_to_ship' || logisticType === 'fulfillment' || logisticType === 'full') {
+        return '';
+    }
+
+    const currentStatus = order.internal_status || null;
+    const currentLabel = currentStatus
+        ? (order.internal_status_label || INTERNAL_STATUS_LABEL_MAP[currentStatus] || 'Status interno')
+        : 'Status interno';
+
+    const optionsItems = INTERNAL_STATUS_OPTIONS.map(option => {
+        const isActive = currentStatus === option.value ? 'active' : '';
+        const label = sanitizeText(option.label);
+        return `
+            <li>
+                <button class="dropdown-item ${isActive}" type="button" onclick="updateInternalStatus('${orderId}', '${option.value}', this)">
+                    ${label}
+                </button>
+            </li>
+        `;
+    }).join('');
+
+    const clearActive = currentStatus ? '' : 'active';
+
+    return `
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Status interno do pedido">
+                <i class="bi bi-flag"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <button class="dropdown-item ${clearActive}" type="button" onclick="updateInternalStatus('${orderId}', null, this)">
+                        Sem status
+                    </button>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                ${optionsItems}
+            </ul>
+        </div>
+    `;
+}
+
 function renderOrderActions(order) {
     const orderId = order.ml_order_id || order.order_id || '';
     const permalink = order.permalink || '';
-    const segments = [
-        `<button class="btn btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Ver detalhes">
+    const segments = [];
+
+    segments.push(`
+        <button type="button" class="btn btn-outline-primary" onclick="viewOrderDetails('${orderId}')" title="Ver detalhes do pedido">
             <i class="bi bi-eye"></i>
-        </button>`,
-        `<button class="btn btn-outline-secondary" onclick="copyOrderId('${orderId}')" title="Copiar ID do pedido">
+        </button>
+    `);
+
+    segments.push(`
+        <button type="button" class="btn btn-outline-success" onclick="syncSingleOrder('${orderId}', this)" title="Sincronizar pedido com Mercado Livre">
+            <i class="bi bi-arrow-repeat"></i>
+        </button>
+    `);
+
+    segments.push(`
+        <button type="button" class="btn btn-outline-secondary" onclick="copyOrderId('${orderId}')" title="Copiar ID do pedido">
             <i class="bi bi-clipboard"></i>
-        </button>`
-    ];
+        </button>
+    `);
+
+    const internalStatusDropdown = renderInternalStatusDropdown(order);
+    if (internalStatusDropdown) {
+        segments.push(internalStatusDropdown);
+    }
 
     const invoiceDropdown = renderInvoiceDropdown(order);
     if (invoiceDropdown) {
@@ -2532,12 +2704,6 @@ function renderOrderActions(order) {
             </a>
         `);
     }
-
-    segments.push(`
-        <a href="/ml/orders/${orderId}" class="btn btn-outline-secondary" title="Abrir no painel">
-            <i class="bi bi-window-sidebar"></i>
-        </a>
-    `);
 
     return `<div class="btn-group btn-group-sm flex-wrap" role="group">${segments.join('')}</div>`;
 }

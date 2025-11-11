@@ -6,7 +6,7 @@ import logging
 import json
 
 from app.services.ml_orders_service import MLOrdersService
-from app.models.saas_models import MLAccount, MLAccountStatus, MLProduct
+from app.models.saas_models import MLAccount, MLAccountStatus, MLProduct, MLOrderProcessingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,11 @@ class MLOrdersController:
     def __init__(self, db: Session):
         self.db = db
         self.orders_service = MLOrdersService(db)
+        self._internal_status_labels = {
+            "separacao": "Separação",
+            "expedicao": "Expedição",
+            "pronto_envio": "Pronto para envio"
+        }
     
     def get_orders_list(self, company_id: int, ml_account_id: Optional[int] = None,
                        limit: int = 50, offset: int = 0,
@@ -353,6 +358,21 @@ class MLOrdersController:
                         product_map_by_sku.setdefault(product.seller_sku.strip(), info)
                     product_map_by_item.setdefault(str(product.ml_item_id), info)
             
+            # Buscar status internos dos pedidos
+            status_map = {}
+            status_updated_map = {}
+            if orders:
+                order_ids_list = [order.id for order in orders if order.id]
+                if order_ids_list:
+                    status_records = (
+                        self.db.query(MLOrderProcessingStatus)
+                        .filter(MLOrderProcessingStatus.order_id.in_(order_ids_list))
+                        .all()
+                    )
+                    for record in status_records:
+                        status_map[record.order_id] = record.status
+                        status_updated_map[record.order_id] = record.updated_at.isoformat() if record.updated_at else None
+            
             # Converter para formato de resposta
             all_orders = []
             for order in orders:
@@ -558,6 +578,10 @@ class MLOrdersController:
                     "invoice_key": order.invoice_key,
                     "invoice_pdf_url": order.invoice_pdf_url,
                     "invoice_xml_url": order.invoice_xml_url,
+                    "internal_status": status_map.get(order.id),
+                    "internal_status_label": self._internal_status_labels.get(status_map.get(order.id))
+                    if status_map.get(order.id) else None,
+                    "internal_status_updated_at": status_updated_map.get(order.id),
                     "order_items_enriched": enriched_items,
                 }
                 all_orders.append(order_data)
@@ -791,6 +815,9 @@ class MLOrdersController:
                 "shipping_status": order.shipping_status,
                 "shipping_address": order.shipping_address,
                 "shipping_details": order.shipping_details,
+                "internal_status": None,
+                "internal_status_label": None,
+                "internal_status_updated_at": None,
                 
                 # Taxas
                 "total_fees": float(order.total_fees) if order.total_fees else 0.0,
@@ -826,6 +853,17 @@ class MLOrdersController:
                 "updated_at": order.updated_at.isoformat() if order.updated_at else None
             }
             
+            status_record = (
+                self.db.query(MLOrderProcessingStatus)
+                .filter(MLOrderProcessingStatus.order_id == order.id)
+                .first()
+            )
+
+            if status_record:
+                order_data["internal_status"] = status_record.status
+                order_data["internal_status_label"] = self._internal_status_labels.get(status_record.status)
+                order_data["internal_status_updated_at"] = status_record.updated_at.isoformat() if status_record.updated_at else None
+
             return {
                 "success": True,
                 "order": order_data
@@ -838,6 +876,70 @@ class MLOrdersController:
                 "error": str(e)
             }
     
+    def set_internal_status(self, company_id: int, order_identifier: str, status: Optional[str], user_id: Optional[int] = None) -> Dict:
+        """Define ou remove o status interno de processamento para um pedido."""
+        allowed_statuses = set(self._internal_status_labels.keys())
+        if status and status not in allowed_statuses:
+            return {"success": False, "error": "Status interno inválido."}
+
+        from app.models.saas_models import MLOrder
+        from sqlalchemy import or_
+
+        query = self.db.query(MLOrder).filter(MLOrder.company_id == company_id)
+        if order_identifier.isdigit():
+            identifier_int = int(order_identifier)
+            query = query.filter(
+                or_(
+                    MLOrder.ml_order_id == identifier_int,
+                    MLOrder.order_id == order_identifier,
+                    MLOrder.id == identifier_int
+                )
+            )
+        else:
+            query = query.filter(MLOrder.order_id == order_identifier)
+
+        order = query.first()
+        if not order:
+            return {"success": False, "error": "Pedido não encontrado."}
+
+        record = (
+            self.db.query(MLOrderProcessingStatus)
+            .filter(MLOrderProcessingStatus.order_id == order.id)
+            .first()
+        )
+
+        try:
+            if status:
+                if not record:
+                    record = MLOrderProcessingStatus(
+                        order_id=order.id,
+                        company_id=company_id,
+                        status=status,
+                        updated_by=user_id
+                    )
+                    self.db.add(record)
+                else:
+                    record.status = status
+                    record.updated_by = user_id
+                self.db.commit()
+            else:
+                if record:
+                    self.db.delete(record)
+                    self.db.commit()
+                record = None
+
+            current_status = record.status if record else None
+            return {
+                "success": True,
+                "status": current_status,
+                "status_label": self._internal_status_labels.get(current_status) if current_status else None,
+                "updated_at": record.updated_at.isoformat() if record and record.updated_at else None
+            }
+        except Exception as exc:
+            self.db.rollback()
+            logger.error("Erro ao atualizar status interno do pedido %s: %s", order_identifier, exc)
+            return {"success": False, "error": "Erro ao atualizar status interno."}
+
     def get_orders_summary(self, company_id: int) -> Dict:
         """Busca resumo de orders para dashboard"""
         try:

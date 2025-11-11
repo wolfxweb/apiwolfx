@@ -4,8 +4,11 @@ Modelos SaaS Multi-tenant para API Mercado Livre
 from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, JSON, Index, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.config.database import Base
+from app.config.database import Base, engine
 import enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CompanyStatus(enum.Enum):
     """Status da empresa"""
@@ -712,6 +715,28 @@ class MLOrder(Base):
         Index('ix_ml_orders_shipping_id', 'shipping_id'),
         Index('ix_ml_orders_cash_entry', 'cash_entry_created'),
     )
+
+class MLOrderProcessingStatus(Base):
+    """Status interno de processamento do pedido"""
+    __tablename__ = "ml_order_processing_statuses"
+
+    order_id = Column(Integer, ForeignKey("ml_orders.id", ondelete="CASCADE"), primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(50), nullable=False, index=True)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    order = relationship("MLOrder", backref="processing_status")
+
+    __table_args__ = (
+        UniqueConstraint('order_id', name='uq_ml_order_processing_status_order_id'),
+        Index('ix_ml_order_processing_status_company_status', 'company_id', 'status'),
+    )
+
+try:
+    MLOrderProcessingStatus.__table__.create(bind=engine, checkfirst=True)
+except Exception as exc:  # pragma: no cover - apenas log
+    logger.warning("Não foi possível garantir a criação da tabela ml_order_processing_statuses: %s", exc)
 
 class MLQuestion(Base):
     """Modelo de Perguntas do Mercado Livre"""
