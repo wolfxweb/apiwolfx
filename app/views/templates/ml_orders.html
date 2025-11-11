@@ -2399,7 +2399,12 @@ function renderShippingSummary(order) {
     const isPointCollection = logisticTypeRaw && logisticTypeRaw.toString().toLowerCase() === 'xd_drop_off';
     const isBuffered = substatus === 'buffered';
 
-    if (translatedSubstatus && translatedSubstatus !== '-' && translatedSubstatus !== translatedStatus) {
+    if (
+        substatus !== 'dropped_off' &&
+        translatedSubstatus &&
+        translatedSubstatus !== '-' &&
+        translatedSubstatus !== translatedStatus
+    ) {
         segments.push(`<span class="text-muted">📍 ${translatedSubstatus}</span>`);
     }
 
