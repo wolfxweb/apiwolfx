@@ -1,0 +1,13 @@
+.toast {
+    --bs-toast-bg: #ffffff !important;
+    --bs-toast-color: #212529 !important;
+    background-color: #ffffff !important;
+    color: #212529 !important;
+    backdrop-filter: none !important;
+}
+
+.toast .toast-body {
+    background-color: #ffffff !important;
+    color: #212529 !important;
+}
+

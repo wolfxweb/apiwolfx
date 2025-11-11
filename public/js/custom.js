@@ -158,49 +158,13 @@ function copyCode(element) {
 // 🎨 Mostrar Notificação Moderna
 function showNotification(message, type = 'info', duration = 8000) {
     const palette = {
-        success: { headerBg: 'bg-success', headerText: 'text-white', accent: '#198754' },
-        error: { headerBg: 'bg-danger', headerText: 'text-white', accent: '#dc3545' },
-        warning: { headerBg: 'bg-warning', headerText: 'text-dark', accent: '#ffc107' },
-        info: { headerBg: 'bg-primary', headerText: 'text-white', accent: '#0d6efd' },
+        success: { title: 'Sucesso', icon: 'bi-check-circle-fill', headerBg: 'bg-success', headerText: 'text-white' },
+        error: { title: 'Erro', icon: 'bi-x-circle-fill', headerBg: 'bg-danger', headerText: 'text-white' },
+        warning: { title: 'Atenção', icon: 'bi-exclamation-triangle-fill', headerBg: 'bg-warning', headerText: 'text-dark' },
+        info: { title: 'Informação', icon: 'bi-info-circle-fill', headerBg: 'bg-primary', headerText: 'text-white' },
     };
     const scheme = palette[type] || palette.info;
 
-    const notification = document.createElement('div');
-    notification.classList.add(
-        'toast',
-        'position-fixed',
-        'show',
-        'bg-white',
-        'text-body',
-        'shadow-lg',
-        'border-0'
-    );
-    notification.style.top = '20px';
-    notification.style.right = '20px';
-    notification.style.zIndex = '9999';
-    notification.style.maxWidth = '400px';
-    notification.style.borderRadius = '10px';
-    notification.style.overflow = 'hidden';
-    notification.style.borderLeft = `6px solid ${scheme.accent}`;
-    notification.style.setProperty('--bs-toast-bg', '#ffffff');
-    notification.style.setProperty('--bs-toast-color', '#212529');
-    notification.style.backgroundColor = '#ffffff';
-
-    const icon = getNotificationIcon(type);
-    const headerCloseClass = scheme.headerText === 'text-white' ? 'btn-close-white' : '';
-
-    notification.innerHTML = `
-        <div class="toast-header border-0 ${scheme.headerBg} ${scheme.headerText}">
-            <i class="bi ${icon} me-2"></i>
-            <strong class="me-auto">${getNotificationTitle(type)}</strong>
-            <button type="button" class="btn-close ${headerCloseClass}" data-bs-dismiss="toast" aria-label="Fechar"></button>
-        </div>
-        <div class="toast-body bg-white text-body">
-            ${message}
-        </div>
-    `;
-    
-    // Container para toasts
     let container = document.getElementById('global-toast-container');
     if (!container) {
         container = document.createElement('div');
@@ -210,9 +174,64 @@ function showNotification(message, type = 'info', duration = 8000) {
         document.body.appendChild(container);
     }
 
-    container.appendChild(notification);
-    const bsToast = new bootstrap.Toast(notification, { delay: duration });
-    notification.addEventListener('hidden.bs.toast', () => notification.remove());
+    const toastTemplate = container.querySelector('.toast[data-template="true"]');
+    let toastElement;
+
+    if (toastTemplate) {
+        toastElement = toastTemplate.cloneNode(true);
+        toastElement.dataset.template = 'false';
+        toastElement.classList.remove('d-none');
+    } else {
+        toastElement = document.createElement('div');
+        toastElement.className = 'toast border-0 shadow-lg';
+        toastElement.setAttribute('role', 'alert');
+        toastElement.setAttribute('aria-live', 'assertive');
+        toastElement.setAttribute('aria-atomic', 'true');
+        toastElement.dataset.template = 'true';
+        toastElement.innerHTML = `
+            <div class="toast-header">
+                <span class="toast-icon me-2"></span>
+                <strong class="me-auto toast-title"></strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Fechar"></button>
+            </div>
+            <div class="toast-body"></div>
+        `;
+        container.appendChild(toastElement);
+        toastElement = toastElement.cloneNode(true);
+        toastElement.dataset.template = 'false';
+        toastElement.classList.remove('d-none');
+    }
+
+    const header = toastElement.querySelector('.toast-header');
+    const iconEl = toastElement.querySelector('.toast-icon');
+    const titleEl = toastElement.querySelector('.toast-title');
+    const bodyEl = toastElement.querySelector('.toast-body');
+    const closeBtn = toastElement.querySelector('.btn-close');
+
+    header.className = `toast-header ${scheme.headerBg} ${scheme.headerText}`;
+    iconEl.className = `toast-icon bi ${scheme.icon}`;
+    titleEl.textContent = scheme.title;
+    bodyEl.textContent = '';
+    if (typeof message === 'string') {
+        bodyEl.innerHTML = message;
+    } else if (message instanceof HTMLElement) {
+        bodyEl.appendChild(message);
+    }
+    if (scheme.headerText === 'text-white') {
+        closeBtn.classList.add('btn-close-white');
+    } else {
+        closeBtn.classList.remove('btn-close-white');
+    }
+
+    toastElement.classList.remove('show');
+    toastElement.style.setProperty('--bs-toast-bg', '#ffffff');
+    toastElement.style.backgroundColor = '#ffffff';
+    toastElement.querySelector('.toast-body').style.backgroundColor = '#ffffff';
+
+    container.appendChild(toastElement);
+
+    const bsToast = new bootstrap.Toast(toastElement, { delay: duration });
+    toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
     bsToast.show();
 }
 
