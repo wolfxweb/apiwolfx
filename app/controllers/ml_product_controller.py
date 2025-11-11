@@ -560,6 +560,24 @@ class MLProductController:
                     'error': 'Produto não encontrado'
                 }
             
+            shipping_data = product.shipping or {}
+            package_length = None
+            package_width = None
+            package_height = None
+            package_weight = None
+            dimensions_value = shipping_data.get("dimensions") if isinstance(shipping_data, dict) else None
+            if isinstance(dimensions_value, str) and dimensions_value:
+                try:
+                    dimensions_part, weight_part = dimensions_value.split(",") if "," in dimensions_value else (dimensions_value, None)
+                    if dimensions_part:
+                        parts = dimensions_part.split("x")
+                        if len(parts) >= 3:
+                            package_length, package_width, package_height = parts[:3]
+                    if weight_part:
+                        package_weight = weight_part
+                except Exception as dim_exc:
+                    logger.debug("ℹ️ Não foi possível interpretar dimensions '%s': %s", dimensions_value, dim_exc)
+
             return {
                 'success': True,
                 'product': {
@@ -597,7 +615,7 @@ class MLProductController:
                     'attributes': product.attributes or [],
                     'variations': product.variations or [],
                     'tags': product.tags or [],
-                    'shipping': product.shipping or {},
+                    'shipping': shipping_data,
                     'free_shipping': product.free_shipping,
                     'differential_pricing': product.differential_pricing,
                     'deal_ids': product.deal_ids or [],
@@ -614,7 +632,11 @@ class MLProductController:
                     'last_sync': product.last_sync.isoformat() if product.last_sync else None,
                     'last_ml_update': product.last_ml_update.isoformat() if product.last_ml_update else None,
                     'created_at': product.created_at.isoformat() if product.created_at else None,
-                    'updated_at': product.updated_at.isoformat() if product.updated_at else None
+                    'updated_at': product.updated_at.isoformat() if product.updated_at else None,
+                    'package_length': package_length,
+                    'package_width': package_width,
+                    'package_height': package_height,
+                    'package_weight': package_weight,
                 }
             }
             
@@ -1232,6 +1254,33 @@ class MLProductController:
                 item_id = item_data.get("id")
                 
                 logger.info(f"🎉 Produto criado com sucesso no ML! ID: {item_id}")
+
+                description_text = product_data.get("description") or ""
+                if description_text and item_id:
+                    try:
+                        description_url = f"https://api.mercadolibre.com/items/{item_id}/description"
+                        description_headers = {
+                            "Authorization": f"Bearer {access_token}",
+                            "Content-Type": "application/json",
+                        }
+                        description_payload = {"plain_text": description_text}
+                        desc_response = requests.post(
+                            description_url,
+                            headers=description_headers,
+                            json=description_payload,
+                            timeout=30,
+                        )
+                        if desc_response.status_code not in (200, 201):
+                            logger.warning(
+                                "⚠️ Falha ao salvar descrição do item %s: %s - %s",
+                                item_id,
+                                desc_response.status_code,
+                                desc_response.text,
+                            )
+                        else:
+                            logger.info("📝 Descrição enviada com sucesso para o item %s", item_id)
+                    except Exception as desc_exc:
+                        logger.warning("⚠️ Erro ao enviar descrição do item %s: %s", item_id, desc_exc)
                 
                 # 6. Sincronizar produto completo a partir do Mercado Livre
                 try:
@@ -1329,10 +1378,6 @@ class MLProductController:
             if category_id:
                 payload["category_id"] = category_id
 
-            listing_type_id = (product_data.get("listing_type_id") or "").strip()
-            if listing_type_id:
-                payload["listing_type_id"] = listing_type_id
-
             condition = (product_data.get("condition") or "").strip()
             if condition:
                 payload["condition"] = condition
@@ -1389,7 +1434,10 @@ class MLProductController:
                 shipping_config["dimensions"] = "x".join(dimensions_parts) + f",{weight_part}"
 
             if shipping_config:
-                payload["shipping"] = shipping_config
+                # Mercado Livre não permite atualizar dimensões de pacotes após a publicação.
+                shipping_config.pop("dimensions", None)
+                if shipping_config:
+                    payload["shipping"] = shipping_config
 
             pictures_payload: List[Dict[str, Any]] = []
             for url in existing_pictures:

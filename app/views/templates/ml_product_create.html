@@ -255,6 +255,15 @@
                         <option value="gold_pro">Premium</option>
                         <option value="free">Gratuito</option>
                     </select>
+                    {% if editing %}
+                    <div class="form-text text-muted">
+                        <i class="bi bi-info-circle"></i> Após publicar o anúncio, o tipo não pode mais ser alterado.
+                    </div>
+                    {% else %}
+                    <div class="form-text">
+                        Informe se deseja anúncio clássico, premium ou gratuito.
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             
@@ -291,6 +300,11 @@
                 <div class="form-text mb-2">
                     <i class="bi bi-box"></i> Necessário para calcular o frete. Informe as medidas da embalagem.
                 </div>
+                {% if editing %}
+                <div class="alert alert-light border text-muted py-2 px-3">
+                    <i class="bi bi-info-circle"></i> Dimensões cadastradas no Mercado Livre não podem ser alteradas nesta tela.
+                </div>
+                {% endif %}
                 <div class="row">
                     <div class="col-md-3 mb-2">
                         <input type="number" class="form-control" id="package_length" name="package_length" 
@@ -829,6 +843,11 @@ async function initializeEditMode() {
     if (listingTypeSelect && initialProductData.listing_type_id) {
         listingTypeSelect.value = initialProductData.listing_type_id;
     }
+    if (listingTypeSelect) {
+        listingTypeSelect.disabled = true;
+        listingTypeSelect.required = false;
+        listingTypeSelect.classList.add('bg-light');
+    }
 
     const conditionSelect = document.getElementById('condition');
     if (conditionSelect && initialProductData.condition) {
@@ -861,22 +880,41 @@ async function initializeEditMode() {
         freeShippingCheckbox.checked = Boolean(initialProductData.free_shipping);
     }
 
-    if (shipping.dimensions) {
+    const lengthInput = document.getElementById('package_length');
+    const widthInput = document.getElementById('package_width');
+    const heightInput = document.getElementById('package_height');
+    const weightInput = document.getElementById('package_weight');
+
+    const prefilledLength = initialProductData.package_length ?? initialProductData.package_length_cm ?? null;
+    const prefilledWidth = initialProductData.package_width ?? initialProductData.package_width_cm ?? null;
+    const prefilledHeight = initialProductData.package_height ?? initialProductData.package_height_cm ?? null;
+    const prefilledWeight = initialProductData.package_weight ?? initialProductData.package_weight_g ?? null;
+
+    if (lengthInput && prefilledLength) lengthInput.value = prefilledLength;
+    if (widthInput && prefilledWidth) widthInput.value = prefilledWidth;
+    if (heightInput && prefilledHeight) heightInput.value = prefilledHeight;
+    if (weightInput && prefilledWeight) weightInput.value = prefilledWeight;
+
+    if ((!lengthInput?.value || !widthInput?.value || !heightInput?.value || !weightInput?.value) && shipping.dimensions) {
         const [dimensionsPart, weightPart] = shipping.dimensions.split(',');
         if (dimensionsPart) {
             const [length, width, height] = dimensionsPart.split('x');
-            const lengthInput = document.getElementById('package_length');
-            const widthInput = document.getElementById('package_width');
-            const heightInput = document.getElementById('package_height');
-            if (lengthInput && length) lengthInput.value = length;
-            if (widthInput && width) widthInput.value = width;
-            if (heightInput && height) heightInput.value = height;
+            if (lengthInput && length && !lengthInput.value) lengthInput.value = length;
+            if (widthInput && width && !widthInput.value) widthInput.value = width;
+            if (heightInput && height && !heightInput.value) heightInput.value = height;
         }
-        if (weightPart) {
-            const weightInput = document.getElementById('package_weight');
-            if (weightInput) weightInput.value = weightPart;
+        if (weightPart && weightInput && !weightInput.value) {
+            weightInput.value = weightPart;
         }
     }
+
+    [lengthInput, widthInput, heightInput, weightInput].forEach((input) => {
+        if (input) {
+            input.disabled = true;
+            input.classList.add('bg-light');
+            input.removeAttribute('required');
+        }
+    });
 
     seedExistingImages(initialProductData.pictures || []);
 
@@ -2392,4 +2430,5 @@ function prefillVariationsFromApi(apiVariations) {
 }
 </script>
 {% endblock %}
+
 
