@@ -823,10 +823,20 @@ function syncFiltersWithUrl() {
         setSelectValue('logistic_filter', '');
     }
 
-    const periodValue = params.get('period_filter') || '';
-    const periodValid = setSelectValue('period_filter', periodValue);
-    if (!periodValid && periodValue) {
-        params.delete('period_filter');
+    let periodValue = params.get('period_filter') || '';
+    let periodValid = false;
+    if (periodValue) {
+        periodValid = setSelectValue('period_filter', periodValue);
+        if (!periodValid) {
+            params.delete('period_filter');
+            paramsChanged = true;
+            periodValue = '';
+        }
+    }
+    if (!periodValue) {
+        setSelectValue('period_filter', 'last_15_days');
+        params.set('period_filter', 'last_15_days');
+        periodValue = 'last_15_days';
         paramsChanged = true;
     }
 
