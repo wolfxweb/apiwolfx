@@ -484,6 +484,39 @@ class MLMessagesController:
                 "success": False,
                 "error": str(e),
             }
+    
+    def delete_all_threads(self, company_id: int) -> Dict:
+        """Remove todas as conversas e mensagens da empresa do banco"""
+        try:
+            # Buscar todas as threads da empresa
+            threads = (
+                self.db.query(MLMessageThread)
+                .filter(MLMessageThread.company_id == company_id)
+                .all()
+            )
+            
+            deleted_count = 0
+            for thread in threads:
+                # As mensagens serão deletadas automaticamente devido ao cascade
+                self.db.delete(thread)
+                deleted_count += 1
+            
+            self.db.commit()
+            
+            logger.info(f"Removidas {deleted_count} conversa(s) da empresa {company_id}")
+            
+            return {
+                "success": True,
+                "deleted_threads": deleted_count
+            }
+        except Exception as e:
+            logger.error(f"Erro ao remover todas as threads da empresa {company_id}: {e}", exc_info=True)
+            self.db.rollback()
+            return {
+                "success": False,
+                "error": str(e),
+                "deleted_threads": 0
+            }
 
     def _thread_to_dict(self, thread: MLMessageThread) -> Dict:
         """Converte thread para dicionário"""

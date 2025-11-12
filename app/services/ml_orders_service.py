@@ -577,27 +577,27 @@ class MLOrdersService:
             logger.error(f"Erro ao buscar orders da API: {e}")
             return []
     
-    def _fetch_complete_order_data(self, order_data: Dict, access_token: str) -> Dict:
+    def _fetch_complete_order_data(self, order_data: Dict, access_token: str, ml_account_id: Optional[int] = None, company_id: Optional[int] = None) -> Dict:
         """Busca informações completas de uma order incluindo detalhes de envio, descontos e publicidade"""
         try:
             ml_order_id = order_data.get("id")
             complete_data = order_data.copy()
             
             # 1. Buscar detalhes completos da order
-            order_details = self._fetch_order_details(ml_order_id, access_token)
+            order_details = self._fetch_order_details(ml_order_id, access_token, ml_account_id, company_id)
             if order_details:
                 complete_data.update(order_details)
             
             # 2. Buscar detalhes de envio se existir shipping_id
             shipping_id = order_data.get("shipping", {}).get("id")
             if shipping_id:
-                shipping_details = self._fetch_shipping_details(shipping_id, access_token)
+                shipping_details = self._fetch_shipping_details(shipping_id, access_token, ml_account_id, company_id)
                 if shipping_details:
                     complete_data["shipping_details"] = shipping_details
             
             # 3. Buscar descontos aplicados (com tratamento de erro para evitar sobrecarga)
             try:
-                discounts = self._fetch_order_discounts(ml_order_id, access_token)
+                discounts = self._fetch_order_discounts(ml_order_id, access_token, ml_account_id, company_id)
                 if discounts:
                     complete_data["discounts_applied"] = discounts
             except Exception as e:
@@ -605,7 +605,7 @@ class MLOrdersService:
                 # Continuar sem descontos se houver erro
             
             # 4. Buscar dados de publicidade da API
-            advertising_info = self._fetch_advertising_data(ml_order_id, access_token)
+            advertising_info = self._fetch_advertising_data(ml_order_id, access_token, ml_account_id, company_id)
             if advertising_info:
                 complete_data.update(advertising_info)
             
@@ -645,13 +645,28 @@ class MLOrdersService:
             logger.error(f"Erro ao obter user_id para ml_account_id {ml_account_id}: {e}")
             return None
     
-    def _fetch_order_details(self, ml_order_id: int, access_token: str) -> Optional[Dict]:
+    def _fetch_order_details(self, ml_order_id: int, access_token: str, ml_account_id: Optional[int] = None, company_id: Optional[int] = None) -> Optional[Dict]:
         """Busca detalhes completos de uma order específica"""
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
             url = f"{self.base_url}/orders/{ml_order_id}"
             
             response = requests.get(url, headers=headers, timeout=30)
+            
+            # Se receber 401/403, tentar renovar o token e tentar novamente
+            if response.status_code in (401, 403) and ml_account_id and company_id:
+                logger.info(f"🔄 Token retornou {response.status_code}, tentando renovar token para conta ML {ml_account_id}")
+                from app.services.token_manager import TokenManager
+                token_manager = TokenManager(self.db)
+                token_record = token_manager.get_token_record_for_account(
+                    ml_account_id=ml_account_id,
+                    company_id=company_id
+                )
+                if token_record and token_record.access_token:
+                    access_token = token_record.access_token
+                    headers = {"Authorization": f"Bearer {access_token}"}
+                    logger.info(f"✅ Token renovado, tentando novamente")
+                    response = requests.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 return response.json()
@@ -663,13 +678,28 @@ class MLOrdersService:
             logger.error(f"Erro ao buscar detalhes da order: {e}")
             return None
     
-    def _fetch_shipping_details(self, shipping_id: str, access_token: str) -> Optional[Dict]:
+    def _fetch_shipping_details(self, shipping_id: str, access_token: str, ml_account_id: Optional[int] = None, company_id: Optional[int] = None) -> Optional[Dict]:
         """Busca detalhes de envio"""
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
             url = f"{self.base_url}/shipments/{shipping_id}"
             
             response = requests.get(url, headers=headers, timeout=30)
+            
+            # Se receber 401/403, tentar renovar o token e tentar novamente
+            if response.status_code in (401, 403) and ml_account_id and company_id:
+                logger.info(f"🔄 Token retornou {response.status_code}, tentando renovar token para conta ML {ml_account_id}")
+                from app.services.token_manager import TokenManager
+                token_manager = TokenManager(self.db)
+                token_record = token_manager.get_token_record_for_account(
+                    ml_account_id=ml_account_id,
+                    company_id=company_id
+                )
+                if token_record and token_record.access_token:
+                    access_token = token_record.access_token
+                    headers = {"Authorization": f"Bearer {access_token}"}
+                    logger.info(f"✅ Token renovado, tentando novamente")
+                    response = requests.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 return response.json()
@@ -681,7 +711,7 @@ class MLOrdersService:
             logger.error(f"Erro ao buscar detalhes do envio: {e}")
             return None
     
-    def _fetch_order_discounts(self, ml_order_id: int, access_token: str) -> Optional[Dict]:
+    def _fetch_order_discounts(self, ml_order_id: int, access_token: str, ml_account_id: Optional[int] = None, company_id: Optional[int] = None) -> Optional[Dict]:
         """Busca descontos aplicados em uma order"""
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -689,6 +719,21 @@ class MLOrdersService:
             
             # Timeout menor para evitar sobrecarga
             response = requests.get(url, headers=headers, timeout=10)
+            
+            # Se receber 401/403, tentar renovar o token e tentar novamente
+            if response.status_code in (401, 403) and ml_account_id and company_id:
+                logger.info(f"🔄 Token retornou {response.status_code}, tentando renovar token para conta ML {ml_account_id}")
+                from app.services.token_manager import TokenManager
+                token_manager = TokenManager(self.db)
+                token_record = token_manager.get_token_record_for_account(
+                    ml_account_id=ml_account_id,
+                    company_id=company_id
+                )
+                if token_record and token_record.access_token:
+                    access_token = token_record.access_token
+                    headers = {"Authorization": f"Bearer {access_token}"}
+                    logger.info(f"✅ Token renovado, tentando novamente")
+                    response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 return response.json()
@@ -706,13 +751,13 @@ class MLOrdersService:
             logger.warning(f"Erro ao buscar descontos da order {ml_order_id}: {e}")
             return None
     
-    def _fetch_advertising_data(self, ml_order_id: int, access_token: str) -> Optional[Dict]:
+    def _fetch_advertising_data(self, ml_order_id: int, access_token: str, ml_account_id: Optional[int] = None, company_id: Optional[int] = None) -> Optional[Dict]:
         """Busca dados de publicidade de um pedido específico"""
         try:
             logger.info(f"Buscando dados de publicidade para order {ml_order_id}")
             
             # 1. Buscar dados de publicidade dos anunciantes
-            advertisers_data = self._fetch_advertisers_data(access_token)
+            advertisers_data = self._fetch_advertisers_data(access_token, ml_account_id, company_id)
             if not advertisers_data:
                 logger.warning("Nenhum anunciante encontrado")
                 return None
@@ -746,7 +791,7 @@ class MLOrdersService:
             logger.error(f"Erro ao buscar dados de publicidade da order {ml_order_id}: {e}")
             return None
     
-    def _fetch_advertisers_data(self, access_token: str) -> Optional[List[Dict]]:
+    def _fetch_advertisers_data(self, access_token: str, ml_account_id: Optional[int] = None, company_id: Optional[int] = None) -> Optional[List[Dict]]:
         """Busca dados dos anunciantes"""
         try:
             url = f"{self.base_url}/advertising/advertisers"
@@ -758,6 +803,31 @@ class MLOrdersService:
             }
             
             response = requests.get(url, params=params, headers=headers, timeout=30)
+            
+            # Se receber 401/403, tentar renovar o token e tentar novamente
+            if response.status_code in (401, 403) and ml_account_id and company_id:
+                logger.info(f"🔄 Token retornou {response.status_code}, tentando renovar token para conta ML {ml_account_id}")
+                from app.services.token_manager import TokenManager
+                token_manager = TokenManager(self.db)
+                token_record = token_manager.get_token_record_for_account(
+                    ml_account_id=ml_account_id,
+                    company_id=company_id
+                )
+                if token_record and token_record.access_token:
+                    access_token = token_record.access_token
+                    headers = {
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json",
+                        "Api-Version": "1"
+                    }
+                    logger.info(f"✅ Token renovado, tentando novamente")
+                    response = requests.get(url, params=params, headers=headers, timeout=30)
+            
+            # 404 pode ser normal se não houver anunciantes configurados
+            if response.status_code == 404:
+                logger.info("Nenhum anunciante encontrado (404)")
+                return []
+            
             response.raise_for_status()
             
             data = response.json()
@@ -1019,7 +1089,7 @@ class MLOrdersService:
                 )
 
             # Buscar informações completas da order
-            complete_order_data = self._fetch_complete_order_data(order_data, access_token)
+            complete_order_data = self._fetch_complete_order_data(order_data, access_token, ml_account_id, company_id)
             
             # Nota: Dados de billing detalhados não estão disponíveis por pedido individual
             # Eles são fornecidos pelo ML apenas em relatórios mensais consolidados

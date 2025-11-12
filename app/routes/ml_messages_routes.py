@@ -103,6 +103,35 @@ async def get_reasons_api(
     
     return JSONResponse(content=result)
 
+@ml_messages_router.delete("/api/messages/delete-all")
+async def delete_all_messages_api(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para remover todas as mensagens da empresa"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+
+    user_data = result["user"]
+    company_id = user_data["company"]["id"]
+
+    controller = MLMessagesController(db)
+    result = controller.delete_all_threads(company_id)
+
+    status_code = 200 if result.get("success") else 400
+    return JSONResponse(status_code=status_code, content=result)
+
 @ml_messages_router.get("/api/messages/{thread_id}")
 async def get_thread_api(
     thread_id: int,

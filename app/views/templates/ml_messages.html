@@ -16,8 +16,11 @@
                     <button class="btn btn-primary me-2" onclick="syncMessages()">
                         <i class="bi bi-arrow-clockwise"></i> Sincronizar Mensagens
                     </button>
-                    <button class="btn btn-success" onclick="importHistoricalMessages()">
+                    <button class="btn btn-success me-2" onclick="importHistoricalMessages()">
                         <i class="bi bi-download"></i> Importar Histórico Completo
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteAllMessages()">
+                        <i class="bi bi-trash"></i> Remover Todas as Mensagens
                     </button>
                 </div>
             </div>
@@ -202,6 +205,32 @@
             <div class="modal-body" id="syncModalBody"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação para Remover Todas as Mensagens -->
+<div class="modal fade" id="deleteAllModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle"></i> Confirmar Remoção
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>⚠️ ATENÇÃO: Esta ação é irreversível!</strong></p>
+                <p>Você está prestes a remover <strong>TODAS</strong> as mensagens e conversas do sistema.</p>
+                <p class="text-muted">Esta ação não afeta as mensagens no Mercado Livre, apenas remove os dados locais.</p>
+                <p class="text-danger"><strong>Deseja realmente continuar?</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteAllBtn">
+                    <i class="bi bi-trash"></i> Sim, Remover Todas
+                </button>
             </div>
         </div>
     </div>
@@ -773,6 +802,60 @@ function showMessage(title, message) {
     document.getElementById('messageModalBody').textContent = message;
     const modal = new bootstrap.Modal(document.getElementById('messageModal'));
     modal.show();
+}
+
+async function deleteAllMessages() {
+    // Mostrar modal de confirmação
+    const confirmModal = new bootstrap.Modal(document.getElementById('deleteAllModal'));
+    const confirmBtn = document.getElementById('confirmDeleteAllBtn');
+    
+    // Remover event listeners anteriores
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    
+    // Adicionar listener no novo botão
+    newConfirmBtn.addEventListener('click', async () => {
+        confirmModal.hide();
+        await executeDeleteAll();
+    });
+    
+    confirmModal.show();
+}
+
+async function executeDeleteAll() {
+    const button = document.querySelector('button[onclick="deleteAllMessages()"]');
+    const originalText = button.innerHTML;
+    
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Removendo...';
+    
+    try {
+        const response = await fetch('/api/messages/delete-all', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const deletedCount = data.deleted_threads || 0;
+            showNotification(`Todas as mensagens foram removidas com sucesso! (${deletedCount} conversa(s) removida(s))`, 'success');
+            
+            // Limpar interface
+            currentThreadId = null;
+            document.getElementById('chat-container').style.display = 'none';
+            document.getElementById('chat-empty').style.display = 'flex';
+            document.getElementById('threads-list').innerHTML = '<p class="text-center text-muted p-3">Nenhuma conversa encontrada</p>';
+        } else {
+            showNotification(data.error || 'Erro ao remover mensagens', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao remover todas as mensagens:', error);
+        showNotification('Erro ao remover mensagens: ' + error.message, 'error');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
 }
 </script>
 
