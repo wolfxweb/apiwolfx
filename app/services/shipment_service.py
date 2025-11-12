@@ -879,6 +879,22 @@ class ShipmentService:
             if not order:
                 return {"success": False, "error": "Pedido não encontrado."}
 
+            # Garantir que temos um token válido usando TokenManager
+            from app.services.token_manager import TokenManager
+            token_manager = TokenManager(self.db)
+            
+            # Tentar obter token válido da conta do pedido
+            if order.ml_account_id:
+                token_record = token_manager.get_token_record_for_account(
+                    ml_account_id=order.ml_account_id,
+                    company_id=company_id
+                )
+                if token_record and token_record.access_token:
+                    access_token = token_record.access_token
+                    logger.info(f"✅ Token obtido da conta ML {order.ml_account_id}")
+                else:
+                    logger.warning(f"⚠️ Não foi possível obter token válido da conta ML {order.ml_account_id}, usando token fornecido")
+
             if order.invoice_emitted:
                 return {"success": False, "error": "A nota fiscal já foi emitida para este pedido."}
 
@@ -898,11 +914,26 @@ class ShipmentService:
 
             seller_id = order.seller_id
             if not seller_id:
-                account = (
-                    self.db.query(MLAccount)
-                    .filter(MLAccount.company_id == company_id)
-                    .first()
-                )
+                # Usar a conta do ML específica do pedido
+                account = None
+                if order.ml_account_id:
+                    account = (
+                        self.db.query(MLAccount)
+                        .filter(
+                            MLAccount.id == order.ml_account_id,
+                            MLAccount.company_id == company_id
+                        )
+                        .first()
+                    )
+                
+                # Se não encontrou pela conta do pedido, tentar a primeira conta da empresa
+                if not account:
+                    account = (
+                        self.db.query(MLAccount)
+                        .filter(MLAccount.company_id == company_id)
+                        .first()
+                    )
+                
                 if account and account.ml_user_id:
                     seller_id = account.ml_user_id
 
@@ -917,7 +948,12 @@ class ShipmentService:
             seller_doc_type = None
 
             if not seller_doc_number:
-                seller_identification = self._fetch_seller_identification(seller_id=seller_id, access_token=access_token)
+                seller_identification = self._fetch_seller_identification(
+                    seller_id=seller_id, 
+                    access_token=access_token,
+                    ml_account_id=order.ml_account_id if order else None,
+                    company_id=company_id
+                )
                 if seller_identification:
                     seller_doc_number = seller_identification.get("id_number")
                     seller_doc_type = seller_identification.get("id_type")
@@ -1436,7 +1472,13 @@ class ShipmentService:
             return ""
         return "".join(ch for ch in str(doc) if ch.isdigit())
 
-    def _fetch_seller_identification(self, seller_id: Optional[str], access_token: str) -> Optional[Dict[str, str]]:
+    def _fetch_seller_identification(
+        self, 
+        seller_id: Optional[str], 
+        access_token: str,
+        ml_account_id: Optional[int] = None,
+        company_id: Optional[int] = None
+    ) -> Optional[Dict[str, str]]:
         if not seller_id:
             return None
 
@@ -1445,6 +1487,22 @@ class ShipmentService:
 
         try:
             response = requests.get(url, headers=headers, timeout=30)
+            
+            # Se receber 403, tentar renovar o token e tentar novamente
+            if response.status_code == 403 and ml_account_id and company_id:
+                logger.info(f"🔄 Token retornou 403, tentando renovar token para conta ML {ml_account_id}")
+                from app.services.token_manager import TokenManager
+                token_manager = TokenManager(self.db)
+                token_record = token_manager.get_token_record_for_account(
+                    ml_account_id=ml_account_id,
+                    company_id=company_id
+                )
+                if token_record and token_record.access_token:
+                    access_token = token_record.access_token
+                    headers = {"Authorization": f"Bearer {access_token}"}
+                    logger.info(f"✅ Token renovado, tentando novamente")
+                    response = requests.get(url, headers=headers, timeout=30)
+            
             if response.status_code != 200:
                 logger.warning(
                     f"⚠️ Não foi possível obter identificação do vendedor {seller_id}. "
@@ -1567,6 +1625,22 @@ class ShipmentService:
 
         try:
             response = requests.get(url, headers=headers, timeout=30)
+            
+            # Se receber 403, tentar renovar o token e tentar novamente
+            if response.status_code == 403 and order.ml_account_id:
+                logger.info(f"🔄 Token retornou 403, tentando renovar token para conta ML {order.ml_account_id}")
+                from app.services.token_manager import TokenManager
+                token_manager = TokenManager(self.db)
+                token_record = token_manager.get_token_record_for_account(
+                    ml_account_id=order.ml_account_id,
+                    company_id=order.company_id
+                )
+                if token_record and token_record.access_token:
+                    access_token = token_record.access_token
+                    headers = {"Authorization": f"Bearer {access_token}"}
+                    logger.info(f"✅ Token renovado, tentando novamente")
+                    response = requests.get(url, headers=headers, timeout=30)
+            
             if response.status_code != 200:
                 logger.warning(
                     f"⚠️ Não foi possível obter dados fiscais do comprador via API para o pedido {order.order_id}. "

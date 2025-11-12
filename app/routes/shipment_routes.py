@@ -4,6 +4,7 @@ Rotas para expedição e notas fiscais
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query
 from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List, Optional
 from datetime import datetime
 import io
@@ -418,16 +419,44 @@ async def emit_invoice(
 
         token_manager = TokenManager(db)
 
-        from app.models.saas_models import User
-        user_db = db.query(User).filter(
-            User.company_id == company_id,
-            User.is_active == True
-        ).first()
+        # Buscar o pedido para identificar a conta do ML associada
+        from app.models.saas_models import MLOrder, MLAccount
+        order = (
+            db.query(MLOrder)
+            .filter(
+                MLOrder.company_id == company_id,
+                or_(
+                    MLOrder.ml_order_id == order_id,
+                    MLOrder.order_id == order_id,
+                    MLOrder.pack_id == order_id
+                )
+            )
+            .first()
+        )
 
-        if not user_db:
-            return JSONResponse(content={"error": "Nenhum usuário ativo encontrado para esta empresa"}, status_code=404)
+        access_token = None
+        if order and order.ml_account_id:
+            # Usar o token da conta específica do pedido
+            token_record = token_manager.get_token_record_for_account(
+                ml_account_id=order.ml_account_id,
+                company_id=company_id
+            )
+            if token_record and token_record.access_token:
+                access_token = token_record.access_token
 
-        access_token = token_manager.get_valid_token(user_db.id)
+        # Fallback: usar token do usuário se não encontrou pela conta
+        if not access_token:
+            from app.models.saas_models import User
+            user_db = db.query(User).filter(
+                User.company_id == company_id,
+                User.is_active == True
+            ).first()
+
+            if not user_db:
+                return JSONResponse(content={"error": "Nenhum usuário ativo encontrado para esta empresa"}, status_code=404)
+
+            access_token = token_manager.get_valid_token(user_db.id)
+
         if not access_token:
             return JSONResponse(content={"error": "Token de acesso inválido ou expirado"}, status_code=401)
 
