@@ -74,6 +74,35 @@ async def get_threads_api(
     
     return JSONResponse(content=result)
 
+@ml_messages_router.get("/api/messages/reasons")
+async def get_reasons_api(
+    request: Request,
+    ml_account_id: Optional[int] = Query(None),
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter motivos disponíveis para iniciar comunicação"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result["user"]
+    user_id = user_data["id"]
+    
+    controller = MLMessagesController(db)
+    result = controller.get_reasons(user_id, ml_account_id)
+    
+    return JSONResponse(content=result)
+
 @ml_messages_router.get("/api/messages/{thread_id}")
 async def get_thread_api(
     thread_id: int,
@@ -102,6 +131,36 @@ async def get_thread_api(
     result = controller.get_thread(thread_id, company_id)
     
     return JSONResponse(content=result)
+
+@ml_messages_router.delete("/api/messages/{thread_id}")
+async def delete_thread_api(
+    thread_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para remover uma conversa pós-venda"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+
+    user_data = result["user"]
+    company_id = user_data["company"]["id"]
+
+    controller = MLMessagesController(db)
+    result = controller.delete_thread(thread_id, company_id)
+
+    status_code = 200 if result.get("success") else 400
+    return JSONResponse(status_code=status_code, content=result)
 
 @ml_messages_router.post("/api/messages/create")
 async def create_message_api(
@@ -220,35 +279,6 @@ async def sync_messages_api(
         date_to=date_to,
         fetch_all=fetch_all
     )
-    
-    return JSONResponse(content=result)
-
-@ml_messages_router.get("/api/messages/reasons")
-async def get_reasons_api(
-    request: Request,
-    ml_account_id: Optional[int] = Query(None),
-    session_token: Optional[str] = Cookie(None),
-    db: Session = Depends(get_db)
-):
-    """API para obter motivos disponíveis para iniciar comunicação"""
-    if not session_token:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "error": "Não autenticado"}
-        )
-    
-    result = AuthController().get_user_by_session(session_token, db)
-    if result.get("error"):
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "error": "Sessão inválida"}
-        )
-    
-    user_data = result["user"]
-    user_id = user_data["id"]
-    
-    controller = MLMessagesController(db)
-    result = controller.get_reasons(user_id, ml_account_id)
     
     return JSONResponse(content=result)
 

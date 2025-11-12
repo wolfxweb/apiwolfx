@@ -80,8 +80,11 @@
                             </h5>
                             <small class="text-muted" id="thread-order-info"></small>
                         </div>
-                        <div>
+                        <div class="d-flex align-items-center gap-2">
                             <span id="thread-status-badge" class="badge bg-success">Aberta</span>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteCurrentThread()" title="Remover conversa">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
                     </div>
 
@@ -245,21 +248,37 @@ function debounceSearch() {
 
 async function loadAccounts() {
     try {
-        const response = await fetch('/api/messages/accounts', {
+        const response = await fetch('/api/accounts', {
             credentials: 'include'
         });
-        const data = await response.json();
         
-        if (data.success && data.accounts) {
-            const select = document.getElementById('account_filter');
-            select.innerHTML = '<option value="">Todas as contas</option>';
-            data.accounts.forEach(acc => {
-                const option = document.createElement('option');
-                option.value = acc.id;
-                option.textContent = acc.nickname || `Conta ${acc.id}`;
-                select.appendChild(option);
-            });
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
         }
+        
+        const data = await response.json();
+        const select = document.getElementById('account_filter');
+        
+        if (!select) {
+            return;
+        }
+        
+        select.innerHTML = '<option value="">Todas as contas</option>';
+        
+        let accounts = [];
+        if (Array.isArray(data)) {
+            accounts = data;
+        } else if (Array.isArray(data.accounts)) {
+            accounts = data.accounts;
+        }
+        
+        accounts.forEach(acc => {
+            const option = document.createElement('option');
+            option.value = acc.id;
+            option.textContent = acc.nickname || acc.email || acc.ml_user_id || `Conta ${acc.id}`;
+            select.appendChild(option);
+        });
     } catch (error) {
         console.error('Erro ao carregar contas:', error);
     }
@@ -435,6 +454,42 @@ async function openThread(threadId) {
     } catch (error) {
         console.error('Erro ao carregar conversa:', error);
         showMessage('Erro', 'Erro ao carregar a conversa');
+    }
+}
+
+async function deleteCurrentThread() {
+    if (!currentThreadId) {
+        showNotification('Selecione uma conversa para remover.', 'warning');
+        return;
+    }
+
+    const confirmed = confirm('Tem certeza de que deseja remover esta conversa do sistema? Esta ação não afeta o Mercado Livre.');
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/messages/${currentThreadId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            const message = data.error || 'Não foi possível remover a conversa.';
+            showNotification(message, 'error');
+            return;
+        }
+
+        showNotification('Conversa removida com sucesso.', 'success');
+        currentThreadId = null;
+        pendingThreadParams = null;
+        document.getElementById('chat-container').style.display = 'none';
+        document.getElementById('chat-empty').style.display = 'flex';
+        await loadThreads();
+    } catch (error) {
+        console.error('Erro ao remover conversa:', error);
+        showNotification('Erro ao remover conversa: ' + error.message, 'error');
     }
 }
 

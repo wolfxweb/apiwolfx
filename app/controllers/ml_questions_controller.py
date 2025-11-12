@@ -61,6 +61,26 @@ class MLQuestionsController:
                 .limit(limit)
                 .all()
             )
+
+            any_updated = False
+            for question in questions:
+                try:
+                    if self._ensure_question_item_details(question, company_id):
+                        any_updated = True
+                except Exception:
+                    self.db.rollback()
+                    logger.exception(
+                        "Erro ao enriquecer dados da pergunta %s", question.id
+                    )
+
+            if any_updated:
+                try:
+                    self.db.commit()
+                    for question in questions:
+                        self.db.refresh(question)
+                except Exception:
+                    self.db.rollback()
+                    logger.exception("Erro ao salvar enriquecimento de perguntas")
             
             return {
                 "success": True,

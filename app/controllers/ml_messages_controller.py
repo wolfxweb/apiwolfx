@@ -53,8 +53,39 @@ class MLMessagesController:
                 except (KeyError, AttributeError):
                     pass
             
-            threads = query.order_by(desc(MLMessageThread.last_message_date)).limit(limit).all()
-            
+            threads = (
+                query.order_by(desc(MLMessageThread.last_message_date))
+                .limit(limit)
+                .all()
+            )
+
+            result_threads = [self._thread_to_dict(t) for t in threads]
+
+            # Se não houver conversas válidas (sem mensagens), tentar sincronizar rapidamente
+            if not result_threads:
+                logger.info(
+                    "Nenhuma conversa encontrada localmente. Tentando sincronizar mensagens."
+                )
+                try:
+                    sync_result = self.service.sync_messages(
+                        company_id=company_id,
+                        user_id=None,
+                        ml_account_id=ml_account_id,
+                        fetch_all=False,
+                    )
+                    logger.info("Resultado da sincronização rápida: %s", sync_result)
+                    # Recarregar threads após sincronização rápida
+                    threads = (
+                        query.order_by(desc(MLMessageThread.last_message_date))
+                        .limit(limit)
+                        .all()
+                    )
+                except Exception as sync_error:
+                    logger.exception(
+                        "Erro ao sincronizar mensagens automaticamente: %s",
+                        sync_error,
+                    )
+
             return {
                 "success": True,
                 "threads": [self._thread_to_dict(t) for t in threads],
@@ -68,7 +99,93 @@ class MLMessagesController:
                 "threads": [],
                 "total": 0
             }
-    
+
+    def _ensure_thread_details(self, thread: MLMessageThread) -> bool:
+        """Garante que a thread possui dados essenciais do comprador e mensagens"""
+        updated = False
+
+        needs_buyer = not thread.buyer_nickname or not thread.ml_buyer_id
+        needs_messages = not thread.messages
+        needs_last_message = not thread.last_message_text
+
+        if not (needs_buyer or needs_messages or needs_last_message):
+            return False
+
+        ml_account = (
+            self.db.query(MLAccount)
+            .filter(MLAccount.id == thread.ml_account_id)
+            .first()
+        )
+        if not ml_account:
+            return False
+
+        token_manager = TokenManager(self.db)
+        token_record = token_manager.get_token_record_for_account(
+            thread.ml_account_id, ml_account.company_id
+        )
+        if not token_record:
+            return False
+
+        try:
+            thread_details = self.service.get_thread_messages(
+                thread.ml_package_id,
+                token_record.access_token,
+                seller_id=str(ml_account.ml_user_id),
+            )
+        except Exception:
+            logger.exception(
+                "Erro ao buscar detalhes da thread %s", thread.id
+            )
+            return False
+
+        if not thread_details:
+            return False
+
+        messages_data = thread_details.get("messages", [])
+        buyer_data = thread_details.get("buyer", {})
+
+        if needs_buyer and buyer_data:
+            buyer_id = buyer_data.get("id")
+            nickname = buyer_data.get("nickname")
+            if buyer_id:
+                thread.ml_buyer_id = str(buyer_id)
+                updated = True
+            if nickname:
+                thread.buyer_nickname = nickname
+                updated = True
+
+        if messages_data:
+            for msg_data in messages_data:
+                saved_msg = self.service.save_message_to_db(
+                    msg_data,
+                    thread.id,
+                    thread.company_id,
+                    str(ml_account.ml_user_id),
+                )
+                if saved_msg:
+                    updated = True
+
+            last_message = messages_data[-1]
+            last_text = last_message.get("text")
+            last_date = last_message.get("date")
+            if last_text:
+                thread.last_message_text = last_text
+                updated = True
+            if last_date:
+                try:
+                    thread.last_message_date = datetime.fromisoformat(
+                        last_date.replace("Z", "+00:00")
+                    )
+                    updated = True
+                except ValueError:
+                    pass
+
+        if updated:
+            thread.updated_at = datetime.utcnow()
+            thread.last_sync = datetime.utcnow()
+
+        return updated
+
     def get_thread(self, thread_id: int, company_id: int) -> Dict:
         """Obtém detalhes de uma thread/conversa"""
         try:
@@ -338,6 +455,36 @@ class MLMessagesController:
                 "reasons": []
             }
     
+    def delete_thread(self, thread_id: int, company_id: int) -> Dict:
+        """Remove uma conversa e suas mensagens do banco"""
+        try:
+            thread = (
+                self.db.query(MLMessageThread)
+                .filter(
+                    MLMessageThread.id == thread_id,
+                    MLMessageThread.company_id == company_id,
+                )
+                .first()
+            )
+
+            if not thread:
+                return {
+                    "success": False,
+                    "error": "Conversa não encontrada",
+                }
+
+            self.db.delete(thread)
+            self.db.commit()
+
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Erro ao remover thread {thread_id}: {e}", exc_info=True)
+            self.db.rollback()
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
     def _thread_to_dict(self, thread: MLMessageThread) -> Dict:
         """Converte thread para dicionário"""
         return {

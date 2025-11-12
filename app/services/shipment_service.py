@@ -921,39 +921,26 @@ class ShipmentService:
                 if seller_identification:
                     seller_doc_number = seller_identification.get("id_number")
                     seller_doc_type = seller_identification.get("id_type")
-                if not seller_doc_number:
-                    return {
-                        "success": False,
-                        "error": "CNPJ da empresa não cadastrado. Configure seus dados fiscais no Mercado Livre."
-                    }
-
+            
+            # Quando usando o faturador do Mercado Livre (endpoint /invoices/orders),
+            # não é necessário enviar os dados fiscais do vendedor no payload,
+            # pois o ML já possui esses dados cadastrados.
+            # Só vamos exigir CNPJ se precisarmos usar o fallback para shipments.
+            # Por enquanto, vamos tentar a emissão mesmo sem CNPJ local.
+            
             if not seller_doc_type:
-                seller_doc_type = "CNPJ" if len(seller_doc_number) > 11 else "CPF"
+                seller_doc_type = "CNPJ" if seller_doc_number and len(seller_doc_number) > 11 else "CPF"
 
             seller_doc = {
                 "id_type": seller_doc_type,
-                "id_number": seller_doc_number,
+                "id_number": seller_doc_number or "",
                 "name": company.razao_social or company.nome_fantasia or company.name or "Empresa"
             }
 
-            release_dt = self._get_invoice_release_datetime(shipping_details_raw)
-            if release_dt:
-                now_utc = datetime.now(timezone.utc)
-                if release_dt > now_utc:
-                    release_local = release_dt.astimezone()
-                    release_formatted = release_local.strftime("%d/%m/%Y %H:%M")
-                    logger.info(
-                        f"ℹ️ Pedido {order_id} ainda não liberado para emissão de NF. "
-                        f"Release em {release_formatted}."
-                    )
-                    return {
-                        "success": False,
-                        "error": (
-                            "Esse pedido ainda não está liberado para emissão de NF. "
-                            f"Tente novamente após {release_formatted}."
-                        ),
-                        "release_date": release_dt.isoformat()
-                    }
+            # Não vamos verificar a data de liberação previamente
+            # A API do ML é a fonte da verdade e já valida isso
+            # Se a nota não estiver liberada, a API retornará um erro específico
+            # que será tratado no tratamento de erros abaixo
 
             buyer_ident = self._extract_buyer_identification(order)
             if not buyer_ident:
@@ -1042,6 +1029,8 @@ class ShipmentService:
                 }
 
             error_message = None
+            release_date_from_error = None
+            
             if isinstance(response_orders_data, dict):
                 error_message = (
                     response_orders_data.get("message")
@@ -1049,6 +1038,10 @@ class ShipmentService:
                     or response_orders.text
                 )
                 error_code = response_orders_data.get("error_code")
+                
+                # Verificar se o erro está relacionado a data de liberação
+                release_date_from_error = self._extract_release_date_from_error(response_orders_data)
+                
                 if error_code:
                     friendly = self._fetch_invoice_error_description(error_code, access_token)
                     if friendly:
@@ -1067,6 +1060,21 @@ class ShipmentService:
             )
 
             if not must_fallback_to_shipment:
+                # Se encontramos uma data de liberação no erro, formatar mensagem apropriada
+                if release_date_from_error:
+                    release_local = release_date_from_error.astimezone()
+                    release_formatted = release_local.strftime("%d/%m/%Y %H:%M")
+                    logger.error(f"❌ Erro ao emitir NF via orders (sem fallback): {error_message}")
+                    return {
+                        "success": False,
+                        "error": (
+                            "Esse pedido ainda não está liberado para emissão de NF. "
+                            f"Tente novamente após {release_formatted}."
+                        ),
+                        "release_date": release_date_from_error.isoformat(),
+                        "details": response_orders_data
+                    }
+                
                 logger.error(f"❌ Erro ao emitir NF via orders (sem fallback): {error_message}")
                 return {
                     "success": False,
@@ -1075,6 +1083,13 @@ class ShipmentService:
                 }
 
             logger.info("ℹ️ Emissão via orders falhou; tentando endpoint de shipments como fallback (Fulfillment).")
+
+            # Para o fallback de shipments, precisamos dos dados fiscais do vendedor
+            if not seller_doc_number:
+                return {
+                    "success": False,
+                    "error": "CNPJ da empresa não cadastrado. Configure seus dados fiscais no Mercado Livre."
+                }
 
             payload = self._build_invoice_payload(
                 order=order,
@@ -1532,11 +1547,15 @@ class ShipmentService:
             return None
 
         now_utc = datetime.now(timezone.utc)
-        future_candidates = [dt for dt in candidates if dt > now_utc - timedelta(hours=1)]
+        # Só considerar datas futuras que estejam realmente no futuro (com margem de 30 minutos)
+        # Se a data já passou ou está muito próxima, a nota provavelmente já está liberada
+        future_candidates = [dt for dt in candidates if dt > now_utc + timedelta(minutes=30)]
 
         if future_candidates:
+            # Retornar apenas a menor data futura se ela estiver realmente no futuro
             return min(future_candidates)
 
+        # Se não há datas futuras significativas, considerar que a nota está liberada
         return None
 
     def _fetch_buyer_identification_from_api(self, order: MLOrder, access_token: str) -> Optional[Dict[str, str]]:
@@ -1968,6 +1987,40 @@ class ShipmentService:
                 _try_add(related.order_id)
 
         return order_ids
+
+    def _extract_release_date_from_error(self, error_data: Dict) -> Optional[datetime]:
+        """Extrai a data de liberação de uma resposta de erro da API do ML."""
+        if not isinstance(error_data, dict):
+            return None
+        
+        # Procurar por campos comuns que podem conter a data de liberação
+        date_fields = [
+            "available_after",
+            "release_date",
+            "available_date",
+            "pay_before",
+            "buffering_date"
+        ]
+        
+        for field in date_fields:
+            date_value = error_data.get(field)
+            if date_value:
+                dt = self._parse_datetime_value(date_value)
+                if dt:
+                    return dt
+        
+        # Procurar em estruturas aninhadas
+        if "cause" in error_data and isinstance(error_data["cause"], list):
+            for cause_item in error_data["cause"]:
+                if isinstance(cause_item, dict):
+                    for field in date_fields:
+                        date_value = cause_item.get(field)
+                        if date_value:
+                            dt = self._parse_datetime_value(date_value)
+                            if dt:
+                                return dt
+        
+        return None
 
     def _fetch_invoice_error_description(self, error_code: Optional[str], access_token: str) -> Optional[str]:
         if not error_code:

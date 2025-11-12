@@ -25,17 +25,54 @@ class MLMessagesService:
             "Content-Type": "application/json"
         }
     
-    def _get_access_token(self, user_id: int, ml_account_id: Optional[int] = None, company_id: Optional[int] = None) -> Optional[str]:
+    def _get_access_token(
+        self,
+        user_id: Optional[int],
+        ml_account_id: Optional[int] = None,
+        company_id: Optional[int] = None,
+    ) -> Optional[str]:
         """Obtém token válido usando TokenManager"""
         try:
             token_manager = TokenManager(self.db)
 
             if ml_account_id:
-                token_record = token_manager.get_token_record_for_account(ml_account_id, company_id)
+                token_record = token_manager.get_token_record_for_account(
+                    ml_account_id, company_id
+                )
                 if token_record and token_record.access_token:
-                    return token_record.access_token
+                    access_token = token_record.access_token
+                    if token_manager.test_token(access_token):
+                        return access_token
 
-            return token_manager.get_valid_token(user_id)
+                    logger.info(
+                        "Token expirado para ml_account_id=%s, tentando refresh",
+                        ml_account_id,
+                    )
+                    refreshed = token_manager._refresh_token_for_record(token_record)
+                    if refreshed and refreshed.access_token:
+                        access_token = refreshed.access_token
+                        if token_manager.test_token(access_token):
+                            return access_token
+                        logger.error(
+                            "Token renovado continua inválido para ml_account_id=%s",
+                            ml_account_id,
+                        )
+                    else:
+                        logger.error(
+                            "Falha ao renovar token para ml_account_id=%s",
+                            ml_account_id,
+                        )
+
+            if user_id:
+                access_token = token_manager.get_valid_token(user_id)
+                if access_token and token_manager.test_token(access_token):
+                    return access_token
+
+            logger.error(
+                "Não foi possível obter token válido (user_id=%s, ml_account_id=%s)",
+                user_id,
+                ml_account_id,
+            )
         except Exception as e:
             logger.error(f"Erro ao obter token para user_id {user_id} (ml_account_id={ml_account_id}): {e}")
             return None
@@ -307,7 +344,6 @@ class MLMessagesService:
                     "seller": ml_user_id,
                     "limit": limit,
                     "offset": current_offset,
-                    "order.status": "all"  # Buscar todos os status para ter mais chance de encontrar mensagens
                 }
                 
                 # Adicionar filtros de data se fornecidos

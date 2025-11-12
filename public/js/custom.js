@@ -202,10 +202,10 @@ function showNotification(message, type = 'info', duration = 8000) {
         toastElement.classList.remove('d-none');
     }
 
-    const header = toastElement.querySelector('.toast-header');
-    const iconEl = toastElement.querySelector('.toast-icon');
-    const titleEl = toastElement.querySelector('.toast-title');
-    const bodyEl = toastElement.querySelector('.toast-body');
+    const header   = toastElement.querySelector('.toast-header');
+    const iconEl   = toastElement.querySelector('.toast-icon');
+    const titleEl  = toastElement.querySelector('.toast-title');
+    const bodyEl   = toastElement.querySelector('.toast-body');
     const closeBtn = toastElement.querySelector('.btn-close');
 
     header.className = `toast-header ${scheme.headerBg} ${scheme.headerText}`;
