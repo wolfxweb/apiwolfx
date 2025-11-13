@@ -32,6 +32,7 @@ services:
       - SUPABASE_BUCKET=${SUPABASE_BUCKET:-ml-product-images}
     volumes:
       - ./public:/app/public
+      - ./app/logs:/app/app/logs
     networks:
       - apiwolfx-network
     restart: unless-stopped

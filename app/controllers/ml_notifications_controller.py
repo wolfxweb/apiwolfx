@@ -6,10 +6,39 @@ import httpx
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
+from pathlib import Path
 
 from app.utils.notification_logger import global_logger
 
 logger = logging.getLogger(__name__)
+
+# Configurar logger para também escrever no arquivo system.log
+def _setup_file_logging():
+    """Configura o logger para escrever no arquivo system.log"""
+    # Evitar duplicação de handlers
+    if any(isinstance(h, logging.FileHandler) and 'system.log' in h.baseFilename for h in logger.handlers):
+        return
+    
+    # Usar o mesmo diretório do global_logger
+    log_dir = Path(global_logger.log_dir)
+    log_file = log_dir / "system.log"
+    
+    # Criar handler para arquivo
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    
+    # Formatter com timestamp
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.INFO)
+
+# Configurar logging ao importar o módulo
+_setup_file_logging()
 
 class MLNotificationsController:
     """Controller para processar notificações do Mercado Livre"""
@@ -224,11 +253,16 @@ class MLNotificationsController:
             logger.info(f"✅ Token obtido com sucesso para ml_user_id: {ml_user_id}")
             
             # Buscar detalhes do pedido na API do ML
-            logger.info(f"🌐 Buscando detalhes do pedido {order_id} na API do Mercado Livre...")
+            logger.info(f"🌐 [NOTIF] ========== BUSCANDO DADOS DO PEDIDO NA API ==========")
+            logger.info(f"🌐 [NOTIF] Order ID: {order_id}")
+            logger.info(f"🌐 [NOTIF] URL: {self.api_base_url}/orders/{order_id}")
+            logger.info(f"🌐 [NOTIF] Token disponível: {'✅ SIM' if access_token else '❌ NÃO'}")
+            
             order_data = await self._fetch_order_details(order_id, access_token)
             if not order_data:
                 error_msg = f"Não foi possível buscar dados do pedido {order_id} na API"
-                logger.error(f"❌ {error_msg}")
+                logger.error(f"❌ [NOTIF] {error_msg}")
+                logger.error(f"❌ [NOTIF] Verifique se o token está válido e se o pedido existe no ML")
                 global_logger.log_order_processed(order_id, company_id, False, "error", error_msg)
                 global_logger.log_event(
                     event_type="order_notification_api_error",
@@ -244,13 +278,25 @@ class MLNotificationsController:
                 )
                 return
             
-            logger.info(f"✅ Dados do pedido obtidos: {order_id}")
-            logger.info(f"📊 Status do pedido: {order_data.get('status')}")
-            logger.info(f"📊 Total: R$ {order_data.get('total_amount', 0)}")
+            logger.info(f"✅ [NOTIF] ========== DADOS DO PEDIDO OBTIDOS DA API ==========")
+            logger.info(f"✅ [NOTIF] Order ID: {order_id}")
+            logger.info(f"✅ [NOTIF] Status (API): {order_data.get('status')}")
+            logger.info(f"✅ [NOTIF] Total: R$ {order_data.get('total_amount', 0)}")
+            logger.info(f"✅ [NOTIF] Date Created: {order_data.get('date_created')}")
+            logger.info(f"✅ [NOTIF] Date Closed: {order_data.get('date_closed')}")
+            logger.info(f"✅ [NOTIF] Last Updated: {order_data.get('last_updated')}")
+            logger.info(f"✅ [NOTIF] Buyer ID: {order_data.get('buyer', {}).get('id')}")
+            logger.info(f"✅ [NOTIF] Shipping ID: {order_data.get('shipping', {}).get('id')}")
+            logger.info(f"✅ [NOTIF] Shipping Status: {order_data.get('shipping', {}).get('status')}")
+            logger.info(f"✅ [NOTIF] Payments: {len(order_data.get('payments', []))} pagamento(s)")
+            logger.info(f"✅ [NOTIF] Order Items: {len(order_data.get('order_items', []))} item(ns)")
             
             # Atualizar ou criar pedido no banco com company_id
-            logger.info(f"💾 Salvando/atualizando pedido {order_id} no banco de dados...")
+            logger.info(f"💾 [NOTIF] ========== INICIANDO SALVAMENTO/ATUALIZAÇÃO NO BANCO ==========")
+            logger.info(f"💾 [NOTIF] Order ID: {order_id}")
+            logger.info(f"💾 [NOTIF] Company ID: {company_id}")
             await self._upsert_order(order_data, company_id, db, access_token)
+            logger.info(f"💾 [NOTIF] ✅ Função _upsert_order concluída para pedido {order_id}")
             
             logger.info(f"✅ ========== PEDIDO PROCESSADO COM SUCESSO ==========")
             logger.info(f"✅ Pedido {order_id} atualizado com sucesso para company_id: {company_id}")
@@ -956,7 +1002,44 @@ class MLNotificationsController:
             
             if existing:
                 # Atualizar pedido existente
-                logger.info(f"🔧 [NOTIF] Atualizando pedido existente: {order_id}")
+                logger.info(f"🔧 [NOTIF] ========== ATUALIZANDO PEDIDO EXISTENTE ==========")
+                logger.info(f"🔧 [NOTIF] Order ID: {order_id}")
+                logger.info(f"🔧 [NOTIF] Company ID: {company_id}")
+                logger.info(f"🔧 [NOTIF] ID do registro no BD: {existing[0]}")
+                
+                # Buscar dados atuais do pedido para comparação
+                current_data_query = text("""
+                    SELECT status, shipping_status, shipping_type, total_amount, paid_amount, 
+                           date_closed, last_updated, shipping_id, shipping_method
+                    FROM ml_orders 
+                    WHERE ml_order_id = :order_id AND company_id = :company_id
+                """)
+                current_data = db.execute(current_data_query, {"order_id": str(order_id), "company_id": company_id}).fetchone()
+                
+                if current_data:
+                    current_status = current_data[0]
+                    current_shipping_status = current_data[1]
+                    current_shipping_type = current_data[2]
+                    current_total = current_data[3]
+                    current_paid = current_data[4]
+                    current_date_closed = current_data[5]
+                    current_last_updated = current_data[6]
+                    current_shipping_id = current_data[7]
+                    current_shipping_method = current_data[8]
+                    
+                    logger.info(f"📊 [NOTIF] ========== DADOS ATUAIS DO PEDIDO ==========")
+                    logger.info(f"📊 [NOTIF] Status atual: {current_status}")
+                    logger.info(f"📊 [NOTIF] Shipping Status atual: {current_shipping_status}")
+                    logger.info(f"📊 [NOTIF] Shipping Type atual: {current_shipping_type}")
+                    logger.info(f"📊 [NOTIF] Total atual: R$ {current_total}")
+                    logger.info(f"📊 [NOTIF] Pago atual: R$ {current_paid}")
+                    logger.info(f"📊 [NOTIF] Data fechamento atual: {current_date_closed}")
+                    logger.info(f"📊 [NOTIF] Last Updated atual: {current_last_updated}")
+                    logger.info(f"📊 [NOTIF] Shipping ID atual: {current_shipping_id}")
+                    logger.info(f"📊 [NOTIF] Shipping Method atual: {current_shipping_method}")
+                else:
+                    logger.warning(f"⚠️ [NOTIF] Não foi possível buscar dados atuais do pedido")
+                
                 update_query = text("""
                     UPDATE ml_orders SET
                         status = :status,
@@ -1079,21 +1162,76 @@ class MLNotificationsController:
                 # Usar substatus como prioridade máxima (fulfillment)
                 db_status = substatus_db_status or shipping_db_status or order_db_status
                 
-                # Log detalhado para debug
-                logger.info(f"🔄 [WEBHOOK] Atualizando pedido {order_id}:")
+                # Calcular valores novos para comparação
+                new_paid_amount = payments[0].get("total_paid_amount") if payments else 0
+                new_shipping_cost = shipping.get("cost", 0) if shipping else 0
+                new_date_closed = order_data.get("date_closed")
+                new_last_updated = order_data.get("last_updated")
+                
+                # Log detalhado para debug - DADOS DA API
+                logger.info(f"🌐 [NOTIF] ========== DADOS RECEBIDOS DA API DO ML ==========")
+                logger.info(f"🌐 [NOTIF] Order Status (API): '{api_status}'")
                 if shipment_substatus:
-                    logger.info(f"   🏭 Substatus (fulfillment): '{shipment_substatus}' -> '{substatus_db_status}'")
-                logger.info(f"   📦 Shipping Status: '{shipping_status}' -> '{shipping_db_status}'")
-                logger.info(f"   📋 Order Status: '{api_status}' -> '{order_db_status}'")
-                logger.info(f"   🎯 Final Status: '{db_status}'")
+                    logger.info(f"🌐 [NOTIF] Substatus (fulfillment): '{shipment_substatus}'")
+                logger.info(f"🌐 [NOTIF] Shipping Status (API): '{shipping_status}'")
+                logger.info(f"🌐 [NOTIF] Shipping ID: {shipping_id}")
                 if logistic_type:
-                    logger.info(f"   📦 Logistics Type: '{logistic_type}'")
-                logger.info(f"   📅 Data fechamento: {order_data.get('date_closed')}")
-                logger.info(f"   💰 Total: {total_amount}")
+                    logger.info(f"🌐 [NOTIF] Logistics Type: '{logistic_type}'")
+                logger.info(f"🌐 [NOTIF] Shipping Method: {shipping_method}")
+                logger.info(f"🌐 [NOTIF] Date Created (shipment): {shipping_date}")
+                logger.info(f"🌐 [NOTIF] Estimated Delivery: {estimated_delivery_date}")
+                logger.info(f"🌐 [NOTIF] Date Closed: {new_date_closed}")
+                logger.info(f"🌐 [NOTIF] Last Updated: {new_last_updated}")
+                logger.info(f"🌐 [NOTIF] Total Amount: R$ {total_amount}")
+                logger.info(f"🌐 [NOTIF] Paid Amount: R$ {new_paid_amount}")
+                logger.info(f"🌐 [NOTIF] Shipping Cost: R$ {new_shipping_cost}")
+                
+                # Log de mapeamento de status
+                logger.info(f"🔄 [NOTIF] ========== MAPEAMENTO DE STATUS ==========")
+                if shipment_substatus:
+                    logger.info(f"🔄 [NOTIF] Substatus '{shipment_substatus}' -> DB Status: '{substatus_db_status}'")
+                logger.info(f"🔄 [NOTIF] Shipping Status '{shipping_status}' -> DB Status: '{shipping_db_status}'")
+                logger.info(f"🔄 [NOTIF] Order Status '{api_status}' -> DB Status: '{order_db_status}'")
+                logger.info(f"🔄 [NOTIF] 🎯 Status Final Calculado: '{db_status}'")
+                
+                # Comparação com dados atuais
+                if current_data:
+                    logger.info(f"📊 [NOTIF] ========== COMPARAÇÃO: ANTES vs DEPOIS ==========")
+                    status_changed = current_status != db_status
+                    shipping_status_changed = current_shipping_status != shipping_status
+                    shipping_type_changed = current_shipping_type != logistic_type
+                    total_changed = current_total != total_amount
+                    paid_changed = current_paid != new_paid_amount
+                    date_closed_changed = current_date_closed != new_date_closed
+                    shipping_id_changed = current_shipping_id != str(shipping_id) if shipping_id else False
+                    shipping_method_changed = current_shipping_method != shipping_method
+                    
+                    logger.info(f"📊 [NOTIF] Status: '{current_status}' -> '{db_status}' {'✅ MUDOU' if status_changed else '➡️ IGUAL'}")
+                    logger.info(f"📊 [NOTIF] Shipping Status: '{current_shipping_status}' -> '{shipping_status}' {'✅ MUDOU' if shipping_status_changed else '➡️ IGUAL'}")
+                    logger.info(f"📊 [NOTIF] Shipping Type: '{current_shipping_type}' -> '{logistic_type}' {'✅ MUDOU' if shipping_type_changed else '➡️ IGUAL'}")
+                    logger.info(f"📊 [NOTIF] Total: R$ {current_total} -> R$ {total_amount} {'✅ MUDOU' if total_changed else '➡️ IGUAL'}")
+                    logger.info(f"📊 [NOTIF] Pago: R$ {current_paid} -> R$ {new_paid_amount} {'✅ MUDOU' if paid_changed else '➡️ IGUAL'}")
+                    logger.info(f"📊 [NOTIF] Date Closed: {current_date_closed} -> {new_date_closed} {'✅ MUDOU' if date_closed_changed else '➡️ IGUAL'}")
+                    logger.info(f"📊 [NOTIF] Shipping ID: {current_shipping_id} -> {shipping_id} {'✅ MUDOU' if shipping_id_changed else '➡️ IGUAL'}")
+                    logger.info(f"📊 [NOTIF] Shipping Method: {current_shipping_method} -> {shipping_method} {'✅ MUDOU' if shipping_method_changed else '➡️ IGUAL'}")
+                    
+                    if status_changed:
+                        logger.info(f"🔄 [NOTIF] ⚠️ ATENÇÃO: Status do pedido mudou de '{current_status}' para '{db_status}'")
+                    else:
+                        logger.info(f"ℹ️ [NOTIF] Status do pedido permaneceu '{db_status}' (sem mudanças)")
                 
                 import json
                 
-                db.execute(update_query, {
+                logger.info(f"💾 [NOTIF] ========== EXECUTANDO UPDATE NO BANCO ==========")
+                logger.info(f"💾 [NOTIF] Query preparada com os seguintes valores:")
+                logger.info(f"💾 [NOTIF]   - status: '{db_status}'")
+                logger.info(f"💾 [NOTIF]   - shipping_status: '{shipping_status}'")
+                logger.info(f"💾 [NOTIF]   - shipping_type: '{logistic_type}'")
+                logger.info(f"💾 [NOTIF]   - total_amount: R$ {total_amount}")
+                logger.info(f"💾 [NOTIF]   - paid_amount: R$ {new_paid_amount}")
+                logger.info(f"💾 [NOTIF]   - shipping_id: {shipping_id}")
+                
+                result = db.execute(update_query, {
                     "order_id": str(order_id),
                     "company_id": company_id,
                     "status": db_status,
@@ -1101,8 +1239,8 @@ class MLNotificationsController:
                     "date_closed": order_data.get("date_closed"),
                     "last_updated": order_data.get("last_updated"),
                     "total_amount": total_amount,
-                    "paid_amount": payments[0].get("total_paid_amount") if payments else 0,
-                    "shipping_cost": shipping.get("cost", 0) if shipping else 0,
+                    "paid_amount": new_paid_amount,
+                    "shipping_cost": new_shipping_cost,
                     "shipping_type": logistic_type,
                     "shipping_status": shipping_status,
                     "shipping_id": str(shipping_id) if shipping_id else None,
@@ -1113,11 +1251,61 @@ class MLNotificationsController:
                     "payments": json.dumps(payments) if payments else None
                 })
                 
-                logger.info(f"✅ [WEBHOOK] Pedido {order_id} atualizado com status: {db_status}")
+                rows_affected = result.rowcount
+                logger.info(f"💾 [NOTIF] UPDATE executado. Linhas afetadas: {rows_affected}")
+                
+                if rows_affected == 0:
+                    logger.warning(f"⚠️ [NOTIF] ATENÇÃO: Nenhuma linha foi atualizada! Verifique se o pedido existe no banco.")
+                elif rows_affected > 1:
+                    logger.warning(f"⚠️ [NOTIF] ATENÇÃO: Múltiplas linhas foram atualizadas ({rows_affected})! Isso não deveria acontecer.")
+                else:
+                    logger.info(f"✅ [NOTIF] UPDATE executado com sucesso! 1 linha atualizada.")
                 
                 # IMPORTANTE: Fazer commit da atualização
-                db.commit()
-                logger.info(f"✅ Commit realizado para atualização do pedido {order_id}")
+                logger.info(f"💾 [NOTIF] ========== REALIZANDO COMMIT ==========")
+                try:
+                    db.commit()
+                    logger.info(f"✅ [NOTIF] ✅ COMMIT REALIZADO COM SUCESSO para pedido {order_id}")
+                    logger.info(f"✅ [NOTIF] Status atualizado para: '{db_status}'")
+                    
+                    # Verificar se o commit realmente persistiu os dados
+                    verify_query = text("""
+                        SELECT status, shipping_status, shipping_type, total_amount, paid_amount, updated_at
+                        FROM ml_orders 
+                        WHERE ml_order_id = :order_id AND company_id = :company_id
+                    """)
+                    verify_data = db.execute(verify_query, {"order_id": str(order_id), "company_id": company_id}).fetchone()
+                    
+                    if verify_data:
+                        verified_status = verify_data[0]
+                        verified_shipping_status = verify_data[1]
+                        verified_shipping_type = verify_data[2]
+                        verified_total = verify_data[3]
+                        verified_paid = verify_data[4]
+                        verified_updated_at = verify_data[5]
+                        
+                        logger.info(f"✅ [NOTIF] ========== VERIFICAÇÃO PÓS-COMMIT ==========")
+                        logger.info(f"✅ [NOTIF] Status no BD: '{verified_status}' {'✅ CORRETO' if verified_status == db_status else '❌ DIFERENTE'}")
+                        logger.info(f"✅ [NOTIF] Shipping Status no BD: '{verified_shipping_status}' {'✅ CORRETO' if verified_shipping_status == shipping_status else '❌ DIFERENTE'}")
+                        logger.info(f"✅ [NOTIF] Shipping Type no BD: '{verified_shipping_type}' {'✅ CORRETO' if verified_shipping_type == logistic_type else '❌ DIFERENTE'}")
+                        logger.info(f"✅ [NOTIF] Total no BD: R$ {verified_total} {'✅ CORRETO' if verified_total == total_amount else '❌ DIFERENTE'}")
+                        logger.info(f"✅ [NOTIF] Pago no BD: R$ {verified_paid} {'✅ CORRETO' if verified_paid == new_paid_amount else '❌ DIFERENTE'}")
+                        logger.info(f"✅ [NOTIF] Updated At: {verified_updated_at}")
+                        
+                        if verified_status == db_status:
+                            logger.info(f"✅ [NOTIF] ✅✅✅ CONFIRMADO: Status foi atualizado corretamente no banco de dados!")
+                        else:
+                            logger.error(f"❌ [NOTIF] ❌❌❌ ERRO: Status no BD ('{verified_status}') não corresponde ao esperado ('{db_status}')!")
+                    else:
+                        logger.error(f"❌ [NOTIF] ❌ ERRO: Não foi possível verificar os dados após o commit!")
+                        
+                except Exception as commit_error:
+                    logger.error(f"❌ [NOTIF] ❌❌❌ ERRO AO FAZER COMMIT: {commit_error}")
+                    logger.error(f"❌ [NOTIF] Tipo do erro: {type(commit_error).__name__}")
+                    logger.error(f"❌ [NOTIF] Traceback:", exc_info=True)
+                    db.rollback()
+                    logger.error(f"❌ [NOTIF] Rollback realizado devido ao erro no commit")
+                    raise
                 
                 # Verificar nota fiscal automaticamente para pedidos pagos
                 if db_status in ["PAID", "CONFIRMED"]:
