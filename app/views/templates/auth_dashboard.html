@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Gestão - CELX{% endblock %}
+
+{% block content %}
+<style>
+    .kpi-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border-radius: 10px;
+    }
+    
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+    
+    .kpi-icon {
+        font-size: 3rem;
+        opacity: 0.8;
+    }
+    
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0.5rem 0;
+    }
+    
+    .kpi-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .loading-skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+        border-radius: 5px;
+        height: 40px;
+    }
+    
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+</style>
+
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-1">
+                        <i class="bi bi-speedometer2"></i> Dashboard de Gestão
+                    </h1>
+                    <p class="text-muted mb-0">
+                        Visão geral financeira e operacional da sua empresa
+                    </p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary" onclick="loadDashboard()">
+                        <i class="bi bi-arrow-clockwise"></i> Atualizar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo Executivo -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3 class="h5 mb-3">
+                <i class="bi bi-info-circle"></i> Resumo Executivo
+            </h3>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <!-- Saldo Líquido -->
+        <div class="col-md-4 mb-3">
+            <div class="card kpi-card border-primary">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-primary">
+                        <i class="bi bi-wallet2"></i>
+                    </div>
+                    <div class="kpi-label">Saldo Líquido</div>
+                    <div class="kpi-value text-primary" id="net-balance">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Recebido - Pago</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Fluxo de Caixa Projetado -->
+        <div class="col-md-4 mb-3">
+            <div class="card kpi-card border-info">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-info">
+                        <i class="bi bi-graph-up"></i>
+                    </div>
+                    <div class="kpi-label">Fluxo de Caixa Projetado</div>
+                    <div class="kpi-value text-info" id="cash-flow-projection">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Receber - Pagar</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Ticket Médio -->
+        <div class="col-md-4 mb-3">
+            <div class="card kpi-card border-success">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-success">
+                        <i class="bi bi-calculator"></i>
+                    </div>
+                    <div class="kpi-label">Ticket Médio</div>
+                    <div class="kpi-value text-success" id="avg-ticket">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Valor médio por venda</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs Financeiros -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3 class="h5 mb-3">
+                <i class="bi bi-cash-stack"></i> Indicadores Financeiros
+            </h3>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <!-- Valor a Receber -->
+        <div class="col-md-3 mb-3">
+            <div class="card kpi-card border-warning">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-warning">
+                        <i class="bi bi-arrow-down-circle"></i>
+                    </div>
+                    <div class="kpi-label">Valor a Receber</div>
+                    <div class="kpi-value text-warning" id="kpi-receivables-pending">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Pendentes</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Valor a Pagar -->
+        <div class="col-md-3 mb-3">
+            <div class="card kpi-card border-danger">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-danger">
+                        <i class="bi bi-arrow-up-circle"></i>
+                    </div>
+                    <div class="kpi-label">Valor a Pagar</div>
+                    <div class="kpi-value text-danger" id="kpi-payables-pending">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Pendentes</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Valor Recebido -->
+        <div class="col-md-3 mb-3">
+            <div class="card kpi-card border-success">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-success">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div class="kpi-label">Valor Recebido</div>
+                    <div class="kpi-value text-success" id="kpi-received-revenue">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Total recebido</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Valor Faturado -->
+        <div class="col-md-3 mb-3">
+            <div class="card kpi-card border-info">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-info">
+                        <i class="bi bi-receipt"></i>
+                    </div>
+                    <div class="kpi-label">Valor Faturado</div>
+                    <div class="kpi-value text-info" id="kpi-invoiced-amount">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Notas emitidas</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs de Vendas -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3 class="h5 mb-3">
+                <i class="bi bi-cart-check"></i> Indicadores de Vendas
+            </h3>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <!-- Quantidade de Vendas -->
+        <div class="col-md-6 mb-3">
+            <div class="card kpi-card border-primary">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-primary">
+                        <i class="bi bi-bag-check"></i>
+                    </div>
+                    <div class="kpi-label">Quantidade de Vendas</div>
+                    <div class="kpi-value text-primary" id="kpi-total-orders">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Pedidos confirmados</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Valor Total de Vendas -->
+        <div class="col-md-6 mb-3">
+            <div class="card kpi-card border-success">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-success">
+                        <i class="bi bi-currency-dollar"></i>
+                    </div>
+                    <div class="kpi-label">Valor Total de Vendas</div>
+                    <div class="kpi-value text-success" id="kpi-total-sales-value">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Receita bruta</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs de Suporte -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3 class="h5 mb-3">
+                <i class="bi bi-headset"></i> Indicadores de Suporte
+            </h3>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <!-- Perguntas Abertas -->
+        <div class="col-md-6 mb-3">
+            <div class="card kpi-card border-warning">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-warning">
+                        <i class="bi bi-question-circle"></i>
+                    </div>
+                    <div class="kpi-label">Perguntas Abertas</div>
+                    <div class="kpi-value text-warning" id="kpi-unanswered-questions">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Aguardando resposta</small>
+                    <div class="mt-2">
+                        <a href="/ml/questions?status=UNANSWERED" class="btn btn-sm btn-outline-warning">
+                            <i class="bi bi-arrow-right"></i> Ver Perguntas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Função para formatar valores em R$
+function formatBRL(value) {
+    if (value === null || value === undefined) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value);
+}
+
+// Função para formatar números
+function formatNumber(value) {
+    if (value === null || value === undefined) return '0';
+    return new Intl.NumberFormat('pt-BR').format(value);
+}
+
+// Função para carregar dados do dashboard
+async function loadDashboard() {
+    try {
+        // Mostrar loading
+        showLoading();
+        
+        // Usar a rota /auth/api/dashboard/data
+        const apiUrl = '/auth/api/dashboard/data';
+        const response = await fetch(apiUrl, {
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Erro ao carregar dashboard:', response.status, errorText);
+            throw new Error(`Erro ao carregar dados: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            console.error('Erro na resposta do dashboard:', data);
+            throw new Error(data.error || 'Erro desconhecido');
+        }
+        
+        // Atualizar KPIs Financeiros
+        document.getElementById('kpi-receivables-pending').textContent = 
+            formatBRL(data.financial.receivables_pending);
+        document.getElementById('kpi-payables-pending').textContent = 
+            formatBRL(data.financial.payables_pending);
+        document.getElementById('kpi-received-revenue').textContent = 
+            formatBRL(data.financial.received_revenue);
+        document.getElementById('kpi-invoiced-amount').textContent = 
+            formatBRL(data.financial.invoiced_amount);
+        
+        // Atualizar KPIs de Vendas
+        document.getElementById('kpi-total-orders').textContent = 
+            formatNumber(data.sales.total_orders);
+        document.getElementById('kpi-total-sales-value').textContent = 
+            formatBRL(data.sales.total_sales_value);
+        
+        // Atualizar KPIs de Suporte
+        document.getElementById('kpi-unanswered-questions').textContent = 
+            formatNumber(data.support.unanswered_questions);
+        
+        // Calcular e atualizar resumo
+        const netBalance = data.financial.received_revenue - data.financial.payables_pending;
+        const cashFlowProjection = data.financial.receivables_pending - data.financial.payables_pending;
+        const avgTicket = data.sales.total_orders > 0 
+            ? data.sales.total_sales_value / data.sales.total_orders 
+            : 0;
+        
+        document.getElementById('net-balance').textContent = formatBRL(netBalance);
+        document.getElementById('cash-flow-projection').textContent = formatBRL(cashFlowProjection);
+        document.getElementById('avg-ticket').textContent = formatBRL(avgTicket);
+        
+    } catch (error) {
+        console.error('Erro ao carregar dashboard:', error);
+        // Mostrar mensagem de erro mais detalhada
+        const errorMsg = error.message || 'Erro desconhecido ao carregar dados';
+        showNotification(`Erro ao carregar dados do dashboard: ${errorMsg}`, 'error');
+        
+        // Tentar mostrar valores zerados para não deixar a tela vazia
+        document.getElementById('kpi-receivables-pending').textContent = formatBRL(0);
+        document.getElementById('kpi-payables-pending').textContent = formatBRL(0);
+        document.getElementById('kpi-received-revenue').textContent = formatBRL(0);
+        document.getElementById('kpi-invoiced-amount').textContent = formatBRL(0);
+        document.getElementById('kpi-total-orders').textContent = formatNumber(0);
+        document.getElementById('kpi-total-sales-value').textContent = formatBRL(0);
+        document.getElementById('kpi-unanswered-questions').textContent = formatNumber(0);
+        document.getElementById('net-balance').textContent = formatBRL(0);
+        document.getElementById('cash-flow-projection').textContent = formatBRL(0);
+        document.getElementById('avg-ticket').textContent = formatBRL(0);
+    }
+}
+
+// Função para mostrar loading
+function showLoading() {
+    const elements = [
+        'kpi-receivables-pending',
+        'kpi-payables-pending',
+        'kpi-received-revenue',
+        'kpi-invoiced-amount',
+        'kpi-total-orders',
+        'kpi-total-sales-value',
+        'kpi-unanswered-questions',
+        'net-balance',
+        'cash-flow-projection',
+        'avg-ticket'
+    ];
+    
+    elements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.innerHTML = '<div class="loading-skeleton"></div>';
+        }
+    });
+}
+
+// Carregar dados ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dashboard: Página carregada, iniciando carregamento de dados...');
+    loadDashboard();
+    
+    // Atualizar a cada 5 minutos
+    setInterval(loadDashboard, 300000);
+});
+</script>
+{% endblock %}
+

@@ -828,7 +828,7 @@ function syncFiltersWithUrl() {
     if (periodValue) {
         periodValid = setSelectValue('period_filter', periodValue);
         if (!periodValid) {
-            params.delete('period_filter');
+        params.delete('period_filter');
             paramsChanged = true;
             periodValue = '';
         }

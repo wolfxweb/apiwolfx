@@ -85,7 +85,7 @@ class MLMessagesController:
                         "Erro ao sincronizar mensagens automaticamente: %s",
                         sync_error,
                     )
-
+            
             return {
                 "success": True,
                 "threads": [self._thread_to_dict(t) for t in threads],
@@ -99,7 +99,7 @@ class MLMessagesController:
                 "threads": [],
                 "total": 0
             }
-
+    
     def _ensure_thread_details(self, thread: MLMessageThread) -> bool:
         """Garante que a thread possui dados essenciais do comprador e mensagens"""
         updated = False
@@ -517,7 +517,7 @@ class MLMessagesController:
                 "error": str(e),
                 "deleted_threads": 0
             }
-
+    
     def _thread_to_dict(self, thread: MLMessageThread) -> Dict:
         """Converte thread para dicionário"""
         return {

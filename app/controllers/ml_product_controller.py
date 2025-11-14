@@ -1436,8 +1436,8 @@ class MLProductController:
             if shipping_config:
                 # Mercado Livre não permite atualizar dimensões de pacotes após a publicação.
                 shipping_config.pop("dimensions", None)
-                if shipping_config:
-                    payload["shipping"] = shipping_config
+            if shipping_config:
+                payload["shipping"] = shipping_config
 
             pictures_payload: List[Dict[str, Any]] = []
             for url in existing_pictures:

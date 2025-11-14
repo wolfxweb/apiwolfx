@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Cookie, Depends, HTTPException, Request
 from fastapi import Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from typing import Optional
 from app.config.settings import settings
 from app.config.database import engine, Base, get_db
 from sqlalchemy.orm import Session
@@ -887,19 +888,68 @@ async def get_user_info(access_token: str = None):
 
 @app.get("/dashboard")
 async def dashboard(request: Request, session_token: str = Cookie(None), db: Session = Depends(get_db)):
-    """Dashboard do usuário"""
+    """Dashboard de gestão do usuário"""
     from app.views.template_renderer import render_template
     from app.controllers.auth_controller import AuthController
+    from fastapi.responses import RedirectResponse
     
-    # Se o usuário estiver logado, buscar seus dados
-    user_data = None
-    if session_token:
-        controller = AuthController()
-        result = controller.get_user_by_session(session_token, db)
-        if "error" not in result:
-            user_data = result.get("user")
+    # Verificar autenticação
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
     
-    return render_template("dashboard_simple.html", request=request, user=user_data)
+    controller = AuthController()
+    result = controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result.get("user")
+    # Tentar pegar company_id diretamente ou do objeto company
+    company_id = user_data.get("company_id") if user_data else None
+    if not company_id and user_data and user_data.get("company"):
+        company_id = user_data.get("company", {}).get("id")
+    
+    if not company_id:
+        return render_template("dashboard_simple.html", request=request, user=user_data)
+    
+    return render_template("auth_dashboard.html", request=request, user=user_data)
+
+@app.get("/api/dashboard/data")
+async def get_dashboard_data_api(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter dados do dashboard de gestão (rota alternativa)"""
+    from fastapi.responses import JSONResponse
+    from app.controllers.auth_controller import AuthController
+    
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    controller = AuthController()
+    result = controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result.get("user")
+    # Tentar pegar company_id diretamente ou do objeto company
+    company_id = user_data.get("company_id") if user_data else None
+    if not company_id and user_data and user_data.get("company"):
+        company_id = user_data.get("company", {}).get("id")
+    
+    if not company_id:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Empresa não encontrada"}
+        )
+    
+    dashboard_data = controller.get_management_dashboard_data(company_id, db)
+    return JSONResponse(content=dashboard_data)
 
 @app.get("/health")
 async def health_check():

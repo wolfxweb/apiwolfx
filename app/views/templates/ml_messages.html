@@ -293,7 +293,7 @@ async function loadAccounts() {
             return;
         }
         
-        select.innerHTML = '<option value="">Todas as contas</option>';
+            select.innerHTML = '<option value="">Todas as contas</option>';
         
         let accounts = [];
         if (Array.isArray(data)) {
@@ -303,11 +303,11 @@ async function loadAccounts() {
         }
         
         accounts.forEach(acc => {
-            const option = document.createElement('option');
-            option.value = acc.id;
+                const option = document.createElement('option');
+                option.value = acc.id;
             option.textContent = acc.nickname || acc.email || acc.ml_user_id || `Conta ${acc.id}`;
-            select.appendChild(option);
-        });
+                select.appendChild(option);
+            });
     } catch (error) {
         console.error('Erro ao carregar contas:', error);
     }

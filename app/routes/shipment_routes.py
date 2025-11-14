@@ -465,7 +465,7 @@ async def emit_invoice(
 
         status_code = 200 if result.get("success") else 400
         return JSONResponse(content=result, status_code=status_code)
-
+        
     except Exception as e:
         return JSONResponse(content={
             "error": f"Erro interno: {str(e)}"

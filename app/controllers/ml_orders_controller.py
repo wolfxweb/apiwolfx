@@ -863,7 +863,7 @@ class MLOrdersController:
                 order_data["internal_status"] = status_record.status
                 order_data["internal_status_label"] = self._internal_status_labels.get(status_record.status)
                 order_data["internal_status_updated_at"] = status_record.updated_at.isoformat() if status_record.updated_at else None
-
+            
             return {
                 "success": True,
                 "order": order_data
@@ -939,7 +939,7 @@ class MLOrdersController:
             self.db.rollback()
             logger.error("Erro ao atualizar status interno do pedido %s: %s", order_identifier, exc)
             return {"success": False, "error": "Erro ao atualizar status interno."}
-
+    
     def get_orders_summary(self, company_id: int) -> Dict:
         """Busca resumo de orders para dashboard"""
         try:

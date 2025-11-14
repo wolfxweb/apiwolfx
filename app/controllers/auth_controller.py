@@ -356,6 +356,157 @@ class AuthController:
         # Usar bcrypt diretamente para hash
         return self.pwd_context.hash(password)
     
+    def get_management_dashboard_data(self, company_id: int, db: Session) -> dict:
+        """Busca dados do dashboard de gestão para uma empresa"""
+        try:
+            from sqlalchemy import func, and_, or_
+            from datetime import datetime, timedelta
+            from app.models.financial_models import AccountReceivable, AccountPayable
+            from app.models.saas_models import MLOrder, OrderStatus, MLAccount, MLAccountStatus, MLQuestion, MLQuestionStatus, Company
+            
+            # 1. VALOR A RECEBER (Pendentes)
+            # Contas a receber normais pendentes
+            receivables_pending = db.query(func.sum(AccountReceivable.amount)).filter(
+                AccountReceivable.company_id == company_id,
+                AccountReceivable.status == 'pending'
+            ).scalar() or 0
+            
+            # Buscar empresa e contas ML
+            company = db.query(Company).filter(Company.id == company_id).first()
+            accounts = db.query(MLAccount).filter(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
+            ).all()
+            
+            account_ids = [acc.id for acc in accounts] if accounts else []
+            
+            # Buscar pedidos ML uma única vez (se houver contas)
+            ml_orders = []
+            ml_pending_revenue = 0.0
+            ml_received_revenue = 0.0
+            
+            if company and company.ml_orders_as_receivables and account_ids:
+                ml_orders = db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.ml_account_id.in_(account_ids),
+                    MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED])
+                ).all()
+                
+                # Processar pedidos ML para calcular pendentes e recebidos
+                import json
+                for order in ml_orders:
+                    gross_amount = float(order.total_amount or 0)
+                    is_delivered = (
+                        order.status == OrderStatus.DELIVERED or 
+                        (order.shipping_status and order.shipping_status.lower() == "delivered")
+                    )
+                    
+                    if is_delivered:
+                        delivery_date = None
+                        if order.shipping_details:
+                            shipping_details = json.loads(order.shipping_details) if isinstance(order.shipping_details, str) else order.shipping_details
+                            if isinstance(shipping_details, dict):
+                                status_history = shipping_details.get('status_history', {})
+                                if status_history and 'date_delivered' in status_history:
+                                    try:
+                                        delivery_date_str = status_history['date_delivered']
+                                        delivery_date = datetime.fromisoformat(delivery_date_str.replace('Z', '+00:00'))
+                                    except:
+                                        pass
+                        
+                        if delivery_date:
+                            days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
+                            if days_since_delivery >= 7:
+                                ml_received_revenue += gross_amount
+                            else:
+                                ml_pending_revenue += gross_amount
+                        else:
+                            ml_pending_revenue += gross_amount
+                    else:
+                        ml_pending_revenue += gross_amount
+            
+            # 1. VALOR A RECEBER (Pendentes)
+            total_receivables_pending = float(receivables_pending) + ml_pending_revenue
+            
+            # 2. VALOR A PAGAR (Pendentes)
+            payables_pending = db.query(func.sum(AccountPayable.amount)).filter(
+                AccountPayable.company_id == company_id,
+                AccountPayable.status.in_(['pending', 'overdue', 'unpaid'])
+            ).scalar() or 0
+            
+            # 3. VALOR RECEBIDO
+            receivables_paid = db.query(func.sum(AccountReceivable.paid_amount)).filter(
+                AccountReceivable.company_id == company_id,
+                AccountReceivable.status.in_(['paid', 'received'])
+            ).scalar() or 0
+            total_received_revenue = float(receivables_paid) + ml_received_revenue
+            
+            # 4. QUANTIDADE DE VENDAS
+            total_sales_count = 0
+            total_sales_value = 0.0
+            
+            if account_ids:
+                sales_orders = db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.ml_account_id.in_(account_ids),
+                    MLOrder.status.in_([OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
+                ).all()
+                
+                total_sales_count = len(sales_orders)
+                total_sales_value = sum(float(order.total_amount or 0) for order in sales_orders)
+            
+            # 5. VALOR FATURADO
+            if account_ids:
+                invoiced_orders = db.query(func.sum(MLOrder.total_amount)).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.ml_account_id.in_(account_ids),
+                    MLOrder.invoice_emitted == True
+                ).scalar() or 0
+            else:
+                invoiced_orders = 0
+            
+            # 6. PERGUNTAS ABERTAS
+            unanswered_questions = db.query(func.count(MLQuestion.id)).filter(
+                MLQuestion.company_id == company_id,
+                MLQuestion.status == MLQuestionStatus.UNANSWERED
+            ).scalar() or 0
+            
+            return {
+                "success": True,
+                "financial": {
+                    "receivables_pending": round(total_receivables_pending, 2),
+                    "payables_pending": round(float(payables_pending), 2),
+                    "received_revenue": round(total_received_revenue, 2),
+                    "invoiced_amount": round(float(invoiced_orders), 2)
+                },
+                "sales": {
+                    "total_orders": total_sales_count,
+                    "total_sales_value": round(total_sales_value, 2)
+                },
+                "support": {
+                    "unanswered_questions": unanswered_questions
+                }
+            }
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados do dashboard: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "financial": {
+                    "receivables_pending": 0,
+                    "payables_pending": 0,
+                    "received_revenue": 0,
+                    "invoiced_amount": 0
+                },
+                "sales": {
+                    "total_orders": 0,
+                    "total_sales_value": 0
+                },
+                "support": {
+                    "unanswered_questions": 0
+                }
+            }
+    
     def redirect_to_login(self, state: str = None) -> dict:
         """Redireciona para o login do Mercado Livre"""
         from app.config.settings import settings

@@ -175,17 +175,76 @@ async def dashboard(
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """Dashboard do usuário"""
+    """Dashboard de gestão do usuário"""
     from app.views.template_renderer import render_template
+    from fastapi.responses import RedirectResponse
     
-    # Se o usuário estiver logado, buscar seus dados
-    user_data = None
-    if session_token:
-        result = auth_controller.get_user_by_session(session_token, db)
-        if "error" not in result:
-            user_data = result.get("user")
+    # Verificar autenticação
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
     
-    return render_template("dashboard_simple.html", request=request, user=user_data)
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result.get("user")
+    company_id = user_data.get("company_id") if user_data else None
+    
+    if not company_id:
+        return render_template("dashboard_simple.html", request=request, user=user_data)
+    
+    return render_template("auth_dashboard.html", request=request, user=user_data)
+
+@auth_router.get("/api/dashboard/data")
+async def get_dashboard_data(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter dados do dashboard de gestão"""
+    from fastapi.responses import JSONResponse
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Debug: verificar se o cookie está sendo recebido
+    if not session_token:
+        # Tentar pegar do header também
+        session_token = request.cookies.get("session_token")
+        logger.warning(f"Dashboard API: Cookie não encontrado no parâmetro, tentando do request.cookies: {session_token is not None}")
+    
+    if not session_token:
+        logger.error("Dashboard API: Nenhum token de sessão encontrado")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        logger.error(f"Dashboard API: Erro ao validar sessão: {result.get('error')}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result.get("user")
+    # Tentar pegar company_id diretamente ou do objeto company
+    company_id = user_data.get("company_id") if user_data else None
+    if not company_id and user_data and user_data.get("company"):
+        company_id = user_data.get("company", {}).get("id")
+    
+    if not company_id:
+        logger.error(f"Dashboard API: Empresa não encontrada. user_data keys: {list(user_data.keys()) if user_data else 'None'}")
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Empresa não encontrada"}
+        )
+    
+    logger.info(f"Dashboard API: Buscando dados para company_id={company_id}")
+    dashboard_data = auth_controller.get_management_dashboard_data(company_id, db)
+    logger.info(f"Dashboard API: Dados retornados com sucesso: {dashboard_data.get('success', False)}")
+    return JSONResponse(content=dashboard_data)
 
 @auth_router.get("/profile", response_class=HTMLResponse)
 async def profile(
