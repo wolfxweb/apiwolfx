@@ -33,6 +33,7 @@ services:
     volumes:
       - ./public:/app/public
       - ./app/logs:/app/app/logs
+      - ./app:/app/app
     networks:
       - apiwolfx-network
     restart: unless-stopped

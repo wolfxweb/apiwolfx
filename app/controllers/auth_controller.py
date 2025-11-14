@@ -369,9 +369,13 @@ class AuthController:
             from app.models.saas_models import MLOrder, OrderStatus, MLAccount, MLAccountStatus, MLQuestion, MLQuestionStatus, Company
             
             # Calcular período baseado no filtro
-            today = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+            # Usar datetime.now() e depois normalizar para início/fim do dia
+            now = datetime.now()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+            
             start_date = None
-            end_date = today
+            end_date = today_end
             
             if period == "custom" and date_from and date_to:
                 try:
@@ -379,22 +383,30 @@ class AuthController:
                     end_date = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
                 except ValueError:
                     # Se houver erro no parse, usar padrão de 30 dias
-                    start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+                    start_date = (today_start - timedelta(days=30))
+                    end_date = today_end
             elif period == "today":
-                start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
+                # Para "hoje", usar apenas a data atual (sem considerar hora)
+                start_date = today_start
+                end_date = today_end
             elif period == "7days":
-                start_date = (today - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+                start_date = (today_start - timedelta(days=7))
+                end_date = today_end
             elif period == "15days":
-                start_date = (today - timedelta(days=15)).replace(hour=0, minute=0, second=0, microsecond=0)
+                start_date = (today_start - timedelta(days=15))
+                end_date = today_end
             elif period == "30days":
-                start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+                start_date = (today_start - timedelta(days=30))
+                end_date = today_end
             elif period == "this_month":
-                start_date = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                start_date = today_start.replace(day=1)
+                end_date = today_end
             else:
                 # Padrão: 30 dias
-                start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+                start_date = (today_start - timedelta(days=30))
+                end_date = today_end
             
-            logger.info(f"Dashboard: Filtrando dados de {start_date} até {end_date}")
+            logger.info(f"Dashboard: Filtrando dados de {start_date} até {end_date} (período: {period})")
             
             # 1. VALOR A RECEBER (Pendentes)
             # Contas a receber normais pendentes (não filtrar por data, pois são pendentes)
@@ -424,10 +436,19 @@ class AuthController:
                     MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED])
                 )
                 # Filtrar por data se especificado
-                if start_date:
-                    ml_orders_query = ml_orders_query.filter(MLOrder.date_created >= start_date)
-                if end_date:
-                    ml_orders_query = ml_orders_query.filter(MLOrder.date_created <= end_date)
+                # Para "hoje", usar func.date() para comparar apenas a data (ignorar hora)
+                if start_date and end_date:
+                    if period == "today":
+                        # Para hoje, comparar apenas a data (sem hora)
+                        today_date = start_date.date()
+                        ml_orders_query = ml_orders_query.filter(
+                            func.date(MLOrder.date_created) == today_date
+                        )
+                    else:
+                        ml_orders_query = ml_orders_query.filter(
+                            MLOrder.date_created >= start_date,
+                            MLOrder.date_created <= end_date
+                        )
                 ml_orders = ml_orders_query.all()
                 
                 # Processar pedidos ML para calcular pendentes e recebidos
@@ -487,24 +508,101 @@ class AuthController:
             total_received_revenue = float(receivables_paid) + ml_received_revenue
             
             # 4. QUANTIDADE DE VENDAS
+            # Usar date_approved do pagamento quando disponível, senão usar date_created
             total_sales_count = 0
             total_sales_value = 0.0
             
             if account_ids:
-                sales_orders_query = db.query(MLOrder).filter(
-                    MLOrder.company_id == company_id,
-                    MLOrder.ml_account_id.in_(account_ids),
-                    MLOrder.status.in_([OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
-                )
-                # Filtrar por data se especificado
-                if start_date:
-                    sales_orders_query = sales_orders_query.filter(MLOrder.date_created >= start_date)
-                if end_date:
-                    sales_orders_query = sales_orders_query.filter(MLOrder.date_created <= end_date)
-                sales_orders = sales_orders_query.all()
+                from sqlalchemy import text, cast, String
+                import json
                 
-                total_sales_count = len(sales_orders)
-                total_sales_value = sum(float(order.total_amount or 0) for order in sales_orders)
+                # Consulta SQL para usar date_approved quando disponível
+                # Para pedidos pagos/confirmados, usar date_approved do pagamento
+                # Para outros, usar date_created
+                if start_date and end_date:
+                    # Construir a lista de account_ids para a query SQL
+                    account_ids_str = ','.join(str(acc_id) for acc_id in account_ids)
+                    
+                    if period == "today":
+                        # Para hoje, comparar apenas a data (sem hora)
+                        today_date = start_date.date()
+                        sql_query = """
+                            SELECT 
+                                id,
+                                total_amount,
+                                date_created,
+                                payments
+                            FROM ml_orders 
+                            WHERE company_id = :company_id
+                            AND ml_account_id IN ({})
+                            AND status IN ('PAID', 'SHIPPED', 'DELIVERED')
+                            AND (
+                                -- Para pedidos com pagamento, usar date_approved
+                                (payments IS NOT NULL 
+                                 AND payments::text != '[]' 
+                                 AND payments::text != '{{}}'
+                                 AND (payments->0->>'date_approved') IS NOT NULL
+                                 AND DATE((payments->0->>'date_approved')::timestamp) = :today_date)
+                                OR
+                                -- Para pedidos sem date_approved, usar date_created
+                                ((payments IS NULL 
+                                 OR payments::text = '[]' 
+                                 OR payments::text = '{{}}'
+                                 OR (payments->0->>'date_approved') IS NULL)
+                                 AND DATE(date_created) = :today_date)
+                            )
+                        """.format(account_ids_str)
+                        orders_result = db.execute(text(sql_query), {
+                            "company_id": company_id,
+                            "today_date": today_date
+                        })
+                    else:
+                        sql_query = """
+                            SELECT 
+                                id,
+                                total_amount,
+                                date_created,
+                                payments
+                            FROM ml_orders 
+                            WHERE company_id = :company_id
+                            AND ml_account_id IN ({})
+                            AND status IN ('PAID', 'SHIPPED', 'DELIVERED')
+                            AND (
+                                -- Para pedidos com pagamento, usar date_approved
+                                (payments IS NOT NULL 
+                                 AND payments::text != '[]' 
+                                 AND payments::text != '{{}}'
+                                 AND (payments->0->>'date_approved') IS NOT NULL
+                                 AND (payments->0->>'date_approved')::timestamp >= :start_date
+                                 AND (payments->0->>'date_approved')::timestamp <= :end_date)
+                                OR
+                                -- Para pedidos sem date_approved, usar date_created
+                                ((payments IS NULL 
+                                 OR payments::text = '[]' 
+                                 OR payments::text = '{{}}'
+                                 OR (payments->0->>'date_approved') IS NULL)
+                                 AND date_created >= :start_date
+                                 AND date_created <= :end_date)
+                            )
+                        """.format(account_ids_str)
+                        orders_result = db.execute(text(sql_query), {
+                            "company_id": company_id,
+                            "start_date": start_date,
+                            "end_date": end_date
+                        })
+                    
+                    orders_data = orders_result.fetchall()
+                    total_sales_count = len(orders_data)
+                    total_sales_value = sum(float(row[1] or 0) for row in orders_data)
+                else:
+                    # Sem filtro de data, usar query normal
+                    sales_orders = db.query(MLOrder).filter(
+                        MLOrder.company_id == company_id,
+                        MLOrder.ml_account_id.in_(account_ids),
+                        MLOrder.status.in_([OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
+                    ).all()
+                    total_sales_count = len(sales_orders)
+                    total_sales_value = sum(float(order.total_amount or 0) for order in sales_orders)
             
             # 5. VALOR FATURADO
             if account_ids:
@@ -514,10 +612,19 @@ class AuthController:
                     MLOrder.invoice_emitted == True
                 )
                 # Filtrar por data se especificado
-                if start_date:
-                    invoiced_orders_query = invoiced_orders_query.filter(MLOrder.date_created >= start_date)
-                if end_date:
-                    invoiced_orders_query = invoiced_orders_query.filter(MLOrder.date_created <= end_date)
+                # Para "hoje", usar func.date() para comparar apenas a data (ignorar hora)
+                if start_date and end_date:
+                    if period == "today":
+                        # Para hoje, comparar apenas a data (sem hora)
+                        today_date = start_date.date()
+                        invoiced_orders_query = invoiced_orders_query.filter(
+                            func.date(MLOrder.date_created) == today_date
+                        )
+                    else:
+                        invoiced_orders_query = invoiced_orders_query.filter(
+                            MLOrder.date_created >= start_date,
+                            MLOrder.date_created <= end_date
+                        )
                 invoiced_orders = invoiced_orders_query.scalar() or 0
             else:
                 invoiced_orders = 0

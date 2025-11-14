@@ -72,7 +72,7 @@
                     <div class="row align-items-end">
                         <div class="col-md-3 mb-2">
                             <label class="form-label small text-muted">Período</label>
-                            <select class="form-select" id="period-filter" onchange="handlePeriodChange()">
+                            <select class="form-select" id="period-filter" onchange="handlePeriodChange(); loadDashboard();">
                                 <option value="today">Hoje</option>
                                 <option value="7days">Últimos 7 dias</option>
                                 <option value="15days">Últimos 15 dias</option>
@@ -81,79 +81,15 @@
                                 <option value="custom">Personalizado</option>
                             </select>
                         </div>
-                        <div class="col-md-3 mb-2" id="date-from-container" style="display: none;">
+                        <div class="col-md-4 mb-2" id="date-from-container" style="display: none;">
                             <label class="form-label small text-muted">Data Inicial</label>
                             <input type="date" class="form-control" id="date-from" onchange="loadDashboard()">
                         </div>
-                        <div class="col-md-3 mb-2" id="date-to-container" style="display: none;">
+                        <div class="col-md-4 mb-2" id="date-to-container" style="display: none;">
                             <label class="form-label small text-muted">Data Final</label>
                             <input type="date" class="form-control" id="date-to" onchange="loadDashboard()">
                         </div>
-                        <div class="col-md-3 mb-2">
-                            <button class="btn btn-primary w-100" onclick="loadDashboard()">
-                                <i class="bi bi-funnel"></i> Aplicar Filtro
-                            </button>
-                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Resumo Executivo -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <h3 class="h5 mb-3">
-                <i class="bi bi-info-circle"></i> Resumo Executivo
-            </h3>
-        </div>
-    </div>
-    
-    <div class="row mb-4">
-        <!-- Saldo Líquido -->
-        <div class="col-md-4 mb-3">
-            <div class="card kpi-card border-primary">
-                <div class="card-body text-center">
-                    <div class="kpi-icon text-primary">
-                        <i class="bi bi-wallet2"></i>
-                    </div>
-                    <div class="kpi-label">Saldo Líquido</div>
-                    <div class="kpi-value text-primary" id="net-balance">
-                        <div class="loading-skeleton"></div>
-                    </div>
-                    <small class="text-muted">Recebido - Pago</small>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Fluxo de Caixa Projetado -->
-        <div class="col-md-4 mb-3">
-            <div class="card kpi-card border-info">
-                <div class="card-body text-center">
-                    <div class="kpi-icon text-info">
-                        <i class="bi bi-graph-up"></i>
-                    </div>
-                    <div class="kpi-label">Fluxo de Caixa Projetado</div>
-                    <div class="kpi-value text-info" id="cash-flow-projection">
-                        <div class="loading-skeleton"></div>
-                    </div>
-                    <small class="text-muted">Receber - Pagar</small>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Ticket Médio -->
-        <div class="col-md-4 mb-3">
-            <div class="card kpi-card border-success">
-                <div class="card-body text-center">
-                    <div class="kpi-icon text-success">
-                        <i class="bi bi-calculator"></i>
-                    </div>
-                    <div class="kpi-label">Ticket Médio</div>
-                    <div class="kpi-value text-success" id="avg-ticket">
-                        <div class="loading-skeleton"></div>
-                    </div>
-                    <small class="text-muted">Valor médio por venda</small>
                 </div>
             </div>
         </div>
@@ -304,6 +240,65 @@
                             <i class="bi bi-arrow-right"></i> Ver Perguntas
                         </a>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo Executivo -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3 class="h5 mb-3">
+                <i class="bi bi-info-circle"></i> Resumo Executivo
+            </h3>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <!-- Saldo Líquido -->
+        <div class="col-md-4 mb-3">
+            <div class="card kpi-card border-primary">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-primary">
+                        <i class="bi bi-wallet2"></i>
+                    </div>
+                    <div class="kpi-label">Saldo Líquido</div>
+                    <div class="kpi-value text-primary" id="net-balance">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Recebido - Pago</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Fluxo de Caixa Projetado -->
+        <div class="col-md-4 mb-3">
+            <div class="card kpi-card border-info">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-info">
+                        <i class="bi bi-graph-up"></i>
+                    </div>
+                    <div class="kpi-label">Fluxo de Caixa Projetado</div>
+                    <div class="kpi-value text-info" id="cash-flow-projection">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Receber - Pagar</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Ticket Médio -->
+        <div class="col-md-4 mb-3">
+            <div class="card kpi-card border-success">
+                <div class="card-body text-center">
+                    <div class="kpi-icon text-success">
+                        <i class="bi bi-calculator"></i>
+                    </div>
+                    <div class="kpi-label">Ticket Médio</div>
+                    <div class="kpi-value text-success" id="avg-ticket">
+                        <div class="loading-skeleton"></div>
+                    </div>
+                    <small class="text-muted">Valor médio por venda</small>
                 </div>
             </div>
         </div>
