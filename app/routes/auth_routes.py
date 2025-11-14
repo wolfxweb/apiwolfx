@@ -198,6 +198,9 @@ async def dashboard(
 @auth_router.get("/api/dashboard/data")
 async def get_dashboard_data(
     request: Request,
+    period: Optional[str] = "30days",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -241,8 +244,14 @@ async def get_dashboard_data(
             content={"success": False, "error": "Empresa não encontrada"}
         )
     
-    logger.info(f"Dashboard API: Buscando dados para company_id={company_id}")
-    dashboard_data = auth_controller.get_management_dashboard_data(company_id, db)
+    logger.info(f"Dashboard API: Buscando dados para company_id={company_id}, período={period}, de {date_from} até {date_to}")
+    dashboard_data = auth_controller.get_management_dashboard_data(
+        company_id, 
+        db, 
+        period=period,
+        date_from=date_from,
+        date_to=date_to
+    )
     logger.info(f"Dashboard API: Dados retornados com sucesso: {dashboard_data.get('success', False)}")
     return JSONResponse(content=dashboard_data)
 

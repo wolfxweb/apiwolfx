@@ -915,6 +915,9 @@ async def dashboard(request: Request, session_token: str = Cookie(None), db: Ses
 
 @app.get("/api/dashboard/data")
 async def get_dashboard_data_api(
+    period: Optional[str] = "30days",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -948,7 +951,13 @@ async def get_dashboard_data_api(
             content={"success": False, "error": "Empresa não encontrada"}
         )
     
-    dashboard_data = controller.get_management_dashboard_data(company_id, db)
+    dashboard_data = controller.get_management_dashboard_data(
+        company_id, 
+        db, 
+        period=period,
+        date_from=date_from,
+        date_to=date_to
+    )
     return JSONResponse(content=dashboard_data)
 
 @app.get("/health")

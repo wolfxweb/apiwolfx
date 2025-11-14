@@ -1,6 +1,7 @@
 """
 Controller de autenticação para sistema SaaS
 """
+from typing import Optional
 from fastapi import HTTPException, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -356,7 +357,10 @@ class AuthController:
         # Usar bcrypt diretamente para hash
         return self.pwd_context.hash(password)
     
-    def get_management_dashboard_data(self, company_id: int, db: Session) -> dict:
+    def get_management_dashboard_data(self, company_id: int, db: Session, 
+                                      period: str = "30days", 
+                                      date_from: Optional[str] = None, 
+                                      date_to: Optional[str] = None) -> dict:
         """Busca dados do dashboard de gestão para uma empresa"""
         try:
             from sqlalchemy import func, and_, or_
@@ -364,8 +368,36 @@ class AuthController:
             from app.models.financial_models import AccountReceivable, AccountPayable
             from app.models.saas_models import MLOrder, OrderStatus, MLAccount, MLAccountStatus, MLQuestion, MLQuestionStatus, Company
             
+            # Calcular período baseado no filtro
+            today = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+            start_date = None
+            end_date = today
+            
+            if period == "custom" and date_from and date_to:
+                try:
+                    start_date = datetime.strptime(date_from, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
+                    end_date = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+                except ValueError:
+                    # Se houver erro no parse, usar padrão de 30 dias
+                    start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+            elif period == "today":
+                start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
+            elif period == "7days":
+                start_date = (today - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+            elif period == "15days":
+                start_date = (today - timedelta(days=15)).replace(hour=0, minute=0, second=0, microsecond=0)
+            elif period == "30days":
+                start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+            elif period == "this_month":
+                start_date = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            else:
+                # Padrão: 30 dias
+                start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            logger.info(f"Dashboard: Filtrando dados de {start_date} até {end_date}")
+            
             # 1. VALOR A RECEBER (Pendentes)
-            # Contas a receber normais pendentes
+            # Contas a receber normais pendentes (não filtrar por data, pois são pendentes)
             receivables_pending = db.query(func.sum(AccountReceivable.amount)).filter(
                 AccountReceivable.company_id == company_id,
                 AccountReceivable.status == 'pending'
@@ -386,11 +418,17 @@ class AuthController:
             ml_received_revenue = 0.0
             
             if company and company.ml_orders_as_receivables and account_ids:
-                ml_orders = db.query(MLOrder).filter(
+                ml_orders_query = db.query(MLOrder).filter(
                     MLOrder.company_id == company_id,
                     MLOrder.ml_account_id.in_(account_ids),
                     MLOrder.status.in_([OrderStatus.PAID, OrderStatus.DELIVERED])
-                ).all()
+                )
+                # Filtrar por data se especificado
+                if start_date:
+                    ml_orders_query = ml_orders_query.filter(MLOrder.date_created >= start_date)
+                if end_date:
+                    ml_orders_query = ml_orders_query.filter(MLOrder.date_created <= end_date)
+                ml_orders = ml_orders_query.all()
                 
                 # Processar pedidos ML para calcular pendentes e recebidos
                 import json
@@ -429,16 +467,23 @@ class AuthController:
             total_receivables_pending = float(receivables_pending) + ml_pending_revenue
             
             # 2. VALOR A PAGAR (Pendentes)
+            # Não filtrar por data, pois são pendentes
             payables_pending = db.query(func.sum(AccountPayable.amount)).filter(
                 AccountPayable.company_id == company_id,
                 AccountPayable.status.in_(['pending', 'overdue', 'unpaid'])
             ).scalar() or 0
             
             # 3. VALOR RECEBIDO
-            receivables_paid = db.query(func.sum(AccountReceivable.paid_amount)).filter(
+            receivables_paid_query = db.query(func.sum(AccountReceivable.paid_amount)).filter(
                 AccountReceivable.company_id == company_id,
                 AccountReceivable.status.in_(['paid', 'received'])
-            ).scalar() or 0
+            )
+            # Filtrar por data de pagamento se especificado
+            if start_date:
+                receivables_paid_query = receivables_paid_query.filter(AccountReceivable.paid_date >= start_date)
+            if end_date:
+                receivables_paid_query = receivables_paid_query.filter(AccountReceivable.paid_date <= end_date)
+            receivables_paid = receivables_paid_query.scalar() or 0
             total_received_revenue = float(receivables_paid) + ml_received_revenue
             
             # 4. QUANTIDADE DE VENDAS
@@ -446,22 +491,34 @@ class AuthController:
             total_sales_value = 0.0
             
             if account_ids:
-                sales_orders = db.query(MLOrder).filter(
+                sales_orders_query = db.query(MLOrder).filter(
                     MLOrder.company_id == company_id,
                     MLOrder.ml_account_id.in_(account_ids),
                     MLOrder.status.in_([OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
-                ).all()
+                )
+                # Filtrar por data se especificado
+                if start_date:
+                    sales_orders_query = sales_orders_query.filter(MLOrder.date_created >= start_date)
+                if end_date:
+                    sales_orders_query = sales_orders_query.filter(MLOrder.date_created <= end_date)
+                sales_orders = sales_orders_query.all()
                 
                 total_sales_count = len(sales_orders)
                 total_sales_value = sum(float(order.total_amount or 0) for order in sales_orders)
             
             # 5. VALOR FATURADO
             if account_ids:
-                invoiced_orders = db.query(func.sum(MLOrder.total_amount)).filter(
+                invoiced_orders_query = db.query(func.sum(MLOrder.total_amount)).filter(
                     MLOrder.company_id == company_id,
                     MLOrder.ml_account_id.in_(account_ids),
                     MLOrder.invoice_emitted == True
-                ).scalar() or 0
+                )
+                # Filtrar por data se especificado
+                if start_date:
+                    invoiced_orders_query = invoiced_orders_query.filter(MLOrder.date_created >= start_date)
+                if end_date:
+                    invoiced_orders_query = invoiced_orders_query.filter(MLOrder.date_created <= end_date)
+                invoiced_orders = invoiced_orders_query.scalar() or 0
             else:
                 invoiced_orders = 0
             
