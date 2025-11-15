@@ -549,124 +549,165 @@ class MLNotificationsController:
     
     def _get_company_id_from_ml_user(self, ml_user_id: int, db: Session) -> int:
         """Busca company_id a partir do ml_user_id do Mercado Livre"""
-        try:
-            from app.models.saas_models import MLAccount, MLAccountStatus
-            from sqlalchemy import or_
-            
-            # Normalizar ml_user_id: converter para string e remover espaços
-            ml_user_id_str = str(ml_user_id).strip() if ml_user_id is not None else None
-            
-            logger.info(f"🔍 Buscando company_id para ml_user_id: {ml_user_id} (original), '{ml_user_id_str}' (normalizado), tipo: {type(ml_user_id)}")
-            
-            if not ml_user_id_str:
-                logger.error(f"❌ ml_user_id é None ou vazio após normalização")
-                return None
-            
-            # Buscar conta ATIVA primeiro - tentar com diferentes formatos
-            ml_account = db.query(MLAccount).filter(
-                MLAccount.ml_user_id == ml_user_id_str,
-                MLAccount.status == MLAccountStatus.ACTIVE
-            ).first()
-            
-            # Se não encontrou, tentar buscar sem considerar espaços extras (usando func.trim)
-            if not ml_account:
-                from sqlalchemy import func
+        from app.models.saas_models import MLAccount, MLAccountStatus
+        from sqlalchemy import or_
+        from sqlalchemy.exc import OperationalError, DisconnectionError
+        import time
+        
+        max_retries = 3
+        retry_delay = 1
+        
+        for attempt in range(max_retries):
+            try:
+                # Verificar se a sessão está válida
+                try:
+                    from sqlalchemy import text
+                    db.execute(text("SELECT 1"))
+                except Exception as e:
+                    logger.warning(f"⚠️ Sessão do banco inválida, tentando recriar (tentativa {attempt + 1}/{max_retries})")
+                    # Tentar fazer rollback e refresh
+                    try:
+                        db.rollback()
+                    except:
+                        pass
+                    # Se ainda falhar, criar nova sessão
+                    if attempt < max_retries - 1:
+                        from app.config.database import SessionLocal
+                        db = SessionLocal()
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        raise
+                
+                # Normalizar ml_user_id: converter para string e remover espaços
+                ml_user_id_str = str(ml_user_id).strip() if ml_user_id is not None else None
+                
+                logger.info(f"🔍 Buscando company_id para ml_user_id: {ml_user_id} (original), '{ml_user_id_str}' (normalizado), tipo: {type(ml_user_id)}")
+                
+                if not ml_user_id_str:
+                    logger.error(f"❌ ml_user_id é None ou vazio após normalização")
+                    return None
+                
+                # Buscar conta ATIVA primeiro - tentar com diferentes formatos
                 ml_account = db.query(MLAccount).filter(
-                    func.trim(MLAccount.ml_user_id) == ml_user_id_str,
+                    MLAccount.ml_user_id == ml_user_id_str,
                     MLAccount.status == MLAccountStatus.ACTIVE
                 ).first()
             
-            if ml_account:
-                logger.info(f"✅ Conta ML ATIVA encontrada: ml_user_id={ml_user_id}, company_id={ml_account.company_id}, nickname={ml_account.nickname}")
-                global_logger.log_event(
-                    event_type="ml_account_found",
-                    data={
-                        "ml_user_id": ml_user_id,
-                        "company_id": ml_account.company_id,
-                        "status": "ACTIVE",
-                        "nickname": ml_account.nickname,
-                        "description": f"Conta ML encontrada para ml_user_id {ml_user_id}"
-                    },
-                    company_id=ml_account.company_id,
-                    success=True
-                )
-                return ml_account.company_id
-            
-            # Se não encontrou ATIVA, buscar qualquer conta (ativa ou inativa)
-            logger.warning(f"⚠️ Conta ATIVA não encontrada, buscando qualquer conta para ml_user_id: {ml_user_id_str}")
-            ml_account_any = db.query(MLAccount).filter(
-                MLAccount.ml_user_id == ml_user_id_str
-            ).first()
-            
-            # Se ainda não encontrou, tentar sem considerar espaços
-            if not ml_account_any:
-                from sqlalchemy import func
-                ml_account_any = db.query(MLAccount).filter(
-                    func.trim(MLAccount.ml_user_id) == ml_user_id_str
-                ).first()
-            
-            if ml_account_any:
-                logger.warning(f"⚠️ Conta ML existe mas está INATIVA: ml_user_id={ml_user_id}, status={ml_account_any.status}, company_id={ml_account_any.company_id}, nickname={ml_account_any.nickname}")
-                logger.warning(f"⚠️ Processando notificação mesmo com conta INATIVA para ml_user_id: {ml_user_id}")
-                global_logger.log_event(
-                    event_type="ml_account_inactive_found",
-                    data={
-                        "ml_user_id": ml_user_id,
-                        "company_id": ml_account_any.company_id,
-                        "status": str(ml_account_any.status),
-                        "nickname": ml_account_any.nickname,
-                        "description": f"Conta ML INATIVA encontrada para ml_user_id {ml_user_id}, mas processando notificação"
-                    },
-                    company_id=ml_account_any.company_id,
-                    success=True
-                )
-                # Retornar mesmo se inativa, pois a notificação deve ser processada
-                return ml_account_any.company_id
-            else:
-                logger.error(f"❌ Conta ML NÃO encontrada: ml_user_id={ml_user_id}")
-                # Debug: listar algumas contas para verificar formato
-                all_accounts = db.query(
-                    MLAccount.ml_user_id, 
-                    MLAccount.company_id, 
-                    MLAccount.status,
-                    MLAccount.nickname
-                ).limit(10).all()
-                if all_accounts:
-                    logger.info(f"📋 Exemplo de contas cadastradas (primeiras 10): {[(str(acc.ml_user_id), acc.company_id, str(acc.status), acc.nickname) for acc in all_accounts]}")
-                    logger.info(f"📋 Buscando exatamente: ml_user_id='{ml_user_id}' (tipo: {type(ml_user_id).__name__})")
-                else:
-                    logger.warning(f"⚠️ Nenhuma conta ML cadastrada no sistema")
+                # Se não encontrou, tentar buscar sem considerar espaços extras (usando func.trim)
+                if not ml_account:
+                    from sqlalchemy import func
+                    ml_account = db.query(MLAccount).filter(
+                        func.trim(MLAccount.ml_user_id) == ml_user_id_str,
+                        MLAccount.status == MLAccountStatus.ACTIVE
+                    ).first()
                 
+                if ml_account:
+                    logger.info(f"✅ Conta ML ATIVA encontrada: ml_user_id={ml_user_id}, company_id={ml_account.company_id}, nickname={ml_account.nickname}")
+                    global_logger.log_event(
+                        event_type="ml_account_found",
+                        data={
+                            "ml_user_id": ml_user_id,
+                            "company_id": ml_account.company_id,
+                            "status": "ACTIVE",
+                            "nickname": ml_account.nickname,
+                            "description": f"Conta ML encontrada para ml_user_id {ml_user_id}"
+                        },
+                        company_id=ml_account.company_id,
+                        success=True
+                    )
+                    return ml_account.company_id
+                
+                # Se não encontrou ATIVA, buscar qualquer conta (ativa ou inativa)
+                logger.warning(f"⚠️ Conta ATIVA não encontrada, buscando qualquer conta para ml_user_id: {ml_user_id_str}")
+                ml_account_any = db.query(MLAccount).filter(
+                    MLAccount.ml_user_id == ml_user_id_str
+                ).first()
+                
+                # Se ainda não encontrou, tentar sem considerar espaços
+                if not ml_account_any:
+                    from sqlalchemy import func
+                    ml_account_any = db.query(MLAccount).filter(
+                        func.trim(MLAccount.ml_user_id) == ml_user_id_str
+                    ).first()
+                
+                if ml_account_any:
+                    logger.warning(f"⚠️ Conta ML existe mas está INATIVA: ml_user_id={ml_user_id}, status={ml_account_any.status}, company_id={ml_account_any.company_id}, nickname={ml_account_any.nickname}")
+                    logger.warning(f"⚠️ Processando notificação mesmo com conta INATIVA para ml_user_id: {ml_user_id}")
+                    global_logger.log_event(
+                        event_type="ml_account_inactive_found",
+                        data={
+                            "ml_user_id": ml_user_id,
+                            "company_id": ml_account_any.company_id,
+                            "status": str(ml_account_any.status),
+                            "nickname": ml_account_any.nickname,
+                            "description": f"Conta ML INATIVA encontrada para ml_user_id {ml_user_id}, mas processando notificação"
+                        },
+                        company_id=ml_account_any.company_id,
+                        success=True
+                    )
+                    # Retornar mesmo se inativa, pois a notificação deve ser processada
+                    return ml_account_any.company_id
+                else:
+                    logger.error(f"❌ Conta ML NÃO encontrada: ml_user_id={ml_user_id}")
+                    # Debug: listar algumas contas para verificar formato
+                    all_accounts = db.query(
+                        MLAccount.ml_user_id, 
+                        MLAccount.company_id, 
+                        MLAccount.status,
+                        MLAccount.nickname
+                    ).limit(10).all()
+                    if all_accounts:
+                        logger.info(f"📋 Exemplo de contas cadastradas (primeiras 10): {[(str(acc.ml_user_id), acc.company_id, str(acc.status), acc.nickname) for acc in all_accounts]}")
+                        logger.info(f"📋 Buscando exatamente: ml_user_id='{ml_user_id}' (tipo: {type(ml_user_id).__name__})")
+                    else:
+                        logger.warning(f"⚠️ Nenhuma conta ML cadastrada no sistema")
+                    
+                    return None
+                    
+            except (OperationalError, DisconnectionError) as e:
+                logger.error(f"❌ Erro de conexão com o banco (tentativa {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    logger.info(f"🔄 Tentando reconectar ao banco em {retry_delay} segundo(s)...")
+                    try:
+                        db.rollback()
+                    except:
+                        pass
+                    # Criar nova sessão
+                    from app.config.database import SessionLocal
+                    db = SessionLocal()
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Backoff exponencial
+                    continue
+                else:
+                    logger.error(f"❌ Erro ao buscar company_id após {max_retries} tentativas")
+                    global_logger.log_event(
+                        event_type="ml_account_search_error",
+                        data={
+                            "ml_user_id": ml_user_id,
+                            "description": f"Erro ao buscar conta ML para ml_user_id {ml_user_id}"
+                        },
+                        company_id=None,
+                        success=False,
+                        error_message=str(e)
+                    )
+                    raise
+            except Exception as e:
+                logger.error(f"❌ Erro ao buscar company_id: {e}", exc_info=True)
                 global_logger.log_event(
-                    event_type="ml_account_not_found",
+                    event_type="ml_account_search_error",
                     data={
                         "ml_user_id": ml_user_id,
-                        "ml_user_id_type": type(ml_user_id).__name__,
-                        "example_accounts": [(str(acc.ml_user_id), acc.company_id, str(acc.status)) for acc in all_accounts[:5]],
-                        "description": f"Conta ML não encontrada para ml_user_id {ml_user_id}"
+                        "description": f"Erro ao buscar conta ML para ml_user_id {ml_user_id}"
                     },
                     company_id=None,
                     success=False,
-                    error_message=f"Conta ML não encontrada para ml_user_id {ml_user_id}"
+                    error_message=str(e)
                 )
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"❌ Erro ao buscar company_id: {e}", exc_info=True)
-            global_logger.log_event(
-                event_type="ml_account_search_error",
-                data={
-                    "ml_user_id": ml_user_id,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "description": f"Erro ao buscar conta ML para ml_user_id {ml_user_id}"
-                },
-                company_id=None,
-                success=False,
-                error_message=str(e)
-            )
-            return None
+                raise
+        
+        # Se chegou aqui sem retornar, significa que todas as tentativas falharam
+        return None
 
     def _get_user_token(self, ml_user_id: int, db: Session) -> Optional[str]:
         """Busca token ativo para o seller usando TokenManager (com renovação automática)."""

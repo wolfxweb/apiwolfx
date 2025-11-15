@@ -278,7 +278,67 @@ class TokenManager:
             token_candidates = query.order_by(Token.expires_at.desc()).all()
             if not token_candidates:
                 logger.warning(
-                    "Nenhum token encontrado para ml_account_id=%s (company=%s)",
+                    "Nenhum token ativo encontrado para ml_account_id=%s (company=%s). Tentando buscar tokens inativos para renovar...",
+                    ml_account_id,
+                    company_id,
+                )
+                # Tentar buscar tokens inativos com refresh_token para tentar renovar
+                inactive_query = (
+                    self.db.query(Token)
+                    .filter(
+                        Token.ml_account_id == ml_account_id,
+                        Token.is_active == False,
+                        Token.refresh_token.isnot(None)
+                    )
+                )
+                if company_id is not None:
+                    inactive_query = inactive_query.join(MLAccount).filter(MLAccount.company_id == company_id)
+                
+                inactive_tokens = inactive_query.order_by(Token.expires_at.desc()).all()
+                
+                if inactive_tokens:
+                    logger.info(
+                        "Encontrados %d token(s) inativo(s) com refresh_token para ml_account_id=%s. Tentando renovar...",
+                        len(inactive_tokens),
+                        ml_account_id
+                    )
+                    for inactive_token in inactive_tokens:
+                        if not inactive_token.refresh_token:
+                            continue
+                        
+                        logger.info(
+                            "Tentando renovar token inativo (id=%s, expires_at=%s) para ml_account_id=%s",
+                            inactive_token.id,
+                            inactive_token.expires_at,
+                            ml_account_id
+                        )
+                        refreshed = self._refresh_token_for_record(inactive_token)
+                        if refreshed and refreshed.access_token:
+                            # Verificar se o token renovado pertence ao seller esperado
+                            owner_id = self._get_token_owner_user_id(refreshed.access_token)
+                            if expected_ml_user_id and owner_id and owner_id != str(expected_ml_user_id):
+                                logger.warning(
+                                    "Token renovado pertence ao user_id %s, mas esperado %s; continuando busca",
+                                    owner_id,
+                                    expected_ml_user_id,
+                                )
+                                continue
+                            
+                            logger.info(
+                                "✅ Token inativo renovado com sucesso para ml_account_id=%s (owner_id=%s)",
+                                ml_account_id,
+                                owner_id,
+                            )
+                            return refreshed
+                        else:
+                            logger.warning(
+                                "Falha ao renovar token inativo (id=%s) para ml_account_id=%s",
+                                inactive_token.id,
+                                ml_account_id
+                            )
+                
+                logger.warning(
+                    "Nenhum token encontrado (ativo ou inativo renovável) para ml_account_id=%s (company=%s)",
                     ml_account_id,
                     company_id,
                 )
