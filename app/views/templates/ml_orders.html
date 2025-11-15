@@ -1814,7 +1814,7 @@ async function updateInternalStatus(orderId, statusValue, triggerElement) {
     }
 
     try {
-        const response = await fetch(`/api/orders/${orderId}/internal-status`, {
+        const response = await fetch(`/ml/api/orders/${orderId}/internal-status`, {
             method: 'POST',
             credentials: 'include',
             headers: {

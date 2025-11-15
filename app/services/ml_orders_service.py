@@ -1102,9 +1102,14 @@ class MLOrdersService:
                                 updated_by=None  # Criado automaticamente pelo sistema
                             )
                             self.db.add(processing_status)
-                            logger.info(f"✅ Status interno 'aguardando_processamento' criado automaticamente para pedido {new_order.ml_order_id}")
+                            self.db.flush()  # Garantir que o status seja adicionado à sessão
+                            logger.info(f"✅ Status interno 'aguardando_processamento' criado automaticamente para pedido {new_order.ml_order_id} (ID: {new_order.id})")
+                        else:
+                            logger.info(f"ℹ️ Status interno já existe para pedido {new_order.ml_order_id}")
+                    else:
+                        logger.info(f"ℹ️ Pedido {new_order.ml_order_id} é fulfillment, não criando status interno")
                 except Exception as e:
-                    logger.warning(f"⚠️ Erro ao criar status interno automaticamente: {e}")
+                    logger.warning(f"⚠️ Erro ao criar status interno automaticamente: {e}", exc_info=True)
                     # Não falhar a criação do pedido por causa do status interno
                 
                 return {"action": "created", "order": new_order}
