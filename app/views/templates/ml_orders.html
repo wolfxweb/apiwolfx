@@ -753,9 +753,11 @@ let currentLimit = 50;
 let currentFilters = {};
 let ordersCache = {};
 const INTERNAL_STATUS_OPTIONS = [
+    { value: 'aguardando_processamento', label: 'Aguardando processamento' },
     { value: 'separacao', label: 'Separação' },
     { value: 'expedicao', label: 'Expedição' },
-    { value: 'pronto_envio', label: 'Pronto para envio' }
+    { value: 'pronto_envio', label: 'Pronto para envio' },
+    { value: 'enviado', label: 'Enviado' }
 ];
 const INTERNAL_STATUS_LABEL_MAP = INTERNAL_STATUS_OPTIONS.reduce((accumulator, option) => {
     accumulator[option.value] = option.label;
@@ -1459,6 +1461,28 @@ function renderOrderSummary(order) {
 
     if (orderId) {
         segments.push(`<span class="fw-semibold">${orderId}</span>`);
+    }
+
+    // Badge do status interno
+    if (order.internal_status_label) {
+        const internalLabel = sanitizeText(order.internal_status_label);
+        const statusValue = (order.internal_status || '').toLowerCase();
+        
+        // Definir cor do badge baseado no status
+        let badgeClass = 'bg-secondary';
+        if (statusValue === 'aguardando_processamento') {
+            badgeClass = 'bg-warning text-dark';
+        } else if (statusValue === 'separacao') {
+            badgeClass = 'bg-info';
+        } else if (statusValue === 'expedicao') {
+            badgeClass = 'bg-primary';
+        } else if (statusValue === 'pronto_envio') {
+            badgeClass = 'bg-success';
+        } else if (statusValue === 'enviado') {
+            badgeClass = 'bg-dark';
+        }
+        
+        segments.push(`<span class="badge ${badgeClass}">${internalLabel}</span>`);
     }
 
     if (accountLabel) {
@@ -2716,9 +2740,10 @@ function getLogisticBadgeClass(logisticType) {
 
 function renderInternalStatusDropdown(order) {
     const orderId = order.ml_order_id || order.order_id || '';
-    const shippingStatus = (order.shipping_status || '').toString().toLowerCase();
     const logisticType = (order.shipping_logistic_type || order.shipping_type || '').toString().toLowerCase();
-    if (!orderId || shippingStatus !== 'ready_to_ship' || logisticType === 'fulfillment' || logisticType === 'full') {
+    
+    // Mostrar botão sempre que não for fulfillment, independente do status de envio
+    if (!orderId || logisticType === 'fulfillment' || logisticType === 'full') {
         return '';
     }
 

@@ -15,9 +15,11 @@ class MLOrdersController:
         self.db = db
         self.orders_service = MLOrdersService(db)
         self._internal_status_labels = {
+            "aguardando_processamento": "Aguardando processamento",
             "separacao": "Separação",
             "expedicao": "Expedição",
-            "pronto_envio": "Pronto para envio"
+            "pronto_envio": "Pronto para envio",
+            "enviado": "Enviado"
         }
     
     def get_orders_list(self, company_id: int, ml_account_id: Optional[int] = None,

@@ -1077,7 +1077,36 @@ class MLOrdersService:
                 new_order = MLOrder(**order_dict)
                 logger.info(f"✅ Objeto MLOrder criado: company_id={new_order.company_id}, ml_order_id={new_order.ml_order_id}")
                 self.db.add(new_order)
+                self.db.flush()  # Garantir que o ID seja gerado antes de criar o status interno
                 logger.info(f"✅ Pedido adicionado à sessão do banco")
+                
+                # Criar status interno automaticamente se não for fulfillment
+                try:
+                    shipping_type = (new_order.shipping_type or '').lower() if new_order.shipping_type else ''
+                    
+                    is_fulfillment = shipping_type in ['fulfillment', 'full']
+                    
+                    if not is_fulfillment:
+                        from app.models.saas_models import MLOrderProcessingStatus
+                        
+                        # Verificar se já existe status interno
+                        existing_status = self.db.query(MLOrderProcessingStatus).filter(
+                            MLOrderProcessingStatus.order_id == new_order.id
+                        ).first()
+                        
+                        if not existing_status:
+                            processing_status = MLOrderProcessingStatus(
+                                order_id=new_order.id,
+                                company_id=company_id,
+                                status="aguardando_processamento",
+                                updated_by=None  # Criado automaticamente pelo sistema
+                            )
+                            self.db.add(processing_status)
+                            logger.info(f"✅ Status interno 'aguardando_processamento' criado automaticamente para pedido {new_order.ml_order_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao criar status interno automaticamente: {e}")
+                    # Não falhar a criação do pedido por causa do status interno
+                
                 return {"action": "created", "order": new_order}
                 
         except Exception as e:

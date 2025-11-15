@@ -20,7 +20,7 @@ class InternalStatusPayload(BaseModel):
 
     @validator("status")
     def validate_status(cls, value):
-        allowed = {"separacao", "expedicao", "pronto_envio"}
+        allowed = {"aguardando_processamento", "separacao", "expedicao", "pronto_envio", "enviado"}
         if value is not None and value not in allowed:
             raise ValueError("Status interno inválido.")
         return value
