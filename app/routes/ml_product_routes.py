@@ -1710,6 +1710,111 @@ async def get_product_advertising_metrics(
             content={"success": False, "error": f"Erro interno: {str(e)}"}
         )
 
+@ml_product_router.get("/api/product/{product_id}/ai-analysis-data")
+async def get_ai_analysis_data(
+    product_id: int,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Retorna o JSON completo usado na análise IA (mesmo formato que seria enviado para a IA)"""
+    try:
+        # Verificar autenticação
+        if not session_token:
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        # Buscar dados do catálogo
+        catalog_data = None
+        try:
+            from app.services.ml_catalog_service import MLCatalogService
+            catalog_service = MLCatalogService(db)
+            catalog_result = catalog_service.get_product_catalog_competitors(product_id, company_id)
+            if catalog_result.get("success") and catalog_result.get("catalog_products"):
+                catalog_data = catalog_result["catalog_products"]
+        except Exception as e:
+            logger.warning(f"Erro ao buscar catálogo: {e}")
+        
+        # Buscar pricing analysis (precisa ser calculado)
+        pricing_analysis = None
+        try:
+            # Tentar buscar dados de pricing se disponíveis
+            # Por enquanto, retornar None - será calculado no frontend se necessário
+            pass
+        except Exception as e:
+            logger.warning(f"Erro ao buscar pricing: {e}")
+        
+        # Preparar dados completos usando o mesmo método da análise
+        from app.services.ai_analysis_service import AIAnalysisService
+        ai_service = AIAnalysisService(db)
+        
+        # Buscar produto e pedidos
+        from app.models.saas_models import MLProduct, MLOrder
+        from datetime import datetime, timedelta
+        from sqlalchemy import and_
+        
+        product = db.query(MLProduct).filter(
+            and_(MLProduct.id == product_id, MLProduct.company_id == company_id)
+        ).first()
+        
+        if not product:
+            return JSONResponse(content={"error": "Produto não encontrado"}, status_code=404)
+        
+        # Buscar pedidos dos últimos 30 dias
+        date_from = datetime.now() - timedelta(days=30)
+        orders = db.query(MLOrder).filter(
+            and_(
+                MLOrder.company_id == company_id,
+                MLOrder.date_created >= date_from
+            )
+        ).all()
+        
+        # Filtrar pedidos que contêm este produto
+        product_orders = []
+        for order in orders:
+            if order.order_items:
+                for item in order.order_items:
+                    if item.get('item', {}).get('id') == product.ml_item_id:
+                        product_orders.append(order)
+                        break
+        
+        # Buscar métricas de marketing
+        marketing_metrics = None
+        try:
+            from app.services.ml_product_ads_service import MLProductAdsService
+            ads_service = MLProductAdsService(db)
+            marketing_metrics = ads_service.get_product_advertising_metrics(
+                ml_item_id=product.ml_item_id,
+                ml_account_id=product.ml_account_id,
+                days=30
+            )
+        except Exception as e:
+            logger.warning(f"Erro ao buscar métricas de marketing: {e}")
+            marketing_metrics = {"has_advertising": False}
+        
+        # Preparar dados completos (mesmo método usado na análise)
+        analysis_data = ai_service._prepare_analysis_data(
+            product, product_orders, catalog_data, pricing_analysis, marketing_metrics
+        )
+        
+        return JSONResponse(content={
+            "success": True,
+            "analysis_data": analysis_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao obter dados de análise: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Erro interno: {str(e)}"}
+        )
+
+
 @ml_product_router.post("/api/product/{product_id}/ai-analysis")
 async def ai_analyze_product(
     product_id: int,

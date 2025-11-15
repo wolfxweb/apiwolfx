@@ -4716,16 +4716,46 @@ function showToast(message, type = 'info') {
 }
 
 // Coletar dados do produto para contexto
-function collectProductContext() {
+async function collectProductContext() {
     const productId = window.location.pathname.split('/').pop();
-    const context = {
+    
+    try {
+        // Buscar o JSON completo usado na análise (mesmo que o botão "Analisar com IA" usa)
+        const response = await fetch(`/ml/products/api/product/${productId}/ai-analysis-data`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.analysis_data) {
+                // Usar o JSON completo da análise (mesmo formato que é enviado para a IA)
+                const analysisJSON = result.analysis_data;
+                console.log('✅ JSON completo de análise obtido do backend');
+                
+                // Retornar contexto com o JSON completo formatado para substituir [[INFO]]
+                return {
+                    product_id: productId,
+                    timestamp: new Date().toISOString(),
+                    // Incluir o JSON completo formatado como string para substituir [[INFO]] nas instruções
+                    analysis_json: JSON.stringify(analysisJSON, null, 2)
+                };
+            }
+        }
+        
+        console.warn('⚠️ Não foi possível obter JSON completo do backend, usando dados básicos');
+    } catch (e) {
+        console.warn('⚠️ Erro ao buscar JSON completo de análise:', e);
+    }
+    
+    // Fallback: construir JSON básico se o endpoint falhar
+    const analysisJSON = {
         product_id: productId,
         timestamp: new Date().toISOString()
     };
     
-    // Adicionar dados básicos do produto se disponíveis (apenas valores primitivos)
+    // Adicionar dados básicos do produto
     if (currentProductData) {
-        context.product_info = {
+        analysisJSON.product = {
             id: currentProductData.id || null,
             ml_item_id: currentProductData.ml_item_id || null,
             title: String(currentProductData.title || ''),
@@ -4738,41 +4768,16 @@ function collectProductContext() {
         };
     }
     
-    // Adicionar dados de pricing detalhados (apenas valores primitivos)
+    // Adicionar dados de pricing (completo, como usado na análise)
     if (window.currentPricingData) {
-        const pricing = window.currentPricingData;
-        context.pricing_analysis = {
-            custo_produto: pricing.custo_produto ? parseFloat(pricing.custo_produto) : null,
-            custo_envio: pricing.custo_envio ? parseFloat(pricing.custo_envio) : null,
-            custo_marketing: pricing.custo_marketing ? parseFloat(pricing.custo_marketing) : null,
-            preco_venda: pricing.preco_venda ? parseFloat(pricing.preco_venda) : null,
-            margem_lucro: pricing.margem_lucro ? parseFloat(pricing.margem_lucro) : null,
-            lucro_liquido: pricing.lucro_liquido ? parseFloat(pricing.lucro_liquido) : null
-        };
-        
-        // Adicionar impostos e taxas se forem objetos simples
-        if (pricing.impostos && typeof pricing.impostos === 'object') {
-            context.pricing_analysis.impostos = {};
-            for (const key in pricing.impostos) {
-                const value = pricing.impostos[key];
-                if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
-                    context.pricing_analysis.impostos[key] = value;
-                }
-            }
-        }
-        
-        if (pricing.taxas_ml && typeof pricing.taxas_ml === 'object') {
-            context.pricing_analysis.taxas_ml = {};
-            for (const key in pricing.taxas_ml) {
-                const value = pricing.taxas_ml[key];
-                if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
-                    context.pricing_analysis.taxas_ml[key] = value;
-                }
-            }
-        }
+        analysisJSON.pricing_analysis = window.currentPricingData;
     }
     
-    return context;
+    return {
+        product_id: productId,
+        timestamp: new Date().toISOString(),
+        analysis_json: JSON.stringify(analysisJSON, null, 2)
+    };
 }
 
 // Enviar mensagem no chat
@@ -4819,8 +4824,8 @@ async function sendChatMessage() {
             throw new Error('A mensagem não pode estar vazia.');
         }
         
-        // Coletar contexto do produto
-        const contextData = collectProductContext();
+        // Coletar contexto do produto (agora é assíncrono)
+        const contextData = await collectProductContext();
         
         // Preparar dados da requisição
         const requestData = {

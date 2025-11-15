@@ -467,6 +467,21 @@ class OpenAIAssistantService:
             # Adicionar instruções do assistente como mensagem do sistema
             system_content = db_assistant.instructions
             
+            # Substituir [[INFO]] pelo JSON do context_data se existir
+            if context_data:
+                if "analysis_json" in context_data:
+                    # Usar o JSON formatado do frontend
+                    info_json = context_data.get("analysis_json", "")
+                    if "[[INFO]]" in system_content:
+                        system_content = system_content.replace("[[INFO]]", info_json)
+                        logger.info("✅ Substituído [[INFO]] nas instruções pelo JSON de análise")
+                else:
+                    # Se não tiver analysis_json, formatar o context_data completo
+                    info_json = json.dumps(context_data, ensure_ascii=False, indent=2)
+                    if "[[INFO]]" in system_content:
+                        system_content = system_content.replace("[[INFO]]", info_json)
+                        logger.info("✅ Substituído [[INFO]] nas instruções pelo context_data completo")
+            
             # Adicionar memórias ao contexto se habilitado
             if db_assistant.memory_enabled and db_assistant.memory_data:
                 memory_text = json.dumps(db_assistant.memory_data, ensure_ascii=False)
@@ -477,8 +492,8 @@ class OpenAIAssistantService:
                 "content": system_content
             })
             
-            # Adicionar contexto adicional se fornecido
-            if context_data:
+            # Adicionar contexto adicional se fornecido (apenas se não foi usado para substituir [[INFO]])
+            if context_data and "[[INFO]]" not in db_assistant.instructions:
                 context_text = json.dumps(context_data, ensure_ascii=False)
                 messages_history.append({
                     "role": "system",
@@ -724,6 +739,26 @@ class OpenAIAssistantService:
             # Adicionar instruções do assistente como primeira mensagem do sistema (apenas se não houver histórico)
             if not previous_messages:
                 system_content = db_assistant.instructions
+                
+                # Substituir [[INFO]] pelo JSON do context_data se existir
+                if context_data:
+                    if "analysis_json" in context_data:
+                        # Usar o JSON formatado do frontend
+                        info_json = context_data.get("analysis_json", "")
+                        if "[[INFO]]" in system_content:
+                            system_content = system_content.replace("[[INFO]]", info_json)
+                            logger.info("✅ Substituído [[INFO]] nas instruções pelo JSON de análise")
+                    else:
+                        # Se não tiver analysis_json, formatar o context_data completo
+                        info_json = json.dumps(context_data, ensure_ascii=False, indent=2)
+                        if "[[INFO]]" in system_content:
+                            system_content = system_content.replace("[[INFO]]", info_json)
+                            logger.info("✅ Substituído [[INFO]] nas instruções pelo context_data completo")
+                
+                # Adicionar contexto adicional se fornecido (apenas se não foi usado para substituir [[INFO]])
+                if context_data and "[[INFO]]" not in db_assistant.instructions:
+                    context_text = json.dumps(context_data, ensure_ascii=False)
+                    system_content += f"\n\n[CONTEXTO ADICIONAL]\n{context_text}"
                 
                 # Adicionar memórias ao contexto do sistema se habilitado
                 if db_assistant.memory_enabled:
