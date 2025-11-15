@@ -276,7 +276,7 @@ class MLOrdersService:
             }
 
     def sync_orders_from_api(self, ml_account_id: int, company_id: int, 
-                           limit: int = 50, is_full_import: bool = False, days_back: Optional[int] = None, access_token: Optional[str] = None) -> Dict:
+                           limit: int = 50, is_full_import: bool = False, days_back: Optional[int] = None, access_token: Optional[str] = None, date_from: Optional[str] = None, date_to: Optional[str] = None) -> Dict:
         """Sincroniza orders da API do Mercado Libre para o banco"""
         try:
             logger.info(f"🔄 ========== INICIANDO SINCRONIZAÇÃO DE PEDIDOS ==========")
@@ -305,10 +305,11 @@ class MLOrdersService:
                 access_token = self._get_active_token(ml_account_id, company_id)
             
             if not access_token:
-                logger.error(f"❌ Token não encontrado para conta {account.nickname} (ml_account_id: {ml_account_id})")
+                logger.error(f"❌ Token não encontrado para conta {account.nickname} (ml_account_id: {ml_account_id}, company_id: {company_id})")
+                logger.error(f"❌ O TokenManager tentou buscar tokens ativos e inativos, mas nenhum foi encontrado ou renovado.")
                 return {
                     "success": False,
-                    "error": f"Token não encontrado para conta {account.nickname}. Reconecte a conta em 'Contas ML'."
+                    "error": f"Nenhum token válido encontrado para a conta {account.nickname}. Por favor, reconecte suas contas ML em 'Contas ML'."
                 }
             
             # Testar token antes de sincronizar
@@ -324,9 +325,13 @@ class MLOrdersService:
             logger.info(f"✅ Token válido! Iniciando sincronização...")
             
             # Buscar orders da API
-            if is_full_import:
-                # Importação completa - limitar para evitar sobrecarga
-                logger.info("Importação completa - limitando a 50 pedidos para evitar sobrecarga")
+            if date_from and date_to:
+                # Usar datas específicas fornecidas
+                logger.info(f"Importação com período específico: {date_from} a {date_to}")
+                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit=50, date_from=date_from, date_to=date_to)
+            elif is_full_import:
+                # Importação completa - limitar para evitar sobrecarga (máximo 30 dias)
+                logger.info("Importação completa - limitando a 50 pedidos para evitar sobrecarga (máximo 30 dias)")
                 orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit=50, days_back=30)
             elif days_back is not None:
                 # Dias personalizados
@@ -458,7 +463,7 @@ class MLOrdersService:
             logger.error(f"Erro ao buscar todos os orders da API: {e}")
             return []
 
-    def _fetch_orders_from_api(self, access_token: str, seller_id: str, limit: int = 50, offset: int = 0, days_back: int = 7) -> List[Dict]:
+    def _fetch_orders_from_api(self, access_token: str, seller_id: str, limit: int = 50, offset: int = 0, days_back: Optional[int] = None, date_from: Optional[str] = None, date_to: Optional[str] = None) -> List[Dict]:
         """
         Busca orders da API do Mercado Libre com paginação inteligente
         
@@ -474,9 +479,26 @@ class MLOrdersService:
             
             # Calcular data de início (da meia-noite do dia -N até agora)
             from datetime import datetime, timedelta
-            date_to = datetime.utcnow()
-            date_from = (date_to.date() - timedelta(days=days_back))
-            date_from = datetime.combine(date_from, datetime.min.time())
+            
+            # Se date_from e date_to foram fornecidos, usar eles
+            if date_from and date_to:
+                try:
+                    # Parsear strings de data (formato YYYY-MM-DD)
+                    date_from_obj = datetime.strptime(date_from, "%Y-%m-%d")
+                    date_to_obj = datetime.strptime(date_to, "%Y-%m-%d")
+                    # Adicionar horário (início do dia para from, fim do dia para to)
+                    date_from = datetime.combine(date_from_obj.date(), datetime.min.time())
+                    date_to = datetime.combine(date_to_obj.date(), datetime.max.time())
+                except Exception as e:
+                    logger.warning(f"Erro ao parsear datas fornecidas: {e}. Usando days_back como fallback.")
+                    date_to = datetime.utcnow()
+                    date_from = (date_to.date() - timedelta(days=days_back or 7))
+                    date_from = datetime.combine(date_from, datetime.min.time())
+            else:
+                # Usar days_back como antes
+                date_to = datetime.utcnow()
+                date_from = (date_to.date() - timedelta(days=days_back or 7))
+                date_from = datetime.combine(date_from, datetime.min.time())
             
             # Formatar para API (ISO 8601)
             date_from_str = date_from.strftime("%Y-%m-%dT00:00:00.000-00:00")
@@ -1178,6 +1200,21 @@ class MLOrdersService:
             shipping = order_data.get("shipping", {})
             shipping_details = order_data.get("shipping_details", {})
             
+            # Extrair tipo de logística (shipping_type)
+            logistic_type = None
+            if isinstance(shipping_details, dict):
+                logistic_type = (
+                    shipping_details.get("logistic_type")
+                    or (shipping_details.get("logistic") or {}).get("type")
+                    or (shipping_details.get("shipping_option") or {}).get("logistic_type")
+                )
+            # Fallback para shipping.logistic_type se existir
+            if not logistic_type and isinstance(shipping, dict):
+                logistic_type = shipping.get("logistic_type")
+            # Fallback para order_data.logistic_type se existir
+            if not logistic_type:
+                logistic_type = order_data.get("logistic_type")
+            
             # Extrair cupom
             coupon = order_data.get("coupon", {})
             
@@ -1224,6 +1261,7 @@ class MLOrdersService:
                 "shipping_cost": self._extract_shipping_cost(order_data),
                 "shipping_method": shipping.get("method") or shipping_details.get("shipping_method"),
                 "shipping_status": shipping.get("status") or shipping_details.get("status"),
+                "shipping_type": logistic_type,  # ✅ Adicionado: tipo de logística (xd_drop_off, me2, fulfillment, etc.)
                 "shipping_address": shipping.get("receiver_address") or shipping_details.get("receiver_address"),
                 "shipping_details": shipping_details,
                 

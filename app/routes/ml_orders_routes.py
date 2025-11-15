@@ -246,13 +246,16 @@ async def sync_orders_api(
 
 @ml_orders_router.get("/api/orders/import")
 async def import_orders_api(
+    days: Optional[int] = Query(30, ge=1, le=30),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     ml_account_id: Optional[int] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """API para importar TODOS os orders da API do Mercado Libre"""
+    """API para importar orders da API do Mercado Libre com limite de dias (máximo 30)"""
     try:
-        logging.info(f"Iniciando importação - ml_account_id: {ml_account_id}")
+        logging.info(f"Iniciando importação - days: {days}, date_from: {date_from}, date_to: {date_to}, ml_account_id: {ml_account_id}")
         
         if not session_token:
             logging.warning("Sessão não encontrada")
@@ -265,11 +268,27 @@ async def import_orders_api(
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]
-        logging.info(f"Usuário autenticado - company_id: {company_id}")
+        user_id = user_data["id"]
+        logging.info(f"Usuário autenticado - company_id: {company_id}, user_id: {user_id}")
+        
+        # Se não foram fornecidas datas, calcular baseado nos dias
+        if not date_from or not date_to:
+            from datetime import datetime, timedelta
+            date_to_obj = datetime.now()
+            date_from_obj = date_to_obj - timedelta(days=days)
+            date_from = date_from_obj.strftime('%Y-%m-%d')
+            date_to = date_to_obj.strftime('%Y-%m-%d')
         
         controller = MLOrdersController(db)
-        logging.info("Iniciando sync_orders...")
-        result = controller.sync_orders(company_id=company_id, ml_account_id=ml_account_id, is_full_import=True)
+        logging.info(f"Iniciando sync_orders com período: {date_from} a {date_to}")
+        result = controller.sync_orders(
+            company_id=company_id, 
+            ml_account_id=ml_account_id, 
+            is_full_import=True,
+            date_from=date_from,
+            date_to=date_to,
+            user_id=user_id  # Passar user_id para obter token via TokenManager
+        )
         logging.info(f"Resultado do sync_orders: {result}")
         
         return JSONResponse(content=result)

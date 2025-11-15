@@ -74,7 +74,10 @@ class MLOrdersController:
             
             # Aplicar filtros
             if shipping_status_filter:
-                query = query.filter(func.lower(MLOrder.shipping_status) == shipping_status_filter.lower())
+                # Suportar múltiplos valores separados por vírgula
+                status_values = [value.strip().lower() for value in shipping_status_filter.split(',') if value.strip()]
+                if status_values:
+                    query = query.filter(func.lower(MLOrder.shipping_status).in_(status_values))
             
             if logistic_filter:
                 logistic_values = [value.strip().lower() for value in logistic_filter.split(',') if value.strip()]
@@ -622,7 +625,7 @@ class MLOrdersController:
                 "accounts": []
             }
     
-    def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None, is_full_import: bool = False, days_back: Optional[int] = None, user_id: Optional[int] = None) -> Dict:
+    def sync_orders(self, company_id: int, ml_account_id: Optional[int] = None, is_full_import: bool = False, days_back: Optional[int] = None, user_id: Optional[int] = None, date_from: Optional[str] = None, date_to: Optional[str] = None) -> Dict:
         """Sincroniza orders da API do Mercado Libre"""
         try:
             logger.info(f"🔄 ========== CONTROLLER: SYNC_ORDERS ==========")
@@ -631,7 +634,7 @@ class MLOrdersController:
             logger.info(f"🔄 User ID para token: {user_id}")
             logger.info(f"🔄 Dias para trás: {days_back}")
             
-            # Se user_id foi fornecido, obter token usando TokenManager
+            # Tentar obter token - primeiro via user_id, depois por ml_account_id
             access_token = None
             if user_id:
                 from app.services.token_manager import TokenManager
@@ -640,7 +643,10 @@ class MLOrdersController:
                 if access_token:
                     logger.info(f"Token obtido via TokenManager para user_id: {user_id}")
                 else:
-                    logger.warning(f"Token não encontrado via TokenManager para user_id: {user_id}")
+                    logger.warning(f"Token não encontrado via TokenManager para user_id: {user_id}. Tentando buscar por conta ML...")
+            
+            # Se não encontrou token via user_id, o service tentará buscar por ml_account_id
+            # Isso permite que cada conta ML use seu próprio token
             
             # Se ml_account_id não foi especificado, sincronizar todas as contas
             if ml_account_id:
@@ -683,7 +689,9 @@ class MLOrdersController:
                         company_id, 
                         is_full_import=is_full_import, 
                         days_back=days_back,
-                        access_token=access_token  # Passar token obtido via TokenManager
+                        access_token=access_token,  # Passar token obtido via TokenManager
+                        date_from=date_from,
+                        date_to=date_to
                     )
                     
                     if result.get("success"):

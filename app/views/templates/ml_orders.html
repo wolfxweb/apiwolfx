@@ -36,6 +36,7 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <form class="row g-3 align-items-end" id="ordersFiltersForm">
+                        <!-- Primeira linha: Busca, Conta, Período e Limpar -->
                         <div class="col-12 col-lg-4 col-xl-3">
                             <label for="search_query" class="form-label small text-uppercase text-muted">Busca rápida</label>
                             <div class="input-group">
@@ -52,34 +53,6 @@
                             </select>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label for="status_filter" class="form-label small text-uppercase text-muted">Status do envio</label>
-                            <select name="status_filter" id="status_filter" class="form-select" onchange="applyFilters()">
-                                <option value="">Todos os status</option>
-                                <option value="ready_to_ship">Pronto para envio</option>
-                                <option value="shipped">Enviado</option>
-                                <option value="in_transit">Em trânsito</option>
-                                <option value="out_for_delivery">Saiu para entrega</option>
-                                <option value="delivered">Entregue</option>
-                                <option value="pending">Pendente</option>
-                                <option value="buffered">Aguardando...</option>
-                                <option value="in_warehouse">No armazém</option>
-                                <option value="receiver_absent">Comprador ausente</option>
-                                <option value="cancelled">Cancelado</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label for="logistic_filter" class="form-label small text-uppercase text-muted">Modalidade de envio</label>
-                            <select name="logistic_filter" id="logistic_filter" class="form-select" onchange="applyFilters()">
-                                <option value="">Todas</option>
-                                <option value="fulfillment">Fulfillment</option>
-                                <option value="cross_docking">Cross Docking</option>
-                                <option value="me2">Mercado Envios</option>
-                                <option value="me1">Correios</option>
-                                <option value="xd_drop_off">Ponto de Coleta</option>
-                                <option value="self_service">Envio próprio</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-3">
                             <label for="period_filter" class="form-label small text-uppercase text-muted">Período</label>
                             <select name="period_filter" id="period_filter" class="form-select" onchange="toggleCustomPeriod(); applyFilters();">
                                 <option value="">Todos</option>
@@ -92,21 +65,91 @@
                                 <option value="custom">Personalizado</option>
                             </select>
                         </div>
-                        <div class="col-12 col-md-3">
-                            <label for="date_from" class="form-label small text-uppercase text-muted">Data inicial</label>
-                            <input type="date" name="date_from" id="date_from" class="form-control" onchange="applyFilters()">
-                            </div>
-                        <div class="col-12 col-md-3">
-                            <label for="date_to" class="form-label small text-uppercase text-muted">Data final</label>
-                            <input type="date" name="date_to" id="date_to" class="form-control" onchange="applyFilters()">
-                        </div>
                         <div class="col-12 col-md-auto">
                             <label class="form-label small text-uppercase text-muted">&nbsp;</label>
                             <div>
                                 <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
                                     <i class="bi bi-x-circle"></i> Limpar filtros
                                 </button>
-                    </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Segunda linha: Modalidade de envio -->
+                        <div class="col-12">
+                            <label class="form-label small text-uppercase text-muted d-block mb-2">Modalidade de envio</label>
+                            <div class="d-flex flex-wrap gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_fulfillment" value="fulfillment" onchange="applyFilters()">
+                                    <label class="form-check-label" for="logistic_fulfillment">Fulfillment</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_cross_docking" value="cross_docking" onchange="applyFilters()">
+                                    <label class="form-check-label" for="logistic_cross_docking">Cross Docking</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_me2" value="me2" onchange="applyFilters()">
+                                    <label class="form-check-label" for="logistic_me2">Mercado Envios</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_me1" value="me1" onchange="applyFilters()">
+                                    <label class="form-check-label" for="logistic_me1">Correios</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_xd_drop_off" value="xd_drop_off" onchange="applyFilters()">
+                                    <label class="form-check-label" for="logistic_xd_drop_off">Ponto de Coleta</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_self_service" value="self_service" onchange="applyFilters()">
+                                    <label class="form-check-label" for="logistic_self_service">Envio próprio</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Terceira linha: Status do envio (abaixo da modalidade) -->
+                        <div class="col-12">
+                            <label class="form-label small text-uppercase text-muted d-block mb-2">Status do envio</label>
+                            <div class="d-flex flex-wrap gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_ready_to_ship" value="ready_to_ship" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_ready_to_ship">Pronto para envio</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_shipped" value="shipped" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_shipped">Enviado</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_in_transit" value="in_transit" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_in_transit">Em trânsito</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_out_for_delivery" value="out_for_delivery" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_out_for_delivery">Saiu para entrega</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_delivered" value="delivered" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_delivered">Entregue</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_pending" value="pending" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_pending">Pendente</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_buffered" value="buffered" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_buffered">Aguardando...</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_in_warehouse" value="in_warehouse" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_in_warehouse">No armazém</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_receiver_absent" value="receiver_absent" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_receiver_absent">Comprador ausente</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="status_filter" id="status_cancelled" value="cancelled" onchange="applyFilters()">
+                                    <label class="form-check-label" for="status_cancelled">Cancelado</label>
+                                </div>
+                            </div>
                         </div>
                     </form>
                     
@@ -185,6 +228,21 @@
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Pedidos disponíveis:</strong> <span id="total-orders-available">Verificando...</span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="import-days" class="form-label">
+                            <i class="bi bi-calendar-range me-2"></i><strong>Período de Importação:</strong>
+                        </label>
+                        <select class="form-select" id="import-days" required>
+                            <option value="">Selecione a quantidade de dias</option>
+                            <option value="7">Últimos 7 dias</option>
+                            <option value="15">Últimos 15 dias</option>
+                            <option value="30" selected>Últimos 30 dias (máximo)</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            <i class="bi bi-info-circle me-1"></i>O limite máximo é de 30 dias para evitar sobrecarga no sistema.
+                        </small>
                     </div>
                     
                     <h6 class="mb-3">Estratégia de Importação:</h6>
@@ -794,33 +852,36 @@ function syncFiltersWithUrl() {
     const params = new URLSearchParams(window.location.search);
     let paramsChanged = false;
 
+    // Processar filtros de status de envio (checkboxes)
     const rawStatus = params.get('shipping_status_filter') || '';
-    const normalizedStatus = rawStatus.toLowerCase();
-    const statusValid = normalizedStatus && VALID_SHIPPING_STATUS.includes(normalizedStatus);
-    if (statusValid) {
-        setSelectValue('status_filter', normalizedStatus);
-        if (rawStatus !== normalizedStatus) {
-            params.set('shipping_status_filter', normalizedStatus);
-            paramsChanged = true;
-        }
-    } else if (rawStatus) {
-        params.delete('shipping_status_filter');
-        paramsChanged = true;
-        setSelectValue('status_filter', '');
+    if (rawStatus) {
+        const statusValues = rawStatus.split(',').map(v => v.trim().toLowerCase()).filter(v => v);
+        // Desmarcar todos os checkboxes primeiro
+        document.querySelectorAll('input[name="status_filter"]').forEach(cb => cb.checked = false);
+        // Marcar os checkboxes correspondentes
+        statusValues.forEach(value => {
+            const checkbox = document.getElementById(`status_${value}`);
+            if (checkbox) checkbox.checked = true;
+        });
     } else {
-        setSelectValue('status_filter', '');
+        // Desmarcar todos se não houver filtro
+        document.querySelectorAll('input[name="status_filter"]').forEach(cb => cb.checked = false);
     }
 
+    // Processar filtros de modalidade de envio (checkboxes)
     const rawLogistic = params.get('logistic_filter') || '';
-    const logisticValid = rawLogistic && VALID_LOGISTICS.includes(rawLogistic);
-    if (logisticValid) {
-        setSelectValue('logistic_filter', rawLogistic);
-    } else if (rawLogistic) {
-        params.delete('logistic_filter');
-        paramsChanged = true;
-        setSelectValue('logistic_filter', '');
+    if (rawLogistic) {
+        const logisticValues = rawLogistic.split(',').map(v => v.trim()).filter(v => v);
+        // Desmarcar todos os checkboxes primeiro
+        document.querySelectorAll('input[name="logistic_filter"]').forEach(cb => cb.checked = false);
+        // Marcar os checkboxes correspondentes
+        logisticValues.forEach(value => {
+            const checkbox = document.getElementById(`logistic_${value}`);
+            if (checkbox) checkbox.checked = true;
+        });
     } else {
-        setSelectValue('logistic_filter', '');
+        // Desmarcar todos se não houver filtro
+        document.querySelectorAll('input[name="logistic_filter"]').forEach(cb => cb.checked = false);
     }
 
     let periodValue = params.get('period_filter') || '';
@@ -854,8 +915,6 @@ function syncFiltersWithUrl() {
 
     const dateFrom = params.get('date_from') || '';
     const dateTo = params.get('date_to') || '';
-    const dateFromInput = document.getElementById('date_from');
-    const dateToInput = document.getElementById('date_to');
     const customFromInput = document.getElementById('customDateFrom');
     const customToInput = document.getElementById('customDateTo');
 
@@ -866,8 +925,6 @@ function syncFiltersWithUrl() {
         if (customFromInput) customFromInput.value = dateFrom;
         if (customToInput) customToInput.value = dateTo;
     } else {
-        if (dateFromInput) dateFromInput.value = dateFrom;
-        if (dateToInput) dateToInput.value = dateTo;
         if (customFromInput) customFromInput.value = '';
         if (customToInput) customToInput.value = '';
     }
@@ -876,15 +933,6 @@ function syncFiltersWithUrl() {
         const newQuery = params.toString();
         const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
         history.replaceState(null, '', newUrl);
-    }
-
-    // Atualizar inputs de data quando período automático é escolhido
-    if (currentPeriodValue && currentPeriodValue !== 'custom') {
-        const periodDates = getPeriodDates(currentPeriodValue);
-        if (periodDates) {
-            if (dateFromInput) dateFromInput.value = periodDates.from;
-            if (dateToInput) dateToInput.value = periodDates.to;
-        }
     }
 }
 
@@ -899,14 +947,20 @@ function applyFilters() {
     const params = new URLSearchParams();
 
     const accountValue = document.getElementById('account_filter')?.value || '';
-    const statusValue = document.getElementById('status_filter')?.value || '';
-    const logisticValue = document.getElementById('logistic_filter')?.value || '';
     const selectedPeriodValue = document.getElementById('period_filter')?.value || '';
     const searchValue = document.getElementById('search_query')?.value.trim() || '';
-    const dateFromInput = document.getElementById('date_from');
-    const dateToInput = document.getElementById('date_to');
     const customFromInput = document.getElementById('customDateFrom');
     const customToInput = document.getElementById('customDateTo');
+    
+    // Coletar checkboxes de status de envio selecionados
+    const statusCheckboxes = Array.from(document.querySelectorAll('input[name="status_filter"]:checked'));
+    const statusValues = statusCheckboxes.map(cb => cb.value);
+    const statusValue = statusValues.length > 0 ? statusValues.join(',') : '';
+    
+    // Coletar checkboxes de modalidade de envio selecionados
+    const logisticCheckboxes = Array.from(document.querySelectorAll('input[name="logistic_filter"]:checked'));
+    const logisticValues = logisticCheckboxes.map(cb => cb.value);
+    const logisticValue = logisticValues.length > 0 ? logisticValues.join(',') : '';
 
     if (accountValue) params.set('account_filter', accountValue);
     if (searchValue) params.set('search_query', searchValue);
@@ -926,11 +980,6 @@ function applyFilters() {
         const customToValue = customToInput?.value || '';
         if (customFromValue) params.set('date_from', customFromValue);
         if (customToValue) params.set('date_to', customToValue);
-    } else {
-        const dateFromValue = dateFromInput?.value || '';
-        const dateToValue = dateToInput?.value || '';
-        if (dateFromValue) params.set('date_from', dateFromValue);
-        if (dateToValue) params.set('date_to', dateToValue);
     }
 
     const newQuery = params.toString();
@@ -1276,8 +1325,9 @@ function loadOrders(page = 1) {
     }
     
     const rawStatus = urlParams.get('shipping_status_filter') || '';
-    const normalizedStatus = rawStatus.toLowerCase();
-    const statusForApi = VALID_SHIPPING_STATUS.includes(normalizedStatus) ? normalizedStatus : '';
+    // Suportar múltiplos valores separados por vírgula
+    const statusValues = rawStatus.split(',').map(s => s.trim().toLowerCase()).filter(s => s && VALID_SHIPPING_STATUS.includes(s));
+    const statusForApi = statusValues.length > 0 ? statusValues.join(',') : '';
 
     var filters = {
         ml_account_id: urlParams.get('account_filter') || '',
@@ -1698,25 +1748,25 @@ async function syncSingleOrder(orderId, triggerElement) {
         }
 
         const data = await response.json();
+        console.log('📦 Resposta da sincronização:', data);
+        
         if (!response.ok || !data.success) {
             throw new Error(data.error || data.message || `Erro ${response.status}`);
         }
 
-        // Se a mensagem indicar que já está atualizado, mostrar como toast
-        if (data.message && data.message.toLowerCase().includes('já está atualizado')) {
-            console.log('📢 Mensagem detectada como "já atualizado":', data.message);
-            // Usar window.MLAPI.showNotification diretamente
-            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
-                window.MLAPI.showNotification(data.message, 'info', 8000);
-            } else if (typeof showToast === 'function') {
-                showToast(data.message, 'info');
-            } else {
-                console.warn('⚠️ Função de notificação não disponível, usando showSuccess');
-                showSuccess(data.message);
-            }
+        const message = data.message || `Pedido ${orderId} sincronizado com sucesso.`;
+        
+        // Sempre mostrar como toast
+        console.log('📢 Exibindo toast para sincronização:', message);
+        if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+            window.MLAPI.showNotification(message, 'success', 8000);
+        } else if (typeof showToast === 'function') {
+            showToast(message, 'success');
         } else {
-            showSuccess(data.message || `Pedido ${orderId} sincronizado com sucesso.`);
+            console.warn('⚠️ Função de notificação não disponível, usando showSuccess');
+            showSuccess(message);
         }
+        
         loadOrders(currentPage);
     } catch (error) {
         console.error('Erro ao sincronizar pedido:', error);
@@ -2826,6 +2876,108 @@ function formatDateToISO(date) {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+// Função para abrir o modal de importação
+function importOrders() {
+    const modal = new bootstrap.Modal(document.getElementById('importModal'));
+    modal.show();
+    
+    // Resetar o modal
+    document.getElementById('import-config').style.display = 'block';
+    document.getElementById('import-progress').style.display = 'none';
+    document.getElementById('import-complete').style.display = 'none';
+    document.getElementById('import-days').value = '30';
+    
+    // Verificar pedidos disponíveis
+    checkAvailableOrders();
+}
+
+// Verificar pedidos disponíveis
+async function checkAvailableOrders() {
+    try {
+        const response = await fetch('/ml/api/orders/summary', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('total-orders-available').textContent = 
+                `${data.total || 0} pedidos disponíveis`;
+        } else {
+            document.getElementById('total-orders-available').textContent = 'Erro ao verificar';
+        }
+    } catch (error) {
+        console.error('Erro ao verificar pedidos:', error);
+        document.getElementById('total-orders-available').textContent = 'Erro ao verificar';
+    }
+}
+
+// Iniciar importação em lote
+async function startBatchImport() {
+    const daysSelect = document.getElementById('import-days');
+    const days = parseInt(daysSelect.value);
+    
+    if (!days || days < 1 || days > 30) {
+        alert('Por favor, selecione uma quantidade de dias válida (máximo 30 dias).');
+        return;
+    }
+    
+    // Calcular data inicial baseada nos dias
+    const today = new Date();
+    const dateFrom = new Date(today);
+    dateFrom.setDate(dateFrom.getDate() - days);
+    
+    const dateFromStr = formatDateToISO(dateFrom);
+    const dateToStr = formatDateToISO(today);
+    
+    // Mostrar tela de progresso
+    document.getElementById('import-config').style.display = 'none';
+    document.getElementById('import-progress').style.display = 'block';
+    document.getElementById('import-complete').style.display = 'none';
+    
+    // Desabilitar botões
+    document.getElementById('start-import-btn').disabled = true;
+    document.getElementById('close-modal-btn').disabled = true;
+    
+    try {
+        const response = await fetch(`/ml/api/orders/import?days=${days}&date_from=${dateFromStr}&date_to=${dateToStr}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Mostrar tela de conclusão
+            document.getElementById('import-progress').style.display = 'none';
+            document.getElementById('import-complete').style.display = 'block';
+            document.getElementById('final-imported').textContent = data.total_saved || 0;
+            document.getElementById('final-updated').textContent = data.total_updated || 0;
+            document.getElementById('final-message').textContent = 
+                `Importação concluída! ${data.total_saved || 0} novos pedidos importados e ${data.total_updated || 0} atualizados.`;
+            
+            // Recarregar lista de pedidos
+            setTimeout(() => {
+                loadOrders(currentPage);
+            }, 2000);
+        } else {
+            alert('Erro ao importar pedidos: ' + (data.error || 'Erro desconhecido'));
+            // Voltar para tela de configuração
+            document.getElementById('import-progress').style.display = 'none';
+            document.getElementById('import-config').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Erro ao iniciar importação:', error);
+        alert('Erro ao iniciar importação: ' + error.message);
+        // Voltar para tela de configuração
+        document.getElementById('import-progress').style.display = 'none';
+        document.getElementById('import-config').style.display = 'block';
+    } finally {
+        // Reabilitar botões
+        document.getElementById('start-import-btn').disabled = false;
+        document.getElementById('close-modal-btn').disabled = false;
+    }
 }
 
 </script>

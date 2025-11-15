@@ -716,7 +716,7 @@ class MLNotificationsController:
             from sqlalchemy import text
 
             account_query = text(
-                "SELECT id, company_id FROM ml_accounts WHERE ml_user_id = CAST(:ml_user_id AS VARCHAR) LIMIT 1"
+                "SELECT id, company_id FROM ml_accounts WHERE ml_user_id = CAST(:ml_user_id AS VARCHAR) AND status = 'ACTIVE' LIMIT 1"
             )
             account_row = db.execute(account_query, {"ml_user_id": str(ml_user_id)}).fetchone()
 
@@ -725,6 +725,8 @@ class MLNotificationsController:
                 return None
 
             ml_account_id, company_id = account_row
+
+            logger.info(f"🔑 Buscando token para ml_account_id={ml_account_id}, company_id={company_id}, ml_user_id={ml_user_id}")
 
             token_manager = TokenManager(db)
             token_record = token_manager.get_token_record_for_account(
@@ -735,10 +737,63 @@ class MLNotificationsController:
 
             if not token_record or not token_record.access_token:
                 logger.warning(
-                    "⚠️ Nenhum token ativo encontrado para ml_account_id=%s (ml_user_id=%s)",
+                    "⚠️ Nenhum token ativo encontrado para ml_account_id=%s (ml_user_id=%s). Tentando buscar qualquer token disponível...",
                     ml_account_id,
                     ml_user_id,
                 )
+                
+                # Tentar buscar qualquer token (ativo ou inativo) para esta conta ML
+                from app.models.saas_models import Token
+                
+                # Primeiro, tentar tokens inativos com refresh_token para renovar
+                inactive_tokens = db.query(Token).filter(
+                    Token.ml_account_id == ml_account_id,
+                    Token.is_active == False,
+                    Token.refresh_token.isnot(None)
+                ).order_by(Token.expires_at.desc()).all()
+                
+                if inactive_tokens:
+                    logger.info(f"🔄 Encontrados {len(inactive_tokens)} token(s) inativo(s) com refresh_token. Tentando renovar...")
+                    for inactive_token in inactive_tokens:
+                        logger.info(f"🔄 Tentando renovar token inativo id={inactive_token.id}, expires_at={inactive_token.expires_at}")
+                        try:
+                            refreshed = token_manager._refresh_token_for_record(inactive_token)
+                            if refreshed and refreshed.access_token:
+                                # Verificar se o token renovado pertence ao seller correto
+                                owner_id = token_manager._get_token_owner_user_id(refreshed.access_token)
+                                if owner_id == str(ml_user_id):
+                                    logger.info(f"✅ Token renovado com sucesso! owner_id={owner_id}")
+                                    return refreshed.access_token
+                                else:
+                                    logger.warning(f"⚠️ Token renovado pertence a owner_id={owner_id}, mas esperado {ml_user_id}. Continuando busca...")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Erro ao renovar token inativo id={inactive_token.id}: {e}")
+                            continue
+                
+                # Se não conseguiu renovar, tentar usar tokens inativos mesmo (pode estar válido ainda)
+                logger.info(f"🔄 Tentando buscar tokens inativos sem renovação...")
+                inactive_with_token = db.query(Token).filter(
+                    Token.ml_account_id == ml_account_id,
+                    Token.access_token.isnot(None),
+                    Token.access_token != ''
+                ).order_by(Token.expires_at.desc()).limit(5).all()
+                
+                for token_candidate in inactive_with_token:
+                    if not token_candidate.access_token:
+                        continue
+                    
+                    # Verificar se o token ainda é válido testando na API
+                    owner_id = token_manager._get_token_owner_user_id(token_candidate.access_token)
+                    if owner_id == str(ml_user_id):
+                        logger.info(f"✅ Token inativo ainda válido encontrado! id={token_candidate.id}, owner_id={owner_id}")
+                        # Ativar o token novamente
+                        token_candidate.is_active = True
+                        db.commit()
+                        return token_candidate.access_token
+                    elif owner_id:
+                        logger.debug(f"Token inativo pertence a owner_id={owner_id}, mas esperado {ml_user_id}")
+                
+                logger.error(f"❌ Nenhum token utilizável encontrado para ml_account_id={ml_account_id} (ml_user_id={ml_user_id})")
                 return None
 
             token_ml_user = None
