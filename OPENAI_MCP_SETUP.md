@@ -139,7 +139,7 @@ from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    # Criar um assistente
+    # Criar um assistente com GPT-5.1
     assistant = client.beta.assistants.create(
         name="Analisador de Produtos ML",
         instructions="""Você é um especialista em análise de produtos do Mercado Livre.
@@ -150,7 +150,9 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             {"type": "code_interpreter"},  # Permite executar código Python
             {"type": "file_search"}        # Permite buscar em arquivos
         ],
-        temperature=0.7  # GPT-5 suporta temperature normalmente
+        # GPT-5 usa reasoning_effort e verbosity ao invés de temperature
+        reasoning_effort="medium",  # Nível médio de raciocínio (padrão)
+        verbosity="medium"  # Nível médio de detalhamento (padrão)
     )
 
 print(f"Assistente criado com ID: {assistant.id}")
@@ -207,20 +209,24 @@ functions = [
     }
 ]
 
-# Criar assistente com funções
+# Criar assistente com funções usando GPT-5.1
 assistant = client.beta.assistants.create(
     name="Gerenciador de Preços ML",
     instructions="""Você é um assistente especializado em gerenciar preços de produtos.
     Use as funções disponíveis para buscar e atualizar preços quando solicitado.""",
     model="gpt-5.1",  # GPT-5.1 com melhor precisão
     tools=functions,
-    temperature=0.3  # Mais determinístico para operações críticas (GPT-5.1 suporta normalmente)
+    # GPT-5 usa reasoning_effort para controlar profundidade do raciocínio
+    reasoning_effort="high",  # Alto raciocínio para operações críticas
+    verbosity="low"  # Respostas concisas para operações precisas
 )
 ```
 
 ### 3. Usando um Assistente em uma Thread (Conversa)
 
 > **Referência**: https://platform.openai.com/docs/assistants/how-it-works/managing-threads-and-messages
+
+A Assistants API mantém memória automaticamente através das threads. Cada thread preserva todo o histórico de mensagens, permitindo conversas contextuais.
 
 ```python
 from openai import OpenAI
@@ -260,6 +266,38 @@ if run.status == 'completed':
             print(message.content[0].text.value)
 else:
     print(f"Erro: {run.status}")
+```
+
+### 3.1. Memória Persistente entre Threads
+
+Para manter memória entre diferentes threads (conversas), você pode:
+
+1. **Memória Compartilhada do Assistente**: Armazenar informações gerais sobre o usuário/empresa que são compartilhadas entre todas as threads
+2. **Memória Específica da Thread**: Armazenar informações aprendidas durante uma conversa específica
+
+```python
+# Criar assistente com memória habilitada
+assistant = client.beta.assistants.create(
+    name="Assistente com Memória",
+    instructions="Você é um assistente que lembra informações sobre o usuário.",
+    model="gpt-5.1",
+    reasoning_effort="medium",
+    verbosity="medium"
+)
+
+# Ao usar o assistente, incluir memórias no contexto
+memory_data = {
+    "user_preferences": {
+        "language": "pt-BR",
+        "timezone": "America/Sao_Paulo"
+    },
+    "company_info": {
+        "name": "Minha Empresa",
+        "industry": "E-commerce"
+    }
+}
+
+# A memória será automaticamente incluída nas mensagens quando habilitada
 ```
 
 ### 4. Gerenciamento de Runs
@@ -347,7 +385,9 @@ assistant = client.beta.assistants.create(
     model="gpt-5.1",  # GPT-5.1 com melhor precisão e eficiência
     tools=[{"type": "code_interpreter"}],
     instructions="Use Python para analisar dados e gerar gráficos quando necessário.",
-    temperature=0.7  # GPT-5.1 suporta temperature normalmente
+    # GPT-5 usa reasoning_effort e verbosity
+    reasoning_effort="medium",  # Raciocínio médio para análises
+    verbosity="high"  # Respostas detalhadas com gráficos e explicações
 )
 ```
 
@@ -444,21 +484,39 @@ assistant = client.beta.assistants.create(
 
 ### 🆕 GPT-5 - Características Especiais:
 
-O **GPT-5** introduz uma arquitetura unificada com roteamento inteligente:
+O **GPT-5** introduz uma arquitetura unificada com roteamento inteligente e novos parâmetros de controle:
 
 1. **Arquitetura Dual:**
    - **GPT-5-main**: Otimizado para consultas rápidas e diretas
    - **GPT-5-thinking**: Para problemas complexos que exigem raciocínio aprofundado
    - Roteador automático decide qual usar baseado na complexidade da consulta
 
-2. **Parâmetros:**
-   - ✅ **Suporta temperature** (como modelos padrão GPT-4)
+2. **Parâmetros Especiais do GPT-5 (Diferentes dos Modelos Anteriores):**
+   
+   **⚠️ IMPORTANTE**: O GPT-5 usa parâmetros diferentes do `temperature` tradicional:
+   
+   - **`reasoning_effort`** (substitui/complementa temperature):
+     - Controla o nível de profundidade do raciocínio antes de responder
+     - Valores: `"minimal"`, `"low"`, `"medium"`, `"high"`
+     - `"minimal"`: Respostas mais rápidas com raciocínio superficial
+     - `"low"`: Raciocínio básico, bom para tarefas simples
+     - `"medium"`: Equilíbrio entre velocidade e profundidade (padrão recomendado)
+     - `"high"`: Raciocínio profundo, ideal para problemas complexos
+   
+   - **`verbosity`** (controla detalhamento):
+     - Controla o comprimento e nível de detalhe das respostas
+     - Valores: `"low"`, `"medium"`, `"high"`
+     - `"low"`: Respostas concisas e diretas
+     - `"medium"`: Equilíbrio entre concisão e detalhe (padrão)
+     - `"high"`: Respostas detalhadas e elaboradas
+   
    - ✅ **Suporta tools** (code_interpreter, file_search, function calling)
    - ✅ **Suporta max_tokens**
    - ✅ **Melhor precisão** - 45% menos erros factuais que GPT-4o
-   - ✅ **Contexto expandido** - até 256k tokens no chat, 400k na API
+   - ✅ **Contexto expandido** - até 272k tokens de entrada e 128k de saída (400k total na API)
 
 3. **Diferenças dos Modelos Anteriores:**
+   - **NÃO usa `temperature`** como parâmetro principal (usa `reasoning_effort` e `verbosity`)
    - Raciocínio integrado e automático (não precisa selecionar modo manualmente)
    - Respostas mais rápidas e eficientes (usa menos tokens)
    - Melhor compreensão de contexto em conversas longas
@@ -494,17 +552,72 @@ model = "gpt-4o"  # ou "gpt-4o-mini" para economia
 
 ## 🔧 Parâmetros Comuns
 
-### Temperature (0.0 - 2.0)
+### ⚠️ Diferenças entre Modelos:
+
+#### Modelos GPT-4 e Anteriores (usam `temperature`):
+```python
+assistant = client.beta.assistants.create(
+    model="gpt-4-turbo-preview",
+    temperature=0.7,  # 0.0 - 2.0
+    # ...
+)
+```
+
+**Temperature (0.0 - 2.0):**
 - **0.0**: Respostas mais determinísticas e focadas (ideal para operações críticas)
 - **0.3-0.5**: Para análises técnicas e precisas
 - **0.7**: Equilíbrio entre criatividade e precisão (padrão)
 - **1.0+**: Respostas mais criativas e variadas (para conteúdo criativo)
+
+#### Modelos GPT-5 (usam `reasoning_effort` e `verbosity`):
+```python
+assistant = client.beta.assistants.create(
+    model="gpt-5.1",
+    reasoning_effort="medium",  # "minimal", "low", "medium", "high"
+    verbosity="medium",  # "low", "medium", "high"
+    # ...
+)
+```
+
+**Reasoning Effort** (controla profundidade do raciocínio):
+- **`"minimal"`**: Respostas mais rápidas com raciocínio superficial
+  - Use para: Tarefas simples, respostas rápidas, operações básicas
+- **`"low"`**: Raciocínio básico
+  - Use para: Tarefas bem definidas, consultas diretas
+- **`"medium"`**: Equilíbrio entre velocidade e profundidade (padrão recomendado)
+  - Use para: Maioria dos casos, análises gerais, tarefas moderadas
+- **`"high"`**: Raciocínio profundo e detalhado
+  - Use para: Problemas complexos, análises profundas, operações críticas
+
+**Verbosity** (controla nível de detalhamento):
+- **`"low"`**: Respostas concisas e diretas
+  - Use para: Operações precisas, respostas curtas, comandos simples
+- **`"medium"`**: Equilíbrio entre concisão e detalhe (padrão)
+  - Use para: Maioria dos casos, relatórios gerais
+- **`"high"`**: Respostas detalhadas e elaboradas
+  - Use para: Análises completas, explicações detalhadas, relatórios extensos
+
+**Exemplos de Combinações:**
+```python
+# Operações críticas (precisas e rápidas)
+reasoning_effort="high", verbosity="low"
+
+# Análises gerais (equilíbrio)
+reasoning_effort="medium", verbosity="medium"
+
+# Relatórios detalhados (profundos e completos)
+reasoning_effort="high", verbosity="high"
+
+# Respostas rápidas (superficiais e concisas)
+reasoning_effort="minimal", verbosity="low"
+```
 
 ### Max Tokens
 - Limite máximo de tokens na resposta
 - **4000**: Padrão para análises longas
 - **1000**: Para respostas curtas
 - **8000+**: Para relatórios muito detalhados
+- **GPT-5**: Suporta até 128k tokens de saída
 
 ### Timeout
 - Tempo máximo de espera (em segundos)
@@ -753,7 +866,9 @@ class MLProductAnalysisAgent:
                 4. Recomendações priorizadas""",
                 model="gpt-5.1",  # GPT-5.1 com melhor precisão e raciocínio automático
                 tools=[{"type": "code_interpreter"}],
-                temperature=0.7  # GPT-5 suporta temperature normalmente
+                # GPT-5 usa reasoning_effort e verbosity ao invés de temperature
+                reasoning_effort="high",  # Raciocínio profundo para análises complexas
+                verbosity="high"  # Respostas detalhadas com recomendações completas
             )
         return assistant.id
     

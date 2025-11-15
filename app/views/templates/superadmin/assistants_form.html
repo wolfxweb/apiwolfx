@@ -1,12 +1,12 @@
 {% extends "superadmin/base.html" %}
 
-{% block title %}{% if assistant_id %}Editar Assistente{% else %}Novo Assistente{% endif %} - SuperAdmin CELX{% endblock %}
+{% block title %}{% if assistant_id %}Editar Agente{% else %}Novo Agente{% endif %} - SuperAdmin CELX{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">
         <i class="bi bi-robot"></i> 
-        {% if assistant_id %}Editar Assistente{% else %}Novo Assistente{% endif %}
+        {% if assistant_id %}Editar Agente{% else %}Novo Agente{% endif %}
     </h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
@@ -25,14 +25,14 @@
                     <input type="hidden" id="assistantId" name="assistant_id" value="{{ assistant_id or '' }}">
                     
                     <div class="mb-3">
-                        <label for="assistantName" class="form-label">Nome do Assistente *</label>
+                        <label for="assistantName" class="form-label">Nome do Agente *</label>
                         <input type="text" class="form-control" id="assistantName" name="name" required>
                     </div>
                     
                     <div class="mb-3">
                         <label for="assistantDescription" class="form-label">Descrição</label>
                         <textarea class="form-control" id="assistantDescription" name="description" rows="2"></textarea>
-                        <small class="form-text text-muted">Descrição breve do propósito do assistente</small>
+                        <small class="form-text text-muted">Descrição breve do propósito do agente</small>
                     </div>
                     
                     <div class="mb-3">
@@ -68,18 +68,46 @@
                     <div class="mb-3">
                         <label for="assistantInstructions" class="form-label">Instruções *</label>
                         <textarea class="form-control" id="assistantInstructions" name="instructions" rows="8" required></textarea>
-                        <small class="form-text text-muted">Descreva o comportamento e propósito do assistente. Seja específico sobre o que ele deve fazer.</small>
+                        <small class="form-text text-muted">Descreva o comportamento e propósito do agente. Seja específico sobre o que ele deve fazer.</small>
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3" id="temperatureGroup">
+                        <!-- Parâmetros para GPT-4 e anteriores (temperature) -->
+                        <div class="col-md-6" id="temperatureGroup">
+                            <div class="mb-3">
                                 <label for="assistantTemperature" class="form-label">Temperature (0.0 - 2.0)</label>
                                 <input type="number" class="form-control" id="assistantTemperature" name="temperature" 
                                        min="0" max="2" step="0.1" value="0.7">
                                 <small class="form-text text-muted">Controla a criatividade das respostas. 0.0 = determinístico, 2.0 = muito criativo</small>
                             </div>
                         </div>
+                        
+                        <!-- Parâmetros para GPT-5 (reasoning_effort e verbosity) -->
+                        <div class="col-md-6" id="gpt5ParamsGroup" style="display: none;">
+                            <div class="mb-3">
+                                <label for="assistantReasoningEffort" class="form-label">Reasoning Effort</label>
+                                <select class="form-select" id="assistantReasoningEffort" name="reasoning_effort">
+                                    <option value="minimal">Minimal (Rápido, raciocínio superficial)</option>
+                                    <option value="low">Low (Raciocínio básico)</option>
+                                    <option value="medium" selected>Medium (Equilíbrio - Padrão)</option>
+                                    <option value="high">High (Raciocínio profundo)</option>
+                                </select>
+                                <small class="form-text text-muted">Controla a profundidade do raciocínio antes de responder</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6" id="verbosityGroup" style="display: none;">
+                            <div class="mb-3">
+                                <label for="assistantVerbosity" class="form-label">Verbosity</label>
+                                <select class="form-select" id="assistantVerbosity" name="verbosity">
+                                    <option value="low">Low (Conciso e direto)</option>
+                                    <option value="medium" selected>Medium (Equilíbrio - Padrão)</option>
+                                    <option value="high">High (Detalhado e elaborado)</option>
+                                </select>
+                                <small class="form-text text-muted">Controla o nível de detalhamento das respostas</small>
+                            </div>
+                        </div>
+                        
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="assistantMaxTokens" class="form-label">Max Tokens</label>
@@ -120,6 +148,31 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="assistantMemoryEnabled" name="memory_enabled" checked>
+                                    <label class="form-check-label" for="assistantMemoryEnabled">
+                                        <strong>Memória Persistente</strong>
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Habilita memória entre diferentes threads. O agente lembrará informações compartilhadas entre conversas.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assistantMemoryData" class="form-label">Memórias Compartilhadas (JSON)</label>
+                        <textarea class="form-control" id="assistantMemoryData" name="memory_data" rows="4" 
+                                  placeholder='{"user_preferences": {"language": "pt-BR"}, "company_info": {"name": "Minha Empresa"}}'></textarea>
+                        <small class="form-text text-muted">
+                            Informações que serão compartilhadas entre todas as threads deste agente (formato JSON)
+                        </small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
                                 <label for="assistantUseCase" class="form-label">Caso de Uso</label>
                                 <input type="text" class="form-control" id="assistantUseCase" name="use_case" 
                                        placeholder="Ex: Análise de produtos, Suporte ao cliente">
@@ -132,16 +185,16 @@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="assistantIsActive" name="is_active" checked>
                             <label class="form-check-label" for="assistantIsActive">
-                                Assistente Ativo
+                                Agente Ativo
                             </label>
                         </div>
-                        <small class="form-text text-muted">Assistentes inativos não podem ser usados</small>
+                        <small class="form-text text-muted">Agentes inativos não podem ser usados</small>
                     </div>
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="/superadmin/assistants" class="btn btn-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> Salvar Assistente
+                            <i class="bi bi-save"></i> Salvar Agente
                         </button>
                     </div>
                 </form>
@@ -151,14 +204,14 @@
 </div>
 
 <script>
-// Carregar dados do assistente se estiver editando
+// Carregar dados do agente se estiver editando
 const assistantId = document.getElementById('assistantId').value;
 
 if (assistantId) {
     loadAssistantData(assistantId);
 }
 
-// Carregar dados do assistente para edição
+// Carregar dados do agente para edição
 async function loadAssistantData(id) {
     try {
         const response = await fetch(`/api/openai/assistants/${id}`, {
@@ -179,6 +232,16 @@ async function loadAssistantData(id) {
                 document.getElementById('assistantInteractionMode').value = assistant.interaction_mode || 'report';
                 document.getElementById('assistantUseCase').value = assistant.use_case || '';
                 document.getElementById('assistantIsActive').checked = assistant.is_active !== false;
+                document.getElementById('assistantMemoryEnabled').checked = assistant.memory_enabled !== false;
+                document.getElementById('assistantMemoryData').value = assistant.memory_data ? JSON.stringify(assistant.memory_data, null, 2) : '';
+                
+                // Configurar reasoning_effort e verbosity (se existirem)
+                if (assistant.reasoning_effort) {
+                    document.getElementById('assistantReasoningEffort').value = assistant.reasoning_effort;
+                }
+                if (assistant.verbosity) {
+                    document.getElementById('assistantVerbosity').value = assistant.verbosity;
+                }
                 
                 // Configurar tools
                 const tools = assistant.tools_config || [];
@@ -189,8 +252,8 @@ async function loadAssistantData(id) {
             }
         }
     } catch (error) {
-        console.error('Erro ao carregar assistente:', error);
-        showNotification('Erro ao carregar dados do assistente: ' + error.message, 'error');
+        console.error('Erro ao carregar agente:', error);
+        showNotification('Erro ao carregar dados do agente: ' + error.message, 'error');
     }
 }
 
@@ -199,38 +262,83 @@ function handleModelChange() {
     const model = document.getElementById('assistantModel').value;
     // Modelos de raciocínio: o1, o3, o4 (não suportam temperature nem tools)
     const isReasoning = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4');
+    // Modelos GPT-5: usam reasoning_effort e verbosity ao invés de temperature
+    const isGPT5 = model.startsWith('gpt-5');
     
     const temperatureGroup = document.getElementById('temperatureGroup');
+    const gpt5ParamsGroup = document.getElementById('gpt5ParamsGroup');
+    const verbosityGroup = document.getElementById('verbosityGroup');
     const toolsGroup = document.getElementById('toolsGroup');
     
     if (isReasoning) {
+        // Modelos o1, o3, o4: sem temperature, sem tools
         temperatureGroup.style.display = 'none';
+        gpt5ParamsGroup.style.display = 'none';
+        verbosityGroup.style.display = 'none';
         toolsGroup.style.display = 'none';
         // Desmarcar tools
         document.getElementById('toolCodeInterpreter').checked = false;
         document.getElementById('toolFileSearch').checked = false;
+    } else if (isGPT5) {
+        // Modelos GPT-5: reasoning_effort e verbosity, sem temperature
+        temperatureGroup.style.display = 'none';
+        gpt5ParamsGroup.style.display = 'block';
+        verbosityGroup.style.display = 'block';
+        toolsGroup.style.display = 'block';
     } else {
+        // Modelos GPT-4 e anteriores: temperature, sem reasoning_effort/verbosity
         temperatureGroup.style.display = 'block';
+        gpt5ParamsGroup.style.display = 'none';
+        verbosityGroup.style.display = 'none';
         toolsGroup.style.display = 'block';
     }
 }
 
-// Salvar assistente
+// Salvar agente
 async function saveAssistant(event) {
     event.preventDefault();
     
     const assistantId = document.getElementById('assistantId').value;
+    const model = document.getElementById('assistantModel').value;
+    const isGPT5 = model.startsWith('gpt-5');
+    
     const formData = {
         name: document.getElementById('assistantName').value,
         description: document.getElementById('assistantDescription').value,
-        model: document.getElementById('assistantModel').value,
+        model: model,
         instructions: document.getElementById('assistantInstructions').value,
-        temperature: parseFloat(document.getElementById('assistantTemperature').value) || null,
         max_tokens: parseInt(document.getElementById('assistantMaxTokens').value) || 4000,
         interaction_mode: document.getElementById('assistantInteractionMode').value,
         use_case: document.getElementById('assistantUseCase').value || null,
+        memory_enabled: document.getElementById('assistantMemoryEnabled').checked,
         is_active: document.getElementById('assistantIsActive').checked
     };
+    
+    // Processar memória (JSON)
+    const memoryDataText = document.getElementById('assistantMemoryData').value.trim();
+    if (memoryDataText) {
+        try {
+            formData.memory_data = JSON.parse(memoryDataText);
+        } catch (e) {
+            showNotification('Erro ao processar memórias compartilhadas: JSON inválido', 'error');
+            return;
+        }
+    } else {
+        formData.memory_data = null;
+    }
+    
+    // Adicionar parâmetros baseado no modelo
+    if (isGPT5) {
+        // GPT-5 usa reasoning_effort e verbosity
+        formData.reasoning_effort = document.getElementById('assistantReasoningEffort').value || 'medium';
+        formData.verbosity = document.getElementById('assistantVerbosity').value || 'medium';
+        formData.temperature = null;  // GPT-5 não usa temperature
+    } else {
+        // GPT-4 e anteriores usam temperature
+        formData.temperature = parseFloat(document.getElementById('assistantTemperature').value) || null;
+        formData.reasoning_effort = null;
+        formData.verbosity = null;
+    }
     
     // Coletar tools
     const tools = [];
@@ -262,7 +370,7 @@ async function saveAssistant(event) {
         
         if (result.success) {
             showNotification(
-                assistantId ? 'Assistente atualizado com sucesso!' : 'Assistente criado com sucesso!',
+                assistantId ? 'Agente atualizado com sucesso!' : 'Agente criado com sucesso!',
                 'success'
             );
             
@@ -274,8 +382,8 @@ async function saveAssistant(event) {
             showNotification('Erro: ' + (result.error || 'Erro desconhecido'), 'error');
         }
     } catch (error) {
-        console.error('Erro ao salvar assistente:', error);
-        showNotification('Erro ao salvar assistente: ' + error.message, 'error');
+        console.error('Erro ao salvar agente:', error);
+        showNotification('Erro ao salvar agente: ' + error.message, 'error');
     }
 }
 

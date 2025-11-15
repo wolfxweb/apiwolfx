@@ -1,17 +1,17 @@
 {% extends "superadmin/base.html" %}
 
-{% block title %}Assistentes OpenAI - SuperAdmin CELX{% endblock %}
+{% block title %}Agentes OpenAI - SuperAdmin CELX{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2"><i class="bi bi-robot"></i> Gerenciar Assistentes OpenAI</h1>
+    <h1 class="h2"><i class="bi bi-robot"></i> Gerenciar Agentes OpenAI</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadAssistants()">
                 <i class="bi bi-arrow-clockwise"></i> Atualizar
             </button>
             <a href="/superadmin/assistants/new" class="btn btn-sm btn-primary">
-                <i class="bi bi-plus-circle"></i> Novo Assistente
+                <i class="bi bi-plus-circle"></i> Novo Agente
             </a>
         </div>
     </div>
@@ -24,7 +24,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Total de Assistentes</h6>
+                        <h6 class="card-title">Total de Agentes</h6>
                         <h4 class="mb-0" id="totalAssistants">0</h4>
                     </div>
                     <div class="align-self-center">
@@ -39,7 +39,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Assistentes Ativos</h6>
+                        <h6 class="card-title">Agentes Ativos</h6>
                         <h4 class="mb-0" id="activeAssistants">0</h4>
                     </div>
                     <div class="align-self-center">
@@ -81,7 +81,7 @@
     </div>
 </div>
 
-<!-- Tabela de Assistentes -->
+<!-- Tabela de Agentes -->
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
@@ -117,12 +117,12 @@
 <script>
 let assistants = [];
 
-// Carregar assistentes ao carregar a página
+// Carregar agentes ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     loadAssistants();
 });
 
-// Carregar lista de assistentes
+// Carregar lista de agentes
 async function loadAssistants() {
     try {
         const response = await fetch('/api/openai/assistants/?active_only=false', {
@@ -130,7 +130,7 @@ async function loadAssistants() {
         });
         
         if (!response.ok) {
-            throw new Error('Erro ao carregar assistentes');
+            throw new Error('Erro ao carregar agentes');
         }
         
         const data = await response.json();
@@ -140,20 +140,20 @@ async function loadAssistants() {
             renderAssistants();
             updateStats();
         } else {
-            showNotification('Erro ao carregar assistentes: ' + (data.error || 'Erro desconhecido'), 'error');
+            showNotification('Erro ao carregar agentes: ' + (data.error || 'Erro desconhecido'), 'error');
         }
     } catch (error) {
         console.error('Erro:', error);
-        showNotification('Erro ao carregar assistentes: ' + error.message, 'error');
+        showNotification('Erro ao carregar agentes: ' + error.message, 'error');
     }
 }
 
-// Renderizar tabela de assistentes
+// Renderizar tabela de agentes
 function renderAssistants() {
     const tbody = document.getElementById('assistantsTableBody');
     
     if (assistants.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center">Nenhum assistente encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center">Nenhum agente encontrado</td></tr>';
         return;
     }
     
@@ -206,9 +206,9 @@ function updateStats() {
     document.getElementById('totalTokens').textContent = formatNumber(totalTokens);
 }
 
-// Deletar assistente
+// Deletar agente
 async function deleteAssistant(id) {
-    if (!confirm('Tem certeza que deseja deletar este assistente?')) {
+    if (!confirm('Tem certeza que deseja deletar este agente?')) {
         return;
     }
     
@@ -221,14 +221,14 @@ async function deleteAssistant(id) {
         const result = await response.json();
         
         if (result.success) {
-            showNotification('Assistente deletado com sucesso!', 'success');
+            showNotification('Agente deletado com sucesso!', 'success');
             loadAssistants();
         } else {
             showNotification('Erro: ' + (result.error || 'Erro desconhecido'), 'error');
         }
     } catch (error) {
         console.error('Erro:', error);
-        showNotification('Erro ao deletar assistente: ' + error.message, 'error');
+        showNotification('Erro ao deletar agente: ' + error.message, 'error');
     }
 }
 

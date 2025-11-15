@@ -59,6 +59,10 @@ def create_openai_assistants_tables():
         interaction_mode interactionmode DEFAULT 'report'::interactionmode NOT NULL,
         use_case VARCHAR(100),
         
+        -- Memória persistente
+        memory_enabled BOOLEAN DEFAULT TRUE NOT NULL,
+        memory_data JSONB,
+        
         -- Status
         is_active BOOLEAN DEFAULT TRUE NOT NULL,
         
@@ -85,6 +89,9 @@ def create_openai_assistants_tables():
         -- Contexto da conversa (JSON)
         context_data JSONB,
         
+        -- Memória específica desta thread (informações aprendidas durante a conversa)
+        memory_data JSONB,
+        
         -- Status
         is_active BOOLEAN DEFAULT TRUE NOT NULL,
         
@@ -96,6 +103,16 @@ def create_openai_assistants_tables():
         CONSTRAINT fk_openai_assistant_threads_assistant FOREIGN KEY (assistant_id) REFERENCES openai_assistants(id) ON DELETE CASCADE,
         CONSTRAINT fk_openai_assistant_threads_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
         CONSTRAINT fk_openai_assistant_threads_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    -- Criar tabela openai_assistant_messages (mensagens individuais)
+    CREATE TABLE IF NOT EXISTS openai_assistant_messages (
+        id SERIAL PRIMARY KEY,
+        thread_id INTEGER NOT NULL,
+        role VARCHAR(20) NOT NULL,  -- "system", "user", "assistant"
+        content TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_openai_assistant_messages_thread FOREIGN KEY (thread_id) REFERENCES openai_assistant_threads(id) ON DELETE CASCADE
     );
 
     -- Criar tabela openai_assistant_usage
@@ -166,6 +183,17 @@ def create_openai_assistants_tables():
         END IF;
         IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_openai_assistant_threads_active') THEN
             CREATE INDEX ix_openai_assistant_threads_active ON openai_assistant_threads(is_active);
+        END IF;
+    END $$;
+
+    -- Criar índices para openai_assistant_messages
+    DO $$ 
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_openai_assistant_messages_thread') THEN
+            CREATE INDEX ix_openai_assistant_messages_thread ON openai_assistant_messages(thread_id);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_openai_assistant_messages_created') THEN
+            CREATE INDEX ix_openai_assistant_messages_created ON openai_assistant_messages(created_at);
         END IF;
     END $$;
 

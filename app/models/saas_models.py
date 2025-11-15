@@ -1407,6 +1407,10 @@ class OpenAIAssistant(Base):
     interaction_mode = Column(Enum(InteractionMode), default=InteractionMode.REPORT, nullable=False)
     use_case = Column(String(100), nullable=True)
     
+    # Memória persistente
+    memory_enabled = Column(Boolean, default=True, nullable=False)  # Habilita memória entre threads
+    memory_data = Column(JSON, nullable=True)  # Memórias compartilhadas (ex: preferências do usuário/empresa)
+    
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     
@@ -1450,6 +1454,9 @@ class OpenAIAssistantThread(Base):
     # Contexto da conversa
     context_data = Column(JSON, nullable=True)
     
+    # Memória específica desta thread (informações aprendidas durante a conversa)
+    memory_data = Column(JSON, nullable=True)
+    
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
     
@@ -1462,12 +1469,37 @@ class OpenAIAssistantThread(Base):
     assistant = relationship("OpenAIAssistant", back_populates="threads")
     company = relationship("Company")
     user = relationship("User")
+    messages = relationship("OpenAIAssistantMessage", back_populates="thread", cascade="all, delete-orphan", order_by="OpenAIAssistantMessage.created_at")
     
     # Índices (criados via script SQL, não precisam ser recriados aqui)
     # __table_args__ = (
     #     Index('ix_assistant_thread_company', 'company_id'),
     #     Index('ix_assistant_thread_assistant', 'assistant_id'),
     #     Index('ix_assistant_thread_active', 'is_active'),
+    # )
+
+
+class OpenAIAssistantMessage(Base):
+    """Mensagens individuais de uma thread de conversa"""
+    __tablename__ = "openai_assistant_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    thread_id = Column(Integer, ForeignKey("openai_assistant_threads.id"), nullable=False, index=True)
+    
+    # Conteúdo da mensagem
+    role = Column(String(20), nullable=False)  # "system", "user", "assistant"
+    content = Column(Text, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    # Relacionamentos
+    thread = relationship("OpenAIAssistantThread", back_populates="messages")
+    
+    # Índices (criados via script SQL)
+    # __table_args__ = (
+    #     Index('ix_openai_assistant_messages_thread', 'thread_id'),
+    #     Index('ix_openai_assistant_messages_created', 'created_at'),
     # )
 
 

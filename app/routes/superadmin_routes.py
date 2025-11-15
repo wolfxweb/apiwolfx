@@ -97,7 +97,7 @@ async def superadmin_assistants(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Gerenciar assistentes OpenAI"""
+    """Gerenciar agentes OpenAI"""
     # TODO: Verificar autenticação de superadmin
     return render_template("superadmin/assistants.html", request=request)
 
@@ -106,7 +106,7 @@ async def superadmin_assistants_new(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Criar novo assistente OpenAI"""
+    """Criar novo agente OpenAI"""
     # TODO: Verificar autenticação de superadmin
     return render_template("superadmin/assistants_form.html", request=request, assistant_id=None)
 
@@ -116,7 +116,7 @@ async def superadmin_assistants_edit(
     assistant_id: int,
     db: Session = Depends(get_db)
 ):
-    """Editar assistente OpenAI"""
+    """Editar agente OpenAI"""
     # TODO: Verificar autenticação de superadmin
     return render_template("superadmin/assistants_form.html", request=request, assistant_id=assistant_id)
 
@@ -125,7 +125,7 @@ async def superadmin_assistants_usage(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Monitorar uso de tokens dos assistentes"""
+    """Monitorar uso de tokens dos agentes"""
     # TODO: Verificar autenticação de superadmin
     return render_template("superadmin/assistants_usage.html", request=request)
 

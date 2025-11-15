@@ -93,11 +93,15 @@ class CreateAssistantRequest(BaseModel):
     description: Optional[str] = None
     instructions: str
     model: str = "gpt-5.1"
-    temperature: Optional[float] = None
+    temperature: Optional[float] = None  # Para modelos GPT-4 e anteriores
+    reasoning_effort: Optional[str] = None  # Para modelos GPT-5: "minimal", "low", "medium", "high"
+    verbosity: Optional[str] = None  # Para modelos GPT-5: "low", "medium", "high"
     max_tokens: int = 4000
     tools: Optional[List[Dict]] = None
     interaction_mode: str = "report"
     use_case: Optional[str] = None
+    memory_enabled: bool = True  # Habilita memória persistente entre threads
+    memory_data: Optional[Dict] = None  # Memórias compartilhadas (ex: preferências do usuário/empresa)
 
 
 class UpdateAssistantRequest(BaseModel):
@@ -105,12 +109,16 @@ class UpdateAssistantRequest(BaseModel):
     description: Optional[str] = None
     instructions: Optional[str] = None
     model: Optional[str] = None
-    temperature: Optional[float] = None
+    temperature: Optional[float] = None  # Para modelos GPT-4 e anteriores
+    reasoning_effort: Optional[str] = None  # Para modelos GPT-5: "minimal", "low", "medium", "high"
+    verbosity: Optional[str] = None  # Para modelos GPT-5: "low", "medium", "high"
     max_tokens: Optional[int] = None
     tools: Optional[List[Dict]] = None
     interaction_mode: Optional[str] = None
     use_case: Optional[str] = None
     is_active: Optional[bool] = None
+    memory_enabled: Optional[bool] = None  # Habilita/desabilita memória persistente
+    memory_data: Optional[Dict] = None  # Atualiza memórias compartilhadas
 
 
 class UseAssistantReportRequest(BaseModel):
@@ -140,7 +148,7 @@ async def list_assistants(
     result = controller.list_assistants(active_only=active_only)
     
     if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao listar assistentes"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao listar agentes"))
     
     return result
 
@@ -159,14 +167,18 @@ async def create_assistant(
         instructions=request_data.instructions,
         model=request_data.model,
         temperature=request_data.temperature,
+        reasoning_effort=request_data.reasoning_effort,
+        verbosity=request_data.verbosity,
         max_tokens=request_data.max_tokens,
         tools=request_data.tools,
         interaction_mode=request_data.interaction_mode,
-        use_case=request_data.use_case
+        use_case=request_data.use_case,
+        memory_enabled=request_data.memory_enabled,
+        memory_data=request_data.memory_data
     )
     
     if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao criar assistente"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao criar agente"))
     
     return result
 
@@ -182,7 +194,7 @@ async def get_assistant(
     result = controller.get_assistant(assistant_id=assistant_id)
     
     if not result.get("success"):
-        raise HTTPException(status_code=404, detail=result.get("error", "Assistente não encontrado"))
+        raise HTTPException(status_code=404, detail=result.get("error", "Agente não encontrado"))
     
     return result
 
@@ -203,15 +215,19 @@ async def update_assistant(
         instructions=request_data.instructions,
         model=request_data.model,
         temperature=request_data.temperature,
+        reasoning_effort=request_data.reasoning_effort,
+        verbosity=request_data.verbosity,
         max_tokens=request_data.max_tokens,
         tools=request_data.tools,
         interaction_mode=request_data.interaction_mode,
         use_case=request_data.use_case,
-        is_active=request_data.is_active
+        is_active=request_data.is_active,
+        memory_enabled=request_data.memory_enabled,
+        memory_data=request_data.memory_data
     )
     
     if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao atualizar assistente"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao atualizar agente"))
     
     return result
 
@@ -227,7 +243,7 @@ async def delete_assistant(
     result = controller.delete_assistant(assistant_id=assistant_id)
     
     if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao deletar assistente"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao deletar agente"))
     
     return result
 
@@ -255,7 +271,7 @@ async def use_assistant_report(
     )
     
     if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao usar assistente"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao usar agente"))
     
     return result
 
@@ -283,7 +299,7 @@ async def use_assistant_chat(
     )
     
     if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao usar assistente"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao usar agente"))
     
     return result
 
@@ -343,7 +359,7 @@ async def get_usage_by_assistant(
     result = controller.get_usage_by_assistant(company_id=company_id, days=days)
     
     if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao obter uso por assistente"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao obter uso por agente"))
     
     return result
 

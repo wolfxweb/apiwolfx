@@ -109,17 +109,17 @@
     </div>
 </div>
 
-<!-- Uso por Assistente -->
+<!-- Uso por Agente -->
 <div class="card mb-4">
     <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-robot"></i> Uso por Assistente</h5>
+        <h5 class="mb-0"><i class="bi bi-robot"></i> Uso por Agente</h5>
     </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover" id="usageByAssistantTable">
                 <thead class="table-dark">
                     <tr>
-                        <th>Assistente</th>
+                        <th>Agente</th>
                         <th>Tokens de Entrada</th>
                         <th>Tokens de Saída</th>
                         <th>Total de Tokens</th>
@@ -243,7 +243,7 @@ async function loadUsageData() {
             }
         }
         
-        // Carregar uso por assistente
+        // Carregar uso por agente
         const byAssistantResponse = await fetch(
             `/api/openai/assistants/usage/by-assistant?days=${days}${companyId ? `&company_id=${companyId}` : ''}`,
             { credentials: 'include' }
@@ -286,7 +286,7 @@ function updateStats(stats) {
     document.getElementById('totalRequests').textContent = formatNumber(stats.total_requests || 0);
 }
 
-// Renderizar uso por assistente
+// Renderizar uso por agente
 function renderUsageByAssistant(usage) {
     const tbody = document.getElementById('usageByAssistantTableBody');
     

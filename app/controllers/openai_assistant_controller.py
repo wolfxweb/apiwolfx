@@ -33,31 +33,49 @@ class OpenAIAssistantController:
             
             assistants = query.order_by(desc(OpenAIAssistant.created_at)).all()
             
+            assistants_list = []
+            for a in assistants:
+                # Extrair reasoning_effort e verbosity do tools_config se for GPT-5
+                reasoning_effort = None
+                verbosity = None
+                tools_config_clean = a.tools_config
+                
+                if a.model.startswith("gpt-5") and isinstance(a.tools_config, dict):
+                    reasoning_effort = a.tools_config.get("reasoning_effort")
+                    verbosity = a.tools_config.get("verbosity")
+                    # Remover reasoning_effort e verbosity do tools_config para retornar apenas tools
+                    tools_config_clean = {
+                        "tools": a.tools_config.get("tools", [])
+                    } if a.tools_config.get("tools") else None
+                
+                assistants_list.append({
+                    "id": a.id,
+                    "name": a.name,
+                    "description": a.description,
+                    "assistant_id": a.assistant_id,
+                    "model": a.model,
+                    "instructions": a.instructions[:200] + "..." if len(a.instructions) > 200 else a.instructions,
+                    "temperature": float(a.temperature) if a.temperature else None,
+                    "reasoning_effort": reasoning_effort,
+                    "verbosity": verbosity,
+                    "max_tokens": a.max_tokens,
+                    "tools_config": tools_config_clean,
+                    "interaction_mode": a.interaction_mode.value,
+                    "use_case": a.use_case,
+                    "memory_enabled": a.memory_enabled,
+                    "memory_data": a.memory_data,
+                    "is_active": a.is_active,
+                    "total_runs": a.total_runs,
+                    "total_tokens_used": a.total_tokens_used,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                    "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+                    "last_used_at": a.last_used_at.isoformat() if a.last_used_at else None,
+                    "is_reasoning_model": a.is_reasoning_model()
+                })
+            
             return {
                 "success": True,
-                "assistants": [
-                    {
-                        "id": a.id,
-                        "name": a.name,
-                        "description": a.description,
-                        "assistant_id": a.assistant_id,
-                        "model": a.model,
-                        "instructions": a.instructions[:200] + "..." if len(a.instructions) > 200 else a.instructions,
-                        "temperature": float(a.temperature) if a.temperature else None,
-                        "max_tokens": a.max_tokens,
-                        "tools_config": a.tools_config,
-                        "interaction_mode": a.interaction_mode.value,
-                        "use_case": a.use_case,
-                        "is_active": a.is_active,
-                        "total_runs": a.total_runs,
-                        "total_tokens_used": a.total_tokens_used,
-                        "created_at": a.created_at.isoformat() if a.created_at else None,
-                        "updated_at": a.updated_at.isoformat() if a.updated_at else None,
-                        "last_used_at": a.last_used_at.isoformat() if a.last_used_at else None,
-                        "is_reasoning_model": a.is_reasoning_model()
-                    }
-                    for a in assistants
-                ]
+                "assistants": assistants_list
             }
         except Exception as e:
             logger.error(f"❌ Erro ao listar assistentes: {e}", exc_info=True)
@@ -70,10 +88,14 @@ class OpenAIAssistantController:
         instructions: str,
         model: str = "gpt-5.1",
         temperature: Optional[float] = None,
+        reasoning_effort: Optional[str] = None,
+        verbosity: Optional[str] = None,
         max_tokens: int = 4000,
         tools: Optional[List[Dict]] = None,
         interaction_mode: str = "report",
-        use_case: Optional[str] = None
+        use_case: Optional[str] = None,
+        memory_enabled: bool = True,
+        memory_data: Optional[Dict] = None
     ) -> Dict:
         """Cria um novo assistente"""
         try:
@@ -83,10 +105,14 @@ class OpenAIAssistantController:
                 instructions=instructions,
                 model=model,
                 temperature=temperature,
+                reasoning_effort=reasoning_effort,
+                verbosity=verbosity,
                 max_tokens=max_tokens,
                 tools=tools,
                 interaction_mode=interaction_mode,
-                use_case=use_case
+                use_case=use_case,
+                memory_enabled=memory_enabled,
+                memory_data=memory_data
             )
         except Exception as e:
             logger.error(f"❌ Erro ao criar assistente: {e}", exc_info=True)
@@ -100,7 +126,20 @@ class OpenAIAssistantController:
             ).first()
             
             if not assistant:
-                return {"success": False, "error": "Assistente não encontrado"}
+                return {"success": False, "error": "Agente não encontrado"}
+            
+            # Extrair reasoning_effort e verbosity do tools_config se for GPT-5
+            reasoning_effort = None
+            verbosity = None
+            tools_config_clean = assistant.tools_config
+            
+            if assistant.model.startswith("gpt-5") and isinstance(assistant.tools_config, dict):
+                reasoning_effort = assistant.tools_config.get("reasoning_effort")
+                verbosity = assistant.tools_config.get("verbosity")
+                # Remover reasoning_effort e verbosity do tools_config para retornar apenas tools
+                tools_config_clean = {
+                    "tools": assistant.tools_config.get("tools", [])
+                } if assistant.tools_config.get("tools") else None
             
             return {
                 "success": True,
@@ -112,10 +151,14 @@ class OpenAIAssistantController:
                     "model": assistant.model,
                     "instructions": assistant.instructions,
                     "temperature": float(assistant.temperature) if assistant.temperature else None,
+                    "reasoning_effort": reasoning_effort,
+                    "verbosity": verbosity,
                     "max_tokens": assistant.max_tokens,
-                    "tools_config": assistant.tools_config,
+                    "tools_config": tools_config_clean,
                     "interaction_mode": assistant.interaction_mode.value,
                     "use_case": assistant.use_case,
+                    "memory_enabled": assistant.memory_enabled,
+                    "memory_data": assistant.memory_data,
                     "is_active": assistant.is_active,
                     "total_runs": assistant.total_runs,
                     "total_tokens_used": assistant.total_tokens_used,
@@ -137,6 +180,8 @@ class OpenAIAssistantController:
         instructions: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        reasoning_effort: Optional[str] = None,
+        verbosity: Optional[str] = None,
         max_tokens: Optional[int] = None,
         tools: Optional[List[Dict]] = None,
         interaction_mode: Optional[str] = None,
@@ -152,11 +197,15 @@ class OpenAIAssistantController:
                 instructions=instructions,
                 model=model,
                 temperature=temperature,
+                reasoning_effort=reasoning_effort,
+                verbosity=verbosity,
                 max_tokens=max_tokens,
                 tools=tools,
                 interaction_mode=interaction_mode,
                 use_case=use_case,
-                is_active=is_active
+                is_active=is_active,
+                memory_enabled=memory_enabled,
+                memory_data=memory_data
             )
         except Exception as e:
             logger.error(f"❌ Erro ao atualizar assistente: {e}", exc_info=True)
