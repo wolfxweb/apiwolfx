@@ -181,16 +181,15 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="assistantMemoryEnabled" name="memory_enabled" checked>
-                                            <label class="form-check-label" for="assistantMemoryEnabled">
-                                                <strong>Memória Persistente</strong>
-                                                <i class="bi bi-info-circle text-info ms-1" 
-                                                   data-bs-toggle="tooltip" 
-                                                   data-bs-placement="top" 
-                                                   title="Habilita memória entre diferentes threads (conversas). Quando ativado, o agente lembrará informações compartilhadas entre todas as conversas, permitindo contexto persistente."></i>
-                                            </label>
-                                        </div>
+                                        <label for="assistantUseCase" class="form-label">
+                                            Caso de Uso
+                                            <i class="bi bi-info-circle text-info ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top" 
+                                               title="Descreva o caso de uso principal deste agente. Exemplos: Análise de produtos, Suporte ao cliente, Geração de relatórios, Análise de dados, etc. Isso ajuda a identificar o propósito do agente."></i>
+                                        </label>
+                                        <input type="text" class="form-control" id="assistantUseCase" name="use_case" 
+                                               placeholder="Ex: Análise de produtos, Suporte ao cliente">
                                     </div>
                                 </div>
                             </div>
@@ -208,20 +207,21 @@
                             </div>
                             
                             <div class="row">
-                                <div class="col-md-8">
+                                <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="assistantUseCase" class="form-label">
-                                            Caso de Uso
-                                            <i class="bi bi-info-circle text-info ms-1" 
-                                               data-bs-toggle="tooltip" 
-                                               data-bs-placement="top" 
-                                               title="Descreva o caso de uso principal deste agente. Exemplos: Análise de produtos, Suporte ao cliente, Geração de relatórios, Análise de dados, etc. Isso ajuda a identificar o propósito do agente."></i>
-                                        </label>
-                                        <input type="text" class="form-control" id="assistantUseCase" name="use_case" 
-                                               placeholder="Ex: Análise de produtos, Suporte ao cliente">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="assistantMemoryEnabled" name="memory_enabled" checked>
+                                            <label class="form-check-label" for="assistantMemoryEnabled">
+                                                <strong>Memória Persistente</strong>
+                                                <i class="bi bi-info-circle text-info ms-1" 
+                                                   data-bs-toggle="tooltip" 
+                                                   data-bs-placement="top" 
+                                                   title="Habilita memória entre diferentes threads (conversas). Quando ativado, o agente lembrará informações compartilhadas entre todas as conversas, permitindo contexto persistente."></i>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label d-block">&nbsp;</label>
                                         <div class="form-check">
