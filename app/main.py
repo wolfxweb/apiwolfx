@@ -7,6 +7,8 @@ from typing import Optional
 from app.config.settings import settings
 from app.config.database import engine, Base, get_db
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import ProgrammingError
+import psycopg2.errors
 from app.routes.main_routes import main_router
 from app.routes.saas_routes import saas_router
 from app.routes.auth_routes import auth_router
@@ -33,6 +35,7 @@ from app.routes.highlights_routes import highlights_router
 from app.routes.ml_questions_routes import ml_questions_router
 from app.routes.ml_messages_routes import ml_messages_router
 from app.routes.activity_routes import activity_router
+from app.routes.openai_assistant_routes import openai_assistant_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -151,17 +154,41 @@ async def startup_event():
         for attempt in range(max_retries):
             try:
                 print(f"🔄 [STARTUP] Tentando conectar ao banco de dados (tentativa {attempt + 1}/{max_retries})...")
-                Base.metadata.create_all(bind=engine)
+                Base.metadata.create_all(bind=engine, checkfirst=True)
                 print("✅ Banco de dados inicializado")
                 break
-            except Exception as db_error:
+            except (ProgrammingError, Exception) as db_error:
+                # Ignorar erros de índices/tabelas duplicadas (já existem no banco)
+                error_str = str(db_error)
+                error_code = None
+                
+                # Verificar se é erro de duplicata do PostgreSQL
+                if hasattr(db_error, 'orig') and hasattr(db_error.orig, 'pgcode'):
+                    error_code = db_error.orig.pgcode
+                
+                is_duplicate = (
+                    "already exists" in error_str.lower() or 
+                    "duplicatetable" in error_str.lower() or 
+                    "duplicateindex" in error_str.lower() or
+                    error_code == psycopg2.errors.DuplicateTable.sqlstate or
+                    error_code == psycopg2.errors.DuplicateIndex.sqlstate
+                )
+                
+                if is_duplicate:
+                    print(f"ℹ️ [STARTUP] Tabelas/índices já existem no banco, continuando...")
+                    break
+                
                 if attempt < max_retries - 1:
                     print(f"⚠️ [STARTUP] Falha na conexão, tentando novamente em {retry_delay}s...")
                     import time
                     time.sleep(retry_delay)
                 else:
                     print(f"❌ [STARTUP] Falha ao conectar após {max_retries} tentativas")
-                    raise db_error
+                    # Se for erro de índice/tabela duplicada, não levantar exceção
+                    if not is_duplicate:
+                        raise db_error
+                    else:
+                        print(f"ℹ️ [STARTUP] Erro de duplicata ignorado, continuando inicialização...")
         
         # Scheduler comentado - Webhook orders_v2 mantém pedidos atualizados automaticamente
         # print(f"🔧 [STARTUP] Scheduler rodando antes: {scheduler.running}")
@@ -226,6 +253,7 @@ app.include_router(highlights_router)  # Para /ml/highlights e /api/ml/highlight
 app.include_router(ml_questions_router)  # Para /questions (HTML) e /api/questions (API)
 app.include_router(ml_messages_router)  # Para /messages (HTML) e /api/messages (API)
 app.include_router(activity_router)  # Para /api/activity/summary
+app.include_router(openai_assistant_router)  # Para /api/openai/assistants
 # app.include_router(settings_router)  # Removido - usando /auth/profile
 
 # Rota específica para página de edição da empresa

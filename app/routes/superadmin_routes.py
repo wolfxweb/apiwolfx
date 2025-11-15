@@ -92,6 +92,43 @@ async def superadmin_company_details(
     return render_template("superadmin/company_details.html", 
                          company_details=company_details)
 
+@superadmin_router.get("/superadmin/assistants", response_class=HTMLResponse)
+async def superadmin_assistants(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Gerenciar assistentes OpenAI"""
+    # TODO: Verificar autenticação de superadmin
+    return render_template("superadmin/assistants.html", request=request)
+
+@superadmin_router.get("/superadmin/assistants/new", response_class=HTMLResponse)
+async def superadmin_assistants_new(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Criar novo assistente OpenAI"""
+    # TODO: Verificar autenticação de superadmin
+    return render_template("superadmin/assistants_form.html", request=request, assistant_id=None)
+
+@superadmin_router.get("/superadmin/assistants/{assistant_id}/edit", response_class=HTMLResponse)
+async def superadmin_assistants_edit(
+    request: Request,
+    assistant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Editar assistente OpenAI"""
+    # TODO: Verificar autenticação de superadmin
+    return render_template("superadmin/assistants_form.html", request=request, assistant_id=assistant_id)
+
+@superadmin_router.get("/superadmin/assistants/usage", response_class=HTMLResponse)
+async def superadmin_assistants_usage(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Monitorar uso de tokens dos assistentes"""
+    # TODO: Verificar autenticação de superadmin
+    return render_template("superadmin/assistants_usage.html", request=request)
+
 @superadmin_router.get("/superadmin/plans", response_class=HTMLResponse)
 async def superadmin_plans(
     request: Request,

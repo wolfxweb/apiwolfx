@@ -139,19 +139,19 @@ from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Criar um assistente
-assistant = client.beta.assistants.create(
-    name="Analisador de Produtos ML",
-    instructions="""Você é um especialista em análise de produtos do Mercado Livre.
-    Sua função é analisar produtos, identificar oportunidades de melhoria,
-    sugerir otimizações de preço, SEO e marketing.""",
-    model="gpt-4-turbo-preview",
-    tools=[
-        {"type": "code_interpreter"},  # Permite executar código Python
-        {"type": "file_search"}        # Permite buscar em arquivos
-    ],
-    temperature=0.7
-)
+    # Criar um assistente
+    assistant = client.beta.assistants.create(
+        name="Analisador de Produtos ML",
+        instructions="""Você é um especialista em análise de produtos do Mercado Livre.
+        Sua função é analisar produtos, identificar oportunidades de melhoria,
+        sugerir otimizações de preço, SEO e marketing.""",
+        model="gpt-5.1",  # GPT-5.1 - melhor para coding e tarefas agentic
+        tools=[
+            {"type": "code_interpreter"},  # Permite executar código Python
+            {"type": "file_search"}        # Permite buscar em arquivos
+        ],
+        temperature=0.7  # GPT-5 suporta temperature normalmente
+    )
 
 print(f"Assistente criado com ID: {assistant.id}")
 ```
@@ -212,9 +212,9 @@ assistant = client.beta.assistants.create(
     name="Gerenciador de Preços ML",
     instructions="""Você é um assistente especializado em gerenciar preços de produtos.
     Use as funções disponíveis para buscar e atualizar preços quando solicitado.""",
-    model="gpt-4-turbo-preview",
+    model="gpt-5.1",  # GPT-5.1 com melhor precisão
     tools=functions,
-    temperature=0.3  # Mais determinístico para operações críticas
+    temperature=0.3  # Mais determinístico para operações críticas (GPT-5.1 suporta normalmente)
 )
 ```
 
@@ -344,9 +344,10 @@ Permite que o agente execute código Python:
 ```python
 assistant = client.beta.assistants.create(
     name="Analisador de Dados",
-    model="gpt-4-turbo-preview",
+    model="gpt-5.1",  # GPT-5.1 com melhor precisão e eficiência
     tools=[{"type": "code_interpreter"}],
-    instructions="Use Python para analisar dados e gerar gráficos quando necessário."
+    instructions="Use Python para analisar dados e gerar gráficos quando necessário.",
+    temperature=0.7  # GPT-5.1 suporta temperature normalmente
 )
 ```
 
@@ -418,26 +419,77 @@ assistant = client.beta.assistants.create(
 
 ### Modelos Recomendados (2024-2025):
 
-- **gpt-4-turbo-preview**: Modelo mais recente e eficiente (recomendado para agentes)
-- **gpt-4-0125-preview**: Versão estável do GPT-4
+#### GPT-5 (Mais Recente):
+- **gpt-5.1**: Melhor modelo para coding e tarefas agentic com raciocínio configurável
+- **gpt-5**: Modelo anterior de raciocínio inteligente para coding e tarefas agentic
+- **gpt-5-pro**: Versão mais inteligente e precisa do GPT-5
+- **gpt-5-mini**: Versão mais rápida e econômica para tarefas bem definidas
+- **gpt-5-nano**: Versão mais rápida e econômica do GPT-5
+
+#### GPT-5 Codex (Otimizado para Coding):
+- **gpt-5.1-codex**: Versão do GPT-5.1 otimizada para coding agentic no Codex
+- **gpt-5-codex**: Versão do GPT-5 otimizada para coding agentic no Codex
+
+#### GPT-4 (Anteriores):
+- **gpt-4-turbo-preview**: Modelo anterior, ainda eficiente
 - **gpt-4o**: Modelo otimizado para velocidade e custo
+- **gpt-4o-mini**: Versão menor do GPT-4o, mais econômica
 - **gpt-3.5-turbo**: Mais rápido e econômico para tarefas simples
+
+#### Modelos de Raciocínio (SEM temperature e SEM tools):
 - **o1-preview**: Modelo de raciocínio avançado (para análises complexas)
+- **o1-mini**: Versão menor do o1, mais rápida
+- **o3-preview**: Modelo de raciocínio mais recente
+- **o3-mini**: Versão menor do o3, mais rápida
+
+### 🆕 GPT-5 - Características Especiais:
+
+O **GPT-5** introduz uma arquitetura unificada com roteamento inteligente:
+
+1. **Arquitetura Dual:**
+   - **GPT-5-main**: Otimizado para consultas rápidas e diretas
+   - **GPT-5-thinking**: Para problemas complexos que exigem raciocínio aprofundado
+   - Roteador automático decide qual usar baseado na complexidade da consulta
+
+2. **Parâmetros:**
+   - ✅ **Suporta temperature** (como modelos padrão GPT-4)
+   - ✅ **Suporta tools** (code_interpreter, file_search, function calling)
+   - ✅ **Suporta max_tokens**
+   - ✅ **Melhor precisão** - 45% menos erros factuais que GPT-4o
+   - ✅ **Contexto expandido** - até 256k tokens no chat, 400k na API
+
+3. **Diferenças dos Modelos Anteriores:**
+   - Raciocínio integrado e automático (não precisa selecionar modo manualmente)
+   - Respostas mais rápidas e eficientes (usa menos tokens)
+   - Melhor compreensão de contexto em conversas longas
+   - Modos adaptáveis (Mini, Nano, Thinking) para diferentes necessidades
 
 ### Seleção de Modelo por Caso de Uso:
 
 ```python
-# Para análises complexas e agentes
+# Para coding e tarefas agentic (RECOMENDADO - mais preciso)
+model = "gpt-5.1"  # Melhor para coding e tarefas agentic
+
+# Para coding agentic no Codex
+model = "gpt-5.1-codex"  # ou "gpt-5-codex"
+
+# Para análises complexas com raciocínio inteligente
+model = "gpt-5"  # ou "gpt-5-pro" para mais precisão
+
+# Para tarefas bem definidas (rápido e econômico)
+model = "gpt-5-mini"  # ou "gpt-5-nano" para máxima velocidade
+
+# Para análises complexas com agentes (alternativa GPT-4)
 model = "gpt-4-turbo-preview"
 
 # Para tarefas simples e rápidas
 model = "gpt-3.5-turbo"
 
-# Para raciocínio matemático e lógico complexo
-model = "o1-preview"
+# Para raciocínio matemático e lógico complexo (SEM tools)
+model = "o1-preview"  # ou "o3-preview" para versão mais recente
 
 # Para balance entre custo e qualidade
-model = "gpt-4o"
+model = "gpt-4o"  # ou "gpt-4o-mini" para economia
 ```
 
 ## 🔧 Parâmetros Comuns
@@ -690,19 +742,19 @@ class MLProductAnalysisAgent:
     def _get_or_create_assistant(self) -> str:
         """Obtém ou cria o assistente"""
         # Em produção, salvar assistant_id no banco de dados
-        assistant = self.client.beta.assistants.create(
-            name="Analisador de Produtos ML",
-            instructions="""Você é um especialista em análise de produtos para marketplaces.
-            
-            Analise produtos do Mercado Livre fornecendo:
-            1. Análise de preço e competitividade
-            2. Sugestões de SEO
-            3. Análise de margem e rentabilidade
-            4. Recomendações priorizadas""",
-            model="gpt-4-turbo-preview",
-            tools=[{"type": "code_interpreter"}],
-            temperature=0.7
-        )
+            assistant = self.client.beta.assistants.create(
+                name="Analisador de Produtos ML",
+                instructions="""Você é um especialista em análise de produtos para marketplaces.
+                
+                Analise produtos do Mercado Livre fornecendo:
+                1. Análise de preço e competitividade
+                2. Sugestões de SEO
+                3. Análise de margem e rentabilidade
+                4. Recomendações priorizadas""",
+                model="gpt-5.1",  # GPT-5.1 com melhor precisão e raciocínio automático
+                tools=[{"type": "code_interpreter"}],
+                temperature=0.7  # GPT-5 suporta temperature normalmente
+            )
         return assistant.id
     
     def analyze_product(self, product_id: int, company_id: int) -> Dict:

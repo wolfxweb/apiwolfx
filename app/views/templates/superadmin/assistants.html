@@ -1,0 +1,272 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Assistentes OpenAI - SuperAdmin CELX{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-robot"></i> Gerenciar Assistentes OpenAI</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadAssistants()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+            <a href="/superadmin/assistants/new" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus-circle"></i> Novo Assistente
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas Rápidas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total de Assistentes</h6>
+                        <h4 class="mb-0" id="totalAssistants">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-robot fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Assistentes Ativos</h6>
+                        <h4 class="mb-0" id="activeAssistants">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total de Execuções</h6>
+                        <h4 class="mb-0" id="totalRuns">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-play-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Tokens Utilizados</h6>
+                        <h4 class="mb-0" id="totalTokens">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-cpu fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Assistentes -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="assistantsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Modelo</th>
+                        <th>Modo</th>
+                        <th>Execuções</th>
+                        <th>Tokens</th>
+                        <th>Status</th>
+                        <th>Último Uso</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="assistantsTableBody">
+                    <tr>
+                        <td colspan="9" class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<script>
+let assistants = [];
+
+// Carregar assistentes ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadAssistants();
+});
+
+// Carregar lista de assistentes
+async function loadAssistants() {
+    try {
+        const response = await fetch('/api/openai/assistants/?active_only=false', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao carregar assistentes');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            assistants = data.assistants;
+            renderAssistants();
+            updateStats();
+        } else {
+            showNotification('Erro ao carregar assistentes: ' + (data.error || 'Erro desconhecido'), 'error');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro ao carregar assistentes: ' + error.message, 'error');
+    }
+}
+
+// Renderizar tabela de assistentes
+function renderAssistants() {
+    const tbody = document.getElementById('assistantsTableBody');
+    
+    if (assistants.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center">Nenhum assistente encontrado</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = assistants.map(assistant => `
+        <tr>
+            <td>${assistant.id}</td>
+            <td>
+                <strong>${escapeHtml(assistant.name)}</strong>
+                ${assistant.description ? '<br><small class="text-muted">' + escapeHtml(assistant.description.substring(0, 50)) + '...</small>' : ''}
+            </td>
+            <td>
+                <span class="badge bg-secondary">${escapeHtml(assistant.model)}</span>
+                ${assistant.is_reasoning_model ? '<br><small class="text-muted">Raciocínio</small>' : ''}
+            </td>
+            <td>
+                <span class="badge ${assistant.interaction_mode === 'chat' ? 'bg-info' : 'bg-primary'}">
+                    ${assistant.interaction_mode === 'chat' ? 'Chat' : 'Relatório'}
+                </span>
+            </td>
+            <td>${assistant.total_runs || 0}</td>
+            <td>${formatNumber(assistant.total_tokens_used || 0)}</td>
+            <td>
+                <span class="badge ${assistant.is_active ? 'bg-success' : 'bg-secondary'}">
+                    ${assistant.is_active ? 'Ativo' : 'Inativo'}
+                </span>
+            </td>
+            <td>${assistant.last_used_at ? formatDate(assistant.last_used_at) : 'Nunca'}</td>
+            <td>
+                <a href="/superadmin/assistants/${assistant.id}/edit" class="btn btn-sm btn-outline-primary" title="Editar">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteAssistant(${assistant.id})" title="Deletar">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Atualizar estatísticas
+function updateStats() {
+    const total = assistants.length;
+    const active = assistants.filter(a => a.is_active).length;
+    const totalRuns = assistants.reduce((sum, a) => sum + (a.total_runs || 0), 0);
+    const totalTokens = assistants.reduce((sum, a) => sum + (a.total_tokens_used || 0), 0);
+    
+    document.getElementById('totalAssistants').textContent = total;
+    document.getElementById('activeAssistants').textContent = active;
+    document.getElementById('totalRuns').textContent = formatNumber(totalRuns);
+    document.getElementById('totalTokens').textContent = formatNumber(totalTokens);
+}
+
+// Deletar assistente
+async function deleteAssistant(id) {
+    if (!confirm('Tem certeza que deseja deletar este assistente?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/openai/assistants/${id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Assistente deletado com sucesso!', 'success');
+            loadAssistants();
+        } else {
+            showNotification('Erro: ' + (result.error || 'Erro desconhecido'), 'error');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro ao deletar assistente: ' + error.message, 'error');
+    }
+}
+
+
+// Funções auxiliares
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatNumber(num) {
+    return new Intl.NumberFormat('pt-BR').format(num);
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('pt-BR');
+}
+
+function showNotification(message, type) {
+    if (window.MLAPI && window.MLAPI.showNotification) {
+        window.MLAPI.showNotification(message, type);
+    } else {
+        alert(message);
+    }
+}
+</script>
+
+<style>
+.stats-card {
+    border-radius: 0.5rem;
+    transition: transform 0.2s;
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+}
+</style>
+{% endblock %}
+

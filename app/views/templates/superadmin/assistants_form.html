@@ -1,0 +1,299 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}{% if assistant_id %}Editar Assistente{% else %}Novo Assistente{% endif %} - SuperAdmin CELX{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-robot"></i> 
+        {% if assistant_id %}Editar Assistente{% else %}Novo Assistente{% endif %}
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="/superadmin/assistants" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-body">
+                <form id="assistantForm" onsubmit="saveAssistant(event)">
+                    <input type="hidden" id="assistantId" name="assistant_id" value="{{ assistant_id or '' }}">
+                    
+                    <div class="mb-3">
+                        <label for="assistantName" class="form-label">Nome do Assistente *</label>
+                        <input type="text" class="form-control" id="assistantName" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assistantDescription" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="assistantDescription" name="description" rows="2"></textarea>
+                        <small class="form-text text-muted">Descrição breve do propósito do assistente</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assistantModel" class="form-label">Modelo *</label>
+                        <select class="form-select" id="assistantModel" name="model" required onchange="handleModelChange()">
+                            <optgroup label="GPT-5 (Mais Recente)">
+                                <option value="gpt-5.1">GPT-5.1 (Melhor para coding e tarefas agentic)</option>
+                                <option value="gpt-5">GPT-5 (Raciocínio inteligente)</option>
+                                <option value="gpt-5-pro">GPT-5 Pro (Mais inteligente e preciso)</option>
+                                <option value="gpt-5-mini">GPT-5 Mini (Rápido e econômico)</option>
+                                <option value="gpt-5-nano">GPT-5 Nano (Mais rápido e econômico)</option>
+                            </optgroup>
+                            <optgroup label="GPT-5 Codex (Otimizado para Coding)">
+                                <option value="gpt-5.1-codex">GPT-5.1 Codex (Coding agentic)</option>
+                                <option value="gpt-5-codex">GPT-5 Codex (Coding agentic)</option>
+                            </optgroup>
+                            <optgroup label="GPT-4 (Anteriores)">
+                                <option value="gpt-4-turbo-preview">GPT-4 Turbo Preview</option>
+                                <option value="gpt-4o">GPT-4o</option>
+                                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            </optgroup>
+                            <optgroup label="Modelos de Raciocínio (Sem temperature/tools)">
+                                <option value="o1-preview">O1 Preview (Raciocínio)</option>
+                                <option value="o1-mini">O1 Mini (Raciocínio)</option>
+                                <option value="o3-preview">O3 Preview (Raciocínio)</option>
+                                <option value="o3-mini">O3 Mini (Raciocínio)</option>
+                            </optgroup>
+                        </select>
+                        <small class="form-text text-muted">Modelos o1, o3 e o4 não suportam temperature nem tools</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assistantInstructions" class="form-label">Instruções *</label>
+                        <textarea class="form-control" id="assistantInstructions" name="instructions" rows="8" required></textarea>
+                        <small class="form-text text-muted">Descreva o comportamento e propósito do assistente. Seja específico sobre o que ele deve fazer.</small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3" id="temperatureGroup">
+                                <label for="assistantTemperature" class="form-label">Temperature (0.0 - 2.0)</label>
+                                <input type="number" class="form-control" id="assistantTemperature" name="temperature" 
+                                       min="0" max="2" step="0.1" value="0.7">
+                                <small class="form-text text-muted">Controla a criatividade das respostas. 0.0 = determinístico, 2.0 = muito criativo</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="assistantMaxTokens" class="form-label">Max Tokens</label>
+                                <input type="number" class="form-control" id="assistantMaxTokens" name="max_tokens" 
+                                       min="1" max="8000" value="4000">
+                                <small class="form-text text-muted">Limite máximo de tokens na resposta</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="toolsGroup">
+                        <label class="form-label">Ferramentas</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="toolCodeInterpreter" name="tools" value="code_interpreter">
+                            <label class="form-check-label" for="toolCodeInterpreter">
+                                Code Interpreter (Executar código Python)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="toolFileSearch" name="tools" value="file_search">
+                            <label class="form-check-label" for="toolFileSearch">
+                                File Search (Buscar em arquivos)
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">Modelos o1, o3 e o4 não suportam ferramentas</small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="assistantInteractionMode" class="form-label">Modo de Interação *</label>
+                                <select class="form-select" id="assistantInteractionMode" name="interaction_mode" required>
+                                    <option value="report">Relatório (Report)</option>
+                                    <option value="chat">Chat (Conversa)</option>
+                                </select>
+                                <small class="form-text text-muted">Report: gera relatórios. Chat: mantém conversas.</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="assistantUseCase" class="form-label">Caso de Uso</label>
+                                <input type="text" class="form-control" id="assistantUseCase" name="use_case" 
+                                       placeholder="Ex: Análise de produtos, Suporte ao cliente">
+                                <small class="form-text text-muted">Descreva o caso de uso principal</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="assistantIsActive" name="is_active" checked>
+                            <label class="form-check-label" for="assistantIsActive">
+                                Assistente Ativo
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">Assistentes inativos não podem ser usados</small>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="/superadmin/assistants" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Salvar Assistente
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Carregar dados do assistente se estiver editando
+const assistantId = document.getElementById('assistantId').value;
+
+if (assistantId) {
+    loadAssistantData(assistantId);
+}
+
+// Carregar dados do assistente para edição
+async function loadAssistantData(id) {
+    try {
+        const response = await fetch(`/api/openai/assistants/${id}`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.assistant) {
+                const assistant = result.assistant;
+                
+                document.getElementById('assistantName').value = assistant.name || '';
+                document.getElementById('assistantDescription').value = assistant.description || '';
+                document.getElementById('assistantModel').value = assistant.model || 'gpt-5.1';
+                document.getElementById('assistantInstructions').value = assistant.instructions || '';
+                document.getElementById('assistantTemperature').value = assistant.temperature || '0.7';
+                document.getElementById('assistantMaxTokens').value = assistant.max_tokens || 4000;
+                document.getElementById('assistantInteractionMode').value = assistant.interaction_mode || 'report';
+                document.getElementById('assistantUseCase').value = assistant.use_case || '';
+                document.getElementById('assistantIsActive').checked = assistant.is_active !== false;
+                
+                // Configurar tools
+                const tools = assistant.tools_config || [];
+                document.getElementById('toolCodeInterpreter').checked = tools.some(t => t.type === 'code_interpreter');
+                document.getElementById('toolFileSearch').checked = tools.some(t => t.type === 'file_search');
+                
+                handleModelChange();
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar assistente:', error);
+        showNotification('Erro ao carregar dados do assistente: ' + error.message, 'error');
+    }
+}
+
+// Manipular mudança de modelo
+function handleModelChange() {
+    const model = document.getElementById('assistantModel').value;
+    // Modelos de raciocínio: o1, o3, o4 (não suportam temperature nem tools)
+    const isReasoning = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4');
+    
+    const temperatureGroup = document.getElementById('temperatureGroup');
+    const toolsGroup = document.getElementById('toolsGroup');
+    
+    if (isReasoning) {
+        temperatureGroup.style.display = 'none';
+        toolsGroup.style.display = 'none';
+        // Desmarcar tools
+        document.getElementById('toolCodeInterpreter').checked = false;
+        document.getElementById('toolFileSearch').checked = false;
+    } else {
+        temperatureGroup.style.display = 'block';
+        toolsGroup.style.display = 'block';
+    }
+}
+
+// Salvar assistente
+async function saveAssistant(event) {
+    event.preventDefault();
+    
+    const assistantId = document.getElementById('assistantId').value;
+    const formData = {
+        name: document.getElementById('assistantName').value,
+        description: document.getElementById('assistantDescription').value,
+        model: document.getElementById('assistantModel').value,
+        instructions: document.getElementById('assistantInstructions').value,
+        temperature: parseFloat(document.getElementById('assistantTemperature').value) || null,
+        max_tokens: parseInt(document.getElementById('assistantMaxTokens').value) || 4000,
+        interaction_mode: document.getElementById('assistantInteractionMode').value,
+        use_case: document.getElementById('assistantUseCase').value || null,
+        is_active: document.getElementById('assistantIsActive').checked
+    };
+    
+    // Coletar tools
+    const tools = [];
+    if (document.getElementById('toolCodeInterpreter').checked) {
+        tools.push({ type: 'code_interpreter' });
+    }
+    if (document.getElementById('toolFileSearch').checked) {
+        tools.push({ type: 'file_search' });
+    }
+    formData.tools = tools.length > 0 ? tools : null;
+    
+    try {
+        const url = assistantId 
+            ? `/api/openai/assistants/${assistantId}`
+            : '/api/openai/assistants/';
+        
+        const method = assistantId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(
+                assistantId ? 'Assistente atualizado com sucesso!' : 'Assistente criado com sucesso!',
+                'success'
+            );
+            
+            // Redirecionar após 1 segundo
+            setTimeout(() => {
+                window.location.href = '/superadmin/assistants';
+            }, 1000);
+        } else {
+            showNotification('Erro: ' + (result.error || 'Erro desconhecido'), 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar assistente:', error);
+        showNotification('Erro ao salvar assistente: ' + error.message, 'error');
+    }
+}
+
+// Função para mostrar notificações (usar a função global se existir)
+function showNotification(message, type = 'info') {
+    if (window.showNotification) {
+        window.showNotification(message, type);
+    } else if (window.MLAPI && window.MLAPI.showNotification) {
+        window.MLAPI.showNotification(message, type);
+    } else {
+        alert(message);
+    }
+}
+
+// Inicializar ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    handleModelChange();
+});
+</script>
+{% endblock %}
+

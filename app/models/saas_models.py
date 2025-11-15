@@ -1,7 +1,7 @@
 """
 Modelos SaaS Multi-tenant para API Mercado Livre
 """
-from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, JSON, Index, Numeric, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, JSON, Index, Numeric, UniqueConstraint, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base, engine
@@ -1367,4 +1367,154 @@ class OrdemCompraLink(Base):
         Index('ix_ordem_compra_link_company', 'company_id'),
         Index('ix_ordem_compra_link_ordem', 'ordem_compra_id'),
     )
+
+
+class InteractionMode(enum.Enum):
+    """Modo de interação com o assistente"""
+    CHAT = "chat"
+    REPORT = "report"
+
+
+class UsageStatus(enum.Enum):
+    """Status de uso do assistente"""
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class OpenAIAssistant(Base):
+    """Assistente OpenAI criado no painel superadmin"""
+    __tablename__ = "openai_assistants"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # IDs da OpenAI
+    assistant_id = Column(String(255), nullable=False, unique=True, index=True)
+    model = Column(String(100), nullable=False, default="gpt-5.1")
+    
+    # Configurações
+    instructions = Column(Text, nullable=False)
+    temperature = Column(Numeric(3, 2), nullable=True)  # NULL para modelos o1
+    max_tokens = Column(Integer, default=4000)
+    
+    # Ferramentas
+    tools_config = Column(JSON, nullable=True)
+    
+    # Modo de uso
+    interaction_mode = Column(Enum(InteractionMode), default=InteractionMode.REPORT, nullable=False)
+    use_case = Column(String(100), nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    
+    # Métricas
+    total_runs = Column(Integer, default=0)
+    total_tokens_used = Column(BigInteger, default=0)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relacionamentos
+    threads = relationship("OpenAIAssistantThread", back_populates="assistant", cascade="all, delete-orphan")
+    usage_records = relationship("OpenAIAssistantUsage", back_populates="assistant", cascade="all, delete-orphan")
+    
+    def is_reasoning_model(self) -> bool:
+        """Verifica se é um modelo de raciocínio (o1) que não usa temperature"""
+        return self.model.startswith("o1") or self.model.startswith("o3") or self.model.startswith("o4")
+    
+    # Índices (criados via script SQL, não precisam ser recriados aqui)
+    # __table_args__ = (
+    #     Index('ix_openai_assistants_assistant_id', 'assistant_id'),
+    #     Index('ix_openai_assistants_is_active', 'is_active'),
+    #     Index('ix_openai_assistants_model', 'model'),
+    # )
+
+
+class OpenAIAssistantThread(Base):
+    """Threads de conversa para modo chat"""
+    __tablename__ = "openai_assistant_threads"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    assistant_id = Column(Integer, ForeignKey("openai_assistants.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    
+    # ID da thread na OpenAI
+    thread_id = Column(String(255), nullable=False, unique=True, index=True)
+    
+    # Contexto da conversa
+    context_data = Column(JSON, nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_message_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relacionamentos
+    assistant = relationship("OpenAIAssistant", back_populates="threads")
+    company = relationship("Company")
+    user = relationship("User")
+    
+    # Índices (criados via script SQL, não precisam ser recriados aqui)
+    # __table_args__ = (
+    #     Index('ix_assistant_thread_company', 'company_id'),
+    #     Index('ix_assistant_thread_assistant', 'assistant_id'),
+    #     Index('ix_assistant_thread_active', 'is_active'),
+    # )
+
+
+class OpenAIAssistantUsage(Base):
+    """Log de uso de assistentes OpenAI - monitoramento de tokens por empresa"""
+    __tablename__ = "openai_assistant_usage"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    assistant_id = Column(Integer, ForeignKey("openai_assistants.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    
+    # Thread (para modo chat)
+    thread_id = Column(String(255), nullable=True, index=True)
+    
+    # Modo de uso
+    interaction_mode = Column(String(50), nullable=False)
+    use_case = Column(String(100), nullable=True)
+    
+    # Tokens utilizados
+    prompt_tokens = Column(Integer, default=0, nullable=False)
+    completion_tokens = Column(Integer, default=0, nullable=False)
+    total_tokens = Column(Integer, default=0, nullable=False)
+    
+    # Status da execução
+    status = Column(Enum(UsageStatus), nullable=False)
+    error_message = Column(Text, nullable=True)
+    
+    # Dados da requisição (opcional, para debug)
+    request_data_size = Column(Integer, nullable=True)
+    response_data_size = Column(Integer, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    duration_seconds = Column(Float, nullable=True)
+    
+    # Relacionamentos
+    assistant = relationship("OpenAIAssistant", back_populates="usage_records")
+    company = relationship("Company")
+    user = relationship("User")
+    
+    # Índices (criados via script SQL, não precisam ser recriados aqui)
+    # __table_args__ = (
+    #     Index('ix_assistant_usage_company', 'company_id'),
+    #     Index('ix_assistant_usage_assistant', 'assistant_id'),
+    #     Index('ix_assistant_usage_created', 'created_at'),
+    #     Index('ix_assistant_usage_company_date', 'company_id', 'created_at'),
+    # )
 

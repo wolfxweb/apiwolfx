@@ -1,0 +1,428 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Uso de Tokens - SuperAdmin CELX{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-graph-up"></i> Monitoramento de Uso de Tokens</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadUsageData()">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <label for="companyFilter" class="form-label">Empresa</label>
+        <select class="form-select" id="companyFilter" onchange="loadUsageData()">
+            <option value="">Todas as Empresas</option>
+            <!-- Preenchido via JavaScript -->
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label for="daysFilter" class="form-label">Período</label>
+        <select class="form-select" id="daysFilter" onchange="loadUsageData()">
+            <option value="7">Últimos 7 dias</option>
+            <option value="15">Últimos 15 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
+            <option value="60">Últimos 60 dias</option>
+            <option value="90">Últimos 90 dias</option>
+        </select>
+    </div>
+</div>
+
+<!-- Estatísticas Gerais -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Tokens de Entrada</h6>
+                        <h4 class="mb-0" id="totalPromptTokens">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-arrow-down-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Tokens de Saída</h6>
+                        <h4 class="mb-0" id="totalCompletionTokens">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-arrow-up-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total de Tokens</h6>
+                        <h4 class="mb-0" id="totalTokens">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-cpu fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Total de Requisições</h6>
+                        <h4 class="mb-0" id="totalRequests">0</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-list-check fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico de Uso Diário -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Uso Diário de Tokens</h5>
+    </div>
+    <div class="card-body">
+        <canvas id="dailyUsageChart" height="80"></canvas>
+    </div>
+</div>
+
+<!-- Uso por Assistente -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-robot"></i> Uso por Assistente</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="usageByAssistantTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Assistente</th>
+                        <th>Tokens de Entrada</th>
+                        <th>Tokens de Saída</th>
+                        <th>Total de Tokens</th>
+                        <th>Requisições</th>
+                        <th>Média por Requisição</th>
+                    </tr>
+                </thead>
+                <tbody id="usageByAssistantTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Uso por Empresa -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-building"></i> Uso por Empresa</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="usageByCompanyTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Empresa</th>
+                        <th>Tokens de Entrada</th>
+                        <th>Tokens de Saída</th>
+                        <th>Total de Tokens</th>
+                        <th>Requisições</th>
+                        <th>Média por Requisição</th>
+                    </tr>
+                </thead>
+                <tbody id="usageByCompanyTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+let dailyUsageChart = null;
+let companies = [];
+
+// Carregar dados ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanies();
+    loadUsageData();
+});
+
+// Carregar lista de empresas
+async function loadCompanies() {
+    try {
+        // Buscar empresas do sistema (ajustar endpoint conforme necessário)
+        const response = await fetch('/superadmin/companies', {
+            credentials: 'include'
+        });
+        
+        // Por enquanto, vamos usar uma lista vazia
+        // Em produção, buscar empresas reais
+        companies = [];
+        updateCompanyFilter();
+    } catch (error) {
+        console.error('Erro ao carregar empresas:', error);
+        companies = [];
+        updateCompanyFilter();
+    }
+}
+
+// Atualizar filtro de empresas
+function updateCompanyFilter() {
+    const select = document.getElementById('companyFilter');
+    const currentValue = select.value;
+    
+    select.innerHTML = '<option value="">Todas as Empresas</option>';
+    
+    companies.forEach(company => {
+        const option = document.createElement('option');
+        option.value = company.id;
+        option.textContent = company.name;
+        select.appendChild(option);
+    });
+    
+    if (currentValue) {
+        select.value = currentValue;
+    }
+}
+
+// Carregar dados de uso
+async function loadUsageData() {
+    const companyId = document.getElementById('companyFilter').value || null;
+    const days = parseInt(document.getElementById('daysFilter').value);
+    
+    try {
+        // Carregar estatísticas gerais
+        const statsResponse = await fetch(
+            `/api/openai/assistants/usage/stats?days=${days}${companyId ? `&company_id=${companyId}` : ''}`,
+            { credentials: 'include' }
+        );
+        
+        if (statsResponse.ok) {
+            const statsData = await statsResponse.json();
+            if (statsData.success) {
+                updateStats(statsData.stats);
+            }
+        }
+        
+        // Carregar uso por assistente
+        const byAssistantResponse = await fetch(
+            `/api/openai/assistants/usage/by-assistant?days=${days}${companyId ? `&company_id=${companyId}` : ''}`,
+            { credentials: 'include' }
+        );
+        
+        if (byAssistantResponse.ok) {
+            const byAssistantData = await byAssistantResponse.json();
+            if (byAssistantData.success) {
+                renderUsageByAssistant(byAssistantData.usage);
+            }
+        }
+        
+        // Carregar uso diário
+        const dailyResponse = await fetch(
+            `/api/openai/assistants/usage/daily?days=${days}${companyId ? `&company_id=${companyId}` : ''}`,
+            { credentials: 'include' }
+        );
+        
+        if (dailyResponse.ok) {
+            const dailyData = await dailyResponse.json();
+            if (dailyData.success) {
+                renderDailyChart(dailyData.usage);
+            }
+        }
+        
+        // Carregar uso por empresa (precisa implementar endpoint ou calcular aqui)
+        // Por enquanto, vamos deixar vazio
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        showNotification('Erro ao carregar dados de uso: ' + error.message, 'error');
+    }
+}
+
+// Atualizar estatísticas gerais
+function updateStats(stats) {
+    document.getElementById('totalPromptTokens').textContent = formatNumber(stats.total_prompt_tokens || 0);
+    document.getElementById('totalCompletionTokens').textContent = formatNumber(stats.total_completion_tokens || 0);
+    document.getElementById('totalTokens').textContent = formatNumber(stats.total_tokens || 0);
+    document.getElementById('totalRequests').textContent = formatNumber(stats.total_requests || 0);
+}
+
+// Renderizar uso por assistente
+function renderUsageByAssistant(usage) {
+    const tbody = document.getElementById('usageByAssistantTableBody');
+    
+    if (usage.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Nenhum dado encontrado</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = usage.map(item => {
+        const avgTokens = item.total_requests > 0 
+            ? Math.round(item.total_tokens / item.total_requests)
+            : 0;
+        
+        return `
+            <tr>
+                <td><strong>${escapeHtml(item.assistant_name)}</strong></td>
+                <td>${formatNumber(item.total_prompt_tokens)}</td>
+                <td>${formatNumber(item.total_completion_tokens)}</td>
+                <td><strong>${formatNumber(item.total_tokens)}</strong></td>
+                <td>${formatNumber(item.total_requests)}</td>
+                <td>${formatNumber(avgTokens)}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Renderizar gráfico de uso diário
+function renderDailyChart(dailyUsage) {
+    const ctx = document.getElementById('dailyUsageChart').getContext('2d');
+    
+    // Ordenar por data
+    dailyUsage.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const labels = dailyUsage.map(item => {
+        const date = new Date(item.date);
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    });
+    
+    const promptTokens = dailyUsage.map(item => item.total_prompt_tokens);
+    const completionTokens = dailyUsage.map(item => item.total_completion_tokens);
+    const totalTokens = dailyUsage.map(item => item.total_tokens);
+    
+    if (dailyUsageChart) {
+        dailyUsageChart.destroy();
+    }
+    
+    dailyUsageChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Tokens de Entrada',
+                    data: promptTokens,
+                    borderColor: 'rgb(13, 110, 253)',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Tokens de Saída',
+                    data: completionTokens,
+                    borderColor: 'rgb(25, 135, 84)',
+                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Total de Tokens',
+                    data: totalTokens,
+                    borderColor: 'rgb(13, 202, 240)',
+                    backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + formatNumber(context.parsed.y);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return formatNumber(value);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Funções auxiliares
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatNumber(num) {
+    return new Intl.NumberFormat('pt-BR').format(num);
+}
+
+function showNotification(message, type) {
+    if (window.MLAPI && window.MLAPI.showNotification) {
+        window.MLAPI.showNotification(message, type);
+    } else {
+        alert(message);
+    }
+}
+</script>
+
+<style>
+.stats-card {
+    border-radius: 0.5rem;
+    transition: transform 0.2s;
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+}
+
+#dailyUsageChart {
+    max-height: 400px;
+}
+</style>
+{% endblock %}
+
