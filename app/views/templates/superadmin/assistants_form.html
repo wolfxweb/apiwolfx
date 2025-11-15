@@ -67,7 +67,13 @@
                             </div>
                             
                             <div class="mb-3">
-                                <label for="assistantModel" class="form-label">Modelo *</label>
+                                <label for="assistantModel" class="form-label">
+                                    Modelo *
+                                    <i class="bi bi-info-circle text-info ms-1" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top" 
+                                       title="Modelos o1, o3 e o4 não suportam temperature nem tools"></i>
+                                </label>
                                 <select class="form-select" id="assistantModel" name="model" required onchange="handleModelChange()">
                                     <optgroup label="GPT-5 (Mais Recente)">
                                         <option value="gpt-5.1">GPT-5.1 (Melhor para coding e tarefas agentic)</option>
@@ -93,7 +99,6 @@
                                         <option value="o3-mini">O3 Mini (Raciocínio)</option>
                                     </optgroup>
                                 </select>
-                                <small class="form-text text-muted">Modelos o1, o3 e o4 não suportam temperature nem tools</small>
                             </div>
                     
                             <div class="row">
@@ -110,35 +115,50 @@
                                 <!-- Parâmetros para GPT-5 (reasoning_effort e verbosity) -->
                                 <div class="col-md-4" id="gpt5ParamsGroup" style="display: none;">
                                     <div class="mb-3">
-                                        <label for="assistantReasoningEffort" class="form-label">Reasoning Effort</label>
+                                        <label for="assistantReasoningEffort" class="form-label">
+                                            Reasoning Effort
+                                            <i class="bi bi-info-circle text-info ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top" 
+                                               title="Controla a profundidade do raciocínio antes de responder. Minimal: rápido e superficial. Low: básico. Medium: equilíbrio (padrão). High: raciocínio profundo e detalhado."></i>
+                                        </label>
                                         <select class="form-select" id="assistantReasoningEffort" name="reasoning_effort">
                                             <option value="minimal">Minimal (Rápido, raciocínio superficial)</option>
                                             <option value="low">Low (Raciocínio básico)</option>
                                             <option value="medium" selected>Medium (Equilíbrio - Padrão)</option>
                                             <option value="high">High (Raciocínio profundo)</option>
                                         </select>
-                                        <small class="form-text text-muted">Controla a profundidade do raciocínio antes de responder</small>
                                     </div>
                                 </div>
                                 
                                 <div class="col-md-4" id="verbosityGroup" style="display: none;">
                                     <div class="mb-3">
-                                        <label for="assistantVerbosity" class="form-label">Verbosity</label>
+                                        <label for="assistantVerbosity" class="form-label">
+                                            Verbosity
+                                            <i class="bi bi-info-circle text-info ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top" 
+                                               title="Controla o nível de detalhamento das respostas. Low: conciso e direto. Medium: equilíbrio (padrão). High: detalhado e elaborado com explicações extensas."></i>
+                                        </label>
                                         <select class="form-select" id="assistantVerbosity" name="verbosity">
                                             <option value="low">Low (Conciso e direto)</option>
                                             <option value="medium" selected>Medium (Equilíbrio - Padrão)</option>
                                             <option value="high">High (Detalhado e elaborado)</option>
                                         </select>
-                                        <small class="form-text text-muted">Controla o nível de detalhamento das respostas</small>
                                     </div>
                                 </div>
                                 
                                 <div class="col-md-4">
                                     <div class="mb-3">
-                                        <label for="assistantMaxTokens" class="form-label">Max Tokens</label>
+                                        <label for="assistantMaxTokens" class="form-label">
+                                            Max Tokens
+                                            <i class="bi bi-info-circle text-info ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top" 
+                                               title="Limite máximo de tokens na resposta. Tokens são unidades de texto (palavras, pontuação, espaços). Valores maiores permitem respostas mais longas, mas consomem mais tokens e podem ser mais lentos."></i>
+                                        </label>
                                         <input type="number" class="form-control" id="assistantMaxTokens" name="max_tokens" 
                                                min="1" max="8000" value="4000">
-                                        <small class="form-text text-muted">Limite máximo de tokens na resposta</small>
                                     </div>
                                 </div>
                             </div>
@@ -146,12 +166,17 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="assistantInteractionMode" class="form-label">Modo de Interação *</label>
+                                        <label for="assistantInteractionMode" class="form-label">
+                                            Modo de Interação *
+                                            <i class="bi bi-info-circle text-info ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top" 
+                                               title="Report: gera relatórios únicos e completos a partir de uma solicitação. Chat: mantém conversas contínuas com histórico de mensagens, permitindo diálogo interativo."></i>
+                                        </label>
                                         <select class="form-select" id="assistantInteractionMode" name="interaction_mode" required>
                                             <option value="report">Relatório (Report)</option>
                                             <option value="chat">Chat (Conversa)</option>
                                         </select>
-                                        <small class="form-text text-muted">Report: gera relatórios. Chat: mantém conversas.</small>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -160,31 +185,40 @@
                                             <input class="form-check-input" type="checkbox" id="assistantMemoryEnabled" name="memory_enabled" checked>
                                             <label class="form-check-label" for="assistantMemoryEnabled">
                                                 <strong>Memória Persistente</strong>
+                                                <i class="bi bi-info-circle text-info ms-1" 
+                                                   data-bs-toggle="tooltip" 
+                                                   data-bs-placement="top" 
+                                                   title="Habilita memória entre diferentes threads (conversas). Quando ativado, o agente lembrará informações compartilhadas entre todas as conversas, permitindo contexto persistente."></i>
                                             </label>
                                         </div>
-                                        <small class="form-text text-muted">
-                                            Habilita memória entre diferentes threads. O agente lembrará informações compartilhadas entre conversas.
-                                        </small>
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="mb-3">
-                                <label for="assistantMemoryData" class="form-label">Memórias Compartilhadas (JSON)</label>
+                                <label for="assistantMemoryData" class="form-label">
+                                    Memórias Compartilhadas (JSON)
+                                    <i class="bi bi-info-circle text-info ms-1" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top" 
+                                       title="Informações em formato JSON que serão compartilhadas entre todas as threads (conversas) deste agente. Use para definir preferências do usuário, informações da empresa, regras de negócio, etc. Exemplo: {'user_preferences': {'language': 'pt-BR'}, 'company_info': {'name': 'Minha Empresa'}}"></i>
+                                </label>
                                 <textarea class="form-control" id="assistantMemoryData" name="memory_data" rows="4" 
                                           placeholder='{"user_preferences": {"language": "pt-BR"}, "company_info": {"name": "Minha Empresa"}}'></textarea>
-                                <small class="form-text text-muted">
-                                    Informações que serão compartilhadas entre todas as threads deste agente (formato JSON)
-                                </small>
                             </div>
                             
                             <div class="row">
                                 <div class="col-md-8">
                                     <div class="mb-3">
-                                        <label for="assistantUseCase" class="form-label">Caso de Uso</label>
+                                        <label for="assistantUseCase" class="form-label">
+                                            Caso de Uso
+                                            <i class="bi bi-info-circle text-info ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top" 
+                                               title="Descreva o caso de uso principal deste agente. Exemplos: Análise de produtos, Suporte ao cliente, Geração de relatórios, Análise de dados, etc. Isso ajuda a identificar o propósito do agente."></i>
+                                        </label>
                                         <input type="text" class="form-control" id="assistantUseCase" name="use_case" 
                                                placeholder="Ex: Análise de produtos, Suporte ao cliente">
-                                        <small class="form-text text-muted">Descreva o caso de uso principal</small>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -194,9 +228,12 @@
                                             <input class="form-check-input" type="checkbox" id="assistantIsActive" name="is_active" checked>
                                             <label class="form-check-label" for="assistantIsActive">
                                                 Agente Ativo
+                                                <i class="bi bi-info-circle text-info ms-1" 
+                                                   data-bs-toggle="tooltip" 
+                                                   data-bs-placement="top" 
+                                                   title="Agentes ativos podem ser usados pelos usuários. Agentes inativos ficam desabilitados e não aparecem nas opções de uso, mas permanecem no sistema para referência ou reativação futura."></i>
                                             </label>
                                         </div>
-                                        <small class="form-text text-muted">Agentes inativos não podem ser usados</small>
                                     </div>
                                 </div>
                             </div>
@@ -771,6 +808,12 @@ function showNotification(message, type = 'info') {
 document.addEventListener('DOMContentLoaded', function() {
     handleModelChange();
     updateToolsDisplay();
+    
+    // Inicializar tooltips do Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 });
 
 // ========== FUNÇÕES DE GERENCIAMENTO DE FERRAMENTAS ==========

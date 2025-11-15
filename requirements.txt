@@ -30,3 +30,6 @@ reportlab==4.0.7
 zebrafy==1.1.0
 # OpenAI SDK para integração via MCP
 openai==1.12.0
+# Processamento de arquivos
+PyPDF2==3.0.1
+pdfplumber==0.10.3

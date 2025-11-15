@@ -3,13 +3,14 @@ Rotas para gerenciar assistentes OpenAI
 """
 import logging
 from typing import Optional, List, Dict
-from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query, Body, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.config.database import get_db
 from app.controllers.openai_assistant_controller import OpenAIAssistantController
 from app.controllers.auth_controller import AuthController
+from app.services.file_processor_service import FileProcessorService
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,7 @@ class UseAssistantReportRequest(BaseModel):
     prompt: str
     context_data: Optional[Dict] = None
     use_case: Optional[str] = None
+    files_data: Optional[List[Dict]] = None  # Dados processados dos arquivos
 
 
 class UseAssistantChatRequest(BaseModel):
@@ -136,6 +138,7 @@ class UseAssistantChatRequest(BaseModel):
     thread_id: Optional[str] = None
     context_data: Optional[Dict] = None
     use_case: Optional[str] = None
+    files_data: Optional[List[Dict]] = None  # Dados processados dos arquivos
 
 
 # Rotas de gerenciamento (apenas superadmin)
@@ -264,13 +267,20 @@ async def use_assistant_report(
     if not company_id:
         raise HTTPException(status_code=400, detail="Company ID não encontrado")
     
+    # Processar arquivos se fornecidos
+    context_data = request_data.context_data or {}
+    if request_data.files_data:
+        files_context = FileProcessorService.format_for_context(request_data.files_data)
+        if files_context:
+            context_data.update(files_context)
+    
     controller = OpenAIAssistantController(db)
     result = controller.use_assistant_report(
         assistant_id=request_data.assistant_id,
         company_id=company_id,
         user_id=user.get("id"),
         prompt=request_data.prompt,
-        context_data=request_data.context_data,
+        context_data=context_data,
         use_case=request_data.use_case
     )
     
@@ -291,6 +301,13 @@ async def use_assistant_chat(
     if not company_id:
         raise HTTPException(status_code=400, detail="Company ID não encontrado")
     
+    # Processar arquivos se fornecidos
+    context_data = request_data.context_data or {}
+    if request_data.files_data:
+        files_context = FileProcessorService.format_for_context(request_data.files_data)
+        if files_context:
+            context_data.update(files_context)
+    
     controller = OpenAIAssistantController(db)
     result = controller.use_assistant_chat(
         assistant_id=request_data.assistant_id,
@@ -298,7 +315,7 @@ async def use_assistant_chat(
         user_id=user.get("id"),
         message=request_data.message,
         thread_id=request_data.thread_id,
-        context_data=request_data.context_data,
+        context_data=context_data,
         use_case=request_data.use_case
     )
     
@@ -306,6 +323,31 @@ async def use_assistant_chat(
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao usar agente"))
     
     return result
+
+
+@openai_assistant_router.post("/process-files")
+async def process_files(
+    files: List[UploadFile] = File(...),
+    user: dict = Depends(get_current_user),
+):
+    """Processa arquivos enviados e retorna conteúdo estruturado"""
+    if not files:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo enviado")
+    
+    processor = FileProcessorService()
+    results = []
+    
+    for file in files:
+        result = await processor.process_file(file)
+        results.append({
+            "filename": file.filename,
+            **result
+        })
+    
+    return {
+        "success": True,
+        "files": results
+    }
 
 
 @openai_assistant_router.get("/chat/{thread_id}/history")
