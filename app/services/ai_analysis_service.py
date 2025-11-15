@@ -1,13 +1,13 @@
 """
-Serviço para análise de produtos com ChatGPT
+Serviço para análise de produtos com ChatGPT usando OpenAI SDK via MCP
 """
 import os
 import logging
-import requests
 import json
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from openai import OpenAI
 from app.models.saas_models import MLProduct, MLOrder
 from app.services.ml_product_ads_service import MLProductAdsService
 
@@ -118,7 +118,14 @@ class AIAnalysisService:
     def __init__(self, db: Session):
         self.db = db
         self.api_key = os.getenv("OPENAI_API_KEY", "")
-        self.api_url = "https://api.openai.com/v1/chat/completions"
+        
+        # Inicializar cliente OpenAI usando SDK oficial
+        if not self.api_key:
+            logger.warning("⚠️ OPENAI_API_KEY não configurada. Funcionalidades de IA estarão desabilitadas.")
+            self.client = None
+        else:
+            self.client = OpenAI(api_key=self.api_key)
+            logger.info("✅ Cliente OpenAI inicializado com sucesso")
     
     def analyze_product(self, product_id: int, company_id: int, catalog_data: Optional[List] = None, 
                        pricing_analysis: Optional[Dict] = None) -> Dict:
@@ -1008,88 +1015,86 @@ IMPORTANTE:
         return analyzed_pictures
     
     def _call_chatgpt(self, prompt: str) -> Dict:
-        """Chama a API do ChatGPT"""
+        """Chama a API do ChatGPT usando OpenAI SDK oficial via MCP"""
         try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            payload = {
-                "model": "gpt-4.1-nano",  # Modelo que funcionava antes
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": SYSTEM_PROMPT
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "temperature": 0.7,
-                "max_tokens": 4000,  # Parâmetro padrão para gpt-4.1-nano
-                "stream": False  # Desabilitar streaming para evitar timeouts
-            }
-            
-            logger.info("Chamando API ChatGPT com gpt-4.1-nano...")
-            logger.info(f"Payload keys: {list(payload.keys())}")
-            logger.info(f"Max tokens: {payload.get('max_tokens')}")
-            logger.info(f"Temperature: {payload.get('temperature')}")
-            
-            response = requests.post(
-                self.api_url,
-                headers=headers,
-                json=payload,
-                timeout=180  # Aumentado para 3 minutos devido ao volume de dados
-            )
-            
-            logger.info(f"Response status: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"Response JSON keys: {list(result.keys())}")
-                
-                analysis = result['choices'][0]['message']['content']
-                usage = result.get('usage', {})
-                
-                prompt_tokens = usage.get('prompt_tokens', 0)
-                completion_tokens = usage.get('completion_tokens', 0)
-                total_tokens = usage.get('total_tokens', 0)
-                
-                logger.info(f"✅ Análise concluída. Tokens: {prompt_tokens} input + {completion_tokens} output = {total_tokens} total")
-                logger.info(f"📝 Tamanho da análise: {len(analysis)} caracteres")
-                logger.info(f"Preview: {analysis[:200]}...")
-                
-                return {
-                    "success": True,
-                    "analysis": analysis,
-                    "model_used": payload.get("model", "unknown"),
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "tokens_used": total_tokens
-                }
-            else:
-                error_detail = response.text
-                try:
-                    error_json = response.json()
-                    error_message = error_json.get('error', {}).get('message', error_detail)
-                except:
-                    error_message = error_detail
-                
-                logger.error(f"Erro na API ChatGPT: {response.status_code} - {error_detail}")
+            if not self.client:
                 return {
                     "success": False,
-                    "error": f"Erro na API ChatGPT ({response.status_code}): {error_message}"
+                    "error": "OpenAI API key não configurada. Configure OPENAI_API_KEY nas variáveis de ambiente."
                 }
+            
+            # Usar modelo mais recente disponível
+            # gpt-4-turbo-preview ou gpt-4-0125-preview são boas opções
+            model = "gpt-4-turbo-preview"  # Modelo mais recente e eficiente
+            
+            logger.info(f"🤖 Chamando OpenAI API com modelo {model}...")
+            logger.info(f"📝 Tamanho do prompt: {len(prompt)} caracteres")
+            
+            # Criar mensagens para o chat
+            messages = [
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            
+            # Chamar API usando SDK oficial
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=180.0  # 3 minutos de timeout
+            )
+            
+            # Extrair resposta
+            analysis = response.choices[0].message.content
+            usage = response.usage
+            
+            prompt_tokens = usage.prompt_tokens if usage else 0
+            completion_tokens = usage.completion_tokens if usage else 0
+            total_tokens = usage.total_tokens if usage else 0
+            
+            logger.info(f"✅ Análise concluída. Tokens: {prompt_tokens} input + {completion_tokens} output = {total_tokens} total")
+            logger.info(f"📝 Tamanho da análise: {len(analysis)} caracteres")
+            logger.info(f"Preview: {analysis[:200]}...")
+            
+            return {
+                "success": True,
+                "analysis": analysis,
+                "model_used": model,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "tokens_used": total_tokens
+            }
                 
-        except requests.exceptions.Timeout as e:
-            logger.error(f"Timeout ao chamar ChatGPT (esperou 180s): {e}", exc_info=True)
-            return {"success": False, "error": "A análise está demorando mais que o esperado. Tente novamente em alguns instantes ou reduza a quantidade de dados."}
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Erro de conexão ao chamar ChatGPT: {e}", exc_info=True)
-            return {"success": False, "error": f"Erro de comunicação com a API: {str(e)}"}
         except Exception as e:
-            logger.error(f"Erro inesperado ao chamar ChatGPT: {e}", exc_info=True)
-            return {"success": False, "error": f"Erro inesperado: {str(e)}"}
+            error_message = str(e)
+            logger.error(f"❌ Erro ao chamar OpenAI API: {error_message}", exc_info=True)
+            
+            # Tratar erros específicos da API
+            if "timeout" in error_message.lower() or "timed out" in error_message.lower():
+                return {
+                    "success": False,
+                    "error": "A análise está demorando mais que o esperado. Tente novamente em alguns instantes ou reduza a quantidade de dados."
+                }
+            elif "rate limit" in error_message.lower() or "429" in error_message:
+                return {
+                    "success": False,
+                    "error": "Limite de requisições excedido. Aguarde alguns instantes e tente novamente."
+                }
+            elif "invalid_api_key" in error_message.lower() or "401" in error_message:
+                return {
+                    "success": False,
+                    "error": "Chave de API inválida. Verifique a configuração de OPENAI_API_KEY."
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Erro ao processar análise: {error_message}"
+                }
 

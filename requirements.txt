@@ -28,3 +28,5 @@ Pillow==10.1.0
 reportlab==4.0.7
 # Conversão ZPL local
 zebrafy==1.1.0
+# OpenAI SDK para integração via MCP
+openai==1.12.0
