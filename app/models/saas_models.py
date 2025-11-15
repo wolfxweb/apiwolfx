@@ -1411,6 +1411,9 @@ class OpenAIAssistant(Base):
     memory_enabled = Column(Boolean, default=True, nullable=False)  # Habilita memória entre threads
     memory_data = Column(JSON, nullable=True)  # Memórias compartilhadas (ex: preferências do usuário/empresa)
     
+    # Prompt inicial com template
+    initial_prompt = Column(Text, nullable=True)  # Template de prompt inicial com tag [[USUARIO]]
+    
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     

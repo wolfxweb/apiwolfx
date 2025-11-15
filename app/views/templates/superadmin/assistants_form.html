@@ -3,6 +3,9 @@
 {% block title %}{% if assistant_id %}Editar Agente{% else %}Novo Agente{% endif %} - SuperAdmin CELX{% endblock %}
 
 {% block content %}
+<!-- Quill Editor CSS -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">
         <i class="bi bi-robot"></i> 
@@ -18,180 +21,378 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-8 mx-auto">
+    <div class="col-lg-10 mx-auto">
         <div class="card">
             <div class="card-body">
                 <form id="assistantForm" onsubmit="saveAssistant(event)">
                     <input type="hidden" id="assistantId" name="assistant_id" value="{{ assistant_id or '' }}">
                     
-                    <div class="mb-3">
-                        <label for="assistantName" class="form-label">Nome do Agente *</label>
-                        <input type="text" class="form-control" id="assistantName" name="name" required>
-                    </div>
+                    <!-- Navegação por Abas -->
+                    <ul class="nav nav-tabs mb-4" id="assistantTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="true">
+                                <i class="bi bi-gear"></i> Configurações
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="instructions-tab" data-bs-toggle="tab" data-bs-target="#instructions" type="button" role="tab" aria-controls="instructions" aria-selected="false">
+                                <i class="bi bi-file-text"></i> Instruções
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="prompt-tab" data-bs-toggle="tab" data-bs-target="#prompt" type="button" role="tab" aria-controls="prompt" aria-selected="false">
+                                <i class="bi bi-chat-dots"></i> Prompt
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tools-tab" data-bs-toggle="tab" data-bs-target="#tools" type="button" role="tab" aria-controls="tools" aria-selected="false">
+                                <i class="bi bi-tools"></i> Ferramentas
+                            </button>
+                        </li>
+                    </ul>
                     
-                    <div class="mb-3">
-                        <label for="assistantDescription" class="form-label">Descrição</label>
-                        <textarea class="form-control" id="assistantDescription" name="description" rows="2"></textarea>
-                        <small class="form-text text-muted">Descrição breve do propósito do agente</small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="assistantModel" class="form-label">Modelo *</label>
-                        <select class="form-select" id="assistantModel" name="model" required onchange="handleModelChange()">
-                            <optgroup label="GPT-5 (Mais Recente)">
-                                <option value="gpt-5.1">GPT-5.1 (Melhor para coding e tarefas agentic)</option>
-                                <option value="gpt-5">GPT-5 (Raciocínio inteligente)</option>
-                                <option value="gpt-5-pro">GPT-5 Pro (Mais inteligente e preciso)</option>
-                                <option value="gpt-5-mini">GPT-5 Mini (Rápido e econômico)</option>
-                                <option value="gpt-5-nano">GPT-5 Nano (Mais rápido e econômico)</option>
-                            </optgroup>
-                            <optgroup label="GPT-5 Codex (Otimizado para Coding)">
-                                <option value="gpt-5.1-codex">GPT-5.1 Codex (Coding agentic)</option>
-                                <option value="gpt-5-codex">GPT-5 Codex (Coding agentic)</option>
-                            </optgroup>
-                            <optgroup label="GPT-4 (Anteriores)">
-                                <option value="gpt-4-turbo-preview">GPT-4 Turbo Preview</option>
-                                <option value="gpt-4o">GPT-4o</option>
-                                <option value="gpt-4o-mini">GPT-4o Mini</option>
-                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                            </optgroup>
-                            <optgroup label="Modelos de Raciocínio (Sem temperature/tools)">
-                                <option value="o1-preview">O1 Preview (Raciocínio)</option>
-                                <option value="o1-mini">O1 Mini (Raciocínio)</option>
-                                <option value="o3-preview">O3 Preview (Raciocínio)</option>
-                                <option value="o3-mini">O3 Mini (Raciocínio)</option>
-                            </optgroup>
-                        </select>
-                        <small class="form-text text-muted">Modelos o1, o3 e o4 não suportam temperature nem tools</small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="assistantInstructions" class="form-label">Instruções *</label>
-                        <textarea class="form-control" id="assistantInstructions" name="instructions" rows="8" required></textarea>
-                        <small class="form-text text-muted">Descreva o comportamento e propósito do agente. Seja específico sobre o que ele deve fazer.</small>
-                    </div>
-                    
-                    <div class="row">
-                        <!-- Parâmetros para GPT-4 e anteriores (temperature) -->
-                        <div class="col-md-6" id="temperatureGroup">
+                    <!-- Conteúdo das Abas -->
+                    <div class="tab-content" id="assistantTabsContent">
+                        <!-- Aba Configurações -->
+                        <div class="tab-pane fade show active" id="config" role="tabpanel" aria-labelledby="config-tab">
                             <div class="mb-3">
-                                <label for="assistantTemperature" class="form-label">Temperature (0.0 - 2.0)</label>
-                                <input type="number" class="form-control" id="assistantTemperature" name="temperature" 
-                                       min="0" max="2" step="0.1" value="0.7">
-                                <small class="form-text text-muted">Controla a criatividade das respostas. 0.0 = determinístico, 2.0 = muito criativo</small>
+                                <label for="assistantName" class="form-label">Nome do Agente *</label>
+                                <input type="text" class="form-control" id="assistantName" name="name" required>
                             </div>
-                        </div>
-                        
-                        <!-- Parâmetros para GPT-5 (reasoning_effort e verbosity) -->
-                        <div class="col-md-6" id="gpt5ParamsGroup" style="display: none;">
+                            
                             <div class="mb-3">
-                                <label for="assistantReasoningEffort" class="form-label">Reasoning Effort</label>
-                                <select class="form-select" id="assistantReasoningEffort" name="reasoning_effort">
-                                    <option value="minimal">Minimal (Rápido, raciocínio superficial)</option>
-                                    <option value="low">Low (Raciocínio básico)</option>
-                                    <option value="medium" selected>Medium (Equilíbrio - Padrão)</option>
-                                    <option value="high">High (Raciocínio profundo)</option>
+                                <label for="assistantDescription" class="form-label">Descrição</label>
+                                <textarea class="form-control" id="assistantDescription" name="description" rows="2"></textarea>
+                                <small class="form-text text-muted">Descrição breve do propósito do agente</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="assistantModel" class="form-label">Modelo *</label>
+                                <select class="form-select" id="assistantModel" name="model" required onchange="handleModelChange()">
+                                    <optgroup label="GPT-5 (Mais Recente)">
+                                        <option value="gpt-5.1">GPT-5.1 (Melhor para coding e tarefas agentic)</option>
+                                        <option value="gpt-5">GPT-5 (Raciocínio inteligente)</option>
+                                        <option value="gpt-5-pro">GPT-5 Pro (Mais inteligente e preciso)</option>
+                                        <option value="gpt-5-mini">GPT-5 Mini (Rápido e econômico)</option>
+                                        <option value="gpt-5-nano">GPT-5 Nano (Mais rápido e econômico)</option>
+                                    </optgroup>
+                                    <optgroup label="GPT-5 Codex (Otimizado para Coding)">
+                                        <option value="gpt-5.1-codex">GPT-5.1 Codex (Coding agentic)</option>
+                                        <option value="gpt-5-codex">GPT-5 Codex (Coding agentic)</option>
+                                    </optgroup>
+                                    <optgroup label="GPT-4 (Anteriores)">
+                                        <option value="gpt-4-turbo-preview">GPT-4 Turbo Preview</option>
+                                        <option value="gpt-4o">GPT-4o</option>
+                                        <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                    </optgroup>
+                                    <optgroup label="Modelos de Raciocínio (Sem temperature/tools)">
+                                        <option value="o1-preview">O1 Preview (Raciocínio)</option>
+                                        <option value="o1-mini">O1 Mini (Raciocínio)</option>
+                                        <option value="o3-preview">O3 Preview (Raciocínio)</option>
+                                        <option value="o3-mini">O3 Mini (Raciocínio)</option>
+                                    </optgroup>
                                 </select>
-                                <small class="form-text text-muted">Controla a profundidade do raciocínio antes de responder</small>
+                                <small class="form-text text-muted">Modelos o1, o3 e o4 não suportam temperature nem tools</small>
                             </div>
-                        </div>
-                        
-                        <div class="col-md-6" id="verbosityGroup" style="display: none;">
-                            <div class="mb-3">
-                                <label for="assistantVerbosity" class="form-label">Verbosity</label>
-                                <select class="form-select" id="assistantVerbosity" name="verbosity">
-                                    <option value="low">Low (Conciso e direto)</option>
-                                    <option value="medium" selected>Medium (Equilíbrio - Padrão)</option>
-                                    <option value="high">High (Detalhado e elaborado)</option>
-                                </select>
-                                <small class="form-text text-muted">Controla o nível de detalhamento das respostas</small>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="assistantMaxTokens" class="form-label">Max Tokens</label>
-                                <input type="number" class="form-control" id="assistantMaxTokens" name="max_tokens" 
-                                       min="1" max="8000" value="4000">
-                                <small class="form-text text-muted">Limite máximo de tokens na resposta</small>
-                            </div>
-                        </div>
-                    </div>
                     
-                    <div class="mb-3" id="toolsGroup">
-                        <label class="form-label">Ferramentas</label>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="toolCodeInterpreter" name="tools" value="code_interpreter">
-                            <label class="form-check-label" for="toolCodeInterpreter">
-                                Code Interpreter (Executar código Python)
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="toolFileSearch" name="tools" value="file_search">
-                            <label class="form-check-label" for="toolFileSearch">
-                                File Search (Buscar em arquivos)
-                            </label>
-                        </div>
-                        <small class="form-text text-muted">Modelos o1, o3 e o4 não suportam ferramentas</small>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="assistantInteractionMode" class="form-label">Modo de Interação *</label>
-                                <select class="form-select" id="assistantInteractionMode" name="interaction_mode" required>
-                                    <option value="report">Relatório (Report)</option>
-                                    <option value="chat">Chat (Conversa)</option>
-                                </select>
-                                <small class="form-text text-muted">Report: gera relatórios. Chat: mantém conversas.</small>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="assistantMemoryEnabled" name="memory_enabled" checked>
-                                    <label class="form-check-label" for="assistantMemoryEnabled">
-                                        <strong>Memória Persistente</strong>
-                                    </label>
+                            <div class="row">
+                                <!-- Parâmetros para GPT-4 e anteriores (temperature) -->
+                                <div class="col-md-6" id="temperatureGroup">
+                                    <div class="mb-3">
+                                        <label for="assistantTemperature" class="form-label">Temperature (0.0 - 2.0)</label>
+                                        <input type="number" class="form-control" id="assistantTemperature" name="temperature" 
+                                               min="0" max="2" step="0.1" value="0.7">
+                                        <small class="form-text text-muted">Controla a criatividade das respostas. 0.0 = determinístico, 2.0 = muito criativo</small>
+                                    </div>
                                 </div>
+                                
+                                <!-- Parâmetros para GPT-5 (reasoning_effort e verbosity) -->
+                                <div class="col-md-4" id="gpt5ParamsGroup" style="display: none;">
+                                    <div class="mb-3">
+                                        <label for="assistantReasoningEffort" class="form-label">Reasoning Effort</label>
+                                        <select class="form-select" id="assistantReasoningEffort" name="reasoning_effort">
+                                            <option value="minimal">Minimal (Rápido, raciocínio superficial)</option>
+                                            <option value="low">Low (Raciocínio básico)</option>
+                                            <option value="medium" selected>Medium (Equilíbrio - Padrão)</option>
+                                            <option value="high">High (Raciocínio profundo)</option>
+                                        </select>
+                                        <small class="form-text text-muted">Controla a profundidade do raciocínio antes de responder</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4" id="verbosityGroup" style="display: none;">
+                                    <div class="mb-3">
+                                        <label for="assistantVerbosity" class="form-label">Verbosity</label>
+                                        <select class="form-select" id="assistantVerbosity" name="verbosity">
+                                            <option value="low">Low (Conciso e direto)</option>
+                                            <option value="medium" selected>Medium (Equilíbrio - Padrão)</option>
+                                            <option value="high">High (Detalhado e elaborado)</option>
+                                        </select>
+                                        <small class="form-text text-muted">Controla o nível de detalhamento das respostas</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="assistantMaxTokens" class="form-label">Max Tokens</label>
+                                        <input type="number" class="form-control" id="assistantMaxTokens" name="max_tokens" 
+                                               min="1" max="8000" value="4000">
+                                        <small class="form-text text-muted">Limite máximo de tokens na resposta</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="assistantInteractionMode" class="form-label">Modo de Interação *</label>
+                                        <select class="form-select" id="assistantInteractionMode" name="interaction_mode" required>
+                                            <option value="report">Relatório (Report)</option>
+                                            <option value="chat">Chat (Conversa)</option>
+                                        </select>
+                                        <small class="form-text text-muted">Report: gera relatórios. Chat: mantém conversas.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="assistantMemoryEnabled" name="memory_enabled" checked>
+                                            <label class="form-check-label" for="assistantMemoryEnabled">
+                                                <strong>Memória Persistente</strong>
+                                            </label>
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Habilita memória entre diferentes threads. O agente lembrará informações compartilhadas entre conversas.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="assistantMemoryData" class="form-label">Memórias Compartilhadas (JSON)</label>
+                                <textarea class="form-control" id="assistantMemoryData" name="memory_data" rows="4" 
+                                          placeholder='{"user_preferences": {"language": "pt-BR"}, "company_info": {"name": "Minha Empresa"}}'></textarea>
                                 <small class="form-text text-muted">
-                                    Habilita memória entre diferentes threads. O agente lembrará informações compartilhadas entre conversas.
+                                    Informações que serão compartilhadas entre todas as threads deste agente (formato JSON)
                                 </small>
                             </div>
+                            
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="assistantUseCase" class="form-label">Caso de Uso</label>
+                                        <input type="text" class="form-control" id="assistantUseCase" name="use_case" 
+                                               placeholder="Ex: Análise de produtos, Suporte ao cliente">
+                                        <small class="form-text text-muted">Descreva o caso de uso principal</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label d-block">&nbsp;</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="assistantIsActive" name="is_active" checked>
+                                            <label class="form-check-label" for="assistantIsActive">
+                                                Agente Ativo
+                                            </label>
+                                        </div>
+                                        <small class="form-text text-muted">Agentes inativos não podem ser usados</small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="assistantMemoryData" class="form-label">Memórias Compartilhadas (JSON)</label>
-                        <textarea class="form-control" id="assistantMemoryData" name="memory_data" rows="4" 
-                                  placeholder='{"user_preferences": {"language": "pt-BR"}, "company_info": {"name": "Minha Empresa"}}'></textarea>
-                        <small class="form-text text-muted">
-                            Informações que serão compartilhadas entre todas as threads deste agente (formato JSON)
-                        </small>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
+                        
+                        <!-- Aba Instruções -->
+                        <div class="tab-pane fade" id="instructions" role="tabpanel" aria-labelledby="instructions-tab">
                             <div class="mb-3">
-                                <label for="assistantUseCase" class="form-label">Caso de Uso</label>
-                                <input type="text" class="form-control" id="assistantUseCase" name="use_case" 
-                                       placeholder="Ex: Análise de produtos, Suporte ao cliente">
-                                <small class="form-text text-muted">Descreva o caso de uso principal</small>
+                                <label for="assistantInstructions" class="form-label">Instruções *</label>
+                                <!-- Container para o editor Quill -->
+                                <div id="instructionsEditor" style="height: 400px; margin-bottom: 10px;"></div>
+                                <!-- Textarea oculto para armazenar o HTML formatado -->
+                                <textarea id="assistantInstructions" name="instructions" style="display: none;" required></textarea>
+                                <small class="form-text text-muted">Descreva o comportamento e propósito do agente. Seja específico sobre o que ele deve fazer. Use a barra de ferramentas para formatar o texto.</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Aba Prompt -->
+                        <div class="tab-pane fade" id="prompt" role="tabpanel" aria-labelledby="prompt-tab">
+                            <div class="mb-3">
+                                <label for="assistantInitialPrompt" class="form-label">Prompt Inicial (Opcional)</label>
+                                <!-- Container para o editor Quill do prompt -->
+                                <div id="promptEditor" style="height: 400px; margin-bottom: 10px;"></div>
+                                <!-- Textarea oculto para armazenar o HTML formatado -->
+                                <textarea id="assistantInitialPrompt" name="initial_prompt" style="display: none;"></textarea>
+                                <small class="form-text text-muted">
+                                    <strong>Template de prompt inicial:</strong> Use a tag <code>[[USUARIO]]</code> para indicar onde o texto do usuário será inserido. 
+                                    Se preenchido, este prompt será usado antes da mensagem do usuário. Deixe vazio para usar apenas a mensagem do usuário.
+                                    Use a barra de ferramentas para formatar o texto.
+                                </small>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="bi bi-info-circle"></i> Como funciona:</h6>
+                                <ul class="mb-0">
+                                    <li>O prompt inicial é um <strong>template</strong> que será usado antes da mensagem do usuário</li>
+                                    <li>Use <code>[[USUARIO]]</code> para indicar onde o texto do usuário será inserido</li>
+                                    <li>Exemplo: <code>"Analise os seguintes dados: [[USUARIO]]"</code></li>
+                                    <li>Se o usuário digitar "pedidos de hoje", o prompt final será: <code>"Analise os seguintes dados: pedidos de hoje"</code></li>
+                                    <li>Se deixar vazio, será usado apenas a mensagem do usuário</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <!-- Aba Ferramentas -->
+                        <div class="tab-pane fade" id="tools" role="tabpanel" aria-labelledby="tools-tab">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h5 class="mb-0">Ferramentas do Agente</h5>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-outline-info me-2" data-bs-toggle="modal" data-bs-target="#toolsHelpModal">
+                                            <i class="bi bi-question-circle"></i> Ajuda
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-primary" onclick="addTool()">
+                                            <i class="bi bi-plus-circle"></i> Adicionar Função
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Ferramentas da Assistants API -->
+                                <div class="card mb-4">
+
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="toolCodeInterpreter" name="assistant_tools" value="code_interpreter">
+                                                    <label class="form-check-label" for="toolCodeInterpreter">
+                                                        <strong>Code Interpreter</strong>
+                                                    </label>
+                                                    <small class="d-block text-muted">Executa código Python e gera gráficos</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="toolFileSearch" name="assistant_tools" value="file_search">
+                                                    <label class="form-check-label" for="toolFileSearch">
+                                                        <strong>File Search</strong>
+                                                    </label>
+                                                    <small class="d-block text-muted">Busca informações em arquivos</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Function Calling (Ferramentas Customizadas) -->
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="bi bi-code-slash"></i> Funções Customizadas</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="toolsContainer">
+                                            <!-- Ferramentas serão adicionadas aqui dinamicamente -->
+                                        </div>
+                                        
+                                        <div id="noToolsMessage" class="text-center text-muted py-4" style="display: none;">
+                                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                            <p class="mt-2 mb-0">Nenhuma função adicionada. Clique em "Adicionar Função" para começar.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Modal de Ajuda sobre Ferramentas -->
+                                <div class="modal fade" id="toolsHelpModal" tabindex="-1" aria-labelledby="toolsHelpModalLabel" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="toolsHelpModalLabel">
+                                                    <i class="bi bi-info-circle text-info"></i> Como Funcionam as Ferramentas
+                                                </h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="mb-4">
+                                                    <h6><i class="bi bi-gear"></i> O que são Ferramentas?</h6>
+                                                    <p>As ferramentas permitem que o agente chame funções customizadas do seu sistema. Elas expandem as capacidades do agente, permitindo que ele:</p>
+                                                    <ul>
+                                                        <li>Acesse dados do seu sistema (ex: buscar pedidos, produtos)</li>
+                                                        <li>Execute ações (ex: atualizar status, gerar relatórios)</li>
+                                                        <li>Processe informações complexas (ex: análises, cálculos)</li>
+                                                    </ul>
+                                                </div>
+                                                
+                                                <div class="mb-4">
+                                                    <h6><i class="bi bi-robot"></i> Como o Modelo Decide?</h6>
+                                                    <p>O modelo decide automaticamente quando usar cada ferramenta baseado na conversa. Ele analisa:</p>
+                                                    <ul>
+                                                        <li>O contexto da mensagem do usuário</li>
+                                                        <li>A descrição de cada ferramenta</li>
+                                                        <li>Os parâmetros necessários</li>
+                                                    </ul>
+                                                    <p class="text-muted"><small>Você não precisa instruir o modelo a usar ferramentas - ele decide sozinho quando é apropriado.</small></p>
+                                                </div>
+                                                
+                                                <div class="mb-4">
+                                                    <h6><i class="bi bi-code-slash"></i> Implementação no Backend</h6>
+                                                    <p>Você precisa implementar o processamento das funções no backend. Quando o modelo chamar uma ferramenta:</p>
+                                                    <ol>
+                                                        <li>O sistema recebe a chamada da função</li>
+                                                        <li>Executa a lógica correspondente (ex: buscar dados no banco)</li>
+                                                        <li>Retorna o resultado para o modelo</li>
+                                                        <li>O modelo usa o resultado para gerar a resposta final</li>
+                                                    </ol>
+                                                    <div class="alert alert-light">
+                                                        <small><strong>Exemplo:</strong> Se o modelo chamar <code>get_ml_order_status</code>, você precisa implementar essa função para buscar o status do pedido no banco de dados e retornar os dados.</small>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="mb-4">
+                                                    <h6><i class="bi bi-tools"></i> Tipos de Ferramentas</h6>
+                                                    
+                                                    <div class="card mb-3">
+                                                        <div class="card-header bg-primary text-white">
+                                                            <strong>Ferramentas da Assistants API</strong>
+                                                        </div>
+                                                        <div class="card-body">
+                                                            <h6 class="text-primary">Code Interpreter</h6>
+                                                            <p>Permite executar código Python, gerar gráficos e processar dados. Ideal para análises e cálculos complexos.</p>
+                                                            
+                                                            <h6 class="text-primary mt-3">File Search</h6>
+                                                            <p>Permite buscar informações em arquivos enviados. Ideal para análise de documentos e conhecimento baseado em arquivos.</p>
+                                                            
+                                                            <div class="alert alert-warning mt-3 mb-0">
+                                                                <small><i class="bi bi-exclamation-triangle"></i> <strong>Importante:</strong> Se Code Interpreter ou File Search forem selecionados, o sistema usará a Assistants API automaticamente (não Chat Completions).</small>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="card">
+                                                        <div class="card-header bg-success text-white">
+                                                            <strong>Function Calling (Ferramentas Customizadas)</strong>
+                                                        </div>
+                                                        <div class="card-body">
+                                                            <p>Funções que você cria e implementa no seu sistema. Funciona tanto com Chat Completions quanto com Assistants API.</p>
+                                                            <p class="text-muted mb-0"><small>Exemplos: buscar pedidos, atualizar status, gerar relatórios, etc.</small></p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="alert alert-info mb-0">
+                                                    <h6><i class="bi bi-lightbulb"></i> Dica</h6>
+                                                    <p class="mb-0">Comece com Function Calling para funções simples. Use Code Interpreter ou File Search apenas quando precisar de capacidades específicas dessas ferramentas.</p>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="assistantIsActive" name="is_active" checked>
-                            <label class="form-check-label" for="assistantIsActive">
-                                Agente Ativo
-                            </label>
-                        </div>
-                        <small class="form-text text-muted">Agentes inativos não podem ser usados</small>
-                    </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                         <a href="/superadmin/assistants" class="btn btn-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-save"></i> Salvar Agente
@@ -203,13 +404,107 @@
     </div>
 </div>
 
+<!-- Quill Editor JS -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
 <script>
+// Variáveis globais para os editores Quill
+let quillEditor;
+let quillPromptEditor;
+
+// Contador de ferramentas para IDs únicos
+let toolCounter = 0;
+
 // Carregar dados do agente se estiver editando
 const assistantId = document.getElementById('assistantId').value;
 
-if (assistantId) {
-    loadAssistantData(assistantId);
-}
+// Inicializar editores Quill quando a página carregar
+document.addEventListener('DOMContentLoaded', function() {
+    // Configurar editor Quill para Instruções
+    quillEditor = new Quill('#instructionsEditor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'script': 'sub'}, { 'script': 'super' }],
+                [{ 'indent': '-1'}, { 'indent': '+1' }],
+                [{ 'size': ['small', false, 'large', 'huge'] }],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'font': [] }],
+                [{ 'align': [] }],
+                ['blockquote', 'code-block'],
+                ['link', 'image'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Digite as instruções do agente aqui... Use a barra de ferramentas para formatar o texto.',
+        bounds: '#instructionsEditor'
+    });
+    
+    // Sincronizar conteúdo do editor de instruções com textarea oculto
+    quillEditor.on('text-change', function() {
+        const html = quillEditor.root.innerHTML;
+        document.getElementById('assistantInstructions').value = html;
+    });
+    
+    // Configurar editor Quill para Prompt Inicial
+    quillPromptEditor = new Quill('#promptEditor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'script': 'sub'}, { 'script': 'super' }],
+                [{ 'indent': '-1'}, { 'indent': '+1' }],
+                [{ 'size': ['small', false, 'large', 'huge'] }],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'font': [] }],
+                [{ 'align': [] }],
+                ['blockquote', 'code-block'],
+                ['link', 'image'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Digite o prompt inicial aqui... Use [[USUARIO]] para indicar onde o texto do usuário será inserido. Use a barra de ferramentas para formatar.',
+        bounds: '#promptEditor'
+    });
+    
+    // Sincronizar conteúdo do editor de prompt com textarea oculto
+    quillPromptEditor.on('text-change', function() {
+        const html = quillPromptEditor.root.innerHTML;
+        document.getElementById('assistantInitialPrompt').value = html;
+    });
+    
+    // Inicializar outras funções
+    handleModelChange();
+    
+    // Carregar dados se estiver editando
+    if (assistantId) {
+        loadAssistantData(assistantId);
+    }
+    
+    // Garantir que os editores sejam atualizados quando as abas forem mostradas
+    const instructionsTab = document.getElementById('instructions-tab');
+    if (instructionsTab) {
+        instructionsTab.addEventListener('shown.bs.tab', function() {
+            if (quillEditor) {
+                quillEditor.update();
+            }
+        });
+    }
+    
+    const promptTab = document.getElementById('prompt-tab');
+    if (promptTab) {
+        promptTab.addEventListener('shown.bs.tab', function() {
+            if (quillPromptEditor) {
+                quillPromptEditor.update();
+            }
+        });
+    }
+});
 
 // Carregar dados do agente para edição
 async function loadAssistantData(id) {
@@ -226,7 +521,26 @@ async function loadAssistantData(id) {
                 document.getElementById('assistantName').value = assistant.name || '';
                 document.getElementById('assistantDescription').value = assistant.description || '';
                 document.getElementById('assistantModel').value = assistant.model || 'gpt-5.1';
-                document.getElementById('assistantInstructions').value = assistant.instructions || '';
+                
+                // Definir conteúdo no editor Quill
+                if (assistant.instructions) {
+                    if (quillEditor) {
+                        // Se o editor já foi inicializado, usar diretamente
+                        quillEditor.root.innerHTML = assistant.instructions;
+                        document.getElementById('assistantInstructions').value = assistant.instructions;
+                    } else {
+                        // Se o editor ainda não foi inicializado, aguardar e definir depois
+                        setTimeout(function() {
+                            if (quillEditor) {
+                                quillEditor.root.innerHTML = assistant.instructions;
+                                document.getElementById('assistantInstructions').value = assistant.instructions;
+                            } else {
+                                // Fallback: definir no textarea
+                                document.getElementById('assistantInstructions').value = assistant.instructions;
+                            }
+                        }, 100);
+                    }
+                }
                 document.getElementById('assistantTemperature').value = assistant.temperature || '0.7';
                 document.getElementById('assistantMaxTokens').value = assistant.max_tokens || 4000;
                 document.getElementById('assistantInteractionMode').value = assistant.interaction_mode || 'report';
@@ -234,6 +548,25 @@ async function loadAssistantData(id) {
                 document.getElementById('assistantIsActive').checked = assistant.is_active !== false;
                 document.getElementById('assistantMemoryEnabled').checked = assistant.memory_enabled !== false;
                 document.getElementById('assistantMemoryData').value = assistant.memory_data ? JSON.stringify(assistant.memory_data, null, 2) : '';
+                
+                // Definir conteúdo no editor Quill do prompt
+                if (assistant.initial_prompt) {
+                    if (quillPromptEditor) {
+                        quillPromptEditor.root.innerHTML = assistant.initial_prompt;
+                        document.getElementById('assistantInitialPrompt').value = assistant.initial_prompt;
+                    } else {
+                        // Se o editor ainda não foi inicializado, aguardar e definir depois
+                        setTimeout(function() {
+                            if (quillPromptEditor) {
+                                quillPromptEditor.root.innerHTML = assistant.initial_prompt;
+                                document.getElementById('assistantInitialPrompt').value = assistant.initial_prompt;
+                            } else {
+                                // Fallback: definir no textarea
+                                document.getElementById('assistantInitialPrompt').value = assistant.initial_prompt;
+                            }
+                        }, 100);
+                    }
+                }
                 
                 // Configurar reasoning_effort e verbosity (se existirem)
                 if (assistant.reasoning_effort) {
@@ -243,10 +576,26 @@ async function loadAssistantData(id) {
                     document.getElementById('assistantVerbosity').value = assistant.verbosity;
                 }
                 
-                // Configurar tools
-                const tools = assistant.tools_config || [];
-                document.getElementById('toolCodeInterpreter').checked = tools.some(t => t.type === 'code_interpreter');
-                document.getElementById('toolFileSearch').checked = tools.some(t => t.type === 'file_search');
+                // Carregar ferramentas da Assistants API (Code Interpreter e File Search)
+                if (assistant.tools_config) {
+                    let allTools = [];
+                    if (Array.isArray(assistant.tools_config)) {
+                        allTools = assistant.tools_config;
+                    } else if (typeof assistant.tools_config === 'object' && assistant.tools_config.tools) {
+                        allTools = assistant.tools_config.tools;
+                    }
+                    
+                    // Separar ferramentas da Assistants API das customizadas
+                    const assistantTools = allTools.filter(t => t.type === 'code_interpreter' || t.type === 'file_search');
+                    const customTools = allTools.filter(t => t.type === 'function');
+                    
+                    // Marcar checkboxes
+                    document.getElementById('toolCodeInterpreter').checked = assistantTools.some(t => t.type === 'code_interpreter');
+                    document.getElementById('toolFileSearch').checked = assistantTools.some(t => t.type === 'file_search');
+                    
+                    // Carregar ferramentas customizadas
+                    loadTools(customTools);
+                }
                 
                 handleModelChange();
             }
@@ -276,9 +625,6 @@ function handleModelChange() {
         gpt5ParamsGroup.style.display = 'none';
         verbosityGroup.style.display = 'none';
         toolsGroup.style.display = 'none';
-        // Desmarcar tools
-        document.getElementById('toolCodeInterpreter').checked = false;
-        document.getElementById('toolFileSearch').checked = false;
     } else if (isGPT5) {
         // Modelos GPT-5: reasoning_effort e verbosity, sem temperature
         temperatureGroup.style.display = 'none';
@@ -302,17 +648,34 @@ async function saveAssistant(event) {
     const model = document.getElementById('assistantModel').value;
     const isGPT5 = model.startsWith('gpt-5');
     
+    // Obter HTML formatado do editor Quill
+    let instructions = quillEditor ? quillEditor.root.innerHTML : document.getElementById('assistantInstructions').value;
+    
+    // Validar se as instruções não estão vazias
+    if (!instructions || instructions.trim() === '' || instructions === '<p><br></p>' || instructions === '<p></p>') {
+        showNotification('Por favor, preencha as instruções do agente', 'error');
+        return;
+    }
+    
     const formData = {
         name: document.getElementById('assistantName').value,
         description: document.getElementById('assistantDescription').value,
         model: model,
-        instructions: document.getElementById('assistantInstructions').value,
+        instructions: instructions,  // HTML formatado do editor
         max_tokens: parseInt(document.getElementById('assistantMaxTokens').value) || 4000,
         interaction_mode: document.getElementById('assistantInteractionMode').value,
         use_case: document.getElementById('assistantUseCase').value || null,
         memory_enabled: document.getElementById('assistantMemoryEnabled').checked,
         is_active: document.getElementById('assistantIsActive').checked
     };
+    
+    // Obter HTML formatado do editor Quill do prompt
+    let initialPrompt = quillPromptEditor ? quillPromptEditor.root.innerHTML : document.getElementById('assistantInitialPrompt').value;
+    // Remover tags vazias do Quill (se o editor estiver vazio)
+    if (initialPrompt && (initialPrompt.trim() === '' || initialPrompt === '<p><br></p>' || initialPrompt === '<p></p>')) {
+        initialPrompt = null;
+    }
+    formData.initial_prompt = initialPrompt;
     
     // Processar memória (JSON)
     const memoryDataText = document.getElementById('assistantMemoryData').value.trim();
@@ -340,15 +703,21 @@ async function saveAssistant(event) {
         formData.verbosity = null;
     }
     
-    // Coletar tools
-    const tools = [];
+    // Coletar ferramentas da Assistants API (Code Interpreter e File Search)
+    const assistantTools = [];
     if (document.getElementById('toolCodeInterpreter').checked) {
-        tools.push({ type: 'code_interpreter' });
+        assistantTools.push({ type: 'code_interpreter' });
     }
     if (document.getElementById('toolFileSearch').checked) {
-        tools.push({ type: 'file_search' });
+        assistantTools.push({ type: 'file_search' });
     }
-    formData.tools = tools.length > 0 ? tools : null;
+    
+    // Coletar ferramentas customizadas (Function Calling)
+    const customTools = collectTools();
+    
+    // Combinar todas as ferramentas
+    const allTools = [...assistantTools, ...customTools];
+    formData.tools = allTools.length > 0 ? allTools : null;
     
     try {
         const url = assistantId 
@@ -401,7 +770,208 @@ function showNotification(message, type = 'info') {
 // Inicializar ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     handleModelChange();
+    updateToolsDisplay();
 });
+
+// ========== FUNÇÕES DE GERENCIAMENTO DE FERRAMENTAS ==========
+
+// Adicionar nova ferramenta
+function addTool(toolData = null) {
+    const toolId = toolData ? toolData.id || `tool_${toolCounter++}` : `tool_${toolCounter++}`;
+    const container = document.getElementById('toolsContainer');
+    const noToolsMessage = document.getElementById('noToolsMessage');
+    
+    // Criar card da ferramenta
+    const toolCard = document.createElement('div');
+    toolCard.className = 'card mb-3';
+    toolCard.id = `toolCard_${toolId}`;
+    toolCard.innerHTML = `
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
+                <i class="bi bi-gear"></i> Ferramenta: <span id="toolNameDisplay_${toolId}">Nova Ferramenta</span>
+            </h6>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeTool('${toolId}')">
+                <i class="bi bi-trash"></i> Remover
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Nome da Função *</label>
+                    <input type="text" class="form-control tool-name" data-tool-id="${toolId}" 
+                           placeholder="ex: get_ml_order_status" required
+                           onchange="updateToolNameDisplay('${toolId}')">
+                    <small class="form-text text-muted">Nome único da função (sem espaços, use underscore)</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Descrição *</label>
+                    <input type="text" class="form-control tool-description" data-tool-id="${toolId}" 
+                           placeholder="ex: Busca o status de um pedido do Mercado Livre" required>
+                    <small class="form-text text-muted">Descrição clara do que a função faz</small>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Parâmetros (JSON Schema) *</label>
+                <textarea class="form-control tool-parameters" data-tool-id="${toolId}" rows="8" 
+                          placeholder='{"type": "object", "properties": {"order_id": {"type": "string", "description": "ID do pedido"}}, "required": ["order_id"]}' required></textarea>
+                <small class="form-text text-muted">
+                    Defina os parâmetros da função usando JSON Schema. 
+                    <a href="https://json-schema.org/understanding-json-schema/" target="_blank">Documentação JSON Schema</a>
+                </small>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="validateToolParameters('${toolId}')">
+                    <i class="bi bi-check-circle"></i> Validar JSON
+                </button>
+            </div>
+            <div id="toolError_${toolId}" class="alert alert-danger" style="display: none;"></div>
+        </div>
+    `;
+    
+    container.appendChild(toolCard);
+    
+    // Preencher dados se for edição
+    if (toolData) {
+        const nameInput = toolCard.querySelector('.tool-name');
+        const descInput = toolCard.querySelector('.tool-description');
+        const paramsInput = toolCard.querySelector('.tool-parameters');
+        
+        if (nameInput) nameInput.value = toolData.function?.name || '';
+        if (descInput) descInput.value = toolData.function?.description || '';
+        if (paramsInput && toolData.function?.parameters) {
+            paramsInput.value = JSON.stringify(toolData.function.parameters, null, 2);
+        }
+        
+        updateToolNameDisplay(toolId);
+    }
+    
+    updateToolsDisplay();
+}
+
+// Remover ferramenta
+function removeTool(toolId) {
+    if (confirm('Tem certeza que deseja remover esta ferramenta?')) {
+        const toolCard = document.getElementById(`toolCard_${toolId}`);
+        if (toolCard) {
+            toolCard.remove();
+            updateToolsDisplay();
+        }
+    }
+}
+
+// Atualizar nome exibido no header
+function updateToolNameDisplay(toolId) {
+    const nameInput = document.querySelector(`.tool-name[data-tool-id="${toolId}"]`);
+    const displaySpan = document.getElementById(`toolNameDisplay_${toolId}`);
+    if (nameInput && displaySpan) {
+        displaySpan.textContent = nameInput.value || 'Nova Ferramenta';
+    }
+}
+
+// Validar JSON dos parâmetros
+function validateToolParameters(toolId) {
+    const paramsInput = document.querySelector(`.tool-parameters[data-tool-id="${toolId}"]`);
+    const errorDiv = document.getElementById(`toolError_${toolId}`);
+    
+    if (!paramsInput) return;
+    
+    try {
+        const json = JSON.parse(paramsInput.value);
+        
+        // Validar estrutura básica do JSON Schema
+        if (!json.type || json.type !== 'object') {
+            throw new Error('O tipo deve ser "object"');
+        }
+        
+        if (!json.properties || typeof json.properties !== 'object') {
+            throw new Error('Deve ter uma propriedade "properties" do tipo object');
+        }
+        
+        // Limpar erro
+        errorDiv.style.display = 'none';
+        errorDiv.textContent = '';
+        
+        // Mostrar sucesso
+        showNotification('JSON válido!', 'success');
+        
+    } catch (e) {
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = `Erro de validação: ${e.message}`;
+        showNotification('Erro ao validar JSON: ' + e.message, 'error');
+    }
+}
+
+// Atualizar exibição (mostrar/ocultar mensagem de "sem ferramentas")
+function updateToolsDisplay() {
+    const container = document.getElementById('toolsContainer');
+    const noToolsMessage = document.getElementById('noToolsMessage');
+    
+    if (container.children.length === 0) {
+        noToolsMessage.style.display = 'block';
+    } else {
+        noToolsMessage.style.display = 'none';
+    }
+}
+
+// Coletar todas as ferramentas do formulário
+function collectTools() {
+    const tools = [];
+    const toolCards = document.querySelectorAll('[id^="toolCard_"]');
+    
+    toolCards.forEach(card => {
+        const toolId = card.id.replace('toolCard_', '');
+        const nameInput = card.querySelector('.tool-name');
+        const descInput = card.querySelector('.tool-description');
+        const paramsInput = card.querySelector('.tool-parameters');
+        
+        if (!nameInput || !descInput || !paramsInput) return;
+        
+        const name = nameInput.value.trim();
+        const description = descInput.value.trim();
+        const paramsText = paramsInput.value.trim();
+        
+        if (!name || !description || !paramsText) {
+            return; // Pular ferramentas incompletas
+        }
+        
+        try {
+            const parameters = JSON.parse(paramsText);
+            
+            tools.push({
+                type: "function",
+                function: {
+                    name: name,
+                    description: description,
+                    parameters: parameters
+                }
+            });
+        } catch (e) {
+            console.error(`Erro ao processar ferramenta ${name}:`, e);
+            showNotification(`Erro na ferramenta "${name}": JSON inválido`, 'error');
+        }
+    });
+    
+    return tools;
+}
+
+// Carregar ferramentas ao editar
+function loadTools(tools) {
+    // Limpar ferramentas existentes
+    const container = document.getElementById('toolsContainer');
+    container.innerHTML = '';
+    toolCounter = 0;
+    
+    if (tools && Array.isArray(tools)) {
+        tools.forEach((tool, index) => {
+            if (tool.type === 'function' && tool.function) {
+                addTool({
+                    id: `tool_${index}`,
+                    function: tool.function
+                });
+            }
+        });
+    }
+    
+    updateToolsDisplay();
+}
 </script>
 {% endblock %}
 

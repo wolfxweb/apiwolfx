@@ -102,6 +102,7 @@ class CreateAssistantRequest(BaseModel):
     use_case: Optional[str] = None
     memory_enabled: bool = True  # Habilita memória persistente entre threads
     memory_data: Optional[Dict] = None  # Memórias compartilhadas (ex: preferências do usuário/empresa)
+    initial_prompt: Optional[str] = None  # Template de prompt inicial com tag [[USUARIO]]
 
 
 class UpdateAssistantRequest(BaseModel):
@@ -119,6 +120,7 @@ class UpdateAssistantRequest(BaseModel):
     is_active: Optional[bool] = None
     memory_enabled: Optional[bool] = None  # Habilita/desabilita memória persistente
     memory_data: Optional[Dict] = None  # Atualiza memórias compartilhadas
+    initial_prompt: Optional[str] = None  # Template de prompt inicial com tag [[USUARIO]]
 
 
 class UseAssistantReportRequest(BaseModel):
@@ -174,7 +176,8 @@ async def create_assistant(
         interaction_mode=request_data.interaction_mode,
         use_case=request_data.use_case,
         memory_enabled=request_data.memory_enabled,
-        memory_data=request_data.memory_data
+        memory_data=request_data.memory_data,
+        initial_prompt=request_data.initial_prompt
     )
     
     if not result.get("success"):
@@ -223,7 +226,8 @@ async def update_assistant(
         use_case=request_data.use_case,
         is_active=request_data.is_active,
         memory_enabled=request_data.memory_enabled,
-        memory_data=request_data.memory_data
+        memory_data=request_data.memory_data,
+        initial_prompt=request_data.initial_prompt
     )
     
     if not result.get("success"):
@@ -313,6 +317,7 @@ async def get_chat_history(
 ):
     """Obtém histórico de mensagens de uma thread"""
     company_id = user.get("company", {}).get("id")
+    user_id = user.get("id")
     if not company_id:
         raise HTTPException(status_code=400, detail="Company ID não encontrado")
     
@@ -320,6 +325,7 @@ async def get_chat_history(
     result = controller.get_chat_history(
         thread_id=thread_id,
         company_id=company_id,
+        user_id=user_id,  # Passar user_id para validação
         limit=limit
     )
     

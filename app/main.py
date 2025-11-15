@@ -190,6 +190,93 @@ async def startup_event():
                     else:
                         print(f"ℹ️ [STARTUP] Erro de duplicata ignorado, continuando inicialização...")
         
+        # Executar migrações de banco de dados automaticamente
+        print("🔄 [STARTUP] Executando migrações de banco de dados...")
+        try:
+            from app.config.database import SessionLocal
+            from sqlalchemy import text
+            
+            db = SessionLocal()
+            try:
+                # 1. Criar tabelas OpenAI Assistants (se não existirem)
+                print("📋 [STARTUP] Verificando tabelas OpenAI Assistants...")
+                try:
+                    import importlib.util
+                    import os
+                    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                                'database', 'fixes', 'create_openai_assistants_tables.py')
+                    if os.path.exists(script_path):
+                        spec = importlib.util.spec_from_file_location("create_openai_assistants_tables", script_path)
+                        module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                        module.create_openai_assistants_tables()
+                        print("✅ [STARTUP] Tabelas OpenAI Assistants verificadas/criadas")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Tabelas podem já existir: {e}")
+                
+                # 2. Adicionar colunas de memória (se não existirem)
+                print("📋 [STARTUP] Verificando colunas de memória...")
+                sql_memory = """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'openai_assistants' AND column_name = 'memory_enabled'
+                    ) THEN
+                        ALTER TABLE openai_assistants 
+                        ADD COLUMN memory_enabled BOOLEAN DEFAULT TRUE NOT NULL;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'openai_assistants' AND column_name = 'memory_data'
+                    ) THEN
+                        ALTER TABLE openai_assistants 
+                        ADD COLUMN memory_data JSONB;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'openai_assistant_threads' AND column_name = 'memory_data'
+                    ) THEN
+                        ALTER TABLE openai_assistant_threads 
+                        ADD COLUMN memory_data JSONB;
+                    END IF;
+                END $$;
+                """
+                with db.begin():
+                    db.execute(text(sql_memory))
+                print("✅ [STARTUP] Colunas de memória verificadas/adicionadas")
+                
+                # 3. Adicionar coluna initial_prompt (se não existir)
+                print("📋 [STARTUP] Verificando coluna initial_prompt...")
+                sql_initial_prompt = """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'openai_assistants' AND column_name = 'initial_prompt'
+                    ) THEN
+                        ALTER TABLE openai_assistants 
+                        ADD COLUMN initial_prompt TEXT;
+                    END IF;
+                END $$;
+                """
+                with db.begin():
+                    db.execute(text(sql_initial_prompt))
+                print("✅ [STARTUP] Coluna initial_prompt verificada/adicionada")
+                
+                print("✅ [STARTUP] Todas as migrações concluídas!")
+                
+            except Exception as e:
+                print(f"⚠️ [STARTUP] Erro ao executar migrações (podem já estar aplicadas): {e}")
+            finally:
+                db.close()
+                
+        except Exception as e:
+            print(f"⚠️ [STARTUP] Erro ao executar migrações automáticas: {e}")
+            print("ℹ️ [STARTUP] Continuando inicialização...")
+        
         # Scheduler comentado - Webhook orders_v2 mantém pedidos atualizados automaticamente
         # print(f"🔧 [STARTUP] Scheduler rodando antes: {scheduler.running}")
         # if not scheduler.running:

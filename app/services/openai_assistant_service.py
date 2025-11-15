@@ -41,6 +41,15 @@ class OpenAIAssistantService:
         """Verifica se é um modelo GPT-5 que usa reasoning_effort e verbosity ao invés de temperature"""
         return model.startswith("gpt-5")
     
+    def _needs_assistants_api(self, tools: Optional[List[Dict]]) -> bool:
+        """Verifica se precisa usar Assistants API (Code Interpreter ou File Search)"""
+        if not tools:
+            return False
+        for tool in tools:
+            if isinstance(tool, dict) and tool.get("type") in ["code_interpreter", "file_search"]:
+                return True
+        return False
+    
     def create_assistant(
         self,
         name: str,
@@ -55,7 +64,8 @@ class OpenAIAssistantService:
         interaction_mode: str = "report",
         use_case: Optional[str] = None,
         memory_enabled: bool = True,
-        memory_data: Optional[Dict] = None
+        memory_data: Optional[Dict] = None,
+        initial_prompt: Optional[str] = None
     ) -> Dict:
         """Cria um novo assistente na OpenAI e salva no banco de dados"""
         if not self.client:
@@ -131,6 +141,15 @@ class OpenAIAssistantService:
                 final_temperature = None
                 final_tools_config = None
             
+            # Log das ferramentas antes de salvar
+            if tools:
+                logger.info(f"🔧 Salvando {len(tools)} ferramenta(s) no banco de dados")
+                for i, tool in enumerate(tools):
+                    tool_name = tool.get("function", {}).get("name", "desconhecida") if isinstance(tool, dict) else "desconhecida"
+                    logger.info(f"   - Ferramenta {i+1}: {tool_name}")
+            else:
+                logger.info("ℹ️ Nenhuma ferramenta configurada para este agente")
+            
             db_assistant = OpenAIAssistant(
                 name=name,
                 description=description,
@@ -144,6 +163,7 @@ class OpenAIAssistantService:
                 use_case=use_case,
                 memory_enabled=memory_enabled,
                 memory_data=memory_data,
+                initial_prompt=initial_prompt,
                 is_active=True
             )
             
@@ -151,7 +171,13 @@ class OpenAIAssistantService:
             self.db.commit()
             self.db.refresh(db_assistant)
             
-            logger.info(f"✅ Assistente criado com sucesso: {db_assistant.id} (OpenAI ID: {openai_assistant.id})")
+            # Verificar se foi salvo corretamente
+            if db_assistant.tools_config:
+                logger.info(f"✅ Ferramentas salvas no banco: {json.dumps(db_assistant.tools_config, ensure_ascii=False)}")
+            else:
+                logger.info("ℹ️ Nenhuma ferramenta salva (tools_config é None)")
+            
+            logger.info(f"✅ Agente '{name}' criado com sucesso (ID: {db_assistant.id}, Assistant ID: {db_assistant.assistant_id})")
             
             return {
                 "success": True,
@@ -190,7 +216,8 @@ class OpenAIAssistantService:
         use_case: Optional[str] = None,
         is_active: Optional[bool] = None,
         memory_enabled: Optional[bool] = None,
-        memory_data: Optional[Dict] = None
+        memory_data: Optional[Dict] = None,
+        initial_prompt: Optional[str] = None
     ) -> Dict:
         """Atualiza um assistente existente"""
         if not self.client:
@@ -241,6 +268,7 @@ class OpenAIAssistantService:
                 
                 if tools is not None:
                     current_config["tools"] = tools
+                    logger.info(f"🔧 Atualizando {len(tools)} ferramenta(s) para agente GPT-5")
                 if reasoning_effort is not None:
                     current_config["reasoning_effort"] = reasoning_effort
                 if verbosity is not None:
@@ -253,6 +281,7 @@ class OpenAIAssistantService:
                 if temperature is not None:
                     db_assistant.temperature = temperature
                 if tools is not None:
+                    logger.info(f"🔧 Atualizando {len(tools)} ferramenta(s) para agente não-GPT-5")
                     db_assistant.tools_config = tools
             else:
                 # Modelos o1, o3, o4: sem temperature e sem tools
@@ -271,13 +300,21 @@ class OpenAIAssistantService:
                 db_assistant.memory_enabled = memory_enabled
             if memory_data is not None:
                 db_assistant.memory_data = memory_data
+            if initial_prompt is not None:
+                db_assistant.initial_prompt = initial_prompt
             
             db_assistant.updated_at = datetime.utcnow()
             
             self.db.commit()
             self.db.refresh(db_assistant)
             
-            logger.info(f"✅ Assistente atualizado com sucesso: {db_assistant.id}")
+            # Verificar se ferramentas foram salvas
+            if db_assistant.tools_config:
+                logger.info(f"✅ Ferramentas atualizadas no banco: {json.dumps(db_assistant.tools_config, ensure_ascii=False)}")
+            else:
+                logger.info("ℹ️ Nenhuma ferramenta configurada (tools_config é None)")
+            
+            logger.info(f"✅ Agente atualizado com sucesso: {db_assistant.id}")
             
             return {
                 "success": True,
@@ -392,10 +429,16 @@ class OpenAIAssistantService:
                     "content": f"[CONTEXTO ADICIONAL]\n{context_text}"
                 })
             
+            # Processar prompt do usuário: substituir [[USUARIO]] no prompt inicial se existir
+            user_prompt_content = prompt
+            if db_assistant.initial_prompt and "[[USUARIO]]" in db_assistant.initial_prompt:
+                # Substituir a tag [[USUARIO]] pelo texto do usuário
+                user_prompt_content = db_assistant.initial_prompt.replace("[[USUARIO]]", prompt)
+            
             # Adicionar prompt do usuário
             messages_history.append({
                 "role": "user",
-                "content": prompt
+                "content": user_prompt_content
             })
             
             # Preparar parâmetros para Chat Completions
@@ -419,16 +462,59 @@ class OpenAIAssistantService:
                 if db_assistant.temperature is not None:
                     chat_params["temperature"] = float(db_assistant.temperature)
             
-            # Fazer chamada ao Chat Completions
-            logger.info(f"💬 Gerando relatório via Chat Completions...")
-            response = self.client.chat.completions.create(**chat_params)
+            # Adicionar ferramentas (tools) se configuradas
+            tools = None
+            if db_assistant.tools_config:
+                if isinstance(db_assistant.tools_config, dict):
+                    tools = db_assistant.tools_config.get("tools")
+                elif isinstance(db_assistant.tools_config, list):
+                    tools = db_assistant.tools_config
             
-            if response.choices and len(response.choices) > 0:
-                response_text = response.choices[0].message.content
+            # Criar thread temporária para processamento de ferramentas (se necessário)
+            # Para modo report, não precisamos de thread persistente, mas precisamos para tool calls
+            import uuid
+            temp_thread_id = str(uuid.uuid4())
+            temp_db_thread = OpenAIAssistantThread(
+                assistant_id=assistant_id,
+                company_id=company_id,
+                user_id=user_id,
+                thread_id=temp_thread_id,
+                context_data=context_data,
+                is_active=True
+            )
+            self.db.add(temp_db_thread)
+            self.db.flush()
+            
+            # Verificar se precisa usar Assistants API (Code Interpreter ou File Search)
+            if self._needs_assistants_api(tools):
+                logger.info("🔧 Detectado Code Interpreter ou File Search - usando Assistants API")
+                response = self._use_assistants_api_report_mode(
+                    db_assistant, temp_db_thread, user_prompt_content, tools, usage_record, start_time, request_data_size
+                )
+            else:
+                # Usar Chat Completions (com ou sem Function Calling)
+                if tools and not self._is_reasoning_model(db_assistant.model):
+                    chat_params["tools"] = tools
+                    logger.info(f"🔧 Adicionando {len(tools)} ferramenta(s) à chamada")
+                
+                # Fazer chamada ao Chat Completions e processar tool calls se necessário
+                logger.info(f"💬 Gerando relatório via Chat Completions...")
+                response = self._process_chat_with_tools(chat_params, tools, temp_db_thread, max_iterations=5)
+            
+            if response and response.get("success"):
+                response_text = response.get("response", "")
                 response_data_size = len(response_text.encode('utf-8'))
                 
                 # Obter uso de tokens
-                usage_info = response.usage if hasattr(response, 'usage') else None
+                usage_info_dict = response.get("usage", {})
+                # Criar objeto similar ao usage_info original para compatibilidade
+                class UsageInfo:
+                    def __init__(self, data):
+                        self.prompt_tokens = data.get("prompt_tokens", 0)
+                        self.completion_tokens = data.get("completion_tokens", 0)
+                        self.total_tokens = data.get("total_tokens", 0)
+                
+                usage_info = UsageInfo(usage_info_dict) if usage_info_dict else None
                     
                 # Atualizar métricas do assistente
                 db_assistant.total_runs += 1
@@ -515,15 +601,21 @@ class OpenAIAssistantService:
             
             # Buscar ou criar thread
             if thread_id:
-                # Buscar thread existente no banco
-                db_thread = self.db.query(OpenAIAssistantThread).filter(
+                # Buscar thread existente no banco (com isolamento por company_id e user_id)
+                query = self.db.query(OpenAIAssistantThread).filter(
                     OpenAIAssistantThread.thread_id == thread_id,
                     OpenAIAssistantThread.company_id == company_id,
                     OpenAIAssistantThread.is_active == True
-                ).first()
+                )
+                
+                # Adicionar filtro por user_id se fornecido (isolamento por usuário)
+                if user_id:
+                    query = query.filter(OpenAIAssistantThread.user_id == user_id)
+                
+                db_thread = query.first()
                 
                 if not db_thread:
-                    raise Exception("Thread não encontrada.")
+                    raise Exception("Thread não encontrada ou você não tem permissão para acessá-la.")
                 
                 openai_thread_id = thread_id
             else:
@@ -580,17 +672,23 @@ class OpenAIAssistantService:
                     "content": prev_msg.content
                 })
             
+            # Processar mensagem do usuário: substituir [[USUARIO]] no prompt inicial se existir
+            user_message_content = message
+            if db_assistant.initial_prompt and "[[USUARIO]]" in db_assistant.initial_prompt:
+                # Substituir a tag [[USUARIO]] pelo texto do usuário
+                user_message_content = db_assistant.initial_prompt.replace("[[USUARIO]]", message)
+            
             # Adicionar mensagem atual do usuário
             messages_history.append({
                 "role": "user",
-                "content": message
+                "content": user_message_content
             })
             
-            # Salvar mensagem do usuário no banco
+            # Salvar mensagem do usuário no banco (salvar a mensagem original, não a processada)
             user_message = OpenAIAssistantMessage(
                 thread_id=db_thread.id,
                 role="user",
-                content=message
+                content=message  # Salvar mensagem original
             )
             self.db.add(user_message)
             self.db.flush()
@@ -616,12 +714,32 @@ class OpenAIAssistantService:
                 if db_assistant.temperature is not None:
                     chat_params["temperature"] = float(db_assistant.temperature)
             
-            # Fazer chamada ao Chat Completions
-            logger.info(f"💬 Enviando mensagem para agente via Chat Completions...")
-            response = self.client.chat.completions.create(**chat_params)
+            # Adicionar ferramentas (tools) se configuradas
+            tools = None
+            if db_assistant.tools_config:
+                if isinstance(db_assistant.tools_config, dict):
+                    tools = db_assistant.tools_config.get("tools")
+                elif isinstance(db_assistant.tools_config, list):
+                    tools = db_assistant.tools_config
             
-            if response.choices and len(response.choices) > 0:
-                response_text = response.choices[0].message.content
+            # Verificar se precisa usar Assistants API (Code Interpreter ou File Search)
+            if self._needs_assistants_api(tools):
+                logger.info("🔧 Detectado Code Interpreter ou File Search - usando Assistants API")
+                response = self._use_assistants_api_chat_mode(
+                    db_assistant, db_thread, user_message_content, tools, usage_record, start_time, request_data_size
+                )
+            else:
+                # Usar Chat Completions (com ou sem Function Calling)
+                if tools and not self._is_reasoning_model(db_assistant.model):
+                    chat_params["tools"] = tools
+                    logger.info(f"🔧 Adicionando {len(tools)} ferramenta(s) à chamada")
+                
+                # Fazer chamada ao Chat Completions e processar tool calls se necessário
+                logger.info(f"💬 Enviando mensagem para agente via Chat Completions...")
+                response = self._process_chat_with_tools(chat_params, tools, db_thread, max_iterations=5)
+            
+            if response and response.get("success"):
+                response_text = response.get("response", "")
                 response_data_size = len(response_text.encode('utf-8'))
                 
                 # Salvar resposta do assistente no banco
@@ -633,7 +751,15 @@ class OpenAIAssistantService:
                 self.db.add(assistant_message)
                 
                 # Obter uso de tokens
-                usage_info = response.usage if hasattr(response, 'usage') else None
+                usage_info_dict = response.get("usage", {})
+                # Criar objeto similar ao usage_info original para compatibilidade
+                class UsageInfo:
+                    def __init__(self, data):
+                        self.prompt_tokens = data.get("prompt_tokens", 0)
+                        self.completion_tokens = data.get("completion_tokens", 0)
+                        self.total_tokens = data.get("total_tokens", 0)
+                
+                usage_info = UsageInfo(usage_info_dict) if usage_info_dict else None
                 
                 # Atualizar thread
                 db_thread.last_message_at = datetime.utcnow()
@@ -683,20 +809,577 @@ class OpenAIAssistantService:
             self.db.commit()
             return {"success": False, "error": str(e)}
     
-    def get_chat_history(self, thread_id: str, company_id: int, limit: int = 50) -> Dict:
+    def _process_chat_with_tools(
+        self, 
+        chat_params: Dict, 
+        tools: Optional[List[Dict]], 
+        db_thread: OpenAIAssistantThread,
+        max_iterations: int = 5
+    ) -> Dict:
+        """
+        Processa chat com suporte a tool calls.
+        Faz loop até que o modelo não queira mais chamar ferramentas.
+        """
+        messages = chat_params.get("messages", [])
+        total_usage = None
+        iteration = 0
+        
+        while iteration < max_iterations:
+            iteration += 1
+            logger.info(f"🔄 Iteração {iteration}/{max_iterations} do chat com ferramentas...")
+            
+            # Fazer chamada ao Chat Completions
+            response = self.client.chat.completions.create(**chat_params)
+            
+            if not response.choices or len(response.choices) == 0:
+                return {"success": False, "error": "Resposta do agente não encontrada."}
+            
+            message = response.choices[0].message
+            usage_info = response.usage if hasattr(response, 'usage') else None
+            
+            # Acumular uso de tokens
+            if usage_info:
+                if total_usage is None:
+                    total_usage = {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0
+                    }
+                total_usage["prompt_tokens"] += usage_info.prompt_tokens
+                total_usage["completion_tokens"] += usage_info.completion_tokens
+                total_usage["total_tokens"] += usage_info.total_tokens
+            
+            # Verificar se o modelo quer chamar ferramentas
+            if message.tool_calls and len(message.tool_calls) > 0:
+                logger.info(f"🔧 Modelo quer chamar {len(message.tool_calls)} ferramenta(s)")
+                
+                # Adicionar mensagem do assistente com tool_calls ao histórico
+                assistant_message_dict = {
+                    "role": "assistant",
+                    "content": message.content or None,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": tc.type,
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        }
+                        for tc in message.tool_calls
+                    ]
+                }
+                messages.append(assistant_message_dict)
+                
+                # Salvar mensagem do assistente com tool_calls no banco
+                assistant_message = OpenAIAssistantMessage(
+                    thread_id=db_thread.id,
+                    role="assistant",
+                    content=json.dumps({
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments
+                                }
+                            }
+                            for tc in message.tool_calls
+                        ]
+                    }, ensure_ascii=False)
+                )
+                self.db.add(assistant_message)
+                self.db.flush()
+                
+                # Processar cada tool call
+                tool_outputs = []
+                for tool_call in message.tool_calls:
+                    function_name = tool_call.function.name
+                    try:
+                        function_args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        function_args = {}
+                    
+                    logger.info(f"⚙️ Processando ferramenta: {function_name} com args: {function_args}")
+                    
+                    # Executar função local (aqui você implementa suas funções)
+                    result = self._execute_tool_function(function_name, function_args, db_thread)
+                    
+                    # Adicionar resultado ao histórico
+                    tool_outputs.append({
+                        "tool_call_id": tool_call.id,
+                        "role": "tool",
+                        "name": function_name,
+                        "content": json.dumps(result, ensure_ascii=False)
+                    })
+                    
+                    # Salvar resultado no banco
+                    tool_message = OpenAIAssistantMessage(
+                        thread_id=db_thread.id,
+                        role="tool",
+                        content=json.dumps(result, ensure_ascii=False)
+                    )
+                    self.db.add(tool_message)
+                    self.db.flush()
+                
+                # Adicionar resultados ao histórico de mensagens
+                messages.extend(tool_outputs)
+                
+                # Atualizar chat_params para próxima iteração
+                chat_params["messages"] = messages
+                
+                # Continuar loop para processar resposta final
+                continue
+            else:
+                # Não há tool calls, retornar resposta final
+                response_text = message.content or ""
+                
+                # Salvar resposta final do assistente no banco
+                assistant_message = OpenAIAssistantMessage(
+                    thread_id=db_thread.id,
+                    role="assistant",
+                    content=response_text
+                )
+                self.db.add(assistant_message)
+                self.db.flush()
+                
+                return {
+                    "success": True,
+                    "response": response_text,
+                    "usage": total_usage or {
+                        "prompt_tokens": usage_info.prompt_tokens if usage_info else 0,
+                        "completion_tokens": usage_info.completion_tokens if usage_info else 0,
+                        "total_tokens": usage_info.total_tokens if usage_info else 0
+                    }
+                }
+        
+        # Se chegou aqui, excedeu o número máximo de iterações
+        logger.warning(f"⚠️ Máximo de iterações ({max_iterations}) atingido")
+        return {
+            "success": False,
+            "error": f"Máximo de iterações ({max_iterations}) atingido. O modelo pode estar em loop."
+        }
+    
+    def _execute_tool_function(self, function_name: str, function_args: Dict, db_thread: OpenAIAssistantThread) -> Dict:
+        """
+        Executa uma função de ferramenta customizada.
+        Aqui você implementa as funções que o agente pode chamar.
+        """
+        try:
+            logger.info(f"🔨 Executando função: {function_name}")
+            
+            # Exemplo de implementação de funções
+            # Você pode adicionar mais funções aqui conforme necessário
+            
+            if function_name == "get_ml_order_status":
+                # Exemplo: buscar status de pedido
+                order_id = function_args.get("order_id")
+                if not order_id:
+                    return {"error": "order_id é obrigatório"}
+                
+                # Aqui você implementaria a lógica real
+                # Por enquanto, retornamos um exemplo
+                return {
+                    "order_id": order_id,
+                    "status": "pending",
+                    "message": "Função get_ml_order_status chamada com sucesso (implementação pendente)"
+                }
+            
+            elif function_name == "get_product_info":
+                # Exemplo: buscar informações de produto
+                product_id = function_args.get("product_id")
+                if not product_id:
+                    return {"error": "product_id é obrigatório"}
+                
+                return {
+                    "product_id": product_id,
+                    "message": "Função get_product_info chamada com sucesso (implementação pendente)"
+                }
+            
+            else:
+                # Função não implementada
+                logger.warning(f"⚠️ Função '{function_name}' não implementada")
+                return {
+                    "error": f"Função '{function_name}' não está implementada no sistema",
+                    "available_functions": ["get_ml_order_status", "get_product_info"]
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao executar função {function_name}: {e}", exc_info=True)
+            return {"error": f"Erro ao executar função: {str(e)}"}
+    
+    def _use_assistants_api_chat_mode(
+        self,
+        db_assistant: OpenAIAssistant,
+        db_thread: OpenAIAssistantThread,
+        user_message: str,
+        tools: List[Dict],
+        usage_record: OpenAIAssistantUsage,
+        start_time: float,
+        request_data_size: int
+    ) -> Dict:
+        """
+        Usa Assistants API quando Code Interpreter ou File Search estão presentes.
+        Cria ou atualiza assistente na OpenAI e usa threads/runs.
+        """
+        try:
+            logger.info("🤖 Usando Assistants API para Code Interpreter/File Search")
+            
+            # Verificar se já existe assistente na OpenAI
+            openai_assistant_id = None
+            if db_assistant.assistant_id and not db_assistant.assistant_id.startswith("local_"):
+                # Tentar usar assistente existente
+                try:
+                    existing_assistant = self.client.beta.assistants.retrieve(db_assistant.assistant_id)
+                    openai_assistant_id = existing_assistant.id
+                    logger.info(f"✅ Usando assistente OpenAI existente: {openai_assistant_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Assistente OpenAI não encontrado, criando novo: {e}")
+                    openai_assistant_id = None
+            
+            # Criar ou atualizar assistente na OpenAI se necessário
+            if not openai_assistant_id:
+                assistant_params = {
+                    "name": db_assistant.name,
+                    "instructions": db_assistant.instructions,
+                    "model": db_assistant.model,
+                    "tools": tools
+                }
+                
+                # Adicionar parâmetros específicos do modelo
+                if self._is_gpt5_model(db_assistant.model):
+                    if db_assistant.tools_config and isinstance(db_assistant.tools_config, dict):
+                        if db_assistant.tools_config.get("reasoning_effort"):
+                            assistant_params["reasoning_effort"] = db_assistant.tools_config["reasoning_effort"]
+                        if db_assistant.tools_config.get("verbosity"):
+                            assistant_params["verbosity"] = db_assistant.tools_config["verbosity"]
+                elif not self._is_reasoning_model(db_assistant.model):
+                    if db_assistant.temperature is not None:
+                        assistant_params["temperature"] = float(db_assistant.temperature)
+                
+                openai_assistant = self.client.beta.assistants.create(**assistant_params)
+                openai_assistant_id = openai_assistant.id
+                
+                # Atualizar assistant_id no banco
+                db_assistant.assistant_id = openai_assistant_id
+                self.db.commit()
+                logger.info(f"✅ Assistente criado na OpenAI: {openai_assistant_id}")
+            
+            # Criar ou buscar thread na OpenAI
+            openai_thread_id = db_thread.thread_id
+            if not openai_thread_id or openai_thread_id.startswith("local_"):
+                # Criar nova thread na OpenAI
+                openai_thread = self.client.beta.threads.create()
+                openai_thread_id = openai_thread.id
+                db_thread.thread_id = openai_thread_id
+                self.db.commit()
+                logger.info(f"✅ Thread criada na OpenAI: {openai_thread_id}")
+            
+            # Adicionar mensagem do usuário à thread
+            self.client.beta.threads.messages.create(
+                thread_id=openai_thread_id,
+                role="user",
+                content=user_message
+            )
+            
+            # Criar run
+            run = self.client.beta.threads.runs.create(
+                thread_id=openai_thread_id,
+                assistant_id=openai_assistant_id
+            )
+            
+            # Aguardar conclusão do run
+            logger.info(f"⏳ Aguardando conclusão do run {run.id}...")
+            while run.status in ["queued", "in_progress", "requires_action"]:
+                time.sleep(1)
+                run = self.client.beta.threads.runs.retrieve(
+                    thread_id=openai_thread_id,
+                    run_id=run.id
+                )
+                
+                # Processar tool calls se necessário
+                if run.status == "requires_action":
+                    tool_outputs = []
+                    for tool_call in run.required_action.submit_tool_outputs.tool_calls:
+                        if tool_call.type == "function":
+                            function_name = tool_call.function.name
+                            function_args = json.loads(tool_call.function.arguments)
+                            result = self._execute_tool_function(function_name, function_args, db_thread)
+                            tool_outputs.append({
+                                "tool_call_id": tool_call.id,
+                                "output": json.dumps(result, ensure_ascii=False)
+                            })
+                    
+                    if tool_outputs:
+                        run = self.client.beta.threads.runs.submit_tool_outputs(
+                            thread_id=openai_thread_id,
+                            run_id=run.id,
+                            tool_outputs=tool_outputs
+                        )
+            
+            # Verificar resultado
+            if run.status == "completed":
+                # Buscar mensagens da thread
+                messages = self.client.beta.threads.messages.list(thread_id=openai_thread_id)
+                response_text = ""
+                
+                for msg in messages.data:
+                    if msg.role == "assistant" and msg.content:
+                        if isinstance(msg.content, list):
+                            for content in msg.content:
+                                if hasattr(content, 'text'):
+                                    response_text = content.text.value
+                                    break
+                        break
+                
+                # Salvar resposta no banco
+                assistant_message = OpenAIAssistantMessage(
+                    thread_id=db_thread.id,
+                    role="assistant",
+                    content=response_text
+                )
+                self.db.add(assistant_message)
+                
+                # Obter uso de tokens
+                usage_info = None
+                if hasattr(run, 'usage') and run.usage:
+                    usage_info = run.usage
+                
+                # Atualizar métricas
+                db_assistant.total_runs += 1
+                if usage_info:
+                    db_assistant.total_tokens_used += usage_info.total_tokens
+                db_assistant.last_used_at = datetime.utcnow()
+                
+                # Atualizar registro de uso
+                duration = time.time() - start_time
+                usage_record.status = UsageStatus.COMPLETED
+                usage_record.completed_at = datetime.utcnow()
+                usage_record.duration_seconds = duration
+                usage_record.response_data_size = len(response_text.encode('utf-8'))
+                usage_record.request_data_size = request_data_size
+                
+                if usage_info:
+                    usage_record.prompt_tokens = usage_info.prompt_tokens
+                    usage_record.completion_tokens = usage_info.completion_tokens
+                    usage_record.total_tokens = usage_info.total_tokens
+                
+                self.db.commit()
+                
+                return {
+                    "success": True,
+                    "response": response_text,
+                    "thread_id": openai_thread_id,
+                    "usage": {
+                        "prompt_tokens": usage_info.prompt_tokens if usage_info else 0,
+                        "completion_tokens": usage_info.completion_tokens if usage_info else 0,
+                        "total_tokens": usage_info.total_tokens if usage_info else 0
+                    } if usage_info else None
+                }
+            else:
+                error_msg = f"Run falhou com status: {run.status}"
+                if hasattr(run, 'last_error') and run.last_error:
+                    error_msg += f" - {run.last_error.message}"
+                raise Exception(error_msg)
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao usar Assistants API: {e}", exc_info=True)
+            usage_record.status = UsageStatus.FAILED
+            usage_record.error_message = str(e)
+            usage_record.completed_at = datetime.utcnow()
+            usage_record.duration_seconds = time.time() - start_time
+            self.db.commit()
+            return {"success": False, "error": str(e)}
+    
+    def _use_assistants_api_report_mode(
+        self,
+        db_assistant: OpenAIAssistant,
+        db_thread: OpenAIAssistantThread,
+        user_prompt: str,
+        tools: List[Dict],
+        usage_record: OpenAIAssistantUsage,
+        start_time: float,
+        request_data_size: int
+    ) -> Dict:
+        """
+        Usa Assistants API para modo report quando Code Interpreter ou File Search estão presentes.
+        Similar ao _use_assistants_api_chat_mode mas para modo report.
+        """
+        try:
+            logger.info("🤖 Usando Assistants API para modo report (Code Interpreter/File Search)")
+            
+            # Verificar se já existe assistente na OpenAI
+            openai_assistant_id = None
+            if db_assistant.assistant_id and not db_assistant.assistant_id.startswith("local_"):
+                try:
+                    existing_assistant = self.client.beta.assistants.retrieve(db_assistant.assistant_id)
+                    openai_assistant_id = existing_assistant.id
+                    logger.info(f"✅ Usando assistente OpenAI existente: {openai_assistant_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Assistente OpenAI não encontrado, criando novo: {e}")
+                    openai_assistant_id = None
+            
+            # Criar ou atualizar assistente na OpenAI se necessário
+            if not openai_assistant_id:
+                assistant_params = {
+                    "name": db_assistant.name,
+                    "instructions": db_assistant.instructions,
+                    "model": db_assistant.model,
+                    "tools": tools
+                }
+                
+                # Adicionar parâmetros específicos do modelo
+                if self._is_gpt5_model(db_assistant.model):
+                    if db_assistant.tools_config and isinstance(db_assistant.tools_config, dict):
+                        if db_assistant.tools_config.get("reasoning_effort"):
+                            assistant_params["reasoning_effort"] = db_assistant.tools_config["reasoning_effort"]
+                        if db_assistant.tools_config.get("verbosity"):
+                            assistant_params["verbosity"] = db_assistant.tools_config["verbosity"]
+                elif not self._is_reasoning_model(db_assistant.model):
+                    if db_assistant.temperature is not None:
+                        assistant_params["temperature"] = float(db_assistant.temperature)
+                
+                openai_assistant = self.client.beta.assistants.create(**assistant_params)
+                openai_assistant_id = openai_assistant.id
+                
+                # Atualizar assistant_id no banco
+                db_assistant.assistant_id = openai_assistant_id
+                self.db.commit()
+                logger.info(f"✅ Assistente criado na OpenAI: {openai_assistant_id}")
+            
+            # Criar thread temporária na OpenAI
+            openai_thread = self.client.beta.threads.create()
+            openai_thread_id = openai_thread.id
+            logger.info(f"✅ Thread criada na OpenAI: {openai_thread_id}")
+            
+            # Adicionar mensagem do usuário à thread
+            self.client.beta.threads.messages.create(
+                thread_id=openai_thread_id,
+                role="user",
+                content=user_prompt
+            )
+            
+            # Criar run
+            run = self.client.beta.threads.runs.create(
+                thread_id=openai_thread_id,
+                assistant_id=openai_assistant_id
+            )
+            
+            # Aguardar conclusão do run
+            logger.info(f"⏳ Aguardando conclusão do run {run.id}...")
+            while run.status in ["queued", "in_progress", "requires_action"]:
+                time.sleep(1)
+                run = self.client.beta.threads.runs.retrieve(
+                    thread_id=openai_thread_id,
+                    run_id=run.id
+                )
+                
+                # Processar tool calls se necessário
+                if run.status == "requires_action":
+                    tool_outputs = []
+                    for tool_call in run.required_action.submit_tool_outputs.tool_calls:
+                        if tool_call.type == "function":
+                            function_name = tool_call.function.name
+                            function_args = json.loads(tool_call.function.arguments)
+                            result = self._execute_tool_function(function_name, function_args, db_thread)
+                            tool_outputs.append({
+                                "tool_call_id": tool_call.id,
+                                "output": json.dumps(result, ensure_ascii=False)
+                            })
+                    
+                    if tool_outputs:
+                        run = self.client.beta.threads.runs.submit_tool_outputs(
+                            thread_id=openai_thread_id,
+                            run_id=run.id,
+                            tool_outputs=tool_outputs
+                        )
+            
+            # Verificar resultado
+            if run.status == "completed":
+                # Buscar mensagens da thread
+                messages = self.client.beta.threads.messages.list(thread_id=openai_thread_id)
+                response_text = ""
+                
+                for msg in messages.data:
+                    if msg.role == "assistant" and msg.content:
+                        if isinstance(msg.content, list):
+                            for content in msg.content:
+                                if hasattr(content, 'text'):
+                                    response_text = content.text.value
+                                    break
+                        break
+                
+                # Obter uso de tokens
+                usage_info = None
+                if hasattr(run, 'usage') and run.usage:
+                    usage_info = run.usage
+                
+                # Atualizar métricas
+                db_assistant.total_runs += 1
+                if usage_info:
+                    db_assistant.total_tokens_used += usage_info.total_tokens
+                db_assistant.last_used_at = datetime.utcnow()
+                
+                # Atualizar registro de uso
+                duration = time.time() - start_time
+                usage_record.status = UsageStatus.COMPLETED
+                usage_record.completed_at = datetime.utcnow()
+                usage_record.duration_seconds = duration
+                usage_record.response_data_size = len(response_text.encode('utf-8'))
+                usage_record.request_data_size = request_data_size
+                
+                if usage_info:
+                    usage_record.prompt_tokens = usage_info.prompt_tokens
+                    usage_record.completion_tokens = usage_info.completion_tokens
+                    usage_record.total_tokens = usage_info.total_tokens
+                
+                self.db.commit()
+                
+                return {
+                    "success": True,
+                    "response": response_text,
+                    "thread_id": openai_thread_id,
+                    "usage": {
+                        "prompt_tokens": usage_info.prompt_tokens if usage_info else 0,
+                        "completion_tokens": usage_info.completion_tokens if usage_info else 0,
+                        "total_tokens": usage_info.total_tokens if usage_info else 0
+                    } if usage_info else None
+                }
+            else:
+                error_msg = f"Run falhou com status: {run.status}"
+                if hasattr(run, 'last_error') and run.last_error:
+                    error_msg += f" - {run.last_error.message}"
+                raise Exception(error_msg)
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao usar Assistants API (report mode): {e}", exc_info=True)
+            usage_record.status = UsageStatus.FAILED
+            usage_record.error_message = str(e)
+            usage_record.completed_at = datetime.utcnow()
+            usage_record.duration_seconds = time.time() - start_time
+            self.db.commit()
+            return {"success": False, "error": str(e)}
+    
+    def get_chat_history(self, thread_id: str, company_id: int, user_id: Optional[int] = None, limit: int = 50) -> Dict:
         """Obtém histórico de mensagens de uma thread"""
         if not self.client:
             return {"success": False, "error": "OpenAI API key não configurada."}
         
         try:
-            # Verificar se thread pertence à company
-            db_thread = self.db.query(OpenAIAssistantThread).filter(
+            # Verificar se thread pertence à company e ao user (isolamento)
+            query = self.db.query(OpenAIAssistantThread).filter(
                 OpenAIAssistantThread.thread_id == thread_id,
                 OpenAIAssistantThread.company_id == company_id
-            ).first()
+            )
+            
+            # Adicionar filtro por user_id se fornecido (isolamento por usuário)
+            if user_id:
+                query = query.filter(OpenAIAssistantThread.user_id == user_id)
+            
+            db_thread = query.first()
             
             if not db_thread:
-                return {"success": False, "error": "Thread não encontrada."}
+                return {"success": False, "error": "Thread não encontrada ou você não tem permissão para acessá-la."}
             
             # Buscar mensagens no banco de dados
             db_messages = self.db.query(OpenAIAssistantMessage).filter(

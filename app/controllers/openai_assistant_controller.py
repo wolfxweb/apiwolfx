@@ -47,6 +47,9 @@ class OpenAIAssistantController:
                     tools_config_clean = {
                         "tools": a.tools_config.get("tools", [])
                     } if a.tools_config.get("tools") else None
+                elif isinstance(a.tools_config, list):
+                    # Para modelos não-GPT-5, tools_config pode ser uma lista direta
+                    tools_config_clean = a.tools_config
                 
                 assistants_list.append({
                     "id": a.id,
@@ -64,6 +67,7 @@ class OpenAIAssistantController:
                     "use_case": a.use_case,
                     "memory_enabled": a.memory_enabled,
                     "memory_data": a.memory_data,
+                    "initial_prompt": a.initial_prompt,
                     "is_active": a.is_active,
                     "total_runs": a.total_runs,
                     "total_tokens_used": a.total_tokens_used,
@@ -95,7 +99,8 @@ class OpenAIAssistantController:
         interaction_mode: str = "report",
         use_case: Optional[str] = None,
         memory_enabled: bool = True,
-        memory_data: Optional[Dict] = None
+        memory_data: Optional[Dict] = None,
+        initial_prompt: Optional[str] = None
     ) -> Dict:
         """Cria um novo assistente"""
         try:
@@ -112,7 +117,8 @@ class OpenAIAssistantController:
                 interaction_mode=interaction_mode,
                 use_case=use_case,
                 memory_enabled=memory_enabled,
-                memory_data=memory_data
+                memory_data=memory_data,
+                initial_prompt=initial_prompt
             )
         except Exception as e:
             logger.error(f"❌ Erro ao criar assistente: {e}", exc_info=True)
@@ -140,6 +146,9 @@ class OpenAIAssistantController:
                 tools_config_clean = {
                     "tools": assistant.tools_config.get("tools", [])
                 } if assistant.tools_config.get("tools") else None
+            elif isinstance(assistant.tools_config, list):
+                # Para modelos não-GPT-5, tools_config pode ser uma lista direta
+                tools_config_clean = assistant.tools_config
             
             return {
                 "success": True,
@@ -159,6 +168,7 @@ class OpenAIAssistantController:
                     "use_case": assistant.use_case,
                     "memory_enabled": assistant.memory_enabled,
                     "memory_data": assistant.memory_data,
+                    "initial_prompt": assistant.initial_prompt,
                     "is_active": assistant.is_active,
                     "total_runs": assistant.total_runs,
                     "total_tokens_used": assistant.total_tokens_used,
@@ -186,7 +196,8 @@ class OpenAIAssistantController:
         tools: Optional[List[Dict]] = None,
         interaction_mode: Optional[str] = None,
         use_case: Optional[str] = None,
-        is_active: Optional[bool] = None
+        is_active: Optional[bool] = None,
+        initial_prompt: Optional[str] = None
     ) -> Dict:
         """Atualiza um assistente existente"""
         try:
@@ -205,7 +216,8 @@ class OpenAIAssistantController:
                 use_case=use_case,
                 is_active=is_active,
                 memory_enabled=memory_enabled,
-                memory_data=memory_data
+                memory_data=memory_data,
+                initial_prompt=initial_prompt
             )
         except Exception as e:
             logger.error(f"❌ Erro ao atualizar assistente: {e}", exc_info=True)
@@ -267,12 +279,13 @@ class OpenAIAssistantController:
             logger.error(f"❌ Erro ao usar assistente em modo chat: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def get_chat_history(self, thread_id: str, company_id: int, limit: int = 50) -> Dict:
+    def get_chat_history(self, thread_id: str, company_id: int, user_id: Optional[int] = None, limit: int = 50) -> Dict:
         """Obtém histórico de mensagens de uma thread"""
         try:
             return self.service.get_chat_history(
                 thread_id=thread_id,
                 company_id=company_id,
+                user_id=user_id,
                 limit=limit
             )
         except Exception as e:

@@ -23,6 +23,9 @@ docker service update --force --image celx_ml_api:latest celx_ml_api_api && \
 sleep 10 && \
 docker service ps celx_ml_api_api
 
+# ⚠️ IMPORTANTE: Após o deploy, executar migrações de banco de dados se necessário
+# Ver seção "Migrações de Banco de Dados" abaixo
+
 
 ## Configuração Inicial: Secret SSH do GitHub
 
@@ -48,6 +51,36 @@ cat /root/.ssh/id_rsa.pub
 ```
 
 ## Comandos para Atualizar Produção
+
+### ⚠️ IMPORTANTE: Migrações de Banco de Dados
+
+**✅ AUTOMÁTICO:** As migrações são executadas automaticamente quando a aplicação inicia (`startup_event` em `app/main.py`). Isso inclui:
+- Criação das tabelas OpenAI Assistants (`openai_assistants`, `openai_assistant_threads`, `openai_assistant_usage`, `openai_assistant_messages`)
+- Adição das colunas de memória (`memory_enabled`, `memory_data`)
+- Adição da coluna `initial_prompt`
+
+**Se precisar executar manualmente (opcional):**
+
+```bash
+# No servidor, após fazer git pull e deploy:
+cd /root/apiwolfx
+
+# Executar todas as migrações de uma vez (método recomendado)
+docker exec -it $(docker ps -q --filter "name=celx_ml_api_api") python database/fixes/run_all_migrations.py
+```
+
+**OU executar migrações individuais:**
+
+```bash
+# 1. Criar tabelas OpenAI Assistants (se ainda não existirem)
+docker exec -it $(docker ps -q --filter "name=celx_ml_api_api") python database/fixes/create_openai_assistants_tables.py
+
+# 2. Adicionar colunas de memória e initial_prompt (script único)
+docker exec -it $(docker ps -q --filter "name=celx_ml_api_api") python database/fixes/add_memory_columns_to_openai_assistants.py
+docker exec -it $(docker ps -q --filter "name=celx_ml_api_api") python database/fixes/add_initial_prompt_column.py
+```
+
+**Nota:** Esses scripts são idempotentes (podem ser executados múltiplas vezes sem problemas). As migrações automáticas também são seguras e verificam se as tabelas/colunas já existem antes de criar.
 
 ### Método Rápido: Redeploy Simples (Recomendado)
 
