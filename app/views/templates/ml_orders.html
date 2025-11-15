@@ -1592,11 +1592,38 @@ async function syncInvoiceForOrder(orderId, triggerElement) {
         }
 
         const data = await response.json();
+        console.log('📦 Resposta da sincronização:', data);
+        
         if (!response.ok || !data.success) {
             throw new Error(data.error || `Erro ${response.status}`);
         }
 
-        showSuccess(`Nota fiscal do pedido ${orderId} sincronizada.`);
+        // Se a mensagem indicar que já está atualizado, mostrar como toast
+        const message = data.message || '';
+        const isAlreadyUpdated = message.toLowerCase().includes('já está atualizado') || 
+                                 message.toLowerCase().includes('ja esta atualizado') ||
+                                 message.toLowerCase().includes('já atualizado');
+        
+        console.log('🔍 Verificando mensagem:', {
+            message: message,
+            isAlreadyUpdated: isAlreadyUpdated,
+            hasMLAPI: !!(window.MLAPI && typeof window.MLAPI.showNotification === 'function')
+        });
+        
+        if (isAlreadyUpdated) {
+            console.log('📢 Exibindo toast para mensagem "já atualizado":', message);
+            // Usar window.MLAPI.showNotification diretamente
+            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                window.MLAPI.showNotification(message, 'info', 8000);
+            } else if (typeof showToast === 'function') {
+                showToast(message, 'info');
+            } else {
+                console.warn('⚠️ Função de notificação não disponível, usando showSuccess');
+                showSuccess(message);
+            }
+        } else {
+            showSuccess(message || `Nota fiscal do pedido ${orderId} sincronizada.`);
+        }
     } catch (error) {
         console.error('Erro ao sincronizar nota:', error);
         showError(error.message || 'Erro ao sincronizar nota fiscal.');
@@ -1675,7 +1702,21 @@ async function syncSingleOrder(orderId, triggerElement) {
             throw new Error(data.error || data.message || `Erro ${response.status}`);
         }
 
-        showSuccess(data.message || `Pedido ${orderId} sincronizado com sucesso.`);
+        // Se a mensagem indicar que já está atualizado, mostrar como toast
+        if (data.message && data.message.toLowerCase().includes('já está atualizado')) {
+            console.log('📢 Mensagem detectada como "já atualizado":', data.message);
+            // Usar window.MLAPI.showNotification diretamente
+            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                window.MLAPI.showNotification(data.message, 'info', 8000);
+            } else if (typeof showToast === 'function') {
+                showToast(data.message, 'info');
+            } else {
+                console.warn('⚠️ Função de notificação não disponível, usando showSuccess');
+                showSuccess(data.message);
+            }
+        } else {
+            showSuccess(data.message || `Pedido ${orderId} sincronizado com sucesso.`);
+        }
         loadOrders(currentPage);
     } catch (error) {
         console.error('Erro ao sincronizar pedido:', error);

@@ -10,6 +10,20 @@ Este documento contém os comandos para atualizar a aplicação em produção.
 - Rede `server` criada no Docker Swarm
 - Chave SSH configurada para acesso ao GitHub
 
+# Clonar se não existir
+if [ ! -d "/root/apiwolfx" ]; then
+    cd /root && git clone https://github.com/wolfxweb/apiwolfx.git
+fi
+
+# Depois fazer o deploy
+cd /root/apiwolfx && \
+git pull origin main && \
+docker build -t celx_ml_api:latest . && \
+docker service update --force --image celx_ml_api:latest celx_ml_api_api && \
+sleep 10 && \
+docker service ps celx_ml_api_api
+
+
 ## Configuração Inicial: Secret SSH do GitHub
 
 **IMPORTANTE:** Execute este passo apenas uma vez, antes do primeiro deploy:

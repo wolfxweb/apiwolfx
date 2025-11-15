@@ -3278,7 +3278,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || `Erro ${response.status}: ${response.statusText}`);
             }
             
-            showSyncModal('success', 'Nota sincronizada', `Nota fiscal do pedido ${orderId} sincronizada com sucesso!`);
+            // Se a mensagem indicar que já está atualizado, mostrar como toast
+            if (data.message && (data.message.includes('já está atualizado') || data.message.toLowerCase().includes('já está atualizado'))) {
+                console.log('📢 Mensagem detectada como "já atualizado":', data.message);
+                // Usar window.MLAPI.showNotification diretamente
+                if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                    window.MLAPI.showNotification(data.message, 'info', 8000);
+                } else if (typeof showToast === 'function') {
+                    showToast(data.message, 'info');
+                } else {
+                    console.warn('⚠️ Função de notificação não disponível, usando showSyncModal');
+                    showSyncModal('success', 'Informação', data.message);
+                }
+            } else {
+                showSyncModal('success', 'Nota sincronizada', data.message || `Nota fiscal do pedido ${orderId} sincronizada com sucesso!`);
+            }
             await reloadActiveTabOrders();
         } catch (error) {
             console.error('Erro ao sincronizar nota:', error);
