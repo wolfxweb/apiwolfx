@@ -538,14 +538,22 @@ async def api_update_company(
 
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")
-async def root():
-    """Página inicial - Landing page do CELX"""
+async def root(request: Request, session_token: str = Cookie(None), db: Session = Depends(get_db)):
+    """Página inicial - Landing page do CELX com menus do usuário se logado"""
     from app.views.template_renderer import render_template
+    from app.controllers.auth_controller import AuthController
     from app.models.saas_models import Subscription
-    from app.config.database import SessionLocal
+    
+    user_data = None
+    
+    # Verificar se o usuário está logado para exibir menus
+    if session_token:
+        controller = AuthController()
+        result = controller.get_user_by_session(session_token, db)
+        if not result.get("error"):
+            user_data = result.get("user")
     
     # Buscar planos templates do banco de dados
-    db = SessionLocal()
     try:
         plans = db.query(Subscription).filter(
             Subscription.status == "template"
@@ -571,10 +579,12 @@ async def root():
                 "product_monitoring_slots": plan.product_monitoring_slots,
                 "trial_days": plan.trial_days
             })
-    finally:
-        db.close()
+    except Exception as e:
+        # Se houver erro ao buscar planos, continuar sem eles
+        plans_data = []
     
-    return render_template("home.html", plans=plans_data)
+    # Renderizar landing page com user_data (se logado, os menus aparecerão automaticamente)
+    return render_template("home.html", request=request, user=user_data, plans=plans_data)
 
 
 
