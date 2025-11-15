@@ -6,7 +6,7 @@ import logging
 import json
 
 from app.services.ml_orders_service import MLOrdersService
-from app.models.saas_models import MLAccount, MLAccountStatus, MLProduct, MLOrderProcessingStatus
+from app.models.saas_models import MLAccount, MLAccountStatus, MLProduct, MLOrder, MLOrderProcessingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ class MLOrdersController:
                        limit: int = 50, offset: int = 0,
                        shipping_status_filter: Optional[str] = None,
                        logistic_filter: Optional[str] = None,
+                       internal_status_filter: Optional[str] = None,
                        date_from: Optional[str] = None,
                        date_to: Optional[str] = None,
                        search_query: Optional[str] = None) -> Dict:
@@ -58,7 +59,6 @@ class MLOrdersController:
                 }
             
             # Buscar orders diretamente do banco de dados
-            from app.models.saas_models import MLOrder
             from sqlalchemy import func, or_, cast, String, Text
             
             # Construir query base
@@ -105,6 +105,23 @@ class MLOrdersController:
 
                 if expanded_values:
                     query = query.filter(func.lower(MLOrder.shipping_type).in_([val.lower() for val in expanded_values]))
+            
+            # Aplicar filtro de status interno
+            if internal_status_filter:
+                # Suportar múltiplos valores separados por vírgula
+                internal_status_values = [value.strip() for value in internal_status_filter.split(',') if value.strip()]
+                if internal_status_values:
+                    # Buscar IDs dos pedidos que têm os status internos especificados
+                    status_order_ids = self.db.query(MLOrderProcessingStatus.order_id).filter(
+                        MLOrderProcessingStatus.company_id == company_id,
+                        MLOrderProcessingStatus.status.in_(internal_status_values)
+                    ).all()
+                    order_ids_list = [row[0] for row in status_order_ids]
+                    if order_ids_list:
+                        query = query.filter(MLOrder.id.in_(order_ids_list))
+                    else:
+                        # Se não há pedidos com esses status, retornar query vazia
+                        query = query.filter(MLOrder.id.in_([]))
 
             if date_from:
                 try:
@@ -618,7 +635,9 @@ class MLOrdersController:
             }
             
         except Exception as e:
+            import traceback
             logger.error(f"Erro ao buscar lista de orders: {e}")
+            logger.error(f"Traceback completo: {traceback.format_exc()}")
             return {
                 "success": False,
                 "error": str(e),

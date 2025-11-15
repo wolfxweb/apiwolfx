@@ -97,6 +97,7 @@ async def get_orders_api(
     offset: int = Query(0),
     shipping_status_filter: Optional[str] = Query(None),
     logistic_filter: Optional[str] = Query(None),
+    internal_status_filter: Optional[str] = Query(None),
     search_query: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -123,6 +124,7 @@ async def get_orders_api(
             offset=offset,
             shipping_status_filter=shipping_status_filter,
             logistic_filter=logistic_filter,
+            internal_status_filter=internal_status_filter,
             date_from=date_from,
             date_to=date_to,
             search_query=search_query

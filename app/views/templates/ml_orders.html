@@ -84,7 +84,7 @@
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_cross_docking" value="cross_docking" onchange="applyFilters()">
-                                    <label class="form-check-label" for="logistic_cross_docking">Cross Docking</label>
+                                    <label class="form-check-label" for="logistic_cross_docking">Cruzamento de Docking</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_me2" value="me2" onchange="applyFilters()">
@@ -148,6 +148,33 @@
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="status_filter" id="status_cancelled" value="cancelled" onchange="applyFilters()">
                                     <label class="form-check-label" for="status_cancelled">Cancelado</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Quarta linha: Status interno -->
+                        <div class="col-12">
+                            <label class="form-label small text-uppercase text-muted d-block mb-2">Status interno</label>
+                            <div class="d-flex flex-wrap gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_aguardando_processamento" value="aguardando_processamento" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_aguardando_processamento">Aguardando processamento</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_separacao" value="separacao" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_separacao">Separação</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_expedicao" value="expedicao" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_expedicao">Expedição</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_pronto_envio" value="pronto_envio" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_pronto_envio">Pronto para envio</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_enviado" value="enviado" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_enviado">Enviado</label>
                                 </div>
                             </div>
                         </div>
@@ -870,6 +897,22 @@ function syncFiltersWithUrl() {
         document.querySelectorAll('input[name="status_filter"]').forEach(cb => cb.checked = false);
     }
 
+    // Processar filtros de status interno (checkboxes)
+    const rawInternalStatus = params.get('internal_status_filter') || '';
+    if (rawInternalStatus) {
+        const internalStatusValues = rawInternalStatus.split(',').map(v => v.trim()).filter(v => v);
+        // Desmarcar todos os checkboxes primeiro
+        document.querySelectorAll('input[name="internal_status_filter"]').forEach(cb => cb.checked = false);
+        // Marcar os checkboxes correspondentes
+        internalStatusValues.forEach(value => {
+            const checkbox = document.getElementById(`internal_status_${value}`);
+            if (checkbox) checkbox.checked = true;
+        });
+    } else {
+        // Desmarcar todos se não houver filtro
+        document.querySelectorAll('input[name="internal_status_filter"]').forEach(cb => cb.checked = false);
+    }
+
     // Processar filtros de modalidade de envio (checkboxes)
     const rawLogistic = params.get('logistic_filter') || '';
     if (rawLogistic) {
@@ -963,11 +1006,17 @@ function applyFilters() {
     const logisticCheckboxes = Array.from(document.querySelectorAll('input[name="logistic_filter"]:checked'));
     const logisticValues = logisticCheckboxes.map(cb => cb.value);
     const logisticValue = logisticValues.length > 0 ? logisticValues.join(',') : '';
+    
+    // Coletar checkboxes de status interno selecionados
+    const internalStatusCheckboxes = Array.from(document.querySelectorAll('input[name="internal_status_filter"]:checked'));
+    const internalStatusValues = internalStatusCheckboxes.map(cb => cb.value);
+    const internalStatusValue = internalStatusValues.length > 0 ? internalStatusValues.join(',') : '';
 
     if (accountValue) params.set('account_filter', accountValue);
     if (searchValue) params.set('search_query', searchValue);
     if (statusValue) params.set('shipping_status_filter', statusValue);
     if (logisticValue) params.set('logistic_filter', logisticValue);
+    if (internalStatusValue) params.set('internal_status_filter', internalStatusValue);
     const finalPeriodValue = selectedPeriodValue || 'last_15_days';
     if (finalPeriodValue) params.set('period_filter', finalPeriodValue);
 
@@ -1330,11 +1379,17 @@ function loadOrders(page = 1) {
     // Suportar múltiplos valores separados por vírgula
     const statusValues = rawStatus.split(',').map(s => s.trim().toLowerCase()).filter(s => s && VALID_SHIPPING_STATUS.includes(s));
     const statusForApi = statusValues.length > 0 ? statusValues.join(',') : '';
+    
+    const rawInternalStatus = urlParams.get('internal_status_filter') || '';
+    // Suportar múltiplos valores separados por vírgula
+    const internalStatusValues = rawInternalStatus.split(',').map(s => s.trim()).filter(s => s);
+    const internalStatusForApi = internalStatusValues.length > 0 ? internalStatusValues.join(',') : '';
 
     var filters = {
         ml_account_id: urlParams.get('account_filter') || '',
         shipping_status_filter: statusForApi,
         logistic_filter: (urlParams.get('logistic_filter') || '').toLowerCase(),
+        internal_status_filter: internalStatusForApi,
         date_from: urlParams.get('date_from') || '',
         date_to: urlParams.get('date_to') || '',
         period_filter: urlParams.get('period_filter') || '',
@@ -1349,6 +1404,7 @@ function loadOrders(page = 1) {
     if (filters.ml_account_id) apiUrl += `&ml_account_id=${encodeURIComponent(filters.ml_account_id)}`;
     if (filters.shipping_status_filter) apiUrl += `&shipping_status_filter=${encodeURIComponent(filters.shipping_status_filter)}`;
     if (filters.logistic_filter) apiUrl += `&logistic_filter=${encodeURIComponent(filters.logistic_filter)}`;
+    if (filters.internal_status_filter) apiUrl += `&internal_status_filter=${encodeURIComponent(filters.internal_status_filter)}`;
     if (filters.date_from) apiUrl += `&date_from=${encodeURIComponent(filters.date_from)}`;
     if (filters.date_to) apiUrl += `&date_to=${encodeURIComponent(filters.date_to)}`;
     if (filters.period_filter) apiUrl += `&period_filter=${encodeURIComponent(filters.period_filter)}`;
@@ -1463,8 +1519,11 @@ function renderOrderSummary(order) {
         segments.push(`<span class="fw-semibold">${orderId}</span>`);
     }
 
-    // Badge do status interno
-    if (order.internal_status_label) {
+    // Badge do status interno (apenas para pedidos NÃO fulfillment)
+    const logisticType = (order.shipping_type || order.shipping_logistic_type || '').toString().toLowerCase();
+    const isFulfillment = logisticType === 'fulfillment' || logisticType === 'full';
+    
+    if (order.internal_status_label && !isFulfillment) {
         const internalLabel = sanitizeText(order.internal_status_label);
         const statusValue = (order.internal_status || '').toLowerCase();
         
@@ -1835,9 +1894,19 @@ async function updateInternalStatus(orderId, statusValue, triggerElement) {
         const statusKey = data.status || null;
         const label = data.status_label || 'Sem status';
         if (statusKey) {
-            showSuccess(`Status interno atualizado para ${label}.`);
+            // Usar toast notification
+            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                window.MLAPI.showNotification(`Status interno atualizado para ${label}.`, 'success');
+            } else {
+                showSuccess(`Status interno atualizado para ${label}.`);
+            }
         } else {
-            showSuccess('Status interno removido.');
+            // Usar toast notification
+            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                window.MLAPI.showNotification('Status interno removido.', 'info');
+            } else {
+                showSuccess('Status interno removido.');
+            }
         }
 
         const dropdownInstance = toggleButton ? bootstrap.Dropdown.getOrCreateInstance(toggleButton) : null;
@@ -1848,7 +1917,12 @@ async function updateInternalStatus(orderId, statusValue, triggerElement) {
         loadOrders(currentPage);
     } catch (error) {
         console.error('Erro ao atualizar status interno:', error);
-        showError(error.message || 'Erro ao atualizar status interno.');
+        // Usar toast notification para erro
+        if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+            window.MLAPI.showNotification(error.message || 'Erro ao atualizar status interno.', 'error');
+        } else {
+            showError(error.message || 'Erro ao atualizar status interno.');
+        }
     } finally {
         if (toggleButton) {
             toggleButton.disabled = false;
@@ -2496,7 +2570,11 @@ function renderShippingSummary(order) {
         segments.push(`<span class="badge ${badgeClass}">${shippingMethod}</span>`);
     }
 
-    if (order.internal_status_label) {
+    // Badge do status interno (apenas para pedidos NÃO fulfillment)
+    const logisticTypeForBadge = (order.shipping_type || order.shipping_logistic_type || '').toString().toLowerCase();
+    const isFulfillmentForBadge = logisticTypeForBadge === 'fulfillment' || logisticTypeForBadge === 'full';
+    
+    if (order.internal_status_label && !isFulfillmentForBadge) {
         const internalLabel = sanitizeText(order.internal_status_label);
         segments.push(`<span class="badge bg-dark text-uppercase">${internalLabel}</span>`);
     }
@@ -2616,7 +2694,7 @@ function getLogisticLabel(logisticType) {
         case 'full':
             return 'Fulfillment';
         case 'cross_docking':
-            return 'Cross Docking';
+            return 'Cruzamento de Docking';
         case 'me2':
             return 'Mercado Envios';
         case 'me1':
