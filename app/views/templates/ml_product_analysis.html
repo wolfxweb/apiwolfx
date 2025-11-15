@@ -327,6 +327,42 @@
                                     </div>
                                 </div>
                                 
+                                <!-- Chat Interativo com IA -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="bi bi-chat-dots"></i> Chat com IA - Análise Interativa
+                                        </h5>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <!-- Área de mensagens -->
+                                        <div id="chat-messages" style="height: 400px; overflow-y: auto; padding: 1rem; background: #f8f9fa;">
+                                            <div class="text-center text-muted py-4" id="chat-empty-state">
+                                                <i class="bi bi-chat-left-text" style="font-size: 3rem;"></i>
+                                                <p class="mt-3 mb-0">Faça perguntas sobre este produto e receba análises inteligentes</p>
+                                                <small class="d-block mt-2">Ex: "Qual a margem de lucro?", "Como posso melhorar as vendas?"</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Input de mensagem -->
+                                        <div class="border-top p-3">
+                                            <div class="input-group">
+                                                <input type="text" 
+                                                       id="chat-input" 
+                                                       class="form-control" 
+                                                       placeholder="Faça uma pergunta sobre este produto... (ex: Qual a margem de lucro?)"
+                                                       onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                                                <button class="btn btn-primary" onclick="sendChatMessage()" id="chat-send-btn">
+                                                    <i class="bi bi-send"></i> Enviar
+                                                </button>
+                                            </div>
+                                            <small class="text-muted d-block mt-2">
+                                                <i class="bi bi-info-circle"></i> O agente tem acesso a todos os dados do produto para responder suas perguntas
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <!-- Resultado da Análise IA -->
                                 <div id="ai-analysis-result" class="mt-4" style="display: none;">
                                     <!-- Card com Análise -->
@@ -3322,6 +3358,59 @@ style.textContent = `
         border-radius: 3px;
         font-size: 0.9rem;
     }
+    
+    /* Estilos para o chat */
+    #chat-messages {
+        scrollbar-width: thin;
+        scrollbar-color: #ccc #f8f9fa;
+    }
+    
+    #chat-messages::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    #chat-messages::-webkit-scrollbar-track {
+        background: #f8f9fa;
+    }
+    
+    #chat-messages::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 4px;
+    }
+    
+    #chat-messages::-webkit-scrollbar-thumb:hover {
+        background: #aaa;
+    }
+    
+    .chat-message-user {
+        animation: slideInRight 0.3s ease-out;
+    }
+    
+    .chat-message-assistant {
+        animation: slideInLeft 0.3s ease-out;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    @keyframes slideInLeft {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
 `;
 document.head.appendChild(style);
 
@@ -4409,6 +4498,514 @@ function renderPriceEvolutionChart(historyData) {
         }
     }, 100);
 }
+
+// ========== CHAT INTERATIVO COM IA ==========
+let currentAssistantId = null;
+let currentThreadId = null;
+let currentProductData = null;
+
+// Buscar agente "Analise produto" ao carregar a aba
+document.addEventListener('DOMContentLoaded', function() {
+    // Quando a aba de IA for mostrada, buscar o agente
+    const aiTab = document.getElementById('ai-tab');
+    if (aiTab) {
+        aiTab.addEventListener('shown.bs.tab', function() {
+            if (!currentAssistantId) {
+                loadProductAnalysisAssistant();
+            }
+        });
+    }
+});
+
+// Função para remover acentos
+function removeAccents(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Buscar agente "Analise produto"
+async function loadProductAnalysisAssistant() {
+    try {
+        console.log('🔍 Buscando agente "Analise produto"...');
+        const response = await fetch('/api/openai/assistants/available?active_only=true', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            console.error('❌ Erro na resposta:', response.status, response.statusText);
+            showAgentSelectionModal([]);
+            return;
+        }
+        
+        const data = await response.json();
+        console.log('📊 Resposta da API:', data);
+        
+        if (data.success && data.assistants && data.assistants.length > 0) {
+            console.log('📋 Agentes disponíveis:', data.assistants.map(a => a.name));
+            
+            // Procurar agente "Analise produto" (case insensitive, sem acentos)
+            const assistant = data.assistants.find(a => {
+                const nameLower = removeAccents(a.name.toLowerCase());
+                return (nameLower.includes('analise') || nameLower.includes('analis')) && 
+                       (nameLower.includes('produto') || nameLower.includes('product'));
+            });
+            
+            if (assistant) {
+                currentAssistantId = assistant.id;
+                console.log('✅ Agente encontrado:', assistant.name, '(ID:', assistant.id + ')');
+                
+                // Verificar se é modo chat
+                if (assistant.interaction_mode !== 'chat') {
+                    console.warn('⚠️ Agente não está em modo chat, mas será usado mesmo assim');
+                }
+            } else {
+                console.warn('⚠️ Agente "Analise produto" não encontrado automaticamente.');
+                // Mostrar modal para seleção
+                showAgentSelectionModal(data.assistants);
+            }
+        } else {
+            console.warn('⚠️ Nenhum agente ativo encontrado');
+            showAgentSelectionModal([]);
+        }
+    } catch (error) {
+        console.error('❌ Erro ao buscar agente:', error);
+        showAgentSelectionModal([]);
+    }
+}
+
+// Mostrar modal de seleção de agente
+function showAgentSelectionModal(assistants) {
+    const modalHtml = `
+        <div class="modal fade" id="agentSelectionModal" tabindex="-1" aria-labelledby="agentSelectionModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="agentSelectionModalLabel">
+                            <i class="bi bi-robot"></i> Selecionar Agente
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        ${assistants.length > 0 ? `
+                            <p>Selecione um agente para usar no chat:</p>
+                            <div class="list-group">
+                                ${assistants.map(a => `
+                                    <button type="button" 
+                                            class="list-group-item list-group-item-action" 
+                                            onclick="selectAgent(${a.id}, '${a.name.replace(/'/g, "\\'")}')">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1">${escapeHtml(a.name)}</h6>
+                                            <small class="text-muted">${a.interaction_mode === 'chat' ? 'Chat' : 'Relatório'}</small>
+                                        </div>
+                                        ${a.description ? `<p class="mb-1 text-muted small">${escapeHtml(a.description)}</p>` : ''}
+                                        <small class="text-muted">Modelo: ${escapeHtml(a.model)}</small>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Nenhum agente ativo encontrado.</strong>
+                                <p class="mb-0 mt-2">Por favor, crie um agente no painel SuperAdmin antes de usar o chat.</p>
+                            </div>
+                        `}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal existente se houver
+    const existingModal = document.getElementById('agentSelectionModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Adicionar modal ao body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('agentSelectionModal'));
+    modal.show();
+}
+
+// Selecionar agente
+function selectAgent(assistantId, assistantName) {
+    currentAssistantId = assistantId;
+    console.log('✅ Agente selecionado:', assistantName, '(ID:', assistantId + ')');
+    
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('agentSelectionModal'));
+    if (modal) {
+        modal.hide();
+    }
+    
+    // Mostrar mensagem de sucesso
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.placeholder = `Chat com ${assistantName} - Faça uma pergunta sobre este produto...`;
+    }
+    
+    // Mostrar toast de sucesso
+    showToast('Agente selecionado: ' + assistantName, 'success');
+}
+
+// Mostrar modal de seleção a partir da lista de agentes
+async function showAgentSelectionModalFromList() {
+    try {
+        const response = await fetch('/api/openai/assistants/available?active_only=true', {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.assistants) {
+                showAgentSelectionModal(data.assistants);
+            } else {
+                showAgentSelectionModal([]);
+            }
+        } else {
+            console.error('❌ Erro ao buscar agentes:', response.status);
+            showAgentSelectionModal([]);
+        }
+    } catch (error) {
+        console.error('❌ Erro ao buscar agentes:', error);
+        showAgentSelectionModal([]);
+    }
+}
+
+// Função para mostrar toast (se não existir)
+function showToast(message, type = 'info') {
+    // Verificar se já existe função showToast no contexto
+    if (typeof window.showToast === 'function') {
+        window.showToast(message, type);
+        return;
+    }
+    
+    // Criar toast simples
+    const toastContainer = document.getElementById('toast-container') || (() => {
+        const container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+        return container;
+    })();
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    
+    const toastHtml = `
+        <div id="${toastId}" class="toast ${bgClass} text-white" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-body">
+                ${escapeHtml(message)}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
+    });
+}
+
+// Coletar dados do produto para contexto
+function collectProductContext() {
+    const productId = window.location.pathname.split('/').pop();
+    const context = {
+        product_id: productId,
+        timestamp: new Date().toISOString()
+    };
+    
+    // Adicionar dados básicos do produto se disponíveis (apenas valores primitivos)
+    if (currentProductData) {
+        context.product_info = {
+            id: currentProductData.id || null,
+            ml_item_id: currentProductData.ml_item_id || null,
+            title: String(currentProductData.title || ''),
+            price: currentProductData.price ? parseFloat(currentProductData.price) : null,
+            available_quantity: currentProductData.available_quantity ? parseInt(currentProductData.available_quantity) : null,
+            sold_quantity: currentProductData.sold_quantity ? parseInt(currentProductData.sold_quantity) : null,
+            status: String(currentProductData.status || ''),
+            category: String(currentProductData.category_name || ''),
+            sku: String((currentProductData.seller_custom_field || currentProductData.sku || ''))
+        };
+    }
+    
+    // Adicionar dados de pricing detalhados (apenas valores primitivos)
+    if (window.currentPricingData) {
+        const pricing = window.currentPricingData;
+        context.pricing_analysis = {
+            custo_produto: pricing.custo_produto ? parseFloat(pricing.custo_produto) : null,
+            custo_envio: pricing.custo_envio ? parseFloat(pricing.custo_envio) : null,
+            custo_marketing: pricing.custo_marketing ? parseFloat(pricing.custo_marketing) : null,
+            preco_venda: pricing.preco_venda ? parseFloat(pricing.preco_venda) : null,
+            margem_lucro: pricing.margem_lucro ? parseFloat(pricing.margem_lucro) : null,
+            lucro_liquido: pricing.lucro_liquido ? parseFloat(pricing.lucro_liquido) : null
+        };
+        
+        // Adicionar impostos e taxas se forem objetos simples
+        if (pricing.impostos && typeof pricing.impostos === 'object') {
+            context.pricing_analysis.impostos = {};
+            for (const key in pricing.impostos) {
+                const value = pricing.impostos[key];
+                if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+                    context.pricing_analysis.impostos[key] = value;
+                }
+            }
+        }
+        
+        if (pricing.taxas_ml && typeof pricing.taxas_ml === 'object') {
+            context.pricing_analysis.taxas_ml = {};
+            for (const key in pricing.taxas_ml) {
+                const value = pricing.taxas_ml[key];
+                if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+                    context.pricing_analysis.taxas_ml[key] = value;
+                }
+            }
+        }
+    }
+    
+    return context;
+}
+
+// Enviar mensagem no chat
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (!message) {
+        return;
+    }
+    
+    // Verificar se temos o agente
+    if (!currentAssistantId) {
+        await loadProductAnalysisAssistant();
+        if (!currentAssistantId) {
+            // O modal já foi mostrado em loadProductAnalysisAssistant
+            return;
+        }
+    }
+    
+    // Limpar input
+    input.value = '';
+    input.disabled = true;
+    const sendBtn = document.getElementById('chat-send-btn');
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    // Esconder estado vazio
+    const emptyState = document.getElementById('chat-empty-state');
+    if (emptyState) {
+        emptyState.style.display = 'none';
+    }
+    
+    // Adicionar mensagem do usuário
+    addChatMessage('user', message);
+    
+    try {
+        // Validar dados antes de enviar
+        if (!currentAssistantId || isNaN(currentAssistantId)) {
+            throw new Error('ID do agente inválido. Por favor, selecione um agente.');
+        }
+        
+        if (!message || message.trim() === '') {
+            throw new Error('A mensagem não pode estar vazia.');
+        }
+        
+        // Coletar contexto do produto
+        const contextData = collectProductContext();
+        
+        // Preparar dados da requisição
+        const requestData = {
+            assistant_id: parseInt(currentAssistantId),
+            message: message.trim(),
+            thread_id: currentThreadId || null,
+            context_data: contextData
+        };
+        
+        console.log('📤 Enviando requisição:', {
+            assistant_id: requestData.assistant_id,
+            message_length: requestData.message.length,
+            has_thread_id: !!requestData.thread_id,
+            context_keys: Object.keys(requestData.context_data || {})
+        });
+        
+        // Enviar mensagem ao agente
+        const response = await fetch('/api/openai/assistants/use/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(requestData)
+        });
+        
+        // Tentar ler a resposta mesmo se houver erro
+        let result;
+        try {
+            result = await response.json();
+        } catch (e) {
+            // Se não conseguir parsear JSON, ler como texto
+            const text = await response.text();
+            throw new Error(`Erro ${response.status}: ${text || response.statusText}`);
+        }
+        
+        if (!response.ok) {
+            // Extrair mensagem de erro detalhada
+            const errorMessage = result.detail || result.error || result.message || `Erro ${response.status}: ${response.statusText}`;
+            console.error('❌ Erro na resposta:', {
+                status: response.status,
+                statusText: response.statusText,
+                detail: result.detail,
+                error: result.error,
+                fullResponse: result
+            });
+            throw new Error(errorMessage);
+        }
+        
+        if (result.success) {
+            // Salvar thread_id para continuidade
+            if (result.thread_id) {
+                currentThreadId = result.thread_id;
+                console.log('✅ Thread ID salvo:', currentThreadId);
+            }
+            
+            // Adicionar resposta do agente
+            const responseText = result.response || result.message || 'Resposta recebida';
+            addChatMessage('assistant', responseText);
+        } else {
+            throw new Error(result.error || 'Erro ao obter resposta do agente');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao enviar mensagem:', error);
+        const errorMessage = error.message || 'Erro desconhecido ao enviar mensagem';
+        addChatMessage('assistant', 'Erro: ' + errorMessage, true);
+    } finally {
+        input.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="bi bi-send"></i> Enviar';
+        input.focus();
+    }
+}
+
+// Adicionar mensagem ao chat
+function addChatMessage(role, content, isError = false) {
+    const messagesContainer = document.getElementById('chat-messages');
+    const messageDiv = document.createElement('div');
+    const animationClass = role === 'user' ? 'chat-message-user' : 'chat-message-assistant';
+    messageDiv.className = `mb-3 ${role === 'user' ? 'text-end' : ''} ${animationClass}`;
+    
+    if (role === 'user') {
+        messageDiv.innerHTML = `
+            <div class="d-inline-block bg-primary text-white p-3 rounded" style="max-width: 80%; border-radius: 1rem 1rem 0 1rem !important; word-wrap: break-word;">
+                ${escapeHtml(content)}
+            </div>
+        `;
+    } else {
+        const bgClass = isError ? 'bg-danger' : 'bg-white';
+        const textClass = isError ? 'text-white' : '';
+        messageDiv.innerHTML = `
+            <div class="d-inline-block ${bgClass} ${textClass} p-3 rounded shadow-sm" style="max-width: 80%; border-radius: 1rem 1rem 1rem 0 !important; word-wrap: break-word;">
+                <div class="ai-analysis-formatted">${formatMessage(content)}</div>
+            </div>
+        `;
+    }
+    
+    messagesContainer.appendChild(messageDiv);
+    
+    // Scroll para última mensagem
+    setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 100);
+}
+
+// Formatar mensagem (markdown básico para HTML)
+function formatMessage(text) {
+    if (!text) return '';
+    
+    // Converter markdown básico para HTML
+    let html = escapeHtml(text);
+    
+    // Headers
+    html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    
+    // Listas
+    html = html.replace(/^\* (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*?<\/li>\s*)+/gs, '<ul>$&</ul>');
+    
+    // Parágrafos
+    const lines = html.split('\n');
+    const paragraphs = [];
+    let currentParagraph = '';
+    
+    for (const line of lines) {
+        if (line.trim() === '') {
+            if (currentParagraph.trim()) {
+                paragraphs.push(`<p>${currentParagraph.trim()}</p>`);
+                currentParagraph = '';
+            }
+        } else if (!line.startsWith('<')) {
+            currentParagraph += line + ' ';
+        } else {
+            if (currentParagraph.trim()) {
+                paragraphs.push(`<p>${currentParagraph.trim()}</p>`);
+                currentParagraph = '';
+            }
+            paragraphs.push(line);
+        }
+    }
+    
+    if (currentParagraph.trim()) {
+        paragraphs.push(`<p>${currentParagraph.trim()}</p>`);
+    }
+    
+    return paragraphs.join('\n');
+}
+
+// Escapar HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Salvar dados do produto quando carregados
+const originalLoadProductAnalysis = loadProductAnalysis;
+loadProductAnalysis = function(productId) {
+    originalLoadProductAnalysis(productId);
+    
+    // Aguardar dados serem carregados
+    setTimeout(() => {
+        fetch(`/ml/products/api/product/${productId}`, {
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.product) {
+                currentProductData = data.product;
+                console.log('✅ Dados do produto salvos para contexto do chat');
+            }
+        })
+        .catch(error => {
+            console.warn('⚠️ Não foi possível carregar dados do produto para contexto:', error);
+        });
+    }, 1000);
+};
 
 </script>
 {% endblock %}

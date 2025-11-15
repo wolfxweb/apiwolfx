@@ -301,7 +301,7 @@
                                         <div class="row">
                                             <div class="col-md-6 mb-3">
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="toolCodeInterpreter" name="assistant_tools" value="code_interpreter">
+                                                    <input class="form-check-input" type="checkbox" id="toolCodeInterpreter" name="assistant_tools" value="code_interpreter" onchange="checkAssistantsAPISupport()">
                                                     <label class="form-check-label" for="toolCodeInterpreter">
                                                         <strong>Code Interpreter</strong>
                                                     </label>
@@ -310,12 +310,19 @@
                                             </div>
                                             <div class="col-md-6 mb-3">
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="toolFileSearch" name="assistant_tools" value="file_search">
+                                                    <input class="form-check-input" type="checkbox" id="toolFileSearch" name="assistant_tools" value="file_search" onchange="checkAssistantsAPISupport()">
                                                     <label class="form-check-label" for="toolFileSearch">
                                                         <strong>File Search</strong>
                                                     </label>
                                                     <small class="d-block text-muted">Busca informações em arquivos</small>
                                                 </div>
+                                            </div>
+                                            <!-- Aviso sobre suporte do modelo -->
+                                            <div id="assistantsAPIWarning" class="alert alert-warning mt-2" style="display: none;">
+                                                <i class="bi bi-exclamation-triangle"></i>
+                                                <strong>Atenção:</strong> Code Interpreter e File Search requerem um modelo que suporta Assistants API.
+                                                O modelo <strong id="currentModelName"></strong> não suporta Assistants API.
+                                                Para usar essas ferramentas, altere para: <strong>gpt-5.1</strong>, <strong>gpt-5</strong>, <strong>gpt-5-pro</strong> ou <strong>gpt-5-mini</strong>.
                                             </div>
                                         </div>
                                     </div>
@@ -667,6 +674,9 @@ async function loadAssistantData(id) {
                 // para mostrar/esconder os campos corretos baseado no modelo
                 handleModelChange();
                 
+                // Verificar suporte do modelo após carregar dados (para mostrar aviso se necessário)
+                checkAssistantsAPISupport();
+                
                 console.log('✅ Todos os campos carregados com sucesso!');
             } else {
                 console.error('❌ Resposta sem sucesso:', result);
@@ -681,6 +691,56 @@ async function loadAssistantData(id) {
     } catch (error) {
         console.error('❌ Erro ao carregar agente:', error);
         showNotification('Erro ao carregar dados do agente: ' + error.message, 'error');
+    }
+}
+
+// Verificar se o modelo suporta Assistants API
+function isModelSupportedByAssistantsAPI(model) {
+    if (!model) return false;
+    
+    // Modelos suportados pela Assistants API v2
+    const supportedModels = [
+        'gpt-4', 'gpt-4-turbo', 'gpt-4-turbo-preview', 'gpt-4o', 'gpt-4o-mini',
+        'gpt-3.5-turbo', 'gpt-3.5-turbo-16k',
+        'gpt-5.1', 'gpt-5', 'gpt-5-pro', 'gpt-5-mini'
+    ];
+    
+    // Verificar se o modelo começa com algum dos modelos suportados
+    for (const supported of supportedModels) {
+        if (model.startsWith(supported)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// Verificar suporte do modelo quando Code Interpreter/File Search são selecionados
+function checkAssistantsAPISupport() {
+    const modelSelect = document.getElementById('assistantModel');
+    const codeInterpreterCheck = document.getElementById('toolCodeInterpreter');
+    const fileSearchCheck = document.getElementById('toolFileSearch');
+    const warningDiv = document.getElementById('assistantsAPIWarning');
+    const currentModelNameSpan = document.getElementById('currentModelName');
+    
+    if (!modelSelect || !warningDiv) return;
+    
+    const model = modelSelect.value;
+    const hasCodeInterpreter = codeInterpreterCheck && codeInterpreterCheck.checked;
+    const hasFileSearch = fileSearchCheck && fileSearchCheck.checked;
+    const hasAssistantsAPITools = hasCodeInterpreter || hasFileSearch;
+    
+    const isSupported = isModelSupportedByAssistantsAPI(model);
+    
+    if (hasAssistantsAPITools && !isSupported) {
+        // Mostrar aviso: modelo não suporta Assistants API mas ferramentas estão habilitadas
+        if (currentModelNameSpan) {
+            currentModelNameSpan.textContent = model;
+        }
+        warningDiv.style.display = 'block';
+    } else {
+        // Ocultar aviso
+        warningDiv.style.display = 'none';
     }
 }
 
@@ -719,6 +779,9 @@ function handleModelChange() {
         if (gpt5ParamsGroup) gpt5ParamsGroup.style.display = 'none';
         if (verbosityGroup) verbosityGroup.style.display = 'none';
     }
+    
+    // Verificar suporte do modelo após mudança
+    checkAssistantsAPISupport();
 }
 
 // Salvar agente

@@ -30,8 +30,16 @@ class OpenAIAssistantService:
             logger.warning("⚠️ OPENAI_API_KEY não configurada. Funcionalidades de assistentes estarão desabilitadas.")
             self.client = None
         else:
-            self.client = OpenAI(api_key=self.api_key)
-            logger.info("✅ Cliente OpenAI inicializado com sucesso")
+            # Configurar cliente OpenAI com header para Assistants API v2
+            # Documentação oficial: https://platform.openai.com/docs/assistants/migration
+            # A API v1 foi depreciada, precisamos usar v2 com o header OpenAI-Beta: assistants=v2
+            self.client = OpenAI(
+                api_key=self.api_key,
+                default_headers={
+                    "OpenAI-Beta": "assistants=v2"
+                }
+            )
+            logger.info("✅ Cliente OpenAI inicializado com sucesso (Assistants API v2)")
     
     def _is_reasoning_model(self, model: str) -> bool:
         """Verifica se é um modelo de raciocínio (o1, o3, o4) que não usa temperature"""
@@ -41,8 +49,54 @@ class OpenAIAssistantService:
         """Verifica se é um modelo GPT-5 que usa reasoning_effort e verbosity ao invés de temperature"""
         return model.startswith("gpt-5")
     
-    def _needs_assistants_api(self, tools: Optional[List[Dict]]) -> bool:
+    def _needs_max_completion_tokens(self, model: str) -> bool:
+        """Verifica se o modelo requer max_completion_tokens ao invés de max_tokens"""
+        # Modelos que requerem max_completion_tokens
+        # Baseado na documentação da OpenAI, modelos GPT-5 mais recentes podem usar max_completion_tokens
+        if not model:
+            return False
+        # gpt-5-nano e outros modelos GPT-5 específicos podem requerer max_completion_tokens
+        # Por enquanto, vamos verificar se é gpt-5-nano especificamente
+        return model.startswith("gpt-5-nano")
+    
+    def _is_model_supported_by_assistants_api(self, model: str) -> bool:
+        """Verifica se o modelo é suportado pela Assistants API"""
+        if not model:
+            return False
+        
+        # Modelos NÃO suportados (verificar primeiro para evitar falsos positivos)
+        unsupported_models = [
+            "gpt-5-nano",  # gpt-5-nano NÃO suporta Assistants API
+        ]
+        
+        # Verificar se é um modelo não suportado
+        for unsupported in unsupported_models:
+            if model.startswith(unsupported):
+                return False
+        
+        # Modelos suportados pela Assistants API v2
+        # IMPORTANTE: Ordem importa! Modelos mais específicos primeiro
+        supported_models = [
+            "gpt-5.1", "gpt-5-pro", "gpt-5-mini",  # Modelos GPT-5 específicos (antes de gpt-5 genérico)
+            "gpt-4o-mini", "gpt-4o", "gpt-4-turbo-preview", "gpt-4-turbo", "gpt-4",  # Modelos GPT-4
+            "gpt-3.5-turbo-16k", "gpt-3.5-turbo",  # Modelos GPT-3.5
+            "gpt-5",  # gpt-5 genérico (depois dos específicos)
+        ]
+        
+        # Verificar se o modelo começa com algum dos modelos suportados
+        for supported in supported_models:
+            if model.startswith(supported):
+                return True
+        
+        return False
+    
+    def _needs_assistants_api(self, tools: Optional[List[Dict]], model: str) -> bool:
         """Verifica se precisa usar Assistants API (Code Interpreter ou File Search)"""
+        # Primeiro verificar se o modelo é suportado
+        if not self._is_model_supported_by_assistants_api(model):
+            return False
+        
+        # Depois verificar se tem ferramentas que requerem Assistants API
         if not tools:
             return False
         for tool in tools:
@@ -447,8 +501,13 @@ class OpenAIAssistantService:
             chat_params = {
                 "model": db_assistant.model,
                 "messages": messages_history,
-                "max_tokens": db_assistant.max_tokens
             }
+            
+            # Adicionar limite de tokens (alguns modelos usam max_completion_tokens ao invés de max_tokens)
+            if self._needs_max_completion_tokens(db_assistant.model):
+                chat_params["max_completion_tokens"] = db_assistant.max_tokens
+            else:
+                chat_params["max_tokens"] = db_assistant.max_tokens
             
             # Adicionar parâmetros específicos do modelo
             if self._is_gpt5_model(db_assistant.model):
@@ -488,19 +547,34 @@ class OpenAIAssistantService:
             self.db.flush()
             
             # Verificar se precisa usar Assistants API (Code Interpreter ou File Search)
-            if self._needs_assistants_api(tools):
-                logger.info("🔧 Detectado Code Interpreter ou File Search - usando Assistants API")
+            # E se o modelo é suportado pela Assistants API
+            has_code_interpreter_or_file_search = tools and any(
+                t.get("type") in ["code_interpreter", "file_search"] 
+                for t in tools if isinstance(t, dict)
+            )
+            is_supported = self._is_model_supported_by_assistants_api(db_assistant.model)
+            
+            if has_code_interpreter_or_file_search and is_supported:
+                # Usar Assistants API se o modelo suporta E tem Code Interpreter/File Search
+                logger.info("🔧 Detectado Code Interpreter ou File Search com modelo suportado - usando Assistants API")
                 response = self._use_assistants_api_report_mode(
                     db_assistant, temp_db_thread, user_prompt_content, tools, usage_record, start_time, request_data_size
                 )
             else:
+                # Usar Chat Completions (GPT-5)
+                # Se tem Code Interpreter/File Search mas modelo não suporta, remover essas ferramentas
+                if has_code_interpreter_or_file_search and not is_supported:
+                    logger.warning(f"⚠️ Modelo {db_assistant.model} não suporta Assistants API. Code Interpreter/File Search não estarão disponíveis. Usando Chat Completions.")
+                    # Remover Code Interpreter e File Search, manter apenas Function Calling
+                    tools = [t for t in tools if isinstance(t, dict) and t.get("type") not in ["code_interpreter", "file_search"]]
+                
                 # Usar Chat Completions (com ou sem Function Calling)
                 if tools and not self._is_reasoning_model(db_assistant.model):
                     chat_params["tools"] = tools
                     logger.info(f"🔧 Adicionando {len(tools)} ferramenta(s) à chamada")
                 
                 # Fazer chamada ao Chat Completions e processar tool calls se necessário
-                logger.info(f"💬 Gerando relatório via Chat Completions...")
+                logger.info(f"💬 Gerando relatório via Chat Completions (GPT-5)...")
                 response = self._process_chat_with_tools(chat_params, tools, temp_db_thread, max_iterations=5)
             
             if response and response.get("success"):
@@ -699,8 +773,13 @@ class OpenAIAssistantService:
             chat_params = {
                 "model": db_assistant.model,
                 "messages": messages_history,
-                "max_tokens": db_assistant.max_tokens
             }
+            
+            # Adicionar limite de tokens (alguns modelos usam max_completion_tokens ao invés de max_tokens)
+            if self._needs_max_completion_tokens(db_assistant.model):
+                chat_params["max_completion_tokens"] = db_assistant.max_tokens
+            else:
+                chat_params["max_tokens"] = db_assistant.max_tokens
             
             # Adicionar parâmetros específicos do modelo
             if self._is_gpt5_model(db_assistant.model):
@@ -725,19 +804,34 @@ class OpenAIAssistantService:
                     tools = db_assistant.tools_config
             
             # Verificar se precisa usar Assistants API (Code Interpreter ou File Search)
-            if self._needs_assistants_api(tools):
-                logger.info("🔧 Detectado Code Interpreter ou File Search - usando Assistants API")
+            # E se o modelo é suportado pela Assistants API
+            has_code_interpreter_or_file_search = tools and any(
+                t.get("type") in ["code_interpreter", "file_search"] 
+                for t in tools if isinstance(t, dict)
+            )
+            is_supported = self._is_model_supported_by_assistants_api(db_assistant.model)
+            
+            if has_code_interpreter_or_file_search and is_supported:
+                # Usar Assistants API se o modelo suporta E tem Code Interpreter/File Search
+                logger.info("🔧 Detectado Code Interpreter ou File Search com modelo suportado - usando Assistants API")
                 response = self._use_assistants_api_chat_mode(
                     db_assistant, db_thread, user_message_content, tools, usage_record, start_time, request_data_size
                 )
             else:
+                # Usar Chat Completions (GPT-5)
+                # Se tem Code Interpreter/File Search mas modelo não suporta, remover essas ferramentas
+                if has_code_interpreter_or_file_search and not is_supported:
+                    logger.warning(f"⚠️ Modelo {db_assistant.model} não suporta Assistants API. Code Interpreter/File Search não estarão disponíveis. Usando Chat Completions.")
+                    # Remover Code Interpreter e File Search, manter apenas Function Calling
+                    tools = [t for t in tools if isinstance(t, dict) and t.get("type") not in ["code_interpreter", "file_search"]]
+                
                 # Usar Chat Completions (com ou sem Function Calling)
                 if tools and not self._is_reasoning_model(db_assistant.model):
                     chat_params["tools"] = tools
                     logger.info(f"🔧 Adicionando {len(tools)} ferramenta(s) à chamada")
                 
                 # Fazer chamada ao Chat Completions e processar tool calls se necessário
-                logger.info(f"💬 Enviando mensagem para agente via Chat Completions...")
+                logger.info(f"💬 Enviando mensagem para agente via Chat Completions (GPT-5)...")
                 response = self._process_chat_with_tools(chat_params, tools, db_thread, max_iterations=5)
             
             if response and response.get("success"):
@@ -1024,19 +1118,36 @@ class OpenAIAssistantService:
         Usa Assistants API quando Code Interpreter ou File Search estão presentes.
         Cria ou atualiza assistente na OpenAI e usa threads/runs.
         """
+        # Verificar se o modelo é suportado ANTES de tentar usar Assistants API
+        if not self._is_model_supported_by_assistants_api(db_assistant.model):
+            error_msg = f"Modelo {db_assistant.model} não é suportado pela Assistants API. Use Chat Completions."
+            logger.warning(f"⚠️ {error_msg}")
+            raise Exception(error_msg)
+        
         try:
             logger.info("🤖 Usando Assistants API para Code Interpreter/File Search")
             
             # Verificar se já existe assistente na OpenAI
             openai_assistant_id = None
             if db_assistant.assistant_id and not db_assistant.assistant_id.startswith("local_"):
-                # Tentar usar assistente existente
-                try:
-                    existing_assistant = self.client.beta.assistants.retrieve(db_assistant.assistant_id)
-                    openai_assistant_id = existing_assistant.id
-                    logger.info(f"✅ Usando assistente OpenAI existente: {openai_assistant_id}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Assistente OpenAI não encontrado, criando novo: {e}")
+                # Verificar se o assistant_id é válido (deve começar com "asst")
+                if db_assistant.assistant_id.startswith("asst_"):
+                    # Tentar usar assistente existente
+                    try:
+                        existing_assistant = self.client.beta.assistants.retrieve(db_assistant.assistant_id)
+                        openai_assistant_id = existing_assistant.id
+                        logger.info(f"✅ Usando assistente OpenAI existente: {openai_assistant_id}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Assistente OpenAI não encontrado, criando novo: {e}")
+                        # Limpar assistant_id inválido do banco (usar "local_" como prefixo para indicar que não é um ID da OpenAI)
+                        db_assistant.assistant_id = f"local_{db_assistant.id}_{int(time.time())}"
+                        self.db.commit()
+                        openai_assistant_id = None
+                else:
+                    # assistant_id inválido (não começa com "asst_"), limpar e criar novo
+                    logger.warning(f"⚠️ assistant_id inválido no banco ({db_assistant.assistant_id}), criando novo assistente")
+                    db_assistant.assistant_id = f"local_{db_assistant.id}_{int(time.time())}"
+                    self.db.commit()
                     openai_assistant_id = None
             
             # Criar ou atualizar assistente na OpenAI se necessário
@@ -1049,8 +1160,11 @@ class OpenAIAssistantService:
                 }
                 
                 # Adicionar parâmetros específicos do modelo
+                # NOTA: reasoning_effort e verbosity podem não ser suportados na criação do assistente
+                # mas vamos tentar adicioná-los se for GPT-5 (podem ser suportados na API v2)
                 if self._is_gpt5_model(db_assistant.model):
                     if db_assistant.tools_config and isinstance(db_assistant.tools_config, dict):
+                        # Tentar adicionar reasoning_effort e verbosity (pode falhar, mas vamos tentar)
                         if db_assistant.tools_config.get("reasoning_effort"):
                             assistant_params["reasoning_effort"] = db_assistant.tools_config["reasoning_effort"]
                         if db_assistant.tools_config.get("verbosity"):
@@ -1059,7 +1173,26 @@ class OpenAIAssistantService:
                     if db_assistant.temperature is not None:
                         assistant_params["temperature"] = float(db_assistant.temperature)
                 
-                openai_assistant = self.client.beta.assistants.create(**assistant_params)
+                # Criar assistente (header v2 já está configurado no cliente via default_headers)
+                try:
+                    # Tentar criar com reasoning_effort/verbosity se for GPT-5
+                    openai_assistant = self.client.beta.assistants.create(**assistant_params)
+                except (TypeError, AttributeError) as e:
+                    # Se reasoning_effort ou verbosity não forem suportados, remover e tentar novamente
+                    if "reasoning_effort" in str(e) or "verbosity" in str(e):
+                        logger.warning(f"⚠️ reasoning_effort/verbosity não suportados na criação do assistente, removendo: {e}")
+                        assistant_params.pop("reasoning_effort", None)
+                        assistant_params.pop("verbosity", None)
+                        openai_assistant = self.client.beta.assistants.create(**assistant_params)
+                    else:
+                        raise
+                except Exception as e:
+                    # Se o erro for sobre API v1, o header pode não estar sendo aplicado
+                    if "v1 Assistants API has been deprecated" in str(e) or "invalid_beta" in str(e):
+                        logger.error(f"❌ Erro: Header v2 não está sendo aplicado. Verifique a versão do SDK: {e}")
+                        raise Exception("Assistants API v2 não configurada corretamente. Atualize o SDK do OpenAI.")
+                    else:
+                        raise
                 openai_assistant_id = openai_assistant.id
                 
                 # Atualizar assistant_id no banco
@@ -1070,25 +1203,45 @@ class OpenAIAssistantService:
             # Criar ou buscar thread na OpenAI
             openai_thread_id = db_thread.thread_id
             if not openai_thread_id or openai_thread_id.startswith("local_"):
-                # Criar nova thread na OpenAI
+                # Criar nova thread na OpenAI (header v2 já está configurado no cliente)
                 openai_thread = self.client.beta.threads.create()
                 openai_thread_id = openai_thread.id
                 db_thread.thread_id = openai_thread_id
                 self.db.commit()
                 logger.info(f"✅ Thread criada na OpenAI: {openai_thread_id}")
             
-            # Adicionar mensagem do usuário à thread
+            # Adicionar mensagem do usuário à thread (header v2 já está configurado no cliente)
             self.client.beta.threads.messages.create(
                 thread_id=openai_thread_id,
                 role="user",
                 content=user_message
             )
             
-            # Criar run
-            run = self.client.beta.threads.runs.create(
-                thread_id=openai_thread_id,
-                assistant_id=openai_assistant_id
-            )
+            # Criar run com parâmetros adicionais se for GPT-5
+            run_params = {
+                "thread_id": openai_thread_id,
+                "assistant_id": openai_assistant_id
+            }
+            
+            # Tentar adicionar reasoning_effort e verbosity no run (podem ser suportados aqui)
+            if self._is_gpt5_model(db_assistant.model):
+                if db_assistant.tools_config and isinstance(db_assistant.tools_config, dict):
+                    if db_assistant.tools_config.get("reasoning_effort"):
+                        run_params["reasoning_effort"] = db_assistant.tools_config["reasoning_effort"]
+                    if db_assistant.tools_config.get("verbosity"):
+                        run_params["verbosity"] = db_assistant.tools_config["verbosity"]
+            
+            try:
+                run = self.client.beta.threads.runs.create(**run_params)
+            except TypeError as e:
+                # Se não suportar no run, criar sem esses parâmetros
+                if "reasoning_effort" in str(e) or "verbosity" in str(e):
+                    logger.warning(f"⚠️ reasoning_effort/verbosity não suportados no run, removendo: {e}")
+                    run_params.pop("reasoning_effort", None)
+                    run_params.pop("verbosity", None)
+                    run = self.client.beta.threads.runs.create(**run_params)
+                else:
+                    raise
             
             # Aguardar conclusão do run
             logger.info(f"⏳ Aguardando conclusão do run {run.id}...")
@@ -1231,8 +1384,11 @@ class OpenAIAssistantService:
                 }
                 
                 # Adicionar parâmetros específicos do modelo
+                # NOTA: reasoning_effort e verbosity podem não ser suportados na criação do assistente
+                # mas vamos tentar adicioná-los se for GPT-5 (podem ser suportados na API v2)
                 if self._is_gpt5_model(db_assistant.model):
                     if db_assistant.tools_config and isinstance(db_assistant.tools_config, dict):
+                        # Tentar adicionar reasoning_effort e verbosity (pode falhar, mas vamos tentar)
                         if db_assistant.tools_config.get("reasoning_effort"):
                             assistant_params["reasoning_effort"] = db_assistant.tools_config["reasoning_effort"]
                         if db_assistant.tools_config.get("verbosity"):
@@ -1241,7 +1397,26 @@ class OpenAIAssistantService:
                     if db_assistant.temperature is not None:
                         assistant_params["temperature"] = float(db_assistant.temperature)
                 
-                openai_assistant = self.client.beta.assistants.create(**assistant_params)
+                # Criar assistente (header v2 já está configurado no cliente via default_headers)
+                try:
+                    # Tentar criar com reasoning_effort/verbosity se for GPT-5
+                    openai_assistant = self.client.beta.assistants.create(**assistant_params)
+                except (TypeError, AttributeError) as e:
+                    # Se reasoning_effort ou verbosity não forem suportados, remover e tentar novamente
+                    if "reasoning_effort" in str(e) or "verbosity" in str(e):
+                        logger.warning(f"⚠️ reasoning_effort/verbosity não suportados na criação do assistente, removendo: {e}")
+                        assistant_params.pop("reasoning_effort", None)
+                        assistant_params.pop("verbosity", None)
+                        openai_assistant = self.client.beta.assistants.create(**assistant_params)
+                    else:
+                        raise
+                except Exception as e:
+                    # Se o erro for sobre API v1, o header pode não estar sendo aplicado
+                    if "v1 Assistants API has been deprecated" in str(e) or "invalid_beta" in str(e):
+                        logger.error(f"❌ Erro: Header v2 não está sendo aplicado. Verifique a versão do SDK: {e}")
+                        raise Exception("Assistants API v2 não configurada corretamente. Atualize o SDK do OpenAI.")
+                    else:
+                        raise
                 openai_assistant_id = openai_assistant.id
                 
                 # Atualizar assistant_id no banco
@@ -1261,11 +1436,31 @@ class OpenAIAssistantService:
                 content=user_prompt
             )
             
-            # Criar run
-            run = self.client.beta.threads.runs.create(
-                thread_id=openai_thread_id,
-                assistant_id=openai_assistant_id
-            )
+            # Criar run com parâmetros adicionais se for GPT-5
+            run_params = {
+                "thread_id": openai_thread_id,
+                "assistant_id": openai_assistant_id
+            }
+            
+            # Tentar adicionar reasoning_effort e verbosity no run (podem ser suportados aqui)
+            if self._is_gpt5_model(db_assistant.model):
+                if db_assistant.tools_config and isinstance(db_assistant.tools_config, dict):
+                    if db_assistant.tools_config.get("reasoning_effort"):
+                        run_params["reasoning_effort"] = db_assistant.tools_config["reasoning_effort"]
+                    if db_assistant.tools_config.get("verbosity"):
+                        run_params["verbosity"] = db_assistant.tools_config["verbosity"]
+            
+            try:
+                run = self.client.beta.threads.runs.create(**run_params)
+            except TypeError as e:
+                # Se não suportar no run, criar sem esses parâmetros
+                if "reasoning_effort" in str(e) or "verbosity" in str(e):
+                    logger.warning(f"⚠️ reasoning_effort/verbosity não suportados no run, removendo: {e}")
+                    run_params.pop("reasoning_effort", None)
+                    run_params.pop("verbosity", None)
+                    run = self.client.beta.threads.runs.create(**run_params)
+                else:
+                    raise
             
             # Aguardar conclusão do run
             logger.info(f"⏳ Aguardando conclusão do run {run.id}...")

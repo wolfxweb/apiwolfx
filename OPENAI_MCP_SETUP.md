@@ -59,13 +59,15 @@ A documentação oficial da OpenAI em https://platform.openai.com/docs/overview 
 O SDK da OpenAI já foi adicionado ao `requirements.txt`:
 
 ```txt
-openai==1.12.0
+openai>=1.54.0
 ```
+
+**⚠️ IMPORTANTE**: A Assistants API v1 foi depreciada. Use a versão 2.8.0 ou superior do SDK que suporta a API v2 automaticamente.
 
 Para instalar no container Docker:
 
 ```bash
-docker compose exec api pip install openai==1.12.0
+docker compose exec api pip install --upgrade "openai>=1.54.0"
 ```
 
 Ou reconstruir a imagem:
@@ -137,23 +139,29 @@ A Assistants API permite criar agentes autônomos que podem:
 ```python
 from openai import OpenAI
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# ⚠️ IMPORTANTE: Configure o cliente com header para Assistants API v2
+# A API v1 foi depreciada e não funciona mais
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    default_headers={
+        "OpenAI-Beta": "assistants=v2"
+    }
+)
 
-    # Criar um assistente com GPT-5.1
-    assistant = client.beta.assistants.create(
-        name="Analisador de Produtos ML",
-        instructions="""Você é um especialista em análise de produtos do Mercado Livre.
-        Sua função é analisar produtos, identificar oportunidades de melhoria,
-        sugerir otimizações de preço, SEO e marketing.""",
-        model="gpt-5.1",  # GPT-5.1 - melhor para coding e tarefas agentic
-        tools=[
-            {"type": "code_interpreter"},  # Permite executar código Python
-            {"type": "file_search"}        # Permite buscar em arquivos
-        ],
-        # GPT-5 usa reasoning_effort e verbosity ao invés de temperature
-        reasoning_effort="medium",  # Nível médio de raciocínio (padrão)
-        verbosity="medium"  # Nível médio de detalhamento (padrão)
-    )
+# Criar um assistente com GPT-5.1
+assistant = client.beta.assistants.create(
+    name="Analisador de Produtos ML",
+    instructions="""Você é um especialista em análise de produtos do Mercado Livre.
+    Sua função é analisar produtos, identificar oportunidades de melhoria,
+    sugerir otimizações de preço, SEO e marketing.""",
+    model="gpt-5.1",  # GPT-5.1 - melhor para coding e tarefas agentic
+    tools=[
+        {"type": "code_interpreter"},  # Permite executar código Python
+        {"type": "file_search"}        # Permite buscar em arquivos
+    ]
+    # NOTA: reasoning_effort e verbosity NÃO são suportados na criação do assistente
+    # Eles só funcionam com Chat Completions API, não com Assistants API
+)
 
 print(f"Assistente criado com ID: {assistant.id}")
 ```
@@ -977,6 +985,16 @@ class MLProductAnalysisAgent:
 
 **📌 IMPORTANTE**: Para informações mais atualizadas e detalhadas, sempre consulte a documentação oficial em: **https://platform.openai.com/docs/overview**
 
-**Última atualização**: Dezembro 2024  
-**Versão do SDK**: 1.12.0  
-**Status**: ✅ Pronto para uso com Assistants API
+**Última atualização**: Janeiro 2025  
+**Versão do SDK**: 2.8.0+ (requer >= 1.54.0)  
+**Status**: ✅ Pronto para uso com Assistants API v2
+
+## ⚠️ IMPORTANTE: Migração para Assistants API v2
+
+A **Assistants API v1 foi depreciada** e não funciona mais. Você **DEVE** usar a **API v2**:
+
+1. **Atualize o SDK**: Use `openai>=1.54.0` (recomendado 2.8.0+)
+2. **Configure o header**: Adicione `default_headers={"OpenAI-Beta": "assistants=v2"}` no construtor do cliente
+3. **Parâmetros GPT-5**: `reasoning_effort` e `verbosity` **NÃO** são suportados na Assistants API (apenas em Chat Completions)
+
+**Documentação oficial de migração**: https://platform.openai.com/docs/assistants/migration

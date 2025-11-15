@@ -465,6 +465,14 @@
                     return;
                 }
 
+                // Verificar se a resposta é JSON válido
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // Resposta não é JSON (pode ser HTML do ngrok ou erro)
+                    console.warn('Resposta não é JSON:', contentType);
+                    return;
+                }
+
                 const data = await response.json();
                 if (!data || !data.success) {
                     return;
@@ -473,7 +481,12 @@
                 processQuestionSummary(data.questions);
                 processMessageSummary(data.messages);
             } catch (error) {
-                console.warn('Não foi possível obter resumo de atividades:', error);
+                // Ignorar erros de parsing JSON (pode ser HTML do ngrok)
+                if (error instanceof SyntaxError && error.message.includes('JSON')) {
+                    console.debug('Resposta não é JSON válido (pode ser página do ngrok)');
+                } else {
+                    console.warn('Não foi possível obter resumo de atividades:', error);
+                }
             } finally {
                 firstRun = false;
             }

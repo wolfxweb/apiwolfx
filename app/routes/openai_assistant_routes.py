@@ -189,6 +189,23 @@ async def create_assistant(
     return result
 
 
+# Rotas de uso (qualquer usuário autenticado) - DEVE VIR ANTES DE /{assistant_id}
+@openai_assistant_router.get("/available")
+async def get_available_assistants(
+    active_only: bool = Query(True, description="Listar apenas assistentes ativos"),
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Lista agentes disponíveis para uso (qualquer usuário autenticado)"""
+    controller = OpenAIAssistantController(db)
+    result = controller.list_assistants(active_only=active_only)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao listar agentes"))
+    
+    return result
+
+
 @openai_assistant_router.get("/{assistant_id}")
 async def get_assistant(
     assistant_id: int,

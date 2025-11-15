@@ -36,79 +36,88 @@ async def activity_summary(
     db: Session = Depends(get_db),
 ):
     """Retorna resumo de novas perguntas e mensagens pós-venda para o usuário logado."""
-    if not session_token:
+    try:
+        if not session_token:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Não autenticado"},
+            )
+
+        auth_result = AuthController().get_user_by_session(session_token, db)
+        if auth_result.get("error"):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Sessão inválida"},
+            )
+
+        user_data = auth_result["user"]
+        company_id = user_data["company"]["id"]
+
+        # Perguntas
+        unanswered_count = (
+            db.query(func.count(MLQuestion.id))
+            .filter(
+                MLQuestion.company_id == company_id,
+                MLQuestion.status == MLQuestionStatus.UNANSWERED,
+            )
+            .scalar()
+        )
+
+        latest_question = (
+            db.query(MLQuestion)
+            .filter(MLQuestion.company_id == company_id)
+            .order_by(MLQuestion.question_date.desc(), MLQuestion.created_at.desc())
+            .first()
+        )
+
+        # Mensagens
+        open_threads = (
+            db.query(func.count(MLMessageThread.id))
+            .filter(
+                MLMessageThread.company_id == company_id,
+                MLMessageThread.status == MLMessageThreadStatus.OPEN,
+            )
+            .scalar()
+        )
+
+        latest_thread = (
+            db.query(MLMessageThread)
+            .filter(MLMessageThread.company_id == company_id)
+            .order_by(
+                MLMessageThread.last_message_date.desc().nullslast(),
+                MLMessageThread.updated_at.desc(),
+            )
+            .first()
+        )
+
+        summary = {
+            "success": True,
+            "questions": {
+                "unanswered_count": unanswered_count or 0,
+                "latest_db_id": latest_question.id if latest_question else None,
+                "latest_ml_question_id": latest_question.ml_question_id if latest_question else None,
+                "latest_item_title": latest_question.item_title if latest_question else None,
+                "latest_buyer": latest_question.buyer_nickname if latest_question else None,
+                "latest_question_date": _to_iso(latest_question.question_date) if latest_question else None,
+            },
+            "messages": {
+                "open_threads": open_threads or 0,
+                "latest_thread_id": latest_thread.id if latest_thread else None,
+                "latest_ml_thread_id": latest_thread.ml_thread_id if latest_thread else None,
+                "latest_buyer": latest_thread.buyer_nickname if latest_thread else None,
+                "latest_text": latest_thread.last_message_text if latest_thread else None,
+                "latest_message_date": _to_iso(latest_thread.last_message_date) if latest_thread else None,
+            },
+        }
+
+        return JSONResponse(content=summary)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erro ao obter resumo de atividades: {e}", exc_info=True)
         return JSONResponse(
-            status_code=401,
-            content={"success": False, "error": "Não autenticado"},
+            status_code=500,
+            content={"success": False, "error": "Erro interno ao obter resumo de atividades"},
         )
-
-    auth_result = AuthController().get_user_by_session(session_token, db)
-    if auth_result.get("error"):
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "error": "Sessão inválida"},
-        )
-
-    user_data = auth_result["user"]
-    company_id = user_data["company"]["id"]
-
-    # Perguntas
-    unanswered_count = (
-        db.query(func.count(MLQuestion.id))
-        .filter(
-            MLQuestion.company_id == company_id,
-            MLQuestion.status == MLQuestionStatus.UNANSWERED,
-        )
-        .scalar()
-    )
-
-    latest_question = (
-        db.query(MLQuestion)
-        .filter(MLQuestion.company_id == company_id)
-        .order_by(MLQuestion.question_date.desc(), MLQuestion.created_at.desc())
-        .first()
-    )
-
-    # Mensagens
-    open_threads = (
-        db.query(func.count(MLMessageThread.id))
-        .filter(
-            MLMessageThread.company_id == company_id,
-            MLMessageThread.status == MLMessageThreadStatus.OPEN,
-        )
-        .scalar()
-    )
-
-    latest_thread = (
-        db.query(MLMessageThread)
-        .filter(MLMessageThread.company_id == company_id)
-        .order_by(
-            MLMessageThread.last_message_date.desc().nullslast(),
-            MLMessageThread.updated_at.desc(),
-        )
-        .first()
-    )
-
-    summary = {
-        "success": True,
-        "questions": {
-            "unanswered_count": unanswered_count or 0,
-            "latest_db_id": latest_question.id if latest_question else None,
-            "latest_ml_question_id": latest_question.ml_question_id if latest_question else None,
-            "latest_item_title": latest_question.item_title if latest_question else None,
-            "latest_buyer": latest_question.buyer_nickname if latest_question else None,
-            "latest_question_date": _to_iso(latest_question.question_date) if latest_question else None,
-        },
-        "messages": {
-            "open_threads": open_threads or 0,
-            "latest_thread_id": latest_thread.id if latest_thread else None,
-            "latest_ml_thread_id": latest_thread.ml_thread_id if latest_thread else None,
-            "latest_buyer": latest_thread.buyer_nickname if latest_thread else None,
-            "latest_text": latest_thread.last_message_text if latest_thread else None,
-            "latest_message_date": _to_iso(latest_thread.last_message_date) if latest_thread else None,
-        },
-    }
-
-    return JSONResponse(content=summary)
 
 
