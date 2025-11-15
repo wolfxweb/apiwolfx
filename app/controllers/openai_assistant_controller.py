@@ -197,6 +197,8 @@ class OpenAIAssistantController:
         interaction_mode: Optional[str] = None,
         use_case: Optional[str] = None,
         is_active: Optional[bool] = None,
+        memory_enabled: Optional[bool] = None,
+        memory_data: Optional[Dict] = None,
         initial_prompt: Optional[str] = None
     ) -> Dict:
         """Atualiza um assistente existente"""

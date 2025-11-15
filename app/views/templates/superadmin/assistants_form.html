@@ -547,14 +547,17 @@ document.addEventListener('DOMContentLoaded', function() {
 // Carregar dados do agente para edição
 async function loadAssistantData(id) {
     try {
+        console.log('🔄 Carregando dados do agente ID:', id);
         const response = await fetch(`/api/openai/assistants/${id}`, {
             credentials: 'include'
         });
         
         if (response.ok) {
             const result = await response.json();
+            console.log('✅ Dados recebidos:', result);
             if (result.success && result.assistant) {
                 const assistant = result.assistant;
+                console.log('📋 Carregando campos do agente:', assistant.name);
                 
                 document.getElementById('assistantName').value = assistant.name || '';
                 document.getElementById('assistantDescription').value = assistant.description || '';
@@ -579,13 +582,29 @@ async function loadAssistantData(id) {
                         }, 100);
                     }
                 }
-                document.getElementById('assistantTemperature').value = assistant.temperature || '0.7';
+                // Carregar temperature (se não for modelo de raciocínio ou GPT-5)
+                if (assistant.temperature !== null && assistant.temperature !== undefined) {
+                    document.getElementById('assistantTemperature').value = assistant.temperature;
+                } else {
+                    document.getElementById('assistantTemperature').value = '0.7';
+                }
+                
                 document.getElementById('assistantMaxTokens').value = assistant.max_tokens || 4000;
                 document.getElementById('assistantInteractionMode').value = assistant.interaction_mode || 'report';
                 document.getElementById('assistantUseCase').value = assistant.use_case || '';
                 document.getElementById('assistantIsActive').checked = assistant.is_active !== false;
                 document.getElementById('assistantMemoryEnabled').checked = assistant.memory_enabled !== false;
-                document.getElementById('assistantMemoryData').value = assistant.memory_data ? JSON.stringify(assistant.memory_data, null, 2) : '';
+                
+                // Carregar memory_data (pode ser null, string JSON ou objeto)
+                if (assistant.memory_data) {
+                    if (typeof assistant.memory_data === 'string') {
+                        document.getElementById('assistantMemoryData').value = assistant.memory_data;
+                    } else {
+                        document.getElementById('assistantMemoryData').value = JSON.stringify(assistant.memory_data, null, 2);
+                    }
+                } else {
+                    document.getElementById('assistantMemoryData').value = '';
+                }
                 
                 // Definir conteúdo no editor Quill do prompt
                 if (assistant.initial_prompt) {
@@ -607,11 +626,20 @@ async function loadAssistantData(id) {
                 }
                 
                 // Configurar reasoning_effort e verbosity (se existirem)
+                // IMPORTANTE: Carregar ANTES de chamar handleModelChange() para garantir que os valores estejam definidos
                 if (assistant.reasoning_effort) {
-                    document.getElementById('assistantReasoningEffort').value = assistant.reasoning_effort;
+                    const reasoningSelect = document.getElementById('assistantReasoningEffort');
+                    if (reasoningSelect) {
+                        reasoningSelect.value = assistant.reasoning_effort;
+                        console.log('✅ Reasoning Effort carregado:', assistant.reasoning_effort);
+                    }
                 }
                 if (assistant.verbosity) {
-                    document.getElementById('assistantVerbosity').value = assistant.verbosity;
+                    const verbositySelect = document.getElementById('assistantVerbosity');
+                    if (verbositySelect) {
+                        verbositySelect.value = assistant.verbosity;
+                        console.log('✅ Verbosity carregado:', assistant.verbosity);
+                    }
                 }
                 
                 // Carregar ferramentas da Assistants API (Code Interpreter e File Search)
@@ -635,18 +663,36 @@ async function loadAssistantData(id) {
                     loadTools(customTools);
                 }
                 
+                // IMPORTANTE: Chamar handleModelChange() DEPOIS de carregar todos os dados
+                // para mostrar/esconder os campos corretos baseado no modelo
                 handleModelChange();
+                
+                console.log('✅ Todos os campos carregados com sucesso!');
+            } else {
+                console.error('❌ Resposta sem sucesso:', result);
+                showNotification('Erro ao carregar dados do agente: ' + (result.error || 'Erro desconhecido'), 'error');
             }
+        } else {
+            console.error('❌ Erro HTTP:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('❌ Resposta de erro:', errorText);
+            showNotification('Erro ao carregar dados do agente: ' + response.statusText, 'error');
         }
     } catch (error) {
-        console.error('Erro ao carregar agente:', error);
+        console.error('❌ Erro ao carregar agente:', error);
         showNotification('Erro ao carregar dados do agente: ' + error.message, 'error');
     }
 }
 
 // Manipular mudança de modelo
 function handleModelChange() {
-    const model = document.getElementById('assistantModel').value;
+    const modelSelect = document.getElementById('assistantModel');
+    if (!modelSelect) {
+        console.warn('⚠️ Campo assistantModel não encontrado');
+        return;
+    }
+    
+    const model = modelSelect.value;
     // Modelos de raciocínio: o1, o3, o4 (não suportam temperature nem tools)
     const isReasoning = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4');
     // Modelos GPT-5: usam reasoning_effort e verbosity ao invés de temperature
@@ -655,26 +701,23 @@ function handleModelChange() {
     const temperatureGroup = document.getElementById('temperatureGroup');
     const gpt5ParamsGroup = document.getElementById('gpt5ParamsGroup');
     const verbosityGroup = document.getElementById('verbosityGroup');
-    const toolsGroup = document.getElementById('toolsGroup');
     
+    // Verificar se os elementos existem antes de acessar suas propriedades
     if (isReasoning) {
         // Modelos o1, o3, o4: sem temperature, sem tools
-        temperatureGroup.style.display = 'none';
-        gpt5ParamsGroup.style.display = 'none';
-        verbosityGroup.style.display = 'none';
-        toolsGroup.style.display = 'none';
+        if (temperatureGroup) temperatureGroup.style.display = 'none';
+        if (gpt5ParamsGroup) gpt5ParamsGroup.style.display = 'none';
+        if (verbosityGroup) verbosityGroup.style.display = 'none';
     } else if (isGPT5) {
         // Modelos GPT-5: reasoning_effort e verbosity, sem temperature
-        temperatureGroup.style.display = 'none';
-        gpt5ParamsGroup.style.display = 'block';
-        verbosityGroup.style.display = 'block';
-        toolsGroup.style.display = 'block';
+        if (temperatureGroup) temperatureGroup.style.display = 'none';
+        if (gpt5ParamsGroup) gpt5ParamsGroup.style.display = 'block';
+        if (verbosityGroup) verbosityGroup.style.display = 'block';
     } else {
         // Modelos GPT-4 e anteriores: temperature, sem reasoning_effort/verbosity
-        temperatureGroup.style.display = 'block';
-        gpt5ParamsGroup.style.display = 'none';
-        verbosityGroup.style.display = 'none';
-        toolsGroup.style.display = 'block';
+        if (temperatureGroup) temperatureGroup.style.display = 'block';
+        if (gpt5ParamsGroup) gpt5ParamsGroup.style.display = 'none';
+        if (verbosityGroup) verbosityGroup.style.display = 'none';
     }
 }
 
@@ -773,7 +816,22 @@ async function saveAssistant(event) {
             body: JSON.stringify(formData)
         });
         
-        const result = await response.json();
+        // Verificar se a resposta é OK antes de tentar parsear JSON
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Erro do servidor:', errorText);
+            showNotification(`Erro ao salvar agente: ${response.status} ${response.statusText}`, 'error');
+            return;
+        }
+        
+        let result;
+        try {
+            result = await response.json();
+        } catch (e) {
+            console.error('Erro ao parsear resposta JSON:', e);
+            showNotification('Erro: Resposta inválida do servidor', 'error');
+            return;
+        }
         
         if (result.success) {
             showNotification(

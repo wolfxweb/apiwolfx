@@ -257,8 +257,10 @@ class OpenAIAssistantService:
                 db_assistant.model = model
             
             # Atualizar parâmetros baseado no modelo
-            is_gpt5 = self._is_gpt5_model(final_model)
-            is_reasoning = self._is_reasoning_model(final_model)
+            # Usar o modelo atualizado ou o modelo existente
+            current_model = model if model is not None else db_assistant.model
+            is_gpt5 = self._is_gpt5_model(current_model)
+            is_reasoning = self._is_reasoning_model(current_model)
             
             if is_gpt5:
                 # GPT-5: atualizar reasoning_effort e verbosity no tools_config
