@@ -345,13 +345,13 @@ function renderConversationsList() {
                     <div class="conversation-title">${escapeHtml(displayTitle)}</div>
                     <div class="conversation-meta">
                         <div>${escapeHtml(conv.assistant_name)}</div>
-                        <div>${conv.message_count} mensagens • ${date}</div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>${conv.message_count} mensagens • ${date}</div>
+                            <button class="btn btn-sm btn-outline-danger" title="Remover conversa" onclick="deleteConversation(event, '${conv.thread_id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div class="d-flex justify-content-end mt-2">
-                    <button class="btn btn-sm btn-outline-danger" title="Remover conversa" onclick="deleteConversation(event, '${conv.thread_id}')">
-                        <i class="bi bi-trash"></i>
-                    </button>
                 </div>
             </div>
         `;
