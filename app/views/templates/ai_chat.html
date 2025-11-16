@@ -347,9 +347,7 @@ function renderConversationsList() {
                         <div>${escapeHtml(conv.assistant_name)}</div>
                         <div class="d-flex justify-content-between align-items-center">
                             <div>${conv.message_count} mensagens • ${date}</div>
-                            <button class="btn btn-sm btn-outline-danger" title="Remover conversa" onclick="deleteConversation(event, '${conv.thread_id}')">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <i class="bi bi-trash text-danger" style="cursor: pointer;" title="Remover conversa" aria-label="Remover conversa" onclick="deleteConversation(event, '${conv.thread_id}')"></i>
                         </div>
                     </div>
                 </div>

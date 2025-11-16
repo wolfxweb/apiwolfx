@@ -214,6 +214,24 @@ async def startup_event():
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Tabelas podem já existir: {e}")
                 
+                # 1.1 Garantir índices de performance do chat (threads e mensagens)
+                try:
+                    import importlib.util
+                    import os
+                    idx_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_16_add_indexes_openai_chat.py'
+                    )
+                    if os.path.exists(idx_path):
+                        spec = importlib.util.spec_from_file_location("add_indexes_openai_chat", idx_path)
+                        idx_module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(idx_module)
+                        # Passar conexão atual para evitar abrir múltiplas sessões
+                        idx_module.run(db)
+                        print("✅ [STARTUP] Índices do chat verificados/criados")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível criar índices do chat: {e}")
+                
                 # 2. Adicionar colunas de memória (se não existirem)
                 print("📋 [STARTUP] Verificando colunas de memória...")
                 sql_memory = """
