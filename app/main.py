@@ -213,7 +213,24 @@ async def startup_event():
                         print("✅ [STARTUP] Tabelas OpenAI Assistants verificadas/criadas")
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Tabelas podem já existir: {e}")
-                
+ 
+                # 1.0 Criar/garantir tabelas de Ferramentas reutilizáveis
+                try:
+                    import importlib.util
+                    import os
+                    tools_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_16_create_openai_tools_tables.py'
+                    )
+                    if os.path.exists(tools_path):
+                        spec = importlib.util.spec_from_file_location("create_openai_tools_tables", tools_path)
+                        tools_module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(tools_module)
+                        tools_module.run(db)
+                        print("✅ [STARTUP] Tabelas de Ferramentas verificadas/criadas")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível criar tabelas de Ferramentas: {e}")
+
                 # 1.1 Garantir índices de performance do chat (threads e mensagens)
                 try:
                     import importlib.util

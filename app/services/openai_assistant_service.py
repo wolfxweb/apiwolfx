@@ -546,6 +546,11 @@ class OpenAIAssistantService:
                 elif isinstance(db_assistant.tools_config, list):
                     tools = db_assistant.tools_config
             
+            # Carregar ferramentas vinculadas no banco (estrutura reutilizável)
+            db_tools = self._load_agent_tools_from_db(assistant_id)
+            if db_tools:
+                tools = db_tools
+            
             # Criar thread temporária para processamento de ferramentas (se necessário)
             # Para modo report, não precisamos de thread persistente, mas precisamos para tool calls
             import uuid
@@ -837,6 +842,11 @@ class OpenAIAssistantService:
                     tools = db_assistant.tools_config.get("tools")
                 elif isinstance(db_assistant.tools_config, list):
                     tools = db_assistant.tools_config
+
+            # Carregar ferramentas vinculadas no banco (estrutura reutilizável)
+            db_tools = self._load_agent_tools_from_db(assistant_id)
+            if db_tools:
+                tools = db_tools
             
             # Verificar se precisa usar Assistants API (Code Interpreter ou File Search)
             # E se o modelo é suportado pela Assistants API
@@ -1138,6 +1148,47 @@ class OpenAIAssistantService:
         except Exception as e:
             logger.error(f"❌ Erro ao executar função {function_name}: {e}", exc_info=True)
             return {"error": f"Erro ao executar função: {str(e)}"}
+
+    def _load_agent_tools_from_db(self, assistant_id: int) -> List[Dict]:
+        """Lê ferramentas associadas ao agente (tabelas openai_agent_tools/openai_tools) e monta lista para Chat Completions.
+        Retorna lista no formato [{"type":"function","function":{name, description, parameters}}].
+        """
+        try:
+            from sqlalchemy import text as sql_text
+            query = sql_text(
+                """
+                SELECT t.name, t.description, t.json_schema
+                FROM openai_agent_tools at
+                JOIN openai_tools t ON t.id = at.tool_id
+                WHERE at.agent_id = :agent_id AND t.is_active = TRUE
+                ORDER BY t.name
+                """
+            )
+            rows = self.db.execute(query, {"agent_id": assistant_id}).fetchall()
+            tools = []
+            for r in rows:
+                name = r[0]
+                description = r[1]
+                schema = r[2]
+                if not isinstance(schema, dict):
+                    # Caso venha como string JSON
+                    try:
+                        import json as _json
+                        schema = _json.loads(schema)
+                    except Exception:
+                        continue
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": description or "",
+                        "parameters": schema
+                    }
+                })
+            return tools
+        except Exception as e:
+            logger.warning(f"⚠️ Não foi possível carregar ferramentas do DB para o agente {assistant_id}: {e}")
+            return []
     
     def _use_assistants_api_chat_mode(
         self,
