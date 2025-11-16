@@ -567,6 +567,29 @@ async def list_tools(
             "created_at": r[4].isoformat() if r[4] else None,
             "json_schema": r[5]
         })
+    # Se a tabela existe mas está vazia, executar seed e recarregar
+    if not tools:
+        try:
+            import importlib.util, os
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # /app
+            seed_path = os.path.join(base_dir, 'database', 'fixes', '2025_11_16_seed_product_analysis_tools.py')
+            if os.path.exists(seed_path):
+                spec = importlib.util.spec_from_file_location("seed_product_analysis_tools", seed_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                module.run(db)
+                # Recarregar
+                rows = db.execute(sql_text("SELECT id, name, description, is_active, created_at, json_schema FROM openai_tools ORDER BY created_at DESC")).fetchall()
+                tools = [{
+                    "id": r[0],
+                    "name": r[1],
+                    "description": r[2],
+                    "is_active": r[3],
+                    "created_at": r[4].isoformat() if r[4] else None,
+                    "json_schema": r[5]
+                } for r in rows]
+        except Exception as e:
+            logger.warning(f"Não foi possível executar seed de ferramentas: {e}")
     return {"success": True, "tools": tools}
 
 

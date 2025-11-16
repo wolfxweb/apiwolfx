@@ -228,6 +228,17 @@ async def startup_event():
                         spec.loader.exec_module(tools_module)
                         tools_module.run(db)
                         print("✅ [STARTUP] Tabelas de Ferramentas verificadas/criadas")
+                    # Seed de ferramentas padrão para análise de produto
+                    seed_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_16_seed_product_analysis_tools.py'
+                    )
+                    if os.path.exists(seed_path):
+                        spec2 = importlib.util.spec_from_file_location("seed_product_analysis_tools", seed_path)
+                        seed_module = importlib.util.module_from_spec(spec2)
+                        spec2.loader.exec_module(seed_module)
+                        seed_module.run(db)
+                        print("✅ [STARTUP] Ferramentas de análise de produto seedadas")
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível criar tabelas de Ferramentas: {e}")
 
