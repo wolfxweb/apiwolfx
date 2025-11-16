@@ -776,6 +776,8 @@ class OpenAIAssistantService:
                         memory_text = "\n\n".join(memory_context)
                         system_content += f"\n\n[CONTEXTO DE MEMÓRIA]\n{memory_text}"
                 
+                # Regras específicas do agente devem ser configuradas nas instruções do próprio agente (DB), não aqui.
+                
                 messages_history.append({
                     "role": "system",
                     "content": system_content
@@ -847,6 +849,56 @@ class OpenAIAssistantService:
             db_tools = self._load_agent_tools_from_db(assistant_id)
             if db_tools:
                 tools = db_tools
+            
+            # Garantir que as ferramentas de identificação estejam disponíveis para o agente de análise de produto
+            try:
+                normalized_name = (db_assistant.name or "").lower()
+                is_analise_produto = ("analise" in normalized_name and "produto" in normalized_name)
+            except Exception:
+                is_analise_produto = False
+            if is_analise_produto:
+                if tools is None:
+                    tools = []
+                # Evitar duplicidade se já existirem
+                existing_names = set()
+                for t in tools or []:
+                    if isinstance(t, dict):
+                        fn = t.get("function", {})
+                        if isinstance(fn, dict) and fn.get("name"):
+                            existing_names.add(fn.get("name"))
+                if "search_products_by_name" not in existing_names:
+                    tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": "search_products_by_name",
+                            "description": "Busca produtos por nome (e opcionalmente por SKU) da empresa atual e retorna até 10 sugestões.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {"type": "string", "description": "Nome (ou parte) do produto para busca"},
+                                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
+                                    "include_sku": {"type": "boolean", "default": True}
+                                },
+                                "required": ["query"]
+                            }
+                        }
+                    })
+                if "resolve_product_by_code" not in existing_names:
+                    tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": "resolve_product_by_code",
+                            "description": "Resolve um produto a partir de um código informado (id interno, seller_sku ou ml_item_id).",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {"type": "string", "description": "Código informado pelo usuário"},
+                                    "code_type": {"type": "string", "enum": ["id", "seller_sku", "ml_item_id"], "description": "Tipo do código; se omitido, detectar automaticamente"}
+                                },
+                                "required": ["code"]
+                            }
+                        }
+                    })
             
             # Verificar se precisa usar Assistants API (Code Interpreter ou File Search)
             # E se o modelo é suportado pela Assistants API
@@ -1340,6 +1392,82 @@ class OpenAIAssistantService:
                 if len(title) > maxlen:
                     issues.append(f"Título acima de {maxlen} caracteres")
                 return {"title": title, "issues": issues}
+            
+            # ========== Search products by name ==========
+            if function_name == "search_products_by_name":
+                query = str(function_args.get("query", "")).strip()
+                if not query:
+                    return {"error": "query é obrigatório"}
+                limit = int(function_args.get("limit", 10))
+                include_sku = bool(function_args.get("include_sku", True))
+                from app.models.saas_models import MLProduct
+                q = self.db.query(MLProduct).filter(MLProduct.company_id == company_id)
+                # ILIKE para título; opcional para SKU
+                from sqlalchemy import or_
+                like = f"%{query}%"
+                if include_sku:
+                    q = q.filter(or_(MLProduct.title.ilike(like), MLProduct.seller_sku.ilike(like)))
+                else:
+                    q = q.filter(MLProduct.title.ilike(like))
+                q = q.order_by(MLProduct.updated_at.desc()) if hasattr(MLProduct, 'updated_at') else q
+                rows = q.limit(limit).all()
+                results = []
+                for p in rows:
+                    results.append({
+                        "id": p.id,
+                        "title": p.title,
+                        "seller_sku": p.seller_sku,
+                        "ml_item_id": p.ml_item_id,
+                        "price": float(p.price) if p.price else None
+                    })
+                return {"results": results}
+            
+            # ========== Resolve product by code ==========
+            if function_name == "resolve_product_by_code":
+                code = str(function_args.get("code", "")).strip()
+                code_type = function_args.get("code_type")  # id | seller_sku | ml_item_id | None
+                if not code:
+                    return {"error": "code é obrigatório"}
+                from app.models.saas_models import MLProduct
+                product = None
+                if code_type == "id":
+                    try:
+                        pid = int(code)
+                        product = self.db.query(MLProduct).filter(MLProduct.id == pid, MLProduct.company_id == company_id).first()
+                    except Exception:
+                        product = None
+                elif code_type == "seller_sku":
+                    product = self.db.query(MLProduct).filter(MLProduct.seller_sku == code, MLProduct.company_id == company_id).first()
+                elif code_type == "ml_item_id":
+                    product = self.db.query(MLProduct).filter(MLProduct.ml_item_id == code, MLProduct.company_id == company_id).first()
+                else:
+                    # Auto-detecção
+                    tried = False
+                    if code.isdigit():
+                        tried = True
+                        try:
+                            pid = int(code)
+                            product = self.db.query(MLProduct).filter(MLProduct.id == pid, MLProduct.company_id == company_id).first()
+                        except Exception:
+                            product = None
+                    if product is None and code.upper().startswith("ML"):
+                        tried = True
+                        product = self.db.query(MLProduct).filter(MLProduct.ml_item_id == code, MLProduct.company_id == company_id).first()
+                    if product is None and not tried:
+                        # tentar SKU como fallback
+                        product = self.db.query(MLProduct).filter(MLProduct.seller_sku == code, MLProduct.company_id == company_id).first()
+                if not product:
+                    return {"found": False}
+                return {
+                    "found": True,
+                    "product": {
+                        "id": product.id,
+                        "title": product.title,
+                        "seller_sku": product.seller_sku,
+                        "ml_item_id": product.ml_item_id,
+                        "price": float(product.price) if product.price else None
+                    }
+                }
             
             # ======== Exemplos antigos (mantidos para compatibilidade) ========
             if function_name == "get_ml_order_status":

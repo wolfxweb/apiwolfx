@@ -260,6 +260,23 @@ async def startup_event():
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível criar índices do chat: {e}")
                 
+                # 1.2 Atualizar instruções do agente 1 (regras de identificação do produto)
+                try:
+                    import importlib.util
+                    import os
+                    upd_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_16_update_agent_1_instructions.py'
+                    )
+                    if os.path.exists(upd_path):
+                        spec3 = importlib.util.spec_from_file_location("update_agent_1_instructions", upd_path)
+                        upd_module = importlib.util.module_from_spec(spec3)
+                        spec3.loader.exec_module(upd_module)
+                        upd_module.run(db)
+                        print("✅ [STARTUP] Instruções do agente 1 verificadas/atualizadas")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível atualizar instruções do agente 1: {e}")
+                
                 # 2. Adicionar colunas de memória (se não existirem)
                 print("📋 [STARTUP] Verificando colunas de memória...")
                 sql_memory = """
