@@ -436,4 +436,158 @@ class OpenAIAssistantController:
         except Exception as e:
             logger.error(f"❌ Erro ao obter uso diário: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+    
+    def list_user_threads(
+        self,
+        company_id: int,
+        user_id: Optional[int],
+        assistant_id: Optional[int] = None
+    ) -> Dict:
+        """Lista todas as conversas (threads) do usuário"""
+        try:
+            from app.models.saas_models import OpenAIAssistantThread
+            from sqlalchemy import desc
+            
+            # Query base: threads ativas do usuário na empresa
+            query = self.db.query(OpenAIAssistantThread).filter(
+                OpenAIAssistantThread.company_id == company_id,
+                OpenAIAssistantThread.is_active == True
+            )
+            
+            # Filtrar por user_id se fornecido (isolamento por usuário)
+            if user_id:
+                query = query.filter(OpenAIAssistantThread.user_id == user_id)
+            
+            # Filtrar por assistant_id se fornecido
+            if assistant_id:
+                query = query.filter(OpenAIAssistantThread.assistant_id == assistant_id)
+            
+            # Ordenar por última mensagem (mais recente primeiro)
+            threads = query.order_by(desc(OpenAIAssistantThread.last_message_at), desc(OpenAIAssistantThread.created_at)).all()
+            
+            # Formatar resultado
+            threads_list = []
+            for thread in threads:
+                # Buscar nome do assistente
+                assistant_name = "Agente Desconhecido"
+                if thread.assistant:
+                    assistant_name = thread.assistant.name
+                
+                # Buscar primeira mensagem do usuário como título
+                first_user_message = None
+                if thread.messages:
+                    for msg in thread.messages:
+                        if msg.role == "user":
+                            first_user_message = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+                            break
+                
+                threads_list.append({
+                    "thread_id": thread.thread_id,
+                    "assistant_id": thread.assistant_id,
+                    "assistant_name": assistant_name,
+                    "title": first_user_message or "Nova conversa",
+                    "last_message_at": thread.last_message_at.isoformat() if thread.last_message_at else None,
+                    "created_at": thread.created_at.isoformat() if thread.created_at else None,
+                    "message_count": len(thread.messages) if thread.messages else 0
+                })
+            
+            return {
+                "success": True,
+                "threads": threads_list
+            }
+        except Exception as e:
+            logger.error(f"Erro ao listar threads: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
+    def get_thread_messages(
+        self,
+        thread_id: str,
+        company_id: int,
+        user_id: Optional[int]
+    ) -> Dict:
+        """Busca todas as mensagens de uma thread"""
+        try:
+            from app.models.saas_models import OpenAIAssistantThread
+            
+            # Buscar thread com isolamento por company_id e user_id
+            query = self.db.query(OpenAIAssistantThread).filter(
+                OpenAIAssistantThread.thread_id == thread_id,
+                OpenAIAssistantThread.company_id == company_id,
+                OpenAIAssistantThread.is_active == True
+            )
+            
+            # Filtrar por user_id se fornecido
+            if user_id:
+                query = query.filter(OpenAIAssistantThread.user_id == user_id)
+            
+            thread = query.first()
+            
+            if not thread:
+                return {"success": False, "error": "Conversa não encontrada ou você não tem permissão para acessá-la"}
+            
+            # Buscar assistente
+            assistant_name = "Agente Desconhecido"
+            if thread.assistant:
+                assistant_name = thread.assistant.name
+            
+            # Formatar mensagens
+            messages_list = []
+            for msg in thread.messages:
+                messages_list.append({
+                    "id": msg.id,
+                    "role": msg.role,
+                    "content": msg.content,
+                    "created_at": msg.created_at.isoformat() if msg.created_at else None
+                })
+            
+            return {
+                "success": True,
+                "thread": {
+                    "thread_id": thread.thread_id,
+                    "assistant_id": thread.assistant_id,
+                    "assistant_name": assistant_name,
+                    "created_at": thread.created_at.isoformat() if thread.created_at else None,
+                    "last_message_at": thread.last_message_at.isoformat() if thread.last_message_at else None
+                },
+                "messages": messages_list
+            }
+        except Exception as e:
+            logger.error(f"Erro ao buscar mensagens: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
+    def delete_thread(
+        self,
+        thread_id: str,
+        company_id: int,
+        user_id: Optional[int]
+    ) -> Dict:
+        """Deleta uma thread (marca como inativa)"""
+        try:
+            from app.models.saas_models import OpenAIAssistantThread
+            
+            # Buscar thread com isolamento por company_id e user_id
+            query = self.db.query(OpenAIAssistantThread).filter(
+                OpenAIAssistantThread.thread_id == thread_id,
+                OpenAIAssistantThread.company_id == company_id,
+                OpenAIAssistantThread.is_active == True
+            )
+            
+            # Filtrar por user_id se fornecido
+            if user_id:
+                query = query.filter(OpenAIAssistantThread.user_id == user_id)
+            
+            thread = query.first()
+            
+            if not thread:
+                return {"success": False, "error": "Conversa não encontrada ou você não tem permissão para acessá-la"}
+            
+            # Marcar como inativa
+            thread.is_active = False
+            self.db.commit()
+            
+            return {"success": True, "message": "Conversa deletada com sucesso"}
+        except Exception as e:
+            logger.error(f"Erro ao deletar thread: {e}", exc_info=True)
+            self.db.rollback()
+            return {"success": False, "error": str(e)}
 

@@ -4,6 +4,7 @@ Rotas para gerenciar assistentes OpenAI
 import logging
 from typing import Optional, List, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query, Body, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -14,8 +15,11 @@ from app.services.file_processor_service import FileProcessorService
 
 logger = logging.getLogger(__name__)
 
-# Router para assistentes OpenAI
+# Router para assistentes OpenAI (API)
 openai_assistant_router = APIRouter(prefix="/api/openai/assistants", tags=["OpenAI Assistants"])
+
+# Router para páginas HTML de assistentes OpenAI
+openai_chat_router = APIRouter(tags=["OpenAI Chat"])
 
 # Instância do controller
 auth_controller = AuthController()
@@ -202,6 +206,97 @@ async def get_available_assistants(
     
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao listar agentes"))
+    
+    return result
+
+
+# ========== THREADS E MENSAGENS (DEVEM VIR ANTES DE /{assistant_id}) ==========
+
+@openai_assistant_router.get("/threads")
+async def list_user_threads(
+    request: Request,
+    assistant_id: Optional[str] = Query(None, description="Filtrar por assistente específico"),
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Lista todas as conversas (threads) do usuário logado"""
+    company_id = user.get("company", {}).get("id")
+    user_id = user.get("id")
+    
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Company ID não encontrado")
+    
+    # Converter assistant_id para inteiro somente se válido
+    assistant_id_int = None
+    if isinstance(assistant_id, str) and assistant_id.strip() != "":
+        try:
+            assistant_id_int = int(assistant_id)
+        except ValueError:
+            assistant_id_int = None
+    
+    controller = OpenAIAssistantController(db)
+    result = controller.list_user_threads(
+        company_id=company_id,
+        user_id=user_id,
+        assistant_id=assistant_id_int
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao listar conversas"))
+    
+    return result
+
+
+@openai_assistant_router.get("/threads/{thread_id}/messages")
+async def get_thread_messages(
+    request: Request,
+    thread_id: str,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca todas as mensagens de uma conversa específica"""
+    company_id = user.get("company", {}).get("id")
+    user_id = user.get("id")
+    
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Company ID não encontrado")
+    
+    controller = OpenAIAssistantController(db)
+    result = controller.get_thread_messages(
+        thread_id=thread_id,
+        company_id=company_id,
+        user_id=user_id
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao buscar mensagens"))
+    
+    return result
+
+
+@openai_assistant_router.delete("/threads/{thread_id}")
+async def delete_thread(
+    request: Request,
+    thread_id: str,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Deleta uma conversa (marca como inativa)"""
+    company_id = user.get("company", {}).get("id")
+    user_id = user.get("id")
+    
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Company ID não encontrado")
+    
+    controller = OpenAIAssistantController(db)
+    result = controller.delete_thread(
+        thread_id=thread_id,
+        company_id=company_id,
+        user_id=user_id
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao deletar conversa"))
     
     return result
 
@@ -444,4 +539,32 @@ async def get_usage_daily(
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao obter uso diário"))
     
     return result
+
+
+# ========== ROTAS HTML PARA PÁGINA DE CHAT ==========
+
+@openai_chat_router.get("/ai/chat", response_class=HTMLResponse)
+async def ai_chat_page(
+    request: Request,
+    thread_id: Optional[str] = None,
+    assistant_id: Optional[int] = None,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de chat com IA (estilo ChatGPT)"""
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    user_data = result["user"]
+    
+    from app.views.template_renderer import render_template
+    return render_template("ai_chat.html", 
+                         request=request,
+                         user=user_data,
+                         thread_id=thread_id,
+                         assistant_id=assistant_id)
 
