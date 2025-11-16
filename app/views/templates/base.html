@@ -290,6 +290,13 @@
                             <i class="bi bi-robot"></i> Chat IA
                         </a>
                     </li>
+                    {% if user and user.role == 'super_admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/superadmin/tools">
+                            <i class="bi bi-wrench-adjustable"></i> Ferramentas
+                        </a>
+                    </li>
+                    {% endif %}
                     {% endif %}
                 </ul>
                 

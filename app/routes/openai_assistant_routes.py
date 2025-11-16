@@ -2,6 +2,7 @@
 Rotas para gerenciar assistentes OpenAI
 """
 import logging
+import json
 from typing import Optional, List, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query, Body, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Router para assistentes OpenAI (API)
 openai_assistant_router = APIRouter(prefix="/api/openai/assistants", tags=["OpenAI Assistants"])
+tools_router = APIRouter(prefix="/api/openai/tools", tags=["OpenAI Tools"])
 
 # Router para páginas HTML de assistentes OpenAI
 openai_chat_router = APIRouter(tags=["OpenAI Chat"])
@@ -40,23 +42,12 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
 
 def get_superadmin_user(request: Request, db: Session = Depends(get_db)) -> dict:
     """Obtém usuário superadmin da sessão"""
-    try:
-        user = get_current_user(request, db)
-        logger.info(f"✅ Usuário autenticado: {user.get('email')} (role: {user.get('role')})")
-    except HTTPException as e:
-        logger.warning(f"⚠️ Erro ao obter usuário: {e.detail} - Path: {request.url.path}")
-        # Se não conseguir obter usuário normal, verificar se está acessando rotas administrativas
-        # Por enquanto, permitir acesso se estiver na rota /superadmin ou /api/openai/assistants (para desenvolvimento)
-        if "/superadmin" in request.url.path or "/api/openai/assistants" in request.url.path:
-            logger.info("🔓 Permitindo acesso temporário para desenvolvimento")
-            # Retornar um usuário mock para desenvolvimento
-            return {"id": 1, "email": "admin@celx.com.br", "role": "super_admin"}
-        raise
+    user = get_current_user(request, db)
+    logger.info(f"✅ Usuário autenticado: {user.get('email')} (role: {user.get('role')})")
     
-    # Verificar se é superadmin de três formas:
+    # Verificar se é superadmin de duas formas:
     # 1. Se o role do usuário é super_admin
     # 2. Se existe um registro na tabela SuperAdmin com o mesmo email
-    # 3. Se está acessando rotas administrativas (permissão temporária para desenvolvimento)
     from app.models.saas_models import SuperAdmin
     
     is_superadmin = False
@@ -77,12 +68,7 @@ def get_superadmin_user(request: Request, db: Session = Depends(get_db)) -> dict
                 logger.info(f"✅ Usuário é superadmin por tabela SuperAdmin: {user_email}")
                 is_superadmin = True
         
-        # Se ainda não for superadmin, verificar se está acessando rotas administrativas
-        # (permissão temporária para desenvolvimento - remover em produção)
-        if not is_superadmin and ("/superadmin" in request.url.path or "/api/openai/assistants" in request.url.path):
-            logger.info("🔓 Permitindo acesso temporário para desenvolvimento (rota administrativa)")
-            # Permitir acesso temporariamente para desenvolvimento
-            is_superadmin = True
+        # Não permitir bypass por rota em produção; exige autenticação e papel
     
     if not is_superadmin:
         logger.warning(f"❌ Acesso negado para usuário: {user.get('email')} - Path: {request.url.path}")
@@ -148,11 +134,11 @@ class UseAssistantChatRequest(BaseModel):
 # Rotas de gerenciamento (apenas superadmin)
 @openai_assistant_router.get("/")
 async def list_assistants(
+    request: Request,
     active_only: bool = Query(True, description="Listar apenas assistentes ativos"),
-    user: dict = Depends(get_superadmin_user),
     db: Session = Depends(get_db)
 ):
-    """Lista todos os assistentes (apenas superadmin)"""
+    """Lista todos os assistentes (superadmin)"""
     controller = OpenAIAssistantController(db)
     result = controller.list_assistants(active_only=active_only)
     
@@ -539,6 +525,144 @@ async def get_usage_daily(
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao obter uso diário"))
     
     return result
+
+
+# ================== TOOLS CRUD (SuperAdmin) ==================
+
+@tools_router.get("")
+async def list_tools(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import text as sql_text
+    try:
+        rows = db.execute(sql_text("SELECT id, name, description, is_active, created_at, json_schema FROM openai_tools ORDER BY created_at DESC")).fetchall()
+    except Exception:
+        # Tabela pode não existir: criar via migração e tentar novamente
+        # Limpar estado de transação abortada
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import importlib.util, os
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # /app
+        tools_path = os.path.join(base_dir, 'database', 'fixes', '2025_11_16_create_openai_tools_tables.py')
+        spec = importlib.util.spec_from_file_location("create_openai_tools_tables", tools_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.run(db)
+        # Garantir novo estado limpo
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        rows = db.execute(sql_text("SELECT id, name, description, is_active, created_at, json_schema FROM openai_tools ORDER BY created_at DESC")).fetchall()
+    tools = []
+    for r in rows:
+        tools.append({
+            "id": r[0],
+            "name": r[1],
+            "description": r[2],
+            "is_active": r[3],
+            "created_at": r[4].isoformat() if r[4] else None,
+            "json_schema": r[5]
+        })
+    return {"success": True, "tools": tools}
+
+
+class SaveTool(BaseModel):
+    name: str
+    description: str | None = None
+    is_active: bool = True
+    json_schema: dict
+    handler_name: str | None = None
+    python_module: str | None = None
+    python_function: str | None = None
+
+
+@tools_router.post("")
+async def create_tool(
+    body: SaveTool,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import text as sql_text
+    try:
+        with db.begin():
+            row = db.execute(sql_text(
+                """
+                INSERT INTO openai_tools (name, description, json_schema, is_active)
+                VALUES (:name, :description, CAST(:schema AS JSONB), :active)
+                RETURNING id
+                """
+            ), {"name": body.name, "description": body.description, "schema": json.dumps(body.json_schema), "active": body.is_active}).fetchone()
+            tool_id = row[0]
+            if body.handler_name:
+                db.execute(sql_text(
+                    """
+                    INSERT INTO openai_tool_handlers (tool_id, handler_name, python_module, python_function, is_active)
+                    VALUES (:tool_id, :handler_name, :python_module, :python_function, TRUE)
+                    """
+                ), {"tool_id": tool_id, "handler_name": body.handler_name, "python_module": body.python_module, "python_function": body.python_function})
+        return {"success": True, "id": tool_id}
+    except Exception as e:
+        logger.error(f"Erro ao criar ferramenta: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@tools_router.get("/{tool_id}")
+async def get_tool(tool_id: int, request: Request, db: Session = Depends(get_db)):
+    from sqlalchemy import text as sql_text
+    r = db.execute(sql_text("SELECT id, name, description, is_active, created_at, json_schema FROM openai_tools WHERE id=:id"), {"id": tool_id}).fetchone()
+    if not r:
+        return {"success": False, "error": "Ferramenta não encontrada"}
+    handler = db.execute(sql_text("SELECT handler_name, python_module, python_function FROM openai_tool_handlers WHERE tool_id=:id AND is_active=TRUE LIMIT 1"), {"id": tool_id}).fetchone()
+    return {
+        "success": True,
+        "tool": {
+            "id": r[0], "name": r[1], "description": r[2], "is_active": r[3], "created_at": r[4].isoformat() if r[4] else None, "json_schema": r[5],
+            "handler": {"handler_name": handler[0], "python_module": handler[1], "python_function": handler[2]} if handler else None
+        }
+    }
+
+
+@tools_router.put("/{tool_id}")
+async def update_tool(tool_id: int, body: SaveTool, request: Request, db: Session = Depends(get_db)):
+    from sqlalchemy import text as sql_text
+    try:
+        with db.begin():
+            db.execute(sql_text(
+                """
+                UPDATE openai_tools SET name=:name, description=:description, json_schema=CAST(:schema AS JSONB), is_active=:active WHERE id=:id
+                """
+            ), {"id": tool_id, "name": body.name, "description": body.description, "schema": json.dumps(body.json_schema), "active": body.is_active})
+            # Upsert handler
+            if body.handler_name:
+                db.execute(sql_text(
+                    """
+                    INSERT INTO openai_tool_handlers (tool_id, handler_name, python_module, python_function, is_active)
+                    VALUES (:tool_id, :handler_name, :python_module, :python_function, TRUE)
+                    ON CONFLICT (tool_id, handler_name) DO UPDATE SET python_module=EXCLUDED.python_module, python_function=EXCLUDED.python_function, is_active=TRUE
+                    """
+                ), {"tool_id": tool_id, "handler_name": body.handler_name, "python_module": body.python_module, "python_function": body.python_function})
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Erro ao atualizar ferramenta: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@tools_router.delete("/{tool_id}")
+async def delete_tool(tool_id: int, request: Request, db: Session = Depends(get_db)):
+    from sqlalchemy import text as sql_text
+    try:
+        with db.begin():
+            db.execute(sql_text("DELETE FROM openai_agent_tools WHERE tool_id=:id"), {"id": tool_id})
+            db.execute(sql_text("DELETE FROM openai_tool_handlers WHERE tool_id=:id"), {"id": tool_id})
+            db.execute(sql_text("DELETE FROM openai_tools WHERE id=:id"), {"id": tool_id})
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Erro ao deletar ferramenta: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
 
 
 # ========== ROTAS HTML PARA PÁGINA DE CHAT ==========

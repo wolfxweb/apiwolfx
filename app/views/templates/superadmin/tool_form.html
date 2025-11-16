@@ -1,0 +1,105 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}{{ tool_id and 'Editar' or 'Nova' }} Ferramenta - SuperAdmin{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-wrench"></i> {{ tool_id and 'Editar' or 'Nova' }} Ferramenta</h2>
+        <a href="/superadmin/tools" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Nome (único)</label>
+                    <input id="name" type="text" class="form-control" placeholder="ex: get_catalog_competitors">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Ativa</label>
+                    <select id="is_active" class="form-select">
+                        <option value="true" selected>Sim</option>
+                        <option value="false">Não</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Descrição</label>
+                    <input id="description" type="text" class="form-control" placeholder="O que esta ferramenta faz?">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">JSON Schema (parameters)</label>
+                    <textarea id="json_schema" class="form-control" rows="12" placeholder='{"type":"object","properties":{...},"required":[...]}'></textarea>
+                    <div class="form-text">Estrutura idêntica ao schema de function calling da OpenAI (parameters)</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Handler Name</label>
+                    <input id="handler_name" type="text" class="form-control" placeholder="ex: get_catalog_competitors">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Python Module (opcional)</label>
+                    <input id="python_module" type="text" class="form-control" placeholder="ex: app.services.my_tools">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Python Function (opcional)</label>
+                    <input id="python_function" type="text" class="form-control" placeholder="ex: run">
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-success" onclick="saveTool()"><i class="bi bi-save"></i> Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const toolId = {{ tool_id if tool_id is not none else 'null' }};
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (toolId) loadTool();
+});
+
+async function loadTool() {
+    const resp = await fetch(`/api/openai/tools/${toolId}`, { credentials: 'include' });
+    const data = await resp.json();
+    if (!data.success) { alert(data.error || 'Erro ao carregar'); return; }
+    const t = data.tool;
+    document.getElementById('name').value = t.name || '';
+    document.getElementById('description').value = t.description || '';
+    document.getElementById('is_active').value = t.is_active ? 'true' : 'false';
+    document.getElementById('json_schema').value = JSON.stringify(t.json_schema || {}, null, 2);
+    if (t.handler) {
+        document.getElementById('handler_name').value = t.handler.handler_name || '';
+        document.getElementById('python_module').value = t.handler.python_module || '';
+        document.getElementById('python_function').value = t.handler.python_function || '';
+    }
+}
+
+async function saveTool() {
+    try {
+        const payload = {
+            name: document.getElementById('name').value.trim(),
+            description: document.getElementById('description').value.trim(),
+            is_active: document.getElementById('is_active').value === 'true',
+            json_schema: JSON.parse(document.getElementById('json_schema').value || '{}'),
+            handler_name: document.getElementById('handler_name').value.trim(),
+            python_module: document.getElementById('python_module').value.trim() || null,
+            python_function: document.getElementById('python_function').value.trim() || null
+        };
+        const url = toolId ? `/api/openai/tools/${toolId}` : '/api/openai/tools';
+        const method = toolId ? 'PUT' : 'POST';
+        const resp = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Erro ao salvar');
+        window.location.href = '/superadmin/tools';
+    } catch (e) {
+        alert(e.message);
+    }
+}
+</script>
+{% endblock %}

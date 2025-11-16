@@ -1,0 +1,78 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Ferramentas - SuperAdmin{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2><i class="bi bi-wrench-adjustable"></i> Ferramentas</h2>
+            <p class="text-muted mb-0">Gerencie ferramentas reutilizáveis para os agentes</p>
+        </div>
+        <a href="/superadmin/tools/new" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nova Ferramenta
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div id="toolsTableWrapper" class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Descrição</th>
+                            <th>Ativa</th>
+                            <th>Criada em</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="toolsTbody">
+                        <tr><td colspan="5" class="text-center text-muted py-4">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function loadTools() {
+    const tbody = document.getElementById('toolsTbody');
+    try {
+        const resp = await fetch('/api/openai/tools', { credentials: 'include' });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Erro ao listar');
+        if (!data.tools || data.tools.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Nenhuma ferramenta cadastrada</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.tools.map(t => `
+            <tr>
+                <td><code>${escapeHtml(t.name)}</code></td>
+                <td>${escapeHtml(t.description || '')}</td>
+                <td>${t.is_active ? '<span class="badge bg-success">Ativa</span>' : '<span class="badge bg-secondary">Inativa</span>'}</td>
+                <td>${t.created_at ? new Date(t.created_at).toLocaleString('pt-BR') : ''}</td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-primary" href="/superadmin/tools/${t.id}/edit"><i class="bi bi-pencil"></i></a>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteTool(${t.id})"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">${escapeHtml(e.message)}</td></tr>`;
+    }
+}
+
+async function deleteTool(id) {
+    if (!confirm('Deseja remover esta ferramenta?')) return;
+    const resp = await fetch(`/api/openai/tools/${id}`, { method: 'DELETE', credentials: 'include' });
+    const data = await resp.json();
+    if (data.success) loadTools(); else alert(data.error || 'Erro ao remover');
+}
+
+function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text || ''; return d.innerHTML; }
+
+document.addEventListener('DOMContentLoaded', loadTools);
+</script>
+{% endblock %}

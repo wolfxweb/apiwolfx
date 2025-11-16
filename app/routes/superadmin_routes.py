@@ -129,6 +129,34 @@ async def superadmin_assistants_usage(
     # TODO: Verificar autenticação de superadmin
     return render_template("superadmin/assistants_usage.html", request=request)
 
+
+@superadmin_router.get("/superadmin/tools", response_class=HTMLResponse)
+async def superadmin_tools(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Gerenciar ferramentas OpenAI (SuperAdmin)"""
+    return render_template("superadmin/tools.html", request=request)
+
+
+@superadmin_router.get("/superadmin/tools/new", response_class=HTMLResponse)
+async def superadmin_tools_new(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Criar nova ferramenta"""
+    return render_template("superadmin/tool_form.html", request=request, tool_id=None)
+
+
+@superadmin_router.get("/superadmin/tools/{tool_id}/edit", response_class=HTMLResponse)
+async def superadmin_tools_edit(
+    request: Request,
+    tool_id: int,
+    db: Session = Depends(get_db)
+):
+    """Editar ferramenta"""
+    return render_template("superadmin/tool_form.html", request=request, tool_id=tool_id)
+
 @superadmin_router.get("/superadmin/plans", response_class=HTMLResponse)
 async def superadmin_plans(
     request: Request,
