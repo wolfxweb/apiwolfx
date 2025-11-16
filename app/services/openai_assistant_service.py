@@ -1108,10 +1108,240 @@ class OpenAIAssistantService:
         """
         try:
             logger.info(f"🔨 Executando função: {function_name}")
+            company_id = db_thread.company_id
+            user_id = db_thread.user_id
             
-            # Exemplo de implementação de funções
-            # Você pode adicionar mais funções aqui conforme necessário
+            # ========== Product Core ==========
+            if function_name == "get_product_core":
+                product_id = int(function_args.get("product_id"))
+                if not product_id:
+                    return {"error": "product_id é obrigatório"}
+                from app.models.saas_models import MLProduct
+                p = self.db.query(MLProduct).filter(MLProduct.id == product_id, MLProduct.company_id == company_id).first()
+                if not p:
+                    return {"error": "Produto não encontrado"}
+                return {
+                    "id": p.id,
+                    "ml_item_id": p.ml_item_id,
+                    "price": float(p.price) if p.price else None,
+                    "available_quantity": p.available_quantity,
+                    "category_id": p.category_id,
+                    "listing_type_id": p.listing_type_id,
+                    "seller_sku": p.seller_sku,
+                    "title": p.title,
+                }
+
+            # ========== Product Attributes ==========
+            if function_name == "get_product_attributes":
+                product_id = int(function_args.get("product_id"))
+                if not product_id:
+                    return {"error": "product_id é obrigatório"}
+                from app.models.saas_models import MLProduct
+                p = self.db.query(MLProduct).filter(MLProduct.id == product_id, MLProduct.company_id == company_id).first()
+                if not p:
+                    return {"error": "Produto não encontrado"}
+                return {
+                    "attributes": p.attributes,
+                    "variations": p.variations,
+                    "shipping": p.shipping,
+                    "tags": p.tags,
+                    "health": p.health,
+                }
+
+            # ========== Orders by Item ==========
+            if function_name == "get_orders_by_item":
+                ml_item_id = str(function_args.get("ml_item_id"))
+                if not ml_item_id:
+                    return {"error": "ml_item_id é obrigatório"}
+                from datetime import datetime, timedelta
+                days = int(function_args.get("days", 30))
+                since = datetime.utcnow() - timedelta(days=days)
+                from app.models.saas_models import MLOrder
+                orders = (self.db.query(MLOrder)
+                          .filter(MLOrder.company_id == company_id,
+                                  MLOrder.date_created >= since,
+                                  MLOrder.order_items.isnot(None))
+                          .all())
+                result = []
+                for o in orders:
+                    try:
+                        if any((it.get("item", {}).get("id") == ml_item_id) for it in (o.order_items or [])):
+                            result.append({
+                                "id": str(o.ml_order_id),
+                                "date": o.date_created.isoformat() if o.date_created else None,
+                                "total_amount": float(o.total_amount) if o.total_amount else 0,
+                                "status": (o.status.value if hasattr(o.status, 'value') else str(o.status)),
+                                "sale_fees": float(o.sale_fees) if o.sale_fees else 0,
+                                "shipping_cost": float(o.shipping_cost) if o.shipping_cost else 0,
+                                "coupon_amount": float(o.coupon_amount) if o.coupon_amount else 0,
+                            })
+                    except Exception:
+                        # Ignorar pedidos malformados
+                        continue
+                return {"orders": result}
+
+            # ========== Sales Aggregates ==========
+            if function_name == "get_sales_aggregates":
+                ml_item_id = str(function_args.get("ml_item_id"))
+                if not ml_item_id:
+                    return {"error": "ml_item_id é obrigatório"}
+                from datetime import datetime, timedelta
+                days = int(function_args.get("days", 30))
+                since = datetime.utcnow() - timedelta(days=days)
+                from app.models.saas_models import MLOrder
+                orders = (self.db.query(MLOrder)
+                          .filter(MLOrder.company_id == company_id,
+                                  MLOrder.date_created >= since,
+                                  MLOrder.order_items.isnot(None))
+                          .all())
+                total_revenue = 0.0
+                total_qty = 0
+                paid_orders_count = 0
+                for o in orders:
+                    has_item = False
+                    qty_for_order = 0
+                    if o.order_items:
+                        for it in o.order_items:
+                            if it.get("item", {}).get("id") == ml_item_id:
+                                has_item = True
+                                qty_for_order += int(it.get("quantity", 1))
+                    if not has_item:
+                        continue
+                    amount = float(o.total_amount) if o.total_amount else 0.0
+                    total_revenue += amount
+                    total_qty += qty_for_order
+                    status_str = (o.status.value if hasattr(o.status, 'value') else str(o.status))
+                    if status_str in ["paid", "delivered"]:
+                        paid_orders_count += 1
+                ticket_medio_pedido = (total_revenue / paid_orders_count) if paid_orders_count > 0 else 0.0
+                preco_medio_unidade = (total_revenue / total_qty) if total_qty > 0 else 0.0
+                return {
+                    "receita_total": total_revenue,
+                    "pedidos_pagos": paid_orders_count,
+                    "quantidade_vendida": total_qty,
+                    "ticket_medio_pedido": ticket_medio_pedido,
+                    "preco_medio_unidade": preco_medio_unidade,
+                }
+
+            # ========== Billing Breakdown ==========
+            if function_name == "get_billing_breakdown":
+                ml_item_id = str(function_args.get("ml_item_id"))
+                if not ml_item_id:
+                    return {"error": "ml_item_id é obrigatório"}
+                from datetime import datetime, timedelta
+                days = int(function_args.get("days", 30))
+                since = datetime.utcnow() - timedelta(days=days)
+                from app.models.saas_models import MLOrder
+                orders = (self.db.query(MLOrder)
+                          .filter(MLOrder.company_id == company_id,
+                                  MLOrder.date_created >= since,
+                                  MLOrder.order_items.isnot(None))
+                          .all())
+                total_revenue = total_fees = total_shipping = total_discounts = 0.0
+                for o in orders:
+                    if any((it.get("item", {}).get("id") == ml_item_id) for it in (o.order_items or [])):
+                        total_revenue += float(o.total_amount) if o.total_amount else 0.0
+                        total_fees += float(o.sale_fees) if o.sale_fees else 0.0
+                        total_shipping += float(o.shipping_cost) if o.shipping_cost else 0.0
+                        total_discounts += float(o.coupon_amount) if o.coupon_amount else 0.0
+                faturamento_liquido = total_revenue - total_fees - total_shipping - total_discounts
+                return {
+                    "receita_total": total_revenue,
+                    "comissoes_ml_total": total_fees,
+                    "frete_total": total_shipping,
+                    "descontos_total": total_discounts,
+                    "faturamento_liquido": faturamento_liquido,
+                }
+
+            # ========== Catalog Competitors ==========
+            if function_name == "get_catalog_competitors_db":
+                product_id = int(function_args.get("product_id"))
+                limit = int(function_args.get("limit", 50))
+                offset = int(function_args.get("offset", 0))
+                from app.services.ml_catalog_service import MLCatalogService
+                svc = MLCatalogService(self.db)
+                data = svc.get_product_catalog_competitors(product_id, company_id) or {}
+                items = data.get("catalog_products", []) or []
+                return {"competitors": items[offset: offset + limit]}
+
+            # ========== Ads Metrics ==========
+            if function_name == "get_ads_metrics_by_item":
+                ml_item_id = str(function_args.get("ml_item_id"))
+                ml_account_id = int(function_args.get("ml_account_id")) if function_args.get("ml_account_id") is not None else None
+                days = int(function_args.get("days", 30))
+                if not ml_item_id or ml_account_id is None:
+                    return {"error": "ml_item_id e ml_account_id são obrigatórios"}
+                from app.services.ml_product_ads_service import MLProductAdsService
+                ads = MLProductAdsService(self.db)
+                return ads.get_product_advertising_metrics(ml_item_id=ml_item_id, ml_account_id=ml_account_id, days=days) or {}
+
+            # ========== Product Cost Config (placeholder) ==========
+            if function_name == "get_product_cost_config":
+                # TODO: substituir por leitura real de tabela de custos
+                return {"custo_produto": 0.0, "impostos_percent": 0.0, "marketing_percent": 0.0}
+
+            # ========== Compute Margin DB ==========
+            if function_name == "compute_margin_db":
+                sale_price = float(function_args.get("sale_price"))
+                product_cost = float(function_args.get("product_cost"))
+                taxes_percent = float(function_args.get("taxes_percent", 0))
+                other_costs = float(function_args.get("other_costs", 0))
+                marketing_percent = float(function_args.get("marketing_percent", 0))
+                use_period_averages = bool(function_args.get("use_period_averages", True))
+                # placeholder simples; se needed, incluir médias do período
+                total_costs = product_cost + other_costs + sale_price * (taxes_percent / 100.0) + sale_price * (marketing_percent / 100.0)
+                profit = sale_price - total_costs
+                margin_percent = (profit / sale_price * 100.0) if sale_price > 0 else 0.0
+                return {"profit": profit, "margin_percent": margin_percent}
+
+            # ========== Fee Preview (placeholder) ==========
+            if function_name == "get_fee_preview_db":
+                price = float(function_args.get("price"))
+                # TODO: estimar fee real a partir de listing/categoria
+                return {"estimated_fee": 0.0, "price": price}
+
+            # ========== Simulate Price Candidates (placeholder) ==========
+            if function_name == "simulate_price_candidates":
+                candidates = function_args.get("candidates", []) or []
+                product_cost = float(function_args.get("product_cost", 0))
+                taxes_percent = float(function_args.get("taxes_percent", 0))
+                other_costs = float(function_args.get("other_costs", 0))
+                marketing_percent = float(function_args.get("marketing_percent", 0))
+                sims = []
+                for price in candidates:
+                    try:
+                        price = float(price)
+                        total_costs = product_cost + other_costs + price * (taxes_percent / 100.0) + price * (marketing_percent / 100.0)
+                        profit = price - total_costs
+                        margin_percent = (profit / price * 100.0) if price > 0 else 0.0
+                        sims.append({"price": price, "profit": profit, "margin_percent": margin_percent})
+                    except Exception:
+                        continue
+                return {"candidates": sims}
+
+            # ========== Required Attributes (placeholder) ==========
+            if function_name == "get_required_attributes_db":
+                category_id = function_args.get("category_id")
+                if not category_id:
+                    return {"error": "category_id é obrigatório"}
+                # TODO: retornar atributos reais da categoria; placeholder vazio
+                return {"required": [], "recommended": []}
+
+            # ========== Check Title/Description ==========
+            if function_name == "check_title_description_db":
+                product_id = int(function_args.get("product_id"))
+                maxlen = int(function_args.get("max_title_length", 60))
+                from app.models.saas_models import MLProduct
+                p = self.db.query(MLProduct).filter(MLProduct.id == product_id, MLProduct.company_id == company_id).first()
+                if not p:
+                    return {"error": "Produto não encontrado"}
+                title = (p.title or "")
+                issues = []
+                if len(title) > maxlen:
+                    issues.append(f"Título acima de {maxlen} caracteres")
+                return {"title": title, "issues": issues}
             
+            # ======== Exemplos antigos (mantidos para compatibilidade) ========
             if function_name == "get_ml_order_status":
                 # Exemplo: buscar status de pedido
                 order_id = function_args.get("order_id")
@@ -1142,7 +1372,12 @@ class OpenAIAssistantService:
                 logger.warning(f"⚠️ Função '{function_name}' não implementada")
                 return {
                     "error": f"Função '{function_name}' não está implementada no sistema",
-                    "available_functions": ["get_ml_order_status", "get_product_info"]
+                    "available_functions": [
+                        "get_product_core","get_product_attributes","get_orders_by_item","get_sales_aggregates",
+                        "get_billing_breakdown","get_catalog_competitors_db","get_ads_metrics_by_item",
+                        "get_product_cost_config","compute_margin_db","get_fee_preview_db",
+                        "simulate_price_candidates","get_required_attributes_db","check_title_description_db"
+                    ]
                 }
                 
         except Exception as e:
