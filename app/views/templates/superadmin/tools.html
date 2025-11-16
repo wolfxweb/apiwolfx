@@ -36,7 +36,28 @@
     </div>
 </div>
 
+<!-- Modal de confirmação de remoção -->
+<div class="modal fade" id="confirmDeleteToolModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Remover Ferramenta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Deseja remover esta ferramenta?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteToolYes">Remover</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
 <script>
+let deleteToolId = null;
+
 async function loadTools() {
     const tbody = document.getElementById('toolsTbody');
     try {
@@ -55,7 +76,7 @@ async function loadTools() {
                 <td>${t.created_at ? new Date(t.created_at).toLocaleString('pt-BR') : ''}</td>
                 <td class="text-end">
                     <a class="btn btn-sm btn-outline-primary" href="/superadmin/tools/${t.id}/edit"><i class="bi bi-pencil"></i></a>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteTool(${t.id})"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="openDeleteToolModal(${t.id})"><i class="bi bi-trash"></i></button>
                 </td>
             </tr>
         `).join('');
@@ -64,11 +85,27 @@ async function loadTools() {
     }
 }
 
-async function deleteTool(id) {
-    if (!confirm('Deseja remover esta ferramenta?')) return;
-    const resp = await fetch(`/api/openai/tools/${id}`, { method: 'DELETE', credentials: 'include' });
-    const data = await resp.json();
-    if (data.success) loadTools(); else alert(data.error || 'Erro ao remover');
+function openDeleteToolModal(id) {
+    deleteToolId = id;
+    const modal = new bootstrap.Modal(document.getElementById('confirmDeleteToolModal'));
+    modal.show();
+    const yesBtn = document.getElementById('confirmDeleteToolYes');
+    const newYes = yesBtn.cloneNode(true);
+    yesBtn.parentNode.replaceChild(newYes, yesBtn);
+    newYes.addEventListener('click', async () => {
+        try {
+            const resp = await fetch(`/api/openai/tools/${deleteToolId}`, { method: 'DELETE', credentials: 'include' });
+            const data = await resp.json();
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('confirmDeleteToolModal')).hide();
+                loadTools();
+            } else {
+                alert(data.error || 'Erro ao remover');
+            }
+        } catch (e) {
+            alert('Erro ao remover');
+        }
+    }, { once: true });
 }
 
 function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text || ''; return d.innerHTML; }

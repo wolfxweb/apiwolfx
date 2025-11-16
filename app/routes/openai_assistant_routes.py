@@ -290,7 +290,7 @@ async def delete_thread(
 @openai_assistant_router.get("/{assistant_id}")
 async def get_assistant(
     assistant_id: int,
-    user: dict = Depends(get_superadmin_user),
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """Obtém um assistente específico (apenas superadmin)"""
@@ -307,7 +307,7 @@ async def get_assistant(
 async def update_assistant(
     assistant_id: int,
     request_data: UpdateAssistantRequest,
-    user: dict = Depends(get_superadmin_user),
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """Atualiza um assistente existente (apenas superadmin)"""
@@ -685,6 +685,60 @@ async def delete_tool(tool_id: int, request: Request, db: Session = Depends(get_
         return {"success": True}
     except Exception as e:
         logger.error(f"Erro ao deletar ferramenta: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+# ========== Agent <-> Tools association ==========
+
+class ToolIdsRequest(BaseModel):
+    tool_ids: List[int]
+
+
+@openai_assistant_router.get("/{assistant_id}/tools")
+async def get_agent_tools(
+    assistant_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import text as sql_text
+    rows = db.execute(sql_text(
+        """
+        SELECT t.id, t.name, t.description, t.is_active
+        FROM openai_agent_tools at
+        JOIN openai_tools t ON t.id = at.tool_id
+        WHERE at.agent_id = :agent_id
+        ORDER BY t.name
+        """
+    ), {"agent_id": assistant_id}).fetchall()
+    return {
+        "success": True,
+        "tools": [
+            {"id": r[0], "name": r[1], "description": r[2], "is_active": r[3]} for r in rows
+        ],
+        "tool_ids": [r[0] for r in rows]
+    }
+
+
+@openai_assistant_router.put("/{assistant_id}/tools")
+async def set_agent_tools(
+    assistant_id: int,
+    body: ToolIdsRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Substitui as ferramentas associadas ao agente pelo conjunto informado."""
+    from sqlalchemy import text as sql_text
+    try:
+        with db.begin():
+            db.execute(sql_text("DELETE FROM openai_agent_tools WHERE agent_id = :agent_id"), {"agent_id": assistant_id})
+            if body.tool_ids:
+                for tid in body.tool_ids:
+                    db.execute(sql_text(
+                        "INSERT INTO openai_agent_tools (agent_id, tool_id, config) VALUES (:agent_id, :tool_id, NULL)"
+                    ), {"agent_id": assistant_id, "tool_id": tid})
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Erro ao associar ferramentas ao agente: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
 
 

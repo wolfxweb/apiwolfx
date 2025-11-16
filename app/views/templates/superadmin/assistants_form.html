@@ -279,158 +279,24 @@
                             </div>
                         </div>
                         
-                        <!-- Aba Ferramentas -->
+                        <!-- Aba Ferramentas (refatorada) -->
                         <div class="tab-pane fade" id="tools" role="tabpanel" aria-labelledby="tools-tab">
                             <div class="mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
                                     <h5 class="mb-0">Ferramentas do Agente</h5>
-                                    <div>
-                                        <button type="button" class="btn btn-sm btn-outline-info me-2" data-bs-toggle="modal" data-bs-target="#toolsHelpModal">
-                                            <i class="bi bi-question-circle"></i> Ajuda
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-primary" onclick="addTool()">
-                                            <i class="bi bi-plus-circle"></i> Adicionar Função
-                                        </button>
+                                    <input id="toolsFilter" type="text" class="form-control form-control-sm" placeholder="Filtrar por nome/descrição" style="max-width: 320px;">
+                                </div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="toolsSelectAll" />
+                                        <label class="form-check-label" for="toolsSelectAll">Selecionar todos</label>
                                     </div>
                                 </div>
-                                
-                                <!-- Ferramentas da Assistants API -->
-                                <div class="card mb-4">
-
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-6 mb-3">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="toolCodeInterpreter" name="assistant_tools" value="code_interpreter" onchange="checkAssistantsAPISupport()">
-                                                    <label class="form-check-label" for="toolCodeInterpreter">
-                                                        <strong>Code Interpreter</strong>
-                                                    </label>
-                                                    <small class="d-block text-muted">Executa código Python e gera gráficos</small>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6 mb-3">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="toolFileSearch" name="assistant_tools" value="file_search" onchange="checkAssistantsAPISupport()">
-                                                    <label class="form-check-label" for="toolFileSearch">
-                                                        <strong>File Search</strong>
-                                                    </label>
-                                                    <small class="d-block text-muted">Busca informações em arquivos</small>
-                                                </div>
-                                            </div>
-                                            <!-- Aviso sobre suporte do modelo -->
-                                            <div id="assistantsAPIWarning" class="alert alert-warning mt-2" style="display: none;">
-                                                <i class="bi bi-exclamation-triangle"></i>
-                                                <strong>Atenção:</strong> Code Interpreter e File Search requerem um modelo que suporta Assistants API.
-                                                O modelo <strong id="currentModelName"></strong> não suporta Assistants API.
-                                                Para usar essas ferramentas, altere para: <strong>gpt-5.1</strong>, <strong>gpt-5</strong>, <strong>gpt-5-pro</strong> ou <strong>gpt-5-mini</strong>.
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Function Calling (Ferramentas Customizadas) -->
                                 <div class="card">
-                                    <div class="card-header bg-light">
-                                        <h6 class="mb-0"><i class="bi bi-code-slash"></i> Funções Customizadas</h6>
-                                    </div>
                                     <div class="card-body">
-                                        <div id="toolsContainer">
-                                            <!-- Ferramentas serão adicionadas aqui dinamicamente -->
-                                        </div>
-                                        
-                                        <div id="noToolsMessage" class="text-center text-muted py-4" style="display: none;">
-                                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                                            <p class="mt-2 mb-0">Nenhuma função adicionada. Clique em "Adicionar Função" para começar.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Modal de Ajuda sobre Ferramentas -->
-                                <div class="modal fade" id="toolsHelpModal" tabindex="-1" aria-labelledby="toolsHelpModalLabel" aria-hidden="true">
-                                    <div class="modal-dialog modal-lg">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title" id="toolsHelpModalLabel">
-                                                    <i class="bi bi-info-circle text-info"></i> Como Funcionam as Ferramentas
-                                                </h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <div class="mb-4">
-                                                    <h6><i class="bi bi-gear"></i> O que são Ferramentas?</h6>
-                                                    <p>As ferramentas permitem que o agente chame funções customizadas do seu sistema. Elas expandem as capacidades do agente, permitindo que ele:</p>
-                                                    <ul>
-                                                        <li>Acesse dados do seu sistema (ex: buscar pedidos, produtos)</li>
-                                                        <li>Execute ações (ex: atualizar status, gerar relatórios)</li>
-                                                        <li>Processe informações complexas (ex: análises, cálculos)</li>
-                                                    </ul>
-                                                </div>
-                                                
-                                                <div class="mb-4">
-                                                    <h6><i class="bi bi-robot"></i> Como o Modelo Decide?</h6>
-                                                    <p>O modelo decide automaticamente quando usar cada ferramenta baseado na conversa. Ele analisa:</p>
-                                                    <ul>
-                                                        <li>O contexto da mensagem do usuário</li>
-                                                        <li>A descrição de cada ferramenta</li>
-                                                        <li>Os parâmetros necessários</li>
-                                                    </ul>
-                                                    <p class="text-muted"><small>Você não precisa instruir o modelo a usar ferramentas - ele decide sozinho quando é apropriado.</small></p>
-                                                </div>
-                                                
-                                                <div class="mb-4">
-                                                    <h6><i class="bi bi-code-slash"></i> Implementação no Backend</h6>
-                                                    <p>Você precisa implementar o processamento das funções no backend. Quando o modelo chamar uma ferramenta:</p>
-                                                    <ol>
-                                                        <li>O sistema recebe a chamada da função</li>
-                                                        <li>Executa a lógica correspondente (ex: buscar dados no banco)</li>
-                                                        <li>Retorna o resultado para o modelo</li>
-                                                        <li>O modelo usa o resultado para gerar a resposta final</li>
-                                                    </ol>
-                                                    <div class="alert alert-light">
-                                                        <small><strong>Exemplo:</strong> Se o modelo chamar <code>get_ml_order_status</code>, você precisa implementar essa função para buscar o status do pedido no banco de dados e retornar os dados.</small>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div class="mb-4">
-                                                    <h6><i class="bi bi-tools"></i> Tipos de Ferramentas</h6>
-                                                    
-                                                    <div class="card mb-3">
-                                                        <div class="card-header bg-primary text-white">
-                                                            <strong>Ferramentas da Assistants API</strong>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <h6 class="text-primary">Code Interpreter</h6>
-                                                            <p>Permite executar código Python, gerar gráficos e processar dados. Ideal para análises e cálculos complexos.</p>
-                                                            
-                                                            <h6 class="text-primary mt-3">File Search</h6>
-                                                            <p>Permite buscar informações em arquivos enviados. Ideal para análise de documentos e conhecimento baseado em arquivos.</p>
-                                                            
-                                                            <div class="alert alert-warning mt-3 mb-0">
-                                                                <small><i class="bi bi-exclamation-triangle"></i> <strong>Importante:</strong> Se Code Interpreter ou File Search forem selecionados, o sistema usará a Assistants API automaticamente (não Chat Completions).</small>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div class="card">
-                                                        <div class="card-header bg-success text-white">
-                                                            <strong>Function Calling (Ferramentas Customizadas)</strong>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <p>Funções que você cria e implementa no seu sistema. Funciona tanto com Chat Completions quanto com Assistants API.</p>
-                                                            <p class="text-muted mb-0"><small>Exemplos: buscar pedidos, atualizar status, gerar relatórios, etc.</small></p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div class="alert alert-info mb-0">
-                                                    <h6><i class="bi bi-lightbulb"></i> Dica</h6>
-                                                    <p class="mb-0">Comece com Function Calling para funções simples. Use Code Interpreter ou File Search apenas quando precisar de capacidades específicas dessas ferramentas.</p>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                                            </div>
-                                        </div>
+                                        <div id="toolsLoading" class="text-muted py-3">Carregando ferramentas...</div>
+                                        <div id="toolsList" class="row g-2" style="display:none;"></div>
+                                        <div id="toolsEmpty" class="text-muted py-3" style="display:none;">Nenhuma ferramenta disponível.</div>
                                     </div>
                                 </div>
                             </div>
@@ -529,6 +395,22 @@ document.addEventListener('DOMContentLoaded', function() {
     // Carregar dados se estiver editando
     if (assistantId) {
         loadAssistantData(assistantId);
+        loadAvailableTools(assistantId);
+    } else {
+        // Criando novo agente
+        handleModelChange();
+        loadAvailableTools(null);
+    }
+
+    // Garantir carregamento ao abrir a aba Ferramentas
+    const toolsTabEl = document.querySelector('button#tools-tab');
+    if (toolsTabEl) {
+        toolsTabEl.addEventListener('shown.bs.tab', () => {
+            const list = document.getElementById('toolsList');
+            if (!list || list.children.length === 0) {
+                loadAvailableTools(assistantId || null);
+            }
+        });
     }
     
     // Garantir que os editores sejam atualizados quando as abas forem mostradas
@@ -663,8 +545,10 @@ async function loadAssistantData(id) {
                     const customTools = allTools.filter(t => t.type === 'function');
                     
                     // Marcar checkboxes
-                    document.getElementById('toolCodeInterpreter').checked = assistantTools.some(t => t.type === 'code_interpreter');
-                    document.getElementById('toolFileSearch').checked = assistantTools.some(t => t.type === 'file_search');
+                    const _ci = document.getElementById('toolCodeInterpreter');
+                    const _fs = document.getElementById('toolFileSearch');
+                    if (_ci) _ci.checked = assistantTools.some(t => t.type === 'code_interpreter');
+                    if (_fs) _fs.checked = assistantTools.some(t => t.type === 'file_search');
                     
                     // Carregar ferramentas customizadas
                     loadTools(customTools);
@@ -694,6 +578,93 @@ async function loadAssistantData(id) {
     }
 }
 
+async function loadAvailableTools(agentId) {
+    try {
+        const resp = await fetch('/api/openai/tools', { credentials: 'include' });
+        const data = await resp.json();
+        console.log('🔧 /api/openai/tools result:', data);
+        const list = document.getElementById('toolsList');
+        const empty = document.getElementById('toolsEmpty');
+        const loading = document.getElementById('toolsLoading');
+        if (!list || !empty || !loading) {
+            // DOM ainda não pronto — tentar novamente em 200ms
+            return setTimeout(() => loadAvailableTools(agentId), 200);
+        }
+        list.innerHTML = '';
+        loading.style.display = 'none';
+        if (!data.success) {
+            empty.textContent = 'Erro ao carregar ferramentas.';
+            empty.style.display = 'block';
+            return;
+        }
+        if (!data.tools || data.tools.length === 0) {
+            empty.innerHTML = 'Nenhuma ferramenta disponível. Abra <a href="/superadmin/tools">SuperAdmin > Ferramentas</a> para cadastrar.';
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+        list.style.display = 'flex';
+        const filter = (document.getElementById('toolsFilter')?.value || '').toLowerCase();
+        const filtered = data.tools.filter(t => {
+            const s = `${t.name} ${t.description || ''}`.toLowerCase();
+            return s.includes(filter);
+        });
+        filtered.forEach(t => {
+            const col = document.createElement('div');
+            col.className = 'col-md-6';
+            col.innerHTML = `
+                <div class="card h-100">
+                  <div class="card-body d-flex align-items-start gap-2">
+                    <input class="form-check-input mt-1 tool-checkbox" type="checkbox" value="${t.id}" id="tool_${t.id}">
+                    <label class="form-check-label" for="tool_${t.id}" style="cursor:pointer;">
+                      <div><strong><code>${escapeHtml(t.name)}</code></strong></div>
+                      <div><small class="text-muted">${escapeHtml(t.description || '')}</small></div>
+                    </label>
+                  </div>
+                </div>
+            `;
+            list.appendChild(col);
+        });
+        if (agentId) {
+            await loadAgentToolsSelection(agentId);
+        }
+        // Select all
+        const selectAll = document.getElementById('toolsSelectAll');
+        if (selectAll) {
+            selectAll.onchange = () => {
+                document.querySelectorAll('.tool-checkbox').forEach(cb => cb.checked = selectAll.checked);
+            };
+        }
+        // Filter change
+        const filterInput = document.getElementById('toolsFilter');
+        if (filterInput) {
+            filterInput.oninput = () => loadAvailableTools(agentId || null);
+        }
+    } catch (e) {
+        console.warn('Erro ao carregar ferramentas:', e);
+        const empty = document.getElementById('toolsEmpty');
+        const loading = document.getElementById('toolsLoading');
+        if (loading) loading.style.display = 'none';
+        if (empty) { empty.textContent = 'Erro ao carregar ferramentas.'; empty.style.display = 'block'; }
+    }
+}
+
+async function loadAgentToolsSelection(agentId) {
+    try {
+        const resp = await fetch(`/api/openai/assistants/${agentId}/tools`, { credentials: 'include' });
+        const data = await resp.json();
+        if (data.success && Array.isArray(data.tool_ids)) {
+            const ids = new Set(data.tool_ids);
+            document.querySelectorAll('.tool-checkbox').forEach(cb => {
+                const id = parseInt(cb.value);
+                cb.checked = ids.has(id);
+            });
+        }
+    } catch (e) {
+        console.warn('Erro ao carregar seleção de ferramentas do agente:', e);
+    }
+}
+
 // Verificar se o modelo suporta Assistants API
 function isModelSupportedByAssistantsAPI(model) {
     if (!model) return false;
@@ -717,25 +688,26 @@ function isModelSupportedByAssistantsAPI(model) {
 
 // Verificar suporte do modelo quando Code Interpreter/File Search são selecionados
 function checkAssistantsAPISupport() {
-    const modelSelect = document.getElementById('assistantModel');
     const codeInterpreterCheck = document.getElementById('toolCodeInterpreter');
     const fileSearchCheck = document.getElementById('toolFileSearch');
     const warningDiv = document.getElementById('assistantsAPIWarning');
-    const currentModelNameSpan = document.getElementById('currentModelName');
+    // Se elementos não existem (modo Chat Completions), não exibir aviso
+    if (!codeInterpreterCheck && !fileSearchCheck) {
+        if (warningDiv) warningDiv.style.display = 'none';
+        return;
+    }
     
-    if (!modelSelect || !warningDiv) return;
-    
-    const model = modelSelect.value;
+    const modelSelect = document.getElementById('assistantModel');
     const hasCodeInterpreter = codeInterpreterCheck && codeInterpreterCheck.checked;
     const hasFileSearch = fileSearchCheck && fileSearchCheck.checked;
     const hasAssistantsAPITools = hasCodeInterpreter || hasFileSearch;
     
-    const isSupported = isModelSupportedByAssistantsAPI(model);
+    const isSupported = isModelSupportedByAssistantsAPI(modelSelect.value);
     
     if (hasAssistantsAPITools && !isSupported) {
         // Mostrar aviso: modelo não suporta Assistants API mas ferramentas estão habilitadas
         if (currentModelNameSpan) {
-            currentModelNameSpan.textContent = model;
+            currentModelNameSpan.textContent = modelSelect.value;
         }
         warningDiv.style.display = 'block';
     } else {
@@ -781,6 +753,7 @@ function handleModelChange() {
     }
     
     // Verificar suporte do modelo após mudança
+    // Ignorar Assistants API quando elementos não existem
     checkAssistantsAPISupport();
 }
 
@@ -849,10 +822,12 @@ async function saveAssistant(event) {
     
     // Coletar ferramentas da Assistants API (Code Interpreter e File Search)
     const assistantTools = [];
-    if (document.getElementById('toolCodeInterpreter').checked) {
+    const _ci2 = document.getElementById('toolCodeInterpreter');
+    if (_ci2 && _ci2.checked) {
         assistantTools.push({ type: 'code_interpreter' });
     }
-    if (document.getElementById('toolFileSearch').checked) {
+    const _fs2 = document.getElementById('toolFileSearch');
+    if (_fs2 && _fs2.checked) {
         assistantTools.push({ type: 'file_search' });
     }
     
@@ -897,6 +872,9 @@ async function saveAssistant(event) {
         }
         
         if (result.success) {
+            // Persistir ferramentas selecionadas
+            const savedAssistantId = assistantId || result.id;
+            await saveAgentTools(savedAssistantId);
             showNotification(
                 assistantId ? 'Agente atualizado com sucesso!' : 'Agente criado com sucesso!',
                 'success'
@@ -914,6 +892,26 @@ async function saveAssistant(event) {
         showNotification('Erro ao salvar agente: ' + error.message, 'error');
     }
 }
+
+async function saveAgentTools(agentId) {
+    try {
+        const selected = Array.from(document.querySelectorAll('.tool-checkbox:checked')).map(cb => parseInt(cb.value));
+        const resp = await fetch(`/api/openai/assistants/${agentId}/tools`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ tool_ids: selected })
+        });
+        const data = await resp.json();
+        if (!data.success) {
+            showNotification(data.error || 'Erro ao salvar ferramentas do agente', 'error');
+        }
+    } catch (e) {
+        console.warn('Erro ao salvar ferramentas do agente:', e);
+    }
+}
+
+function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text || ''; return d.innerHTML; }
 
 // Função para mostrar notificações (usar a função global se existir)
 function showNotification(message, type = 'info') {
@@ -1068,12 +1066,8 @@ function validateToolParameters(toolId) {
 function updateToolsDisplay() {
     const container = document.getElementById('toolsContainer');
     const noToolsMessage = document.getElementById('noToolsMessage');
-    
-    if (container.children.length === 0) {
-        noToolsMessage.style.display = 'block';
-    } else {
-        noToolsMessage.style.display = 'none';
-    }
+    if (!container || !noToolsMessage) return;
+    // Mantido para compatibilidade, mas não interfere na nova lista de ferramentas
 }
 
 // Coletar todas as ferramentas do formulário
@@ -1119,8 +1113,15 @@ function collectTools() {
 
 // Carregar ferramentas ao editar
 function loadTools(tools) {
-    // Limpar ferramentas existentes
+    // Se UI nova (checklist) estiver presente, não usar o editor legado
+    const toolsListEl = document.getElementById('toolsList');
+    if (toolsListEl) {
+        // A seleção agora é carregada por loadAvailableTools/loadAgentToolsSelection
+        return;
+    }
+    // Suporte legado: só executa se o container existir
     const container = document.getElementById('toolsContainer');
+    if (!container) return;
     container.innerHTML = '';
     toolCounter = 0;
     
