@@ -230,6 +230,23 @@
     </div>
 </div>
 
+<!-- Modal de Confirmação de Remoção -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Remoção</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="confirmDeleteMessage">Tem certeza que deseja deletar esta conversa?</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteYesBtn">Remover</button>
+            </div>
+        </div>
+    </div>
+    </div>
+
 <script>
 let currentThreadId = null;
 let currentAssistantId = null;
@@ -306,18 +323,35 @@ function renderConversationsList() {
         return;
     }
     
-    container.innerHTML = conversations.map(conv => {
+    // Ordenar por mais recentes primeiro (last_message_at ou created_at)
+    const sorted = [...conversations].sort((a, b) => {
+        const da = new Date(a.last_message_at || a.created_at);
+        const db = new Date(b.last_message_at || b.created_at);
+        return db - da;
+    });
+
+    container.innerHTML = sorted.map(conv => {
         const date = conv.last_message_at 
             ? new Date(conv.last_message_at).toLocaleDateString('pt-BR')
             : new Date(conv.created_at).toLocaleDateString('pt-BR');
         
+        const rawTitle = (conv.title && typeof conv.title === 'string') ? conv.title : 'Nova conversa';
+        const displayTitle = rawTitle.length > 15 ? rawTitle.slice(0, 15) + '...' : rawTitle;
+        
         return `
             <div class="conversation-item ${conv.thread_id === currentThreadId ? 'active' : ''}" 
                  onclick="loadConversation('${conv.thread_id}', ${conv.assistant_id})">
-                <div class="conversation-title">${escapeHtml(conv.title)}</div>
-                <div class="conversation-meta">
-                    <div>${escapeHtml(conv.assistant_name)}</div>
-                    <div>${conv.message_count} mensagens • ${date}</div>
+                <div>
+                    <div class="conversation-title">${escapeHtml(displayTitle)}</div>
+                    <div class="conversation-meta">
+                        <div>${escapeHtml(conv.assistant_name)}</div>
+                        <div>${conv.message_count} mensagens • ${date}</div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                    <button class="btn btn-sm btn-outline-danger" title="Remover conversa" onclick="deleteConversation(event, '${conv.thread_id}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
                 </div>
             </div>
         `;
@@ -610,7 +644,8 @@ function selectAgent(assistantId) {
 async function deleteCurrentConversation() {
     if (!currentThreadId) return;
     
-    if (!confirm('Tem certeza que deseja deletar esta conversa?')) return;
+    const confirmed = await showConfirmModal('Tem certeza que deseja deletar esta conversa?');
+    if (!confirmed) return;
     
     try {
         const response = await fetch(`/api/openai/assistants/threads/${currentThreadId}`, {
@@ -646,6 +681,69 @@ function showNotification(message, type = 'info') {
     } else {
         alert(message);
     }
+}
+
+// Remover conversa a partir do card
+async function deleteConversation(event, threadId) {
+    event.stopPropagation();
+    event.preventDefault();
+    
+    if (!threadId) return;
+    const confirmed = await showConfirmModal('Tem certeza que deseja deletar esta conversa?');
+    if (!confirmed) return;
+    
+    try {
+        const response = await fetch(`/api/openai/assistants/threads/${threadId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            // Se a conversa deletada é a atual, limpar painel
+            if (currentThreadId === threadId) {
+                currentThreadId = null;
+                document.getElementById('emptyState').style.display = 'flex';
+                document.getElementById('chatActive').style.display = 'none';
+            }
+            showNotification('Conversa removida', 'success');
+            loadConversations();
+        } else {
+            showNotification('Erro ao remover conversa', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao remover conversa:', error);
+        showNotification('Erro ao remover conversa', 'error');
+    }
+}
+
+// Modal de confirmação genérico (retorna Promise<boolean>)
+function showConfirmModal(message) {
+    return new Promise((resolve) => {
+        const modalEl = document.getElementById('confirmDeleteModal');
+        const messageEl = document.getElementById('confirmDeleteMessage');
+        const yesBtn = document.getElementById('confirmDeleteYesBtn');
+        
+        if (messageEl) messageEl.textContent = message || 'Confirmar ação?';
+        
+        // Garantir que não haja múltiplos listeners
+        const newYesBtn = yesBtn.cloneNode(true);
+        yesBtn.parentNode.replaceChild(newYesBtn, yesBtn);
+        
+        const modal = new bootstrap.Modal(modalEl);
+        
+        newYesBtn.addEventListener('click', () => {
+            modal.hide();
+            resolve(true);
+        }, { once: true });
+        
+        modalEl.addEventListener('hidden.bs.modal', function handler() {
+            modalEl.removeEventListener('hidden.bs.modal', handler);
+            // Se foi fechado sem confirmar
+            resolve(false);
+        }, { once: true });
+        
+        modal.show();
+    });
 }
 </script>
 {% endblock %}
