@@ -100,10 +100,13 @@
     }
     
     .message-content {
-        max-width: 70%;
+        max-width: 85%;
         padding: 0.75rem 1rem;
         border-radius: 1rem;
         word-wrap: break-word;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        hyphens: auto;
     }
     
     .message.user .message-content {
@@ -256,6 +259,23 @@ let conversations = [];
 document.addEventListener('DOMContentLoaded', function() {
     loadAssistants();
     loadConversations();
+    
+    // Verificar se há código de produto na URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const productCode = urlParams.get('product');
+    if (productCode) {
+        // Preencher o campo de input com o código do produto
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+            chatInput.value = productCode;
+            chatInput.focus();
+            // Opcional: destacar o campo
+            chatInput.style.borderColor = '#0d6efd';
+            setTimeout(() => {
+                chatInput.style.borderColor = '';
+            }, 2000);
+        }
+    }
 });
 
 // Carregar lista de agentes disponíveis

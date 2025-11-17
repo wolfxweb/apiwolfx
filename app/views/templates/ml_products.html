@@ -754,6 +754,13 @@ function renderProducts(products) {
                         </a>
                         ` : ''}
                         ${product.id ? `
+                        <button onclick="openChatWithProduct(${product.id}, '${product.ml_item_id || ''}', '${(product.seller_sku || '').replace(/'/g, "\\'")}')" 
+                                class="btn btn-outline-dark btn-sm" 
+                                title="Chat com IA sobre este produto">
+                            <i class="bi bi-chat-dots"></i>
+                        </button>
+                        ` : ''}
+                        ${product.id ? `
                         <a href="/ml/products/edit/${product.id}" class="btn btn-outline-primary btn-sm" title="Editar anúncio">
                             <i class="bi bi-pencil"></i>
                         </a>
@@ -1559,6 +1566,25 @@ function updateInternalProduct(productId, productTitle, mlItemId) {
     // Mostrar modal
     const modal = new bootstrap.Modal(document.getElementById('updateProductModal'));
     modal.show();
+}
+
+function openChatWithProduct(productId, mlItemId, sellerSku) {
+    // Determinar qual código usar (prioridade: seller_sku > ml_item_id > product_id)
+    let productCode = '';
+    if (sellerSku && sellerSku.trim()) {
+        productCode = sellerSku.trim();
+    } else if (mlItemId && mlItemId.trim()) {
+        productCode = mlItemId.trim();
+    } else if (productId) {
+        productCode = productId.toString();
+    }
+    
+    // Abrir chat em nova aba com o código do produto na URL
+    if (productCode) {
+        window.open(`/ai/chat?product=${encodeURIComponent(productCode)}`, '_blank');
+    } else {
+        window.open('/ai/chat', '_blank');
+    }
 }
 
 function confirmUpdateInternalProduct() {
