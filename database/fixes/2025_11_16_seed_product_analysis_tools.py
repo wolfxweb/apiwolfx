@@ -172,6 +172,50 @@ TOOLS = [
             },
             "required": ["product_id"]
         }
+    },
+    {
+        "name": "get_orders",
+        "description": "Seleciona pedidos (ml_ordens) com filtros de período, status, item e comprador",
+        "handler": "get_orders",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "end_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "status": {
+                    "oneOf": [
+                        {"type": "string"},
+                        {"type": "array", "items": {"type": "string"}}
+                    ]
+                },
+                "ml_item_id": {"type": "string"},
+                "buyer_nickname": {"type": "string"},
+                "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500},
+                "offset": {"type": "integer", "default": 0, "minimum": 0}
+            }
+        }
+    },
+    {
+        "name": "get_product_sales",
+        "description": "Lista vendas de um produto (por product_id ou ml_item_id) no período",
+        "handler": "get_product_sales",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "integer"},
+                "ml_item_id": {"type": "string"},
+                "start_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "end_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "status": {
+                    "oneOf": [
+                        {"type": "string"},
+                        {"type": "array", "items": {"type": "string"}}
+                    ]
+                },
+                "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500},
+                "offset": {"type": "integer", "default": 0, "minimum": 0}
+            }
+        }
     }
 ]
 

@@ -4529,37 +4529,32 @@ async function loadProductAnalysisAssistant() {
         const response = await fetch('/api/openai/assistants/available?active_only=true', {
             credentials: 'include'
         });
-        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
         if (!response.ok) {
             console.error('❌ Erro na resposta:', response.status, response.statusText);
             showAgentSelectionModal([]);
             return;
         }
-        
         const data = await response.json();
         console.log('📊 Resposta da API:', data);
-        
         if (data.success && data.assistants && data.assistants.length > 0) {
             console.log('📋 Agentes disponíveis:', data.assistants.map(a => a.name));
-            
-            // Procurar agente "Analise produto" (case insensitive, sem acentos)
             const assistant = data.assistants.find(a => {
                 const nameLower = removeAccents(a.name.toLowerCase());
                 return (nameLower.includes('analise') || nameLower.includes('analis')) && 
                        (nameLower.includes('produto') || nameLower.includes('product'));
             });
-            
             if (assistant) {
                 currentAssistantId = assistant.id;
                 console.log('✅ Agente encontrado:', assistant.name, '(ID:', assistant.id + ')');
-                
-                // Verificar se é modo chat
                 if (assistant.interaction_mode !== 'chat') {
                     console.warn('⚠️ Agente não está em modo chat, mas será usado mesmo assim');
                 }
             } else {
                 console.warn('⚠️ Agente "Analise produto" não encontrado automaticamente.');
-                // Mostrar modal para seleção
                 showAgentSelectionModal(data.assistants);
             }
         } else {
@@ -4658,7 +4653,10 @@ async function showAgentSelectionModalFromList() {
         const response = await fetch('/api/openai/assistants/available?active_only=true', {
             credentials: 'include'
         });
-        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
         if (response.ok) {
             const data = await response.json();
             if (data.success && data.assistants) {

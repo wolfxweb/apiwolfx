@@ -267,16 +267,38 @@
                                 </small>
                             </div>
                             
-                            <div class="alert alert-info">
-                                <h6><i class="bi bi-info-circle"></i> Como funciona:</h6>
-                                <ul class="mb-0">
-                                    <li>O prompt inicial é um <strong>template</strong> que será usado antes da mensagem do usuário</li>
-                                    <li>Use <code>[[USUARIO]]</code> para indicar onde o texto do usuário será inserido</li>
-                                    <li>Exemplo: <code>"Analise os seguintes dados: [[USUARIO]]"</code></li>
-                                    <li>Se o usuário digitar "pedidos de hoje", o prompt final será: <code>"Analise os seguintes dados: pedidos de hoje"</code></li>
-                                    <li>Se deixar vazio, será usado apenas a mensagem do usuário</li>
-                                </ul>
+                            <hr class="my-4">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="welcomeEnabled" />
+                                        <label class="form-check-label" for="welcomeEnabled">
+                                            Habilitar mensagem de boas‑vindas
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="welcomeUseModel" />
+                                        <label class="form-check-label" for="welcomeUseModel">
+                                            Gerar boas‑vindas com o modelo
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
+                            <div class="mb-3">
+                                <label for="welcomeMessage" class="form-label">Mensagem de boas‑vindas</label>
+                                <!-- Editor Quill para boas‑vindas -->
+                                <div id="welcomeEditor" style="height: 220px; margin-bottom: 10px;"></div>
+                                <!-- Textarea oculto com o HTML -->
+                                <textarea id="welcomeMessage" name="welcome_message" style="display:none;"></textarea>
+                                <small class="form-text text-muted">
+                                    Mensagem enviada automaticamente ao iniciar uma nova conversa quando habilitada. 
+                                    Se “Gerar com o modelo” estiver marcado, o texto será usado como instrução para o modelo criar uma saudação contextual.
+                                </small>
+                            </div>
+                            
+                            <!-- Texto informativo removido a pedido do usuário -->
                         </div>
                         
                         <!-- Aba Ferramentas (refatorada) -->
@@ -322,6 +344,7 @@
 // Variáveis globais para os editores Quill
 let quillEditor;
 let quillPromptEditor;
+let quillWelcomeEditor;
 
 // Contador de ferramentas para IDs únicos
 let toolCounter = 0;
@@ -387,6 +410,26 @@ document.addEventListener('DOMContentLoaded', function() {
     quillPromptEditor.on('text-change', function() {
         const html = quillPromptEditor.root.innerHTML;
         document.getElementById('assistantInitialPrompt').value = html;
+    });
+    
+    // Configurar editor Quill para Mensagem de Boas‑vindas
+    quillWelcomeEditor = new Quill('#welcomeEditor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, false] }],
+                ['bold', 'italic', 'underline'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'align': [] }],
+                ['link', 'clean']
+            ]
+        },
+        placeholder: 'Digite a mensagem de boas‑vindas...',
+        bounds: '#welcomeEditor'
+    });
+    quillWelcomeEditor.on('text-change', function() {
+        const html = quillWelcomeEditor.root.innerHTML;
+        document.getElementById('welcomeMessage').value = html;
     });
     
     // Inicializar outras funções
@@ -512,6 +555,27 @@ async function loadAssistantData(id) {
                             }
                         }, 100);
                     }
+                }
+                
+                // Boas‑vindas: habilitado, usar modelo e mensagem
+                const welcomeEnabledEl = document.getElementById('welcomeEnabled');
+                const welcomeUseModelEl = document.getElementById('welcomeUseModel');
+                const welcomeMessageEl = document.getElementById('welcomeMessage');
+                if (welcomeEnabledEl) {
+                    welcomeEnabledEl.checked = !!assistant.welcome_enabled;
+                }
+                if (welcomeUseModelEl) {
+                    welcomeUseModelEl.checked = !!assistant.welcome_use_model;
+                }
+                if (assistant.welcome_message) {
+                    if (quillWelcomeEditor) {
+                        quillWelcomeEditor.root.innerHTML = assistant.welcome_message;
+                        if (welcomeMessageEl) welcomeMessageEl.value = assistant.welcome_message;
+                    } else if (welcomeMessageEl) {
+                        welcomeMessageEl.value = assistant.welcome_message;
+                    }
+                } else if (welcomeMessageEl) {
+                    welcomeMessageEl.value = '';
                 }
                 
                 // Configurar reasoning_effort e verbosity (se existirem)
@@ -783,7 +847,9 @@ async function saveAssistant(event) {
         interaction_mode: document.getElementById('assistantInteractionMode').value,
         use_case: document.getElementById('assistantUseCase').value || null,
         memory_enabled: document.getElementById('assistantMemoryEnabled').checked,
-        is_active: document.getElementById('assistantIsActive').checked
+        is_active: document.getElementById('assistantIsActive').checked,
+        welcome_enabled: document.getElementById('welcomeEnabled')?.checked || false,
+        welcome_use_model: document.getElementById('welcomeUseModel')?.checked || false
     };
     
     // Obter HTML formatado do editor Quill do prompt
@@ -793,6 +859,13 @@ async function saveAssistant(event) {
         initialPrompt = null;
     }
     formData.initial_prompt = initialPrompt;
+    
+    // Mensagem de boas‑vindas (HTML)
+    let welcomeMsg = quillWelcomeEditor ? quillWelcomeEditor.root.innerHTML : (document.getElementById('welcomeMessage')?.value || '');
+    if (welcomeMsg && (welcomeMsg.trim() === '' || welcomeMsg === '<p><br></p>' || welcomeMsg === '<p></p>')) {
+        welcomeMsg = null;
+    }
+    formData.welcome_message = welcomeMsg;
     
     // Processar memória (JSON)
     const memoryDataText = document.getElementById('assistantMemoryData').value.trim();

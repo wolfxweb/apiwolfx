@@ -68,6 +68,9 @@ class OpenAIAssistantController:
                     "memory_enabled": a.memory_enabled,
                     "memory_data": a.memory_data,
                     "initial_prompt": a.initial_prompt,
+                    "welcome_enabled": getattr(a, "welcome_enabled", None),
+                    "welcome_use_model": getattr(a, "welcome_use_model", None),
+                    "welcome_message": getattr(a, "welcome_message", None),
                     "is_active": a.is_active,
                     "total_runs": a.total_runs,
                     "total_tokens_used": a.total_tokens_used,
@@ -100,7 +103,10 @@ class OpenAIAssistantController:
         use_case: Optional[str] = None,
         memory_enabled: bool = True,
         memory_data: Optional[Dict] = None,
-        initial_prompt: Optional[str] = None
+        initial_prompt: Optional[str] = None,
+        welcome_enabled: Optional[bool] = False,
+        welcome_use_model: Optional[bool] = False,
+        welcome_message: Optional[str] = None
     ) -> Dict:
         """Cria um novo assistente"""
         try:
@@ -118,7 +124,10 @@ class OpenAIAssistantController:
                 use_case=use_case,
                 memory_enabled=memory_enabled,
                 memory_data=memory_data,
-                initial_prompt=initial_prompt
+                initial_prompt=initial_prompt,
+                welcome_enabled=welcome_enabled,
+                welcome_use_model=welcome_use_model,
+                welcome_message=welcome_message
             )
         except Exception as e:
             logger.error(f"❌ Erro ao criar assistente: {e}", exc_info=True)
@@ -169,6 +178,9 @@ class OpenAIAssistantController:
                     "memory_enabled": assistant.memory_enabled,
                     "memory_data": assistant.memory_data,
                     "initial_prompt": assistant.initial_prompt,
+                        "welcome_enabled": getattr(assistant, "welcome_enabled", None),
+                        "welcome_use_model": getattr(assistant, "welcome_use_model", None),
+                        "welcome_message": getattr(assistant, "welcome_message", None),
                     "is_active": assistant.is_active,
                     "total_runs": assistant.total_runs,
                     "total_tokens_used": assistant.total_tokens_used,
@@ -199,7 +211,10 @@ class OpenAIAssistantController:
         is_active: Optional[bool] = None,
         memory_enabled: Optional[bool] = None,
         memory_data: Optional[Dict] = None,
-        initial_prompt: Optional[str] = None
+        initial_prompt: Optional[str] = None,
+        welcome_enabled: Optional[bool] = None,
+        welcome_use_model: Optional[bool] = None,
+        welcome_message: Optional[str] = None
     ) -> Dict:
         """Atualiza um assistente existente"""
         try:
@@ -219,7 +234,10 @@ class OpenAIAssistantController:
                 is_active=is_active,
                 memory_enabled=memory_enabled,
                 memory_data=memory_data,
-                initial_prompt=initial_prompt
+                initial_prompt=initial_prompt,
+                welcome_enabled=welcome_enabled,
+                welcome_use_model=welcome_use_model,
+                welcome_message=welcome_message
             )
         except Exception as e:
             logger.error(f"❌ Erro ao atualizar assistente: {e}", exc_info=True)

@@ -94,6 +94,9 @@ class CreateAssistantRequest(BaseModel):
     memory_enabled: bool = True  # Habilita memória persistente entre threads
     memory_data: Optional[Dict] = None  # Memórias compartilhadas (ex: preferências do usuário/empresa)
     initial_prompt: Optional[str] = None  # Template de prompt inicial com tag [[USUARIO]]
+    welcome_enabled: Optional[bool] = False
+    welcome_use_model: Optional[bool] = False
+    welcome_message: Optional[str] = None
 
 
 class UpdateAssistantRequest(BaseModel):
@@ -112,6 +115,9 @@ class UpdateAssistantRequest(BaseModel):
     memory_enabled: Optional[bool] = None  # Habilita/desabilita memória persistente
     memory_data: Optional[Dict] = None  # Atualiza memórias compartilhadas
     initial_prompt: Optional[str] = None  # Template de prompt inicial com tag [[USUARIO]]
+    welcome_enabled: Optional[bool] = None
+    welcome_use_model: Optional[bool] = None
+    welcome_message: Optional[str] = None
 
 
 class UseAssistantReportRequest(BaseModel):
@@ -140,7 +146,38 @@ async def list_assistants(
 ):
     """Lista todos os assistentes (superadmin)"""
     controller = OpenAIAssistantController(db)
-    result = controller.list_assistants(active_only=active_only)
+    try:
+        result = controller.list_assistants(active_only=active_only)
+    except Exception as e:
+        # Fallback para colunas ausentes (welcome_*), tentar migração e repetir
+        msg = str(e)
+        if "welcome_message does not exist" in msg or "welcome_enabled" in msg or "welcome_use_model" in msg:
+            try:
+                import importlib.util, os
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                welcome_path = os.path.join(base_dir, 'database', 'fixes', '2025_11_16_add_welcome_fields_openai_assistants.py')
+                if os.path.exists(welcome_path):
+                    specw = importlib.util.spec_from_file_location("add_welcome_fields_openai_assistants", welcome_path)
+                    welcome_module = importlib.util.module_from_spec(specw)
+                    specw.loader.exec_module(welcome_module)
+                    # Limpar transação e executar
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    welcome_module.run(db)
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    # Tentar novamente
+                    result = controller.list_assistants(active_only=active_only)
+                else:
+                    raise
+            except Exception:
+                raise
+        else:
+            raise
     
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao listar agentes"))
@@ -170,7 +207,10 @@ async def create_assistant(
         use_case=request_data.use_case,
         memory_enabled=request_data.memory_enabled,
         memory_data=request_data.memory_data,
-        initial_prompt=request_data.initial_prompt
+        initial_prompt=request_data.initial_prompt,
+        welcome_enabled=request_data.welcome_enabled,
+        welcome_use_model=request_data.welcome_use_model,
+        welcome_message=request_data.welcome_message
     )
     
     if not result.get("success"):
@@ -295,7 +335,36 @@ async def get_assistant(
 ):
     """Obtém um assistente específico (apenas superadmin)"""
     controller = OpenAIAssistantController(db)
-    result = controller.get_assistant(assistant_id=assistant_id)
+    try:
+        result = controller.get_assistant(assistant_id=assistant_id)
+    except Exception as e:
+        # Fallback para colunas ausentes (welcome_*), tentar migração e repetir
+        msg = str(e)
+        if "welcome_message does not exist" in msg or "welcome_enabled" in msg or "welcome_use_model" in msg:
+            try:
+                import importlib.util, os
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                welcome_path = os.path.join(base_dir, 'database', 'fixes', '2025_11_16_add_welcome_fields_openai_assistants.py')
+                if os.path.exists(welcome_path):
+                    specw = importlib.util.spec_from_file_location("add_welcome_fields_openai_assistants", welcome_path)
+                    welcome_module = importlib.util.module_from_spec(specw)
+                    specw.loader.exec_module(welcome_module)
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    welcome_module.run(db)
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    result = controller.get_assistant(assistant_id=assistant_id)
+                else:
+                    raise
+            except Exception:
+                raise
+        else:
+            raise
     
     if not result.get("success"):
         raise HTTPException(status_code=404, detail=result.get("error", "Agente não encontrado"))
@@ -328,7 +397,10 @@ async def update_assistant(
         is_active=request_data.is_active,
         memory_enabled=request_data.memory_enabled,
         memory_data=request_data.memory_data,
-        initial_prompt=request_data.initial_prompt
+        initial_prompt=request_data.initial_prompt,
+        welcome_enabled=request_data.welcome_enabled,
+        welcome_use_model=request_data.welcome_use_model,
+        welcome_message=request_data.welcome_message
     )
     
     if not result.get("success"):

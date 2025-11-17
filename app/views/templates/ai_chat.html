@@ -264,6 +264,10 @@ async function loadAssistants() {
         const response = await fetch('/api/openai/assistants/available?active_only=true', {
             credentials: 'include'
         });
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
         
         if (response.ok) {
             const data = await response.json();
@@ -296,6 +300,10 @@ async function loadConversations() {
         const response = await fetch(url, {
             credentials: 'include'
         });
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
         
         if (response.ok) {
             const data = await response.json();
@@ -398,9 +406,21 @@ function renderMessages(messages) {
     const container = document.getElementById('chatMessages');
     
     // Filtrar apenas mensagens de usuário e assistente (ignorar system)
-    const userMessages = messages.filter(m => m.role !== 'system');
+    // Para assistente: mostrar apenas respostas textuais (não JSON puro ou tool_calls)
+    // Para usuário: mostrar todas
+    const visibleMessages = messages
+        .filter(m => m.role !== 'system')
+        .filter(m => {
+            // Mensagens do usuário sempre aparecem
+            if (m.role === 'user') return true;
+            // Mensagens do assistente: ocultar se for JSON puro ou tool_calls
+            if (m.role === 'assistant') {
+                return !isInternalMessage(m.content);
+            }
+            return false;
+        });
     
-    container.innerHTML = userMessages.map(msg => {
+    container.innerHTML = visibleMessages.map(msg => {
         const date = new Date(msg.created_at);
         const timeStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         
@@ -417,19 +437,46 @@ function renderMessages(messages) {
     scrollToBottom();
 }
 
+// Detecta mensagens internas (tool_calls JSON ou JSON bruto técnico)
+function isInternalMessage(content) {
+    if (!content || typeof content !== 'string') return false;
+    const trimmed = content.trim();
+    
+    // Ocultar quando o modelo retorna instrução de chamada de ferramenta
+    if (trimmed.includes('"tool_calls"') || trimmed.includes('"function"')) return true;
+    
+    // Ocultar qualquer blob JSON puro (objeto/array) - são respostas técnicas de ferramentas
+    // Verificar se começa e termina com {} ou [] e é JSON válido
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+            JSON.parse(trimmed);
+            // Se é JSON válido puro (sem texto ao redor), ocultar
+            return true;
+        } catch (e) { 
+            // Não é JSON válido, manter visível (pode ser texto com formatação)
+        }
+    }
+    
+    return false;
+}
+
 // Formatar mensagem (suporta markdown básico)
 function formatMessage(content) {
-    // Escapar HTML primeiro
-    let formatted = escapeHtml(content);
-    
-    // Converter quebras de linha
+    // Remover tags HTML visíveis ao usuário, preservando quebras de linha básicas
+    let text = String(content || '');
+    // Converter tags de parágrafo/linha em \n
+    text = text.replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
+    // Remover quaisquer outras tags HTML
+    text = text.replace(/<[^>]+>/g, '');
+    // Escapar HTML remanescente
+    let formatted = escapeHtml(text);
+    // Converter \n em <br> para exibição
     formatted = formatted.replace(/\n/g, '<br>');
-    
     // Converter markdown básico
     formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
     formatted = formatted.replace(/`(.+?)`/g, '<code>$1</code>');
-    
     return formatted;
 }
 
@@ -578,6 +625,9 @@ function showChatArea() {
                 }
             }
         });
+        
+        // Tentar iniciar conversa com mensagem de boas‑vindas (se configurada)
+        tryInitiateWelcome();
     }
     
     // Limpar mensagens
@@ -636,6 +686,36 @@ function selectAgent(assistantId) {
     
     showChatArea();
     showNotification('Nova conversa iniciada', 'success');
+}
+
+// Chamar backend para criar thread e obter mensagem de boas‑vindas (se habilitada)
+async function tryInitiateWelcome() {
+    try {
+        if (!currentAssistantId) return;
+        // Chamar com mensagem vazia; serviço retornará apenas boas‑vindas se configurada
+        const response = await fetch('/api/openai/assistants/use/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                assistant_id: currentAssistantId,
+                message: '',
+                thread_id: null
+            })
+        });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (result && result.success && result.response) {
+            // exibe boas‑vindas e guarda thread
+            addMessageToChat('assistant', result.response);
+            if (result.thread_id) {
+                currentThreadId = result.thread_id;
+                loadConversations();
+            }
+        }
+    } catch (e) {
+        // silencioso
+    }
 }
 
 // Deletar conversa atual

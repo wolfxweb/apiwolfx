@@ -1414,6 +1414,11 @@ class OpenAIAssistant(Base):
     # Prompt inicial com template
     initial_prompt = Column(Text, nullable=True)  # Template de prompt inicial com tag [[USUARIO]]
     
+    # Mensagem de boas-vindas configurável
+    welcome_message = Column(Text, nullable=True)
+    welcome_enabled = Column(Boolean, default=False, nullable=False)
+    welcome_use_model = Column(Boolean, default=False, nullable=False)
+    
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     

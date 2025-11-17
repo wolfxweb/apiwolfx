@@ -277,6 +277,57 @@ async def startup_event():
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível atualizar instruções do agente 1: {e}")
                 
+                # 1.3 Forçar atualização das instruções do agente de Análise de Produto (por nome)
+                try:
+                    import importlib.util
+                    import os
+                    upd2_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_16_force_update_product_analysis_instructions.py'
+                    )
+                    if os.path.exists(upd2_path):
+                        spec4 = importlib.util.spec_from_file_location("force_update_product_analysis_instructions", upd2_path)
+                        upd2_module = importlib.util.module_from_spec(spec4)
+                        spec4.loader.exec_module(upd2_module)
+                        upd2_module.run(db)
+                        print("✅ [STARTUP] Instruções do agente de Análise de Produto verificadas/atualizadas")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível forçar atualização de instruções do agente de análise de produto: {e}")
+                
+                # 1.4 Atualizar schema da ferramenta get_orders (adicionar product_name, seller_sku, is_catalog)
+                try:
+                    import importlib.util
+                    import os
+                    schema_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_16_update_get_orders_schema.py'
+                    )
+                    if os.path.exists(schema_path):
+                        spec5 = importlib.util.spec_from_file_location("update_get_orders_schema", schema_path)
+                        schema_module = importlib.util.module_from_spec(spec5)
+                        spec5.loader.exec_module(schema_module)
+                        schema_module.run(db)
+                        print("✅ [STARTUP] Schema da ferramenta get_orders atualizado")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível atualizar schema da ferramenta get_orders: {e}")
+
+                # 1.5 Adicionar colunas de boas-vindas (welcome) no agente
+                try:
+                    import importlib.util
+                    import os
+                    welcome_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_16_add_welcome_fields_openai_assistants.py'
+                    )
+                    if os.path.exists(welcome_path):
+                        specw = importlib.util.spec_from_file_location("add_welcome_fields_openai_assistants", welcome_path)
+                        welcome_module = importlib.util.module_from_spec(specw)
+                        specw.loader.exec_module(welcome_module)
+                        welcome_module.run(db)
+                        print("✅ [STARTUP] Campos de boas-vindas verificados/criados em openai_assistants")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível criar campos de boas-vindas: {e}")
+                
                 # 2. Adicionar colunas de memória (se não existirem)
                 print("📋 [STARTUP] Verificando colunas de memória...")
                 sql_memory = """

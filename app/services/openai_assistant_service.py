@@ -119,7 +119,10 @@ class OpenAIAssistantService:
         use_case: Optional[str] = None,
         memory_enabled: bool = True,
         memory_data: Optional[Dict] = None,
-        initial_prompt: Optional[str] = None
+        initial_prompt: Optional[str] = None,
+        welcome_enabled: Optional[bool] = False,
+        welcome_use_model: Optional[bool] = False,
+        welcome_message: Optional[str] = None
     ) -> Dict:
         """Cria um novo assistente na OpenAI e salva no banco de dados"""
         if not self.client:
@@ -218,6 +221,9 @@ class OpenAIAssistantService:
                 memory_enabled=memory_enabled,
                 memory_data=memory_data,
                 initial_prompt=initial_prompt,
+                welcome_enabled=bool(welcome_enabled),
+                welcome_use_model=bool(welcome_use_model),
+                welcome_message=welcome_message,
                 is_active=True
             )
             
@@ -271,7 +277,10 @@ class OpenAIAssistantService:
         is_active: Optional[bool] = None,
         memory_enabled: Optional[bool] = None,
         memory_data: Optional[Dict] = None,
-        initial_prompt: Optional[str] = None
+        initial_prompt: Optional[str] = None,
+        welcome_enabled: Optional[bool] = None,
+        welcome_use_model: Optional[bool] = None,
+        welcome_message: Optional[str] = None
     ) -> Dict:
         """Atualiza um assistente existente"""
         if not self.client:
@@ -358,6 +367,12 @@ class OpenAIAssistantService:
                 db_assistant.memory_data = memory_data
             if initial_prompt is not None:
                 db_assistant.initial_prompt = initial_prompt
+            if welcome_enabled is not None:
+                db_assistant.welcome_enabled = bool(welcome_enabled)
+            if welcome_use_model is not None:
+                db_assistant.welcome_use_model = bool(welcome_use_model)
+            if welcome_message is not None:
+                db_assistant.welcome_message = welcome_message
             
             db_assistant.updated_at = datetime.utcnow()
             
@@ -595,7 +610,7 @@ class OpenAIAssistantService:
                 
                 # Fazer chamada ao Chat Completions e processar tool calls se necessário
                 logger.info(f"💬 Gerando relatório via Chat Completions (GPT-5)...")
-                response = self._process_chat_with_tools(chat_params, tools, temp_db_thread, max_iterations=5)
+                response = self._process_chat_with_tools(chat_params, tools, temp_db_thread, max_iterations=10)
             
             if response and response.get("success"):
                 response_text = response.get("response", "")
@@ -784,32 +799,154 @@ class OpenAIAssistantService:
                 })
             
             # Adicionar mensagens anteriores do histórico
-            for prev_msg in previous_messages:
-                messages_history.append({
+            # IMPORTANTE: Reconstruir estrutura correta para tool calls
+            i = 0
+            while i < len(previous_messages):
+                prev_msg = previous_messages[i]
+                msg_dict = {
                     "role": prev_msg.role,
                     "content": prev_msg.content
-                })
+                }
+                
+                # Se for mensagem 'assistant', verificar se tem tool_calls no content (JSON)
+                if prev_msg.role == "assistant" and prev_msg.content:
+                    try:
+                        content_json = json.loads(prev_msg.content)
+                        if isinstance(content_json, dict) and "tool_calls" in content_json:
+                            # Reconstruir estrutura com tool_calls
+                            msg_dict["tool_calls"] = []
+                            for tc in content_json["tool_calls"]:
+                                msg_dict["tool_calls"].append({
+                                    "id": tc.get("id", ""),
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.get("function", {}).get("name", ""),
+                                        "arguments": tc.get("function", {}).get("arguments", "{}")
+                                    }
+                                })
+                            # Se tem tool_calls, content deve ser None
+                            msg_dict["content"] = None
+                            messages_history.append(msg_dict)
+                            
+                            # Próximas mensagens 'tool' devem ser associadas a esta mensagem 'assistant'
+                            # Avançar e adicionar mensagens 'tool' seguintes com tool_call_id
+                            i += 1
+                            tool_call_index = 0
+                            while i < len(previous_messages) and previous_messages[i].role == "tool":
+                                tool_msg = previous_messages[i]
+                                
+                                # Tentar extrair tool_call_id e name do content (JSON estruturado)
+                                tool_call_id = None
+                                tool_name = None
+                                tool_result = None
+                                
+                                try:
+                                    tool_content = json.loads(tool_msg.content) if tool_msg.content else {}
+                                    if isinstance(tool_content, dict):
+                                        # Formato novo: {tool_call_id, name, result}
+                                        if "tool_call_id" in tool_content:
+                                            tool_call_id = tool_content.get("tool_call_id")
+                                            tool_name = tool_content.get("name")
+                                            tool_result = tool_content.get("result")
+                                        else:
+                                            # Formato antigo: apenas resultado direto
+                                            tool_result = tool_content
+                                except (json.JSONDecodeError, TypeError):
+                                    # Content não é JSON, tratar como string direta
+                                    tool_result = tool_msg.content
+                                
+                                # Se não encontrou tool_call_id no content, usar do tool_calls correspondente
+                                if not tool_call_id and tool_call_index < len(msg_dict["tool_calls"]):
+                                    tool_call_id = msg_dict["tool_calls"][tool_call_index].get("id")
+                                
+                                # Se não encontrou name, usar do tool_calls correspondente
+                                if not tool_name and tool_call_index < len(msg_dict["tool_calls"]):
+                                    tool_name = msg_dict["tool_calls"][tool_call_index].get("function", {}).get("name")
+                                
+                                # Serializar resultado para content
+                                if tool_result is not None:
+                                    content_str = json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, (dict, list)) else str(tool_result)
+                                else:
+                                    content_str = tool_msg.content or ""
+                                
+                                # Adicionar mensagem tool com estrutura correta
+                                tool_dict = {
+                                    "role": "tool",
+                                    "content": content_str,
+                                    "tool_call_id": tool_call_id or f"call_{i}"  # Fallback se não tiver ID
+                                }
+                                if tool_name:
+                                    tool_dict["name"] = tool_name
+                                
+                                messages_history.append(tool_dict)
+                                i += 1
+                                tool_call_index += 1
+                            
+                            # Continuar loop sem incrementar i novamente (já foi incrementado)
+                            continue
+                    except (json.JSONDecodeError, KeyError, TypeError):
+                        # Não é JSON com tool_calls, tratar como mensagem normal
+                        pass
+                
+                # Mensagem normal (user, assistant sem tool_calls)
+                # Se for mensagem 'tool' isolada (sem assistant anterior com tool_calls), pular
+                if prev_msg.role == "tool":
+                    logger.warning(f"⚠️ Mensagem 'tool' isolada encontrada (índice {i}), pulando. Isso pode indicar dados inconsistentes.")
+                    i += 1
+                    continue
+                
+                messages_history.append(msg_dict)
+                i += 1
             
-            # Processar mensagem do usuário: substituir [[USUARIO]] no prompt inicial se existir
+            # Processar mensagem do usuário e mensagem de boas-vindas configurável
+            kickoff_used = False
             user_message_content = message
+            welcome_enabled = getattr(db_assistant, "welcome_enabled", False)
+            welcome_use_model = getattr(db_assistant, "welcome_use_model", False)
+            welcome_text_cfg = getattr(db_assistant, "welcome_message", None)
+            if not previous_messages and welcome_enabled:
+                welcome_text = (welcome_text_cfg or "").strip()
+                if welcome_text and welcome_use_model and (not message or not message.strip()):
+                    # Dinâmica: usar welcome_text como kickoff para o modelo (não salvar como role=user no banco)
+                    user_message_content = welcome_text
+                    kickoff_used = True
+                elif welcome_text and not welcome_use_model:
+                    # Fixa: registrar mensagem assistant imediatamente (sem custo)
+                    assistant_welcome = OpenAIAssistantMessage(
+                        thread_id=db_thread.id,
+                        role="assistant",
+                        content=welcome_text
+                    )
+                    self.db.add(assistant_welcome)
+                    self.db.flush()
+                    # Se usuário não enviou nada, podemos retornar apenas a mensagem de boas-vindas
+                    if not message or not message.strip():
+                        db_thread.last_message_at = datetime.utcnow()
+                        db_thread.updated_at = datetime.utcnow()
+                        self.db.commit()
+                        return {
+                            "success": True,
+                            "response": welcome_text,
+                            "thread_id": openai_thread_id,
+                            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                        }
+            # Substituir [[USUARIO]] no prompt inicial se existir
             if db_assistant.initial_prompt and "[[USUARIO]]" in db_assistant.initial_prompt:
-                # Substituir a tag [[USUARIO]] pelo texto do usuário
-                user_message_content = db_assistant.initial_prompt.replace("[[USUARIO]]", message)
-            
-            # Adicionar mensagem atual do usuário
+                user_message_content = db_assistant.initial_prompt.replace("[[USUARIO]]", user_message_content)
+            # Adicionar mensagem atual do usuário (apenas se não for kickoff sintético)
             messages_history.append({
                 "role": "user",
                 "content": user_message_content
             })
-            
-            # Salvar mensagem do usuário no banco (salvar a mensagem original, não a processada)
-            user_message = OpenAIAssistantMessage(
-                thread_id=db_thread.id,
-                role="user",
-                content=message  # Salvar mensagem original
-            )
-            self.db.add(user_message)
-            self.db.flush()
+            if not kickoff_used:
+                # Salvar mensagem do usuário no banco (original)
+                user_message = OpenAIAssistantMessage(
+                    thread_id=db_thread.id,
+                    role="user",
+                    content=message
+                )
+                self.db.add(user_message)
+                self.db.flush()
             
             # Preparar parâmetros para Chat Completions
             chat_params = {
@@ -846,59 +983,10 @@ class OpenAIAssistantService:
                     tools = db_assistant.tools_config
 
             # Carregar ferramentas vinculadas no banco (estrutura reutilizável)
+            # Todas as ferramentas devem estar associadas ao agente via tabela openai_agent_tools
             db_tools = self._load_agent_tools_from_db(assistant_id)
             if db_tools:
                 tools = db_tools
-            
-            # Garantir que as ferramentas de identificação estejam disponíveis para o agente de análise de produto
-            try:
-                normalized_name = (db_assistant.name or "").lower()
-                is_analise_produto = ("analise" in normalized_name and "produto" in normalized_name)
-            except Exception:
-                is_analise_produto = False
-            if is_analise_produto:
-                if tools is None:
-                    tools = []
-                # Evitar duplicidade se já existirem
-                existing_names = set()
-                for t in tools or []:
-                    if isinstance(t, dict):
-                        fn = t.get("function", {})
-                        if isinstance(fn, dict) and fn.get("name"):
-                            existing_names.add(fn.get("name"))
-                if "search_products_by_name" not in existing_names:
-                    tools.append({
-                        "type": "function",
-                        "function": {
-                            "name": "search_products_by_name",
-                            "description": "Busca produtos por nome (e opcionalmente por SKU) da empresa atual e retorna até 10 sugestões.",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "query": {"type": "string", "description": "Nome (ou parte) do produto para busca"},
-                                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
-                                    "include_sku": {"type": "boolean", "default": True}
-                                },
-                                "required": ["query"]
-                            }
-                        }
-                    })
-                if "resolve_product_by_code" not in existing_names:
-                    tools.append({
-                        "type": "function",
-                        "function": {
-                            "name": "resolve_product_by_code",
-                            "description": "Resolve um produto a partir de um código informado (id interno, seller_sku ou ml_item_id).",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "code": {"type": "string", "description": "Código informado pelo usuário"},
-                                    "code_type": {"type": "string", "enum": ["id", "seller_sku", "ml_item_id"], "description": "Tipo do código; se omitido, detectar automaticamente"}
-                                },
-                                "required": ["code"]
-                            }
-                        }
-                    })
             
             # Verificar se precisa usar Assistants API (Code Interpreter ou File Search)
             # E se o modelo é suportado pela Assistants API
@@ -929,7 +1017,7 @@ class OpenAIAssistantService:
                 
                 # Fazer chamada ao Chat Completions e processar tool calls se necessário
                 logger.info(f"💬 Enviando mensagem para agente via Chat Completions (GPT-5)...")
-                response = self._process_chat_with_tools(chat_params, tools, db_thread, max_iterations=5)
+                response = self._process_chat_with_tools(chat_params, tools, db_thread, max_iterations=10)
             
             if response and response.get("success"):
                 response_text = response.get("response", "")
@@ -991,7 +1079,38 @@ class OpenAIAssistantService:
                     } if usage_info else None
                 }
             else:
-                raise Exception("Resposta do agente não encontrada.")
+                # Tratar erro de forma mais amigável
+                error_msg = response.get("error", "Resposta do agente não encontrada.") if response else "Resposta do agente não encontrada."
+                
+                # Se foi limite de iterações, retornar mensagem amigável ao usuário
+                if "Máximo de iterações" in error_msg:
+                    friendly_msg = "Desculpe, o agente precisou fazer muitas consultas e atingiu o limite de processamento. Por favor, tente reformular sua pergunta de forma mais específica ou divida em partes menores."
+                else:
+                    friendly_msg = f"Desculpe, ocorreu um erro ao processar sua mensagem: {error_msg}"
+                
+                # Salvar mensagem de erro como resposta do assistente
+                assistant_message = OpenAIAssistantMessage(
+                    thread_id=db_thread.id,
+                    role="assistant",
+                    content=friendly_msg
+                )
+                self.db.add(assistant_message)
+                db_thread.last_message_at = datetime.utcnow()
+                db_thread.updated_at = datetime.utcnow()
+                
+                # Marcar uso como falha
+                usage_record.status = UsageStatus.FAILED
+                usage_record.error_message = error_msg
+                usage_record.completed_at = datetime.utcnow()
+                usage_record.duration_seconds = time.time() - start_time
+                self.db.commit()
+                
+                return {
+                    "success": True,
+                    "response": friendly_msg,
+                    "thread_id": openai_thread_id,
+                    "usage": None
+                }
                 
         except Exception as e:
             logger.error(f"❌ Erro ao usar assistente em modo chat: {e}", exc_info=True)
@@ -1107,10 +1226,16 @@ class OpenAIAssistantService:
                     })
                     
                     # Salvar resultado no banco
+                    # Incluir tool_call_id e name no content como metadados para reconstrução
+                    tool_content = {
+                        "tool_call_id": tool_call.id,
+                        "name": function_name,
+                        "result": result
+                    }
                     tool_message = OpenAIAssistantMessage(
                         thread_id=db_thread.id,
                         role="tool",
-                        content=json.dumps(result, ensure_ascii=False)
+                        content=json.dumps(tool_content, ensure_ascii=False)
                     )
                     self.db.add(tool_message)
                     self.db.flush()
@@ -1148,6 +1273,25 @@ class OpenAIAssistantService:
         
         # Se chegou aqui, excedeu o número máximo de iterações
         logger.warning(f"⚠️ Máximo de iterações ({max_iterations}) atingido")
+        
+        # Tentar retornar última resposta parcial se houver
+        if messages:
+            # Buscar última mensagem do assistente que não seja tool_call
+            for msg in reversed(messages):
+                if isinstance(msg, dict) and msg.get("role") == "assistant":
+                    content = msg.get("content")
+                    if content and not msg.get("tool_calls"):
+                        # Retornar resposta parcial
+                        return {
+                            "success": True,
+                            "response": content + "\n\n[Nota: Resposta parcial devido ao limite de processamento. Por favor, reformule sua pergunta se necessário.]",
+                            "usage": total_usage or {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0
+                            }
+                        }
+        
         return {
             "success": False,
             "error": f"Máximo de iterações ({max_iterations}) atingido. O modelo pode estar em loop."
@@ -1304,6 +1448,254 @@ class OpenAIAssistantService:
                     "descontos_total": total_discounts,
                     "faturamento_liquido": faturamento_liquido,
                 }
+
+            # ========== General Orders Selector (ml_ordens) ==========
+            if function_name == "get_orders":
+                """
+                Seleciona pedidos com filtros opcionais.
+                Parâmetros aceitos:
+                  - start_date (YYYY-MM-DD) opcional
+                  - end_date (YYYY-MM-DD) opcional
+                  - status (array|string) opcional
+                  - ml_item_id (string) opcional - ID do item no Mercado Livre
+                  - product_name (string) opcional - Nome do produto (busca parcial)
+                  - seller_sku (string) opcional - SKU do produto
+                  - is_catalog (boolean) opcional - Se True, apenas produtos de catálogo; Se False, apenas não-catálogo
+                  - buyer_nickname (string) opcional
+                  - limit (int) opcional - Se não informado, retorna todos os resultados
+                  - offset (int) padrão 0
+                """
+                from app.models.saas_models import MLOrder, MLProduct
+                from sqlalchemy import and_, or_
+                from datetime import datetime, timedelta
+                q = self.db.query(MLOrder).filter(MLOrder.company_id == company_id)
+                # Datas
+                start_date = function_args.get("start_date")
+                end_date = function_args.get("end_date")
+                if start_date:
+                    try:
+                        dt_start = datetime.fromisoformat(str(start_date)[:10])
+                        q = q.filter(MLOrder.date_created >= dt_start)
+                    except Exception:
+                        pass
+                if end_date:
+                    try:
+                        dt_end = datetime.fromisoformat(str(end_date)[:10]) + timedelta(days=1)
+                        q = q.filter(MLOrder.date_created < dt_end)
+                    except Exception:
+                        pass
+                # Status (string único ou lista)
+                status = function_args.get("status")
+                if status:
+                    if isinstance(status, str):
+                        status_list = [s.strip() for s in status.split(",") if s.strip()]
+                    else:
+                        status_list = [str(s).strip() for s in (status or []) if str(s).strip()]
+                    if status_list:
+                        try:
+                            q = q.filter(MLOrder.status.in_(status_list))
+                        except Exception:
+                            # fallback string compare
+                            pass
+                # Filtrar por item - suporta ml_item_id, product_name, seller_sku e is_catalog
+                ml_item_id = function_args.get("ml_item_id")
+                product_name = function_args.get("product_name")
+                seller_sku = function_args.get("seller_sku")
+                is_catalog = function_args.get("is_catalog")  # True = apenas catálogo, False = apenas não-catálogo, None = todos
+                
+                # Se forneceu nome, SKU ou filtro de catálogo, buscar produtos primeiro
+                ml_item_ids_to_filter = []
+                if product_name or seller_sku or is_catalog is not None:
+                    product_query = self.db.query(MLProduct).filter(MLProduct.company_id == company_id)
+                    
+                    if seller_sku:
+                        product_query = product_query.filter(MLProduct.seller_sku == seller_sku)
+                    elif product_name:
+                        # Busca parcial no título
+                        like = f"%{product_name}%"
+                        product_query = product_query.filter(MLProduct.title.ilike(like))
+                    
+                    # Filtro de catálogo
+                    if is_catalog is True:
+                        # Apenas produtos de catálogo
+                        product_query = product_query.filter(
+                            (MLProduct.catalog_listing == True) | (MLProduct.catalog_product_id.isnot(None))
+                        )
+                    elif is_catalog is False:
+                        # Apenas produtos não-catálogo
+                        product_query = product_query.filter(
+                            (MLProduct.catalog_listing == False) & (MLProduct.catalog_product_id.is_(None))
+                        )
+                    
+                    try:
+                        products = product_query.all()
+                        ml_item_ids_to_filter = [p.ml_item_id for p in products if p.ml_item_id]
+                        
+                        if (product_name or seller_sku) and not ml_item_ids_to_filter:
+                            # Produto não encontrado
+                            logger.info(f"ℹ️ Produto não encontrado: {'SKU' if seller_sku else 'nome'}='{seller_sku or product_name}', company_id={company_id}")
+                            return {
+                                "orders": [],
+                                "message": f"Produto não encontrado com {'SKU' if seller_sku else 'nome'}: {seller_sku or product_name}"
+                            }
+                    except Exception as e:
+                        logger.error(f"❌ Erro ao buscar produtos para filtro (product_name={product_name}, seller_sku={seller_sku}, is_catalog={is_catalog}): {e}", exc_info=True)
+                        return {
+                            "orders": [],
+                            "error": f"Erro ao buscar produtos: {str(e)}"
+                        }
+                
+                # Se forneceu ml_item_id diretamente, adicionar à lista
+                if ml_item_id:
+                    ml_item_ids_to_filter.append(ml_item_id)
+                
+                # Se há filtro por item, garantir que order_items não seja None
+                if ml_item_ids_to_filter:
+                    q = q.filter(MLOrder.order_items.isnot(None))
+                
+                # Comprador
+                buyer_nickname = function_args.get("buyer_nickname")
+                if buyer_nickname and hasattr(MLOrder, "buyer_nickname"):
+                    like = f"%{buyer_nickname}%"
+                    try:
+                        q = q.filter(MLOrder.buyer_nickname.ilike(like))
+                    except Exception:
+                        pass
+                # Ordenação recente
+                if hasattr(MLOrder, "date_created"):
+                    q = q.order_by(MLOrder.date_created.desc())
+                
+                # Limite opcional - se houver filtros além do company_id, não aplicar limite
+                # Filtros considerados: start_date, end_date, status, ml_item_id, product_name, seller_sku, is_catalog, buyer_nickname
+                has_filters = bool(
+                    start_date or end_date or status or ml_item_id or 
+                    product_name or seller_sku or is_catalog is not None or buyer_nickname
+                )
+                
+                limit = function_args.get("limit")
+                offset = int(function_args.get("offset", 0))
+                
+                # Se houver filtros além do company_id, ignorar limite (retornar todos)
+                if has_filters:
+                    rows = q.offset(offset).all()
+                elif limit is not None:
+                    limit = int(limit)
+                    rows = q.offset(offset).limit(limit).all()
+                else:
+                    # Sem filtros e sem limite informado - aplicar limite padrão de segurança
+                    rows = q.offset(offset).limit(1000).all()
+                
+                result = []
+                for o in rows:
+                    # Se há filtro por item(s), verificar se o pedido contém algum dos itens
+                    if ml_item_ids_to_filter:
+                        try:
+                            items = o.order_items or []
+                            has_item = any(
+                                (it.get("item", {}).get("id") in [str(mid) for mid in ml_item_ids_to_filter])
+                                for it in items
+                            )
+                            if not has_item:
+                                continue
+                        except Exception as e:
+                            logger.warning(f"⚠️ Erro ao verificar item no pedido {getattr(o, 'ml_order_id', getattr(o, 'id', 'unknown'))}: {e}")
+                            continue
+                    status_str = (o.status.value if hasattr(o.status, "value") else str(o.status)) if getattr(o, "status", None) is not None else None
+                    result.append({
+                        "id": str(getattr(o, "ml_order_id", getattr(o, "id", None))),
+                        "date": o.date_created.isoformat() if getattr(o, "date_created", None) else None,
+                        "total_amount": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,
+                        "status": status_str,
+                        "sale_fees": float(o.sale_fees) if getattr(o, "sale_fees", None) else 0.0,
+                        "shipping_cost": float(o.shipping_cost) if getattr(o, "shipping_cost", None) else 0.0,
+                        "coupon_amount": float(o.coupon_amount) if getattr(o, "coupon_amount", None) else 0.0,
+                        "buyer_nickname": getattr(o, "buyer_nickname", None)
+                    })
+                return {"orders": result, "total": len(result)}
+
+            # ========== Product Sales (by product or ml_item_id) ==========
+            if function_name == "get_product_sales":
+                """
+                Filtra vendas de um produto.
+                Parâmetros:
+                  - product_id (int) ou ml_item_id (string) [um dos dois é obrigatório]
+                  - start_date (YYYY-MM-DD) opcional
+                  - end_date (YYYY-MM-DD) opcional
+                  - status (array|string) opcional (ex.: paid, delivered)
+                  - limit (int) padrão 50
+                  - offset (int) padrão 0
+                Retorno: lista de pedidos contendo o item, com quantidade total do item naquele pedido.
+                """
+                from app.models.saas_models import MLOrder, MLProduct
+                from datetime import datetime, timedelta
+                ml_item_id = function_args.get("ml_item_id")
+                product_id = function_args.get("product_id")
+                # Resolver ml_item_id via product_id se necessário
+                if not ml_item_id and product_id is not None:
+                    try:
+                        pid = int(product_id)
+                        p = self.db.query(MLProduct).filter(MLProduct.id == pid, MLProduct.company_id == company_id).first()
+                        if not p:
+                            return {"error": "Produto não encontrado"}
+                        ml_item_id = p.ml_item_id
+                    except Exception:
+                        return {"error": "product_id inválido"}
+                if not ml_item_id:
+                    return {"error": "É obrigatório informar product_id ou ml_item_id"}
+                q = self.db.query(MLOrder).filter(MLOrder.company_id == company_id, MLOrder.order_items.isnot(None))
+                # Datas
+                start_date = function_args.get("start_date")
+                end_date = function_args.get("end_date")
+                if start_date:
+                    try:
+                        dt_start = datetime.fromisoformat(str(start_date)[:10])
+                        q = q.filter(MLOrder.date_created >= dt_start)
+                    except Exception:
+                        pass
+                if end_date:
+                    try:
+                        dt_end = datetime.fromisoformat(str(end_date)[:10]) + timedelta(days=1)
+                        q = q.filter(MLOrder.date_created < dt_end)
+                    except Exception:
+                        pass
+                # Status (string ou lista)
+                status = function_args.get("status")
+                if status:
+                    if isinstance(status, str):
+                        status_list = [s.strip() for s in status.split(",") if s.strip()]
+                    else:
+                        status_list = [str(s).strip() for s in (status or []) if str(s).strip()]
+                    if status_list:
+                        try:
+                            q = q.filter(MLOrder.status.in_(status_list))
+                        except Exception:
+                            pass
+                # Ordenação e paginação
+                if hasattr(MLOrder, "date_created"):
+                    q = q.order_by(MLOrder.date_created.desc())
+                limit = int(function_args.get("limit", 50))
+                offset = int(function_args.get("offset", 0))
+                rows = q.offset(offset).limit(limit).all()
+                results = []
+                for o in rows:
+                    try:
+                        qty = 0
+                        for it in (o.order_items or []):
+                            if it.get("item", {}).get("id") == str(ml_item_id):
+                                qty += int(it.get("quantity", 1))
+                        if qty <= 0:
+                            continue
+                        status_str = (o.status.value if hasattr(o.status, "value") else str(o.status)) if getattr(o, "status", None) is not None else None
+                        results.append({
+                            "order_id": str(getattr(o, "ml_order_id", getattr(o, "id", None))),
+                            "date": o.date_created.isoformat() if getattr(o, "date_created", None) else None,
+                            "status": status_str,
+                            "total_amount": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,
+                            "quantity": qty
+                        })
+                    except Exception:
+                        continue
+                return {"sales": results}
 
             # ========== Catalog Competitors ==========
             if function_name == "get_catalog_competitors_db":
@@ -1501,7 +1893,7 @@ class OpenAIAssistantService:
                 return {
                     "error": f"Função '{function_name}' não está implementada no sistema",
                     "available_functions": [
-                        "get_product_core","get_product_attributes","get_orders_by_item","get_sales_aggregates",
+                        "get_product_core","get_product_attributes","get_orders","get_product_sales","get_orders_by_item","get_sales_aggregates",
                         "get_billing_breakdown","get_catalog_competitors_db","get_ads_metrics_by_item",
                         "get_product_cost_config","compute_margin_db","get_fee_preview_db",
                         "simulate_price_candidates","get_required_attributes_db","check_title_description_db"

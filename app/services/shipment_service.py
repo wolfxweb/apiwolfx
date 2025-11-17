@@ -231,7 +231,8 @@ class ShipmentService:
                         if order.pack_id:
                             invoice_data = self._check_pack_invoice(order.pack_id, access_token)
                         
-                        if not invoice_data and order.shipping_id:
+                        # Verificar shipment_invoice se não encontrou NF no pack ou se has_invoice é False
+                        if (not invoice_data or not invoice_data.get('has_invoice')) and order.shipping_id:
                             invoice_data = self._check_shipment_invoice(
                                 shipment_id=order.shipping_id,
                                 company_id=company_id,
@@ -1111,10 +1112,17 @@ class ShipmentService:
                         "details": response_orders_data
                     }
                 
+                # Traduzir mensagens comuns do Mercado Livre
+                translated_message = error_message
+                if "There are orders linked to these invoices being processed" in error_message:
+                    translated_message = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
+                elif "orders linked to these invoices" in error_message.lower():
+                    translated_message = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
+                
                 logger.error(f"❌ Erro ao emitir NF via orders (sem fallback): {error_message}")
                 return {
                     "success": False,
-                    "error": f"Erro ao emitir nota fiscal: {error_message}",
+                    "error": f"Erro ao emitir nota fiscal: {translated_message}",
                     "details": response_orders_data
                 }
 
@@ -1151,13 +1159,21 @@ class ShipmentService:
                     error_message = response_data.get("message") or response_data.get("error")
                 if not error_message:
                     error_message = response.text
+                
+                # Traduzir mensagens comuns do Mercado Livre
+                translated_message = error_message
+                if "There are orders linked to these invoices being processed" in error_message:
+                    translated_message = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
+                elif "orders linked to these invoices" in error_message.lower():
+                    translated_message = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
+                
                 logger.error(
                     f"❌ Erro ao emitir NF via shipments (status {response.status_code}) "
                     f"para pedido {order_id}: {error_message} | response={json.dumps(response_data, default=str)}"
                 )
                 return {
                     "success": False,
-                    "error": f"Erro ao emitir nota fiscal: {error_message}",
+                    "error": f"Erro ao emitir nota fiscal: {translated_message}",
                     "details": response_data
                 }
 
@@ -1193,7 +1209,13 @@ class ShipmentService:
         except Exception as exc:
             logger.error(f"❌ Erro ao emitir nota para pedido {order_id}: {exc}", exc_info=True)
             self.db.rollback()
-            return {"success": False, "error": f"Erro ao emitir nota fiscal: {exc}"}
+            error_str = str(exc)
+            # Traduzir mensagens comuns do Mercado Livre
+            if "There are orders linked to these invoices being processed" in error_str:
+                error_str = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
+            elif "orders linked to these invoices" in error_str.lower():
+                error_str = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
+            return {"success": False, "error": f"Erro ao emitir nota fiscal: {error_str}"}
 
     def _check_pack_invoice(self, pack_id: str, access_token: str) -> Optional[Dict]:
         """

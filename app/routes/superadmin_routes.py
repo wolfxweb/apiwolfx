@@ -99,6 +99,31 @@ async def superadmin_assistants(
 ):
     """Gerenciar agentes OpenAI"""
     # TODO: Verificar autenticação de superadmin
+    # Garantir colunas de boas-vindas antes de renderizar a tela (fallback de migração)
+    try:
+        from sqlalchemy import text as sql_text
+        # Testar existência das colunas consultando uma linha
+        db.execute(sql_text("SELECT welcome_message, welcome_enabled, welcome_use_model FROM openai_assistants LIMIT 1"))
+    except Exception:
+        try:
+            import importlib.util, os
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            welcome_path = os.path.join(base_dir, 'database', 'fixes', '2025_11_16_add_welcome_fields_openai_assistants.py')
+            if os.path.exists(welcome_path):
+                specw = importlib.util.spec_from_file_location("add_welcome_fields_openai_assistants", welcome_path)
+                welcome_module = importlib.util.module_from_spec(specw)
+                specw.loader.exec_module(welcome_module)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                welcome_module.run(db)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+        except Exception:
+            pass
     return render_template("superadmin/assistants.html", request=request)
 
 @superadmin_router.get("/superadmin/assistants/new", response_class=HTMLResponse)
@@ -118,6 +143,30 @@ async def superadmin_assistants_edit(
 ):
     """Editar agente OpenAI"""
     # TODO: Verificar autenticação de superadmin
+    # Garantir colunas de boas-vindas antes de renderizar a tela (fallback de migração)
+    try:
+        from sqlalchemy import text as sql_text
+        db.execute(sql_text("SELECT welcome_message, welcome_enabled, welcome_use_model FROM openai_assistants LIMIT 1"))
+    except Exception:
+        try:
+            import importlib.util, os
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            welcome_path = os.path.join(base_dir, 'database', 'fixes', '2025_11_16_add_welcome_fields_openai_assistants.py')
+            if os.path.exists(welcome_path):
+                specw = importlib.util.spec_from_file_location("add_welcome_fields_openai_assistants", welcome_path)
+                welcome_module = importlib.util.module_from_spec(specw)
+                specw.loader.exec_module(welcome_module)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                welcome_module.run(db)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+        except Exception:
+            pass
     return render_template("superadmin/assistants_form.html", request=request, assistant_id=assistant_id)
 
 @superadmin_router.get("/superadmin/assistants/usage", response_class=HTMLResponse)

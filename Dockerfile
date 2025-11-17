@@ -4,12 +4,7 @@ FROM python:3.11-slim
 # Definir diretório de trabalho
 WORKDIR /app
 
-# Instalar dependências do sistema
-RUN apt-get update && apt-get install -y \
-    gcc \
-    default-libmysqlclient-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+# Sem dependências de sistema pesadas: usamos psycopg2-binary e evitamos toolchains nativos
 
 # Copiar requirements e instalar dependências Python
 COPY requirements.txt .

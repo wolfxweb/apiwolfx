@@ -71,7 +71,7 @@
                                 <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
                                     <i class="bi bi-x-circle"></i> Limpar filtros
                                 </button>
-                            </div>
+                    </div>
                         </div>
                         
                         <!-- Segunda linha: Modalidade de envio -->
@@ -1796,7 +1796,14 @@ async function emitInvoiceForOrder(orderId, triggerElement) {
             if (data.release_date || /ainda não está liberado para emissão de NF/i.test(errorMessage)) {
                 showInvoiceReleaseModal(data.release_date, errorMessage);
             } else {
-                showError(errorMessage);
+                // Usar toast ao invés de alert
+                if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                    window.MLAPI.showNotification(errorMessage, 'error', 8000);
+                } else if (typeof showToast === 'function') {
+                    showToast(errorMessage, 'error');
+                } else {
+                    showError(errorMessage);
+                }
             }
             return;
         }
@@ -1805,7 +1812,15 @@ async function emitInvoiceForOrder(orderId, triggerElement) {
         loadOrders(currentPage);
     } catch (error) {
         console.error('Erro ao emitir nota:', error);
-        showError(error.message || 'Erro ao emitir nota fiscal.');
+        // Usar toast ao invés de alert
+        const errorMsg = error.message || 'Erro ao emitir nota fiscal.';
+        if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+            window.MLAPI.showNotification(errorMsg, 'error', 8000);
+        } else if (typeof showToast === 'function') {
+            showToast(errorMsg, 'error');
+        } else {
+            showError(errorMsg);
+        }
     } finally {
         button.disabled = false;
         button.innerHTML = originalHtml;
@@ -3003,6 +3018,15 @@ async function checkAvailableOrders() {
         const response = await fetch('/ml/api/orders/summary', {
             credentials: 'include'
         });
+        
+        // Verificar content-type antes de fazer parse do JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            console.warn('Resposta não é JSON ao verificar pedidos disponíveis');
+            document.getElementById('total-orders-available').textContent = 'Erro ao verificar';
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -3050,30 +3074,75 @@ async function startBatchImport() {
             credentials: 'include'
         });
         
-        const data = await response.json();
-        
-        if (data.success) {
-            // Mostrar tela de conclusão
-            document.getElementById('import-progress').style.display = 'none';
-            document.getElementById('import-complete').style.display = 'block';
-            document.getElementById('final-imported').textContent = data.total_saved || 0;
-            document.getElementById('final-updated').textContent = data.total_updated || 0;
-            document.getElementById('final-message').textContent = 
-                `Importação concluída! ${data.total_saved || 0} novos pedidos importados e ${data.total_updated || 0} atualizados.`;
-            
-            // Recarregar lista de pedidos
-            setTimeout(() => {
-                loadOrders(currentPage);
-            }, 2000);
-        } else {
-            alert('Erro ao importar pedidos: ' + (data.error || 'Erro desconhecido'));
+        // Verificar content-type antes de fazer parse do JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Resposta não é JSON:', text.substring(0, 200));
+            let errorMsg = 'Erro ao importar pedidos: Resposta inválida do servidor';
+            if (response.status === 401) {
+                errorMsg = 'Sessão expirada. Por favor, faça login novamente.';
+                if (typeof checkSessionExpired === 'function') {
+                    checkSessionExpired(response);
+                }
+            } else if (response.status === 404) {
+                errorMsg = 'Rota de importação não encontrada.';
+            } else if (response.status >= 500) {
+                errorMsg = 'Erro interno do servidor. Tente novamente mais tarde.';
+            }
+            // Usar toast ao invés de alert
+            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                window.MLAPI.showNotification(errorMsg, 'error', 8000);
+            } else {
+                alert(errorMsg);
+            }
             // Voltar para tela de configuração
             document.getElementById('import-progress').style.display = 'none';
             document.getElementById('import-config').style.display = 'block';
+            return;
         }
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            const errorMsg = data.error || data.message || `Erro ${response.status}: ${response.statusText}`;
+            // Usar toast ao invés de alert
+            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                window.MLAPI.showNotification('Erro ao importar pedidos: ' + errorMsg, 'error', 8000);
+            } else {
+                alert('Erro ao importar pedidos: ' + errorMsg);
+            }
+            // Voltar para tela de configuração
+            document.getElementById('import-progress').style.display = 'none';
+            document.getElementById('import-config').style.display = 'block';
+            return;
+        }
+        
+        // Mostrar tela de conclusão
+        document.getElementById('import-progress').style.display = 'none';
+        document.getElementById('import-complete').style.display = 'block';
+        document.getElementById('final-imported').textContent = data.total_saved || 0;
+        document.getElementById('final-updated').textContent = data.total_updated || 0;
+        document.getElementById('final-message').textContent = 
+            `Importação concluída! ${data.total_saved || 0} novos pedidos importados e ${data.total_updated || 0} atualizados.`;
+        
+        // Recarregar lista de pedidos
+        setTimeout(() => {
+            loadOrders(currentPage);
+        }, 2000);
     } catch (error) {
         console.error('Erro ao iniciar importação:', error);
-        alert('Erro ao iniciar importação: ' + error.message);
+        let errorMsg = 'Erro ao iniciar importação: ' + error.message;
+        // Se for erro de JSON parsing, mensagem mais amigável
+        if (error.message && error.message.includes('JSON')) {
+            errorMsg = 'Erro ao processar resposta do servidor. Verifique sua conexão e tente novamente.';
+        }
+        // Usar toast ao invés de alert
+        if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+            window.MLAPI.showNotification(errorMsg, 'error', 8000);
+        } else {
+            alert(errorMsg);
+        }
         // Voltar para tela de configuração
         document.getElementById('import-progress').style.display = 'none';
         document.getElementById('import-config').style.display = 'block';
