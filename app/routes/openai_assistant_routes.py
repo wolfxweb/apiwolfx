@@ -490,6 +490,9 @@ async def use_assistant_chat(
     )
     
     if not result.get("success"):
+        # Verificar se é erro de autenticação/sessão
+        if result.get("requires_login"):
+            raise HTTPException(status_code=401, detail=result.get("error", "Sessão expirada. Por favor, faça login novamente."))
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao usar agente"))
     
     return result

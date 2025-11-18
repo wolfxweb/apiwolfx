@@ -1114,12 +1114,37 @@ class OpenAIAssistantService:
                 
         except Exception as e:
             logger.error(f"❌ Erro ao usar assistente em modo chat: {e}", exc_info=True)
-            usage_record.status = UsageStatus.FAILED
-            usage_record.error_message = str(e)
-            usage_record.completed_at = datetime.utcnow()
-            usage_record.duration_seconds = time.time() - start_time
-            self.db.commit()
-            return {"success": False, "error": str(e)}
+            
+            # Fazer rollback antes de tentar salvar qualquer coisa
+            try:
+                self.db.rollback()
+            except:
+                pass
+            
+            # Verificar se é erro de autenticação
+            error_str = str(e).lower()
+            if "authentication" in error_str or "unauthorized" in error_str or "session" in error_str or "login" in error_str or "pendingrollback" in error_str:
+                return {
+                    "success": False,
+                    "error": "Sessão expirada. Por favor, faça login novamente.",
+                    "requires_login": True
+                }
+            
+            # Tentar salvar status de erro (com nova transação)
+            try:
+                usage_record.status = UsageStatus.FAILED
+                usage_record.error_message = str(e)[:500]  # Limitar tamanho
+                usage_record.completed_at = datetime.utcnow()
+                usage_record.duration_seconds = time.time() - start_time
+                self.db.commit()
+            except:
+                # Se não conseguir salvar, pelo menos retornar o erro
+                try:
+                    self.db.rollback()
+                except:
+                    pass
+            
+            return {"success": False, "error": str(e)[:500]}
     
     def _process_chat_with_tools(
         self, 
@@ -1215,7 +1240,36 @@ class OpenAIAssistantService:
                     logger.info(f"⚙️ Processando ferramenta: {function_name} com args: {function_args}")
                     
                     # Executar função local (aqui você implementa suas funções)
-                    result = self._execute_tool_function(function_name, function_args, db_thread)
+                    try:
+                        result = self._execute_tool_function(function_name, function_args, db_thread)
+                    except Exception as tool_error:
+                        logger.error(f"❌ Erro ao executar ferramenta {function_name}: {tool_error}", exc_info=True)
+                        
+                        # Fazer rollback imediatamente se a transação estiver em estado inválido
+                        try:
+                            # Tentar verificar se a transação está válida
+                            from sqlalchemy import text as sql_text
+                            self.db.execute(sql_text("SELECT 1"))
+                        except Exception:
+                            # Transação inválida, fazer rollback
+                            try:
+                                self.db.rollback()
+                                logger.info("🔄 Rollback realizado após erro na ferramenta")
+                            except:
+                                pass
+                        
+                        # Verificar se é erro de autenticação/sessão
+                        error_str = str(tool_error).lower()
+                        if "authentication" in error_str or "unauthorized" in error_str or "session" in error_str or "login" in error_str:
+                            return {
+                                "success": False,
+                                "error": "Sessão expirada. Por favor, faça login novamente.",
+                                "requires_login": True
+                            }
+                        # Outro tipo de erro - criar resultado de erro (sem salvar no banco ainda)
+                        result = {
+                            "error": f"Erro ao executar função: {str(tool_error)[:500]}"  # Limitar tamanho do erro
+                        }
                     
                     # Adicionar resultado ao histórico
                     tool_outputs.append({
@@ -1225,20 +1279,47 @@ class OpenAIAssistantService:
                         "content": json.dumps(result, ensure_ascii=False)
                     })
                     
-                    # Salvar resultado no banco
-                    # Incluir tool_call_id e name no content como metadados para reconstrução
-                    tool_content = {
-                        "tool_call_id": tool_call.id,
-                        "name": function_name,
-                        "result": result
-                    }
-                    tool_message = OpenAIAssistantMessage(
-                        thread_id=db_thread.id,
-                        role="tool",
-                        content=json.dumps(tool_content, ensure_ascii=False)
-                    )
-                    self.db.add(tool_message)
-                    self.db.flush()
+                    # Salvar resultado no banco (com tratamento de erro robusto)
+                    try:
+                        # Verificar se a transação está em estado válido usando uma query simples
+                        try:
+                            from sqlalchemy import text as sql_text
+                            self.db.execute(sql_text("SELECT 1"))
+                        except Exception as trans_check_error:
+                            # Transação em estado inválido, fazer rollback
+                            logger.warning(f"⚠️ Transação em estado inválido, fazendo rollback: {trans_check_error}")
+                            try:
+                                self.db.rollback()
+                            except:
+                                pass
+                        
+                        # Limitar tamanho do content para evitar problemas com mensagens muito grandes
+                        result_str = json.dumps(result, ensure_ascii=False)
+                        if len(result_str) > 10000:  # Limitar a 10KB
+                            result_str = result_str[:10000] + '..." (truncado)'
+                            result = json.loads(result_str.replace('..." (truncado)', ''))
+                        
+                        # Incluir tool_call_id e name no content como metadados para reconstrução
+                        tool_content = {
+                            "tool_call_id": tool_call.id,
+                            "name": function_name,
+                            "result": result
+                        }
+                        tool_message = OpenAIAssistantMessage(
+                            thread_id=db_thread.id,
+                            role="tool",
+                            content=json.dumps(tool_content, ensure_ascii=False)
+                        )
+                        self.db.add(tool_message)
+                        self.db.flush()
+                    except Exception as save_error:
+                        logger.error(f"❌ Erro ao salvar mensagem tool no banco: {save_error}", exc_info=True)
+                        # Tentar rollback e continuar (não bloquear o fluxo)
+                        try:
+                            self.db.rollback()
+                        except:
+                            pass
+                        # Continuar mesmo se não conseguir salvar (a mensagem já está no histórico)
                 
                 # Adicionar resultados ao histórico de mensagens
                 messages.extend(tool_outputs)
@@ -1296,6 +1377,50 @@ class OpenAIAssistantService:
             "success": False,
             "error": f"Máximo de iterações ({max_iterations}) atingido. O modelo pode estar em loop."
         }
+    
+    def _normalize_order_status(self, status_value: str) -> Optional[str]:
+        """
+        Normaliza valores de status de pedido para os valores válidos do enum OrderStatus.
+        Mapeia valores comuns (lowercase, diferentes nomes) para os valores corretos do enum.
+        """
+        if not status_value:
+            return None
+        
+        status_upper = status_value.upper().strip()
+        
+        # Mapeamento de valores comuns para valores válidos do enum
+        status_map = {
+            # Valores diretos (já corretos)
+            "PENDING": "PENDING",
+            "CONFIRMED": "CONFIRMED",
+            "PAID": "PAID",
+            "PARTIALLY_PAID": "PARTIALLY_PAID",
+            "SHIPPED": "SHIPPED",
+            "DELIVERED": "DELIVERED",
+            "CANCELLED": "CANCELLED",
+            "PENDING_CANCEL": "PENDING_CANCEL",
+            "REFUNDED": "REFUNDED",
+            "PARTIALLY_REFUNDED": "PARTIALLY_REFUNDED",
+            "INVALID": "INVALID",
+            "READY_TO_PREPARE": "READY_TO_PREPARE",
+            
+            # Mapeamentos de valores comuns (lowercase ou nomes alternativos)
+            "COMPLETED": "CONFIRMED",  # "completed" geralmente significa confirmado
+            "CLOSED": "DELIVERED",     # "closed" geralmente significa entregue/finalizado
+            "PAYMENT_PENDING": "PENDING",
+            "PAYMENT_REQUIRED": "PENDING",
+            "READY_TO_SHIP": "PAID",
+            "IN_TRANSIT": "SHIPPED",
+            "IN_DELIVERY": "SHIPPED",
+        }
+        
+        # Tentar mapeamento direto
+        if status_upper in status_map:
+            return status_map[status_upper]
+        
+        # Se não encontrou, retornar None (será ignorado)
+        logger.warning(f"⚠️ Status de pedido não reconhecido: '{status_value}', será ignorado")
+        return None
     
     def _execute_tool_function(self, function_name: str, function_args: Dict, db_thread: OpenAIAssistantThread) -> Dict:
         """
@@ -1484,18 +1609,31 @@ class OpenAIAssistantService:
                         q = q.filter(MLOrder.date_created < dt_end)
                     except Exception:
                         pass
-                # Status (string único ou lista)
+                # Status (string único ou lista) - normalizar para valores válidos do enum
                 status = function_args.get("status")
                 if status:
                     if isinstance(status, str):
                         status_list = [s.strip() for s in status.split(",") if s.strip()]
                     else:
                         status_list = [str(s).strip() for s in (status or []) if str(s).strip()]
-                    if status_list:
+                    
+                    # Normalizar cada status para valores válidos do enum
+                    normalized_statuses = []
+                    for s in status_list:
+                        normalized = self._normalize_order_status(s)
+                        if normalized:
+                            normalized_statuses.append(normalized)
+                    
+                    if normalized_statuses:
                         try:
-                            q = q.filter(MLOrder.status.in_(status_list))
-                        except Exception:
-                            # fallback string compare
+                            from app.models.saas_models import OrderStatus
+                            # Converter strings para valores do enum
+                            enum_statuses = [OrderStatus[s] for s in normalized_statuses if s in [e.name for e in OrderStatus]]
+                            if enum_statuses:
+                                q = q.filter(MLOrder.status.in_(enum_statuses))
+                        except Exception as e:
+                            logger.warning(f"⚠️ Erro ao filtrar por status: {e}")
+                            # fallback: tentar como string (pode não funcionar se o enum for restritivo)
                             pass
                 # Filtrar por item - suporta ml_item_id, product_name, seller_sku e is_catalog
                 ml_item_id = function_args.get("ml_item_id")
@@ -1658,17 +1796,30 @@ class OpenAIAssistantService:
                         q = q.filter(MLOrder.date_created < dt_end)
                     except Exception:
                         pass
-                # Status (string ou lista)
+                # Status (string ou lista) - normalizar para valores válidos do enum
                 status = function_args.get("status")
                 if status:
                     if isinstance(status, str):
                         status_list = [s.strip() for s in status.split(",") if s.strip()]
                     else:
                         status_list = [str(s).strip() for s in (status or []) if str(s).strip()]
-                    if status_list:
+                    
+                    # Normalizar cada status para valores válidos do enum
+                    normalized_statuses = []
+                    for s in status_list:
+                        normalized = self._normalize_order_status(s)
+                        if normalized:
+                            normalized_statuses.append(normalized)
+                    
+                    if normalized_statuses:
                         try:
-                            q = q.filter(MLOrder.status.in_(status_list))
-                        except Exception:
+                            from app.models.saas_models import OrderStatus
+                            # Converter strings para valores do enum
+                            enum_statuses = [OrderStatus[s] for s in normalized_statuses if s in [e.name for e in OrderStatus]]
+                            if enum_statuses:
+                                q = q.filter(MLOrder.status.in_(enum_statuses))
+                        except Exception as e:
+                            logger.warning(f"⚠️ Erro ao filtrar por status: {e}")
                             pass
                 # Ordenação e paginação
                 if hasattr(MLOrder, "date_created"):
