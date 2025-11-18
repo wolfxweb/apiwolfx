@@ -242,6 +242,23 @@ async def startup_event():
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível criar tabelas de Ferramentas: {e}")
 
+                # 1.05 Criar agente "Analise produto" se não existir
+                try:
+                    import importlib.util
+                    import os
+                    agent_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_17_create_product_analysis_agent.py'
+                    )
+                    if os.path.exists(agent_path):
+                        spec_agent = importlib.util.spec_from_file_location("create_product_analysis_agent", agent_path)
+                        agent_module = importlib.util.module_from_spec(spec_agent)
+                        spec_agent.loader.exec_module(agent_module)
+                        agent_module.run(db)
+                        print("✅ [STARTUP] Agente 'Analise produto' verificado/criado")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível criar agente 'Analise produto': {e}")
+
                 # 1.1 Garantir índices de performance do chat (threads e mensagens)
                 try:
                     import importlib.util
