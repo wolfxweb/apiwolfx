@@ -16,28 +16,50 @@
                     </p>
                 </div>
             <div class="d-flex flex-wrap gap-2">
-                <button type="button" class="btn btn-primary" onclick="syncOrders()">
-                    <i class="bi bi-arrow-clockwise"></i> Atualizar pedidos
-                        </button>
-                <button type="button" class="btn btn-outline-secondary" onclick="importOrders()">
-                    <i class="bi bi-download"></i> Importar pedidos
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="offcanvas" data-bs-target="#filtersOffcanvas" aria-controls="filtersOffcanvas">
+                    <i class="bi bi-funnel"></i> Filtros
                 </button>
-                <button type="button" class="btn btn-outline-danger" onclick="showDeleteOrdersModal()">
-                    <i class="bi bi-trash"></i> Remover pedidos
-                </button>
+                <div class="dropdown">
+                    <button class="btn btn-primary dropdown-toggle" type="button" id="actionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-gear"></i> Ações
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="actionsDropdown">
+                        <li>
+                            <button type="button" class="dropdown-item" onclick="syncOrders()">
+                                <i class="bi bi-arrow-clockwise"></i> Atualizar pedidos
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item" onclick="importOrders()">
+                                <i class="bi bi-download"></i> Importar pedidos
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button type="button" class="dropdown-item text-danger" onclick="showDeleteOrdersModal()">
+                                <i class="bi bi-trash"></i> Remover pedidos
+                            </button>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="row mb-3" id="alerts-container"></div>
 
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <form class="row g-3 align-items-end" id="ordersFiltersForm">
-                        <!-- Primeira linha: Busca, Conta, Período e Limpar -->
-                        <div class="col-12 col-lg-4 col-xl-3">
+    <!-- Offcanvas para Filtros -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="filtersOffcanvas" aria-labelledby="filtersOffcanvasLabel">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title" id="filtersOffcanvasLabel">
+                <i class="bi bi-funnel"></i> Filtros de Pedidos
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form class="row g-3" id="ordersFiltersForm">
+                        <!-- Busca rápida -->
+                        <div class="col-12">
                             <label for="search_query" class="form-label small text-uppercase text-muted">Busca rápida</label>
                             <div class="input-group">
                                 <input type="text" name="search_query" id="search_query" class="form-control" placeholder="Código, comprador ou produto" onkeydown="handleSearchKey(event)" />
@@ -46,13 +68,15 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="col-12 col-md-3">
+                        <!-- Conta -->
+                        <div class="col-12">
                             <label for="account_filter" class="form-label small text-uppercase text-muted">Conta</label>
                             <select name="account_filter" id="account_filter" class="form-select" onchange="applyFilters()">
                                 <option value="">Todas as contas</option>
                             </select>
                         </div>
-                        <div class="col-12 col-md-3">
+                        <!-- Período -->
+                        <div class="col-12">
                             <label for="period_filter" class="form-label small text-uppercase text-muted">Período</label>
                             <select name="period_filter" id="period_filter" class="form-select" onchange="toggleCustomPeriod(); applyFilters();">
                                 <option value="">Todos</option>
@@ -65,19 +89,11 @@
                                 <option value="custom">Personalizado</option>
                             </select>
                         </div>
-                        <div class="col-12 col-md-auto">
-                            <label class="form-label small text-uppercase text-muted">&nbsp;</label>
-                            <div>
-                                <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
-                                    <i class="bi bi-x-circle"></i> Limpar filtros
-                                </button>
-                    </div>
-                        </div>
                         
-                        <!-- Segunda linha: Modalidade de envio -->
+                        <!-- Modalidade de envio -->
                         <div class="col-12">
                             <label class="form-label small text-uppercase text-muted d-block mb-2">Modalidade de envio</label>
-                            <div class="d-flex flex-wrap gap-3">
+                            <div class="d-flex flex-column gap-2">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="logistic_filter" id="logistic_fulfillment" value="fulfillment" onchange="applyFilters()">
                                     <label class="form-check-label" for="logistic_fulfillment">Fulfillment</label>
@@ -105,10 +121,10 @@
                             </div>
                         </div>
                         
-                        <!-- Terceira linha: Status do envio (abaixo da modalidade) -->
+                        <!-- Status do envio -->
                         <div class="col-12">
                             <label class="form-label small text-uppercase text-muted d-block mb-2">Status do envio</label>
-                            <div class="d-flex flex-wrap gap-3">
+                            <div class="d-flex flex-column gap-2">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="status_filter" id="status_ready_to_ship" value="ready_to_ship" onchange="applyFilters()">
                                     <label class="form-check-label" for="status_ready_to_ship">Pronto para envio</label>
@@ -152,10 +168,10 @@
                             </div>
                         </div>
                         
-                        <!-- Quarta linha: Status interno -->
+                        <!-- Status interno -->
                         <div class="col-12">
                             <label class="form-label small text-uppercase text-muted d-block mb-2">Status interno</label>
-                            <div class="d-flex flex-wrap gap-3">
+                            <div class="d-flex flex-column gap-2">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_aguardando_processamento" value="aguardando_processamento" onchange="applyFilters()">
                                     <label class="form-check-label" for="internal_status_aguardando_processamento">Aguardando processamento</label>
@@ -178,18 +194,27 @@
                                 </div>
                             </div>
                         </div>
-                    </form>
-                    
-                    <div class="row g-3 mt-2" id="customPeriodRow" style="display: none;">
-                        <div class="col-12 col-md-3">
-                            <label for="customDateFrom" class="form-label small text-uppercase text-muted">Data inicial</label>
-                            <input type="date" class="form-control" id="customDateFrom" onchange="applyFilters()">
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label for="customDateTo" class="form-label small text-uppercase text-muted">Data final</label>
-                            <input type="date" class="form-control" id="customDateTo" onchange="applyFilters()">
-                        </div>
-                    </div>
+            </form>
+            
+            <div class="row g-3 mt-2" id="customPeriodRow" style="display: none;">
+                <div class="col-12">
+                    <label for="customDateFrom" class="form-label small text-uppercase text-muted">Data inicial</label>
+                    <input type="date" class="form-control" id="customDateFrom" onchange="applyFilters()">
+                </div>
+                <div class="col-12">
+                    <label for="customDateTo" class="form-label small text-uppercase text-muted">Data final</label>
+                    <input type="date" class="form-control" id="customDateTo" onchange="applyFilters()">
+                </div>
+            </div>
+            
+            <div class="mt-4 pt-3 border-top">
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary flex-fill" onclick="applyFilters(); bootstrap.Offcanvas.getInstance(document.getElementById('filtersOffcanvas')).hide();">
+                        <i class="bi bi-check-circle"></i> Aplicar Filtros
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters(); bootstrap.Offcanvas.getInstance(document.getElementById('filtersOffcanvas')).hide();">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </button>
                 </div>
             </div>
         </div>
@@ -3011,6 +3036,70 @@ function formatDateToISO(date) {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+// Função para sincronizar pedidos (atualizar pedidos existentes)
+async function syncOrders() {
+    const button = document.querySelector('button[onclick="syncOrders()"]');
+    if (!button) return;
+    
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    
+    try {
+        const response = await fetch('/api/orders/sync', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (checkSessionExpired(response)) {
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            const errorMsg = data.error || data.message || `Erro ${response.status}`;
+            if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+                window.MLAPI.showNotification(errorMsg, 'error', 8000);
+            } else if (typeof showToast === 'function') {
+                showToast(errorMsg, 'error');
+            } else {
+                alert(errorMsg);
+            }
+            return;
+        }
+        
+        // Mostrar mensagem de sucesso
+        const successMessage = data.message || 'Sincronização iniciada. Aguarde alguns minutos e atualize a página.';
+        if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+            window.MLAPI.showNotification(successMessage, 'info', 10000);
+        } else if (typeof showToast === 'function') {
+            showToast(successMessage, 'info');
+        } else {
+            alert(successMessage);
+        }
+        
+        // Recarregar pedidos após alguns segundos
+        setTimeout(() => {
+            loadOrders(currentPage);
+        }, 3000);
+        
+    } catch (error) {
+        console.error('Erro ao sincronizar pedidos:', error);
+        const errorMsg = 'Erro ao sincronizar pedidos: ' + error.message;
+        if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+            window.MLAPI.showNotification(errorMsg, 'error', 8000);
+        } else if (typeof showToast === 'function') {
+            showToast(errorMsg, 'error');
+        } else {
+            alert(errorMsg);
+        }
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
 }
 
 // Função para abrir o modal de importação

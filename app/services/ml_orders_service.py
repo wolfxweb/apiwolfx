@@ -338,9 +338,9 @@ class MLOrdersService:
                 logger.info(f"Sincronização - buscando pedidos dos últimos {days_back} dias")
                 orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=days_back)
             else:
-                # Sincronização rápida - apenas os mais recentes (últimos 7 dias)
-                logger.info("Sincronização rápida - buscando pedidos dos últimos 7 dias")
-                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=7)
+                # Sincronização rápida - apenas pedidos do dia (hoje)
+                logger.info("Sincronização rápida - buscando pedidos do dia (hoje)")
+                orders_data = self._fetch_orders_from_api(access_token, account.ml_user_id, limit, days_back=0.1)  # ~2.4 horas para garantir pedidos de hoje
             
             # Se retornou lista vazia, pode ser erro de API ou realmente não há pedidos
             if not orders_data:
