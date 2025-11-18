@@ -800,7 +800,8 @@ class OpenAIAssistantService:
                             # Se não há tool_calls válidos, tratar como mensagem normal
                             if not msg_dict["tool_calls"]:
                                 logger.warning(f"⚠️ Mensagem assistant com tool_calls sem respostas válidas. Tratando como mensagem normal.")
-                                # Restaurar content original
+                                # Remover campo tool_calls vazio e restaurar content original
+                                msg_dict.pop("tool_calls", None)  # Remove o campo completamente
                                 msg_dict["content"] = prev_msg.content
                                 messages_history.append(msg_dict)
                                 i += 1
@@ -904,10 +905,27 @@ class OpenAIAssistantService:
                 self.db.add(user_message)
                 self.db.flush()
             
+            # Validar e limpar mensagens antes de enviar
+            # Remover tool_calls vazios de mensagens assistant
+            cleaned_messages = []
+            for msg in messages_history:
+                if msg.get("role") == "assistant" and "tool_calls" in msg:
+                    if not msg["tool_calls"] or len(msg["tool_calls"]) == 0:
+                        # Remover tool_calls vazio
+                        msg_clean = {k: v for k, v in msg.items() if k != "tool_calls"}
+                        # Se não tem content, adicionar string vazia
+                        if "content" not in msg_clean or msg_clean["content"] is None:
+                            msg_clean["content"] = ""
+                        cleaned_messages.append(msg_clean)
+                    else:
+                        cleaned_messages.append(msg)
+                else:
+                    cleaned_messages.append(msg)
+            
             # Preparar parâmetros para Chat Completions
             chat_params = {
                 "model": db_assistant.model,
-                "messages": messages_history,
+                "messages": cleaned_messages,
             }
             
             # Adicionar limite de tokens (alguns modelos usam max_completion_tokens ao invés de max_tokens)
