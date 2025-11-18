@@ -186,7 +186,7 @@ async def startup_event():
                     print(f"❌ [STARTUP] Falha ao conectar após {max_retries} tentativas")
                     # Se for erro de índice/tabela duplicada, não levantar exceção
                     if not is_duplicate:
-                    raise db_error
+                        raise db_error
                     else:
                         print(f"ℹ️ [STARTUP] Erro de duplicata ignorado, continuando inicialização...")
         
