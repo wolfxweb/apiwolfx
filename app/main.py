@@ -259,6 +259,23 @@ async def startup_event():
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível criar agente 'Analise produto': {e}")
 
+                # 1.06 Adicionar instrução de idioma português ao agente
+                try:
+                    import importlib.util
+                    import os
+                    portuguese_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_18_add_portuguese_instruction_agent.py'
+                    )
+                    if os.path.exists(portuguese_path):
+                        spec_pt = importlib.util.spec_from_file_location("add_portuguese_instruction_agent", portuguese_path)
+                        pt_module = importlib.util.module_from_spec(spec_pt)
+                        spec_pt.loader.exec_module(pt_module)
+                        pt_module.run(db)
+                        print("✅ [STARTUP] Instrução de idioma português adicionada ao agente")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível adicionar instrução de idioma: {e}")
+
                 # 1.1 Garantir índices de performance do chat (threads e mensagens)
                 try:
                     import importlib.util

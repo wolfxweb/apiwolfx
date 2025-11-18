@@ -394,6 +394,13 @@ async function loadConversation(threadId, assistantId) {
             credentials: 'include'
         });
         
+        // Verificar se é erro de autenticação (401)
+        if (response.status === 401) {
+            console.warn('⚠️ Não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
         if (response.ok) {
             const data = await response.json();
             if (data.success) {
@@ -549,6 +556,13 @@ async function sendMessage() {
             })
         });
         
+        // Verificar se é erro de autenticação (401)
+        if (response.status === 401) {
+            console.warn('⚠️ Não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
         const result = await response.json();
         
         if (result.success) {
@@ -603,6 +617,13 @@ async function startNewChat() {
             credentials: 'include'
         });
         
+        // Verificar se é erro de autenticação (401)
+        if (response.status === 401) {
+            console.warn('⚠️ Não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
         if (response.ok) {
             const data = await response.json();
             if (data.success && data.assistants && data.assistants.length > 0) {
@@ -635,7 +656,15 @@ function showChatArea() {
         fetch('/api/openai/assistants/available?active_only=true', {
             credentials: 'include'
         })
-        .then(r => r.json())
+        .then(r => {
+            // Verificar se é erro de autenticação (401)
+            if (r.status === 401) {
+                console.warn('⚠️ Não autenticado, redirecionando para login...');
+                window.location.href = '/auth/login';
+                return Promise.reject('not_authenticated');
+            }
+            return r.json();
+        })
         .then(data => {
             if (data.success && data.assistants) {
                 const assistant = data.assistants.find(a => a.id === currentAssistantId);
@@ -723,6 +752,14 @@ async function tryInitiateWelcome() {
                 thread_id: null
             })
         });
+        
+        // Verificar se é erro de autenticação (401)
+        if (response.status === 401) {
+            console.warn('⚠️ Não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
         if (!response.ok) return;
         const result = await response.json();
         if (result && result.success && result.response) {
@@ -795,6 +832,13 @@ async function deleteConversation(event, threadId) {
             method: 'DELETE',
             credentials: 'include'
         });
+        
+        // Verificar se é erro de autenticação (401)
+        if (response.status === 401) {
+            console.warn('⚠️ Não autenticado, redirecionando para login...');
+            window.location.href = '/auth/login';
+            return;
+        }
         
         if (response.ok) {
             // Se a conversa deletada é a atual, limpar painel

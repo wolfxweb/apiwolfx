@@ -5,6 +5,7 @@ import os
 import json
 import time
 import logging
+import re
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -40,6 +41,25 @@ class OpenAIAssistantService:
                 }
             )
             logger.info("✅ Cliente OpenAI inicializado com sucesso (Assistants API v2)")
+    
+    def _strip_html_tags(self, text: str) -> str:
+        """Remove tags HTML do texto, preservando o conteúdo"""
+        if not text:
+            return ""
+        # Remover tags HTML
+        text = re.sub(r'<[^>]+>', '', text)
+        # Decodificar entidades HTML comuns
+        text = text.replace('&nbsp;', ' ')
+        text = text.replace('&amp;', '&')
+        text = text.replace('&lt;', '<')
+        text = text.replace('&gt;', '>')
+        text = text.replace('&quot;', '"')
+        text = text.replace('&#39;', "'")
+        # Limpar espaços em branco múltiplos
+        text = re.sub(r'\s+', ' ', text)
+        # Limpar quebras de linha múltiplas
+        text = re.sub(r'\n\s*\n', '\n', text)
+        return text.strip()
     
     def _is_reasoning_model(self, model: str) -> bool:
         """Verifica se é um modelo de raciocínio (o1, o3, o4) que não usa temperature"""
@@ -480,51 +500,18 @@ class OpenAIAssistantService:
             messages_history = []
             
             # Adicionar instruções do assistente como mensagem do sistema
-            system_content = db_assistant.instructions
-            
-            # Substituir [[INFO]] pelo JSON do context_data se existir
-            if context_data:
-                if "analysis_json" in context_data:
-                    # Usar o JSON formatado do frontend
-                    info_json = context_data.get("analysis_json", "")
-                    if "[[INFO]]" in system_content:
-                        system_content = system_content.replace("[[INFO]]", info_json)
-                        logger.info("✅ Substituído [[INFO]] nas instruções pelo JSON de análise")
-                else:
-                    # Se não tiver analysis_json, formatar o context_data completo
-                    info_json = json.dumps(context_data, ensure_ascii=False, indent=2)
-                    if "[[INFO]]" in system_content:
-                        system_content = system_content.replace("[[INFO]]", info_json)
-                        logger.info("✅ Substituído [[INFO]] nas instruções pelo context_data completo")
-            
-            # Adicionar memórias ao contexto se habilitado
-            if db_assistant.memory_enabled and db_assistant.memory_data:
-                memory_text = json.dumps(db_assistant.memory_data, ensure_ascii=False)
-                system_content += f"\n\n[CONTEXTO DE MEMÓRIA]\nMemórias compartilhadas: {memory_text}"
-            
+            # IMPORTANTE: Usar APENAS as instruções do banco de dados, sem modificações
+            # Remover tags HTML se presentes (do editor rich text)
+            instructions_clean = self._strip_html_tags(db_assistant.instructions) if db_assistant.instructions else ""
             messages_history.append({
                 "role": "system",
-                "content": system_content
+                "content": instructions_clean
             })
-            
-            # Adicionar contexto adicional se fornecido (apenas se não foi usado para substituir [[INFO]])
-            if context_data and "[[INFO]]" not in db_assistant.instructions:
-                context_text = json.dumps(context_data, ensure_ascii=False)
-                messages_history.append({
-                    "role": "system",
-                    "content": f"[CONTEXTO ADICIONAL]\n{context_text}"
-                })
-            
-            # Processar prompt do usuário: substituir [[USUARIO]] no prompt inicial se existir
-            user_prompt_content = prompt
-            if db_assistant.initial_prompt and "[[USUARIO]]" in db_assistant.initial_prompt:
-                # Substituir a tag [[USUARIO]] pelo texto do usuário
-                user_prompt_content = db_assistant.initial_prompt.replace("[[USUARIO]]", prompt)
             
             # Adicionar prompt do usuário
             messages_history.append({
                 "role": "user",
-                "content": user_prompt_content
+                "content": prompt
             })
             
             # Preparar parâmetros para Chat Completions
@@ -757,45 +744,13 @@ class OpenAIAssistantService:
             ).order_by(OpenAIAssistantMessage.created_at.asc()).all()
             
             # Adicionar instruções do assistente como primeira mensagem do sistema (apenas se não houver histórico)
+            # IMPORTANTE: Usar APENAS as instruções do banco de dados, sem modificações
+            # Remover tags HTML se presentes (do editor rich text)
             if not previous_messages:
-                system_content = db_assistant.instructions
-                
-                # Substituir [[INFO]] pelo JSON do context_data se existir
-                if context_data:
-                    if "analysis_json" in context_data:
-                        # Usar o JSON formatado do frontend
-                        info_json = context_data.get("analysis_json", "")
-                        if "[[INFO]]" in system_content:
-                            system_content = system_content.replace("[[INFO]]", info_json)
-                            logger.info("✅ Substituído [[INFO]] nas instruções pelo JSON de análise")
-                    else:
-                        # Se não tiver analysis_json, formatar o context_data completo
-                        info_json = json.dumps(context_data, ensure_ascii=False, indent=2)
-                        if "[[INFO]]" in system_content:
-                            system_content = system_content.replace("[[INFO]]", info_json)
-                            logger.info("✅ Substituído [[INFO]] nas instruções pelo context_data completo")
-                
-                # Adicionar contexto adicional se fornecido (apenas se não foi usado para substituir [[INFO]])
-                if context_data and "[[INFO]]" not in db_assistant.instructions:
-                    context_text = json.dumps(context_data, ensure_ascii=False)
-                    system_content += f"\n\n[CONTEXTO ADICIONAL]\n{context_text}"
-                
-                # Adicionar memórias ao contexto do sistema se habilitado
-                if db_assistant.memory_enabled:
-                    memory_context = []
-                    if db_assistant.memory_data:
-                        memory_context.append(f"Memórias compartilhadas: {json.dumps(db_assistant.memory_data, ensure_ascii=False)}")
-                    if db_thread.memory_data:
-                        memory_context.append(f"Memórias desta conversa: {json.dumps(db_thread.memory_data, ensure_ascii=False)}")
-                    if memory_context:
-                        memory_text = "\n\n".join(memory_context)
-                        system_content += f"\n\n[CONTEXTO DE MEMÓRIA]\n{memory_text}"
-                
-                # Regras específicas do agente devem ser configuradas nas instruções do próprio agente (DB), não aqui.
-                
+                instructions_clean = self._strip_html_tags(db_assistant.instructions) if db_assistant.instructions else ""
                 messages_history.append({
                     "role": "system",
-                    "content": system_content
+                    "content": instructions_clean
                 })
             
             # Adicionar mensagens anteriores do histórico
@@ -813,18 +768,45 @@ class OpenAIAssistantService:
                     try:
                         content_json = json.loads(prev_msg.content)
                         if isinstance(content_json, dict) and "tool_calls" in content_json:
+                            # Primeiro, contar quantas mensagens 'tool' seguintes existem
+                            tool_messages_count = 0
+                            j = i + 1
+                            while j < len(previous_messages) and previous_messages[j].role == "tool":
+                                tool_messages_count += 1
+                                j += 1
+                            
                             # Reconstruir estrutura com tool_calls
+                            original_tool_calls = content_json["tool_calls"]
                             msg_dict["tool_calls"] = []
-                            for tc in content_json["tool_calls"]:
-                                msg_dict["tool_calls"].append({
-                                    "id": tc.get("id", ""),
-                                    "type": "function",
-                                    "function": {
-                                        "name": tc.get("function", {}).get("name", ""),
-                                        "arguments": tc.get("function", {}).get("arguments", "{}")
-                                    }
-                                })
-                            # Se tem tool_calls, content deve ser None
+                            
+                            # Adicionar apenas tool_calls que têm mensagens 'tool' correspondentes
+                            tool_call_index = 0
+                            for tc in original_tool_calls:
+                                # Se temos mensagens 'tool' suficientes, adicionar este tool_call
+                                if tool_call_index < tool_messages_count:
+                                    msg_dict["tool_calls"].append({
+                                        "id": tc.get("id", ""),
+                                        "type": "function",
+                                        "function": {
+                                            "name": tc.get("function", {}).get("name", ""),
+                                            "arguments": tc.get("function", {}).get("arguments", "{}")
+                                        }
+                                    })
+                                    tool_call_index += 1
+                                else:
+                                    # Tool call sem resposta correspondente - pular
+                                    logger.warning(f"⚠️ Tool call '{tc.get('id', 'unknown')}' sem resposta correspondente. Removendo do histórico.")
+                            
+                            # Se não há tool_calls válidos, tratar como mensagem normal
+                            if not msg_dict["tool_calls"]:
+                                logger.warning(f"⚠️ Mensagem assistant com tool_calls sem respostas válidas. Tratando como mensagem normal.")
+                                # Restaurar content original
+                                msg_dict["content"] = prev_msg.content
+                                messages_history.append(msg_dict)
+                                i += 1
+                                continue
+                            
+                            # Se tem tool_calls válidos, content deve ser None
                             msg_dict["content"] = None
                             messages_history.append(msg_dict)
                             
@@ -832,7 +814,7 @@ class OpenAIAssistantService:
                             # Avançar e adicionar mensagens 'tool' seguintes com tool_call_id
                             i += 1
                             tool_call_index = 0
-                            while i < len(previous_messages) and previous_messages[i].role == "tool":
+                            while i < len(previous_messages) and previous_messages[i].role == "tool" and tool_call_index < len(msg_dict["tool_calls"]):
                                 tool_msg = previous_messages[i]
                                 
                                 # Tentar extrair tool_call_id e name do content (JSON estruturado)
@@ -863,24 +845,30 @@ class OpenAIAssistantService:
                                 if not tool_name and tool_call_index < len(msg_dict["tool_calls"]):
                                     tool_name = msg_dict["tool_calls"][tool_call_index].get("function", {}).get("name")
                                 
-                                # Serializar resultado para content
-                                if tool_result is not None:
-                                    content_str = json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, (dict, list)) else str(tool_result)
+                                # Validar se tool_call_id corresponde a um tool_call válido
+                                if tool_call_id and tool_call_id in [tc.get("id") for tc in msg_dict["tool_calls"]]:
+                                    # Serializar resultado para content
+                                    if tool_result is not None:
+                                        content_str = json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, (dict, list)) else str(tool_result)
+                                    else:
+                                        content_str = tool_msg.content or ""
+                                    
+                                    # Adicionar mensagem tool com estrutura correta
+                                    tool_dict = {
+                                        "role": "tool",
+                                        "content": content_str,
+                                        "tool_call_id": tool_call_id
+                                    }
+                                    if tool_name:
+                                        tool_dict["name"] = tool_name
+                                    
+                                    messages_history.append(tool_dict)
+                                    tool_call_index += 1
                                 else:
-                                    content_str = tool_msg.content or ""
+                                    # Tool message sem tool_call correspondente - pular
+                                    logger.warning(f"⚠️ Mensagem tool sem tool_call correspondente (tool_call_id: {tool_call_id}). Pulando.")
                                 
-                                # Adicionar mensagem tool com estrutura correta
-                                tool_dict = {
-                                    "role": "tool",
-                                    "content": content_str,
-                                    "tool_call_id": tool_call_id or f"call_{i}"  # Fallback se não tiver ID
-                                }
-                                if tool_name:
-                                    tool_dict["name"] = tool_name
-                                
-                                messages_history.append(tool_dict)
                                 i += 1
-                                tool_call_index += 1
                             
                             # Continuar loop sem incrementar i novamente (já foi incrementado)
                             continue
@@ -898,47 +886,15 @@ class OpenAIAssistantService:
                 messages_history.append(msg_dict)
                 i += 1
             
-            # Processar mensagem do usuário e mensagem de boas-vindas configurável
-            kickoff_used = False
-            user_message_content = message
-            welcome_enabled = getattr(db_assistant, "welcome_enabled", False)
-            welcome_use_model = getattr(db_assistant, "welcome_use_model", False)
-            welcome_text_cfg = getattr(db_assistant, "welcome_message", None)
-            if not previous_messages and welcome_enabled:
-                welcome_text = (welcome_text_cfg or "").strip()
-                if welcome_text and welcome_use_model and (not message or not message.strip()):
-                    # Dinâmica: usar welcome_text como kickoff para o modelo (não salvar como role=user no banco)
-                    user_message_content = welcome_text
-                    kickoff_used = True
-                elif welcome_text and not welcome_use_model:
-                    # Fixa: registrar mensagem assistant imediatamente (sem custo)
-                    assistant_welcome = OpenAIAssistantMessage(
-                        thread_id=db_thread.id,
-                        role="assistant",
-                        content=welcome_text
-                    )
-                    self.db.add(assistant_welcome)
-                    self.db.flush()
-                    # Se usuário não enviou nada, podemos retornar apenas a mensagem de boas-vindas
-                    if not message or not message.strip():
-                        db_thread.last_message_at = datetime.utcnow()
-                        db_thread.updated_at = datetime.utcnow()
-                        self.db.commit()
-                        return {
-                            "success": True,
-                            "response": welcome_text,
-                            "thread_id": openai_thread_id,
-                            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-                        }
-            # Substituir [[USUARIO]] no prompt inicial se existir
-            if db_assistant.initial_prompt and "[[USUARIO]]" in db_assistant.initial_prompt:
-                user_message_content = db_assistant.initial_prompt.replace("[[USUARIO]]", user_message_content)
-            # Adicionar mensagem atual do usuário (apenas se não for kickoff sintético)
+            # Adicionar mensagem atual do usuário
+            # IMPORTANTE: Usar APENAS a mensagem do usuário, sem modificações
             messages_history.append({
                 "role": "user",
-                "content": user_message_content
+                "content": message or ""
             })
-            if not kickoff_used:
+            
+            # Salvar mensagem do usuário no banco
+            if message and message.strip():
                 # Salvar mensagem do usuário no banco (original)
                 user_message = OpenAIAssistantMessage(
                     thread_id=db_thread.id,
@@ -2144,9 +2100,11 @@ class OpenAIAssistantService:
             
             # Criar ou atualizar assistente na OpenAI se necessário
             if not openai_assistant_id:
+                # Remover tags HTML das instruções antes de enviar para Assistants API
+                instructions_clean = self._strip_html_tags(db_assistant.instructions) if db_assistant.instructions else ""
                 assistant_params = {
                     "name": db_assistant.name,
-                    "instructions": db_assistant.instructions,
+                    "instructions": instructions_clean,
                     "model": db_assistant.model,
                     "tools": tools
                 }
@@ -2368,9 +2326,11 @@ class OpenAIAssistantService:
             
             # Criar ou atualizar assistente na OpenAI se necessário
             if not openai_assistant_id:
+                # Remover tags HTML das instruções antes de enviar para Assistants API
+                instructions_clean = self._strip_html_tags(db_assistant.instructions) if db_assistant.instructions else ""
                 assistant_params = {
                     "name": db_assistant.name,
-                    "instructions": db_assistant.instructions,
+                    "instructions": instructions_clean,
                     "model": db_assistant.model,
                     "tools": tools
                 }
