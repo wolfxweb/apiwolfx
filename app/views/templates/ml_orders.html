@@ -7,12 +7,9 @@
     <div class="row">
         <div class="col-12 mb-4 d-flex justify-content-between flex-wrap gap-3 align-items-start">
                 <div>
-                <h1 class="h3 mb-1"><i class="bi bi-cart-check"></i> Pedidos Mercado Livre</h1>
+                <h1 class="h3 mb-1"><i class="bi bi-cart-check"></i> Pedidos</h1>
                     <p class="text-muted mb-0">
-                    Acompanhe todos os pedidos importados
-                    <span id="orders-count" class="ms-2 small text-secondary">
-                            <i class="bi bi-info-circle"></i> Carregando...
-                        </span>
+                    <span id="orders-count">Total de <strong>0</strong> pedidos</span>
                     </p>
                 </div>
             <div class="d-flex flex-wrap gap-2">
@@ -1521,7 +1518,7 @@ function renderOrders(orders) {
 function updateOrdersCount(total) {
     const ordersCountElement = document.getElementById('orders-count');
     if (ordersCountElement) {
-        ordersCountElement.innerHTML = `<i class="bi bi-info-circle"></i> ${total} pedido(s) encontrado(s)`;
+        ordersCountElement.innerHTML = `Total de <strong>${total}</strong> pedidos`;
     }
 
     const totalOrdersElement = document.getElementById('total-orders');
