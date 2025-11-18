@@ -42,40 +42,74 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
 
 def get_superadmin_user(request: Request, db: Session = Depends(get_db)) -> dict:
     """Obtém usuário superadmin da sessão"""
-    user = get_current_user(request, db)
-    logger.info(f"✅ Usuário autenticado: {user.get('email')} (role: {user.get('role')})")
-    
-    # Verificar se é superadmin de duas formas:
-    # 1. Se o role do usuário é super_admin
-    # 2. Se existe um registro na tabela SuperAdmin com o mesmo email
     from app.models.saas_models import SuperAdmin
     
-    is_superadmin = False
+    # Primeiro, verificar se há cookie de sessão de superadmin
+    superadmin_session = request.cookies.get("superadmin_session")
+    superadmin_id = request.cookies.get("superadmin_id")
     
-    # Verificar role
-    if user.get("role") == "super_admin":
-        logger.info("✅ Usuário é superadmin por role")
-        is_superadmin = True
-    else:
-        # Verificar se existe SuperAdmin com o mesmo email
-        user_email = user.get("email")
-        if user_email:
+    logger.info(f"🔍 Verificando superadmin - session: {bool(superadmin_session)}, id: {superadmin_id}")
+    logger.info(f"🔍 Todos os cookies: {list(request.cookies.keys())}")
+    
+    if superadmin_session and superadmin_id:
+        # Buscar superadmin diretamente na tabela SuperAdmin
+        try:
             superadmin = db.query(SuperAdmin).filter(
-                SuperAdmin.email == user_email,
+                SuperAdmin.id == int(superadmin_id),
                 SuperAdmin.is_active == True
             ).first()
+            
             if superadmin:
-                logger.info(f"✅ Usuário é superadmin por tabela SuperAdmin: {user_email}")
-                is_superadmin = True
+                logger.info(f"✅ Superadmin autenticado via cookie: {superadmin.email}")
+                # Retornar um dict compatível com o formato esperado
+                return {
+                    "id": superadmin.id,
+                    "email": superadmin.email,
+                    "first_name": superadmin.first_name,
+                    "last_name": superadmin.last_name,
+                    "role": "super_admin",  # Definir role como super_admin
+                    "company_id": None,  # Superadmin não tem company_id
+                    "company": None
+                }
+        except (ValueError, TypeError):
+            pass
+    
+    # Fallback: tentar verificar via sessão normal de usuário
+    try:
+        user = get_current_user(request, db)
+        logger.info(f"✅ Usuário autenticado: {user.get('email')} (role: {user.get('role')})")
         
-        # Não permitir bypass por rota em produção; exige autenticação e papel
+        # Verificar se é superadmin de duas formas:
+        # 1. Se o role do usuário é super_admin
+        # 2. Se existe um registro na tabela SuperAdmin com o mesmo email
+        is_superadmin = False
+        
+        # Verificar role
+        if user.get("role") == "super_admin":
+            logger.info("✅ Usuário é superadmin por role")
+            is_superadmin = True
+        else:
+            # Verificar se existe SuperAdmin com o mesmo email
+            user_email = user.get("email")
+            if user_email:
+                superadmin = db.query(SuperAdmin).filter(
+                    SuperAdmin.email == user_email,
+                    SuperAdmin.is_active == True
+                ).first()
+                if superadmin:
+                    logger.info(f"✅ Usuário é superadmin por tabela SuperAdmin: {user_email}")
+                    is_superadmin = True
+        
+        if is_superadmin:
+            logger.info(f"✅ Acesso permitido para superadmin: {user.get('email')}")
+            return user
+    except HTTPException:
+        # Se não conseguir autenticar via usuário normal, continuar para verificar erro
+        pass
     
-    if not is_superadmin:
-        logger.warning(f"❌ Acesso negado para usuário: {user.get('email')} - Path: {request.url.path}")
-        raise HTTPException(status_code=403, detail="Acesso negado. Apenas superadmins podem acessar.")
-    
-    logger.info(f"✅ Acesso permitido para superadmin: {user.get('email')}")
-    return user
+    # Se chegou aqui, não é superadmin
+    logger.warning(f"❌ Acesso negado - não é superadmin. Path: {request.url.path}")
+    raise HTTPException(status_code=403, detail="Acesso negado. Apenas superadmins podem acessar.")
 
 
 # Modelos Pydantic para validação

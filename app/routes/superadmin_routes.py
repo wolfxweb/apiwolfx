@@ -5,10 +5,15 @@ from fastapi import APIRouter, Request, Form, Depends, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime, timedelta
+import secrets
+import string
 
 from app.config.database import get_db
 from app.controllers.superadmin_controller import SuperAdminController
 from app.views.template_renderer import render_template
+from app.models.saas_models import User, UserSession, Company, UserRole
+from app.config.settings import settings
 
 # Router para superadmin
 superadmin_router = APIRouter()
@@ -41,10 +46,46 @@ async def superadmin_login(
     if not superadmin:
         return render_template("superadmin/login.html", error="Credenciais inválidas")
     
-    # TODO: Criar sessão de superadmin
-    # Por enquanto, vamos redirecionar direto para o dashboard
+    # Criar token de sessão para superadmin
+    def _generate_session_token() -> str:
+        """Gera token de sessão seguro"""
+        return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(64))
+    
+    superadmin_session_token = _generate_session_token()
+    superadmin_id_str = str(superadmin["id"])
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"✅ Login superadmin bem-sucedido: {superadmin.get('username')} (ID: {superadmin_id_str})")
+    
+    # Redirecionar para o dashboard
     response = RedirectResponse(url="/superadmin/dashboard", status_code=302)
-    # TODO: Definir cookie de sessão
+    
+    # Definir cookie de sessão do superadmin (separado do session_token normal)
+    # IMPORTANTE: path="/" para que o cookie seja enviado em todas as rotas
+    response.set_cookie(
+        key="superadmin_session",
+        value=superadmin_session_token,
+        httponly=False,  # Permitir acesso via JavaScript
+        secure=settings.is_production,  # True em produção (HTTPS), False em dev (HTTP)
+        samesite="lax",
+        path="/",  # IMPORTANTE: definir path para "/" para que funcione em todas as rotas
+        max_age=604800  # 7 dias
+    )
+    
+    # Também armazenar o ID do superadmin em um cookie (criptografado seria melhor, mas por enquanto simples)
+    response.set_cookie(
+        key="superadmin_id",
+        value=superadmin_id_str,
+        httponly=False,
+        secure=settings.is_production,
+        samesite="lax",
+        path="/",  # IMPORTANTE: definir path para "/" para que funcione em todas as rotas
+        max_age=604800
+    )
+    
+    logger.info(f"✅ Cookies de superadmin definidos: superadmin_session={bool(superadmin_session_token)}, superadmin_id={superadmin_id_str}")
+    
     return response
 
 @superadmin_router.get("/superadmin/dashboard", response_class=HTMLResponse)

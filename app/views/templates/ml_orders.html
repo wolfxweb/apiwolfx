@@ -1808,7 +1808,15 @@ async function emitInvoiceForOrder(orderId, triggerElement) {
             return;
         }
 
-        showSuccess(data.message || `Nota fiscal do pedido ${orderId} emitida com sucesso.`);
+        // Usar toast notification para mensagem de sucesso
+        const successMessage = data.message || `Nota fiscal do pedido ${orderId} emitida com sucesso.`;
+        if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+            window.MLAPI.showNotification(successMessage, 'success', 8000);
+        } else if (typeof showToast === 'function') {
+            showToast(successMessage, 'success');
+        } else {
+            showSuccess(successMessage);
+        }
         loadOrders(currentPage);
     } catch (error) {
         console.error('Erro ao emitir nota:', error);
@@ -2011,7 +2019,15 @@ async function downloadShippingLabel(orderId, format = 'pdf', triggerElement) {
             window.URL.revokeObjectURL(blobUrl);
         }, 1000);
 
-        showSuccess('Etiqueta gerada com sucesso.');
+        // Usar toast notification para mensagem de sucesso
+        const successMessage = 'Etiqueta gerada com sucesso.';
+        if (window.MLAPI && typeof window.MLAPI.showNotification === 'function') {
+            window.MLAPI.showNotification(successMessage, 'success', 8000);
+        } else if (typeof showToast === 'function') {
+            showToast(successMessage, 'success');
+        } else {
+            showSuccess(successMessage);
+        }
     } catch (error) {
         console.error('Erro ao baixar etiqueta:', error);
         showLabelErrorModal(error.message || 'Erro ao baixar etiqueta.');

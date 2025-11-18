@@ -1102,6 +1102,13 @@ class ShipmentService:
                     release_local = release_date_from_error.astimezone()
                     release_formatted = release_local.strftime("%d/%m/%Y %H:%M")
                     logger.error(f"❌ Erro ao emitir NF via orders (sem fallback): {error_message}")
+                    
+                    # ✅ CORREÇÃO: Não retornar dados técnicos do Mercado Livre
+                    safe_details = {
+                        "error_code": response_orders_data.get("error_code") if isinstance(response_orders_data, dict) else None,
+                        "status": response_orders.status_code
+                    }
+                    
                     return {
                         "success": False,
                         "error": (
@@ -1109,7 +1116,7 @@ class ShipmentService:
                             f"Tente novamente após {release_formatted}."
                         ),
                         "release_date": release_date_from_error.isoformat(),
-                        "details": response_orders_data
+                        "details": safe_details
                     }
                 
                 # Traduzir mensagens comuns do Mercado Livre
@@ -1118,12 +1125,28 @@ class ShipmentService:
                     translated_message = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
                 elif "orders linked to these invoices" in error_message.lower():
                     translated_message = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
+                elif "sku not found" in error_message.lower() or error_code == "10316":
+                    # Erro 10316: SKU não encontrado - geralmente indica falta de dados fiscais
+                    translated_message = "Produto não encontrado ou sem dados fiscais cadastrados no Mercado Livre. Verifique se o produto está ativo e possui dados fiscais (NCM, CEST, SKU) configurados corretamente no anúncio."
+                elif "sku" in error_message.lower() and "not found" in error_message.lower():
+                    translated_message = "Produto não encontrado ou sem dados fiscais cadastrados no Mercado Livre. Verifique se o produto está ativo e possui dados fiscais (NCM, CEST, SKU) configurados corretamente no anúncio."
                 
                 logger.error(f"❌ Erro ao emitir NF via orders (sem fallback): {error_message}")
+                
+                # ✅ CORREÇÃO: Não retornar dados técnicos do Mercado Livre ao usuário
+                # Remover informações sensíveis da resposta
+                safe_details = {}
+                if isinstance(response_orders_data, dict):
+                    # Manter apenas campos seguros para debug (sem dados fiscais)
+                    safe_details = {
+                        "error_code": response_orders_data.get("error_code"),
+                        "status": response_orders.status_code
+                    }
+                
                 return {
                     "success": False,
                     "error": f"Erro ao emitir nota fiscal: {translated_message}",
-                    "details": response_orders_data
+                    "details": safe_details
                 }
 
             logger.info("ℹ️ Emissão via orders falhou; tentando endpoint de shipments como fallback (Fulfillment).")
@@ -1166,15 +1189,29 @@ class ShipmentService:
                     translated_message = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
                 elif "orders linked to these invoices" in error_message.lower():
                     translated_message = "Há pedidos vinculados a estas notas fiscais sendo processados. Aguarde a conclusão do processamento antes de tentar novamente."
+                elif "sku not found" in error_message.lower():
+                    translated_message = "Produto não encontrado ou sem dados fiscais cadastrados no Mercado Livre. Verifique se o produto está ativo e possui dados fiscais (NCM, CEST, SKU) configurados corretamente no anúncio."
+                elif "sku" in error_message.lower() and "not found" in error_message.lower():
+                    translated_message = "Produto não encontrado ou sem dados fiscais cadastrados no Mercado Livre. Verifique se o produto está ativo e possui dados fiscais (NCM, CEST, SKU) configurados corretamente no anúncio."
                 
                 logger.error(
                     f"❌ Erro ao emitir NF via shipments (status {response.status_code}) "
                     f"para pedido {order_id}: {error_message} | response={json.dumps(response_data, default=str)}"
                 )
+                
+                # ✅ CORREÇÃO: Não retornar dados técnicos do Mercado Livre ao usuário
+                safe_details = {}
+                if isinstance(response_data, dict):
+                    # Manter apenas campos seguros para debug (sem dados fiscais)
+                    safe_details = {
+                        "error_code": response_data.get("error_code"),
+                        "status": response.status_code
+                    }
+                
                 return {
                     "success": False,
                     "error": f"Erro ao emitir nota fiscal: {translated_message}",
-                    "details": response_data
+                    "details": safe_details
                 }
 
             logger.info(f"✅ [EMIT] Solicitação de emissão concluída (status HTTP {response.status_code}) - response={response_data}")
