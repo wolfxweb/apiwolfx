@@ -228,7 +228,38 @@ async def get_available_assistants(
 ):
     """Lista agentes disponíveis para uso (qualquer usuário autenticado)"""
     controller = OpenAIAssistantController(db)
-    result = controller.list_assistants(active_only=active_only)
+    try:
+        result = controller.list_assistants(active_only=active_only)
+    except Exception as e:
+        # Fallback para colunas ausentes (welcome_*), tentar migração e repetir
+        msg = str(e)
+        if "welcome_message does not exist" in msg or "welcome_enabled" in msg or "welcome_use_model" in msg:
+            try:
+                import importlib.util, os
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                welcome_path = os.path.join(base_dir, 'database', 'fixes', '2025_11_16_add_welcome_fields_openai_assistants.py')
+                if os.path.exists(welcome_path):
+                    specw = importlib.util.spec_from_file_location("add_welcome_fields_openai_assistants", welcome_path)
+                    welcome_module = importlib.util.module_from_spec(specw)
+                    specw.loader.exec_module(welcome_module)
+                    # Limpar transação e executar
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    welcome_module.run(db)
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    # Tentar novamente
+                    result = controller.list_assistants(active_only=active_only)
+                else:
+                    raise
+            except Exception:
+                raise
+        else:
+            raise
     
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao listar agentes"))

@@ -51,6 +51,18 @@ class OpenAIAssistantController:
                     # Para modelos não-GPT-5, tools_config pode ser uma lista direta
                     tools_config_clean = a.tools_config
                 
+                # Verificar se é modelo de raciocínio (com fallback seguro)
+                is_reasoning = False
+                if hasattr(a, 'is_reasoning_model') and callable(getattr(a, 'is_reasoning_model', None)):
+                    try:
+                        is_reasoning = a.is_reasoning_model()
+                    except:
+                        # Fallback: verificar pelo nome do modelo
+                        is_reasoning = a.model.startswith("o1") or a.model.startswith("o3") or a.model.startswith("o4")
+                else:
+                    # Fallback: verificar pelo nome do modelo
+                    is_reasoning = a.model.startswith("o1") or a.model.startswith("o3") or a.model.startswith("o4")
+                
                 assistants_list.append({
                     "id": a.id,
                     "name": a.name,
@@ -63,21 +75,21 @@ class OpenAIAssistantController:
                     "verbosity": verbosity,
                     "max_tokens": a.max_tokens,
                     "tools_config": tools_config_clean,
-                    "interaction_mode": a.interaction_mode.value,
+                    "interaction_mode": a.interaction_mode.value if hasattr(a.interaction_mode, 'value') else str(a.interaction_mode),
                     "use_case": a.use_case,
-                    "memory_enabled": a.memory_enabled,
-                    "memory_data": a.memory_data,
-                    "initial_prompt": a.initial_prompt,
+                    "memory_enabled": getattr(a, "memory_enabled", None),
+                    "memory_data": getattr(a, "memory_data", None),
+                    "initial_prompt": getattr(a, "initial_prompt", None),
                     "welcome_enabled": getattr(a, "welcome_enabled", None),
                     "welcome_use_model": getattr(a, "welcome_use_model", None),
                     "welcome_message": getattr(a, "welcome_message", None),
                     "is_active": a.is_active,
-                    "total_runs": a.total_runs,
-                    "total_tokens_used": a.total_tokens_used,
+                    "total_runs": getattr(a, "total_runs", 0),
+                    "total_tokens_used": getattr(a, "total_tokens_used", 0),
                     "created_at": a.created_at.isoformat() if a.created_at else None,
                     "updated_at": a.updated_at.isoformat() if a.updated_at else None,
                     "last_used_at": a.last_used_at.isoformat() if a.last_used_at else None,
-                    "is_reasoning_model": a.is_reasoning_model()
+                    "is_reasoning_model": is_reasoning
                 })
             
             return {
