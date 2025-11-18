@@ -1172,19 +1172,19 @@ async def dashboard(request: Request, session_token: str = Cookie(None), db: Ses
     if not session_token:
         return RedirectResponse(url="/auth/login", status_code=302)
     
-        controller = AuthController()
-        result = controller.get_user_by_session(session_token, db)
+    controller = AuthController()
+    result = controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
-            user_data = result.get("user")
+    user_data = result.get("user")
     # Tentar pegar company_id diretamente ou do objeto company
     company_id = user_data.get("company_id") if user_data else None
     if not company_id and user_data and user_data.get("company"):
         company_id = user_data.get("company", {}).get("id")
     
     if not company_id:
-    return render_template("dashboard_simple.html", request=request, user=user_data)
+        return render_template("dashboard_simple.html", request=request, user=user_data)
     
     return render_template("auth_dashboard.html", request=request, user=user_data)
 
