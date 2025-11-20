@@ -10,7 +10,7 @@ from sqlalchemy import func, desc, and_
 from app.services.openai_assistant_service import OpenAIAssistantService
 from app.models.saas_models import (
     OpenAIAssistant, OpenAIAssistantThread, OpenAIAssistantUsage,
-    InteractionMode, UsageStatus
+    InteractionMode, UsageStatus, Company
 )
 
 logger = logging.getLogger(__name__)
@@ -465,6 +465,57 @@ class OpenAIAssistantController:
             }
         except Exception as e:
             logger.error(f"❌ Erro ao obter uso diário: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
+    def get_usage_by_company(
+        self,
+        days: int = 30
+    ) -> Dict:
+        """Obtém uso de tokens agrupado por empresa"""
+        try:
+            query = self.db.query(
+                Company.id,
+                Company.name,
+                func.sum(OpenAIAssistantUsage.prompt_tokens).label('total_prompt_tokens'),
+                func.sum(OpenAIAssistantUsage.completion_tokens).label('total_completion_tokens'),
+                func.sum(OpenAIAssistantUsage.total_tokens).label('total_tokens'),
+                func.count(OpenAIAssistantUsage.id).label('total_requests')
+            ).join(
+                OpenAIAssistantUsage,
+                OpenAIAssistantUsage.company_id == Company.id
+            )
+            
+            # Filtrar por data
+            date_from = datetime.utcnow() - timedelta(days=days)
+            query = query.filter(OpenAIAssistantUsage.created_at >= date_from)
+            
+            # Filtrar apenas requisições completadas
+            query = query.filter(OpenAIAssistantUsage.status == UsageStatus.COMPLETED)
+            
+            query = query.group_by(
+                Company.id,
+                Company.name
+            ).order_by(desc('total_tokens'))
+            
+            results = query.all()
+            
+            return {
+                "success": True,
+                "usage": [
+                    {
+                        "company_id": r.id,
+                        "company_name": r.name,
+                        "total_prompt_tokens": r.total_prompt_tokens or 0,
+                        "total_completion_tokens": r.total_completion_tokens or 0,
+                        "total_tokens": r.total_tokens or 0,
+                        "total_requests": r.total_requests or 0
+                    }
+                    for r in results
+                ],
+                "days": days
+            }
+        except Exception as e:
+            logger.error(f"❌ Erro ao obter uso por empresa: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
     def list_user_threads(

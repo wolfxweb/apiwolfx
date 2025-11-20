@@ -131,20 +131,22 @@
                             <i class="bi bi-people"></i> Usuários
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/superadmin/assistants">
-                            <i class="bi bi-robot"></i> Agentes OpenAI
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-robot"></i> Agentes & Ferramentas
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/superadmin/tools">
-                            <i class="bi bi-wrench-adjustable"></i> Ferramentas
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/superadmin/assistants/usage">
-                            <i class="bi bi-graph-up"></i> Uso de Tokens
-                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/superadmin/assistants">
+                                <i class="bi bi-robot"></i> Agentes OpenAI
+                            </a></li>
+                            <li><a class="dropdown-item" href="/superadmin/tools">
+                                <i class="bi bi-wrench-adjustable"></i> Ferramentas
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/superadmin/assistants/usage">
+                                <i class="bi bi-graph-up"></i> Uso de Tokens
+                            </a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/superadmin/analytics">

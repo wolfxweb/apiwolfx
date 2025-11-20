@@ -269,13 +269,54 @@ async function loadUsageData() {
             }
         }
         
-        // Carregar uso por empresa (precisa implementar endpoint ou calcular aqui)
-        // Por enquanto, vamos deixar vazio
+        // Carregar uso por empresa
+        const byCompanyResponse = await fetch(
+            `/api/openai/assistants/usage/by-company?days=${days}`,
+            { credentials: 'include' }
+        );
+        
+        if (byCompanyResponse.ok) {
+            const byCompanyData = await byCompanyResponse.json();
+            if (byCompanyData.success) {
+                renderUsageByCompany(byCompanyData.usage);
+            }
+        } else {
+            // Se der erro, mostrar mensagem na tabela
+            const tbody = document.getElementById('usageByCompanyTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Erro ao carregar dados</td></tr>';
+        }
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         showNotification('Erro ao carregar dados de uso: ' + error.message, 'error');
     }
+}
+
+// Renderizar uso por empresa
+function renderUsageByCompany(usage) {
+    const tbody = document.getElementById('usageByCompanyTableBody');
+    
+    if (!usage || usage.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum dado encontrado</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = usage.map(item => {
+        const avgTokens = item.total_requests > 0 
+            ? Math.round(item.total_tokens / item.total_requests)
+            : 0;
+        
+        return `
+            <tr>
+                <td><strong>${escapeHtml(item.company_name)}</strong></td>
+                <td>${formatNumber(item.total_prompt_tokens)}</td>
+                <td>${formatNumber(item.total_completion_tokens)}</td>
+                <td><strong>${formatNumber(item.total_tokens)}</strong></td>
+                <td>${formatNumber(item.total_requests)}</td>
+                <td>${formatNumber(avgTokens)}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 // Atualizar estatísticas gerais

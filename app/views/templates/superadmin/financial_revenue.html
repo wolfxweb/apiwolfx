@@ -13,10 +13,10 @@
         <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
     </div>
     <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-3">
-                <label for="filterStatus" class="form-label">Status</label>
-                <select class="form-select" id="filterStatus">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label for="filterStatus" class="form-label small mb-1">Status</label>
+                <select class="form-select form-select-sm" id="filterStatus">
                     <option value="">Todos</option>
                     <option value="CONFIRMED">Confirmado</option>
                     <option value="RECEIVED">Recebido</option>
@@ -26,9 +26,9 @@
                     <option value="CANCELLED">Cancelado</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label for="filterBillingType" class="form-label">Forma de Pagamento</label>
-                <select class="form-select" id="filterBillingType">
+            <div class="col-md-2">
+                <label for="filterBillingType" class="form-label small mb-1">Forma de Pagamento</label>
+                <select class="form-select form-select-sm" id="filterBillingType">
                     <option value="">Todas</option>
                     <option value="PIX">PIX</option>
                     <option value="CREDIT_CARD">Cartão de Crédito</option>
@@ -36,25 +36,25 @@
                     <option value="DEBIT_CARD">Cartão de Débito</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label for="filterCompany" class="form-label">Empresa</label>
-                <select class="form-select" id="filterCompany">
+            <div class="col-md-2">
+                <label for="filterCompany" class="form-label small mb-1">Empresa</label>
+                <select class="form-select form-select-sm" id="filterCompany">
                     <option value="">Todas</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label for="filterDateFrom" class="form-label">Data Inicial</label>
-                <input type="date" class="form-control" id="filterDateFrom">
+            <div class="col-md-2">
+                <label for="filterDateFrom" class="form-label small mb-1">Data Inicial</label>
+                <input type="date" class="form-control form-control-sm" id="filterDateFrom">
             </div>
-            <div class="col-md-3">
-                <label for="filterDateTo" class="form-label">Data Final</label>
-                <input type="date" class="form-control" id="filterDateTo">
+            <div class="col-md-2">
+                <label for="filterDateTo" class="form-label small mb-1">Data Final</label>
+                <input type="date" class="form-control form-control-sm" id="filterDateTo">
             </div>
-            <div class="col-md-12">
-                <button class="btn btn-primary" onclick="applyFilters()">
-                    <i class="bi bi-search"></i> Aplicar Filtros
+            <div class="col-md-2">
+                <button class="btn btn-primary btn-sm w-100" onclick="applyFilters()">
+                    <i class="bi bi-search"></i> Aplicar
                 </button>
-                <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                <button class="btn btn-outline-secondary btn-sm w-100 mt-1" onclick="clearFilters()">
                     <i class="bi bi-x-circle"></i> Limpar
                 </button>
             </div>

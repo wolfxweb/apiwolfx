@@ -667,6 +667,22 @@ async def get_usage_daily(
     return result
 
 
+@openai_assistant_router.get("/usage/by-company")
+async def get_usage_by_company(
+    days: int = Query(30, ge=1, le=365, description="Número de dias"),
+    user: dict = Depends(get_superadmin_user),
+    db: Session = Depends(get_db)
+):
+    """Obtém uso de tokens agrupado por empresa (apenas superadmin)"""
+    controller = OpenAIAssistantController(db)
+    result = controller.get_usage_by_company(days=days)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao obter uso por empresa"))
+    
+    return result
+
+
 # ================== TOOLS CRUD (SuperAdmin) ==================
 
 @tools_router.get("")
