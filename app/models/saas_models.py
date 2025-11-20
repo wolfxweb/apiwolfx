@@ -53,6 +53,10 @@ class Company(Base):
     # Plano e Limites
     plan_expires_at = Column(DateTime)  # Data de vencimento do plano
     
+    # Tokens de IA
+    ai_tokens_monthly = Column(Integer, default=0)  # Tokens mensais do plano (adicionados a cada pagamento mensal)
+    ai_tokens_purchased = Column(Integer, default=0)  # Tokens comprados avulsos
+    
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

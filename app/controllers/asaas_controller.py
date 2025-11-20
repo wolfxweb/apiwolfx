@@ -629,7 +629,7 @@ class AsaasController:
                     # Remover trial_ends_at se existir
                     subscription.trial_ends_at = None
                     
-                    # Atualizar empresa: remover trial e atualizar plan_expires_at
+                    # Atualizar empresa: remover trial, atualizar plan_expires_at e adicionar tokens mensais
                     if subscription.company_id:
                         company = self.db.query(Company).filter(Company.id == subscription.company_id).first()
                         if company:
@@ -644,7 +644,22 @@ class AsaasController:
                             # Remover trial_ends_at
                             company.trial_ends_at = None
                             
-                            logger.info(f"✅ Empresa {company.id} atualizada: status={company.status}, plan_expires_at={company.plan_expires_at}")
+                            # Adicionar tokens mensais do plano
+                            # Buscar o plano para pegar ai_analysis_monthly
+                            from app.models.saas_models import Plan
+                            plan = self.db.query(Plan).filter(Plan.plan_name == subscription.plan_name).first()
+                            
+                            if plan and hasattr(plan, 'ai_analysis_monthly') and plan.ai_analysis_monthly:
+                                tokens_to_add = plan.ai_analysis_monthly
+                                # Adicionar tokens mensais (não substituir, somar)
+                                if not company.ai_tokens_monthly:
+                                    company.ai_tokens_monthly = 0
+                                company.ai_tokens_monthly += tokens_to_add
+                                logger.info(f"✅ Tokens mensais adicionados: +{tokens_to_add} tokens (total: {company.ai_tokens_monthly})")
+                            else:
+                                logger.warning(f"⚠️ Plano '{subscription.plan_name}' não encontrado ou sem ai_analysis_monthly definido")
+                            
+                            logger.info(f"✅ Empresa {company.id} atualizada: status={company.status}, plan_expires_at={company.plan_expires_at}, ai_tokens_monthly={company.ai_tokens_monthly}")
                     
                     logger.info(f"✅ Assinatura {subscription.id} ativada após pagamento confirmado")
                     logger.info(f"   - Status: {subscription.status}")

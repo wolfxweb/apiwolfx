@@ -438,6 +438,20 @@ async def update_subscription_from_payment(
             company_obj.plan_expires_at = next_due
             company_obj.trial_ends_at = None
             company_obj.updated_at = datetime.now()
+            
+            # Adicionar tokens mensais do plano
+            from app.models.saas_models import Plan
+            plan = db.query(Plan).filter(Plan.plan_name == subscription.get("plan_name")).first()
+            
+            if plan and hasattr(plan, 'ai_analysis_monthly') and plan.ai_analysis_monthly:
+                tokens_to_add = plan.ai_analysis_monthly
+                # Adicionar tokens mensais (não substituir, somar)
+                if not company_obj.ai_tokens_monthly:
+                    company_obj.ai_tokens_monthly = 0
+                company_obj.ai_tokens_monthly += tokens_to_add
+                logger.info(f"✅ Tokens mensais adicionados: +{tokens_to_add} tokens (total: {company_obj.ai_tokens_monthly})")
+            else:
+                logger.warning(f"⚠️ Plano '{subscription.get('plan_name')}' não encontrado ou sem ai_analysis_monthly definido")
         
         db.commit()
         

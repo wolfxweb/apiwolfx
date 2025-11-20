@@ -125,6 +125,7 @@ docker-compose.override.yml
 .env.local
 .env.development
 .env.production
+portainer.env
 
 # Database
 *.sqlite3

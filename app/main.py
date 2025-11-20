@@ -276,6 +276,29 @@ async def startup_event():
                     traceback.print_exc()
                     # Continuar mesmo com erro, pois pode ser que as colunas já existam
                 
+                # 0.1. Adicionar campos de tokens de IA na tabela companies
+                print("📋 [STARTUP] Executando migration: Adicionar campos de tokens de IA...")
+                try:
+                    import importlib.util
+                    import os
+                    tokens_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_20_add_ai_tokens_to_companies.py'
+                    )
+                    if os.path.exists(tokens_path):
+                        spec_tokens = importlib.util.spec_from_file_location("add_ai_tokens_to_companies", tokens_path)
+                        tokens_module = importlib.util.module_from_spec(spec_tokens)
+                        spec_tokens.loader.exec_module(tokens_module)
+                        tokens_module.add_ai_tokens_to_companies()
+                        print("✅ [STARTUP] Migration de tokens de IA concluída")
+                    else:
+                        print(f"⚠️ [STARTUP] Arquivo de migration não encontrado: {tokens_path}")
+                except Exception as e:
+                    print(f"❌ [STARTUP] Erro ao executar migration de tokens de IA: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Continuar mesmo com erro, pois pode ser que as colunas já existam
+                
                 # 1. Criar tabelas OpenAI Assistants (se não existirem)
                 print("📋 [STARTUP] Verificando tabelas OpenAI Assistants...")
                 try:
