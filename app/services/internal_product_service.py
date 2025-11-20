@@ -607,6 +607,102 @@ class InternalProductService:
             logger.error(f"Erro ao buscar dados de preços por SKUs: {str(e)}")
             return {"error": f"Erro interno: {str(e)}"}
     
+    def get_ml_announcements_by_internal_product(self, internal_product_id: int, company_id: int) -> Dict[str, Any]:
+        """
+        Busca anúncios ML associados a um produto interno através da tabela SKUManagement
+        
+        Args:
+            internal_product_id: ID do produto interno
+            company_id: ID da empresa
+            
+        Returns:
+            Dict com lista de anúncios ML associados
+        """
+        try:
+            from app.models.saas_models import SKUManagement, MLProduct, MLAccount
+            
+            # Verificar se o produto interno pertence à empresa
+            internal_product = self.db.query(InternalProduct).filter(
+                and_(
+                    InternalProduct.id == internal_product_id,
+                    InternalProduct.company_id == company_id
+                )
+            ).first()
+            
+            if not internal_product:
+                return {
+                    "success": False,
+                    "error": "Produto interno não encontrado"
+                }
+            
+            # Buscar associações na tabela SKUManagement
+            sku_managements = self.db.query(SKUManagement).filter(
+                and_(
+                    SKUManagement.internal_product_id == internal_product_id,
+                    SKUManagement.company_id == company_id,
+                    SKUManagement.status == "active"
+                )
+            ).all()
+            
+            if not sku_managements:
+                return {
+                    "success": True,
+                    "announcements": [],
+                    "count": 0
+                }
+            
+            # Coletar ml_item_ids (platform_item_id) da tabela SKUManagement
+            # O product_id referencia products.id, não ml_products.id, então usamos platform_item_id
+            ml_item_ids = [sm.platform_item_id for sm in sku_managements if sm.platform_item_id]
+            
+            announcements = []
+            
+            # Buscar produtos ML pelos ml_item_ids (platform_item_id)
+            if ml_item_ids:
+                ml_products = self.db.query(MLProduct).filter(
+                    and_(
+                        MLProduct.ml_item_id.in_(ml_item_ids),
+                        MLProduct.company_id == company_id
+                    )
+                ).all()
+                
+                for ml_product in ml_products:
+                    ml_account = self.db.query(MLAccount).filter(
+                        MLAccount.id == ml_product.ml_account_id
+                    ).first()
+                    
+                    announcements.append({
+                        "id": ml_product.id,
+                        "ml_item_id": ml_product.ml_item_id,
+                        "title": ml_product.title,
+                        "available_quantity": ml_product.available_quantity or 0,
+                        "sold_quantity": ml_product.sold_quantity or 0,
+                        "price": float(ml_product.price) if ml_product.price else 0.0,
+                        "status": ml_product.status.value if ml_product.status else "unknown",
+                        "permalink": ml_product.permalink,
+                        "thumbnail": ml_product.thumbnail,
+                        "ml_account_id": ml_product.ml_account_id,
+                        "ml_account_nickname": ml_account.nickname if ml_account else None,
+                        "seller_sku": ml_product.seller_sku
+                    })
+            
+            return {
+                "success": True,
+                "announcements": announcements,
+                "count": len(announcements),
+                "internal_product_id": internal_product_id,
+                "internal_sku": internal_product.internal_sku
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar anúncios ML: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+    
     def update_internal_product_from_ml(
         self,
         company_id: int,

@@ -491,6 +491,7 @@ class MLOrdersService:
                     date_to = datetime.combine(date_to_obj.date(), datetime.max.time())
                 except Exception as e:
                     logger.warning(f"Erro ao parsear datas fornecidas: {e}. Usando days_back como fallback.")
+                    # Se houve erro no parse, usar days_back como fallback
                     date_to = datetime.utcnow()
                     date_from = (date_to.date() - timedelta(days=days_back or 7))
                     date_from = datetime.combine(date_from, datetime.min.time())

@@ -75,6 +75,7 @@
                         <th>Produto</th>
                         <th>Preço Custo</th>
                         <th>Preço Venda</th>
+                        <th>Anúncios</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -514,7 +515,7 @@ function showLoadingSpinner() {
     const tbody = document.getElementById('productsTableBody');
     tbody.innerHTML = `
         <tr>
-            <td colspan="4" class="text-center py-5">
+            <td colspan="5" class="text-center py-5">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Carregando...</span>
                 </div>
@@ -666,6 +667,14 @@ function renderProducts(products, total = null) {
                     </span>
                 </td>
                 <td>
+                    ${product.announcements_count > 0 ? 
+                        `<button class="btn btn-sm btn-outline-info" onclick="toggleAnnouncements(${product.id})" title="Ver anúncios">
+                            <i class="bi bi-bullhorn"></i> ${product.announcements_count}
+                        </button>` :
+                        `<span class="text-muted"><i class="bi bi-bullhorn"></i> 0</span>`
+                    }
+                </td>
+                <td>
                     <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-primary" onclick="editProduct(${product.id})" title="Editar">
                             <i class="bi bi-pencil"></i>
@@ -673,6 +682,26 @@ function renderProducts(products, total = null) {
                         <button class="btn btn-outline-danger" onclick="deleteProduct(${product.id})" title="Excluir">
                             <i class="bi bi-trash"></i>
                         </button>
+                    </div>
+                </td>
+            </tr>
+            <tr id="announcements-row-${product.id}" style="display: none;">
+                <td colspan="5" class="bg-light">
+                    <div class="p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="bi bi-bullhorn"></i> Anúncios Associados</h6>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAnnouncements(${product.id})">
+                                <i class="bi bi-x"></i> Fechar
+                            </button>
+                        </div>
+                        <div id="announcements-content-${product.id}">
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Carregando anúncios...</p>
+                            </div>
+                        </div>
                     </div>
                 </td>
             </tr>
@@ -1355,6 +1384,153 @@ async function deleteProduct(productId) {
         console.error('Erro ao excluir produto:', error);
         showAlert('Erro ao excluir produto', 'danger');
     }
+}
+
+// Função para expandir/colapsar anúncios
+let announcementsCache = {}; // Cache para armazenar anúncios já carregados
+
+async function toggleAnnouncements(productId) {
+    const row = document.getElementById(`announcements-row-${productId}`);
+    const content = document.getElementById(`announcements-content-${productId}`);
+    
+    if (row.style.display === 'none' || row.style.display === '') {
+        // Expandir
+        row.style.display = 'table-row';
+        
+        // Se já tem cache, usar cache
+        if (announcementsCache[productId]) {
+            renderAnnouncementsTable(productId, announcementsCache[productId]);
+        } else {
+            // Carregar anúncios
+            await loadAnnouncements(productId);
+        }
+    } else {
+        // Colapsar
+        row.style.display = 'none';
+    }
+}
+
+async function loadAnnouncements(productId) {
+    const content = document.getElementById(`announcements-content-${productId}`);
+    
+    try {
+        const sessionToken = getSessionToken();
+        if (!sessionToken) {
+            content.innerHTML = '<div class="alert alert-warning">Sessão expirada. Por favor, faça login novamente.</div>';
+            return;
+        }
+        
+                const response = await fetch(`/api/internal-products/${productId}/announcements`, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.status === 401 || response.status === 302) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            announcementsCache[productId] = data.announcements;
+            renderAnnouncementsTable(productId, data.announcements);
+        } else {
+            content.innerHTML = `<div class="alert alert-danger">Erro ao carregar anúncios: ${data.error || 'Erro desconhecido'}</div>`;
+        }
+    } catch (error) {
+        console.error('Erro ao carregar anúncios:', error);
+        content.innerHTML = '<div class="alert alert-danger">Erro ao carregar anúncios. Tente novamente.</div>';
+    }
+}
+
+function renderAnnouncementsTable(productId, announcements) {
+    const content = document.getElementById(`announcements-content-${productId}`);
+    
+    if (!announcements || announcements.length === 0) {
+        content.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum anúncio associado a este produto.</div>';
+        return;
+    }
+    
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Imagem</th>
+                        <th>Título</th>
+                        <th>Estoque</th>
+                        <th>Preço</th>
+                        <th>Status</th>
+                        <th>Conta ML</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    announcements.forEach(announcement => {
+        const statusClass = announcement.status === 'active' ? 'success' : 
+                           announcement.status === 'paused' ? 'warning' : 
+                           announcement.status === 'closed' ? 'secondary' : 'danger';
+        const statusLabel = announcement.status === 'active' ? 'Ativo' : 
+                          announcement.status === 'paused' ? 'Pausado' : 
+                          announcement.status === 'closed' ? 'Fechado' : 'Inativo';
+        
+        html += `
+            <tr>
+                <td>
+                    ${announcement.thumbnail ? 
+                        `<img src="${announcement.thumbnail}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;" alt="Anúncio">` :
+                        `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="bi bi-image text-muted"></i>
+                        </div>`
+                    }
+                </td>
+                <td>
+                    <div class="fw-medium">${announcement.title.length > 60 ? announcement.title.substring(0, 60) + '...' : announcement.title}</div>
+                    <small class="text-muted">ID: ${announcement.ml_item_id}</small>
+                </td>
+                <td>
+                    <span class="badge bg-${announcement.available_quantity > 0 ? 'success' : 'danger'}">
+                        ${announcement.available_quantity}
+                    </span>
+                </td>
+                <td>
+                    <span class="fw-bold text-success">
+                        R$ ${parseFloat(announcement.price).toFixed(2).replace('.', ',')}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge bg-${statusClass}">${statusLabel}</span>
+                </td>
+                <td>
+                    <small class="text-muted">${announcement.ml_account_nickname || 'N/A'}</small>
+                </td>
+                <td>
+                    ${announcement.permalink ? 
+                        `<a href="${announcement.permalink}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver no Mercado Livre">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>` :
+                        '<span class="text-muted">-</span>'
+                    }
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <small class="text-muted">Total: ${announcements.length} anúncio(s)</small>
+        </div>
+    `;
+    
+    content.innerHTML = html;
 }
 
 // Funções auxiliares

@@ -412,3 +412,38 @@ async def bulk_update_internal_products(
     except Exception as e:
         logger.error(f"Erro ao atualizar produtos em massa: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+
+@internal_product_router.get("/{product_id}/announcements")
+async def get_product_announcements(
+    product_id: int,
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """
+    Busca anúncios ML associados a um produto interno através da tabela SKUManagement
+    """
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    try:
+        # Obter usuário atual
+        current_user = get_current_user(session_token)
+        company_id = current_user["company_id"]
+        
+        logger.info(f"🔍 Buscando anúncios para produto interno {product_id} (company_id={company_id})")
+        
+        from app.services.internal_product_service import InternalProductService
+        service = InternalProductService(db)
+        result = service.get_ml_announcements_by_internal_product(product_id, company_id)
+        
+        if not result.get("success"):
+            raise HTTPException(status_code=404, detail=result.get("error", "Erro ao buscar anúncios"))
+        
+        return JSONResponse(content=result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar anúncios do produto: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
