@@ -256,21 +256,41 @@ async def startup_event():
                 # 0. PRIMEIRO: Adicionar colunas Asaas na tabela subscriptions (CRÍTICO - deve ser antes de qualquer query)
                 print("📋 [STARTUP] Executando migration: Adicionar colunas Asaas...")
                 try:
-                    import importlib.util
-                    import os
-                    asaas_path = os.path.join(
-                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                        'database', 'fixes', '2025_11_19_add_asaas_columns_to_subscriptions.py'
-                    )
-                    if os.path.exists(asaas_path):
-                        spec_asaas = importlib.util.spec_from_file_location("add_asaas_columns_to_subscriptions", asaas_path)
-                        asaas_module = importlib.util.module_from_spec(spec_asaas)
-                        spec_asaas.loader.exec_module(asaas_module)
-                        asaas_module.add_asaas_columns_to_subscriptions()
-                        print("✅ [STARTUP] Migration Asaas concluída")
-                    else:
-                        print(f"⚠️ [STARTUP] Arquivo de migration não encontrado: {asaas_path}")
+                    # Verificar se as colunas já existem
+                    check_query = text("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'subscriptions' 
+                        AND column_name IN ('asaas_subscription_id', 'asaas_customer_id', 'payment_provider', 'next_charge_date')
+                    """)
+                    existing_columns = [row[0] for row in db.execute(check_query).fetchall()]
+                    
+                    if 'asaas_subscription_id' not in existing_columns:
+                        db.execute(text("ALTER TABLE subscriptions ADD COLUMN asaas_subscription_id VARCHAR(100)"))
+                        print("✅ Coluna asaas_subscription_id adicionada")
+                    
+                    if 'asaas_customer_id' not in existing_columns:
+                        db.execute(text("ALTER TABLE subscriptions ADD COLUMN asaas_customer_id VARCHAR(100)"))
+                        print("✅ Coluna asaas_customer_id adicionada")
+                    
+                    if 'payment_provider' not in existing_columns:
+                        db.execute(text("ALTER TABLE subscriptions ADD COLUMN payment_provider VARCHAR(20) DEFAULT 'asaas'"))
+                        print("✅ Coluna payment_provider adicionada")
+                    
+                    if 'next_charge_date' not in existing_columns:
+                        db.execute(text("ALTER TABLE subscriptions ADD COLUMN next_charge_date TIMESTAMP"))
+                        print("✅ Coluna next_charge_date adicionada")
+                    
+                    # Criar índices
+                    try:
+                        db.execute(text("CREATE INDEX IF NOT EXISTS idx_subscriptions_asaas_subscription_id ON subscriptions(asaas_subscription_id)"))
+                    except Exception:
+                        pass  # Índice pode já existir
+                    
+                    db.commit()
+                    print("✅ [STARTUP] Migration Asaas concluída")
                 except Exception as e:
+                    db.rollback()
                     print(f"❌ [STARTUP] Erro ao executar migration Asaas: {e}")
                     import traceback
                     traceback.print_exc()
@@ -279,21 +299,34 @@ async def startup_event():
                 # 0.1. Adicionar campos de tokens de IA na tabela companies
                 print("📋 [STARTUP] Executando migration: Adicionar campos de tokens de IA...")
                 try:
-                    import importlib.util
-                    import os
-                    tokens_path = os.path.join(
-                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                        'database', 'fixes', '2025_11_20_add_ai_tokens_to_companies.py'
-                    )
-                    if os.path.exists(tokens_path):
-                        spec_tokens = importlib.util.spec_from_file_location("add_ai_tokens_to_companies", tokens_path)
-                        tokens_module = importlib.util.module_from_spec(spec_tokens)
-                        spec_tokens.loader.exec_module(tokens_module)
-                        tokens_module.add_ai_tokens_to_companies()
-                        print("✅ [STARTUP] Migration de tokens de IA concluída")
-                    else:
-                        print(f"⚠️ [STARTUP] Arquivo de migration não encontrado: {tokens_path}")
+                    # Verificar se as colunas já existem
+                    check_query = text("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'companies' 
+                        AND column_name IN ('ai_tokens_monthly', 'ai_tokens_purchased')
+                    """)
+                    existing_columns = [row[0] for row in db.execute(check_query).fetchall()]
+                    
+                    if 'ai_tokens_monthly' not in existing_columns:
+                        db.execute(text("ALTER TABLE companies ADD COLUMN ai_tokens_monthly INTEGER DEFAULT 0"))
+                        print("✅ Coluna ai_tokens_monthly adicionada")
+                    
+                    if 'ai_tokens_purchased' not in existing_columns:
+                        db.execute(text("ALTER TABLE companies ADD COLUMN ai_tokens_purchased INTEGER DEFAULT 0"))
+                        print("✅ Coluna ai_tokens_purchased adicionada")
+                    
+                    # Criar índices
+                    try:
+                        db.execute(text("CREATE INDEX IF NOT EXISTS idx_companies_ai_tokens_monthly ON companies(ai_tokens_monthly)"))
+                        db.execute(text("CREATE INDEX IF NOT EXISTS idx_companies_ai_tokens_purchased ON companies(ai_tokens_purchased)"))
+                    except Exception:
+                        pass  # Índices podem já existir
+                    
+                    db.commit()
+                    print("✅ [STARTUP] Migration de tokens de IA concluída")
                 except Exception as e:
+                    db.rollback()
                     print(f"❌ [STARTUP] Erro ao executar migration de tokens de IA: {e}")
                     import traceback
                     traceback.print_exc()
