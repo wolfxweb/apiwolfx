@@ -338,11 +338,27 @@ async def update_subscription_from_payment(
             if plan_name_lower and plan_name_lower in payment_description_lower:
                 is_related_by_description = True
                 logger.info(f"✅ Pagamento relacionado ao plano via descrição: '{plan_name_clean}' encontrado em '{payment_description_clean}'")
+            
+            # VALIDAÇÃO ADICIONAL: Se a descrição contém "Primeiro pagamento" e temos uma assinatura pendente/trial,
+            # considerar como relacionado (é o pagamento inicial que criamos)
+            if not is_related_by_description and ("primeiro pagamento" in payment_description_lower or "first payment" in payment_description_lower):
+                # Verificar se o externalReference do pagamento corresponde à empresa
+                payment_external_ref = payment.get("externalReference", "")
+                if payment_external_ref and f"company_{user['company_id']}" in payment_external_ref:
+                    is_related_by_description = True
+                    logger.info(f"✅ Pagamento relacionado ao plano via 'Primeiro pagamento' e externalReference: {payment_external_ref}")
         
-        # TERCEIRA VALIDAÇÃO: Se o pagamento não tem subscription_id, mas temos asaas_subscription_id,
+        # TERCEIRA VALIDAÇÃO: Verificar externalReference do pagamento
+        is_related_by_external_ref = False
+        payment_external_ref = payment.get("externalReference", "")
+        if payment_external_ref and f"company_{user['company_id']}" in payment_external_ref:
+            is_related_by_external_ref = True
+            logger.info(f"✅ Pagamento relacionado ao plano via externalReference: {payment_external_ref}")
+        
+        # QUARTA VALIDAÇÃO: Se o pagamento não tem subscription_id, mas temos asaas_subscription_id,
         # buscar pagamentos da assinatura para verificar se este pagamento pertence a ela
         is_related_by_subscription_payments = False
-        if not is_related_by_subscription and not is_related_by_description and asaas_subscription_id:
+        if not is_related_by_subscription and not is_related_by_description and not is_related_by_external_ref and asaas_subscription_id:
             try:
                 subscription_payments = asaas_service.get_subscription_payments(asaas_subscription_id)
                 payment_id_from_asaas = payment.get("id")
@@ -356,7 +372,7 @@ async def update_subscription_from_payment(
                 logger.warning(f"⚠️ Erro ao buscar pagamentos da assinatura para validação: {e}")
         
         # Considerar relacionado se passar em qualquer uma das validações
-        is_related_to_plan = is_related_by_subscription or is_related_by_description or is_related_by_subscription_payments
+        is_related_to_plan = is_related_by_subscription or is_related_by_description or is_related_by_external_ref or is_related_by_subscription_payments
         
         if not is_related_to_plan:
             logger.warning(f"⚠️ Pagamento não relacionado ao plano:")
@@ -364,10 +380,13 @@ async def update_subscription_from_payment(
             logger.warning(f"   - Plan subscription_id: {asaas_subscription_id}")
             logger.warning(f"   - Payment description: '{payment_description}'")
             logger.warning(f"   - Plan name: '{plan_name}'")
-            return {
-                "success": False,
-                "message": "Este pagamento não está relacionado ao plano. Apenas pagamentos do plano podem atualizar o cadastro."
-            }
+            logger.warning(f"   - Payment externalReference: '{payment.get('externalReference', 'N/A')}'")
+            logger.warning(f"   - Company ID: {user['company_id']}")
+            logger.warning(f"   - Validações: subscription={is_related_by_subscription}, description={is_related_by_description}, external_ref={is_related_by_external_ref}, payments_list={is_related_by_subscription_payments}")
+            raise HTTPException(
+                status_code=400,
+                detail="Este pagamento não está relacionado ao plano. Apenas pagamentos do plano podem atualizar o cadastro."
+            )
         
         # Buscar a próxima parcela pendente da assinatura no Asaas
         next_due = None
@@ -440,18 +459,17 @@ async def update_subscription_from_payment(
             company_obj.updated_at = datetime.now()
             
             # Adicionar tokens mensais do plano
-            from app.models.saas_models import Plan
-            plan = db.query(Plan).filter(Plan.plan_name == subscription.get("plan_name")).first()
-            
-            if plan and hasattr(plan, 'ai_analysis_monthly') and plan.ai_analysis_monthly:
-                tokens_to_add = plan.ai_analysis_monthly
+            # Os dados do plano estão na própria subscription (ai_analysis_monthly)
+            subscription_ai_tokens = subscription.get("ai_analysis_monthly")
+            if subscription_ai_tokens:
+                tokens_to_add = subscription_ai_tokens
                 # Adicionar tokens mensais (não substituir, somar)
                 if not company_obj.ai_tokens_monthly:
                     company_obj.ai_tokens_monthly = 0
                 company_obj.ai_tokens_monthly += tokens_to_add
                 logger.info(f"✅ Tokens mensais adicionados: +{tokens_to_add} tokens (total: {company_obj.ai_tokens_monthly})")
             else:
-                logger.warning(f"⚠️ Plano '{subscription.get('plan_name')}' não encontrado ou sem ai_analysis_monthly definido")
+                logger.warning(f"⚠️ Assinatura '{subscription.get('plan_name')}' não tem ai_analysis_monthly definido")
         
         db.commit()
         
@@ -464,17 +482,19 @@ async def update_subscription_from_payment(
             "next_due_date": next_due.strftime("%d/%m/%Y")
         }
         
+    except HTTPException:
+        # Re-raise HTTPException para manter o status code correto
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"❌ Erro ao atualizar cadastro: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"Erro ao atualizar cadastro: {str(e)}")
 
 
 @router.post("/webhooks")
 async def receive_asaas_webhook(
-    notification: Dict[str, Any],
     request: Request,
     db: Session = Depends(get_db)
 ):
@@ -486,9 +506,37 @@ async def receive_asaas_webhook(
     - PAYMENT_RECEIVED: Pagamento recebido
     - PAYMENT_OVERDUE: Pagamento vencido
     - PAYMENT_REFUNDED: Pagamento estornado
+    - PAYMENT_CHECKOUT_VIEWED: Checkout visualizado
     """
     try:
-        from app.services.asaas_service import asaas_service
+        import json
+        
+        # Ler o corpo da requisição como bytes primeiro
+        body = await request.body()
+        logger.info(f"📥 Webhook recebido - Tamanho: {len(body)} bytes")
+        logger.info(f"📥 Headers: {dict(request.headers)}")
+        
+        # Tentar parsear como JSON
+        try:
+            if body:
+                notification = json.loads(body.decode('utf-8'))
+            else:
+                # Se não tiver body, tentar pegar do request.json()
+                notification = await request.json()
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Erro ao parsear JSON do webhook: {e}")
+            logger.error(f"❌ Body recebido (primeiros 500 chars): {body[:500] if body else 'VAZIO'}")
+            raise HTTPException(status_code=400, detail=f"JSON inválido: {str(e)}")
+        except Exception as e:
+            logger.error(f"❌ Erro ao ler body do webhook: {e}")
+            raise HTTPException(status_code=400, detail=f"Erro ao ler requisição: {str(e)}")
+        
+        logger.info(f"📨 Webhook parseado: {json.dumps(notification, indent=2, default=str)[:500]}")
+        
+        # Validar que tem pelo menos um campo básico
+        if not isinstance(notification, dict):
+            logger.error(f"❌ Webhook não é um dicionário: {type(notification)}")
+            raise HTTPException(status_code=400, detail="Webhook deve ser um objeto JSON")
         
         # Validar webhook (se necessário)
         # signature = request.headers.get("asaas-signature")
@@ -498,12 +546,19 @@ async def receive_asaas_webhook(
         controller = AsaasController(db)
         result = controller.process_webhook_notification(notification)
         
-        logger.info(f"✅ Webhook Asaas processado: {notification.get('event')}")
+        event = notification.get('event', 'UNKNOWN')
+        logger.info(f"✅ Webhook Asaas processado com sucesso: {event}")
+        
         return result
         
+    except HTTPException:
+        # Re-raise HTTPException para manter o status code correto
+        raise
     except Exception as e:
         logger.error(f"❌ Erro ao processar webhook do Asaas: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=400, detail=f"Erro ao processar webhook: {str(e)}")
 
 
 @router.post("/subscriptions/cancel", response_model=Dict[str, Any])

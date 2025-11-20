@@ -503,13 +503,26 @@ class AsaasService:
             Dict com dados processados
         """
         try:
+            # Validar que é um dicionário
+            if not isinstance(notification_data, dict):
+                logger.error(f"❌ notification_data não é um dicionário: {type(notification_data)}")
+                raise ValueError(f"notification_data deve ser um dicionário, recebido: {type(notification_data)}")
+            
             event = notification_data.get("event")
-            payment_data = notification_data.get("payment", {})
+            payment_data = notification_data.get("payment", {}) or {}
+            
+            # Se payment_data não for um dicionário, tentar extrair de outra forma
+            if not isinstance(payment_data, dict):
+                logger.warning(f"⚠️ payment_data não é um dicionário: {type(payment_data)}, tentando extrair...")
+                payment_data = {}
             
             logger.info(f"📨 Webhook Asaas recebido: {event}")
             
             # O Asaas pode enviar subscription diretamente no webhook
-            subscription_data = notification_data.get("subscription", {})
+            subscription_data = notification_data.get("subscription", {}) or {}
+            if not isinstance(subscription_data, dict):
+                subscription_data = {}
+            
             subscription_id = subscription_data.get("id") or payment_data.get("subscription")
             
             return {
@@ -524,6 +537,8 @@ class AsaasService:
             }
         except Exception as e:
             logger.error(f"❌ Erro ao processar webhook do Asaas: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             raise e
 
 

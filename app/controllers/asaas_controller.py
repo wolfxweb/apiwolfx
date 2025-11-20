@@ -543,6 +543,11 @@ class AsaasController:
             Dict com resultado do processamento
         """
         try:
+            # Validar que notification_data é um dicionário
+            if not isinstance(notification_data, dict):
+                logger.error(f"❌ notification_data não é um dicionário: {type(notification_data)}")
+                raise ValueError(f"notification_data deve ser um dicionário, recebido: {type(notification_data)}")
+            
             logger.info(f"📨 Webhook Asaas recebido: {json.dumps(notification_data, indent=2, default=str)}")
             
             processed = self.asaas_service.process_webhook_notification(notification_data)
@@ -602,6 +607,24 @@ class AsaasController:
                     logger.info(f"✅ Assinatura pendente encontrada (mais recente): {subscription.id}")
             
             if subscription:
+                # IMPORTANTE: Verificar status do pagamento diretamente no Asaas
+                # Isso garante que mesmo se o webhook não for PAYMENT_CONFIRMED,
+                # mas o pagamento já estiver confirmado, vamos processar corretamente
+                payment_status_checked = False
+                if payment_id:
+                    try:
+                        payment_info = self.asaas_service._make_request("GET", f"/payments/{payment_id}")
+                        payment_status_from_api = payment_info.get("status", "").upper()
+                        logger.info(f"🔍 Status do pagamento {payment_id} no Asaas: {payment_status_from_api}")
+                        
+                        # Se o pagamento está confirmado/recebido no Asaas, tratar como confirmado
+                        if payment_status_from_api in ["CONFIRMED", "RECEIVED"]:
+                            logger.info(f"✅ Pagamento {payment_id} está CONFIRMED/RECEIVED no Asaas, processando como confirmado")
+                            event = "PAYMENT_CONFIRMED"  # Forçar evento como confirmado
+                            payment_status_checked = True
+                    except Exception as e:
+                        logger.warning(f"⚠️ Erro ao verificar status do pagamento {payment_id} no Asaas: {e}")
+                
                 # Atualizar status baseado no evento
                 if event == "PAYMENT_CONFIRMED" or event == "PAYMENT_RECEIVED":
                     subscription.status = "active"
@@ -645,19 +668,16 @@ class AsaasController:
                             company.trial_ends_at = None
                             
                             # Adicionar tokens mensais do plano
-                            # Buscar o plano para pegar ai_analysis_monthly
-                            from app.models.saas_models import Plan
-                            plan = self.db.query(Plan).filter(Plan.plan_name == subscription.plan_name).first()
-                            
-                            if plan and hasattr(plan, 'ai_analysis_monthly') and plan.ai_analysis_monthly:
-                                tokens_to_add = plan.ai_analysis_monthly
+                            # Os dados do plano estão na própria subscription (ai_analysis_monthly)
+                            if subscription.ai_analysis_monthly:
+                                tokens_to_add = subscription.ai_analysis_monthly
                                 # Adicionar tokens mensais (não substituir, somar)
                                 if not company.ai_tokens_monthly:
                                     company.ai_tokens_monthly = 0
                                 company.ai_tokens_monthly += tokens_to_add
                                 logger.info(f"✅ Tokens mensais adicionados: +{tokens_to_add} tokens (total: {company.ai_tokens_monthly})")
                             else:
-                                logger.warning(f"⚠️ Plano '{subscription.plan_name}' não encontrado ou sem ai_analysis_monthly definido")
+                                logger.warning(f"⚠️ Assinatura '{subscription.plan_name}' não tem ai_analysis_monthly definido")
                             
                             logger.info(f"✅ Empresa {company.id} atualizada: status={company.status}, plan_expires_at={company.plan_expires_at}, ai_tokens_monthly={company.ai_tokens_monthly}")
                     
@@ -668,8 +688,15 @@ class AsaasController:
                     logger.info(f"   - next_charge_date: {subscription.next_charge_date}")
                 elif event == "PAYMENT_OVERDUE":
                     subscription.status = "overdue"
+                    logger.info(f"⚠️ Assinatura {subscription.id} marcada como overdue")
                 elif event == "PAYMENT_REFUNDED":
                     subscription.status = "refunded"
+                    logger.info(f"⚠️ Assinatura {subscription.id} marcada como refunded")
+                elif event == "PAYMENT_CHECKOUT_VIEWED":
+                    # Apenas logar, não alterar status (já está pendente)
+                    logger.info(f"ℹ️ Checkout visualizado para assinatura {subscription.id}, pagamento ainda pendente")
+                else:
+                    logger.info(f"ℹ️ Evento '{event}' recebido para assinatura {subscription.id}, sem ação específica")
                 
                 subscription.updated_at = datetime.now()
                 self.db.commit()
