@@ -46,6 +46,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app.services.auto_sync_service import AutoSyncService
 from app.services.catalog_monitoring_service import CatalogMonitoringService
 from app.services.asaas_sync_service import AsaasSyncService
+from app.services.ml_cash_batch_service import MLCashBatchService
 from app.config.database import SessionLocal
 import atexit
 import logging
@@ -192,6 +193,38 @@ scheduler.add_job(
     trigger=CronTrigger(hour=3, minute=0),  # Todos os dias às 3h
     id='asaas_daily_sync',
     name='Sincronização diária com Asaas (3h)',
+    replace_existing=True
+)
+
+def run_ml_cash_batch_processing():
+    """JOB: Processamento de lançamentos ML Cash para todas as empresas - Todos os dias às 2h da manhã"""
+    try:
+        print("💰 [ML CASH BATCH] Iniciando processamento de lançamentos ML Cash para todas as empresas...")
+        batch_service = MLCashBatchService()
+        result = batch_service.process_all_companies()
+        
+        if result.get("success"):
+            stats = result
+            print(f"✅ [ML CASH BATCH] Concluído:")
+            print(f"   - Empresas processadas: {stats.get('companies_processed', 0)}")
+            print(f"   - Empresas puladas (sem conta): {stats.get('companies_skipped', 0)}")
+            print(f"   - Lançamentos criados: {stats.get('total_processed', 0)}")
+            print(f"   - Valor total: R$ {stats.get('total_amount', 0.0):.2f}")
+            if stats.get('companies_with_errors', 0) > 0:
+                print(f"   ⚠️ Empresas com erro: {stats.get('companies_with_errors', 0)}")
+        else:
+            print(f"❌ [ML CASH BATCH] Falhou: {result.get('error', 'Erro desconhecido')}")
+    except Exception as e:
+        print(f"❌ Erro no processamento em lote de ML Cash: {e}")
+        import traceback
+        traceback.print_exc()
+
+# JOB 5: Processamento de lançamentos ML Cash para todas as empresas - Todos os dias às 2h da manhã
+scheduler.add_job(
+    func=run_ml_cash_batch_processing,
+    trigger=CronTrigger(hour=2, minute=0),  # Todos os dias às 2h da manhã
+    id='ml_cash_batch_processing',
+    name='Processamento de lançamentos ML Cash (2h)',
     replace_existing=True
 )
 
