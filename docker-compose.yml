@@ -26,9 +26,12 @@ services:
       - MP_PUBLIC_KEY=${MP_PUBLIC_KEY}
       - MP_WEBHOOK_SECRET=${MP_WEBHOOK_SECRET}
       # Asaas Configuration
-      # IMPORTANTE: A chave começa com $, então precisa ser passada diretamente
-      # Escapar o $ com $$ para que o Docker Compose não tente interpretar como variável
-      - ASAAS_API_KEY=$$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjVkY2JiZjEzLTgwZmUtNGNjMS1hYTBkLTBmMTg5NTc2YTQzNTo6JGFhY2hfNzYxZjQ1OWUtNzExNi00M2EzLWIwZGItODNhOTZmN2U5YWJl
+      # IMPORTANTE: 
+      # - Para desenvolvimento: use ASAAS_API_KEY_SANDBOX (chave de sandbox)
+      # - Para produção: use ASAAS_API_KEY (chave de produção)
+      # No .env, use $$ para escapar o $ (ex: ASAAS_API_KEY_SANDBOX=$$aact_hmlg_...)
+      - ASAAS_API_KEY=${ASAAS_API_KEY:-}
+      - ASAAS_API_KEY_SANDBOX=${ASAAS_API_KEY_SANDBOX:-}
       - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN:-}
       - ASAAS_WEBHOOK_URL=${ASAAS_WEBHOOK_URL:-https://c92202f25e8e.ngrok-free.app/api/asaas/webhooks}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}

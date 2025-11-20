@@ -111,18 +111,27 @@ class Settings:
         )
         
         # Asaas Configuration
-        self.asaas_api_key = os.getenv("ASAAS_API_KEY", "")
+        # IMPORTANTE: Usar chave de sandbox para desenvolvimento e produção para produção
+        if self.is_production:
+            # Produção: usa ASAAS_API_KEY (chave de produção)
+            self.asaas_api_key = os.getenv("ASAAS_API_KEY", "")
+        else:
+            # Desenvolvimento: usa ASAAS_API_KEY_SANDBOX se disponível, senão ASAAS_API_KEY
+            # Isso permite usar chave de sandbox em desenvolvimento
+            self.asaas_api_key = os.getenv("ASAAS_API_KEY_SANDBOX") or os.getenv("ASAAS_API_KEY", "")
+        
         self.asaas_webhook_token = os.getenv("ASAAS_WEBHOOK_TOKEN", "")
         self.asaas_webhook_url = os.getenv(
             "ASAAS_WEBHOOK_URL",
             f"{default_base_url}/api/asaas/webhooks"
         )
         
-        # Validar credenciais Asaas (apenas em produção)
-        if self.is_production and not self.asaas_api_key:
+        # Validar credenciais Asaas
+        if not self.asaas_api_key:
             import logging
+            env_name = "ASAAS_API_KEY" if self.is_production else "ASAAS_API_KEY_SANDBOX (ou ASAAS_API_KEY)"
             logging.warning(
-                "⚠️ AVISO: ASAAS_API_KEY deve ser definido para produção! "
+                f"⚠️ AVISO: {env_name} deve ser definido! "
                 f"ASAAS_API_KEY: {'✅' if self.asaas_api_key else '❌ FALTANDO'}"
             )
 

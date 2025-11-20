@@ -39,9 +39,12 @@ services:
       - MP_FAILURE_URL=https://celx.com.br/payment/failure
       - MP_PENDING_URL=https://celx.com.br/payment/pending
       
-      # Asaas API
+      # Asaas API (Pagamentos Recorrentes)
+      # API Key de produção: https://www.asaas.com → Configurações → Integrações → API
       - ASAAS_API_KEY=${ASAAS_API_KEY}
+      # Token do Webhook (opcional, fornecido pelo Asaas)
       - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN}
+      # URL do Webhook - Configure no painel Asaas: Configurações → Webhooks
       - ASAAS_WEBHOOK_URL=https://celx.com.br/api/asaas/webhooks
       
       # Application
@@ -56,7 +59,7 @@ services:
       - ALLOWED_HOSTS=celx.com.br,www.celx.com.br
       
       # OpenAI API
-      - OPENAI_API_KEY=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
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       
     networks:
       - server

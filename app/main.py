@@ -48,6 +48,29 @@ from app.services.catalog_monitoring_service import CatalogMonitoringService
 from app.services.asaas_sync_service import AsaasSyncService
 from app.config.database import SessionLocal
 import atexit
+import logging
+import sys
+
+# Configurar logging para aparecer no stdout/stderr (capturado pelo Docker)
+# Verificar se já foi configurado antes de configurar novamente
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    # Se não tem handlers, configurar basicConfig
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+else:
+    # Se já tem handlers, apenas adiciona stdout handler se não existir
+    has_stdout = any(
+        isinstance(h, logging.StreamHandler) and getattr(h, 'stream', None) == sys.stdout
+        for h in root_logger.handlers
+    )
+    if not has_stdout:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        root_logger.addHandler(handler)
 
 # Inicializar FastAPI
 app = FastAPI(

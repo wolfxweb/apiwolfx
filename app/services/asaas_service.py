@@ -4,6 +4,7 @@ Implementa assinaturas recorrentes e gerenciamento de pagamentos
 """
 import requests
 import logging
+import json
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from app.config.settings import settings
@@ -17,20 +18,37 @@ class AsaasService:
     def __init__(self):
         self.api_key = settings.asaas_api_key
         
-        # Log para debug
-        if not self.api_key:
-            logger.error("❌ ERRO CRÍTICO: ASAAS_API_KEY não está configurada!")
-            logger.error(f"   Verifique se a variável está definida no .env ou docker-compose.yml")
-        else:
-            logger.info(f"✅ ASAAS_API_KEY configurada: {self.api_key[:30]}...")
-        
         # Asaas usa sandbox.asaas.com para testes
         if settings.is_production:
             self.base_url = "https://api.asaas.com/v3"
+            expected_key_prefix = "aact_prod_"
         else:
             self.base_url = "https://sandbox.asaas.com/api/v3"
+            expected_key_prefix = "aact_hmlg_"
         
         self.sandbox = not settings.is_production
+        
+        # Log para debug e validação
+        if not self.api_key:
+            logger.error("❌ ERRO CRÍTICO: ASAAS_API_KEY não está configurada!")
+            if not settings.is_production:
+                logger.error("   Para desenvolvimento, use ASAAS_API_KEY_SANDBOX (chave de sandbox)")
+                logger.error("   Obtenha em: https://sandbox.asaas.com -> Minha Conta -> Integrações")
+            else:
+                logger.error("   Para produção, use ASAAS_API_KEY (chave de produção)")
+        else:
+            # Validar se a chave corresponde ao ambiente
+            if not settings.is_production and not self.api_key.startswith("$aact_hmlg_"):
+                logger.warning(f"⚠️ ATENÇÃO: Você está usando chave de PRODUÇÃO em ambiente de DESENVOLVIMENTO!")
+                logger.warning(f"   Chave detectada: {self.api_key[:30]}...")
+                logger.warning(f"   Ambiente: DESENVOLVIMENTO (sandbox)")
+                logger.warning(f"   Esperado: chave de SANDBOX (começa com 'aact_hmlg_')")
+                logger.warning(f"   Configure ASAAS_API_KEY_SANDBOX no .env para desenvolvimento")
+            elif settings.is_production and not self.api_key.startswith("$aact_prod_"):
+                logger.warning(f"⚠️ ATENÇÃO: Você está usando chave de SANDBOX em ambiente de PRODUÇÃO!")
+                logger.warning(f"   Configure ASAAS_API_KEY no .env para produção")
+            else:
+                logger.info(f"✅ ASAAS_API_KEY configurada corretamente: {self.api_key[:30]}...")
         
         # Headers padrão para requisições
         # Asaas usa "access_token" no header, não "Authorization"
@@ -272,9 +290,108 @@ class AsaasService:
                 logger.warning(f"⚠️ Invoice URL não encontrada na resposta do pagamento")
                 logger.warning(f"⚠️ Chaves disponíveis: {list(result.keys()) if isinstance(result, dict) else 'N/A'}")
             
+            # Se for PIX, logar resposta completa e tentar buscar QR Code
+            if payment_data.get("billingType") == "PIX" and payment_id:
+                logger.info(f"🔍 Pagamento PIX criado - Verificando QR Code...")
+                logger.info(f"📋 Resposta completa do pagamento PIX: {json.dumps(result, indent=2, default=str)}")
+                
+                # Verificar se já tem QR Code na resposta inicial
+                pix_qr_code_initial = result.get("pixQrCode") or result.get("pixQrCodeBase64")
+                pix_copia_cola_initial = result.get("pixCopiaECola")
+                
+                if pix_qr_code_initial:
+                    logger.info(f"✅ QR Code PIX encontrado na resposta inicial!")
+                    result["pixQrCode"] = pix_qr_code_initial
+                    result["pixCopiaECola"] = pix_copia_cola_initial
+                else:
+                    logger.warning(f"⚠️ QR Code PIX não encontrado na resposta inicial, tentando buscar detalhes...")
+            
+            # Se for PIX, buscar QR Code usando o endpoint específico da documentação
+            # Documentação: https://docs.asaas.com/docs/pix
+            # Endpoint: GET /v3/payments/{id}/pixQrCode
+            if payment_data.get("billingType") == "PIX" and payment_id and not result.get("pixQrCode"):
+                try:
+                    import time
+                    # Aguardar um pouco para o QR Code ser gerado (conforme documentação)
+                    time.sleep(2)
+                    
+                    # Usar o endpoint específico para obter QR Code PIX
+                    logger.info(f"🔍 Buscando QR Code PIX usando endpoint específico: /payments/{payment_id}/pixQrCode")
+                    pix_qr_code_data = self.get_pix_qr_code(payment_id)
+                    
+                    if pix_qr_code_data:
+                        # Segundo a documentação, o endpoint retorna:
+                        # - payload: Código Pix Copia e Cola
+                        # - qrCodeBase64: Imagem do QR Code em Base64
+                        # - expirationDate: Data de expiração
+                        payload = pix_qr_code_data.get("payload") or pix_qr_code_data.get("pixCopiaECola")
+                        qr_code_base64 = pix_qr_code_data.get("qrCodeBase64") or pix_qr_code_data.get("pixQrCodeBase64")
+                        expiration_date = pix_qr_code_data.get("expirationDate")
+                        
+                        if payload or qr_code_base64:
+                            result["pixQrCode"] = qr_code_base64
+                            result["pixCopiaECola"] = payload
+                            result["pixExpirationDate"] = expiration_date
+                            logger.info(f"✅ QR Code PIX obtido com sucesso!")
+                            logger.info(f"   Payload (Copia e Cola): {payload[:50] if payload else 'N/A'}...")
+                            logger.info(f"   Expiração: {expiration_date or 'N/A'}")
+                        else:
+                            logger.warning(f"⚠️ QR Code PIX não encontrado na resposta do endpoint")
+                            logger.warning(f"📋 Resposta completa: {json.dumps(pix_qr_code_data, indent=2, default=str)}")
+                    else:
+                        logger.warning(f"⚠️ Resposta vazia ao buscar QR Code PIX")
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao buscar QR Code PIX: {e}")
+                    logger.warning(f"⚠️ O QR Code estará disponível na invoiceUrl: {invoice_url}")
+                    import traceback
+                    logger.warning(traceback.format_exc())
+            
             return result
         except Exception as e:
             logger.error(f"❌ Erro ao criar pagamento no Asaas: {e}")
+            raise e
+    
+    def get_payment(self, payment_id: str) -> Dict[str, Any]:
+        """
+        Busca detalhes de um pagamento no Asaas
+        
+        Args:
+            payment_id: ID do pagamento no Asaas
+        
+        Returns:
+            Dict com dados do pagamento
+        """
+        try:
+            endpoint = f"/payments/{payment_id}"
+            result = self._make_request("GET", endpoint)
+            logger.info(f"✅ Detalhes do pagamento {payment_id} obtidos")
+            return result
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar pagamento {payment_id}: {e}")
+            raise e
+    
+    def get_pix_qr_code(self, payment_id: str) -> Dict[str, Any]:
+        """
+        Busca o QR Code PIX de um pagamento no Asaas
+        Segundo a documentação: https://docs.asaas.com/docs/pix
+        Endpoint: GET /v3/payments/{id}/pixQrCode
+        
+        Args:
+            payment_id: ID do pagamento no Asaas
+        
+        Returns:
+            Dict com dados do QR Code PIX:
+            - payload: Código Pix Copia e Cola
+            - qrCodeBase64: Imagem do QR Code em Base64
+            - expirationDate: Data de expiração do QR Code
+        """
+        try:
+            endpoint = f"/payments/{payment_id}/pixQrCode"
+            result = self._make_request("GET", endpoint)
+            logger.info(f"✅ QR Code PIX obtido para pagamento {payment_id}")
+            return result
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar QR Code PIX do pagamento {payment_id}: {e}")
             raise e
     
     def get_subscription_payments(self, subscription_id: str) -> List[Dict[str, Any]]:
