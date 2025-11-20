@@ -104,9 +104,12 @@ async def register(
     first_name: str = Form(...),
     last_name: str = Form(...),
     email: str = Form(...),
+    cpf_cnpj: str = Form(...),
     password: str = Form(...),
     confirm_password: str = Form(...),
     plan_id: int = Form(None),
+    payment_method: str = Form("PIX"),
+    installments: int = Form(1),
     terms: bool = Form(False),
     newsletter: bool = Form(False),
     db: Session = Depends(get_db)
@@ -129,8 +132,11 @@ async def register(
         first_name=first_name,
         last_name=last_name,
         email=email,
+        cpf_cnpj=cpf_cnpj,
         password=password,
         plan_id=plan_id,
+        payment_method=payment_method,
+        installments=installments,
         terms=terms,
         newsletter=newsletter,
         db=db
@@ -139,8 +145,37 @@ async def register(
     if result.get("error"):
         return auth_controller.get_register_page(error=result["error"])
     
+    # Se houver URL de checkout do Asaas, redirecionar para lá
+    # Caso contrário, redirecionar para o dashboard
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Log completo do resultado recebido
+    logger.info(f"📥 RESULTADO DO REGISTRO RECEBIDO:")
+    logger.info(f"   - success: {result.get('success')}")
+    logger.info(f"   - checkout_url: {result.get('checkout_url', 'NÃO DISPONÍVEL')}")
+    logger.info(f"   - invoice_url: {result.get('invoice_url', 'NÃO DISPONÍVEL')}")
+    logger.info(f"   - Todas as chaves: {list(result.keys())}")
+    
+    # Tentar obter checkout_url de múltiplas fontes
+    checkout_url = (
+        result.get("checkout_url") or 
+        result.get("invoice_url") or
+        result.get("invoiceUrl") or
+        result.get("invoiceURL")
+    )
+    
+    redirect_url = checkout_url or "/dashboard"
+    
+    if checkout_url:
+        logger.info(f"🔄 Redirecionando para checkout do Asaas: {redirect_url}")
+    else:
+        logger.error(f"❌ ERRO: Nenhuma URL de checkout encontrada! Redirecionando para dashboard")
+        logger.error(f"❌ Isso significa que o usuário não será redirecionado para pagamento!")
+        logger.error(f"❌ Chaves disponíveis no resultado: {list(result.keys())}")
+    
     # Criar resposta de redirecionamento
-    response = RedirectResponse(url="/dashboard", status_code=302)
+    response = RedirectResponse(url=redirect_url, status_code=302)
     
     # Definir cookie de sessão (secure=True em produção HTTPS)
     response.set_cookie(
@@ -153,6 +188,38 @@ async def register(
     )
     
     return response
+
+@auth_router.get("/payment-success", response_class=HTMLResponse)
+async def payment_success_page(
+    request: Request,
+    payment_id: str = None,
+    subscription_id: str = None,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Página de sucesso após pagamento confirmado pelo Asaas
+    Redireciona para o dashboard após alguns segundos
+    """
+    from app.views.template_renderer import render_template
+    
+    # Verificar se há sessão válida
+    if session_token:
+        auth_controller = AuthController()
+        result = auth_controller.validate_session(session_token)
+        if result.get("valid"):
+            # Redirecionar para dashboard após 3 segundos
+            return render_template(
+                "payment_success.html",
+                {
+                    "user": result["user"],
+                    "redirect_url": "/dashboard",
+                    "redirect_delay": 3
+                }
+            )
+    
+    # Se não houver sessão, redirecionar para login
+    return RedirectResponse(url="/auth/login?success=Pagamento confirmado. Faça login para acessar.", status_code=302)
 
 @auth_router.get("/logout")
 async def logout(

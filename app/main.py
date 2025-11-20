@@ -24,6 +24,7 @@ from app.routes.sales_analysis_routes import router as sales_analysis_router
 from app.routes.catalog_monitoring_routes import router as catalog_monitoring_router
 from app.routes.superadmin_routes import superadmin_router
 from app.routes.payment_routes import router as payment_router
+from app.routes.asaas_routes import router as asaas_router
 from app.routes.financial_routes import financial_router
 from app.routes.fornecedores_routes import fornecedores_router
 from app.routes.ordem_compra_routes import ordem_compra_router
@@ -198,6 +199,29 @@ async def startup_event():
             
             db = SessionLocal()
             try:
+                # 0. PRIMEIRO: Adicionar colunas Asaas na tabela subscriptions (CRÍTICO - deve ser antes de qualquer query)
+                print("📋 [STARTUP] Executando migration: Adicionar colunas Asaas...")
+                try:
+                    import importlib.util
+                    import os
+                    asaas_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_19_add_asaas_columns_to_subscriptions.py'
+                    )
+                    if os.path.exists(asaas_path):
+                        spec_asaas = importlib.util.spec_from_file_location("add_asaas_columns_to_subscriptions", asaas_path)
+                        asaas_module = importlib.util.module_from_spec(spec_asaas)
+                        spec_asaas.loader.exec_module(asaas_module)
+                        asaas_module.add_asaas_columns_to_subscriptions()
+                        print("✅ [STARTUP] Migration Asaas concluída")
+                    else:
+                        print(f"⚠️ [STARTUP] Arquivo de migration não encontrado: {asaas_path}")
+                except Exception as e:
+                    print(f"❌ [STARTUP] Erro ao executar migration Asaas: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Continuar mesmo com erro, pois pode ser que as colunas já existam
+                
                 # 1. Criar tabelas OpenAI Assistants (se não existirem)
                 print("📋 [STARTUP] Verificando tabelas OpenAI Assistants...")
                 try:
@@ -477,6 +501,7 @@ app.include_router(sales_analysis_router)  # Para /api/sales/analysis
 app.include_router(catalog_monitoring_router)  # Para /api/catalog-monitoring
 app.include_router(superadmin_router)  # Para /superadmin
 app.include_router(payment_router)  # Para /api/payments
+app.include_router(asaas_router)  # Para /api/asaas
 app.include_router(financial_router)  # Para /financial e /api/financial
 app.include_router(fornecedores_router)  # Para /fornecedores e /api/fornecedores
 app.include_router(ordem_compra_router)  # Para /ordem-compra e /api/ordem-compra

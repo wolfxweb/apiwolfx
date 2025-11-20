@@ -240,7 +240,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadUserPayments() {
     try {
-        const response = await fetch('/api/payments/my-payments');
+        const response = await fetch('/api/asaas/payments/my-payments', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         document.getElementById('payments-loading').style.display = 'none';
@@ -263,14 +270,14 @@ function displayPaymentsTable(payments) {
     
     let html = `
         <div class="table-responsive">
-            <table class="table table-sm">
+            <table class="table table-hover table-sm">
                 <thead class="table-light">
                     <tr>
                         <th>Data</th>
-                        <th>Plano</th>
+                        <th>Descrição</th>
                         <th>Valor</th>
                         <th>Status</th>
-                        <th>Método</th>
+                        <th>Forma de Pagamento</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -278,21 +285,26 @@ function displayPaymentsTable(payments) {
     `;
     
     payments.forEach(payment => {
-        const date = new Date(payment.created_at).toLocaleDateString('pt-BR');
+        const date = payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('pt-BR') : 
+                     payment.created_at ? new Date(payment.created_at).toLocaleDateString('pt-BR') : 'N/A';
         const statusClass = getStatusClass(payment.status);
         const statusIcon = getStatusIcon(payment.status);
+        const value = payment.value ? parseFloat(payment.value).toFixed(2) : '0.00';
+        const billingType = getBillingTypeLabel(payment.billingType);
         
         html += `
             <tr>
                 <td>${date}</td>
-                <td><span class="badge bg-secondary">${payment.plan_name || payment.description}</span></td>
-                <td><strong>R$ ${payment.amount.toFixed(2)}</strong></td>
-                <td><span class="badge bg-${statusClass}">${statusIcon} ${payment.status.toUpperCase()}</span></td>
-                <td><small class="text-muted">${payment.payment_method || 'N/A'}</small></td>
+                <td><small>${payment.description || 'Pagamento de assinatura'}</small></td>
+                <td><strong>R$ ${value}</strong></td>
+                <td><span class="badge bg-${statusClass}">${statusIcon} ${getStatusLabel(payment.status)}</span></td>
+                <td><small class="text-muted">${billingType}</small></td>
                 <td>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="viewPaymentDetails('${payment.mp_payment_id || payment.id}')">
-                        <i class="bi bi-eye"></i>
-                    </button>
+                    ${payment.invoiceUrl ? `
+                        <a href="${payment.invoiceUrl}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver boleto/recibo">
+                            <i class="bi bi-receipt"></i>
+                        </a>
+                    ` : '<span class="text-muted">-</span>'}
                 </td>
             </tr>
         `;
@@ -308,27 +320,54 @@ function displayPaymentsTable(payments) {
     container.style.display = 'block';
 }
 
+function getBillingTypeLabel(billingType) {
+    const labels = {
+        'PIX': 'PIX',
+        'CREDIT_CARD': 'Cartão de Crédito',
+        'BOLETO': 'Boleto',
+        'DEBIT_CARD': 'Cartão de Débito',
+        'CREDIT_CARD_ONE_TIME': 'Cartão (À vista)',
+        'CREDIT_CARD_INSTALLMENTS': 'Cartão (Parcelado)'
+    };
+    return labels[billingType] || billingType || 'N/A';
+}
+
+function getStatusLabel(status) {
+    const labels = {
+        'confirmed': 'Confirmado',
+        'received': 'Recebido',
+        'pending': 'Pendente',
+        'overdue': 'Vencido',
+        'refunded': 'Estornado',
+        'cancelled': 'Cancelado'
+    };
+    return labels[status] || status.toUpperCase();
+}
+
 function getStatusClass(status) {
     switch(status) {
-        case 'approved': return 'success';
+        case 'confirmed':
+        case 'received': return 'success';
         case 'pending': return 'warning';
-        case 'rejected': case 'cancelled': return 'danger';
+        case 'overdue': return 'danger';
+        case 'refunded':
+        case 'cancelled': return 'secondary';
         default: return 'secondary';
     }
 }
 
 function getStatusIcon(status) {
     switch(status) {
-        case 'approved': return '<i class="bi bi-check-circle"></i>';
+        case 'confirmed':
+        case 'received': return '<i class="bi bi-check-circle"></i>';
         case 'pending': return '<i class="bi bi-clock"></i>';
-        case 'rejected': case 'cancelled': return '<i class="bi bi-x-circle"></i>';
+        case 'overdue': return '<i class="bi bi-exclamation-triangle"></i>';
+        case 'refunded': return '<i class="bi bi-arrow-counterclockwise"></i>';
+        case 'cancelled': return '<i class="bi bi-x-circle"></i>';
         default: return '<i class="bi bi-question-circle"></i>';
     }
 }
 
-function viewPaymentDetails(paymentId) {
-    alert(`Detalhes do pagamento ${paymentId}\n\nEm desenvolvimento - será implementado em breve!`);
-}
 
 function toggleMLOrdersReceivables(switchElement) {
     const isChecked = switchElement.checked;

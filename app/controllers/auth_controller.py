@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import secrets
 import string
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +126,9 @@ class AuthController:
             return {"error": f"Erro interno: {str(e)}"}
     
     def register(self, company_name: str, company_domain: str, company_description: str,
-                first_name: str, last_name: str, email: str, password: str, 
-                plan_id: int = None, terms: bool = False, newsletter: bool = False, db: Session = None) -> dict:
+                first_name: str = None, last_name: str = None, email: str = None, password: str = None, 
+                cpf_cnpj: str = None, plan_id: int = None, payment_method: str = "PIX", installments: int = 1,
+                terms: bool = False, newsletter: bool = False, db: Session = None) -> dict:
         """Processa cadastro de novo usuário e empresa"""
         try:
             # Verificar se email já existe
@@ -166,8 +168,20 @@ class AuthController:
                     trial_days = plan_template.trial_days if hasattr(plan_template, 'trial_days') else 0
                     is_trial = trial_days > 0
             
-            # Criar empresa com status ACTIVE e trial_ends_at baseado no plano
-            company_status = "ACTIVE"
+            # Validar e limpar CPF/CNPJ (remover caracteres não numéricos)
+            cpf_cnpj_clean = None
+            if cpf_cnpj:
+                cpf_cnpj_clean = ''.join(filter(str.isdigit, cpf_cnpj))
+                if len(cpf_cnpj_clean) not in [11, 14]:
+                    return {"error": "CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos"}
+            
+            # O campo cnpj da empresa pode armazenar tanto CNPJ quanto CPF
+            document_to_save = cpf_cnpj_clean
+            
+            # IMPORTANTE: Criar empresa com status TRIAL até pagamento ser confirmado
+            # O status só será alterado para ACTIVE após confirmação de pagamento via webhook
+            from app.models.saas_models import CompanyStatus
+            company_status = CompanyStatus.TRIAL  # Manter TRIAL até pagamento confirmado
             trial_ends_at = datetime.utcnow() + timedelta(days=trial_days) if trial_days > 0 else None
             
             company = Company(
@@ -175,7 +189,8 @@ class AuthController:
                 slug=company_slug,
                 description=company_description or "",
                 domain=company_domain if company_domain else None,
-                status=company_status,
+                cnpj=document_to_save,  # Salvar CNPJ da empresa ou CPF do usuário
+                status=company_status,  # TRIAL até pagamento confirmado
                 features={"api_access": True, "analytics": True, "reports": True},
                 trial_ends_at=trial_ends_at
             )
@@ -198,29 +213,85 @@ class AuthController:
             db.add(user)
             db.flush()  # Para obter o ID
             
-            # Criar assinatura do plano selecionado
+            # IMPORTANTE: Fazer commit da empresa e usuário antes de criar subscription
+            # Isso evita erro de Foreign Key
+            db.commit()
+            db.refresh(company)
+            db.refresh(user)
+            
+            # Criar assinatura do plano selecionado via Asaas
+            checkout_url = None
             if plan_id and plan_template:
-                subscription = Subscription(
-                    company_id=company.id,
-                    plan_name=plan_template.plan_name,
-                    description=plan_template.description,
-                    price=plan_template.promotional_price if plan_template.promotional_price else plan_template.price,
-                    currency=plan_template.currency,
-                    billing_cycle=plan_template.billing_cycle,
-                    max_users=plan_template.max_users,
-                    max_ml_accounts=plan_template.max_ml_accounts,
-                    storage_gb=plan_template.storage_gb if hasattr(plan_template, 'storage_gb') else 5,
-                    ai_analysis_monthly=plan_template.ai_analysis_monthly if hasattr(plan_template, 'ai_analysis_monthly') else 10,
-                    catalog_monitoring_slots=plan_template.catalog_monitoring_slots if hasattr(plan_template, 'catalog_monitoring_slots') else 5,
-                    product_mining_slots=plan_template.product_mining_slots if hasattr(plan_template, 'product_mining_slots') else 10,
-                    product_monitoring_slots=plan_template.product_monitoring_slots if hasattr(plan_template, 'product_monitoring_slots') else 20,
-                    status="active",
-                    is_trial=is_trial,
-                    starts_at=datetime.utcnow(),
-                    ends_at=datetime.utcnow() + timedelta(days=30) if not is_trial else None,
-                    trial_ends_at=datetime.utcnow() + timedelta(days=trial_days) if is_trial else None
-                )
-                db.add(subscription)
+                try:
+                    # Importar AsaasController
+                    from app.controllers.asaas_controller import AsaasController
+                    from app.config.settings import settings
+                    
+                    # Criar assinatura no Asaas
+                    asaas_controller = AsaasController(db)
+                    
+                    # Determinar billing_type baseado no payment_method
+                    billing_type = "PIX"
+                    if payment_method == "CREDIT_CARD" or payment_method == "CREDIT_CARD_INSTALLMENT":
+                        billing_type = "CREDIT_CARD"
+                    elif payment_method == "BOLETO":
+                        billing_type = "BOLETO"
+                    
+                    # Usar o documento salvo na empresa (CNPJ ou CPF)
+                    subscriber_data = {
+                        "name": f"{first_name} {last_name}",
+                        "email": email,
+                        "cpf": document_to_save,  # Usar CNPJ da empresa ou CPF do usuário (já salvo no campo cnpj)
+                        "billing_type": billing_type,
+                        "installments": installments if payment_method == "CREDIT_CARD_INSTALLMENT" else 1
+                    }
+                    
+                    asaas_result = asaas_controller.create_subscription(
+                        plan_id=str(plan_id),
+                        company_id=company.id,
+                        user_id=user.id,
+                        subscriber_data=subscriber_data
+                    )
+                    
+                    # Obter invoiceUrl do resultado da criação da assinatura
+                    checkout_url = (
+                        asaas_result.get("invoice_url") or 
+                        asaas_result.get("invoiceUrl") or
+                        asaas_result.get("invoiceURL")
+                    )
+                    
+                    logger.info(f"✅ Assinatura Asaas criada para novo usuário {user.id}: {asaas_result.get('asaas_subscription_id')}")
+                    logger.info(f"🔍 Resultado completo do Asaas: {json.dumps(asaas_result, indent=2, default=str) if isinstance(asaas_result, dict) else asaas_result}")
+                    if checkout_url:
+                        logger.info(f"✅ URL de checkout obtida: {checkout_url}")
+                    else:
+                        logger.error(f"❌ ERRO CRÍTICO: Invoice URL não disponível no resultado!")
+                        logger.error(f"❌ Chaves disponíveis no resultado: {list(asaas_result.keys()) if isinstance(asaas_result, dict) else 'Não é dict'}")
+                        logger.error(f"❌ Isso impedirá o redirecionamento para pagamento!")
+                except Exception as e:
+                    logger.error(f"❌ Erro ao criar assinatura Asaas durante registro: {e}")
+                    # Continuar mesmo com erro - criar assinatura local básica
+                    subscription = Subscription(
+                        company_id=company.id,
+                        plan_name=plan_template.plan_name,
+                        description=plan_template.description,
+                        price=plan_template.promotional_price if plan_template.promotional_price else plan_template.price,
+                        currency=plan_template.currency,
+                        billing_cycle=plan_template.billing_cycle,
+                        max_users=plan_template.max_users,
+                        max_ml_accounts=plan_template.max_ml_accounts,
+                        storage_gb=plan_template.storage_gb if hasattr(plan_template, 'storage_gb') else 5,
+                        ai_analysis_monthly=plan_template.ai_analysis_monthly if hasattr(plan_template, 'ai_analysis_monthly') else 10,
+                        catalog_monitoring_slots=plan_template.catalog_monitoring_slots if hasattr(plan_template, 'catalog_monitoring_slots') else 5,
+                        product_mining_slots=plan_template.product_mining_slots if hasattr(plan_template, 'product_mining_slots') else 10,
+                        product_monitoring_slots=plan_template.product_monitoring_slots if hasattr(plan_template, 'product_monitoring_slots') else 20,
+                        status="pending",  # Pendente até pagamento
+                        is_trial=is_trial,
+                        starts_at=datetime.utcnow(),
+                        ends_at=datetime.utcnow() + timedelta(days=30) if not is_trial else None,
+                        trial_ends_at=datetime.utcnow() + timedelta(days=trial_days) if is_trial else None
+                    )
+                    db.add(subscription)
             
             # Criar sessão inicial
             session_token = self._generate_session_token()
@@ -233,7 +304,7 @@ class AuthController:
             db.add(session)
             db.commit()
             
-            return {
+            result = {
                 "success": True,
                 "user": {
                     "id": user.id,
@@ -249,6 +320,16 @@ class AuthController:
                 },
                 "session_token": session_token
             }
+            
+            # Adicionar URL de checkout se houver (CRÍTICO para redirecionamento)
+            if checkout_url:
+                result["checkout_url"] = checkout_url
+                logger.info(f"✅ Checkout URL adicionada ao resultado do registro: {checkout_url}")
+            else:
+                logger.warning(f"⚠️ ATENÇÃO: Checkout URL não disponível! Usuário será redirecionado para dashboard.")
+                logger.warning(f"⚠️ Resultado do Asaas: {asaas_result if 'asaas_result' in locals() else 'N/A'}")
+            
+            return result
             
         except Exception as e:
             db.rollback()

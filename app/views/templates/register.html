@@ -217,6 +217,59 @@
                                placeholder="seu@email.com" required>
                     </div>
                     
+                    <div class="mb-3">
+                        <label for="cpf_cnpj" class="form-label">
+                            <i class="bi bi-card-text"></i>CPF ou CNPJ *
+                        </label>
+                        <input type="text" class="form-control" id="cpf_cnpj" name="cpf_cnpj" 
+                               placeholder="00000000000 (CPF) ou 00000000000000 (CNPJ)" required 
+                               pattern="[0-9]{11,14}" 
+                               title="Digite 11 dígitos para CPF ou 14 dígitos para CNPJ (apenas números)"
+                               maxlength="14">
+                        <small class="form-text text-muted">
+                            Digite apenas números: 11 dígitos para CPF ou 14 dígitos para CNPJ
+                        </small>
+                    </div>
+                    
+                    <!-- Forma de Pagamento -->
+                    <div class="mb-3">
+                        <label for="payment_method" class="form-label">
+                            <i class="bi bi-credit-card"></i>Forma de Pagamento *
+                        </label>
+                        <select class="form-select" id="payment_method" name="payment_method" required>
+                            <option value="PIX">PIX (Pagamento à vista)</option>
+                            <option value="CREDIT_CARD">Cartão de Crédito (À vista)</option>
+                            <option value="CREDIT_CARD_INSTALLMENT">Cartão de Crédito (Parcelado)</option>
+                            <option value="BOLETO">Boleto Bancário</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            Escolha como deseja pagar sua assinatura
+                        </small>
+                    </div>
+                    
+                    <!-- Número de Parcelas (apenas se cartão parcelado) -->
+                    <div class="mb-3" id="installments_container" style="display: none;">
+                        <label for="installments" class="form-label">
+                            <i class="bi bi-calendar"></i>Número de Parcelas *
+                        </label>
+                        <select class="form-select" id="installments" name="installments">
+                            <option value="2">2x sem juros</option>
+                            <option value="3">3x sem juros</option>
+                            <option value="4">4x sem juros</option>
+                            <option value="5">5x sem juros</option>
+                            <option value="6">6x sem juros</option>
+                            <option value="7">7x sem juros</option>
+                            <option value="8">8x sem juros</option>
+                            <option value="9">9x sem juros</option>
+                            <option value="10">10x sem juros</option>
+                            <option value="11">11x sem juros</option>
+                            <option value="12">12x sem juros</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            Parcelamento disponível apenas para cartão de crédito
+                        </small>
+                    </div>
+                    
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="password" class="form-label">
@@ -283,6 +336,20 @@
 
 {% block extra_js %}
 <script>
+// Mostrar/ocultar campo de parcelas baseado na forma de pagamento
+document.getElementById('payment_method').addEventListener('change', function() {
+    const installmentsContainer = document.getElementById('installments_container');
+    const installmentsSelect = document.getElementById('installments');
+    
+    if (this.value === 'CREDIT_CARD_INSTALLMENT') {
+        installmentsContainer.style.display = 'block';
+        installmentsSelect.required = true;
+    } else {
+        installmentsContainer.style.display = 'none';
+        installmentsSelect.required = false;
+    }
+});
+
 // Toggle password visibility
 document.getElementById('togglePassword').addEventListener('click', function() {
     const password = document.getElementById('password');

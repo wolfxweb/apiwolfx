@@ -39,6 +39,11 @@ services:
       - MP_FAILURE_URL=https://celx.com.br/payment/failure
       - MP_PENDING_URL=https://celx.com.br/payment/pending
       
+      # Asaas API
+      - ASAAS_API_KEY=${ASAAS_API_KEY}
+      - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN}
+      - ASAAS_WEBHOOK_URL=https://celx.com.br/api/asaas/webhooks
+      
       # Application
       - API_HOST=0.0.0.0
       - API_PORT=8000

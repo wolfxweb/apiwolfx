@@ -109,6 +109,22 @@ class Settings:
             "MP_WEBHOOK_URL",
             f"{default_base_url}/api/payments/webhooks/mercadopago"
         )
+        
+        # Asaas Configuration
+        self.asaas_api_key = os.getenv("ASAAS_API_KEY", "")
+        self.asaas_webhook_token = os.getenv("ASAAS_WEBHOOK_TOKEN", "")
+        self.asaas_webhook_url = os.getenv(
+            "ASAAS_WEBHOOK_URL",
+            f"{default_base_url}/api/asaas/webhooks"
+        )
+        
+        # Validar credenciais Asaas (apenas em produção)
+        if self.is_production and not self.asaas_api_key:
+            import logging
+            logging.warning(
+                "⚠️ AVISO: ASAAS_API_KEY deve ser definido para produção! "
+                f"ASAAS_API_KEY: {'✅' if self.asaas_api_key else '❌ FALTANDO'}"
+            )
 
         # Supabase Storage (para imagens ML)
         self.supabase_url = os.getenv("SUPABASE_URL", "https://supabase.wolfx.com.br").rstrip("/")

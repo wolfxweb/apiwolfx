@@ -322,6 +322,12 @@ class Subscription(Base):
     status = Column(String(50), default="active", index=True)  # active, inactive, template
     is_trial = Column(Boolean, default=True)
     
+    # Integração com provedores de pagamento
+    asaas_subscription_id = Column(String(100), nullable=True, index=True)  # ID da assinatura no Asaas
+    asaas_customer_id = Column(String(100), nullable=True)  # ID do cliente no Asaas
+    payment_provider = Column(String(20), default="asaas")  # asaas, mercadopago, etc.
+    next_charge_date = Column(DateTime, nullable=True)  # Próxima data de cobrança
+    
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
