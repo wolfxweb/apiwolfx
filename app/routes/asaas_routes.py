@@ -218,11 +218,20 @@ async def update_subscription_from_payment(
         from app.services.asaas_service import asaas_service
         payment = asaas_service._make_request("GET", f"/payments/{payment_id}")
         
-        if not payment or payment.get("status") not in ["CONFIRMED", "RECEIVED"]:
-            return {
-                "success": False,
-                "message": "Pagamento não está confirmado"
-            }
+        if not payment:
+            logger.warning(f"⚠️ Pagamento {payment_id} não encontrado no Asaas")
+            raise HTTPException(
+                status_code=404,
+                detail="Pagamento não encontrado no Asaas"
+            )
+        
+        payment_status = payment.get("status", "").upper()
+        if payment_status not in ["CONFIRMED", "RECEIVED"]:
+            logger.warning(f"⚠️ Pagamento {payment_id} não está confirmado. Status: {payment_status}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Pagamento não está confirmado. Status atual: {payment_status}"
+            )
         
         # Buscar assinatura da empresa
         from sqlalchemy import text
