@@ -45,6 +45,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from app.services.auto_sync_service import AutoSyncService
 from app.services.catalog_monitoring_service import CatalogMonitoringService
+from app.services.asaas_sync_service import AsaasSyncService
 from app.config.database import SessionLocal
 import atexit
 
@@ -138,6 +139,36 @@ scheduler.add_job(
     trigger=IntervalTrigger(hours=12),
     id='catalog_monitoring_12h',
     name='Monitoramento de Catálogo ML (12h)',
+    replace_existing=True
+)
+
+# Função para sincronização diária com Asaas
+def run_asaas_daily_sync():
+    """JOB 4: Sincronização diária com Asaas - Todos os dias às 3h da manhã"""
+    try:
+        print("🔄 [ASAAS SYNC] Iniciando sincronização diária com Asaas...")
+        db = SessionLocal()
+        try:
+            sync_service = AsaasSyncService(db)
+            result = sync_service.sync_all_subscriptions()
+            if result.get("success"):
+                stats = result.get("stats", {})
+                print(f"✅ [ASAAS SYNC] Concluído: {stats.get('updated', 0)} atualizadas, {stats.get('inactivated', 0)} inativadas, {stats.get('errors', 0)} erros")
+            else:
+                print(f"❌ [ASAAS SYNC] Falhou: {result.get('error', 'Erro desconhecido')}")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"❌ Erro na sincronização diária com Asaas: {e}")
+        import traceback
+        traceback.print_exc()
+
+# JOB 4: Sincronização diária com Asaas - Todos os dias às 3h da manhã
+scheduler.add_job(
+    func=run_asaas_daily_sync,
+    trigger=CronTrigger(hour=3, minute=0),  # Todos os dias às 3h
+    id='asaas_daily_sync',
+    name='Sincronização diária com Asaas (3h)',
     replace_existing=True
 )
 

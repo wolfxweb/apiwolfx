@@ -56,6 +56,23 @@
                             {% endif %}
                         </div>
                         {% if subscription %}
+                        
+                        <!-- Alerta de Cancelamento -->
+                        {% if is_cancelled and cancellation_date and cancellation_date > now %}
+                        <div class="alert alert-warning mb-3" id="cancellationAlert">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    <strong>Assinatura será cancelada</strong><br>
+                                    <small>Seu acesso será suspenso em <strong>{{ cancellation_date.strftime('%d/%m/%Y') }}</strong></small>
+                                </div>
+                                <button class="btn btn-success btn-sm" onclick="reactivateSubscription()">
+                                    <i class="bi bi-arrow-clockwise"></i> Reativar
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
                         <div class="row">
                             <div class="col-md-3 mb-3">
                                 <p class="mb-1 text-muted small">Plano Atual</p>
@@ -83,11 +100,21 @@
                                     {% elif subscription.trial_ends_at %}
                                         <span class="text-warning">{{ subscription.trial_ends_at.strftime('%d/%m/%Y') }} (Trial)</span>
                                     {% else %}
-                                        <span class="text-muted">N/A</span>
+                                        <span class="text-muted">Renovação automática</span>
                                     {% endif %}
                                 </p>
                             </div>
                         </div>
+                        
+                        <!-- Botão Cancelar (se não estiver cancelado) -->
+                        {% if not is_cancelled %}
+                        <div class="mt-3">
+                            <button class="btn btn-outline-danger btn-sm" onclick="cancelSubscription()">
+                                <i class="bi bi-x-circle"></i> Cancelar Assinatura
+                            </button>
+                        </div>
+                        {% endif %}
+                        
                         {% else %}
                         <div class="alert alert-warning mb-0">
                             Nenhuma assinatura ativa. <a href="/auth/plans" class="alert-link">Assine agora</a> para começar.
@@ -233,6 +260,30 @@
     </div>
 </div>
 
+<!-- Modal de Confirmação de Atualização -->
+<div class="modal fade" id="updateSubscriptionModal" tabindex="-1" aria-labelledby="updateSubscriptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="updateSubscriptionModalLabel">
+                    <i class="bi bi-arrow-clockwise"></i> Atualizar Cadastro
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Deseja atualizar o cadastro com base neste pagamento?</p>
+                <p class="text-muted mb-0">O status e vencimento serão atualizados para a próxima fatura.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="confirmUpdateBtn">
+                    <i class="bi bi-check-circle"></i> Confirmar Atualização
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     loadUserPayments();
@@ -304,7 +355,13 @@ function displayPaymentsTable(payments) {
                         <a href="${payment.invoiceUrl}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver boleto/recibo">
                             <i class="bi bi-receipt"></i>
                         </a>
-                    ` : '<span class="text-muted">-</span>'}
+                    ` : ''}
+                    ${payment.status === 'confirmed' || payment.status === 'received' ? `
+                        <button class="btn btn-sm btn-outline-success ${payment.invoiceUrl ? 'ms-1' : ''}" onclick="updateSubscriptionFromPayment('${payment.id}')" title="Atualizar cadastro com este pagamento">
+                            <i class="bi bi-arrow-clockwise"></i> Atualizar
+                        </button>
+                    ` : ''}
+                    ${!payment.invoiceUrl && payment.status !== 'confirmed' && payment.status !== 'received' ? '<span class="text-muted">-</span>' : ''}
                 </td>
             </tr>
         `;
@@ -411,6 +468,72 @@ function toggleMLOrdersReceivables(switchElement) {
     });
 }
 
+let currentPaymentId = null;
+let currentUpdateButton = null;
+
+function updateSubscriptionFromPayment(paymentId) {
+    currentPaymentId = paymentId;
+    currentUpdateButton = event.target.closest('button');
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('updateSubscriptionModal'));
+    modal.show();
+}
+
+// Quando o botão de confirmação na modal for clicado
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmBtn = document.getElementById('confirmUpdateBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async function() {
+            if (!currentPaymentId) {
+                return;
+            }
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('updateSubscriptionModal'));
+            modal.hide();
+            
+            // Desabilitar botão e mostrar loading
+            const btn = currentUpdateButton;
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Atualizando...';
+            
+            try {
+                const response = await fetch(`/api/asaas/payments/${currentPaymentId}/update-subscription`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Cadastro atualizado com sucesso!', 'success');
+                    // Recarregar a página após 2 segundos
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    showNotification('Erro ao atualizar: ' + (data.message || 'Erro desconhecido'), 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            } catch (error) {
+                console.error('Erro ao atualizar cadastro:', error);
+                showNotification('Erro de conexão. Tente novamente.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            } finally {
+                currentPaymentId = null;
+                currentUpdateButton = null;
+            }
+        });
+    }
+});
+
 function showNotification(message, type = 'info') {
     if (window.MLAPI && window.MLAPI.showNotification) {
         window.MLAPI.showNotification(message, type);
@@ -436,6 +559,66 @@ function showNotification(message, type = 'info') {
                 notification.remove();
             }
         }, 5000);
+    }
+}
+
+async function cancelSubscription() {
+    if (!confirm('Tem certeza que deseja cancelar sua assinatura? O acesso será suspenso na data de vencimento atual.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/asaas/subscriptions/cancel', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Assinatura cancelada com sucesso. ' + data.message, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showNotification('Erro ao cancelar: ' + (data.message || 'Erro desconhecido'), 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao cancelar assinatura:', error);
+        showNotification('Erro de conexão. Tente novamente.', 'error');
+    }
+}
+
+async function reactivateSubscription() {
+    if (!confirm('Deseja reativar sua assinatura? A renovação automática será ativada novamente.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/asaas/subscriptions/reactivate', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Assinatura reativada com sucesso!', 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showNotification('Erro ao reativar: ' + (data.message || 'Erro desconhecido'), 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao reativar assinatura:', error);
+        showNotification('Erro de conexão. Tente novamente.', 'error');
     }
 }
 </script>

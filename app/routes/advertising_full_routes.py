@@ -11,8 +11,11 @@ from typing import Optional
 
 templates = Jinja2Templates(directory="app/views/templates")
 
-def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db)):
-    """Obtém usuário atual ou redireciona para login (para páginas HTML)"""
+def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db), allow_profile: bool = False):
+    """
+    Obtém usuário atual ou redireciona para login (para páginas HTML)
+    Se allow_profile=False e o plano estiver inativo, redireciona para /auth/profile
+    """
     session_token = request.cookies.get('session_token')
     if not session_token:
         return RedirectResponse(url="/auth/login", status_code=302)
@@ -21,6 +24,10 @@ def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db)
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Se não for rota de profile e o plano estiver inativo/vencido, redirecionar
+    if not allow_profile and result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     return result["user"]
 

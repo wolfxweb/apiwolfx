@@ -78,18 +78,27 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     
     return result["user"]
 
-def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db)):
-    """Obtém usuário atual da sessão - Para páginas HTML (redireciona para login se não autenticado)"""
+def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db), allow_profile: bool = False):
+    """
+    Obtém usuário atual da sessão - Para páginas HTML (redireciona para login se não autenticado)
+    Se allow_profile=False e o plano estiver inativo, redireciona para /auth/profile
+    """
+    from fastapi.responses import RedirectResponse
+    
     session_token = request.cookies.get('session_token')
     if not session_token:
         # Redirecionar para login preservando a URL atual
-        return None
+        return RedirectResponse(url="/auth/login", status_code=302)
     
     auth_controller = AuthController()
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         # Sessão inválida, redirecionar para login
-        return None
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Se não for rota de profile e o plano estiver inativo/vencido, redirecionar
+    if not allow_profile and result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     return result["user"]
 
@@ -107,9 +116,8 @@ async def ml_products_page(
     user = Depends(get_current_user_or_redirect)
 ):
     """Página de produtos ML"""
-    # Verificar se usuário está autenticado
-    if user is None:
-        return RedirectResponse(url="/login?redirect=/ml/products", status_code=302)
+    # A função get_current_user_or_redirect já faz o redirecionamento se necessário
+    # Se chegou aqui, o usuário está autenticado e com plano ativo
     
     try:
         controller = MLProductController(db)
@@ -647,9 +655,7 @@ async def get_product_analysis_page(
     user = Depends(get_current_user_or_redirect)
 ):
     """Página de análise do produto"""
-    # Verificar se usuário está autenticado
-    if user is None:
-        return RedirectResponse(url=f"/login?redirect=/ml/products/analysis/{product_id}", status_code=302)
+    # A função get_current_user_or_redirect já faz o redirecionamento se necessário
     
     try:
         controller = MLProductController(db)
@@ -2192,9 +2198,7 @@ async def ml_product_create_page(
     """
     Página de cadastro de novo produto no Mercado Livre
     """
-    # Verificar se usuário está autenticado
-    if user is None:
-        return RedirectResponse(url="/login?redirect=/ml/products/create", status_code=302)
+    # A função get_current_user_or_redirect já faz o redirecionamento se necessário
     
     try:
         from app.views.template_renderer import render_template
@@ -2416,11 +2420,7 @@ async def edit_ml_product_page(
     db: Session = Depends(get_db),
     user = Depends(get_current_user_or_redirect)
 ):
-    if user is None:
-        return RedirectResponse(
-            url=f"/login?redirect=/ml/products/edit/{product_id}",
-            status_code=302,
-        )
+    # A função get_current_user_or_redirect já faz o redirecionamento se necessário
 
     controller = MLProductController(db)
     return controller.get_product_edit_page(request, user, product_id)

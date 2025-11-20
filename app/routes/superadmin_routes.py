@@ -4,7 +4,7 @@ Rotas para SuperAdmin - Painel de administração do sistema
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import secrets
 import string
@@ -428,6 +428,94 @@ async def api_delete_company(
         
         raise HTTPException(status_code=500, detail=f"Erro interno: {error_detail}")
 
+@superadmin_router.get("/api/superadmin/companies/{company_id}/payments")
+async def get_company_payments(
+    company_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    API: Lista todos os pagamentos de uma empresa no Asaas
+    """
+    try:
+        from app.models.saas_models import Company
+        from app.services.asaas_service import asaas_service
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Buscar empresa
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa não encontrada")
+        
+        # Verificar se tem CPF/CNPJ
+        if not company.cnpj:
+            return {
+                "success": True,
+                "payments": [],
+                "message": "CPF/CNPJ não cadastrado para esta empresa"
+            }
+        
+        cpf_cnpj = company.cnpj
+        logger.info(f"🔍 Buscando pagamentos para empresa {company_id} (CPF/CNPJ: {cpf_cnpj})")
+        
+        # Buscar cliente no Asaas pelo CPF/CNPJ
+        customer = asaas_service.find_customer_by_cpf_cnpj(cpf_cnpj)
+        
+        if not customer or not customer.get("id"):
+            logger.warning(f"⚠️ Cliente não encontrado no Asaas para CPF/CNPJ: {cpf_cnpj}")
+            return {
+                "success": True,
+                "payments": [],
+                "message": "Cliente não encontrado no Asaas"
+            }
+        
+        customer_id = customer["id"]
+        logger.info(f"✅ Cliente encontrado no Asaas: {customer_id}")
+        
+        # Buscar TODOS os pagamentos do cliente no Asaas
+        payments = asaas_service.get_customer_payments(customer_id, limit=500)
+        
+        logger.info(f"📊 Total de {len(payments)} pagamentos encontrados")
+        
+        # Formatar pagamentos para o frontend
+        formatted_payments = []
+        for payment in payments:
+            status = payment.get("status", "PENDING")
+            formatted_payments.append({
+                "id": payment.get("id"),
+                "value": payment.get("value", 0),
+                "status": status.lower(),
+                "billingType": payment.get("billingType", ""),
+                "dueDate": payment.get("dueDate"),
+                "paymentDate": payment.get("paymentDate"),
+                "description": payment.get("description", ""),
+                "invoiceUrl": payment.get("invoiceUrl"),
+                "created_at": payment.get("dateCreated") or payment.get("dueDate"),
+                "originalStatus": status
+            })
+        
+        # Ordenar por data mais recente primeiro
+        formatted_payments.sort(key=lambda x: (
+            x.get("paymentDate") or x.get("dueDate") or x.get("created_at") or ""
+        ), reverse=True)
+        
+        return {
+            "success": True,
+            "payments": formatted_payments,
+            "total": len(formatted_payments),
+            "company_id": company_id,
+            "company_name": company.name
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar pagamentos da empresa {company_id}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=400, detail=str(e))
+
 @superadmin_router.get("/api/superadmin/companies/{company_id}/subscription")
 async def api_get_company_subscription(
     company_id: int,
@@ -527,3 +615,169 @@ async def api_delete_plan(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+
+@superadmin_router.get("/superadmin/financial/revenue", response_class=HTMLResponse)
+async def superadmin_financial_revenue(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de receitas - Lista todos os pagamentos do Asaas"""
+    from app.views.template_renderer import render_template
+    return render_template("superadmin/financial_revenue.html", request=request)
+
+
+@superadmin_router.get("/api/superadmin/financial/revenue", response_model=Dict[str, Any])
+async def api_get_all_payments(
+    request: Request,
+    page: int = 1,
+    per_page: int = 50,
+    status: Optional[str] = None,
+    billing_type: Optional[str] = None,
+    company_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    API: Lista todos os pagamentos do Asaas de todas as empresas
+    """
+    try:
+        from app.models.saas_models import Company, Subscription
+        from app.services.asaas_service import asaas_service
+        from datetime import datetime
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Buscar todas as empresas com assinatura Asaas
+        companies_with_asaas = db.query(Company).join(Subscription).filter(
+            Subscription.asaas_customer_id.isnot(None)
+        ).all()
+        
+        all_payments = []
+        companies_map = {}
+        
+        for company in companies_with_asaas:
+            if not company.cnpj:
+                continue
+            
+            # Buscar cliente no Asaas
+            customer = asaas_service.find_customer_by_cpf_cnpj(company.cnpj)
+            if not customer or not customer.get("id"):
+                continue
+            
+            customer_id = customer["id"]
+            companies_map[customer_id] = company
+            
+            # Buscar pagamentos do cliente
+            try:
+                payments = asaas_service.get_customer_payments(customer_id, limit=1000)
+                for payment in payments:
+                    payment["_company_id"] = company.id
+                    payment["_company_name"] = company.name
+                    payment["_customer_id"] = customer_id
+                    all_payments.append(payment)
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao buscar pagamentos para empresa {company.id}: {e}")
+        
+        # Aplicar filtros
+        filtered_payments = all_payments
+        
+        if status:
+            filtered_payments = [p for p in filtered_payments if p.get("status", "").upper() == status.upper()]
+        
+        if billing_type:
+            filtered_payments = [p for p in filtered_payments if p.get("billingType") == billing_type]
+        
+        if company_id:
+            filtered_payments = [p for p in filtered_payments if p.get("_company_id") == company_id]
+        
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, "%Y-%m-%d")
+                filtered_payments = [
+                    p for p in filtered_payments 
+                    if (p.get("paymentDate") or p.get("dueDate"))
+                    and datetime.strptime((p.get("paymentDate") or p.get("dueDate"))[:10], "%Y-%m-%d") >= date_from_obj
+                ]
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao filtrar por data inicial: {e}")
+        
+        if date_to:
+            try:
+                date_to_obj = datetime.strptime(date_to, "%Y-%m-%d")
+                filtered_payments = [
+                    p for p in filtered_payments 
+                    if (p.get("paymentDate") or p.get("dueDate"))
+                    and datetime.strptime((p.get("paymentDate") or p.get("dueDate"))[:10], "%Y-%m-%d") <= date_to_obj
+                ]
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao filtrar por data final: {e}")
+        
+        # Ordenar por data mais recente
+        filtered_payments.sort(key=lambda x: (
+            x.get("paymentDate") or x.get("dueDate") or x.get("dateCreated") or ""
+        ), reverse=True)
+        
+        # Paginação
+        total = len(filtered_payments)
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated_payments = filtered_payments[start:end]
+        
+        # Formatar pagamentos
+        formatted_payments = []
+        for payment in paginated_payments:
+            formatted_payments.append({
+                "id": payment.get("id"),
+                "company_id": payment.get("_company_id"),
+                "company_name": payment.get("_company_name"),
+                "value": payment.get("value", 0),
+                "status": payment.get("status", "").lower(),
+                "billingType": payment.get("billingType", ""),
+                "dueDate": payment.get("dueDate"),
+                "paymentDate": payment.get("paymentDate"),
+                "description": payment.get("description", ""),
+                "invoiceUrl": payment.get("invoiceUrl"),
+                "created_at": payment.get("dateCreated") or payment.get("dueDate"),
+            })
+        
+        return {
+            "success": True,
+            "payments": formatted_payments,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": (total + per_page - 1) // per_page
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar pagamentos: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@superadmin_router.get("/api/superadmin/financial/companies", response_model=Dict[str, Any])
+async def api_get_companies_for_filter(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API: Lista empresas para filtro"""
+    try:
+        from app.models.saas_models import Company, Subscription
+        
+        companies = db.query(Company).join(Subscription).filter(
+            Subscription.asaas_customer_id.isnot(None)
+        ).all()
+        
+        return {
+            "success": True,
+            "companies": [
+                {"id": c.id, "name": c.name}
+                for c in companies
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

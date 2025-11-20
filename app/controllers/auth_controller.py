@@ -16,7 +16,7 @@ import json
 logger = logging.getLogger(__name__)
 
 from app.config.database import get_db
-from app.models.saas_models import User, Company, UserSession
+from app.models.saas_models import User, Company, UserSession, CompanyStatus
 from app.views.template_renderer import render_template
 
 # Configuração de hash de senha
@@ -88,6 +88,53 @@ class AuthController:
             if not company:
                 return {"error": "Empresa não encontrada"}
             
+            # Verificar status do plano/assinatura
+            from app.models.saas_models import Subscription
+            from datetime import datetime as dt
+            
+            subscription = db.query(Subscription).filter(
+                Subscription.company_id == company.id,
+                Subscription.status.in_(["active", "pending"]),
+                Subscription.is_trial == True
+            ).order_by(Subscription.created_at.desc()).first()
+            
+            # Se não encontrar assinatura trial, buscar assinatura ativa
+            if not subscription:
+                subscription = db.query(Subscription).filter(
+                    Subscription.company_id == company.id,
+                    Subscription.status == "active"
+                ).order_by(Subscription.created_at.desc()).first()
+            
+            # Verificar se deve redirecionar para /auth/profile
+            should_redirect_to_profile = False
+            plan_status = "active"
+            
+            if company.status == CompanyStatus.INACTIVE:
+                should_redirect_to_profile = True
+                plan_status = "inactive"
+            elif subscription:
+                # Verificar se é trial e se está vencido
+                if subscription.is_trial:
+                    if subscription.trial_ends_at and subscription.trial_ends_at < dt.now():
+                        should_redirect_to_profile = True
+                        plan_status = "trial_expired"
+                    elif subscription.trial_ends_at and subscription.trial_ends_at >= dt.now():
+                        plan_status = "trial"
+                    else:
+                        # Trial sem data de término definida, considerar ativo
+                        plan_status = "trial"
+                elif subscription.status == "inactive":
+                    should_redirect_to_profile = True
+                    plan_status = "inactive"
+                elif subscription.ends_at and subscription.ends_at < dt.now():
+                    should_redirect_to_profile = True
+                    plan_status = "expired"
+            else:
+                # Sem assinatura, verificar se empresa está inativa
+                if company.status == CompanyStatus.INACTIVE:
+                    should_redirect_to_profile = True
+                    plan_status = "inactive"
+            
             # Criar sessão
             session_token = self._generate_session_token()
             expires_at = datetime.utcnow() + timedelta(days=7 if remember else 1)
@@ -119,7 +166,9 @@ class AuthController:
                         "slug": company.slug
                     }
                 },
-                "session_token": session_token
+                "session_token": session_token,
+                "plan_status": plan_status,
+                "should_redirect_to_profile": should_redirect_to_profile
             }
             
         except Exception as e:
@@ -392,6 +441,53 @@ class AuthController:
             
             company = db.query(Company).filter(Company.id == user.company_id).first()
             
+            # Verificar status do plano/assinatura
+            from app.models.saas_models import Subscription
+            from datetime import datetime as dt
+            
+            subscription = db.query(Subscription).filter(
+                Subscription.company_id == company.id,
+                Subscription.status.in_(["active", "pending"]),
+                Subscription.is_trial == True
+            ).order_by(Subscription.created_at.desc()).first()
+            
+            # Se não encontrar assinatura trial, buscar assinatura ativa
+            if not subscription:
+                subscription = db.query(Subscription).filter(
+                    Subscription.company_id == company.id,
+                    Subscription.status == "active"
+                ).order_by(Subscription.created_at.desc()).first()
+            
+            # Verificar status do plano
+            plan_status = "active"
+            should_redirect_to_profile = False
+            
+            if company.status == CompanyStatus.INACTIVE:
+                should_redirect_to_profile = True
+                plan_status = "inactive"
+            elif subscription:
+                # Verificar se é trial e se está vencido
+                if subscription.is_trial:
+                    if subscription.trial_ends_at and subscription.trial_ends_at < dt.now():
+                        should_redirect_to_profile = True
+                        plan_status = "trial_expired"
+                    elif subscription.trial_ends_at and subscription.trial_ends_at >= dt.now():
+                        plan_status = "trial"
+                    else:
+                        # Trial sem data de término definida, considerar ativo
+                        plan_status = "trial"
+                elif subscription.status == "inactive":
+                    should_redirect_to_profile = True
+                    plan_status = "inactive"
+                elif subscription.ends_at and subscription.ends_at < dt.now():
+                    should_redirect_to_profile = True
+                    plan_status = "expired"
+            else:
+                # Sem assinatura, verificar se empresa está inativa
+                if company.status == CompanyStatus.INACTIVE:
+                    should_redirect_to_profile = True
+                    plan_status = "inactive"
+            
             return {
                 "success": True,
                 "user": {
@@ -406,7 +502,9 @@ class AuthController:
                         "name": company.name,
                         "slug": company.slug
                     } if company else None
-                }
+                },
+                "plan_status": plan_status,
+                "should_redirect_to_profile": should_redirect_to_profile
             }
             
         except Exception as e:

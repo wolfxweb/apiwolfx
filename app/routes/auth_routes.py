@@ -44,8 +44,14 @@ async def login(
     if result.get("error"):
         return auth_controller.get_login_page(error=result["error"], redirect=redirect)
     
-    # Redirecionar para a URL especificada ou dashboard por padrão
-    redirect_url = redirect if redirect else "/dashboard"
+    # Verificar se deve redirecionar para /auth/profile
+    # Se o plano estiver inativo, vencido ou cancelado, redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        redirect_url = "/auth/profile"
+    else:
+        # Redirecionar para a URL especificada ou dashboard por padrão
+        redirect_url = redirect if redirect else "/dashboard"
+    
     response = RedirectResponse(url=redirect_url, status_code=302)
     
     # Definir cookie de sessão (secure=True em produção HTTPS)
@@ -254,6 +260,10 @@ async def dashboard(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se deve redirecionar para /auth/profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result.get("user")
     company_id = user_data.get("company_id") if user_data else None
     
@@ -328,7 +338,7 @@ async def profile(
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """Página de perfil do usuário"""
+    """Página de perfil do usuário - SEMPRE permite acesso, mesmo para planos inativos"""
     if not session_token:
         return RedirectResponse(url="/auth/login", status_code=302)
     
@@ -370,11 +380,29 @@ async def profile(
     subscription_result = db.execute(subscription_query, {"company_id": company_id}).fetchone()
     subscription_info = dict(subscription_result._mapping) if subscription_result else {}
     
+    # Verificar se a assinatura está cancelada no Asaas (tem endDate)
+    is_cancelled = False
+    cancellation_date = None
+    if subscription_info and subscription_info.get("asaas_subscription_id"):
+        try:
+            from app.services.asaas_service import asaas_service
+            asaas_subscription = asaas_service.get_subscription(subscription_info["asaas_subscription_id"])
+            if asaas_subscription and asaas_subscription.get("endDate"):
+                is_cancelled = True
+                from datetime import datetime
+                cancellation_date = datetime.strptime(asaas_subscription["endDate"], "%Y-%m-%d")
+        except Exception as e:
+            logger.warning(f"⚠️ Erro ao verificar status de cancelamento no Asaas: {e}")
+    
     from app.views.template_renderer import render_template
+    from datetime import datetime
     return render_template("profile.html", 
                          user=user_data,
                          company=company_info,
-                         subscription=subscription_info)
+                         subscription=subscription_info,
+                         now=datetime.now(),
+                         is_cancelled=is_cancelled,
+                         cancellation_date=cancellation_date)
 
 
 
@@ -489,9 +517,13 @@ async def reset_password(
 async def get_current_user(
     request: Request,
     session_token: Optional[str] = Cookie(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    allow_profile_access: bool = False
 ):
-    """Dependency para obter usuário atual"""
+    """
+    Dependency para obter usuário atual
+    Se allow_profile_access=False e o plano estiver inativo, redireciona para /auth/profile
+    """
     if not session_token:
         raise HTTPException(status_code=401, detail="Não autenticado")
     
@@ -499,4 +531,33 @@ async def get_current_user(
     if result.get("error"):
         raise HTTPException(status_code=401, detail=result["error"])
     
+    # Se não for rota de profile e o plano estiver inativo/vencido, redirecionar
+    if not allow_profile_access and result.get("should_redirect_to_profile"):
+        from fastapi.responses import RedirectResponse
+        # Retornar RedirectResponse diretamente (não funciona com HTTPException 302)
+        # Em vez disso, vamos usar uma exceção customizada ou retornar o redirect
+        raise HTTPException(
+            status_code=403,
+            detail="Plano inativo ou vencido. Acesse /auth/profile para renovar."
+        )
+    
     return result["user"]
+
+# Função helper para verificar acesso e redirecionar se necessário
+def check_plan_access_and_redirect(request: Request, session_token: Optional[str], db: Session, allow_profile: bool = False):
+    """
+    Verifica se o usuário pode acessar a rota baseado no status do plano
+    Retorna RedirectResponse se deve redirecionar, None se pode acessar
+    """
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Se não for rota de profile e o plano estiver inativo/vencido, redirecionar
+    if not allow_profile and result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
+    return None

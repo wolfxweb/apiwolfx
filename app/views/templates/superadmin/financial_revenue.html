@@ -1,0 +1,370 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Receita - SuperAdmin CELX{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-arrow-down-circle text-success"></i> Receita</h1>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label for="filterStatus" class="form-label">Status</label>
+                <select class="form-select" id="filterStatus">
+                    <option value="">Todos</option>
+                    <option value="CONFIRMED">Confirmado</option>
+                    <option value="RECEIVED">Recebido</option>
+                    <option value="PENDING">Pendente</option>
+                    <option value="OVERDUE">Vencido</option>
+                    <option value="REFUNDED">Reembolsado</option>
+                    <option value="CANCELLED">Cancelado</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filterBillingType" class="form-label">Forma de Pagamento</label>
+                <select class="form-select" id="filterBillingType">
+                    <option value="">Todas</option>
+                    <option value="PIX">PIX</option>
+                    <option value="CREDIT_CARD">Cartão de Crédito</option>
+                    <option value="BOLETO">Boleto</option>
+                    <option value="DEBIT_CARD">Cartão de Débito</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filterCompany" class="form-label">Empresa</label>
+                <select class="form-select" id="filterCompany">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filterDateFrom" class="form-label">Data Inicial</label>
+                <input type="date" class="form-control" id="filterDateFrom">
+            </div>
+            <div class="col-md-3">
+                <label for="filterDateTo" class="form-label">Data Final</label>
+                <input type="date" class="form-control" id="filterDateTo">
+            </div>
+            <div class="col-md-12">
+                <button class="btn btn-primary" onclick="applyFilters()">
+                    <i class="bi bi-search"></i> Aplicar Filtros
+                </button>
+                <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                    <i class="bi bi-x-circle"></i> Limpar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h6 class="card-title">Total Recebido</h6>
+                <h3 class="mb-0" id="totalReceived">R$ 0,00</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h6 class="card-title">Pendente</h6>
+                <h3 class="mb-0" id="totalPending">R$ 0,00</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <h6 class="card-title">Vencido</h6>
+                <h3 class="mb-0" id="totalOverdue">R$ 0,00</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h6 class="card-title">Total de Pagamentos</h6>
+                <h3 class="mb-0" id="totalPayments">0</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Pagamentos -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Pagamentos</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="paymentsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Data</th>
+                        <th>Empresa</th>
+                        <th>Descrição</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                        <th>Forma de Pagamento</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="paymentsTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Paginação -->
+        <nav aria-label="Paginação">
+            <ul class="pagination justify-content-center" id="pagination">
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let currentFilters = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanies();
+    loadPayments();
+});
+
+async function loadCompanies() {
+    try {
+        const response = await fetch('/api/superadmin/financial/companies');
+        const data = await response.json();
+        
+        const select = document.getElementById('filterCompany');
+        data.companies.forEach(company => {
+            const option = document.createElement('option');
+            option.value = company.id;
+            option.textContent = company.name;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Erro ao carregar empresas:', error);
+    }
+}
+
+async function loadPayments(page = 1) {
+    try {
+        currentPage = page;
+        const params = new URLSearchParams({
+            page: page,
+            per_page: 50,
+            ...currentFilters
+        });
+        
+        const response = await fetch(`/api/superadmin/financial/revenue?${params}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayPayments(data.payments);
+            updateStatistics(data.payments);
+            renderPagination(data.total_pages, data.page);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar pagamentos:', error);
+    }
+}
+
+function displayPayments(payments) {
+    const tbody = document.getElementById('paymentsTableBody');
+    tbody.innerHTML = '';
+    
+    if (payments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Nenhum pagamento encontrado</td></tr>';
+        return;
+    }
+    
+    payments.forEach(payment => {
+        const row = createPaymentRow(payment);
+        tbody.appendChild(row);
+    });
+}
+
+function createPaymentRow(payment) {
+    const row = document.createElement('tr');
+    
+    const date = payment.paymentDate || payment.dueDate || payment.created_at || '-';
+    const formattedDate = date !== '-' ? new Date(date).toLocaleDateString('pt-BR') : '-';
+    
+    const value = payment.value ? `R$ ${parseFloat(payment.value).toFixed(2).replace('.', ',')}` : 'R$ 0,00';
+    
+    const statusClass = getPaymentStatusClass(payment.status);
+    const statusIcon = getPaymentStatusIcon(payment.status);
+    const statusLabel = getPaymentStatusLabel(payment.status);
+    
+    const billingType = getBillingTypeLabel(payment.billingType);
+    
+    row.innerHTML = `
+        <td>${formattedDate}</td>
+        <td><strong>${payment.company_name || 'N/A'}</strong></td>
+        <td><small>${payment.description || 'Pagamento de assinatura'}</small></td>
+        <td><strong>${value}</strong></td>
+        <td><span class="badge bg-${statusClass}">${statusIcon} ${statusLabel}</span></td>
+        <td><small class="text-muted">${billingType}</small></td>
+        <td>
+            ${payment.invoiceUrl ? `
+                <a href="${payment.invoiceUrl}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver boleto/recibo">
+                    <i class="bi bi-receipt"></i>
+                </a>
+            ` : '<span class="text-muted">-</span>'}
+        </td>
+    `;
+    
+    return row;
+}
+
+function getPaymentStatusClass(status) {
+    switch(status) {
+        case 'confirmed':
+        case 'received': return 'success';
+        case 'pending': return 'warning';
+        case 'overdue': return 'danger';
+        case 'refunded':
+        case 'cancelled': return 'secondary';
+        default: return 'secondary';
+    }
+}
+
+function getPaymentStatusIcon(status) {
+    switch(status) {
+        case 'confirmed':
+        case 'received': return '<i class="bi bi-check-circle"></i>';
+        case 'pending': return '<i class="bi bi-clock"></i>';
+        case 'overdue': return '<i class="bi bi-exclamation-triangle"></i>';
+        case 'refunded': return '<i class="bi bi-arrow-counterclockwise"></i>';
+        case 'cancelled': return '<i class="bi bi-x-circle"></i>';
+        default: return '<i class="bi bi-question-circle"></i>';
+    }
+}
+
+function getPaymentStatusLabel(status) {
+    const labels = {
+        'confirmed': 'Confirmado',
+        'received': 'Recebido',
+        'pending': 'Pendente',
+        'overdue': 'Vencido',
+        'refunded': 'Reembolsado',
+        'cancelled': 'Cancelado'
+    };
+    return labels[status] || status;
+}
+
+function getBillingTypeLabel(billingType) {
+    const labels = {
+        'PIX': 'PIX',
+        'CREDIT_CARD': 'Cartão de Crédito',
+        'BOLETO': 'Boleto Bancário',
+        'DEBIT_CARD': 'Cartão de Débito'
+    };
+    return labels[billingType] || billingType || '-';
+}
+
+function updateStatistics(payments) {
+    let totalReceived = 0;
+    let totalPending = 0;
+    let totalOverdue = 0;
+    
+    payments.forEach(payment => {
+        const value = parseFloat(payment.value || 0);
+        const status = payment.status;
+        
+        if (status === 'confirmed' || status === 'received') {
+            totalReceived += value;
+        } else if (status === 'pending') {
+            totalPending += value;
+        } else if (status === 'overdue') {
+            totalOverdue += value;
+        }
+    });
+    
+    document.getElementById('totalReceived').textContent = `R$ ${totalReceived.toFixed(2).replace('.', ',')}`;
+    document.getElementById('totalPending').textContent = `R$ ${totalPending.toFixed(2).replace('.', ',')}`;
+    document.getElementById('totalOverdue').textContent = `R$ ${totalOverdue.toFixed(2).replace('.', ',')}`;
+    document.getElementById('totalPayments').textContent = payments.length;
+}
+
+function renderPagination(totalPages, currentPage) {
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = '';
+    
+    if (totalPages <= 1) return;
+    
+    // Botão Anterior
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="loadPayments(${currentPage - 1}); return false;">Anterior</a>`;
+    pagination.appendChild(prevLi);
+    
+    // Páginas
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" onclick="loadPayments(${i}); return false;">${i}</a>`;
+            pagination.appendChild(li);
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            const li = document.createElement('li');
+            li.className = 'page-item disabled';
+            li.innerHTML = '<span class="page-link">...</span>';
+            pagination.appendChild(li);
+        }
+    }
+    
+    // Botão Próximo
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="loadPayments(${currentPage + 1}); return false;">Próximo</a>`;
+    pagination.appendChild(nextLi);
+}
+
+function applyFilters() {
+    currentFilters = {
+        status: document.getElementById('filterStatus').value,
+        billing_type: document.getElementById('filterBillingType').value,
+        company_id: document.getElementById('filterCompany').value,
+        date_from: document.getElementById('filterDateFrom').value,
+        date_to: document.getElementById('filterDateTo').value
+    };
+    
+    // Remover filtros vazios
+    Object.keys(currentFilters).forEach(key => {
+        if (!currentFilters[key]) {
+            delete currentFilters[key];
+        }
+    });
+    
+    loadPayments(1);
+}
+
+function clearFilters() {
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterBillingType').value = '';
+    document.getElementById('filterCompany').value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    currentFilters = {};
+    loadPayments(1);
+}
+</script>
+{% endblock %}
+

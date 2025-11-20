@@ -141,6 +141,54 @@
     </div>
 </div>
 
+<!-- Modal para Pagamentos da Empresa -->
+<div class="modal fade" id="paymentsModal" tabindex="-1" aria-labelledby="paymentsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentsModalLabel">
+                    <i class="bi bi-credit-card"></i> Pagamentos - <span id="paymentsCompanyName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="paymentsLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Carregando pagamentos...</p>
+                </div>
+                
+                <div id="paymentsContent" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th>Forma de Pagamento</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentsTableBody">
+                                <!-- Pagamentos carregados via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noPaymentsMessage" style="display: none;" class="text-center py-4">
+                        <p class="text-muted mb-0">Nenhum pagamento encontrado para esta empresa.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal para Criar/Editar Empresa -->
 <div class="modal fade" id="companyModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -378,6 +426,9 @@ function createCompanyRow(company) {
                 </button>
                 <button class="btn btn-outline-secondary" onclick="editCompany(${company.id})" title="Editar">
                     <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-outline-info" onclick="viewCompanyPayments(${company.id}, '${company.name}')" title="Ver pagamentos">
+                    <i class="bi bi-credit-card"></i>
                 </button>
                 <button class="btn btn-outline-danger" onclick="confirmAction('delete', ${company.id}, '${company.name}')" title="Excluir">
                     <i class="bi bi-trash"></i>
@@ -771,6 +822,135 @@ function showAlert(message, type) {
             alertDiv.parentNode.removeChild(alertDiv);
         }
     }, 5000);
+}
+
+// Função para visualizar pagamentos da empresa
+async function viewCompanyPayments(companyId, companyName) {
+    const modal = new bootstrap.Modal(document.getElementById('paymentsModal'));
+    document.getElementById('paymentsCompanyName').textContent = companyName;
+    
+    // Mostrar loading
+    document.getElementById('paymentsLoading').style.display = 'block';
+    document.getElementById('paymentsContent').style.display = 'none';
+    document.getElementById('noPaymentsMessage').style.display = 'none';
+    
+    // Abrir modal
+    modal.show();
+    
+    try {
+        const response = await fetch(`/api/superadmin/companies/${companyId}/payments`);
+        const data = await response.json();
+        
+        // Esconder loading
+        document.getElementById('paymentsLoading').style.display = 'none';
+        
+        if (data.success && data.payments && data.payments.length > 0) {
+            // Mostrar conteúdo
+            document.getElementById('paymentsContent').style.display = 'block';
+            
+            // Renderizar tabela
+            const tbody = document.getElementById('paymentsTableBody');
+            tbody.innerHTML = '';
+            
+            data.payments.forEach(payment => {
+                const row = createPaymentRow(payment);
+                tbody.appendChild(row);
+            });
+        } else {
+            // Mostrar mensagem de sem pagamentos
+            document.getElementById('noPaymentsMessage').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar pagamentos:', error);
+        document.getElementById('paymentsLoading').style.display = 'none';
+        document.getElementById('noPaymentsMessage').style.display = 'block';
+        document.getElementById('noPaymentsMessage').innerHTML = 
+            '<p class="text-danger mb-0">Erro ao carregar pagamentos: ' + error.message + '</p>';
+    }
+}
+
+// Criar linha da tabela de pagamentos
+function createPaymentRow(payment) {
+    const row = document.createElement('tr');
+    
+    // Formatar data
+    const date = payment.paymentDate || payment.dueDate || payment.created_at || '-';
+    const formattedDate = date !== '-' ? new Date(date).toLocaleDateString('pt-BR') : '-';
+    
+    // Formatar valor
+    const value = payment.value ? `R$ ${parseFloat(payment.value).toFixed(2).replace('.', ',')}` : 'R$ 0,00';
+    
+    // Status badge
+    const statusClass = getPaymentStatusClass(payment.status);
+    const statusIcon = getPaymentStatusIcon(payment.status);
+    const statusLabel = getPaymentStatusLabel(payment.status);
+    
+    // Forma de pagamento
+    const billingType = getBillingTypeLabel(payment.billingType);
+    
+    row.innerHTML = `
+        <td>${formattedDate}</td>
+        <td><small>${payment.description || 'Pagamento de assinatura'}</small></td>
+        <td><strong>${value}</strong></td>
+        <td><span class="badge bg-${statusClass}">${statusIcon} ${statusLabel}</span></td>
+        <td><small class="text-muted">${billingType}</small></td>
+        <td>
+            ${payment.invoiceUrl ? `
+                <a href="${payment.invoiceUrl}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver boleto/recibo">
+                    <i class="bi bi-receipt"></i>
+                </a>
+            ` : '<span class="text-muted">-</span>'}
+        </td>
+    `;
+    
+    return row;
+}
+
+// Funções auxiliares para status
+function getPaymentStatusClass(status) {
+    switch(status) {
+        case 'confirmed':
+        case 'received': return 'success';
+        case 'pending': return 'warning';
+        case 'overdue': return 'danger';
+        case 'refunded':
+        case 'cancelled': return 'secondary';
+        default: return 'secondary';
+    }
+}
+
+function getPaymentStatusIcon(status) {
+    switch(status) {
+        case 'confirmed':
+        case 'received': return '<i class="bi bi-check-circle"></i>';
+        case 'pending': return '<i class="bi bi-clock"></i>';
+        case 'overdue': return '<i class="bi bi-exclamation-triangle"></i>';
+        case 'refunded': return '<i class="bi bi-arrow-counterclockwise"></i>';
+        case 'cancelled': return '<i class="bi bi-x-circle"></i>';
+        default: return '<i class="bi bi-question-circle"></i>';
+    }
+}
+
+function getPaymentStatusLabel(status) {
+    const labels = {
+        'confirmed': 'Confirmado',
+        'received': 'Recebido',
+        'pending': 'Pendente',
+        'overdue': 'Vencido',
+        'refunded': 'Reembolsado',
+        'cancelled': 'Cancelado'
+    };
+    return labels[status] || status;
+}
+
+function getBillingTypeLabel(billingType) {
+    const labels = {
+        'PIX': 'PIX',
+        'CREDIT_CARD': 'Cartão de Crédito',
+        'BOLETO': 'Boleto Bancário',
+        'DEBIT_CARD': 'Cartão de Débito'
+    };
+    return labels[billingType] || billingType || '-';
 }
 </script>
 
