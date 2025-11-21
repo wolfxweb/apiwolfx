@@ -16,8 +16,20 @@ NC='\033[0m' # No Color
 PROJECT_DIR="/root/apiwolfx"
 COMPOSE_FILE="docker-compose.prod.yml"
 
+# Detectar qual comando docker compose está disponível
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+elif docker compose version &> /dev/null 2>&1; then
+    DOCKER_COMPOSE="docker compose"
+else
+    echo -e "${RED}❌ Erro: docker-compose ou docker compose não encontrado${NC}"
+    echo -e "${YELLOW}💡 Instale docker-compose ou atualize o Docker para versão com compose integrado${NC}"
+    exit 1
+fi
+
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${GREEN}🚀 Deploy em Produção - Iniciando...${NC}"
+echo -e "${GREEN}✅ Usando comando: $DOCKER_COMPOSE${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 
 # Verificar se está no diretório correto
@@ -59,7 +71,7 @@ git log -1 --oneline --decorate
 
 # 4. Parar containers atuais
 echo -e "${YELLOW}🛑 Parando containers...${NC}"
-docker-compose -f "$COMPOSE_FILE" down || true
+$DOCKER_COMPOSE -f "$COMPOSE_FILE" down || true
 
 # 5. Limpar imagens antigas (opcional, para economizar espaço)
 echo -e "${YELLOW}🧹 Limpando imagens antigas...${NC}"
@@ -68,11 +80,11 @@ docker system prune -f || true
 # 6. Reconstruir containers SEM CACHE
 echo -e "${YELLOW}🔨 Reconstruindo containers (sem cache)...${NC}"
 echo -e "${BLUE}⏳ Isso pode levar alguns minutos...${NC}"
-docker-compose -f "$COMPOSE_FILE" build --no-cache --pull
+$DOCKER_COMPOSE -f "$COMPOSE_FILE" build --no-cache --pull
 
 # 7. Subir containers
 echo -e "${YELLOW}⬆️  Subindo containers...${NC}"
-docker-compose -f "$COMPOSE_FILE" up -d
+$DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d
 
 # 8. Aguardar containers iniciarem
 echo -e "${YELLOW}⏳ Aguardando containers iniciarem...${NC}"
@@ -80,11 +92,11 @@ sleep 5
 
 # 9. Verificar status dos containers
 echo -e "${YELLOW}📊 Status dos containers:${NC}"
-docker-compose -f "$COMPOSE_FILE" ps
+$DOCKER_COMPOSE -f "$COMPOSE_FILE" ps
 
 # 10. Verificar saúde dos containers
 echo -e "${YELLOW}🏥 Verificando saúde dos containers...${NC}"
-CONTAINERS=$(docker-compose -f "$COMPOSE_FILE" ps -q)
+CONTAINERS=$($DOCKER_COMPOSE -f "$COMPOSE_FILE" ps -q)
 for container in $CONTAINERS; do
     if [ -n "$container" ]; then
         STATUS=$(docker inspect --format='{{.State.Status}}' "$container")
@@ -98,14 +110,14 @@ done
 
 # 11. Mostrar logs recentes
 echo -e "${YELLOW}📋 Últimos logs do container API:${NC}"
-docker-compose -f "$COMPOSE_FILE" logs --tail=30 api
+$DOCKER_COMPOSE -f "$COMPOSE_FILE" logs --tail=30 api
 
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${GREEN}✅ Deploy concluído com sucesso!${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${YELLOW}💡 Próximos passos:${NC}"
-echo -e "   1. Verifique os logs: docker-compose -f $COMPOSE_FILE logs -f api"
+echo -e "   1. Verifique os logs: $DOCKER_COMPOSE -f $COMPOSE_FILE logs -f api"
 echo -e "   2. Teste a aplicação: curl http://localhost:8000"
-echo -e "   3. Monitore os containers: docker-compose -f $COMPOSE_FILE ps"
+echo -e "   3. Monitore os containers: $DOCKER_COMPOSE -f $COMPOSE_FILE ps"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 
