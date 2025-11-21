@@ -671,6 +671,42 @@ class InternalProductService:
                         MLAccount.id == ml_product.ml_account_id
                     ).first()
                     
+                    # Verificar se é fulfillment
+                    is_fulfillment = False
+                    logistic_type = None
+                    shipping_type_label = "Não informado"
+                    
+                    if ml_product.shipping:
+                        import json
+                        if isinstance(ml_product.shipping, str):
+                            try:
+                                shipping_data = json.loads(ml_product.shipping)
+                            except:
+                                shipping_data = {}
+                        else:
+                            shipping_data = ml_product.shipping
+                        
+                        # Verificar logistic_type no shipping
+                        logistic_type = shipping_data.get("logistic_type")
+                        if logistic_type == "fulfillment":
+                            is_fulfillment = True
+                            shipping_type_label = "Full (Fulfillment)"
+                        elif logistic_type == "cross_docking":
+                            shipping_type_label = "Mercado Envios"
+                        elif logistic_type == "xd_drop_off":
+                            shipping_type_label = "Agência"
+                        elif logistic_type == "drop_off":
+                            shipping_type_label = "Correios"
+                        elif logistic_type:
+                            shipping_type_label = logistic_type.replace("_", " ").title()
+                    
+                    # Verificar também nas tags
+                    if not is_fulfillment and ml_product.tags:
+                        tags_list = ml_product.tags if isinstance(ml_product.tags, list) else []
+                        if any(tag in ["fulfillment", "meli_fulfillment", "FULL"] for tag in tags_list):
+                            is_fulfillment = True
+                            shipping_type_label = "Full (Fulfillment)"
+                    
                     announcements.append({
                         "id": ml_product.id,
                         "ml_item_id": ml_product.ml_item_id,
@@ -683,7 +719,10 @@ class InternalProductService:
                         "thumbnail": ml_product.thumbnail,
                         "ml_account_id": ml_product.ml_account_id,
                         "ml_account_nickname": ml_account.nickname if ml_account else None,
-                        "seller_sku": ml_product.seller_sku
+                        "seller_sku": ml_product.seller_sku,
+                        "is_fulfillment": is_fulfillment,
+                        "logistic_type": logistic_type,
+                        "shipping_type_label": shipping_type_label
                     })
             
             return {

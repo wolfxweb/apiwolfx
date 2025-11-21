@@ -1454,22 +1454,23 @@ function renderAnnouncementsTable(productId, announcements) {
         return;
     }
     
-    let html = `
-        <div class="table-responsive">
-            <table class="table table-sm table-hover">
-                <thead class="table-light">
-                    <tr>
-                        <th>Imagem</th>
-                        <th>Título</th>
-                        <th>Estoque</th>
-                        <th>Preço</th>
-                        <th>Status</th>
-                        <th>Conta ML</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
+            let html = `
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Imagem</th>
+                                <th>Título</th>
+                                <th>Estoque</th>
+                                <th>Preço</th>
+                                <th>Status</th>
+                                <th>Logística</th>
+                                <th>Conta ML</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
     
     announcements.forEach(announcement => {
         const statusClass = announcement.status === 'active' ? 'success' : 
@@ -1505,6 +1506,16 @@ function renderAnnouncementsTable(productId, announcements) {
                 </td>
                 <td>
                     <span class="badge bg-${statusClass}">${statusLabel}</span>
+                </td>
+                <td>
+                    ${announcement.is_fulfillment ? 
+                        `<span class="badge bg-primary" title="Full Mercado Livre (Fulfillment)">
+                            <i class="bi bi-box-seam"></i> Full
+                        </span>` :
+                        `<span class="badge bg-secondary" title="${announcement.shipping_type_label || 'Não informado'}">
+                            <i class="bi bi-truck"></i> ${announcement.shipping_type_label || 'Não informado'}
+                        </span>`
+                    }
                 </td>
                 <td>
                     <small class="text-muted">${announcement.ml_account_nickname || 'N/A'}</small>
