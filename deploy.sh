@@ -91,11 +91,57 @@ docker service ps "${STACK_NAME}_api" || true
 echo -e "${YELLOW}📋 Últimos logs do container API:${NC}"
 docker service logs "${STACK_NAME}_api" --tail=30 || true
 
+# 8. Verificar se o serviço está acessível internamente
+echo -e "${YELLOW}🔍 Verificando se o serviço está respondendo...${NC}"
+SERVICE_CONTAINER=$(docker ps -q --filter "name=${STACK_NAME}_api" | head -1)
+if [ -n "$SERVICE_CONTAINER" ]; then
+    if docker exec "$SERVICE_CONTAINER" curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ 2>/dev/null | grep -q "200\|404\|301\|302"; then
+        echo -e "${GREEN}✅ Serviço está respondendo na porta 8000${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Serviço pode não estar totalmente iniciado ainda${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  Container do serviço não encontrado ainda${NC}"
+fi
+
+# 9. Verificar se o Traefik detectou o serviço
+echo -e "${YELLOW}🔍 Verificando se o Traefik detectou o serviço...${NC}"
+TRAEFIK_CONTAINER=$(docker ps -q --filter "name=traefik" | head -1)
+if [ -n "$TRAEFIK_CONTAINER" ]; then
+    echo -e "${GREEN}✅ Traefik encontrado${NC}"
+    echo -e "${YELLOW}💡 Reiniciando Traefik para forçar detecção do serviço...${NC}"
+    docker service update --force traefik_traefik 2>/dev/null || docker service update --force traefik 2>/dev/null || echo -e "${YELLOW}⚠️  Não foi possível reiniciar o Traefik automaticamente${NC}"
+    echo -e "${BLUE}⏳ Aguardando Traefik reiniciar...${NC}"
+    sleep 10
+else
+    echo -e "${YELLOW}⚠️  Traefik não encontrado - verifique se está rodando${NC}"
+fi
+
+# 10. Verificar rede
+echo -e "${YELLOW}🔍 Verificando rede 'server'...${NC}"
+if docker network ls | grep -q "server"; then
+    echo -e "${GREEN}✅ Rede 'server' existe${NC}"
+    # Verificar se o serviço está na rede
+    SERVICE_NETWORKS=$(docker service inspect "${STACK_NAME}_api" --format '{{range .Endpoint.Spec.Networks}}{{.Target}}{{end}}' 2>/dev/null || echo "")
+    if echo "$SERVICE_NETWORKS" | grep -q "server"; then
+        echo -e "${GREEN}✅ Serviço está na rede 'server'${NC}"
+    else
+        echo -e "${RED}❌ Serviço NÃO está na rede 'server'${NC}"
+        echo -e "${YELLOW}💡 Isso pode causar 404. Verifique o docker-compose.prod.yml${NC}"
+    fi
+else
+    echo -e "${RED}❌ Rede 'server' não encontrada!${NC}"
+    echo -e "${YELLOW}💡 Criando rede 'server'...${NC}"
+    docker network create --driver overlay --attachable server || true
+fi
+
 echo -e "${BLUE}════════════════════════════════════════${NC}"
-echo -e "${GREEN}✅ Deploy concluído com sucesso!${NC}"
+echo -e "${GREEN}✅ Deploy concluído!${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${YELLOW}💡 Próximos passos:${NC}"
 echo -e "   1. Verifique os logs: docker service logs ${STACK_NAME}_api -f"
 echo -e "   2. Teste a aplicação: curl http://localhost:8000"
 echo -e "   3. Monitore os serviços: docker service ps ${STACK_NAME}_api"
+echo -e "   4. Se ainda der 404, reinicie o Traefik: docker service update --force traefik_traefik"
+echo -e "   5. Verifique logs do Traefik: docker service logs traefik_traefik --tail=50 | grep celx"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
