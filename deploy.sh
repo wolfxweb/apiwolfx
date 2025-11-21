@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script de Deploy para VPS em Produção
-# Atualiza código do GitHub e reconstrói containers sem cache
+# Atualiza código do GitHub e faz deploy no Docker Swarm
 
 set -e  # Parar em caso de erro
 
@@ -17,26 +17,6 @@ PROJECT_DIR="/root/apiwolfx"
 COMPOSE_FILE="docker-compose.prod.yml"
 STACK_NAME="celx_ml_api"
 
-# Detectar se está usando Docker Swarm
-if docker info | grep -q "Swarm: active"; then
-    USE_SWARM=true
-    echo -e "${GREEN}✅ Docker Swarm detectado${NC}"
-else
-    USE_SWARM=false
-    echo -e "${YELLOW}ℹ️  Docker Compose standalone (não é Swarm)${NC}"
-fi
-
-# Detectar qual comando docker compose está disponível
-if command -v docker-compose &> /dev/null; then
-    DOCKER_COMPOSE="docker-compose"
-elif docker compose version &> /dev/null 2>&1; then
-    DOCKER_COMPOSE="docker compose"
-else
-    echo -e "${RED}❌ Erro: docker-compose ou docker compose não encontrado${NC}"
-    echo -e "${YELLOW}💡 Instale docker-compose ou atualize o Docker para versão com compose integrado${NC}"
-    exit 1
-fi
-
 # Carregar variáveis de ambiente do portainer.env se existir
 if [ -f "portainer.env" ]; then
     echo -e "${GREEN}✅ Carregando variáveis de ambiente de portainer.env${NC}"
@@ -49,7 +29,6 @@ fi
 
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${GREEN}🚀 Deploy em Produção - Iniciando...${NC}"
-echo -e "${GREEN}✅ Usando comando: $DOCKER_COMPOSE${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 
 # Verificar se está no diretório correto
@@ -89,97 +68,34 @@ fi
 echo -e "${YELLOW}📝 Último commit:${NC}"
 git log -1 --oneline --decorate
 
-# 4. Parar containers atuais
-echo -e "${YELLOW}🛑 Parando containers...${NC}"
-if [ "$USE_SWARM" = true ]; then
-    echo -e "${YELLOW}   Removendo stack do Swarm...${NC}"
-    docker stack rm "$STACK_NAME" || true
-    sleep 5
-else
-    $DOCKER_COMPOSE -f "$COMPOSE_FILE" down || true
-fi
+# 4. Fazer deploy no Docker Swarm
+echo -e "${YELLOW}🔨 Fazendo deploy no Docker Swarm...${NC}"
+echo -e "${BLUE}⏳ Isso pode levar alguns minutos...${NC}"
 
-# 5. Limpar imagens antigas (opcional, para economizar espaço)
-echo -e "${YELLOW}🧹 Limpando imagens antigas...${NC}"
-docker system prune -f || true
+# O docker stack deploy atualiza o stack se existir, ou cria se não existir
+docker stack deploy -c "$COMPOSE_FILE" "$STACK_NAME"
 
-# 6. Reconstruir e subir containers
-if [ "$USE_SWARM" = true ]; then
-    echo -e "${YELLOW}🔨 Fazendo deploy no Docker Swarm...${NC}"
-    echo -e "${BLUE}⏳ Isso pode levar alguns minutos...${NC}"
-    
-    # Verificar se a rede server existe
-    if ! docker network ls | grep -q "server"; then
-        echo -e "${RED}❌ Erro: Rede 'server' não encontrada${NC}"
-        echo -e "${YELLOW}💡 Criando rede 'server'...${NC}"
-        docker network create --driver overlay --attachable server || true
-    fi
-    
-    # Deploy no Swarm
-    docker stack deploy -c "$COMPOSE_FILE" "$STACK_NAME"
-else
-    echo -e "${YELLOW}🔨 Reconstruindo containers (sem cache)...${NC}"
-    echo -e "${BLUE}⏳ Isso pode levar alguns minutos...${NC}"
-    
-    # Verificar se a rede server existe (para Compose standalone)
-    if ! docker network ls | grep -q "server"; then
-        echo -e "${YELLOW}💡 Criando rede 'server'...${NC}"
-        docker network create server || true
-    fi
-    
-    $DOCKER_COMPOSE -f "$COMPOSE_FILE" build --no-cache --pull
-    
-    echo -e "${YELLOW}⬆️  Subindo containers...${NC}"
-    $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d
-fi
+# 4.1. Forçar atualização do serviço sem cache (força recriação dos containers)
+echo -e "${YELLOW}🔄 Forçando atualização do serviço (sem cache)...${NC}"
+docker service update --force "${STACK_NAME}_api" || true
 
-# 8. Aguardar containers iniciarem
+# 5. Aguardar containers iniciarem
 echo -e "${YELLOW}⏳ Aguardando containers iniciarem...${NC}"
-sleep 5
+sleep 15
 
-# 9. Verificar status dos containers
+# 6. Verificar status dos containers
 echo -e "${YELLOW}📊 Status dos containers:${NC}"
-if [ "$USE_SWARM" = true ]; then
-    docker service ps "${STACK_NAME}_api" || true
-    CONTAINERS=$(docker service ps "${STACK_NAME}_api" -q --filter "desired-state=running" | head -1)
-else
-    $DOCKER_COMPOSE -f "$COMPOSE_FILE" ps
-    CONTAINERS=$($DOCKER_COMPOSE -f "$COMPOSE_FILE" ps -q)
-fi
+docker service ps "${STACK_NAME}_api" || true
 
-# 10. Verificar saúde dos containers
-echo -e "${YELLOW}🏥 Verificando saúde dos containers...${NC}"
-for container in $CONTAINERS; do
-    if [ -n "$container" ]; then
-        STATUS=$(docker inspect --format='{{.State.Status}}' "$container")
-        if [ "$STATUS" = "running" ]; then
-            echo -e "${GREEN}✅ Container $container está rodando${NC}"
-        else
-            echo -e "${RED}❌ Container $container está com status: $STATUS${NC}"
-        fi
-    fi
-done
-
-# 11. Mostrar logs recentes
+# 7. Mostrar logs recentes
 echo -e "${YELLOW}📋 Últimos logs do container API:${NC}"
-if [ "$USE_SWARM" = true ]; then
-    docker service logs "${STACK_NAME}_api" --tail=30 || true
-else
-    $DOCKER_COMPOSE -f "$COMPOSE_FILE" logs --tail=30 api
-fi
+docker service logs "${STACK_NAME}_api" --tail=30 || true
 
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${GREEN}✅ Deploy concluído com sucesso!${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${YELLOW}💡 Próximos passos:${NC}"
-if [ "$USE_SWARM" = true ]; then
-    echo -e "   1. Verifique os logs: docker service logs ${STACK_NAME}_api -f"
-    echo -e "   2. Teste a aplicação: curl http://localhost:8000"
-    echo -e "   3. Monitore os serviços: docker service ps ${STACK_NAME}_api"
-else
-    echo -e "   1. Verifique os logs: $DOCKER_COMPOSE -f $COMPOSE_FILE logs -f api"
-    echo -e "   2. Teste a aplicação: curl http://localhost:8000"
-    echo -e "   3. Monitore os containers: $DOCKER_COMPOSE -f $COMPOSE_FILE ps"
-fi
+echo -e "   1. Verifique os logs: docker service logs ${STACK_NAME}_api -f"
+echo -e "   2. Teste a aplicação: curl http://localhost:8000"
+echo -e "   3. Monitore os serviços: docker service ps ${STACK_NAME}_api"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
-
