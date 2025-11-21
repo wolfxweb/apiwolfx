@@ -43,13 +43,15 @@ class MLCashBatchService:
             for company in companies:
                 try:
                     # Verificar se a empresa tem conta principal configurada
+                    # IMPORTANTE: Buscar conta marcada como principal (is_main_account = True)
                     default_account = db.query(FinancialAccount).filter(
                         FinancialAccount.company_id == company.id,
-                        FinancialAccount.is_active == True
+                        FinancialAccount.is_active == True,
+                        FinancialAccount.is_main_account == True  # Apenas conta principal
                     ).first()
                     
                     if not default_account:
-                        logger.info(f"⏭️ [ML CASH BATCH] Empresa {company.id} ({company.name}) sem conta principal - pulando")
+                        logger.info(f"⏭️ [ML CASH BATCH] Empresa {company.id} ({company.name}) sem conta principal configurada - pulando")
                         companies_skipped += 1
                         continue
                     

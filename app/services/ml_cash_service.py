@@ -35,7 +35,7 @@ class MLCashService:
                 )
             ).all()
             
-            logger.info(f"📦 Encontrados {len(received_orders)} pedidos para processar")
+            logger.info(f"📦 Encontrados {len(received_orders)} pedidos pagos não processados")
             
             # Log detalhado dos critérios de busca
             total_orders = self.db.query(MLOrder).filter(MLOrder.company_id == company_id).count()
@@ -48,13 +48,14 @@ class MLCashService:
             not_processed = self.db.query(MLOrder).filter(
                 and_(
                     MLOrder.company_id == company_id,
-                    MLOrder.cash_entry_created == False
+                    MLOrder.cash_entry_created == False,
+                    MLOrder.status == OrderStatus.PAID
                 )
             ).count()
             logger.info(f"📊 Estatísticas da empresa {company_id}:")
             logger.info(f"   📦 Total de pedidos: {total_orders}")
             logger.info(f"   💰 Pedidos pagos: {paid_orders}")
-            logger.info(f"   ⏳ Não processados: {not_processed}")
+            logger.info(f"   ⏳ Pagos não processados: {not_processed}")
             
             if not received_orders:
                 logger.info("ℹ️ Nenhum pedido elegível encontrado")
@@ -65,27 +66,32 @@ class MLCashService:
                     "total_amount": 0.0
                 }
             
-            # Buscar conta bancária padrão da empresa
+            # Buscar conta bancária principal da empresa
+            # IMPORTANTE: Usar apenas a conta marcada como principal (is_main_account = True)
             default_account = self.db.query(FinancialAccount).filter(
                 and_(
                     FinancialAccount.company_id == company_id,
-                    FinancialAccount.is_active == True
+                    FinancialAccount.is_active == True,
+                    FinancialAccount.is_main_account == True  # Apenas conta principal
                 )
             ).first()
             
             if not default_account:
+                logger.warning(f"⚠️ Empresa {company_id} não possui conta principal configurada (is_main_account = True)")
                 return {
                     "success": False,
-                    "error": "Nenhuma conta bancária ativa encontrada para a empresa"
+                    "error": "Nenhuma conta principal configurada para a empresa. Configure uma conta como principal."
                 }
             
             processed_count = 0
             total_amount = 0.0
             
+            eligible_count = 0
             for order in received_orders:
                 try:
                     # Verificar se o pedido foi realmente entregue há mais de 7 dias
                     if self._is_order_really_received(order):
+                        eligible_count += 1
                         # Calcular valor líquido (total - taxas)
                         net_amount = float(order.total_amount or 0) - float(order.total_fees or 0)
                         
@@ -104,9 +110,12 @@ class MLCashService:
                             
                             logger.info(f"✅ Pedido {order.ml_order_id} lançado no caixa: R$ {net_amount:.2f}")
                         else:
-                            logger.warning(f"⚠️ Pedido {order.ml_order_id} com valor líquido zero ou negativo")
+                            logger.warning(f"⚠️ Pedido {order.ml_order_id} com valor líquido zero ou negativo: R$ {net_amount:.2f}")
                     else:
-                        logger.info(f"ℹ️ Pedido {order.ml_order_id} ainda não foi entregue há 7 dias")
+                        logger.debug(f"⏳ Pedido {order.ml_order_id} ainda não elegível (aguardando 7 dias desde entrega/fechamento)")
+            
+            if eligible_count == 0 and len(received_orders) > 0:
+                logger.info(f"ℹ️ {len(received_orders)} pedidos encontrados, mas nenhum elegível (todos aguardando 7 dias)")
                         
                 except Exception as e:
                     logger.error(f"❌ Erro ao processar pedido {order.ml_order_id}: {e}")
@@ -157,13 +166,18 @@ class MLCashService:
             if delivery_date:
                 # Verificar se passou 7 dias desde a entrega
                 days_since_delivery = (datetime.now() - delivery_date.replace(tzinfo=None)).days
-                return days_since_delivery >= 7
+                is_valid = days_since_delivery >= 7
+                logger.debug(f"📅 Pedido {order.ml_order_id}: {days_since_delivery} dias desde entrega - {'✅ Válido' if is_valid else '❌ Aguardando 7 dias'}")
+                return is_valid
             else:
                 # Se não conseguiu extrair a data, usar data de fechamento do pedido
                 if order.date_closed:
                     days_since_closed = (datetime.now() - order.date_closed).days
-                    return days_since_closed >= 7
+                    is_valid = days_since_closed >= 7
+                    logger.debug(f"📅 Pedido {order.ml_order_id}: {days_since_closed} dias desde fechamento - {'✅ Válido' if is_valid else '❌ Aguardando 7 dias'}")
+                    return is_valid
                 
+                logger.warning(f"⚠️ Pedido {order.ml_order_id}: sem data de entrega ou fechamento - não processando")
                 return False
                 
         except Exception as e:
