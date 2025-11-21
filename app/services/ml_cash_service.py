@@ -113,13 +113,12 @@ class MLCashService:
                             logger.warning(f"⚠️ Pedido {order.ml_order_id} com valor líquido zero ou negativo: R$ {net_amount:.2f}")
                     else:
                         logger.debug(f"⏳ Pedido {order.ml_order_id} ainda não elegível (aguardando 7 dias desde entrega/fechamento)")
-            
-            if eligible_count == 0 and len(received_orders) > 0:
-                logger.info(f"ℹ️ {len(received_orders)} pedidos encontrados, mas nenhum elegível (todos aguardando 7 dias)")
-                        
                 except Exception as e:
                     logger.error(f"❌ Erro ao processar pedido {order.ml_order_id}: {e}")
                     continue
+            
+            if eligible_count == 0 and len(received_orders) > 0:
+                logger.info(f"ℹ️ {len(received_orders)} pedidos encontrados, mas nenhum elegível (todos aguardando 7 dias)")
             
             # Commit das alterações
             self.db.commit()
