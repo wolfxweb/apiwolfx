@@ -9,12 +9,8 @@ services:
       sh -c "
         apt-get update && 
         apt-get install -y git gcc default-libmysqlclient-dev pkg-config curl unzip openssh-client &&
-        mkdir -p /root/.ssh &&
-        chmod 700 /root/.ssh &&
-        chmod 600 /root/.ssh/id_rsa 2>/dev/null || true &&
-        echo 'StrictHostKeyChecking no' >> /root/.ssh/config &&
         rm -rf /tmp/cel /app/* &&
-        git clone git@github.com:wolfxweb/apiwolfx.git /tmp/cel &&
+        GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' git clone git@github.com:wolfxweb/apiwolfx.git /tmp/cel &&
         cp -r /tmp/cel/* /app/ &&
         rm -rf /tmp/cel &&
         cd /app &&
