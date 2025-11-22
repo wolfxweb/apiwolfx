@@ -98,11 +98,8 @@ pip install -r requirements.txt
 
 ### Com Docker (Recomendado)
 ```bash
-# Produção
+# Executar com Docker
 ./run_docker.sh
-
-# Desenvolvimento
-./run_dev.sh
 ```
 
 ### Com ngrok (Local)
