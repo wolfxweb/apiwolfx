@@ -758,20 +758,36 @@ class OpenAIAssistantService:
             i = 0
             while i < len(previous_messages):
                 prev_msg = previous_messages[i]
+                
+                # Validar e sanitizar o role
+                role = prev_msg.role
+                if not role or not isinstance(role, str):
+                    logger.warning(f"⚠️ Role inválido na mensagem ID {prev_msg.id}: {role}. Pulando mensagem.")
+                    i += 1
+                    continue
+                
+                role = role.strip().lower()
+                # Validar que o role é um dos valores aceitos pela API
+                valid_roles = ["system", "user", "assistant", "tool"]
+                if role not in valid_roles:
+                    logger.warning(f"⚠️ Role inválido na mensagem ID {prev_msg.id}: '{prev_msg.role}'. Pulando mensagem.")
+                    i += 1
+                    continue
+                
                 msg_dict = {
-                    "role": prev_msg.role,
+                    "role": role,
                     "content": prev_msg.content
                 }
                 
                 # Se for mensagem 'assistant', verificar se tem tool_calls no content (JSON)
-                if prev_msg.role == "assistant" and prev_msg.content:
+                if role == "assistant" and prev_msg.content:
                     try:
                         content_json = json.loads(prev_msg.content)
                         if isinstance(content_json, dict) and "tool_calls" in content_json:
                             # Primeiro, contar quantas mensagens 'tool' seguintes existem
                             tool_messages_count = 0
                             j = i + 1
-                            while j < len(previous_messages) and previous_messages[j].role == "tool":
+                            while j < len(previous_messages) and previous_messages[j].role and previous_messages[j].role.strip().lower() == "tool":
                                 tool_messages_count += 1
                                 j += 1
                             
@@ -815,8 +831,13 @@ class OpenAIAssistantService:
                             # Avançar e adicionar mensagens 'tool' seguintes com tool_call_id
                             i += 1
                             tool_call_index = 0
-                            while i < len(previous_messages) and previous_messages[i].role == "tool" and tool_call_index < len(msg_dict["tool_calls"]):
+                            while i < len(previous_messages) and tool_call_index < len(msg_dict["tool_calls"]):
                                 tool_msg = previous_messages[i]
+                                
+                                # Validar role da mensagem tool
+                                tool_role = tool_msg.role
+                                if not tool_role or tool_role.strip().lower() != "tool":
+                                    break
                                 
                                 # Tentar extrair tool_call_id e name do content (JSON estruturado)
                                 tool_call_id = None
@@ -1138,6 +1159,45 @@ class OpenAIAssistantService:
         while iteration < max_iterations:
             iteration += 1
             logger.info(f"🔄 Iteração {iteration}/{max_iterations} do chat com ferramentas...")
+            
+            # Validar todas as mensagens antes de enviar
+            valid_roles = {"system", "user", "assistant", "tool"}
+            cleaned_messages = []
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    logger.warning(f"⚠️ Mensagem inválida (não é dict): {type(msg)}. Pulando.")
+                    continue
+                
+                msg_role = msg.get("role")
+                if not msg_role or not isinstance(msg_role, str):
+                    logger.warning(f"⚠️ Mensagem sem role válido: {msg}. Pulando.")
+                    continue
+                
+                msg_role = msg_role.strip().lower()
+                if msg_role not in valid_roles:
+                    logger.warning(f"⚠️ Role inválido na mensagem: '{msg.get('role')}'. Pulando.")
+                    continue
+                
+                # Criar mensagem limpa com role validado
+                cleaned_msg = {
+                    "role": msg_role,
+                    "content": msg.get("content")
+                }
+                
+                # Adicionar tool_calls se presente (apenas para assistant)
+                if msg_role == "assistant" and "tool_calls" in msg:
+                    cleaned_msg["tool_calls"] = msg["tool_calls"]
+                
+                # Adicionar tool_call_id se presente (apenas para tool)
+                if msg_role == "tool" and "tool_call_id" in msg:
+                    cleaned_msg["tool_call_id"] = msg["tool_call_id"]
+                    if "name" in msg:
+                        cleaned_msg["name"] = msg["name"]
+                
+                cleaned_messages.append(cleaned_msg)
+            
+            # Atualizar chat_params com mensagens validadas
+            chat_params["messages"] = cleaned_messages
             
             # Fazer chamada ao Chat Completions
             response = self.client.chat.completions.create(**chat_params)
