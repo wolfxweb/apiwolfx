@@ -1267,25 +1267,47 @@ class OpenAIAssistantService:
                             except:
                                 pass
                         
-                        # Limitar tamanho do content para evitar problemas com mensagens muito grandes
-                        result_str = json.dumps(result, ensure_ascii=False)
-                        if len(result_str) > 10000:  # Limitar a 10KB
-                            result_str = result_str[:10000] + '..." (truncado)'
-                            result = json.loads(result_str.replace('..." (truncado)', ''))
-                        
                         # Incluir tool_call_id e name no content como metadados para reconstrução
                         tool_content = {
                             "tool_call_id": tool_call.id,
                             "name": function_name,
                             "result": result
                         }
-                        tool_message = OpenAIAssistantMessage(
-                            thread_id=db_thread.id,
-                            role="tool",
-                            content=json.dumps(tool_content, ensure_ascii=False)
-                        )
-                        self.db.add(tool_message)
-                        self.db.flush()
+                        
+                        # Serializar o conteúdo e validar que o JSON é válido antes de salvar
+                        try:
+                            final_content = json.dumps(tool_content, ensure_ascii=False)
+                            
+                            # Validar que o JSON é válido tentando fazer parse
+                            json.loads(final_content)
+                            
+                            tool_message = OpenAIAssistantMessage(
+                                thread_id=db_thread.id,
+                                role="tool",
+                                content=final_content
+                            )
+                            self.db.add(tool_message)
+                            self.db.flush()
+                        except (json.JSONDecodeError, ValueError, TypeError) as json_error:
+                            # Se houver erro ao serializar/validar JSON, salvar versão simplificada
+                            logger.warning(f"⚠️ Erro ao serializar conteúdo tool, salvando versão simplificada: {json_error}")
+                            try:
+                                simplified_content = {
+                                    "tool_call_id": tool_call.id,
+                                    "name": function_name,
+                                    "result": {"_error": "Erro ao serializar resultado", "_type": str(type(result))},
+                                    "_original_error": str(json_error)
+                                }
+                                tool_message = OpenAIAssistantMessage(
+                                    thread_id=db_thread.id,
+                                    role="tool",
+                                    content=json.dumps(simplified_content, ensure_ascii=False)
+                                )
+                                self.db.add(tool_message)
+                                self.db.flush()
+                            except Exception as fallback_error:
+                                logger.error(f"❌ Erro mesmo na versão simplificada: {fallback_error}")
+                                raise
                     except Exception as save_error:
                         logger.error(f"❌ Erro ao salvar mensagem tool no banco: {save_error}", exc_info=True)
                         # Tentar rollback e continuar (não bloquear o fluxo)

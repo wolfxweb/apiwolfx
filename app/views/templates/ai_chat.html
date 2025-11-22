@@ -12,27 +12,33 @@
         height: calc(100vh - 80px);
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
     
+    /* Sidebar responsiva */
     .conversations-sidebar {
-        width: 300px;
-        border-right: 1px solid #dee2e6;
         background-color: #f8f9fa;
+        border-right: 1px solid #dee2e6;
         display: flex;
         flex-direction: column;
         height: 100%;
+        position: relative;
+        overflow: hidden;
     }
     
     .conversations-header {
         padding: 1rem;
         border-bottom: 1px solid #dee2e6;
         background-color: white;
+        flex-shrink: 0;
     }
     
     .conversations-list {
         flex: 1;
         overflow-y: auto;
+        overflow-x: hidden;
         padding: 0.5rem;
+        min-height: 0;
     }
     
     .conversation-item {
@@ -74,23 +80,35 @@
         flex-direction: column;
         height: 100%;
         background-color: white;
+        position: relative;
+        overflow: hidden;
+        min-height: 0;
     }
     
     .chat-header {
         padding: 1rem;
         border-bottom: 1px solid #dee2e6;
         background-color: white;
+        flex-shrink: 0;
     }
     
     .chat-messages {
         flex: 1;
         overflow-y: auto;
-        padding: 1rem;
+        overflow-x: hidden;
+        padding: 1.5rem;
         background-color: #f8f9fa;
+        min-height: 0;
+    }
+    
+    @media (max-width: 768px) {
+        .chat-messages {
+            padding: 1rem;
+        }
     }
     
     .message {
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
         display: flex;
         align-items: flex-start;
     }
@@ -99,40 +117,102 @@
         justify-content: flex-end;
     }
     
+    .message.assistant {
+        justify-content: flex-start;
+    }
+    
+    .message-wrapper {
+        max-width: 75%;
+        min-width: 250px;
+    }
+    
+    @media (min-width: 992px) {
+        .message-wrapper {
+            max-width: 65%;
+            min-width: 300px;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .message-wrapper {
+            max-width: 90%;
+            min-width: 180px;
+        }
+    }
+    
     .message-content {
-        max-width: 85%;
-        padding: 0.75rem 1rem;
-        border-radius: 1rem;
+        padding: 1.25rem 1.5rem;
+        border-radius: 1.25rem;
         word-wrap: break-word;
         word-break: break-word;
         overflow-wrap: break-word;
         hyphens: auto;
+        line-height: 1.7;
+        font-size: 1.05rem;
+        white-space: pre-wrap;
+    }
+    
+    @media (max-width: 768px) {
+        .message-content {
+            padding: 1rem 1.25rem;
+            font-size: 1rem;
+        }
     }
     
     .message.user .message-content {
         background-color: #0d6efd;
         color: white;
-        border-bottom-right-radius: 0.25rem;
+        border-bottom-right-radius: 0.375rem;
+    }
+    
+    .message.user .message-content a {
+        color: #b3d9ff;
+        text-decoration: underline;
+    }
+    
+    .message.user .message-content a:hover {
+        color: #ffffff;
     }
     
     .message.assistant .message-content {
         background-color: white;
         color: #212529;
         border: 1px solid #dee2e6;
-        border-bottom-left-radius: 0.25rem;
+        border-bottom-left-radius: 0.375rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    
+    .message.assistant .message-content a {
+        color: #0d6efd;
+        text-decoration: none;
+    }
+    
+    .message.assistant .message-content a:hover {
+        text-decoration: underline;
+    }
+    
+    .message.assistant .message-content code {
+        background-color: #f8f9fa;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+        font-size: 0.9em;
+        font-family: 'Courier New', monospace;
     }
     
     .message-time {
         font-size: 0.75rem;
         color: #6c757d;
-        margin-top: 0.25rem;
-        padding: 0 0.5rem;
+        margin-top: 0.5rem;
+        padding: 0 0.75rem;
     }
     
     .chat-input-area {
         padding: 1rem;
         border-top: 1px solid #dee2e6;
         background-color: white;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 10;
     }
     
     .empty-state {
@@ -142,6 +222,9 @@
         justify-content: center;
         height: 100%;
         color: #6c757d;
+        padding: 2rem;
+        overflow: hidden;
+        min-height: 0;
     }
     
     .empty-state i {
@@ -150,27 +233,96 @@
         opacity: 0.5;
     }
     
-    .new-chat-btn {
-        width: 100%;
-        margin-bottom: 1rem;
+    @media (max-width: 768px) {
+        .empty-state i {
+            font-size: 3rem;
+        }
+        
+        .empty-state h4 {
+            font-size: 1.25rem;
+        }
     }
     
-    .assistant-selector {
-        margin-bottom: 1rem;
+    /* Botão para toggle da sidebar em mobile */
+    .sidebar-toggle-btn {
+        display: none;
+    }
+    
+    @media (max-width: 991.98px) {
+        .sidebar-toggle-btn {
+            display: inline-block;
+        }
+        
+        .conversations-sidebar {
+            position: fixed;
+            left: -100%;
+            top: 0;
+            height: 100vh;
+            width: 300px;
+            z-index: 1050;
+            transition: left 0.3s ease;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .conversations-sidebar.show {
+            left: 0;
+        }
+        
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1040;
+        }
+        
+        .sidebar-overlay.show {
+            display: block;
+        }
+        
+        .chat-container {
+            height: calc(100vh - 80px);
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="chat-container">
-    <div class="d-flex h-100">
+    <!-- Overlay para mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+    
+    <div class="row g-0 h-100" style="overflow: hidden; min-height: 0;">
         <!-- Sidebar de Conversas -->
-        <div class="conversations-sidebar">
+        <div class="col-lg-4 col-md-5 col-12 conversations-sidebar" id="conversationsSidebar">
             <div class="conversations-header">
-                <button class="btn btn-primary new-chat-btn" onclick="startNewChat()">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">Conversas</h6>
+                    <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()" type="button">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <button class="btn btn-primary w-100 mb-2" onclick="startNewChat()">
                     <i class="bi bi-plus-circle"></i> Nova Conversa
                 </button>
-                <div class="assistant-selector">
+                <!-- Campo de pesquisa de conversas -->
+                <div class="conversation-search mb-2">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control" 
+                               id="conversationSearch" 
+                               placeholder="Pesquisar conversas..."
+                               onkeyup="filterConversations()">
+                    </div>
+                </div>
+                <!-- Combo de seleção de agente oculto temporariamente -->
+                <div class="assistant-selector" style="display: none;">
                     <select class="form-select form-select-sm" id="assistantFilter" onchange="loadConversations()">
                         <option value="">Todos os Agentes</option>
                     </select>
@@ -186,23 +338,35 @@
         </div>
         
         <!-- Área de Chat -->
-        <div class="chat-area flex-grow-1">
+        <div class="col-lg-8 col-md-7 col-12 chat-area">
+            <!-- Botão toggle para mobile (apenas quando vazio) -->
+            <div class="chat-header d-lg-none" id="emptyStateHeader" style="padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; background-color: white; flex-shrink: 0;">
+                <button class="btn btn-sm btn-outline-secondary sidebar-toggle-btn" onclick="toggleSidebar()" type="button">
+                    <i class="bi bi-list"></i>
+                </button>
+            </div>
+            
             <!-- Estado vazio -->
             <div class="empty-state" id="emptyState">
                 <i class="bi bi-chat-left-text"></i>
                 <h4>Selecione uma conversa</h4>
-                <p class="text-muted">Escolha uma conversa da lista ao lado ou inicie uma nova</p>
+                <p class="text-muted text-center">Escolha uma conversa da lista ao lado ou inicie uma nova</p>
             </div>
             
             <!-- Chat ativo -->
-            <div id="chatActive" style="display: none; height: 100%; flex-direction: column;">
+            <div id="chatActive" style="display: none; height: 100%; flex-direction: column; overflow: hidden;">
                 <div class="chat-header">
                     <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="mb-0" id="chatAssistantName">
-                                <i class="bi bi-robot"></i> Agente
-                            </h5>
-                            <small class="text-muted" id="chatThreadInfo"></small>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-outline-secondary sidebar-toggle-btn d-lg-none me-2" onclick="toggleSidebar()" type="button">
+                                <i class="bi bi-list"></i>
+                            </button>
+                            <div>
+                                <h5 class="mb-0" id="chatAssistantName">
+                                    Chat
+                                </h5>
+                                <small class="text-muted" id="chatThreadInfo"></small>
+                            </div>
                         </div>
                         <div>
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteCurrentConversation()" title="Deletar conversa">
@@ -248,12 +412,33 @@
             </div>
         </div>
     </div>
-    </div>
+</div>
 
 <script>
 let currentThreadId = null;
 let currentAssistantId = null;
 let conversations = [];
+
+// Toggle sidebar em mobile
+function toggleSidebar() {
+    const sidebar = document.getElementById('conversationsSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    
+    if (sidebar.classList.contains('show')) {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    } else {
+        sidebar.classList.add('show');
+        overlay.classList.add('show');
+    }
+}
+
+// Fechar sidebar ao clicar em uma conversa (mobile)
+function closeSidebarOnMobile() {
+    if (window.innerWidth <= 991.98) {
+        toggleSidebar();
+    }
+}
 
 // Carregar conversas e agentes ao iniciar
 document.addEventListener('DOMContentLoaded', function() {
@@ -276,6 +461,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 2000);
         }
     }
+    
+    // Fechar sidebar ao redimensionar para desktop
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 991.98) {
+            const sidebar = document.getElementById('conversationsSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+        }
+    });
 });
 
 // Carregar lista de agentes disponíveis
@@ -329,6 +524,8 @@ async function loadConversations() {
             const data = await response.json();
             if (data.success && data.threads) {
                 conversations = data.threads;
+                filteredConversations = []; // Limpar filtro ao recarregar
+                document.getElementById('conversationSearch').value = ''; // Limpar campo de busca
                 renderConversationsList();
             } else {
                 document.getElementById('conversationsList').innerHTML = 
@@ -342,17 +539,47 @@ async function loadConversations() {
     }
 }
 
+// Variável para armazenar conversas filtradas
+let filteredConversations = [];
+
+// Filtrar conversas por pesquisa
+function filterConversations() {
+    const searchTerm = document.getElementById('conversationSearch').value.toLowerCase().trim();
+    
+    if (!searchTerm) {
+        filteredConversations = conversations;
+    } else {
+        filteredConversations = conversations.filter(conv => {
+            const title = (conv.title || 'Nova conversa').toLowerCase();
+            const assistantName = (conv.assistant_name || '').toLowerCase();
+            return title.includes(searchTerm) || assistantName.includes(searchTerm);
+        });
+    }
+    
+    renderConversationsList();
+}
+
 // Renderizar lista de conversas
 function renderConversationsList() {
     const container = document.getElementById('conversationsList');
     
-    if (conversations.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-muted">Nenhuma conversa encontrada</div>';
+    // Usar conversas filtradas se houver pesquisa, senão usar todas
+    const conversationsToShow = filteredConversations.length > 0 || document.getElementById('conversationSearch').value.trim() 
+        ? filteredConversations 
+        : conversations;
+    
+    if (conversationsToShow.length === 0) {
+        const searchTerm = document.getElementById('conversationSearch').value.trim();
+        if (searchTerm) {
+            container.innerHTML = '<div class="text-center py-4 text-muted">Nenhuma conversa encontrada para "' + escapeHtml(searchTerm) + '"</div>';
+        } else {
+            container.innerHTML = '<div class="text-center py-4 text-muted">Nenhuma conversa encontrada</div>';
+        }
         return;
     }
     
     // Ordenar por mais recentes primeiro (last_message_at ou created_at)
-    const sorted = [...conversations].sort((a, b) => {
+    const sorted = [...conversationsToShow].sort((a, b) => {
         const da = new Date(a.last_message_at || a.created_at);
         const db = new Date(b.last_message_at || b.created_at);
         return db - da;
@@ -364,15 +591,14 @@ function renderConversationsList() {
             : new Date(conv.created_at).toLocaleDateString('pt-BR');
         
         const rawTitle = (conv.title && typeof conv.title === 'string') ? conv.title : 'Nova conversa';
-        const displayTitle = rawTitle.length > 15 ? rawTitle.slice(0, 15) + '...' : rawTitle;
+        const displayTitle = rawTitle.length > 30 ? rawTitle.slice(0, 30) + '...' : rawTitle;
         
         return `
             <div class="conversation-item ${conv.thread_id === currentThreadId ? 'active' : ''}" 
-                 onclick="loadConversation('${conv.thread_id}', ${conv.assistant_id})">
+                 onclick="loadConversation('${conv.thread_id}', ${conv.assistant_id}); closeSidebarOnMobile();">
                 <div>
                     <div class="conversation-title">${escapeHtml(displayTitle)}</div>
                     <div class="conversation-meta">
-                        <div>${escapeHtml(conv.assistant_name)}</div>
                         <div class="d-flex justify-content-between align-items-center">
                             <div>${conv.message_count} mensagens • ${date}</div>
                             <i class="bi bi-trash text-danger" style="cursor: pointer;" title="Remover conversa" aria-label="Remover conversa" onclick="deleteConversation(event, '${conv.thread_id}')"></i>
@@ -406,6 +632,7 @@ async function loadConversation(threadId, assistantId) {
             if (data.success) {
                 // Mostrar área de chat
                 document.getElementById('emptyState').style.display = 'none';
+                document.getElementById('emptyStateHeader').style.display = 'none';
                 document.getElementById('chatActive').style.display = 'flex';
                 
                 // Atualizar header
@@ -447,71 +674,142 @@ function renderMessages(messages) {
             return false;
         });
     
-    container.innerHTML = visibleMessages.map(msg => {
-        const date = new Date(msg.created_at);
-        const timeStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        
-        return `
-            <div class="message ${msg.role}">
-                <div>
-                    <div class="message-content">${formatMessage(msg.content)}</div>
-                    <div class="message-time">${timeStr}</div>
-                </div>
-            </div>
-        `;
-    }).join('');
+    try {
+        container.innerHTML = visibleMessages.map(msg => {
+            try {
+                const date = msg.created_at ? new Date(msg.created_at) : new Date();
+                const timeStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const content = formatMessage(msg.content || '');
+                const role = msg.role || 'user';
+                
+                return `
+                    <div class="message ${role}">
+                        <div class="message-wrapper">
+                            <div class="message-content">${content}</div>
+                            <div class="message-time">${timeStr}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Erro ao renderizar mensagem:', error, msg);
+                return `
+                    <div class="message ${msg.role || 'user'}">
+                        <div class="message-wrapper">
+                            <div class="message-content">Erro ao carregar mensagem</div>
+                            <div class="message-time">--:--</div>
+                        </div>
+                    </div>
+                `;
+            }
+        }).join('');
+    } catch (error) {
+        console.error('Erro ao renderizar mensagens:', error);
+        container.innerHTML = '<div class="alert alert-danger">Erro ao carregar mensagens. Por favor, recarregue a página.</div>';
+    }
     
     scrollToBottom();
 }
 
 // Detecta mensagens internas (tool_calls JSON ou JSON bruto técnico)
 function isInternalMessage(content) {
-    if (!content || typeof content !== 'string') return false;
-    const trimmed = content.trim();
-    
-    // Ocultar quando o modelo retorna instrução de chamada de ferramenta
-    if (trimmed.includes('"tool_calls"') || trimmed.includes('"function"')) return true;
-    
-    // Ocultar qualquer blob JSON puro (objeto/array) - são respostas técnicas de ferramentas
-    // Verificar se começa e termina com {} ou [] e é JSON válido
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-        try {
-            JSON.parse(trimmed);
-            // Se é JSON válido puro (sem texto ao redor), ocultar
-            return true;
-        } catch (e) { 
-            // Não é JSON válido, manter visível (pode ser texto com formatação)
+    try {
+        if (!content) return false;
+        
+        // Converter para string se necessário
+        const text = typeof content === 'string' ? content : String(content);
+        const trimmed = text.trim();
+        
+        if (!trimmed) return false;
+        
+        // Ocultar quando o modelo retorna instrução de chamada de ferramenta
+        if (trimmed.includes('"tool_calls"') || trimmed.includes('"function"')) return true;
+        
+        // Ocultar qualquer blob JSON puro (objeto/array) - são respostas técnicas de ferramentas
+        // Verificar se começa e termina com {} ou [] e é JSON válido
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+            (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+            try {
+                JSON.parse(trimmed);
+                // Se é JSON válido puro (sem texto ao redor), ocultar
+                return true;
+            } catch (e) { 
+                // Não é JSON válido, manter visível (pode ser texto com formatação)
+            }
         }
+        
+        return false;
+    } catch (error) {
+        console.error('Erro ao verificar mensagem interna:', error);
+        return false; // Em caso de erro, mostrar a mensagem
     }
-    
-    return false;
 }
 
 // Formatar mensagem (suporta markdown básico)
 function formatMessage(content) {
-    // Remover tags HTML visíveis ao usuário, preservando quebras de linha básicas
-    let text = String(content || '');
-    // Converter tags de parágrafo/linha em \n
-    text = text.replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
-    // Remover quaisquer outras tags HTML
-    text = text.replace(/<[^>]+>/g, '');
-    // Escapar HTML remanescente
-    let formatted = escapeHtml(text);
-    // Converter \n em <br> para exibição
-    formatted = formatted.replace(/\n/g, '<br>');
-    // Converter markdown básico
-    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    formatted = formatted.replace(/`(.+?)`/g, '<code>$1</code>');
-    return formatted;
+    try {
+        // Verificar se conteúdo é válido
+        if (content === null || content === undefined) {
+            return '';
+        }
+        
+        // Converter para string
+        let text = String(content);
+        
+        // Se estiver vazio, retornar
+        if (!text.trim()) {
+            return '';
+        }
+        
+        // Converter tags de parágrafo/linha em \n
+        text = text.replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
+        
+        // Remover quaisquer outras tags HTML (mas preservar conteúdo)
+        text = text.replace(/<[^>]+>/g, '');
+        
+        // Escapar HTML remanescente para segurança
+        let formatted = escapeHtml(text);
+        
+        // Preservar quebras de linha múltiplas (máximo 2 consecutivas)
+        formatted = formatted.replace(/\n{3,}/g, '\n\n');
+        
+        // Converter \n em <br> para exibição
+        formatted = formatted.replace(/\n/g, '<br>');
+        
+        // Converter markdown básico (após escape para evitar XSS)
+        formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        formatted = formatted.replace(/`(.+?)`/g, '<code class="bg-light px-1 rounded">$1</code>');
+        
+        // Converter links (após escape)
+        formatted = formatted.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-decoration-none">$1</a>');
+        
+        return formatted;
+    } catch (error) {
+        console.error('Erro ao formatar mensagem:', error, content);
+        // Em caso de erro, retornar conteúdo escapado simples
+        return escapeHtml(String(content || 'Erro ao carregar mensagem'));
+    }
 }
 
 // Escapar HTML
 function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    try {
+        if (text === null || text === undefined) {
+            return '';
+        }
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    } catch (error) {
+        console.error('Erro ao escapar HTML:', error);
+        // Fallback: substituir caracteres perigosos manualmente
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 }
 
 // Scroll para última mensagem
@@ -599,7 +897,7 @@ function addMessageToChat(role, content) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
     messageDiv.innerHTML = `
-        <div>
+        <div class="message-wrapper">
             <div class="message-content">${formatMessage(content)}</div>
             <div class="message-time">${timeStr}</div>
         </div>
@@ -649,6 +947,7 @@ async function startNewChat() {
 // Mostrar área de chat
 function showChatArea() {
     document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('emptyStateHeader').style.display = 'none';
     document.getElementById('chatActive').style.display = 'flex';
     
     if (currentAssistantId) {
@@ -667,11 +966,8 @@ function showChatArea() {
         })
         .then(data => {
             if (data.success && data.assistants) {
-                const assistant = data.assistants.find(a => a.id === currentAssistantId);
-                if (assistant) {
-                    document.getElementById('chatAssistantName').innerHTML = 
-                        `<i class="bi bi-robot"></i> ${escapeHtml(assistant.name)}`;
-                }
+                // Título sempre será "Chat"
+                document.getElementById('chatAssistantName').innerHTML = 'Chat';
             }
         });
         
@@ -682,6 +978,9 @@ function showChatArea() {
     // Limpar mensagens
     document.getElementById('chatMessages').innerHTML = '';
     document.getElementById('chatInput').focus();
+    
+    // Fechar sidebar em mobile
+    closeSidebarOnMobile();
 }
 
 // Modal de seleção de agente
@@ -795,6 +1094,7 @@ async function deleteCurrentConversation() {
             
             // Mostrar estado vazio
             document.getElementById('emptyState').style.display = 'flex';
+            document.getElementById('emptyStateHeader').style.display = 'block';
             document.getElementById('chatActive').style.display = 'none';
             
             // Recarregar lista
@@ -845,6 +1145,7 @@ async function deleteConversation(event, threadId) {
             if (currentThreadId === threadId) {
                 currentThreadId = null;
                 document.getElementById('emptyState').style.display = 'flex';
+                document.getElementById('emptyStateHeader').style.display = 'block';
                 document.getElementById('chatActive').style.display = 'none';
             }
             showNotification('Conversa removida', 'success');
@@ -889,4 +1190,3 @@ function showConfirmModal(message) {
 }
 </script>
 {% endblock %}
-
