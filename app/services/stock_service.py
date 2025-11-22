@@ -1027,6 +1027,8 @@ class StockService:
                     tags_list = ml_product.tags if isinstance(ml_product.tags, list) else []
                     if any(tag in ["fulfillment", "meli_fulfillment", "FULL"] for tag in tags_list):
                         is_fulfillment = True
+                
+                logger.info(f"🔍 Anúncio {ml_item_id}: is_fulfillment={is_fulfillment}, warehouse_id={warehouse_id}")
             
             # Para anúncios Full: estoque individual por ml_item_id
             # Para anúncios normais: estoque compartilhado (sem ml_item_id)
@@ -1363,6 +1365,11 @@ class StockService:
                         "is_fulfillment": is_fulfillment
                     }
             
+            logger.info(f"📊 Total de anúncios mapeados: {len(announcements_map)}")
+            full_count = sum(1 for data in announcements_map.values() if data.get("is_fulfillment", False))
+            normal_count = len(announcements_map) - full_count
+            logger.info(f"📊 Anúncios Full: {full_count}, Anúncios normais: {normal_count}")
+            
             success_count = 0
             error_count = 0
             errors = []
@@ -1370,6 +1377,7 @@ class StockService:
             # Processar anúncios Full
             if warehouse_id_fulfillment:
                 full_announcements = [ml_id for ml_id, data in announcements_map.items() if data.get("is_fulfillment", False)]
+                logger.info(f"🔧 Configurando {len(full_announcements)} anúncios Full para warehouse {warehouse_id_fulfillment}")
                 
                 for ml_item_id in full_announcements:
                     data = announcements_map[ml_item_id]
