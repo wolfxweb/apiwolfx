@@ -75,7 +75,7 @@
                         <th>Produto</th>
                         <th>Preço Custo</th>
                         <th>Preço Venda</th>
-                        <th>Anúncios</th>
+                        <th>Estoque</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -451,6 +451,69 @@
     </div>
 </div>
 
+<!-- Modal de Configuração de Depósito por Anúncio -->
+<div class="modal fade" id="configAnnouncementWarehouseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-gear"></i> Configurar Depósito do Anúncio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="configAnnouncementProductId">
+                <input type="hidden" id="configAnnouncementMlItemId">
+                <p><strong>Anúncio:</strong> <span id="configAnnouncementTitle"></span></p>
+                <div class="mb-3">
+                    <label for="configAnnouncementWarehouseSelect" class="form-label">Depósito *</label>
+                    <select class="form-select" id="configAnnouncementWarehouseSelect" required>
+                        <option value="">Carregando...</option>
+                    </select>
+                    <small class="form-text text-muted">Selecione qual depósito este anúncio deve usar para estoque</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveAnnouncementWarehouseConfig()">
+                    <i class="bi bi-check-circle"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes de Estoque -->
+<div class="modal fade" id="stockDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-boxes me-2"></i>
+                    Detalhes de Estoque
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="stockDetailsContent">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Carregando detalhes de estoque...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="/estoque" class="btn btn-primary">
+                    <i class="bi bi-boxes"></i> Gerenciar Estoque
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let currentProducts = [];
 let currentFilters = {
@@ -515,7 +578,7 @@ function showLoadingSpinner() {
     const tbody = document.getElementById('productsTableBody');
     tbody.innerHTML = `
         <tr>
-            <td colspan="5" class="text-center py-5">
+            <td colspan="6" class="text-center py-5">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Carregando...</span>
                 </div>
@@ -649,7 +712,7 @@ function renderProducts(products, total = null) {
                                SKU: ${product.internal_sku || 'N/A'}
                            </small>
                            <br>
-                           <small class="text-info">
+                           <small class="text-info" style="cursor: pointer;" onclick="toggleAnnouncements(${product.id})" title="Clique para ver anúncios">
                                <i class="bi bi-bullhorn me-1"></i>
                                ${product.announcements_count || 0} anúncio${product.announcements_count !== 1 ? 's' : ''}
                            </small>
@@ -666,19 +729,22 @@ function renderProducts(products, total = null) {
                         ${product.selling_price ? `R$ ${parseFloat(product.selling_price).toFixed(2).replace('.', ',')}` : '-'}
                     </span>
                 </td>
-                <td>
-                    ${product.announcements_count > 0 ? 
-                        `<button class="btn btn-sm btn-outline-info" onclick="toggleAnnouncements(${product.id})" title="Ver anúncios">
-                            <i class="bi bi-bullhorn"></i> ${product.announcements_count}
-                        </button>` :
-                        `<span class="text-muted"><i class="bi bi-bullhorn"></i> 0</span>`
-                    }
+                <td id="stock-cell-${product.id}">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status" style="width: 1rem; height: 1rem;">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <small class="text-muted">Carregando...</small>
+                    </div>
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-primary" onclick="editProduct(${product.id})" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </button>
+                        <a href="/estoque?product_id=${product.id}" class="btn btn-outline-info" title="Gerenciar Estoque">
+                            <i class="bi bi-boxes"></i>
+                        </a>
                         <button class="btn btn-outline-danger" onclick="deleteProduct(${product.id})" title="Excluir">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -686,7 +752,7 @@ function renderProducts(products, total = null) {
                 </td>
             </tr>
             <tr id="announcements-row-${product.id}" style="display: none;">
-                <td colspan="5" class="bg-light">
+                <td colspan="6" class="bg-light">
                     <div class="p-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="mb-0"><i class="bi bi-bullhorn"></i> Anúncios Associados</h6>
@@ -709,6 +775,205 @@ function renderProducts(products, total = null) {
     });
     
     tbody.innerHTML = html;
+    
+    // Carregar estoque de cada produto
+    products.forEach(product => {
+        loadProductStock(product.id);
+    });
+}
+
+// Carregar estoque de um produto
+async function loadProductStock(productId) {
+    try {
+        const sessionToken = getSessionToken();
+        if (!sessionToken) return;
+        
+        const response = await fetch(`/api/stock/products/${productId}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            document.getElementById(`stock-cell-${productId}`).innerHTML = '<span class="text-muted">-</span>';
+            return;
+        }
+        
+        const data = await response.json();
+        const stockCell = document.getElementById(`stock-cell-${productId}`);
+        
+        if (data.success && data.stocks && data.stocks.length > 0) {
+            const totalQuantity = data.total_available || 0;
+            const totalReserved = data.total_reserved || 0;
+            const totalStock = data.total_quantity || 0;
+            
+            // Determinar cor baseado no estoque
+            let badgeClass = 'bg-success';
+            let icon = 'bi-check-circle';
+            if (totalStock === 0) {
+                badgeClass = 'bg-danger';
+                icon = 'bi-x-circle';
+            } else if (totalStock < 10) {
+                badgeClass = 'bg-warning';
+                icon = 'bi-exclamation-triangle';
+            }
+            
+            // Se tem múltiplos depósitos, mostrar breakdown
+            if (data.stocks.length > 1) {
+                stockCell.innerHTML = `
+                    <div>
+                        <span class="badge ${badgeClass}">
+                            <i class="bi ${icon}"></i> ${totalQuantity.toFixed(0)}
+                        </span>
+                        <small class="text-muted d-block mt-1">
+                            ${totalReserved > 0 ? `Reservado: ${totalReserved.toFixed(0)}` : ''}
+                        </small>
+                        <button class="btn btn-sm btn-link p-0 mt-1" onclick="showStockDetails(${productId})" style="font-size: 0.75rem;">
+                            ${data.stocks.length} depósito${data.stocks.length > 1 ? 's' : ''}
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Estoque único
+                const stock = data.stocks[0];
+                stockCell.innerHTML = `
+                    <div>
+                        <span class="badge ${badgeClass}">
+                            <i class="bi ${icon}"></i> ${stock.available_quantity.toFixed(0)}
+                        </span>
+                        ${stock.reserved_quantity > 0 ? `
+                            <small class="text-muted d-block mt-1">
+                                Reservado: ${stock.reserved_quantity.toFixed(0)}
+                            </small>
+                        ` : ''}
+                        ${stock.warehouse_name ? `
+                            <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">
+                                ${stock.warehouse_name}
+                            </small>
+                        ` : ''}
+                    </div>
+                `;
+            }
+        } else {
+            stockCell.innerHTML = '<span class="text-muted">Sem estoque</span>';
+        }
+    } catch (error) {
+        console.error(`Erro ao carregar estoque do produto ${productId}:`, error);
+        document.getElementById(`stock-cell-${productId}`).innerHTML = '<span class="text-muted">-</span>';
+    }
+}
+
+// Mostrar detalhes de estoque por depósito
+async function showStockDetails(productId) {
+    const modal = new bootstrap.Modal(document.getElementById('stockDetailsModal'));
+    const content = document.getElementById('stockDetailsContent');
+    
+    // Mostrar loading
+    content.innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p class="mt-2 text-muted">Carregando detalhes de estoque...</p>
+        </div>
+    `;
+    
+    modal.show();
+    
+    try {
+        const sessionToken = getSessionToken();
+        if (!sessionToken) return;
+        
+        const response = await fetch(`/api/stock/products/${productId}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            content.innerHTML = '<div class="alert alert-danger">Erro ao carregar estoque</div>';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.stocks && data.stocks.length > 0) {
+            let html = `
+                <div class="mb-3">
+                    <h6>Resumo</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h5 class="mb-0">${data.total_quantity.toFixed(0)}</h5>
+                                    <small class="text-muted">Total</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h5 class="mb-0">${data.total_available.toFixed(0)}</h5>
+                                    <small>Disponível</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-warning">
+                                <div class="card-body text-center">
+                                    <h5 class="mb-0">${data.total_reserved.toFixed(0)}</h5>
+                                    <small class="text-muted">Reservado</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <h6>Estoque por Depósito</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Depósito</th>
+                                <th>Disponível</th>
+                                <th>Reservado</th>
+                                <th>Total</th>
+                                <th>Mínimo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            data.stocks.forEach(stock => {
+                const badgeClass = stock.available_quantity > 0 ? 'bg-success' : 'bg-danger';
+                html += `
+                    <tr>
+                        <td><strong>${stock.warehouse_name || 'N/A'}</strong></td>
+                        <td><span class="badge ${badgeClass}">${stock.available_quantity.toFixed(0)}</span></td>
+                        <td>${stock.reserved_quantity > 0 ? `<span class="badge bg-warning">${stock.reserved_quantity.toFixed(0)}</span>` : '-'}</td>
+                        <td>${stock.quantity.toFixed(0)}</td>
+                        <td>${stock.min_stock ? stock.min_stock.toFixed(0) : '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+        } else {
+            content.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Este produto ainda não possui estoque cadastrado.
+                </div>
+                <a href="/estoque" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Cadastrar Estoque
+                </a>
+            `;
+        }
+    } catch (error) {
+        console.error('Erro ao carregar detalhes de estoque:', error);
+        content.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes de estoque</div>';
+    }
 }
 
 // Renderizar paginação
@@ -1420,7 +1685,8 @@ async function loadAnnouncements(productId) {
             return;
         }
         
-                const response = await fetch(`/api/internal-products/${productId}/announcements`, {
+        // Buscar anúncios
+        const response = await fetch(`/api/internal-products/${productId}/announcements`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json'
@@ -1435,8 +1701,33 @@ async function loadAnnouncements(productId) {
         const data = await response.json();
         
         if (data.success) {
-            announcementsCache[productId] = data.announcements;
-            renderAnnouncementsTable(productId, data.announcements);
+            // Buscar configurações de estoque
+            const stockConfigResponse = await fetch(`/api/stock/products/${productId}/announcements`, {
+                credentials: 'include'
+            });
+            
+            let stockConfigs = {};
+            if (stockConfigResponse.ok) {
+                const stockConfigData = await stockConfigResponse.json();
+                if (stockConfigData.success && stockConfigData.announcements) {
+                    stockConfigData.announcements.forEach(ann => {
+                        stockConfigs[ann.ml_item_id] = ann;
+                    });
+                }
+            }
+            
+            // Adicionar configurações de estoque aos anúncios
+            const announcementsWithStock = data.announcements.map(ann => {
+                const stockConfig = stockConfigs[ann.ml_item_id];
+                return {
+                    ...ann,
+                    warehouse: stockConfig?.warehouse || null,
+                    stock: stockConfig?.stock || { quantity: 0, reserved_quantity: 0, available_quantity: 0 }
+                };
+            });
+            
+            announcementsCache[productId] = announcementsWithStock;
+            renderAnnouncementsTable(productId, announcementsWithStock);
         } else {
             content.innerHTML = `<div class="alert alert-danger">Erro ao carregar anúncios: ${data.error || 'Erro desconhecido'}</div>`;
         }
@@ -1465,6 +1756,7 @@ function renderAnnouncementsTable(productId, announcements) {
                                 <th>Preço</th>
                                 <th>Status</th>
                                 <th>Logística</th>
+                                <th>Depósito</th>
                                 <th>Conta ML</th>
                                 <th>Ações</th>
                             </tr>
@@ -1518,15 +1810,32 @@ function renderAnnouncementsTable(productId, announcements) {
                     }
                 </td>
                 <td>
+                    ${announcement.warehouse ? 
+                        `<span class="badge bg-${announcement.warehouse.type === 'fulfillment' ? 'info' : 'primary'}" title="Depósito configurado">
+                            <i class="bi bi-box-seam"></i> ${announcement.warehouse.name}
+                        </span>` :
+                        '<span class="text-muted"><i class="bi bi-x-circle"></i> Não configurado</span>'
+                    }
+                </td>
+                <td>
                     <small class="text-muted">${announcement.ml_account_nickname || 'N/A'}</small>
                 </td>
                 <td>
-                    ${announcement.permalink ? 
-                        `<a href="${announcement.permalink}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver no Mercado Livre">
-                            <i class="bi bi-box-arrow-up-right"></i>
-                        </a>` :
-                        '<span class="text-muted">-</span>'
-                    }
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-primary config-warehouse-btn" 
+                                data-product-id="${productId}"
+                                data-ml-item-id="${announcement.ml_item_id}"
+                                data-announcement-title="${(announcement.title || announcement.ml_item_id).replace(/"/g, '&quot;')}"
+                                title="Configurar depósito">
+                            <i class="bi bi-gear"></i>
+                        </button>
+                        ${announcement.permalink ? 
+                            `<a href="${announcement.permalink}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Ver no Mercado Livre">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>` :
+                            ''
+                        }
+                    </div>
                 </td>
             </tr>
         `;
@@ -1542,6 +1851,16 @@ function renderAnnouncementsTable(productId, announcements) {
     `;
     
     content.innerHTML = html;
+    
+    // Adicionar event listeners aos botões de configurar depósito
+    content.querySelectorAll('.config-warehouse-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const productId = parseInt(this.getAttribute('data-product-id'));
+            const mlItemId = this.getAttribute('data-ml-item-id');
+            const announcementTitle = this.getAttribute('data-announcement-title');
+            configureAnnouncementWarehouse(productId, mlItemId, announcementTitle);
+        });
+    });
 }
 
 // Funções auxiliares
@@ -1581,6 +1900,129 @@ function getSessionToken() {
     return localToken || sessionToken;
 }
 
+// Configurar depósito de anúncio
+function configureAnnouncementWarehouse(productId, mlItemId, announcementTitle) {
+    console.log('🔧 Configurando depósito:', { productId, mlItemId, announcementTitle });
+    
+    try {
+        // Preencher dados do modal
+        const productIdEl = document.getElementById('configAnnouncementProductId');
+        const mlItemIdEl = document.getElementById('configAnnouncementMlItemId');
+        const titleEl = document.getElementById('configAnnouncementTitle');
+        const modalEl = document.getElementById('configAnnouncementWarehouseModal');
+        
+        if (!productIdEl || !mlItemIdEl || !titleEl || !modalEl) {
+            console.error('❌ Elementos do modal não encontrados');
+            showAlert('Erro: Elementos do modal não encontrados', 'danger');
+            return;
+        }
+        
+        productIdEl.value = productId;
+        mlItemIdEl.value = mlItemId;
+        titleEl.textContent = announcementTitle || mlItemId;
+        
+        // Carregar lista de depósitos
+        loadWarehousesForAnnouncementConfig();
+        
+        // Abrir modal
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        
+        console.log('✅ Modal aberto com sucesso');
+    } catch (error) {
+        console.error('❌ Erro ao abrir modal:', error);
+        showAlert('Erro ao abrir modal: ' + error.message, 'danger');
+    }
+}
+
+async function loadWarehousesForAnnouncementConfig() {
+    try {
+        const response = await fetch('/api/stock/warehouses', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        const select = document.getElementById('configAnnouncementWarehouseSelect');
+        select.innerHTML = '<option value="">Selecione um depósito</option>';
+        
+        if (data.success && data.warehouses) {
+            data.warehouses.forEach(warehouse => {
+                const option = document.createElement('option');
+                option.value = warehouse.id;
+                option.textContent = `${warehouse.name} (${warehouse.type === 'fulfillment' ? 'Fulfillment' : 'Próprio'})`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao carregar depósitos:', error);
+        showAlert('Erro ao carregar depósitos', 'danger');
+    }
+}
+
+async function saveAnnouncementWarehouseConfig() {
+    const productId = parseInt(document.getElementById('configAnnouncementProductId').value);
+    const mlItemId = document.getElementById('configAnnouncementMlItemId').value;
+    const warehouseId = parseInt(document.getElementById('configAnnouncementWarehouseSelect').value);
+    
+    if (!warehouseId) {
+        showAlert('Selecione um depósito', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/stock/announcements/${mlItemId}/warehouse`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                internal_product_id: productId,
+                warehouse_id: warehouseId
+            })
+        });
+        
+        if (!response.ok) {
+            let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorData.error || errorMessage;
+            } catch (e) {
+                const errorText = await response.text();
+                if (errorText) {
+                    errorMessage = errorText;
+                }
+            }
+            showAlert(errorMessage, 'danger');
+            return;
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Fechar modal
+            const modalElement = document.getElementById('configAnnouncementWarehouseModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+            
+            // Limpar cache de anúncios para recarregar
+            if (announcementsCache[productId]) {
+                delete announcementsCache[productId];
+            }
+            
+            // Recarregar anúncios
+            await loadAnnouncements(productId);
+            
+            showToast('Depósito configurado com sucesso!', 'success');
+        } else {
+            showAlert(result.error || 'Erro ao configurar depósito', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar configuração:', error);
+        showAlert(`Erro ao salvar: ${error.message}`, 'danger');
+    }
+}
+
 function showAlert(message, type) {
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
@@ -1601,6 +2043,46 @@ function showAlert(message, type) {
     setTimeout(() => {
         alertDiv.remove();
     }, 5000);
+}
+
+function showToast(message, type = 'info') {
+    // Criar toast usando Bootstrap
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    const title = type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : type === 'warning' ? 'Atenção' : 'Info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    // Remover elemento após esconder
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
 }
 </script>
 {% endblock %}

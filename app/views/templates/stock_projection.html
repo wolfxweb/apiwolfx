@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+
+{% block title %}Projeções de Estoque - {{ user.company_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-graph-up"></i> Projeções de Estoque</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-primary" onclick="calculateAllProjections()">
+            <i class="bi bi-calculator"></i> Calcular Todas as Projeções
+        </button>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="productFilter" class="form-label">Produto</label>
+                <input type="text" class="form-control" id="productFilter" placeholder="Buscar produto...">
+            </div>
+            <div class="col-md-3">
+                <label for="warehouseFilter" class="form-label">Depósito</label>
+                <select class="form-select" id="warehouseFilter">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="alertFilter" class="form-label">Filtrar</label>
+                <select class="form-select" id="alertFilter">
+                    <option value="">Todos</option>
+                    <option value="low_stock">Estoque Baixo</option>
+                    <option value="reorder_needed">Precisa Repor</option>
+                    <option value="out_of_stock">Sem Estoque</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="button" class="btn btn-primary w-100" onclick="loadProjections()">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="projectionTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="projections-tab" data-bs-toggle="tab" data-bs-target="#projections" type="button" role="tab">
+            <i class="bi bi-graph-up-arrow"></i> Projeções
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="recommendations-tab" data-bs-toggle="tab" data-bs-target="#recommendations" type="button" role="tab">
+            <i class="bi bi-cart-plus"></i> Recomendações de Compra
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="projectionTabsContent">
+    <!-- Tab Projeções -->
+    <div class="tab-pane fade show active" id="projections" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="projectionsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Produto</th>
+                                <th>Depósito</th>
+                                <th>Estoque Atual</th>
+                                <th>Vendas Diárias</th>
+                                <th>Dias de Estoque</th>
+                                <th>Rotatividade</th>
+                                <th>Esgotamento Previsto</th>
+                                <th>Reposição Recomendada</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectionsTableBody">
+                            <!-- Dados carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Recomendações -->
+    <div class="tab-pane fade" id="recommendations" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Produtos que precisam ser recomprados com base nas projeções de estoque.
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover" id="recommendationsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Produto</th>
+                                <th>Depósito</th>
+                                <th>Estoque Atual</th>
+                                <th>Quantidade Recomendada</th>
+                                <th>Data Recomendada</th>
+                                <th>Esgotamento Previsto</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recommendationsTableBody">
+                            <!-- Dados carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cálculo de Projeção -->
+<div class="modal fade" id="calculateProjectionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Calcular Projeção</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="calculateProjectionForm">
+                    <input type="hidden" id="calcProductId">
+                    <div class="mb-3">
+                        <label for="calcWarehouseId" class="form-label">Depósito</label>
+                        <select class="form-select" id="calcWarehouseId">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="calcPeriodDays" class="form-label">Período de Análise (dias)</label>
+                        <input type="number" class="form-control" id="calcPeriodDays" value="30" min="7" max="365">
+                    </div>
+                    <div class="mb-3">
+                        <label for="calcLeadTimeDays" class="form-label">Lead Time (dias)</label>
+                        <input type="number" class="form-control" id="calcLeadTimeDays" value="7" min="1" max="90">
+                        <small class="form-text text-muted">Tempo de entrega do fornecedor</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="confirmCalculateProjection()">Calcular</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let warehouses = [];
+let projections = [];
+let recommendations = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadWarehouses();
+    loadProjections();
+    loadRecommendations();
+});
+
+async function loadWarehouses() {
+    try {
+        const response = await fetch('/api/stock/warehouses', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            warehouses = data.warehouses;
+            const select = document.getElementById('warehouseFilter');
+            select.innerHTML = '<option value="">Todos</option>';
+            warehouses.forEach(w => {
+                const option = document.createElement('option');
+                option.value = w.id;
+                option.textContent = w.name;
+                select.appendChild(option);
+            });
+            
+            // Preencher também no modal
+            const calcSelect = document.getElementById('calcWarehouseId');
+            if (calcSelect) {
+                calcSelect.innerHTML = '<option value="">Todos</option>';
+                warehouses.forEach(w => {
+                    const option = document.createElement('option');
+                    option.value = w.id;
+                    option.textContent = w.name;
+                    calcSelect.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar depósitos:', error);
+    }
+}
+
+async function loadProjections() {
+    try {
+        const warehouseId = document.getElementById('warehouseFilter').value;
+        const productFilter = document.getElementById('productFilter').value;
+        const alertFilter = document.getElementById('alertFilter').value;
+        
+        let url = '/api/stock/projections?';
+        if (warehouseId) url += `warehouse_id=${warehouseId}&`;
+        
+        const response = await fetch(url, { credentials: 'include' });
+        const data = await response.json();
+        
+        if (data.success) {
+            projections = data.projections;
+            
+            // Aplicar filtros
+            let filtered = projections;
+            if (productFilter) {
+                filtered = filtered.filter(p => 
+                    p.product_name?.toLowerCase().includes(productFilter.toLowerCase()) ||
+                    p.product_sku?.toLowerCase().includes(productFilter.toLowerCase())
+                );
+            }
+            if (alertFilter === 'low_stock') {
+                filtered = filtered.filter(p => p.current_stock < (p.reorder_point || 0));
+            } else if (alertFilter === 'reorder_needed') {
+                filtered = filtered.filter(p => p.recommended_quantity > 0);
+            } else if (alertFilter === 'out_of_stock') {
+                filtered = filtered.filter(p => p.current_stock <= 0);
+            }
+            
+            renderProjections(filtered);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar projeções:', error);
+    }
+}
+
+function renderProjections(projs) {
+    const tbody = document.getElementById('projectionsTableBody');
+    tbody.innerHTML = '';
+    
+    if (projs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhuma projeção encontrada</td></tr>';
+        return;
+    }
+    
+    projs.forEach(proj => {
+        const row = document.createElement('tr');
+        const stockoutDate = proj.projected_stockout_date ? new Date(proj.projected_stockout_date).toLocaleDateString('pt-BR') : '-';
+        const reorderDate = proj.recommended_reorder_date ? new Date(proj.recommended_reorder_date).toLocaleDateString('pt-BR') : '-';
+        const daysOfStock = proj.days_of_stock ? proj.days_of_stock.toFixed(1) : '-';
+        const turnover = proj.turnover_rate ? proj.turnover_rate.toFixed(2) : '-';
+        
+        // Determinar cor da linha baseado no status
+        let rowClass = '';
+        if (proj.current_stock <= 0) {
+            rowClass = 'table-danger';
+        } else if (proj.days_of_stock && proj.days_of_stock < 7) {
+            rowClass = 'table-warning';
+        }
+        
+        row.className = rowClass;
+        row.innerHTML = `
+            <td>
+                <strong>${proj.product_name || '-'}</strong><br>
+                <small class="text-muted">SKU: ${proj.product_sku || '-'}</small>
+            </td>
+            <td>${proj.warehouse_name || '-'}</td>
+            <td><span class="badge bg-${proj.current_stock > 0 ? 'success' : 'danger'}">${proj.current_stock}</span></td>
+            <td>${proj.average_daily_sales ? proj.average_daily_sales.toFixed(2) : '-'}</td>
+            <td>${daysOfStock}</td>
+            <td>${turnover}</td>
+            <td>${stockoutDate}</td>
+            <td>${reorderDate}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="calculateProjection(${proj.product_id}, ${proj.warehouse_id || 'null'})">
+                    <i class="bi bi-calculator"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+async function loadRecommendations() {
+    try {
+        const warehouseId = document.getElementById('warehouseFilter').value;
+        let url = '/api/stock/projections/reorder-recommendations?';
+        if (warehouseId) url += `warehouse_id=${warehouseId}&`;
+        
+        const response = await fetch(url, { credentials: 'include' });
+        const data = await response.json();
+        
+        if (data.success) {
+            recommendations = data.recommendations;
+            renderRecommendations();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar recomendações:', error);
+    }
+}
+
+function renderRecommendations() {
+    const tbody = document.getElementById('recommendationsTableBody');
+    tbody.innerHTML = '';
+    
+    if (recommendations.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Nenhuma recomendação no momento</td></tr>';
+        return;
+    }
+    
+    recommendations.forEach(rec => {
+        const row = document.createElement('tr');
+        const stockoutDate = rec.projected_stockout_date ? new Date(rec.projected_stockout_date).toLocaleDateString('pt-BR') : '-';
+        const reorderDate = rec.recommended_reorder_date ? new Date(rec.recommended_reorder_date).toLocaleDateString('pt-BR') : '-';
+        
+        row.className = rec.current_stock <= 0 ? 'table-danger' : 'table-warning';
+        row.innerHTML = `
+            <td>
+                <strong>${rec.product_name || '-'}</strong><br>
+                <small class="text-muted">SKU: ${rec.product_sku || '-'}</small>
+            </td>
+            <td>${rec.warehouse_name || '-'}</td>
+            <td><span class="badge bg-danger">${rec.current_stock}</span></td>
+            <td><span class="badge bg-primary">${rec.recommended_quantity}</span></td>
+            <td>${reorderDate}</td>
+            <td>${stockoutDate}</td>
+            <td>
+                <button class="btn btn-sm btn-success" onclick="createPurchaseOrder(${rec.product_id}, ${rec.recommended_quantity})">
+                    <i class="bi bi-cart-plus"></i> Criar OC
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function calculateProjection(productId, warehouseId = null) {
+    document.getElementById('calcProductId').value = productId;
+    if (warehouseId) {
+        document.getElementById('calcWarehouseId').value = warehouseId;
+    }
+    const modal = new bootstrap.Modal(document.getElementById('calculateProjectionModal'));
+    modal.show();
+}
+
+async function confirmCalculateProjection() {
+    const productId = document.getElementById('calcProductId').value;
+    const warehouseId = document.getElementById('calcWarehouseId').value || null;
+    const periodDays = document.getElementById('calcPeriodDays').value || 30;
+    const leadTimeDays = document.getElementById('calcLeadTimeDays').value || 7;
+    
+    try {
+        const response = await fetch('/api/stock/projections/calculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                internal_product_id: parseInt(productId),
+                warehouse_id: warehouseId ? parseInt(warehouseId) : null,
+                period_days: parseInt(periodDays),
+                lead_time_days: parseInt(leadTimeDays)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('calculateProjectionModal')).hide();
+            loadProjections();
+            loadRecommendations();
+            showNotification('Projeção calculada com sucesso!', 'success');
+        } else {
+            showNotification(result.error || 'Erro ao calcular projeção', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao calcular projeção:', error);
+        showNotification('Erro ao calcular projeção', 'error');
+    }
+}
+
+async function calculateAllProjections() {
+    if (!confirm('Deseja calcular projeções para todos os produtos? Isso pode levar alguns minutos.')) {
+        return;
+    }
+    
+    showNotification('Calculando projeções...', 'info');
+    // Implementar cálculo em lote
+    showNotification('Funcionalidade em desenvolvimento', 'info');
+}
+
+function createPurchaseOrder(productId, quantity) {
+    // Redirecionar para criação de ordem de compra com produto pré-selecionado
+    window.location.href = `/ordem-compra?product_id=${productId}&quantity=${quantity}`;
+}
+
+function showNotification(message, type = 'info') {
+    alert(message);
+}
+</script>
+{% endblock %}
+

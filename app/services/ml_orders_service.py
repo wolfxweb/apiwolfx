@@ -1071,6 +1071,10 @@ class MLOrdersService:
                 
                 existing_order.updated_at = datetime.utcnow()
                 logger.info(f"✅ Pedido atualizado: ID={existing_order.id}, company_id={existing_order.company_id}")
+                
+                # Sincronizar com estoque se pedido foi confirmado/pago
+                self._sync_order_to_stock(existing_order, company_id)
+                
                 return {"action": "updated", "order": existing_order}
             else:
                 # Criar nova order
@@ -1124,6 +1128,9 @@ class MLOrdersService:
                 except Exception as e:
                     logger.warning(f"⚠️ Erro ao gerenciar status interno automaticamente: {e}", exc_info=True)
                     # Não falhar a criação do pedido por causa do status interno
+                
+                # Sincronizar com estoque se pedido foi confirmado/pago
+                self._sync_order_to_stock(new_order, company_id)
                 
                 return {"action": "created", "order": new_order}
                 
@@ -1835,3 +1842,63 @@ class MLOrdersService:
             
         except Exception as e:
             logger.error(f"❌ Erro ao verificar NF do pedido {order_id}: {e}", exc_info=True)
+    
+    def _sync_order_to_stock(self, order, company_id: int):
+        """Sincroniza pedido confirmado/pago com estoque"""
+        try:
+            from app.models.saas_models import OrderStatus
+            from app.services.stock_movement_service import StockMovementService
+            
+            # Verificar se pedido está confirmado/pago
+            if order.status not in [OrderStatus.PAID, OrderStatus.CONFIRMED]:
+                return  # Não sincronizar se não estiver pago/confirmado
+            
+            # Verificar se já foi sincronizado (evitar duplicação)
+            from app.models.saas_models import StockMovement, StockMovementType
+            movement_service = StockMovementService(self.db)
+            
+            # Verificar se já existe movimentação para este pedido
+            existing_movement = self.db.query(StockMovement).filter(
+                StockMovement.ml_order_id == order.id,
+                StockMovement.movement_type == StockMovementType.SALE
+            ).first()
+            
+            if existing_movement:
+                logger.info(f"ℹ️ Pedido {order.ml_order_id} já foi sincronizado com estoque")
+                return
+            
+            # Processar itens do pedido
+            order_items = order.order_items or []
+            
+            if not order_items:
+                logger.warning(f"⚠️ Pedido {order.ml_order_id} não tem itens para sincronizar")
+                return
+            
+            for item_entry in order_items:
+                # Extrair dados do item
+                item_data = item_entry.get("item") if isinstance(item_entry, dict) else item_entry
+                if not item_data:
+                    continue
+                
+                ml_item_id = str(item_data.get("id") or item_data.get("item_id") or "")
+                quantity = int(item_entry.get("quantity", 1))
+                
+                if not ml_item_id or quantity <= 0:
+                    continue
+                
+                # Sincronizar com estoque
+                result = movement_service.sync_sale_to_stock(
+                    company_id=company_id,
+                    ml_order_id=order.id,
+                    ml_item_id=ml_item_id,
+                    quantity=quantity
+                )
+                
+                if result.get("success"):
+                    logger.info(f"✅ Estoque sincronizado: {quantity} unidades do item {ml_item_id} (Pedido: {order.ml_order_id})")
+                else:
+                    logger.warning(f"⚠️ Erro ao sincronizar estoque do item {ml_item_id}: {result.get('error')}")
+                    
+        except Exception as e:
+            logger.error(f"❌ Erro ao sincronizar pedido com estoque: {e}", exc_info=True)
+            # Não falhar o salvamento do pedido por causa do estoque

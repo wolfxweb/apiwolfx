@@ -37,6 +37,9 @@ from app.routes.ml_questions_routes import ml_questions_router
 from app.routes.ml_messages_routes import ml_messages_router
 from app.routes.activity_routes import activity_router
 from app.routes.openai_assistant_routes import openai_assistant_router, openai_chat_router, tools_router
+from app.routes.stock_routes import stock_router
+from app.routes.stock_projection_routes import stock_projection_router
+from app.routes.internal_product_routes import internal_product_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -238,6 +241,37 @@ async def startup_event():
         # Criar tabelas se não existirem (com retry para conexões lentas)
         max_retries = 3
         retry_delay = 2
+        
+        # PRIMEIRO: Criar ENUMs necessários antes de criar tabelas
+        try:
+            from app.config.database import SessionLocal
+            from sqlalchemy import text
+            
+            db_enum = SessionLocal()
+            try:
+                print("📋 [STARTUP] Criando ENUMs necessários...")
+                create_enums_sql = text("""
+                    DO $$ 
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'warehousetype') THEN
+                            CREATE TYPE warehousetype AS ENUM ('fulfillment', 'custom');
+                        END IF;
+                        
+                        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stockmovementtype') THEN
+                            CREATE TYPE stockmovementtype AS ENUM ('in', 'out', 'adjustment', 'transfer', 'sale', 'purchase', 'reservation', 'release');
+                        END IF;
+                    END $$;
+                """)
+                db_enum.execute(create_enums_sql)
+                db_enum.commit()
+                print("✅ [STARTUP] ENUMs verificados/criados")
+            except Exception as e:
+                db_enum.rollback()
+                print(f"⚠️ [STARTUP] ENUMs podem já existir: {e}")
+            finally:
+                db_enum.close()
+        except Exception as e:
+            print(f"⚠️ [STARTUP] Erro ao criar ENUMs (podem já existir): {e}")
         
         for attempt in range(max_retries):
             try:
@@ -581,6 +615,187 @@ async def startup_event():
                     db.execute(text(sql_initial_prompt))
                 print("✅ [STARTUP] Coluna initial_prompt verificada/adicionada")
                 
+                # 4. Criar ENUMs e tabelas de estoque
+                print("📋 [STARTUP] Verificando tabelas de estoque...")
+                try:
+                    # Criar ENUMs se não existirem
+                    create_stock_enums_sql = text("""
+                        DO $$ 
+                        BEGIN
+                            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'warehousetype') THEN
+                                CREATE TYPE warehousetype AS ENUM ('fulfillment', 'custom');
+                            END IF;
+                            
+                            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stockmovementtype') THEN
+                                CREATE TYPE stockmovementtype AS ENUM ('in', 'out', 'adjustment', 'transfer', 'sale', 'purchase', 'reservation', 'release');
+                            END IF;
+                        END $$;
+                    """)
+                    db.execute(create_stock_enums_sql)
+                    db.commit()
+                    print("✅ [STARTUP] ENUMs de estoque verificados/criados")
+                    
+                    # Verificar se as tabelas já existem
+                    check_tables_query = text("""
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name IN ('warehouses', 'product_stocks', 'stock_movements', 'stock_projections')
+                    """)
+                    existing_tables = [row[0] for row in db.execute(check_tables_query).fetchall()]
+                    
+                    if 'warehouses' not in existing_tables:
+                        print("📋 [STARTUP] Criando tabela warehouses...")
+                        create_warehouses_sql = text("""
+                            CREATE TABLE warehouses (
+                                id SERIAL PRIMARY KEY,
+                                company_id INTEGER,
+                                name VARCHAR(255) NOT NULL,
+                                type warehousetype NOT NULL,
+                                is_shared BOOLEAN DEFAULT FALSE,
+                                address TEXT,
+                                contact_info JSONB,
+                                status VARCHAR(50) DEFAULT 'active',
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                CONSTRAINT fk_warehouses_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_warehouses_company_id ON warehouses(company_id);
+                            CREATE INDEX IF NOT EXISTS ix_warehouses_type ON warehouses(type);
+                            CREATE INDEX IF NOT EXISTS ix_warehouses_is_shared ON warehouses(is_shared);
+                            CREATE INDEX IF NOT EXISTS ix_warehouses_status ON warehouses(status);
+                            CREATE INDEX IF NOT EXISTS ix_warehouses_company_type ON warehouses(company_id, type);
+                        """)
+                        db.execute(create_warehouses_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela warehouses criada")
+                    
+                    if 'warehouses' in existing_tables or 'warehouses' not in existing_tables:
+                        # Criar depósito fulfillment padrão se não existir
+                        check_fulfillment = text("SELECT COUNT(*) FROM warehouses WHERE type = 'fulfillment' AND is_shared = TRUE")
+                        fulfillment_count = db.execute(check_fulfillment).scalar()
+                        if fulfillment_count == 0:
+                            insert_fulfillment = text("""
+                                INSERT INTO warehouses (name, type, is_shared, status, created_at, updated_at)
+                                VALUES ('Fulfillment ML', 'fulfillment', TRUE, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """)
+                            db.execute(insert_fulfillment)
+                            db.commit()
+                            print("✅ [STARTUP] Depósito Fulfillment padrão criado")
+                    
+                    if 'product_stocks' not in existing_tables:
+                        print("📋 [STARTUP] Criando tabela product_stocks...")
+                        create_product_stocks_sql = text("""
+                            CREATE TABLE product_stocks (
+                                id SERIAL PRIMARY KEY,
+                                company_id INTEGER NOT NULL,
+                                warehouse_id INTEGER NOT NULL,
+                                internal_product_id INTEGER,
+                                ml_item_id VARCHAR(50),
+                                quantity NUMERIC(10, 2) DEFAULT 0 NOT NULL,
+                                reserved_quantity NUMERIC(10, 2) DEFAULT 0 NOT NULL,
+                                min_stock NUMERIC(10, 2),
+                                max_stock NUMERIC(10, 2),
+                                reorder_point NUMERIC(10, 2),
+                                last_movement_date TIMESTAMP,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                CONSTRAINT fk_product_stocks_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_product_stocks_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_product_stocks_internal_product FOREIGN KEY (internal_product_id) REFERENCES internal_products(id) ON DELETE CASCADE
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_product_stocks_company_id ON product_stocks(company_id);
+                            CREATE INDEX IF NOT EXISTS ix_product_stocks_warehouse_id ON product_stocks(warehouse_id);
+                            CREATE INDEX IF NOT EXISTS ix_product_stocks_internal_product_id ON product_stocks(internal_product_id);
+                            CREATE INDEX IF NOT EXISTS ix_product_stocks_ml_item_id ON product_stocks(ml_item_id);
+                            CREATE INDEX IF NOT EXISTS ix_product_stocks_warehouse_product ON product_stocks(warehouse_id, internal_product_id);
+                            CREATE INDEX IF NOT EXISTS ix_product_stocks_warehouse_ml_item ON product_stocks(warehouse_id, ml_item_id);
+                        """)
+                        db.execute(create_product_stocks_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela product_stocks criada")
+                    
+                    if 'stock_movements' not in existing_tables:
+                        print("📋 [STARTUP] Criando tabela stock_movements...")
+                        create_stock_movements_sql = text("""
+                            CREATE TABLE stock_movements (
+                                id SERIAL PRIMARY KEY,
+                                company_id INTEGER NOT NULL,
+                                warehouse_id INTEGER NOT NULL,
+                                product_stock_id INTEGER NOT NULL,
+                                movement_type stockmovementtype NOT NULL,
+                                quantity NUMERIC(10, 2) NOT NULL,
+                                previous_quantity NUMERIC(10, 2) NOT NULL,
+                                new_quantity NUMERIC(10, 2) NOT NULL,
+                                reference_type VARCHAR(50),
+                                reference_id INTEGER,
+                                ml_order_id BIGINT,
+                                notes TEXT,
+                                created_by INTEGER,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                CONSTRAINT fk_stock_movements_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_stock_movements_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_stock_movements_product_stock FOREIGN KEY (product_stock_id) REFERENCES product_stocks(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_stock_movements_ml_order FOREIGN KEY (ml_order_id) REFERENCES ml_orders(id) ON DELETE SET NULL,
+                                CONSTRAINT fk_stock_movements_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_stock_movements_company_id ON stock_movements(company_id);
+                            CREATE INDEX IF NOT EXISTS ix_stock_movements_warehouse_id ON stock_movements(warehouse_id);
+                            CREATE INDEX IF NOT EXISTS ix_stock_movements_product_stock_id ON stock_movements(product_stock_id);
+                            CREATE INDEX IF NOT EXISTS ix_stock_movements_movement_type ON stock_movements(movement_type);
+                            CREATE INDEX IF NOT EXISTS ix_stock_movements_ml_order_id ON stock_movements(ml_order_id);
+                            CREATE INDEX IF NOT EXISTS ix_stock_movements_product_stock_date ON stock_movements(product_stock_id, created_at);
+                            CREATE INDEX IF NOT EXISTS ix_stock_movements_company_date ON stock_movements(company_id, created_at);
+                        """)
+                        db.execute(create_stock_movements_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela stock_movements criada")
+                    
+                    if 'stock_projections' not in existing_tables:
+                        print("📋 [STARTUP] Criando tabela stock_projections...")
+                        create_stock_projections_sql = text("""
+                            CREATE TABLE stock_projections (
+                                id SERIAL PRIMARY KEY,
+                                company_id INTEGER NOT NULL,
+                                internal_product_id INTEGER NOT NULL,
+                                warehouse_id INTEGER NOT NULL,
+                                current_stock NUMERIC(10, 2) DEFAULT 0 NOT NULL,
+                                average_daily_sales NUMERIC(10, 2),
+                                days_of_stock NUMERIC(10, 2),
+                                projected_stockout_date TIMESTAMP,
+                                recommended_reorder_date TIMESTAMP,
+                                recommended_quantity NUMERIC(10, 2),
+                                turnover_rate NUMERIC(10, 4),
+                                calculation_period_days INTEGER,
+                                last_calculated_at TIMESTAMP,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                CONSTRAINT fk_stock_projections_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_stock_projections_internal_product FOREIGN KEY (internal_product_id) REFERENCES internal_products(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_stock_projections_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_stock_projections_company_id ON stock_projections(company_id);
+                            CREATE INDEX IF NOT EXISTS ix_stock_projections_internal_product_id ON stock_projections(internal_product_id);
+                            CREATE INDEX IF NOT EXISTS ix_stock_projections_warehouse_id ON stock_projections(warehouse_id);
+                            CREATE INDEX IF NOT EXISTS ix_stock_projections_product_warehouse ON stock_projections(internal_product_id, warehouse_id);
+                            CREATE INDEX IF NOT EXISTS ix_stock_projections_last_calculated ON stock_projections(last_calculated_at);
+                        """)
+                        db.execute(create_stock_projections_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela stock_projections criada")
+                    
+                    print("✅ [STARTUP] Tabelas de estoque verificadas/criadas")
+                    
+                except Exception as e:
+                    db.rollback()
+                    print(f"⚠️ [STARTUP] Erro ao criar tabelas de estoque (podem já existir): {e}")
+                    import traceback
+                    traceback.print_exc()
+                
                 print("✅ [STARTUP] Todas as migrações concluídas!")
                 
             except Exception as e:
@@ -659,6 +874,62 @@ app.include_router(activity_router)  # Para /api/activity/summary
 app.include_router(openai_assistant_router)  # Para /api/openai/assistants
 app.include_router(openai_chat_router)  # Para /ai/chat (HTML)
 app.include_router(tools_router)  # Para /api/openai/tools
+app.include_router(stock_router, prefix="/api")  # Para /api/stock (API)
+app.include_router(stock_projection_router, prefix="/api")  # Para /api/stock/projections
+
+# Rota HTML para página de estoque (sem prefixo /api)
+@app.get("/estoque", response_class=HTMLResponse)
+async def stock_page_html(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de gerenciamento de estoque"""
+    from fastapi.responses import RedirectResponse
+    from app.controllers.auth_controller import AuthController
+    from app.views.template_renderer import render_template
+    
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    try:
+        auth_controller = AuthController()
+        result = auth_controller.get_user_by_session(session_token, db)
+        if result.get("error"):
+            return RedirectResponse(url="/auth/login", status_code=302)
+        
+        user_data = result["user"]
+        return render_template("stock_management.html", user=user_data, request=request)
+    except Exception as e:
+        return RedirectResponse(url="/auth/login", status_code=302)
+
+# Rota HTML para página de projeções de estoque
+@app.get("/estoque/projecoes", response_class=HTMLResponse)
+async def stock_projection_page_html(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página de projeções de estoque"""
+    from fastapi.responses import RedirectResponse
+    from app.controllers.auth_controller import AuthController
+    from app.views.template_renderer import render_template
+    
+    if not session_token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    
+    try:
+        auth_controller = AuthController()
+        result = auth_controller.get_user_by_session(session_token, db)
+        if result.get("error"):
+            return RedirectResponse(url="/auth/login", status_code=302)
+        
+        user_data = result["user"]
+        return render_template("stock_projection.html", user=user_data, request=request)
+    except Exception as e:
+        return RedirectResponse(url="/auth/login", status_code=302)
+
+app.include_router(internal_product_router, prefix="/api")  # Para /api/internal-products
 # app.include_router(settings_router)  # Removido - usando /auth/profile
 
 # Rota específica para página de edição da empresa

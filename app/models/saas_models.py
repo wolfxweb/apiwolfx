@@ -1,7 +1,7 @@
 """
 Modelos SaaS Multi-tenant para API Mercado Livre
 """
-from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, JSON, Index, Numeric, UniqueConstraint, Float
+from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, JSON, Index, Numeric, UniqueConstraint, Float, TypeDecorator
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base, engine
@@ -123,6 +123,12 @@ class Company(Base):
     fornecedores = relationship("Fornecedor", back_populates="company", cascade="all, delete-orphan")
     ordens_compra = relationship("OrdemCompra", back_populates="company", cascade="all, delete-orphan")
     financial_alerts = relationship("FinancialAlert", back_populates="company", cascade="all, delete-orphan")
+    
+    # Relacionamentos de Estoque
+    warehouses = relationship("Warehouse", back_populates="company", cascade="all, delete-orphan")
+    product_stocks = relationship("ProductStock", back_populates="company", cascade="all, delete-orphan")
+    stock_movements = relationship("StockMovement", back_populates="company", cascade="all, delete-orphan")
+    stock_projections = relationship("StockProjection", back_populates="company", cascade="all, delete-orphan")
 
 class SuperAdmin(Base):
     """Modelo de SuperAdmin para gerenciamento do sistema"""
@@ -1064,6 +1070,8 @@ class InternalProduct(Base):
     # Relacionamentos
     company = relationship("Company", back_populates="internal_products")
     base_product = relationship("Product", foreign_keys=[base_product_id])
+    product_stocks = relationship("ProductStock", back_populates="internal_product", cascade="all, delete-orphan")
+    stock_projections = relationship("StockProjection", back_populates="internal_product", cascade="all, delete-orphan")
     
     # Índices
     __table_args__ = (
@@ -1567,4 +1575,263 @@ class OpenAIAssistantUsage(Base):
     #     Index('ix_assistant_usage_created', 'created_at'),
     #     Index('ix_assistant_usage_company_date', 'company_id', 'created_at'),
     # )
+
+
+class WarehouseType(enum.Enum):
+    """Tipo de depósito"""
+    FULFILLMENT = "fulfillment"  # Estoque externo compartilhado do ML
+    CUSTOM = "custom"  # Depósito próprio da empresa
+
+
+class EnumValueType(TypeDecorator):
+    """TypeDecorator genérico para garantir que o valor do enum seja usado (não o nome)"""
+    impl = String(50)
+    cache_ok = True
+    
+    def __init__(self, enum_type, *args, **kwargs):
+        self.enum_type = enum_type
+        super().__init__(*args, **kwargs)
+    
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, enum.Enum):
+            return value.value
+        if isinstance(value, str):
+            # Se já for string, verificar se é um valor válido
+            try:
+                enum_value = self.enum_type(value)
+                return enum_value.value
+            except ValueError:
+                # Se não conseguir converter, retornar a string original
+                # (pode ser um valor válido que ainda não foi convertido)
+                return value
+        return value
+    
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, self.enum_type):
+            # Já é o enum correto
+            return value
+        if isinstance(value, str):
+            # Tentar converter string para enum pelo valor
+            try:
+                # Primeiro tentar pelo valor (ex: "fulfillment")
+                return self.enum_type(value)
+            except (ValueError, AttributeError):
+                # Se não conseguir, tentar pelo nome do enum (ex: "FULFILLMENT")
+                try:
+                    for e in self.enum_type:
+                        if e.name == value.upper() or e.value.lower() == value.lower():
+                            return e
+                except:
+                    pass
+                # Se não conseguir converter, logar e retornar a string
+                # Isso pode acontecer se houver dados inconsistentes no banco
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Não foi possível converter '{value}' para {self.enum_type.__name__}")
+                # Tentar criar um enum temporário ou retornar o primeiro valor válido
+                try:
+                    return list(self.enum_type)[0]  # Retornar o primeiro enum como fallback
+                except:
+                    return value
+        return value
+    
+    def coerce_compared_value(self, op, value):
+        """Permite comparações com strings e enums"""
+        if isinstance(value, str):
+            try:
+                return self.enum_type(value)
+            except ValueError:
+                # Tentar pelo nome do enum
+                try:
+                    for e in self.enum_type:
+                        if e.name == value.upper():
+                            return e
+                except:
+                    pass
+                return value
+        if isinstance(value, enum.Enum):
+            return value
+        return value
+
+
+class Warehouse(Base):
+    """Modelo de Depósito/Armazém"""
+    __tablename__ = "warehouses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)  # Nullable para fulfillment compartilhado
+    name = Column(String(255), nullable=False)
+    type = Column(EnumValueType(WarehouseType), nullable=False, index=True)
+    is_shared = Column(Boolean, default=False, index=True)  # True para fulfillment (compartilhado)
+    
+    # Informações de localização
+    address = Column(Text)
+    contact_info = Column(JSON)  # Telefone, email, etc.
+    
+    # Status
+    status = Column(String(50), default="active", index=True)  # active, inactive
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    product_stocks = relationship("ProductStock", back_populates="warehouse", cascade="all, delete-orphan")
+    stock_movements = relationship("StockMovement", back_populates="warehouse")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_warehouses_company_type', 'company_id', 'type'),
+        Index('ix_warehouses_status', 'status'),
+    )
+
+
+class ProductStock(Base):
+    """Estoque de Produto em um Depósito"""
+    __tablename__ = "product_stocks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False, index=True)
+    
+    # Associação com produto interno (opcional - para estoque geral do produto)
+    internal_product_id = Column(Integer, ForeignKey("internal_products.id"), nullable=True, index=True)
+    
+    # Associação com anúncio específico (opcional - para estoque específico de anúncio)
+    ml_item_id = Column(String(50), nullable=True, index=True)
+    
+    # Quantidades
+    quantity = Column(Numeric(10, 2), default=0, nullable=False)  # Estoque disponível
+    reserved_quantity = Column(Numeric(10, 2), default=0, nullable=False)  # Reservado para pedidos
+    
+    # Controles de estoque
+    min_stock = Column(Numeric(10, 2), default=0)  # Estoque mínimo
+    max_stock = Column(Numeric(10, 2))  # Estoque máximo
+    reorder_point = Column(Numeric(10, 2))  # Ponto de reposição
+    
+    # Metadados
+    last_movement_date = Column(DateTime)  # Última movimentação
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    warehouse = relationship("Warehouse", back_populates="product_stocks")
+    internal_product = relationship("InternalProduct")
+    stock_movements = relationship("StockMovement", back_populates="product_stock", cascade="all, delete-orphan")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_product_stocks_warehouse_product', 'warehouse_id', 'internal_product_id'),
+        Index('ix_product_stocks_warehouse_ml_item', 'warehouse_id', 'ml_item_id'),
+        Index('ix_product_stocks_company', 'company_id'),
+    )
+
+
+class StockMovementType(enum.Enum):
+    """Tipo de movimentação de estoque"""
+    IN = "in"  # Entrada
+    OUT = "out"  # Saída
+    ADJUSTMENT = "adjustment"  # Ajuste manual
+    TRANSFER = "transfer"  # Transferência entre depósitos
+    SALE = "sale"  # Venda
+    PURCHASE = "purchase"  # Compra
+    RESERVATION = "reservation"  # Reserva
+    RELEASE = "release"  # Liberação de reserva
+
+
+class StockMovement(Base):
+    """Movimentação de Estoque"""
+    __tablename__ = "stock_movements"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False, index=True)
+    product_stock_id = Column(Integer, ForeignKey("product_stocks.id"), nullable=False, index=True)
+    
+    # Tipo de movimentação
+    movement_type = Column(EnumValueType(StockMovementType), nullable=False, index=True)
+    
+    # Quantidades
+    quantity = Column(Numeric(10, 2), nullable=False)  # Quantidade movimentada
+    previous_quantity = Column(Numeric(10, 2), nullable=False)  # Quantidade anterior
+    new_quantity = Column(Numeric(10, 2), nullable=False)  # Nova quantidade
+    
+    # Referência da movimentação
+    reference_type = Column(String(50))  # order, purchase_order, adjustment, transfer
+    reference_id = Column(Integer)  # ID do pedido/ordem de compra/etc
+    ml_order_id = Column(BigInteger, ForeignKey("ml_orders.id"), nullable=True, index=True)  # Para rastrear vendas
+    
+    # Observações
+    notes = Column(Text)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Usuário que criou
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    # Relacionamentos
+    company = relationship("Company")
+    warehouse = relationship("Warehouse", back_populates="stock_movements")
+    product_stock = relationship("ProductStock", back_populates="stock_movements")
+    ml_order = relationship("MLOrder")
+    user = relationship("User")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_stock_movements_product_stock_date', 'product_stock_id', 'created_at'),
+        Index('ix_stock_movements_ml_order', 'ml_order_id'),
+        Index('ix_stock_movements_company_date', 'company_id', 'created_at'),
+    )
+
+
+class StockProjection(Base):
+    """Projeção de Estoque e Recomendações"""
+    __tablename__ = "stock_projections"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    internal_product_id = Column(Integer, ForeignKey("internal_products.id"), nullable=False, index=True)
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False, index=True)
+    
+    # Estoque atual
+    current_stock = Column(Numeric(10, 2), default=0, nullable=False)
+    
+    # Métricas de vendas
+    average_daily_sales = Column(Numeric(10, 2), default=0)  # Média de vendas diárias
+    days_of_stock = Column(Numeric(10, 2))  # Dias de estoque restantes
+    
+    # Projeções
+    projected_stockout_date = Column(DateTime)  # Data projetada de esgotamento
+    recommended_reorder_date = Column(DateTime)  # Data recomendada para reposição
+    recommended_quantity = Column(Numeric(10, 2))  # Quantidade recomendada para compra
+    
+    # Rotatividade
+    turnover_rate = Column(Numeric(10, 4))  # Taxa de rotatividade (vendas/estoque médio)
+    
+    # Configuração do cálculo
+    calculation_period_days = Column(Integer, default=30)  # Período usado para cálculo
+    last_calculated_at = Column(DateTime, index=True)  # Última vez que foi calculado
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    internal_product = relationship("InternalProduct")
+    warehouse = relationship("Warehouse")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_stock_projections_product_warehouse', 'internal_product_id', 'warehouse_id'),
+        Index('ix_stock_projections_company', 'company_id'),
+        Index('ix_stock_projections_last_calculated', 'last_calculated_at'),
+    )
 

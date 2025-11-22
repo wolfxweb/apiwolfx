@@ -1,0 +1,1282 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciamento de Estoque - {{ user.company_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-boxes"></i> Gerenciamento de Estoque</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#warehouseModal">
+                <i class="bi bi-plus-circle"></i> Novo Depósito
+            </button>
+            <a href="/estoque/projecoes" class="btn btn-outline-info">
+                <i class="bi bi-graph-up"></i> Projeções
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs para diferentes visualizações -->
+<ul class="nav nav-tabs mb-4" id="stockTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="warehouses-tab" data-bs-toggle="tab" data-bs-target="#warehouses" type="button" role="tab">
+            <i class="bi bi-building"></i> Depósitos
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stock" type="button" role="tab">
+            <i class="bi bi-box-seam"></i> Estoque por Produto
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="movements-tab" data-bs-toggle="tab" data-bs-target="#movements" type="button" role="tab">
+            <i class="bi bi-arrow-left-right"></i> Movimentações
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="stockTabsContent">
+    <!-- Tab Depósitos -->
+    <div class="tab-pane fade show active" id="warehouses" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="warehousesTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Nome</th>
+                                <th>Tipo</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="warehousesTableBody">
+                            <!-- Dados carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Estoque por Produto -->
+    <div class="tab-pane fade" id="stock" role="tabpanel">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="productSearch" class="form-label">Buscar Produto</label>
+                        <input type="text" class="form-control" id="productSearch" placeholder="Nome ou SKU do produto...">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="warehouseFilter" class="form-label">Depósito</label>
+                        <select class="form-select" id="warehouseFilter">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-primary w-100" onclick="loadProductStock(1)">
+                            <i class="bi bi-search"></i> Buscar
+                        </button>
+                    </div>
+                    <div class="col-md-12">
+                        <small class="text-muted">Deixe o campo de busca vazio para listar todos os estoques</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="stockTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Anúncio</th>
+                                <th>Depósito</th>
+                                <th>Disponível</th>
+                                <th>Reservado</th>
+                                <th>Total</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stockTableBody">
+                            <!-- Dados carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Footer com paginação -->
+            <div class="card-footer bg-light">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            Mostrando <span id="stock-showing-start">1</span> a <span id="stock-showing-end">0</span> 
+                            de <span id="stock-showing-total">0</span> estoques
+                        </small>
+                    </div>
+                    <div class="col-md-6">
+                        <nav aria-label="Paginação de estoques">
+                            <ul class="pagination pagination-sm justify-content-end mb-0" id="stockPagination">
+                                <!-- Paginação será inserida via JavaScript -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Movimentações -->
+    <div class="tab-pane fade" id="movements" role="tabpanel">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="movementTypeFilter" class="form-label">Tipo</label>
+                        <select class="form-select" id="movementTypeFilter">
+                            <option value="">Todos</option>
+                            <option value="in">Entrada</option>
+                            <option value="out">Saída</option>
+                            <option value="sale">Venda</option>
+                            <option value="purchase">Compra</option>
+                            <option value="adjustment">Ajuste</option>
+                            <option value="transfer">Transferência</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="movementWarehouseFilter" class="form-label">Depósito</label>
+                        <select class="form-select" id="movementWarehouseFilter">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="movementDateFrom" class="form-label">Data Início</label>
+                        <input type="date" class="form-control" id="movementDateFrom">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="movementDateTo" class="form-label">Data Fim</label>
+                        <input type="date" class="form-control" id="movementDateTo">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="button" class="btn btn-primary" onclick="loadMovements()">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="movementsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Data</th>
+                                <th>Depósito</th>
+                                <th>Tipo</th>
+                                <th>Quantidade</th>
+                                <th>Anterior</th>
+                                <th>Novo</th>
+                                <th>Referência</th>
+                            </tr>
+                        </thead>
+                        <tbody id="movementsTableBody">
+                            <!-- Dados carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Footer com paginação -->
+            <div class="card-footer bg-light">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            Mostrando <span id="movement-showing-start">1</span> a <span id="movement-showing-end">0</span> 
+                            de <span id="movement-showing-total">0</span> movimentações
+                        </small>
+                    </div>
+                    <div class="col-md-6">
+                        <nav aria-label="Paginação de movimentações">
+                            <ul class="pagination pagination-sm justify-content-end mb-0" id="movementPagination">
+                                <!-- Paginação será inserida via JavaScript -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Depósito -->
+<div class="modal fade" id="warehouseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-white">
+                <h5 class="modal-title" id="warehouseModalTitle">Novo Depósito</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="warehouseForm">
+                    <input type="hidden" id="warehouseId">
+                    <div class="mb-3">
+                        <label for="warehouseName" class="form-label">Nome *</label>
+                        <input type="text" class="form-control" id="warehouseName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="warehouseType" class="form-label">Tipo *</label>
+                        <select class="form-select" id="warehouseType" required>
+                            <option value="custom">Depósito Próprio</option>
+                            <option value="fulfillment">Fulfillment ML</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="warehouseAddress" class="form-label">Endereço</label>
+                        <textarea class="form-control" id="warehouseAddress" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveWarehouse()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Remoção -->
+<div class="modal fade" id="deleteWarehouseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle"></i> Confirmar Remoção
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja remover o depósito <strong id="deleteWarehouseName"></strong>?</p>
+                <p class="text-danger mb-0">
+                    <i class="bi bi-exclamation-circle"></i> <strong>Esta ação não pode ser desfeita.</strong>
+                </p>
+                <input type="hidden" id="deleteWarehouseId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteWarehouse()">
+                    <i class="bi bi-trash"></i> Remover
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Configuração de Depósito por Anúncio -->
+<div class="modal fade" id="configWarehouseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-gear"></i> Configurar Depósito do Anúncio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="configAnnouncementMlItemId">
+                <input type="hidden" id="configAnnouncementProductId">
+                <p><strong>Anúncio:</strong> <span id="configAnnouncementTitle"></span></p>
+                <div class="mb-3">
+                    <label for="configWarehouseSelect" class="form-label">Depósito *</label>
+                    <select class="form-select" id="configWarehouseSelect" required>
+                        <option value="">Carregando...</option>
+                    </select>
+                    <small class="form-text text-muted">Selecione qual depósito este anúncio deve usar para estoque</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveAnnouncementWarehouseConfig()">
+                    <i class="bi bi-check-circle"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Quantidade de Estoque -->
+<div class="modal fade" id="editStockQuantityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil"></i> Editar Quantidade de Estoque
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editStockQuantityForm">
+                    <input type="hidden" id="editStockQuantityId">
+                    <div class="mb-3">
+                        <label class="form-label">Produto</label>
+                        <p class="form-control-plaintext" id="editStockProductName">-</p>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStockQuantity" class="form-label">Nova Quantidade *</label>
+                        <input type="number" class="form-control" id="editStockQuantity" step="0.01" min="0" required>
+                        <small class="form-text text-muted">Quantidade atual: <span id="editStockCurrentQuantity">0</span></small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStockNotes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="editStockNotes" rows="3" placeholder="Motivo da alteração (opcional)"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveStockQuantity()">
+                    <i class="bi bi-check-circle"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Ajuste de Estoque -->
+<div class="modal fade" id="adjustStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Ajuste de Estoque</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="adjustStockForm">
+                    <input type="hidden" id="adjustProductId">
+                    <input type="hidden" id="adjustMlItemId">
+                    <div class="mb-3">
+                        <label for="adjustWarehouseId" class="form-label">Depósito *</label>
+                        <select class="form-select" id="adjustWarehouseId" required>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adjustQuantity" class="form-label">Quantidade *</label>
+                        <input type="number" class="form-control" id="adjustQuantity" step="0.01" required>
+                        <small class="form-text text-muted">Positivo para entrada, negativo para saída</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adjustNotes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="adjustNotes" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="confirmAdjustStock()">Ajustar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let warehouses = [];
+let currentWarehouseId = null;
+
+// Variáveis de paginação
+let stockCurrentPage = 1;
+let stockItemsPerPage = 20;
+let stockTotalItems = 0;
+
+let movementCurrentPage = 1;
+let movementItemsPerPage = 20;
+let movementTotalItems = 0;
+
+// Carregar depósitos ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadWarehouses();
+    
+    // Adicionar listener para filtrar quando o depósito mudar
+    const warehouseFilter = document.getElementById('warehouseFilter');
+    if (warehouseFilter) {
+        warehouseFilter.addEventListener('change', function() {
+            loadProductStock(1);
+        });
+    }
+});
+
+async function loadWarehouses() {
+    try {
+        const response = await fetch('/api/stock/warehouses', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            warehouses = data.warehouses;
+            renderWarehouses();
+            // Carregar opções de depósitos após carregar os depósitos
+            loadWarehouseOptions();
+            // Carregar estoques após carregar os depósitos
+            loadProductStock(1);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar depósitos:', error);
+    }
+}
+
+function renderWarehouses() {
+    const tbody = document.getElementById('warehousesTableBody');
+    tbody.innerHTML = '';
+    
+    warehouses.forEach(warehouse => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${warehouse.name}</td>
+            <td><span class="badge bg-${warehouse.type === 'fulfillment' ? 'info' : 'primary'}">${warehouse.type === 'fulfillment' ? 'Fulfillment' : 'Próprio'}</span></td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editWarehouse(${warehouse.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteWarehouse(${warehouse.id}, '${warehouse.name}')" title="Remover" ${warehouse.is_shared ? 'disabled' : ''}>
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function loadWarehouseOptions() {
+    const selects = ['warehouseFilter', 'movementWarehouseFilter', 'adjustWarehouseId'];
+    selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (select) {
+            select.innerHTML = '<option value="">Todos</option>';
+            warehouses.forEach(w => {
+                const option = document.createElement('option');
+                option.value = w.id;
+                option.textContent = w.name;
+                select.appendChild(option);
+            });
+        }
+    });
+}
+
+function openWarehouseModal(warehouseId = null) {
+    currentWarehouseId = warehouseId;
+    const modal = new bootstrap.Modal(document.getElementById('warehouseModal'));
+    const title = document.getElementById('warehouseModalTitle');
+    const form = document.getElementById('warehouseForm');
+    
+    if (warehouseId) {
+        title.textContent = 'Editar Depósito';
+        const warehouse = warehouses.find(w => w.id === warehouseId);
+        document.getElementById('warehouseId').value = warehouseId;
+        document.getElementById('warehouseName').value = warehouse.name;
+        document.getElementById('warehouseType').value = warehouse.type;
+        document.getElementById('warehouseAddress').value = warehouse.address || '';
+    } else {
+        title.textContent = 'Novo Depósito';
+        form.reset();
+        document.getElementById('warehouseId').value = '';
+    }
+    
+    modal.show();
+}
+
+async function saveWarehouse() {
+    const form = document.getElementById('warehouseForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const warehouseId = document.getElementById('warehouseId').value;
+    const data = {
+        name: document.getElementById('warehouseName').value,
+        type: document.getElementById('warehouseType').value,
+        address: document.getElementById('warehouseAddress').value
+    };
+    
+    try {
+        const url = warehouseId ? `/api/stock/warehouses/${warehouseId}` : '/api/stock/warehouses';
+        const method = warehouseId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            // Tentar ler mensagem de erro
+            let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorData.error || errorMessage;
+            } catch (e) {
+                const errorText = await response.text();
+                if (errorText) {
+                    errorMessage = errorText;
+                }
+            }
+            console.error('Erro na resposta:', errorMessage);
+            showNotification(errorMessage, 'error');
+            return;
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Fechar modal corretamente
+            const modalElement = document.getElementById('warehouseModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+            
+            if (modalInstance) {
+                modalInstance.hide();
+            } else {
+                // Se não houver instância, criar e fechar
+                const modal = new bootstrap.Modal(modalElement);
+                modal.hide();
+            }
+            
+            // Garantir que o backdrop seja removido
+            setTimeout(() => {
+                cleanupModalBackdrop();
+            }, 300);
+            
+            loadWarehouses();
+            showNotification('Depósito salvo com sucesso!', 'success');
+        } else {
+            showNotification(result.error || 'Erro ao salvar depósito', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar depósito:', error);
+        showNotification(`Erro ao salvar depósito: ${error.message}`, 'error');
+    }
+}
+
+function editWarehouse(id) {
+    openWarehouseModal(id);
+}
+
+function deleteWarehouse(id, name) {
+    // Preencher dados do modal
+    document.getElementById('deleteWarehouseId').value = id;
+    document.getElementById('deleteWarehouseName').textContent = name;
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteWarehouseModal'));
+    modal.show();
+}
+
+async function confirmDeleteWarehouse() {
+    const id = document.getElementById('deleteWarehouseId').value;
+    const name = document.getElementById('deleteWarehouseName').textContent;
+    
+    // Fechar modal
+    const modalElement = document.getElementById('deleteWarehouseModal');
+    const modalInstance = bootstrap.Modal.getInstance(modalElement);
+    if (modalInstance) {
+        modalInstance.hide();
+    }
+    
+    // Limpar backdrop
+    setTimeout(() => {
+        cleanupModalBackdrop();
+    }, 300);
+    
+    try {
+        const response = await fetch(`/api/stock/warehouses/${id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorData.error || errorMessage;
+            } catch (e) {
+                const errorText = await response.text();
+                if (errorText) {
+                    errorMessage = errorText;
+                }
+            }
+            showNotification(errorMessage, 'error');
+            return;
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Depósito removido com sucesso!', 'success');
+            loadWarehouses();
+        } else {
+            showNotification(result.error || 'Erro ao remover depósito', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao remover depósito:', error);
+        showNotification(`Erro ao remover depósito: ${error.message}`, 'error');
+    }
+}
+
+async function loadProductStock(page = 1) {
+    stockCurrentPage = page;
+    const productSearch = document.getElementById('productSearch').value.trim();
+    const warehouseFilter = document.getElementById('warehouseFilter').value;
+    
+    try {
+        // Construir URL com filtros e paginação
+        let url = '/api/stock/stocks?';
+        if (warehouseFilter) {
+            url += `warehouse_id=${warehouseFilter}&`;
+        }
+        url += `limit=${stockItemsPerPage}&offset=${(page - 1) * stockItemsPerPage}`;
+        
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            showNotification('Erro ao carregar estoques', 'error');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            showNotification(data.error || 'Erro ao carregar estoques', 'error');
+            return;
+        }
+        
+        // Filtrar por busca de produto se houver (client-side)
+        let stocks = data.stocks || [];
+        if (productSearch) {
+            const searchLower = productSearch.toLowerCase();
+            stocks = stocks.filter(stock => {
+                const productName = (stock.product_name || '').toLowerCase();
+                const productSku = (stock.product_sku || '').toLowerCase();
+                const announcementTitle = (stock.announcement_title || '').toLowerCase();
+                const announcementSku = (stock.announcement_sku || '').toLowerCase();
+                return productName.includes(searchLower) || 
+                       productSku.includes(searchLower) ||
+                       announcementTitle.includes(searchLower) ||
+                       announcementSku.includes(searchLower);
+            });
+        }
+        
+        stockTotalItems = data.total || stocks.length;
+        renderStocks(stocks);
+        renderStockPagination();
+        
+    } catch (error) {
+        console.error('Erro ao carregar estoques:', error);
+        showNotification(`Erro ao carregar estoques: ${error.message}`, 'error');
+    }
+}
+
+function renderStocks(stocks) {
+    const tbody = document.getElementById('stockTableBody');
+    tbody.innerHTML = '';
+    
+    if (stocks.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted">
+                    Nenhum estoque encontrado
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    stocks.forEach(stock => {
+        const row = document.createElement('tr');
+        
+        // Determinar o que exibir na coluna "Anúncio"
+        let announcementDisplay = '';
+        if (stock.announcement_title) {
+            announcementDisplay = `
+                <strong>${escapeHtml(stock.announcement_title)}</strong><br>
+                <small class="text-muted">SKU: ${escapeHtml(stock.announcement_sku || stock.ml_item_id || 'N/A')}</small>
+            `;
+        } else if (stock.product_name) {
+            announcementDisplay = `
+                <strong>${escapeHtml(stock.product_name)}</strong><br>
+                <small class="text-muted">SKU: ${escapeHtml(stock.product_sku || 'N/A')}</small>
+            `;
+        } else {
+            announcementDisplay = '<span class="text-muted">Sem identificação</span>';
+        }
+        
+        // Preparar valores para os botões (garantir que sejam strings válidas)
+        const productName = String(stock.announcement_title || stock.product_name || 'Produto');
+        const announcementTitle = String(stock.announcement_title || stock.ml_item_id || '');
+        const productNameEscaped = JSON.stringify(productName);
+        const announcementTitleEscaped = JSON.stringify(announcementTitle);
+        
+        row.innerHTML = `
+            <td>${announcementDisplay}</td>
+            <td>
+                ${stock.warehouse_name ? `
+                    <span class="badge bg-${stock.warehouse_type === 'fulfillment' ? 'info' : 'primary'}">
+                        ${escapeHtml(stock.warehouse_name)}
+                    </span>
+                ` : '<span class="text-muted">Não configurado</span>'}
+            </td>
+            <td>${stock.available_quantity.toFixed(2)}</td>
+            <td>${stock.reserved_quantity.toFixed(2)}</td>
+            <td>${stock.quantity.toFixed(2)}</td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-secondary edit-stock-btn" 
+                            data-stock-id="${stock.id}"
+                            data-stock-quantity="${stock.quantity}"
+                            data-product-name="${escapeHtml(productName)}"
+                            title="Editar quantidade">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    ${stock.ml_item_id && stock.internal_product_id ? `
+                        <button class="btn btn-sm btn-outline-primary" 
+                                data-product-id="${stock.internal_product_id}"
+                                data-ml-item-id="${stock.ml_item_id}"
+                                data-announcement-title="${escapeHtml(announcementTitle)}"
+                                onclick="configureAnnouncementWarehouse('${stock.ml_item_id}', ${stock.internal_product_id}, ${announcementTitleEscaped})"
+                                title="Configurar depósito">
+                            <i class="bi bi-gear"></i>
+                        </button>
+                    ` : ''}
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function editStockQuantity(stockId, currentQuantity, productName) {
+    try {
+        console.log('editStockQuantity chamado:', { stockId, currentQuantity, productName });
+        
+        const stockIdElement = document.getElementById('editStockQuantityId');
+        const quantityElement = document.getElementById('editStockQuantity');
+        const currentQuantityElement = document.getElementById('editStockCurrentQuantity');
+        const productNameElement = document.getElementById('editStockProductName');
+        const notesElement = document.getElementById('editStockNotes');
+        const modalElement = document.getElementById('editStockQuantityModal');
+        
+        if (!stockIdElement || !quantityElement || !currentQuantityElement || !productNameElement || !notesElement || !modalElement) {
+            console.error('Elementos da modal não encontrados:', {
+                stockIdElement: !!stockIdElement,
+                quantityElement: !!quantityElement,
+                currentQuantityElement: !!currentQuantityElement,
+                productNameElement: !!productNameElement,
+                notesElement: !!notesElement,
+                modalElement: !!modalElement
+            });
+            showNotification('Erro ao abrir modal de edição', 'error');
+            return;
+        }
+        
+        stockIdElement.value = stockId;
+        quantityElement.value = currentQuantity;
+        currentQuantityElement.textContent = parseFloat(currentQuantity).toFixed(2);
+        productNameElement.textContent = productName || 'Produto';
+        notesElement.value = '';
+        
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+        
+        console.log('Modal aberta com sucesso');
+    } catch (error) {
+        console.error('Erro ao abrir modal de edição:', error);
+        showNotification(`Erro ao abrir modal: ${error.message}`, 'error');
+    }
+}
+
+async function saveStockQuantity() {
+    const stockId = document.getElementById('editStockQuantityId').value;
+    const newQuantity = parseFloat(document.getElementById('editStockQuantity').value);
+    const notes = document.getElementById('editStockNotes').value.trim();
+    
+    if (!stockId || isNaN(newQuantity) || newQuantity < 0) {
+        showNotification('Por favor, informe uma quantidade válida', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/stock/stocks/${stockId}/quantity`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                new_quantity: newQuantity,
+                notes: notes || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            showNotification(data.error || 'Erro ao atualizar quantidade', 'error');
+            return;
+        }
+        
+        showNotification('Quantidade atualizada com sucesso!', 'success');
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('editStockQuantityModal'));
+        modal.hide();
+        
+        // Recarregar estoques
+        loadProductStock();
+        
+    } catch (error) {
+        console.error('Erro ao salvar quantidade:', error);
+        showNotification(`Erro ao salvar quantidade: ${error.message}`, 'error');
+    }
+}
+
+function configureAnnouncementWarehouse(mlItemId, internalProductId, announcementTitle) {
+    // Preencher dados do modal
+    document.getElementById('configAnnouncementMlItemId').value = mlItemId;
+    document.getElementById('configAnnouncementProductId').value = internalProductId;
+    document.getElementById('configAnnouncementTitle').textContent = announcementTitle;
+    
+    // Carregar lista de depósitos
+    loadWarehousesForConfig();
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('configWarehouseModal'));
+    modal.show();
+}
+
+async function loadWarehousesForConfig() {
+    try {
+        const response = await fetch('/api/stock/warehouses', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        const select = document.getElementById('configWarehouseSelect');
+        select.innerHTML = '<option value="">Selecione um depósito</option>';
+        
+        if (data.success && data.warehouses) {
+            data.warehouses.forEach(warehouse => {
+                const option = document.createElement('option');
+                option.value = warehouse.id;
+                option.textContent = `${warehouse.name} (${warehouse.type === 'fulfillment' ? 'Fulfillment' : 'Próprio'})`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao carregar depósitos:', error);
+    }
+}
+
+async function saveAnnouncementWarehouseConfig() {
+    const mlItemId = document.getElementById('configAnnouncementMlItemId').value;
+    const internalProductId = parseInt(document.getElementById('configAnnouncementProductId').value);
+    const warehouseId = parseInt(document.getElementById('configWarehouseSelect').value);
+    
+    if (!warehouseId) {
+        showNotification('Selecione um depósito', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/stock/announcements/${mlItemId}/warehouse`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                internal_product_id: internalProductId,
+                warehouse_id: warehouseId
+            })
+        });
+        
+        if (!response.ok) {
+            let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorData.error || errorMessage;
+            } catch (e) {
+                const errorText = await response.text();
+                if (errorText) {
+                    errorMessage = errorText;
+                }
+            }
+            showNotification(errorMessage, 'error');
+            return;
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Fechar modal
+            const modalElement = document.getElementById('configWarehouseModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+            
+            setTimeout(() => {
+                cleanupModalBackdrop();
+            }, 300);
+            
+            // Recarregar dados
+            stockCurrentPage = 1; // Resetar para primeira página
+            loadProductStock(1);
+            
+            showNotification('Depósito configurado com sucesso!', 'success');
+        } else {
+            showNotification(result.error || 'Erro ao configurar depósito', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar configuração:', error);
+        showNotification(`Erro ao salvar: ${error.message}`, 'error');
+    }
+}
+
+async function loadMovements(page = 1) {
+    movementCurrentPage = page;
+    const type = document.getElementById('movementTypeFilter').value;
+    const warehouseId = document.getElementById('movementWarehouseFilter').value;
+    const dateFrom = document.getElementById('movementDateFrom').value;
+    const dateTo = document.getElementById('movementDateTo').value;
+    
+    try {
+        let url = '/api/stock/movements?';
+        if (type) url += `movement_type=${type}&`;
+        if (warehouseId) url += `warehouse_id=${warehouseId}&`;
+        if (dateFrom) url += `date_from=${dateFrom}&`;
+        if (dateTo) url += `date_to=${dateTo}&`;
+        url += `limit=${movementItemsPerPage}&offset=${(page - 1) * movementItemsPerPage}`;
+        
+        const response = await fetch(url, { credentials: 'include' });
+        
+        if (!response.ok) {
+            showNotification('Erro ao carregar movimentações', 'error');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            movementTotalItems = data.total || (data.movements || []).length;
+            renderMovements(data.movements || []);
+            renderMovementPagination();
+        } else {
+            showNotification(data.error || 'Erro ao carregar movimentações', 'error');
+            renderMovements([]);
+            renderMovementPagination();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar movimentações:', error);
+        showNotification(`Erro ao carregar movimentações: ${error.message}`, 'error');
+        renderMovements([]);
+        renderMovementPagination();
+    }
+}
+
+function renderMovements(movements) {
+    const tbody = document.getElementById('movementsTableBody');
+    tbody.innerHTML = '';
+    
+    if (!movements || movements.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-muted">
+                    Nenhuma movimentação encontrada
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    const typeLabels = {
+        'in': 'Entrada',
+        'out': 'Saída',
+        'sale': 'Venda',
+        'purchase': 'Compra',
+        'adjustment': 'Ajuste',
+        'transfer': 'Transferência',
+        'reservation': 'Reserva',
+        'release': 'Liberação'
+    };
+    
+    const typeBadgeColors = {
+        'in': 'success',
+        'out': 'danger',
+        'sale': 'warning',
+        'purchase': 'info',
+        'adjustment': 'secondary',
+        'transfer': 'primary',
+        'reservation': 'warning',
+        'release': 'success'
+    };
+    
+    movements.forEach(movement => {
+        const row = document.createElement('tr');
+        const date = new Date(movement.created_at).toLocaleString('pt-BR');
+        const movementType = movement.movement_type || movement.type || '';
+        const badgeColor = typeBadgeColors[movementType] || 'secondary';
+        
+        row.innerHTML = `
+            <td>${date}</td>
+            <td>${movement.warehouse_name || '-'}</td>
+            <td><span class="badge bg-${badgeColor}">${typeLabels[movementType] || movementType}</span></td>
+            <td>${movement.quantity > 0 ? '+' : ''}${parseFloat(movement.quantity || 0).toFixed(2)}</td>
+            <td>${parseFloat(movement.previous_quantity || 0).toFixed(2)}</td>
+            <td>${parseFloat(movement.new_quantity || 0).toFixed(2)}</td>
+            <td>${movement.reference_type || movement.notes || '-'}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function cleanupModalBackdrop() {
+    // Remove todos os backdrops residuais
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+    
+    // Remove classes e estilos do body
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+}
+
+function showNotification(message, type = 'info') {
+    // Criar toast usando Bootstrap
+    const toastContainer = document.getElementById('toast-container') || createToastContainer();
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : 'bi-info-circle';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : 'Info'}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    // Remover elemento após esconder
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+
+// Event listeners
+document.getElementById('warehouseModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('warehouseForm').reset();
+    currentWarehouseId = null;
+    
+    // Garantir limpeza completa do backdrop
+    cleanupModalBackdrop();
+});
+
+document.getElementById('deleteWarehouseModal').addEventListener('hidden.bs.modal', function() {
+    // Limpar dados do modal
+    document.getElementById('deleteWarehouseId').value = '';
+    document.getElementById('deleteWarehouseName').textContent = '';
+    
+    // Garantir limpeza completa do backdrop
+    cleanupModalBackdrop();
+});
+
+document.getElementById('configWarehouseModal').addEventListener('hidden.bs.modal', function() {
+    // Limpar dados do modal
+    document.getElementById('configAnnouncementMlItemId').value = '';
+    document.getElementById('configAnnouncementProductId').value = '';
+    document.getElementById('configAnnouncementTitle').textContent = '';
+    document.getElementById('configWarehouseSelect').innerHTML = '<option value="">Selecione um depósito</option>';
+    
+    // Garantir limpeza completa do backdrop
+    cleanupModalBackdrop();
+});
+
+// Botão "Novo Depósito" no header
+document.querySelector('[data-bs-target="#warehouseModal"]').addEventListener('click', function() {
+    openWarehouseModal();
+});
+
+// Event listeners para botões de editar estoque (usando delegação de eventos)
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.edit-stock-btn')) {
+        const btn = e.target.closest('.edit-stock-btn');
+        const stockId = parseInt(btn.getAttribute('data-stock-id'));
+        const stockQuantity = parseFloat(btn.getAttribute('data-stock-quantity'));
+        const productName = btn.getAttribute('data-product-name');
+        editStockQuantity(stockId, stockQuantity, productName);
+    }
+});
+
+// Carregar movimentações automaticamente quando a aba for aberta
+const movementsTab = document.getElementById('movements-tab');
+if (movementsTab) {
+    movementsTab.addEventListener('shown.bs.tab', function() {
+        loadMovements(1);
+    });
+}
+
+// Funções de paginação para estoques
+function renderStockPagination() {
+    const pagination = document.getElementById('stockPagination');
+    const totalPages = Math.ceil(stockTotalItems / stockItemsPerPage);
+    
+    const start = stockTotalItems > 0 ? (stockCurrentPage - 1) * stockItemsPerPage + 1 : 0;
+    const end = Math.min(stockCurrentPage * stockItemsPerPage, stockTotalItems);
+    
+    document.getElementById('stock-showing-start').textContent = start;
+    document.getElementById('stock-showing-end').textContent = end;
+    document.getElementById('stock-showing-total').textContent = stockTotalItems;
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    
+    // Botão anterior
+    html += `
+        <li class="page-item ${stockCurrentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadProductStock(${stockCurrentPage - 1}); return false;">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    const startPage = Math.max(1, stockCurrentPage - 2);
+    const endPage = Math.min(totalPages, stockCurrentPage + 2);
+    
+    if (startPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="loadProductStock(1); return false;">1</a></li>`;
+        if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <li class="page-item ${i === stockCurrentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadProductStock(${i}); return false;">${i}</a>
+            </li>
+        `;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="loadProductStock(${totalPages}); return false;">${totalPages}</a></li>`;
+    }
+    
+    // Botão próximo
+    html += `
+        <li class="page-item ${stockCurrentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadProductStock(${stockCurrentPage + 1}); return false;">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = html;
+}
+
+// Funções de paginação para movimentações
+function renderMovementPagination() {
+    const pagination = document.getElementById('movementPagination');
+    const totalPages = Math.ceil(movementTotalItems / movementItemsPerPage);
+    
+    const start = movementTotalItems > 0 ? (movementCurrentPage - 1) * movementItemsPerPage + 1 : 0;
+    const end = Math.min(movementCurrentPage * movementItemsPerPage, movementTotalItems);
+    
+    document.getElementById('movement-showing-start').textContent = start;
+    document.getElementById('movement-showing-end').textContent = end;
+    document.getElementById('movement-showing-total').textContent = movementTotalItems;
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    
+    // Botão anterior
+    html += `
+        <li class="page-item ${movementCurrentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadMovements(${movementCurrentPage - 1}); return false;">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    const startPage = Math.max(1, movementCurrentPage - 2);
+    const endPage = Math.min(totalPages, movementCurrentPage + 2);
+    
+    if (startPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="loadMovements(1); return false;">1</a></li>`;
+        if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <li class="page-item ${i === movementCurrentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadMovements(${i}); return false;">${i}</a>
+            </li>
+        `;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="loadMovements(${totalPages}); return false;">${totalPages}</a></li>`;
+    }
+    
+    // Botão próximo
+    html += `
+        <li class="page-item ${movementCurrentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadMovements(${movementCurrentPage + 1}); return false;">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = html;
+}
+</script>
+{% endblock %}
+
