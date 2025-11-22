@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from app.models.saas_models import MLOrder, MLAccount, MLAccountStatus, OrderStatus
 from app.services.token_manager import TokenManager
+from app.utils.notification_logger import global_logger
 
 logger = logging.getLogger(__name__)
 
@@ -1072,8 +1073,8 @@ class MLOrdersService:
                 existing_order.updated_at = datetime.utcnow()
                 logger.info(f"✅ Pedido atualizado: ID={existing_order.id}, company_id={existing_order.company_id}")
                 
-                # Sincronizar com estoque se pedido foi confirmado/pago
-                self._sync_order_to_stock(existing_order, company_id)
+                # NÃO sincronizar estoque em atualizações (evitar duplicação)
+                logger.info(f"ℹ️ Pedido {existing_order.ml_order_id} atualizado - não processando estoque novamente")
                 
                 return {"action": "updated", "order": existing_order}
             else:
@@ -1129,7 +1130,7 @@ class MLOrdersService:
                     logger.warning(f"⚠️ Erro ao gerenciar status interno automaticamente: {e}", exc_info=True)
                     # Não falhar a criação do pedido por causa do status interno
                 
-                # Sincronizar com estoque se pedido foi confirmado/pago
+                # Sincronizar com estoque apenas para pedidos novos
                 self._sync_order_to_stock(new_order, company_id)
                 
                 return {"action": "created", "order": new_order}
@@ -1844,17 +1845,27 @@ class MLOrdersService:
             logger.error(f"❌ Erro ao verificar NF do pedido {order_id}: {e}", exc_info=True)
     
     def _sync_order_to_stock(self, order, company_id: int):
-        """Sincroniza pedido confirmado/pago com estoque"""
+        """Sincroniza pedido criado com estoque - processa cada item do pedido"""
         try:
-            from app.models.saas_models import OrderStatus
             from app.services.stock_movement_service import StockMovementService
+            from app.models.saas_models import StockMovement, StockMovementType
+            from datetime import datetime
             
-            # Verificar se pedido está confirmado/pago
-            if order.status not in [OrderStatus.PAID, OrderStatus.CONFIRMED]:
-                return  # Não sincronizar se não estiver pago/confirmado
+            # Log global: início do processamento do pedido
+            global_logger.log_event(
+                event_type="stock_sync/order_start",
+                data={
+                    "action": "processing_order",
+                    "ml_order_id": str(order.ml_order_id),
+                    "order_id": order.id,
+                    "company_id": company_id,
+                    "order_items_count": len(order.order_items or [])
+                },
+                company_id=company_id,
+                success=True
+            )
             
             # Verificar se já foi sincronizado (evitar duplicação)
-            from app.models.saas_models import StockMovement, StockMovementType
             movement_service = StockMovementService(self.db)
             
             # Verificar se já existe movimentação para este pedido
@@ -1864,15 +1875,46 @@ class MLOrdersService:
             ).first()
             
             if existing_movement:
-                logger.info(f"ℹ️ Pedido {order.ml_order_id} já foi sincronizado com estoque")
+                logger.info(f"ℹ️ Pedido {order.ml_order_id} já foi sincronizado com estoque (movimento ID: {existing_movement.id})")
+                global_logger.log_event(
+                    event_type="stock_sync/order_start",
+                    data={
+                        "action": "order_already_synced",
+                        "ml_order_id": str(order.ml_order_id),
+                        "movement_id": existing_movement.id
+                    },
+                    company_id=company_id,
+                    success=True
+                )
                 return
             
-            # Processar itens do pedido
+            # Processar itens do pedido (pedido pode ter múltiplos itens)
             order_items = order.order_items or []
             
             if not order_items:
                 logger.warning(f"⚠️ Pedido {order.ml_order_id} não tem itens para sincronizar")
                 return
+            
+            logger.info(f"🔄 Processando {len(order_items)} item(ns) do pedido {order.ml_order_id} para sincronização com estoque")
+            
+            # Log global: processando itens
+            global_logger.log_event(
+                event_type="stock_sync/order_start",
+                data={
+                    "action": "processing_items",
+                    "ml_order_id": str(order.ml_order_id),
+                    "items_count": len(order_items)
+                },
+                company_id=company_id,
+                success=True
+            )
+            
+            # Formatar data do pedido para observação
+            order_date = order.date_created.strftime("%d/%m/%Y %H:%M") if order.date_created else datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+            
+            items_processed = 0
+            items_success = 0
+            items_errors = 0
             
             for item_entry in order_items:
                 # Extrair dados do item
@@ -1881,24 +1923,63 @@ class MLOrdersService:
                     continue
                 
                 ml_item_id = str(item_data.get("id") or item_data.get("item_id") or "")
-                quantity = int(item_entry.get("quantity", 1))
+                item_quantity = int(item_entry.get("quantity", 1))  # Quantidade DO ITEM no pedido
                 
-                if not ml_item_id or quantity <= 0:
+                if not ml_item_id or item_quantity <= 0:
+                    logger.warning(f"⚠️ Item inválido no pedido {order.ml_order_id}: ml_item_id={ml_item_id}, quantity={item_quantity}")
                     continue
                 
-                # Sincronizar com estoque
+                logger.info(f"🔄 Processando item {ml_item_id} - quantidade: {item_quantity} unidades")
+                
+                # Sincronizar com estoque (baixa + sincronização ML se necessário)
                 result = movement_service.sync_sale_to_stock(
                     company_id=company_id,
                     ml_order_id=order.id,
                     ml_item_id=ml_item_id,
-                    quantity=quantity
+                    quantity=item_quantity,
+                    order_number=str(order.ml_order_id),
+                    order_date=order_date,
+                    sales_channel="Mercado Livre"
                 )
                 
+                items_processed += 1
+                
                 if result.get("success"):
-                    logger.info(f"✅ Estoque sincronizado: {quantity} unidades do item {ml_item_id} (Pedido: {order.ml_order_id})")
+                    items_success += 1
+                    logger.info(f"✅ Estoque sincronizado: {item_quantity} unidade(s) do item {ml_item_id} (Pedido: {order.ml_order_id})")
                 else:
+                    items_errors += 1
                     logger.warning(f"⚠️ Erro ao sincronizar estoque do item {ml_item_id}: {result.get('error')}")
+            
+            # Log global: processamento do pedido concluído
+            global_logger.log_event(
+                event_type="stock_sync/order_completed",
+                data={
+                    "action": "order_processing_completed",
+                    "ml_order_id": str(order.ml_order_id),
+                    "items_processed": items_processed,
+                    "items_success": items_success,
+                    "items_errors": items_errors
+                },
+                company_id=company_id,
+                success=items_errors == 0,
+                error_message=f"{items_errors} item(s) com erro" if items_errors > 0 else None
+            )
                     
         except Exception as e:
             logger.error(f"❌ Erro ao sincronizar pedido com estoque: {e}", exc_info=True)
+            
+            # Log global: erro no processamento do pedido
+            global_logger.log_event(
+                event_type="stock_sync/error",
+                data={
+                    "action": "order_processing_failed",
+                    "ml_order_id": str(order.ml_order_id) if order else "unknown",
+                    "error": str(e)
+                },
+                company_id=company_id,
+                success=False,
+                error_message=str(e)
+            )
+            
             # Não falhar o salvamento do pedido por causa do estoque

@@ -10,8 +10,9 @@ from decimal import Decimal
 from datetime import datetime
 from app.models.saas_models import (
     Warehouse, ProductStock, InternalProduct, MLProduct, 
-    WarehouseType, Company, MLProductStatus, MLAccount
+    WarehouseType, Company, MLProductStatus, MLAccount, MLAccountStatus
 )
+from app.utils.notification_logger import global_logger
 
 logger = logging.getLogger(__name__)
 
@@ -1890,6 +1891,19 @@ class StockService:
             from app.models.saas_models import SKUManagement
             from app.services.token_manager import TokenManager
             
+            # Log global: início da sincronização ML
+            global_logger.log_event(
+                event_type="stock_sync/ml_sync",
+                data={
+                    "action": "sync_started",
+                    "internal_product_id": internal_product_id,
+                    "new_quantity": float(new_quantity),
+                    "warehouse_id": warehouse_id
+                },
+                company_id=company_id,
+                success=True
+            )
+            
             # Buscar anúncios associados ao produto interno via SKUManagement
             sku_managements = self.db.query(SKUManagement).filter(
                 and_(
@@ -2058,12 +2072,13 @@ class StockService:
                 # Validar que a conta ML pertence à empresa correta
                 ml_account = self.db.query(MLAccount).filter(
                     MLAccount.id == ml_account_id,
-                    MLAccount.company_id == company_id
+                    MLAccount.company_id == company_id,
+                    MLAccount.status == MLAccountStatus.ACTIVE
                 ).first()
                 
                 if not ml_account:
                     error_count += 1
-                    error_msg = f"Conta ML {ml_account_id} não encontrada ou não pertence à empresa {company_id}"
+                    error_msg = f"Conta ML {ml_account_id} não encontrada, não pertence à empresa {company_id} ou não está ativa"
                     details.append({
                         "ml_item_id": ml_item_id,
                         "title": ml_product.title or "Desconhecido",
@@ -2133,6 +2148,21 @@ class StockService:
                         "ml_account_id": ml_account_id
                     })
                     logger.info(f"✅ Estoque sincronizado no ML: {ml_item_id} → {quantity_int} unidades")
+                    
+                    # Log global: anúncio sincronizado com sucesso
+                    global_logger.log_event(
+                        event_type="stock_sync/ml_announcement",
+                        data={
+                            "action": "announcement_synced",
+                            "ml_item_id": ml_item_id,
+                            "ml_account": ml_account.nickname,
+                            "ml_account_id": ml_account_id,
+                            "quantity": quantity_int,
+                            "internal_product_id": internal_product_id
+                        },
+                        company_id=company_id,
+                        success=True
+                    )
                 else:
                     error_count += 1
                     error_msg = update_result.get("error", "Erro desconhecido")
@@ -2150,8 +2180,45 @@ class StockService:
                         "ml_account_id": ml_account_id
                     })
                     logger.error(f"❌ Erro ao sincronizar estoque no ML: {ml_item_id} (Conta: {ml_account.nickname}, ml_account_id: {ml_account_id}) - {error_msg}")
+                    
+                    # Log global: erro ao sincronizar anúncio
+                    global_logger.log_event(
+                        event_type="stock_sync/ml_announcement",
+                        data={
+                            "action": "announcement_sync_failed",
+                            "ml_item_id": ml_item_id,
+                            "ml_account": ml_account.nickname,
+                            "ml_account_id": ml_account_id,
+                            "quantity": quantity_int,
+                            "internal_product_id": internal_product_id,
+                            "error": error_msg,
+                            "status_code": update_result.get("status_code")
+                        },
+                        company_id=company_id,
+                        success=False,
+                        error_message=error_msg
+                    )
             
             logger.info(f"📊 Sincronização concluída: {synced_count} sucesso(s), {error_count} erro(s) para produto {internal_product_id} (warehouse: {warehouse_id})")
+            
+            # Log global: sincronização ML concluída
+            global_logger.log_event(
+                event_type="stock_sync/ml_sync_summary",
+                data={
+                    "action": "ml_sync_completed",
+                    "internal_product_id": internal_product_id,
+                    "warehouse_id": warehouse_id,
+                    "new_quantity": float(new_quantity),
+                    "announcements_found": len(ml_products),
+                    "normal_announcements": len(normal_announcements),
+                    "synced_count": synced_count,
+                    "error_count": error_count,
+                    "details": details
+                },
+                company_id=company_id,
+                success=error_count == 0,
+                error_message=f"{error_count} erro(s)" if error_count > 0 else None
+            )
             
             # Log detalhado dos anúncios sincronizados
             if normal_announcements:

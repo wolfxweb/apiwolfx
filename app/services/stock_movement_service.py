@@ -5,10 +5,12 @@ import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
+from decimal import Decimal
 from datetime import datetime, timedelta
 from app.models.saas_models import (
     StockMovement, StockMovementType, ProductStock, Warehouse, WarehouseType
 )
+from app.utils.notification_logger import global_logger
 
 logger = logging.getLogger(__name__)
 
@@ -184,12 +186,16 @@ class StockMovementService:
         ml_order_id: int,
         ml_item_id: str,
         quantity: int,
-        warehouse_id: Optional[int] = None
+        warehouse_id: Optional[int] = None,
+        order_number: Optional[str] = None,
+        order_date: Optional[str] = None,
+        sales_channel: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Sincroniza venda com estoque (quando pedido é confirmado)"""
+        """Sincroniza venda com estoque - PRIMEIRO dá baixa, DEPOIS sincroniza com ML se necessário"""
         try:
-            from app.models.saas_models import MLOrder
+            from app.models.saas_models import MLOrder, SKUManagement, MLProduct, MLAccount, MLAccountStatus
             from app.services.stock_service import StockService
+            import json
             
             # Verificar se pedido existe e pertence à empresa
             order = self.db.query(MLOrder).filter(
@@ -205,9 +211,72 @@ class StockMovementService:
                     "error": "Pedido não encontrado"
                 }
             
-            # Se não especificou warehouse, tentar encontrar por ml_item_id
+            # Buscar internal_product_id via SKUManagement
+            sku_mgmt = self.db.query(SKUManagement).filter(
+                SKUManagement.platform_item_id == ml_item_id,
+                SKUManagement.company_id == company_id,
+                SKUManagement.status == "active"
+            ).first()
+            
+            internal_product_id = sku_mgmt.internal_product_id if sku_mgmt else None
+            
+            # Log global: início da sincronização
+            global_logger.log_event(
+                event_type="stock_sync/order_processing",
+                data={
+                    "action": "start",
+                    "ml_order_id": str(order.ml_order_id),
+                    "ml_item_id": ml_item_id,
+                    "item_quantity": quantity,
+                    "company_id": company_id,
+                    "internal_product_id": internal_product_id,
+                    "warehouse_id": warehouse_id
+                },
+                company_id=company_id,
+                success=True
+            )
+            
+            if not internal_product_id:
+                logger.warning(f"⚠️ internal_product_id não encontrado para ml_item_id {ml_item_id} - apenas registrando baixa sem sincronização ML")
+                global_logger.log_event(
+                    event_type="stock_sync/warning",
+                    data={
+                        "message": "internal_product_id não encontrado",
+                        "ml_item_id": ml_item_id,
+                        "ml_order_id": str(order.ml_order_id)
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message="internal_product_id não encontrado"
+                )
+            
+            # Identificar se produto é Full (fulfillment)
+            is_fulfillment = False
+            ml_product = self.db.query(MLProduct).filter(
+                MLProduct.ml_item_id == ml_item_id,
+                MLProduct.company_id == company_id
+            ).first()
+            
+            if ml_product and ml_product.shipping:
+                shipping_data = ml_product.shipping
+                if isinstance(shipping_data, str):
+                    try:
+                        shipping_data = json.loads(shipping_data)
+                    except:
+                        shipping_data = {}
+                
+                if shipping_data.get("logistic_type") == "fulfillment":
+                    is_fulfillment = True
+            
+            # Verificar também nas tags
+            if not is_fulfillment and ml_product and ml_product.tags:
+                tags_list = ml_product.tags if isinstance(ml_product.tags, list) else []
+                if any(tag in ["fulfillment", "meli_fulfillment", "FULL"] for tag in tags_list):
+                    is_fulfillment = True
+            
+            # Se não especificou warehouse, tentar encontrar por ml_item_id ou internal_product_id
             if not warehouse_id:
-                # Buscar estoque específico do anúncio
+                # Buscar estoque específico do anúncio (para Full)
                 product_stock = self.db.query(ProductStock).filter(
                     and_(
                         ProductStock.company_id == company_id,
@@ -217,17 +286,29 @@ class StockMovementService:
                 
                 if product_stock:
                     warehouse_id = product_stock.warehouse_id
-                else:
-                    # Buscar fulfillment (compartilhado)
-                    fulfillment_warehouse = self.db.query(Warehouse).filter(
+                elif internal_product_id:
+                    # Buscar estoque compartilhado do produto interno
+                    shared_stock = self.db.query(ProductStock).filter(
                         and_(
-                            Warehouse.type == WarehouseType.FULFILLMENT,
-                            Warehouse.is_shared == True
+                            ProductStock.company_id == company_id,
+                            ProductStock.internal_product_id == internal_product_id,
+                            ProductStock.ml_item_id.is_(None)  # Estoque compartilhado
                         )
                     ).first()
                     
-                    if fulfillment_warehouse:
-                        warehouse_id = fulfillment_warehouse.id
+                    if shared_stock:
+                        warehouse_id = shared_stock.warehouse_id
+                    else:
+                        # Buscar fulfillment (compartilhado)
+                        fulfillment_warehouse = self.db.query(Warehouse).filter(
+                            and_(
+                                Warehouse.type == WarehouseType.FULFILLMENT,
+                                Warehouse.is_shared == True
+                            )
+                        ).first()
+                        
+                        if fulfillment_warehouse:
+                            warehouse_id = fulfillment_warehouse.id
             
             if not warehouse_id:
                 return {
@@ -235,53 +316,237 @@ class StockMovementService:
                     "error": "Depósito não encontrado para este anúncio"
                 }
             
-            # Atualizar estoque
+            # PRIMEIRO: Dar baixa no estoque interno com quantidade DO ITEM
+            global_logger.log_event(
+                event_type="stock_sync/stock_decrease",
+                data={
+                    "action": "decreasing_stock",
+                    "ml_order_id": str(order.ml_order_id),
+                    "ml_item_id": ml_item_id,
+                    "quantity": -quantity,
+                    "is_fulfillment": is_fulfillment,
+                    "internal_product_id": internal_product_id,
+                    "warehouse_id": warehouse_id
+                },
+                company_id=company_id,
+                success=True
+            )
+            
             stock_service = StockService(self.db)
             result = stock_service.update_stock(
                 company_id=company_id,
                 warehouse_id=warehouse_id,
-                quantity=-quantity,  # Negativo para saída
-                ml_item_id=ml_item_id,
+                quantity=-quantity,  # Negativo para saída - quantidade DO ITEM vendido
+                internal_product_id=internal_product_id,
+                ml_item_id=ml_item_id if is_fulfillment else None,  # Full tem ml_item_id, normal não
                 movement_type="sale"
             )
             
             if not result.get("success"):
+                global_logger.log_event(
+                    event_type="stock_sync/error",
+                    data={
+                        "action": "stock_decrease_failed",
+                        "ml_order_id": str(order.ml_order_id),
+                        "ml_item_id": ml_item_id,
+                        "error": result.get("error", "Erro desconhecido")
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message=result.get("error", "Erro ao dar baixa no estoque")
+                )
                 return result
             
+            # Obter quantidade após baixa
+            if is_fulfillment:
+                # Para Full, buscar estoque específico do anúncio
+                product_stock = self.db.query(ProductStock).filter(
+                    and_(
+                        ProductStock.company_id == company_id,
+                        ProductStock.warehouse_id == warehouse_id,
+                        ProductStock.ml_item_id == ml_item_id
+                    )
+                ).first()
+            else:
+                # Para normal, buscar estoque compartilhado
+                product_stock = self.db.query(ProductStock).filter(
+                    and_(
+                        ProductStock.company_id == company_id,
+                        ProductStock.warehouse_id == warehouse_id,
+                        ProductStock.internal_product_id == internal_product_id,
+                        ProductStock.ml_item_id.is_(None)  # Estoque compartilhado
+                    )
+                ).first()
+            
+            if not product_stock:
+                logger.warning(f"⚠️ ProductStock não encontrado após baixa para ml_item_id {ml_item_id}")
+                return {
+                    "success": False,
+                    "error": "Estoque não encontrado após baixa"
+                }
+            
+            # Calcular quantidade disponível após baixa
+            available_quantity = float(product_stock.quantity - product_stock.reserved_quantity)
+            
+            # Formatar observação
+            order_num = order_number or str(order.ml_order_id)
+            order_dt = order_date or (order.date_created.strftime("%d/%m/%Y %H:%M") if order.date_created else "")
+            channel = sales_channel or "Mercado Livre"
+            notes = f"Venda - Pedido {order_num} - {order_dt} - {channel} - {quantity} unidade(s)"
+            
             # Registrar movimentação
-            product_stock = self.db.query(ProductStock).filter(
-                and_(
-                    ProductStock.company_id == company_id,
-                    ProductStock.warehouse_id == warehouse_id,
-                    ProductStock.ml_item_id == ml_item_id
-                )
-            ).first()
+            self.record_movement(
+                company_id=company_id,
+                warehouse_id=warehouse_id,
+                product_stock_id=product_stock.id,
+                movement_type="sale",
+                quantity=-quantity,
+                previous_quantity=float(product_stock.quantity) + quantity,
+                new_quantity=float(product_stock.quantity),
+                reference_type="order",
+                reference_id=ml_order_id,
+                ml_order_id=ml_order_id,
+                notes=notes
+            )
             
-            if product_stock:
-                self.record_movement(
+            logger.info(f"✅ Baixa no estoque: {quantity} unidade(s) do item {ml_item_id} (Pedido: {order_num})")
+            
+            # Log global: baixa realizada
+            global_logger.log_event(
+                event_type="stock_sync/stock_decrease",
+                data={
+                    "action": "stock_decreased",
+                    "ml_order_id": str(order.ml_order_id),
+                    "ml_item_id": ml_item_id,
+                    "quantity_decreased": quantity,
+                    "available_quantity_after": available_quantity,
+                    "is_fulfillment": is_fulfillment,
+                    "warehouse_id": warehouse_id
+                },
+                company_id=company_id,
+                success=True
+            )
+            
+            # DEPOIS: Se produto normal (não Full) e tem internal_product_id, sincronizar com ML
+            if not is_fulfillment and internal_product_id:
+                logger.info(f"🔄 Sincronizando estoque com ML para produto {internal_product_id} - quantidade após baixa: {available_quantity}")
+                
+                # Log global: início da sincronização ML
+                global_logger.log_event(
+                    event_type="stock_sync/ml_sync",
+                    data={
+                        "action": "starting_ml_sync",
+                        "ml_order_id": str(order.ml_order_id),
+                        "internal_product_id": internal_product_id,
+                        "available_quantity": available_quantity,
+                        "warehouse_id": warehouse_id
+                    },
                     company_id=company_id,
-                    warehouse_id=warehouse_id,
-                    product_stock_id=product_stock.id,
-                    movement_type="sale",
-                    quantity=-quantity,
-                    previous_quantity=float(product_stock.quantity) + quantity,
-                    new_quantity=float(product_stock.quantity),
-                    reference_type="order",
-                    reference_id=ml_order_id,
-                    ml_order_id=ml_order_id,
-                    notes=f"Venda do pedido {order.order_id}"
+                    success=True
+                )
+                
+                sync_result = stock_service.sync_stock_to_ml_announcements(
+                    company_id=company_id,
+                    internal_product_id=internal_product_id,
+                    new_quantity=Decimal(str(available_quantity)),  # Quantidade TOTAL disponível após baixa
+                    warehouse_id=warehouse_id
+                )
+                
+                if sync_result.get("success"):
+                    synced_count = sync_result.get("synced_count", 0)
+                    error_count = sync_result.get("error_count", 0)
+                    logger.info(f"✅ Sincronização ML concluída: {synced_count} anúncio(s) atualizado(s) para produto {internal_product_id}")
+                    
+                    # Log global: sincronização ML concluída
+                    global_logger.log_event(
+                        event_type="stock_sync/ml_sync",
+                        data={
+                            "action": "ml_sync_completed",
+                            "ml_order_id": str(order.ml_order_id),
+                            "internal_product_id": internal_product_id,
+                            "synced_count": synced_count,
+                            "error_count": error_count,
+                            "available_quantity": available_quantity,
+                            "details": sync_result.get("details", [])
+                        },
+                        company_id=company_id,
+                        success=error_count == 0,
+                        error_message=f"{error_count} erro(s)" if error_count > 0 else None
+                    )
+                else:
+                    logger.warning(f"⚠️ Erro na sincronização ML: {sync_result.get('error')}")
+                    
+                    # Log global: erro na sincronização ML
+                    global_logger.log_event(
+                        event_type="stock_sync/ml_sync",
+                        data={
+                            "action": "ml_sync_failed",
+                            "ml_order_id": str(order.ml_order_id),
+                            "internal_product_id": internal_product_id,
+                            "error": sync_result.get("error", "Erro desconhecido")
+                        },
+                        company_id=company_id,
+                        success=False,
+                        error_message=sync_result.get("error", "Erro na sincronização ML")
+                    )
+            else:
+                # Log global: produto Full ou sem internal_product_id - não sincroniza ML
+                global_logger.log_event(
+                    event_type="stock_sync/ml_sync",
+                    data={
+                        "action": "ml_sync_skipped",
+                        "ml_order_id": str(order.ml_order_id),
+                        "ml_item_id": ml_item_id,
+                        "is_fulfillment": is_fulfillment,
+                        "has_internal_product_id": internal_product_id is not None,
+                        "reason": "fulfillment" if is_fulfillment else "no_internal_product_id"
+                    },
+                    company_id=company_id,
+                    success=True
                 )
             
-            logger.info(f"✅ Venda sincronizada com estoque: {quantity} unidades do item {ml_item_id}")
+            # Log global: sincronização completa
+            global_logger.log_event(
+                event_type="stock_sync/order_processing",
+                data={
+                    "action": "completed",
+                    "ml_order_id": str(order.ml_order_id),
+                    "ml_item_id": ml_item_id,
+                    "quantity": quantity,
+                    "available_quantity": available_quantity,
+                    "is_fulfillment": is_fulfillment,
+                    "synced_ml": not is_fulfillment and internal_product_id is not None
+                },
+                company_id=company_id,
+                success=True
+            )
             
             return {
                 "success": True,
-                "message": "Venda sincronizada com estoque"
+                "message": f"Venda sincronizada com estoque: {quantity} unidade(s)",
+                "available_quantity": available_quantity,
+                "is_fulfillment": is_fulfillment,
+                "synced_ml": not is_fulfillment and internal_product_id is not None
             }
             
         except Exception as e:
             self.db.rollback()
             logger.error(f"❌ Erro ao sincronizar venda com estoque: {str(e)}")
+            
+            # Log global: erro na sincronização
+            global_logger.log_event(
+                event_type="stock_sync/error",
+                data={
+                    "action": "sync_failed",
+                    "ml_order_id": ml_order_id,
+                    "ml_item_id": ml_item_id,
+                    "error": str(e)
+                },
+                company_id=company_id,
+                success=False,
+                error_message=str(e)
+            )
+            
             return {
                 "success": False,
                 "error": f"Erro ao sincronizar venda: {str(e)}"
