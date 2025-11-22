@@ -637,3 +637,93 @@ async def configure_announcement_warehouse(
         logger.error(f"Erro ao configurar depósito do anúncio: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
+
+@stock_router.post("/products/{internal_product_id}/announcements/bulk-warehouse")
+async def bulk_configure_announcement_warehouse(
+    internal_product_id: int,
+    warehouse_id_fulfillment: Optional[int] = Body(None, description="ID do depósito para anúncios Full"),
+    warehouse_id_normal: Optional[int] = Body(None, description="ID do depósito para anúncios normais"),
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """Configura depósitos em massa para anúncios de um produto interno"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    if not warehouse_id_fulfillment and not warehouse_id_normal:
+        raise HTTPException(status_code=400, detail="Deve fornecer pelo menos um depósito (fulfillment ou normal)")
+    
+    try:
+        auth_controller = AuthController()
+        result = auth_controller.get_user_by_session(session_token, db)
+        
+        if result.get("error"):
+            raise HTTPException(status_code=401, detail=result.get("error"))
+        
+        current_user = result["user"]
+        company_id = current_user["company_id"]
+        
+        controller = StockController()
+        result = controller.bulk_configure_announcement_warehouse(
+            company_id=company_id,
+            internal_product_id=internal_product_id,
+            warehouse_id_fulfillment=warehouse_id_fulfillment,
+            warehouse_id_normal=warehouse_id_normal,
+            db=db
+        )
+        
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        
+        return JSONResponse(content=result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao configurar depósitos em massa: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+
+@stock_router.post("/announcements/bulk-warehouse-all")
+async def bulk_configure_all_announcements_warehouse(
+    warehouse_id_fulfillment: Optional[int] = Body(None, description="ID do depósito para anúncios Full"),
+    warehouse_id_normal: Optional[int] = Body(None, description="ID do depósito para anúncios normais"),
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """Configura depósitos em massa para TODOS os anúncios da empresa"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    if not warehouse_id_fulfillment and not warehouse_id_normal:
+        raise HTTPException(status_code=400, detail="Deve fornecer pelo menos um depósito (fulfillment ou normal)")
+    
+    try:
+        auth_controller = AuthController()
+        result = auth_controller.get_user_by_session(session_token, db)
+        
+        if result.get("error"):
+            raise HTTPException(status_code=401, detail=result.get("error"))
+        
+        current_user = result["user"]
+        company_id = current_user["company_id"]
+        
+        controller = StockController()
+        result = controller.bulk_configure_all_announcements_warehouse(
+            company_id=company_id,
+            warehouse_id_fulfillment=warehouse_id_fulfillment,
+            warehouse_id_normal=warehouse_id_normal,
+            db=db
+        )
+        
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        
+        return JSONResponse(content=result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao configurar todos os anúncios em massa: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+

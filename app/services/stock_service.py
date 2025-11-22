@@ -1068,6 +1068,263 @@ class StockService:
                 "error": f"Erro ao configurar depósito: {str(e)}"
             }
     
+    def bulk_configure_announcement_warehouse(
+        self,
+        company_id: int,
+        internal_product_id: int,
+        warehouse_id_fulfillment: Optional[int] = None,
+        warehouse_id_normal: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Configura depósitos em massa para anúncios de um produto interno"""
+        try:
+            # Validar que o produto interno pertence à empresa
+            internal_product = self.db.query(InternalProduct).filter(
+                and_(
+                    InternalProduct.id == internal_product_id,
+                    InternalProduct.company_id == company_id
+                )
+            ).first()
+            
+            if not internal_product:
+                return {
+                    "success": False,
+                    "error": "Produto interno não encontrado"
+                }
+            
+            # Buscar todos os anúncios do produto interno
+            from app.services.internal_product_service import InternalProductService
+            internal_service = InternalProductService(self.db)
+            announcements_result = internal_service.get_ml_announcements_by_internal_product(
+                internal_product_id=internal_product_id,
+                company_id=company_id
+            )
+            
+            if not announcements_result.get("success"):
+                return {
+                    "success": False,
+                    "error": announcements_result.get("error", "Erro ao buscar anúncios")
+                }
+            
+            announcements = announcements_result.get("announcements", [])
+            
+            if not announcements:
+                return {
+                    "success": False,
+                    "error": "Nenhum anúncio encontrado para este produto"
+                }
+            
+            # Separar anúncios Full e normais
+            full_announcements = [ann for ann in announcements if ann.get("is_fulfillment", False)]
+            normal_announcements = [ann for ann in announcements if not ann.get("is_fulfillment", False)]
+            
+            success_count = 0
+            error_count = 0
+            errors = []
+            
+            # Configurar anúncios Full
+            if warehouse_id_fulfillment:
+                for announcement in full_announcements:
+                    ml_item_id = announcement.get("ml_item_id")
+                    if not ml_item_id:
+                        error_count += 1
+                        errors.append(f"Anúncio sem ID: {announcement.get('title', 'Desconhecido')}")
+                        continue
+                    
+                    result = self.configure_announcement_warehouse(
+                        company_id=company_id,
+                        internal_product_id=internal_product_id,
+                        ml_item_id=ml_item_id,
+                        warehouse_id=warehouse_id_fulfillment
+                    )
+                    
+                    if result.get("success"):
+                        success_count += 1
+                    else:
+                        error_count += 1
+                        errors.append(f"Anúncio {ml_item_id}: {result.get('error', 'Erro desconhecido')}")
+            
+            # Configurar anúncios normais
+            if warehouse_id_normal:
+                for announcement in normal_announcements:
+                    ml_item_id = announcement.get("ml_item_id")
+                    if not ml_item_id:
+                        error_count += 1
+                        errors.append(f"Anúncio sem ID: {announcement.get('title', 'Desconhecido')}")
+                        continue
+                    
+                    result = self.configure_announcement_warehouse(
+                        company_id=company_id,
+                        internal_product_id=internal_product_id,
+                        ml_item_id=ml_item_id,
+                        warehouse_id=warehouse_id_normal
+                    )
+                    
+                    if result.get("success"):
+                        success_count += 1
+                    else:
+                        error_count += 1
+                        errors.append(f"Anúncio {ml_item_id}: {result.get('error', 'Erro desconhecido')}")
+            
+            logger.info(f"✅ Configuração em massa concluída: {success_count} sucesso(s), {error_count} erro(s)")
+            
+            return {
+                "success": True,
+                "message": f"Configuração em massa concluída: {success_count} anúncio(s) configurado(s) com sucesso",
+                "success_count": success_count,
+                "error_count": error_count,
+                "total_processed": success_count + error_count,
+                "full_count": len(full_announcements),
+                "normal_count": len(normal_announcements),
+                "errors": errors if errors else None
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"❌ Erro ao configurar depósitos em massa: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "success": False,
+                "error": f"Erro ao configurar depósitos em massa: {str(e)}"
+            }
+    
+    def bulk_configure_all_announcements_warehouse(
+        self,
+        company_id: int,
+        warehouse_id_fulfillment: Optional[int] = None,
+        warehouse_id_normal: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Configura depósitos em massa para TODOS os anúncios da empresa"""
+        try:
+            from app.models.saas_models import SKUManagement, MLProduct
+            
+            # Buscar todos os SKUManagement ativos da empresa
+            sku_managements = self.db.query(SKUManagement).filter(
+                and_(
+                    SKUManagement.company_id == company_id,
+                    SKUManagement.status == "active",
+                    SKUManagement.platform_item_id.isnot(None)
+                )
+            ).all()
+            
+            if not sku_managements:
+                return {
+                    "success": True,
+                    "message": "Nenhum anúncio encontrado para configurar",
+                    "success_count": 0,
+                    "error_count": 0,
+                    "total_processed": 0
+                }
+            
+            # Coletar todos os ml_item_ids únicos
+            ml_item_ids = list(set([sm.platform_item_id for sm in sku_managements if sm.platform_item_id]))
+            
+            # Buscar todos os MLProducts da empresa
+            ml_products = self.db.query(MLProduct).filter(
+                and_(
+                    MLProduct.company_id == company_id,
+                    MLProduct.ml_item_id.in_(ml_item_ids)
+                )
+            ).all()
+            
+            # Criar um mapa de ml_item_id -> (internal_product_id, is_fulfillment)
+            announcements_map = {}
+            for ml_product in ml_products:
+                # Buscar o internal_product_id via SKUManagement
+                sku_mgmt = next((sm for sm in sku_managements if sm.platform_item_id == ml_product.ml_item_id), None)
+                if sku_mgmt and sku_mgmt.internal_product_id:
+                    # Determinar se é fulfillment
+                    is_fulfillment = False
+                    
+                    # Verificar no campo shipping (JSON)
+                    if ml_product.shipping:
+                        import json
+                        if isinstance(ml_product.shipping, str):
+                            try:
+                                shipping_data = json.loads(ml_product.shipping)
+                            except:
+                                shipping_data = {}
+                        else:
+                            shipping_data = ml_product.shipping
+                        
+                        logistic_type = shipping_data.get("logistic_type")
+                        if logistic_type == "fulfillment":
+                            is_fulfillment = True
+                    
+                    # Verificar também nas tags
+                    if not is_fulfillment and ml_product.tags:
+                        tags_list = ml_product.tags if isinstance(ml_product.tags, list) else []
+                        if any(tag in ["fulfillment", "meli_fulfillment", "FULL"] for tag in tags_list):
+                            is_fulfillment = True
+                    
+                    announcements_map[ml_product.ml_item_id] = {
+                        "internal_product_id": sku_mgmt.internal_product_id,
+                        "is_fulfillment": is_fulfillment
+                    }
+            
+            success_count = 0
+            error_count = 0
+            errors = []
+            
+            # Processar anúncios Full
+            if warehouse_id_fulfillment:
+                full_announcements = [ml_id for ml_id, data in announcements_map.items() if data.get("is_fulfillment", False)]
+                
+                for ml_item_id in full_announcements:
+                    data = announcements_map[ml_item_id]
+                    result = self.configure_announcement_warehouse(
+                        company_id=company_id,
+                        internal_product_id=data["internal_product_id"],
+                        ml_item_id=ml_item_id,
+                        warehouse_id=warehouse_id_fulfillment
+                    )
+                    
+                    if result.get("success"):
+                        success_count += 1
+                    else:
+                        error_count += 1
+                        errors.append(f"Anúncio {ml_item_id}: {result.get('error', 'Erro desconhecido')}")
+            
+            # Processar anúncios não-Full
+            if warehouse_id_normal:
+                normal_announcements = [ml_id for ml_id, data in announcements_map.items() if not data.get("is_fulfillment", False)]
+                
+                for ml_item_id in normal_announcements:
+                    data = announcements_map[ml_item_id]
+                    result = self.configure_announcement_warehouse(
+                        company_id=company_id,
+                        internal_product_id=data["internal_product_id"],
+                        ml_item_id=ml_item_id,
+                        warehouse_id=warehouse_id_normal
+                    )
+                    
+                    if result.get("success"):
+                        success_count += 1
+                    else:
+                        error_count += 1
+                        errors.append(f"Anúncio {ml_item_id}: {result.get('error', 'Erro desconhecido')}")
+            
+            logger.info(f"✅ Configuração em massa (todos os anúncios) concluída: {success_count} sucesso(s), {error_count} erro(s)")
+            
+            return {
+                "success": True,
+                "message": f"Configuração em massa concluída: {success_count} anúncio(s) configurado(s) com sucesso",
+                "success_count": success_count,
+                "error_count": error_count,
+                "total_processed": success_count + error_count,
+                "errors": errors if errors else None
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"❌ Erro ao configurar depósitos em massa (todos os anúncios): {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "success": False,
+                "error": f"Erro ao configurar depósitos em massa: {str(e)}"
+            }
+    
     def get_announcement_warehouse_config(
         self,
         company_id: int,

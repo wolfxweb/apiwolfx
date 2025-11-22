@@ -340,6 +340,52 @@ class StockController:
                 "error": f"Erro ao configurar depósito: {str(e)}"
             }
     
+    def bulk_configure_announcement_warehouse(
+        self,
+        company_id: int,
+        internal_product_id: int,
+        warehouse_id_fulfillment: Optional[int] = None,
+        warehouse_id_normal: Optional[int] = None,
+        db: Session = None
+    ) -> Dict[str, Any]:
+        """Configura depósitos em massa para anúncios de um produto interno"""
+        try:
+            service = StockService(db)
+            return service.bulk_configure_announcement_warehouse(
+                company_id=company_id,
+                internal_product_id=internal_product_id,
+                warehouse_id_fulfillment=warehouse_id_fulfillment,
+                warehouse_id_normal=warehouse_id_normal
+            )
+        except Exception as e:
+            logger.error(f"❌ Erro no controller ao configurar depósitos em massa: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Erro ao configurar depósitos em massa: {str(e)}"
+            }
+    
+    def bulk_configure_all_announcements_warehouse(
+        self,
+        company_id: int,
+        warehouse_id_fulfillment: Optional[int] = None,
+        warehouse_id_normal: Optional[int] = None,
+        db: Session = None
+    ) -> Dict[str, Any]:
+        """Configura depósitos em massa para TODOS os anúncios da empresa"""
+        try:
+            service = StockService(db)
+            return service.bulk_configure_all_announcements_warehouse(
+                company_id=company_id,
+                warehouse_id_fulfillment=warehouse_id_fulfillment,
+                warehouse_id_normal=warehouse_id_normal
+            )
+        except Exception as e:
+            logger.error(f"❌ Erro no controller ao configurar todos os anúncios em massa: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Erro ao configurar depósitos em massa: {str(e)}"
+            }
+    
     def get_announcement_warehouse_config(
         self,
         company_id: int,

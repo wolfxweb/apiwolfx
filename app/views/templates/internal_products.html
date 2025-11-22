@@ -21,6 +21,12 @@
                         <i class="bi bi-sliders text-primary"></i> Aplicar Valores em Massa
                     </a>
                 </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#selectProductForBulkWarehouseModal" onclick="setTimeout(() => loadWarehousesForBulkConfigFromMenu(), 300)">
+                        <i class="bi bi-boxes text-info"></i> Associar Depósitos em Massa
+                    </a>
+                </li>
             </ul>
         </div>
     </div>
@@ -451,6 +457,155 @@
     </div>
 </div>
 
+<!-- Modal de Associação em Massa de Depósitos (do menu Ações) -->
+<div class="modal fade" id="selectProductForBulkWarehouseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-boxes"></i> Associar Depósitos em Massa
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulkWarehouseFormFromMenu">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Associação em Massa:</strong> Esta ação irá configurar os depósitos para <strong>TODOS</strong> os anúncios da sua empresa.
+                        Anúncios já configurados serão atualizados.
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulkWarehouseFulfillmentFromMenu" class="form-label">
+                            Depósito para anúncios Full (Fulfillment) <span class="text-muted">(opcional)</span>
+                        </label>
+                        <select class="form-select" id="bulkWarehouseFulfillmentFromMenu">
+                            <option value="">Selecione um depósito...</option>
+                        </select>
+                        <small class="form-text text-muted">Todos os anúncios com logística Full serão associados a este depósito</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulkWarehouseNormalFromMenu" class="form-label">
+                            Depósito para anúncios não-Full <span class="text-muted">(opcional)</span>
+                        </label>
+                        <select class="form-select" id="bulkWarehouseNormalFromMenu">
+                            <option value="">Selecione um depósito...</option>
+                        </select>
+                        <small class="form-text text-muted">Todos os anúncios sem logística Full serão associados a este depósito</small>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Atenção:</strong> Esta ação afetará todos os anúncios da sua empresa. Certifique-se de selecionar os depósitos corretos.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveBulkWarehouseFromMenuBtn" onclick="confirmBulkWarehouseConfig()" disabled>
+                    <i class="bi bi-check-circle"></i> Aplicar Configuração
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Associação em Massa -->
+<div class="modal fade" id="confirmBulkWarehouseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> Confirmar Associação em Massa
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja associar depósitos para <strong>TODOS</strong> os anúncios da sua empresa?</p>
+                <p class="text-muted">Esta ação afetará todos os produtos e anúncios já configurados serão atualizados.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveBulkWarehouseConfigFromMenu()">
+                    <i class="bi bi-check-circle"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Progresso da Associação em Massa -->
+<div class="modal fade" id="bulkWarehouseProgressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-hourglass-split"></i> Processando Associação em Massa
+                </h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Processando...</span>
+                    </div>
+                    <p class="mb-2"><strong>Associando depósitos aos anúncios...</strong></p>
+                    <p class="text-muted mb-0" id="bulkWarehouseProgressText">Por favor, aguarde. Isso pode levar alguns instantes.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Configuração em Massa de Depósitos -->
+<div class="modal fade" id="bulkWarehouseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-boxes"></i> Associar Depósitos em Massa
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulkWarehouseForm">
+                    <input type="hidden" id="bulkWarehouseProductId">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <span id="bulkWarehouseSummary">Carregando informações dos anúncios...</span>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulkWarehouseFulfillment" class="form-label">
+                            Depósito para anúncios Full (Fulfillment) <span class="text-muted">(opcional)</span>
+                        </label>
+                        <select class="form-select" id="bulkWarehouseFulfillment">
+                            <option value="">Selecione um depósito...</option>
+                        </select>
+                        <small class="form-text text-muted">Anúncios com logística Full serão associados a este depósito</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulkWarehouseNormal" class="form-label">
+                            Depósito para anúncios normais <span class="text-muted">(opcional)</span>
+                        </label>
+                        <select class="form-select" id="bulkWarehouseNormal">
+                            <option value="">Selecione um depósito...</option>
+                        </select>
+                        <small class="form-text text-muted">Anúncios sem logística Full serão associados a este depósito</small>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Atenção:</strong> Esta ação irá configurar os depósitos para todos os anúncios do produto. 
+                        Anúncios já configurados serão atualizados.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveBulkWarehouseConfig()">
+                    <i class="bi bi-check-circle"></i> Aplicar Configuração
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de Configuração de Depósito por Anúncio -->
 <div class="modal fade" id="configAnnouncementWarehouseModal" tabindex="-1">
     <div class="modal-dialog">
@@ -487,12 +642,12 @@
 <div class="modal fade" id="stockDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-info text-white">
+            <div class="modal-header">
                 <h5 class="modal-title">
                     <i class="bi bi-boxes me-2"></i>
                     Detalhes de Estoque
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div id="stockDetailsContent">
@@ -565,6 +720,29 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('confirmBulkDeleteCheck').addEventListener('change', function() {
         document.getElementById('confirmBulkDeleteBtn').disabled = !this.checked;
     });
+    
+    // Event listener delegado para botões de associação em massa (gerados dinamicamente)
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.bulk-warehouse-btn')) {
+            const btn = e.target.closest('.bulk-warehouse-btn');
+            const productId = parseInt(btn.getAttribute('data-product-id'));
+            if (productId) {
+                openBulkWarehouseModal(productId);
+            }
+        }
+    });
+    
+    // Carregar depósitos quando o modal de associação em massa for aberto
+    const selectProductModal = document.getElementById('selectProductForBulkWarehouseModal');
+    if (selectProductModal) {
+        // Usar evento 'shown.bs.modal' que é disparado após o modal estar totalmente visível
+        selectProductModal.addEventListener('shown.bs.modal', function() {
+            console.log('🔔 Modal de associação em massa aberto, carregando depósitos...');
+            loadWarehousesForBulkConfigFromMenu();
+        });
+    } else {
+        console.error('❌ Modal selectProductForBulkWarehouseModal não encontrado');
+    }
 });
 
 // Carregar produtos
@@ -756,9 +934,14 @@ function renderProducts(products, total = null) {
                     <div class="p-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="mb-0"><i class="bi bi-bullhorn"></i> Anúncios Associados</h6>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAnnouncements(${product.id})">
-                                <i class="bi bi-x"></i> Fechar
-                            </button>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-primary bulk-warehouse-btn" data-product-id="${product.id}" title="Associar depósitos em massa">
+                                    <i class="bi bi-boxes"></i> Associar em Massa
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAnnouncements(${product.id})">
+                                    <i class="bi bi-x"></i> Fechar
+                                </button>
+                            </div>
                         </div>
                         <div id="announcements-content-${product.id}">
                             <div class="text-center py-3">
@@ -1861,6 +2044,375 @@ function renderAnnouncementsTable(productId, announcements) {
             configureAnnouncementWarehouse(productId, mlItemId, announcementTitle);
         });
     });
+}
+
+// Carregar depósitos para configuração em massa (do menu)
+async function loadWarehousesForBulkConfigFromMenu() {
+    const fulfillmentSelect = document.getElementById('bulkWarehouseFulfillmentFromMenu');
+    const normalSelect = document.getElementById('bulkWarehouseNormalFromMenu');
+    const saveBtn = document.getElementById('saveBulkWarehouseFromMenuBtn');
+    
+    if (!fulfillmentSelect || !normalSelect || !saveBtn) {
+        console.error('❌ Elementos do modal não encontrados:', {
+            fulfillmentSelect: !!fulfillmentSelect,
+            normalSelect: !!normalSelect,
+            saveBtn: !!saveBtn
+        });
+        return;
+    }
+    
+    try {
+        console.log('📡 Carregando depósitos...');
+        const response = await fetch('/api/stock/warehouses', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            console.error('❌ Erro na resposta:', response.status, response.statusText);
+            showAlert('Erro ao carregar depósitos', 'danger');
+            return;
+        }
+        
+        const data = await response.json();
+        console.log('📦 Dados recebidos:', data);
+        
+        if (!data.success || !data.warehouses) {
+            console.error('❌ Dados inválidos:', data);
+            showAlert('Erro ao carregar depósitos', 'danger');
+            return;
+        }
+        
+        // Limpar selects
+        fulfillmentSelect.innerHTML = '<option value="">Selecione um depósito...</option>';
+        normalSelect.innerHTML = '<option value="">Selecione um depósito...</option>';
+        
+        // Preencher select de fulfillment apenas com depósitos fulfillment
+        const fulfillmentWarehouses = data.warehouses.filter(w => w.type === 'fulfillment' || w.is_shared);
+        console.log('📦 Depósitos Full encontrados:', fulfillmentWarehouses.length);
+        fulfillmentWarehouses.forEach(warehouse => {
+            const option = document.createElement('option');
+            option.value = warehouse.id;
+            option.textContent = `${warehouse.name} (${warehouse.type === 'fulfillment' ? 'Fulfillment' : 'Compartilhado'})`;
+            fulfillmentSelect.appendChild(option);
+        });
+        
+        // Preencher select normal com todos os depósitos
+        console.log('📦 Total de depósitos:', data.warehouses.length);
+        data.warehouses.forEach(warehouse => {
+            const option = document.createElement('option');
+            option.value = warehouse.id;
+            option.textContent = `${warehouse.name} (${warehouse.type === 'fulfillment' ? 'Fulfillment' : 'Próprio'})`;
+            normalSelect.appendChild(option);
+        });
+        
+        // Habilitar botão quando pelo menos um depósito for selecionado
+        const checkEnableButton = () => {
+            if (fulfillmentSelect.value || normalSelect.value) {
+                saveBtn.disabled = false;
+            } else {
+                saveBtn.disabled = true;
+            }
+        };
+        
+        fulfillmentSelect.addEventListener('change', checkEnableButton);
+        normalSelect.addEventListener('change', checkEnableButton);
+        
+        console.log('✅ Depósitos carregados com sucesso');
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar depósitos:', error);
+        showAlert('Erro ao carregar depósitos: ' + error.message, 'danger');
+    }
+}
+
+// Abrir modal de confirmação
+function confirmBulkWarehouseConfig() {
+    const fulfillmentWarehouseId = document.getElementById('bulkWarehouseFulfillmentFromMenu').value;
+    const normalWarehouseId = document.getElementById('bulkWarehouseNormalFromMenu').value;
+    
+    if (!fulfillmentWarehouseId && !normalWarehouseId) {
+        showAlert('Selecione pelo menos um depósito para configurar', 'warning');
+        return;
+    }
+    
+    // Fechar modal de configuração
+    const configModal = document.getElementById('selectProductForBulkWarehouseModal');
+    const configModalInstance = bootstrap.Modal.getInstance(configModal);
+    if (configModalInstance) {
+        configModalInstance.hide();
+    }
+    
+    // Abrir modal de confirmação
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmBulkWarehouseModal'));
+    confirmModal.show();
+}
+
+// Salvar configuração em massa para TODOS os anúncios da empresa
+async function saveBulkWarehouseConfigFromMenu() {
+    const fulfillmentWarehouseId = document.getElementById('bulkWarehouseFulfillmentFromMenu').value;
+    const normalWarehouseId = document.getElementById('bulkWarehouseNormalFromMenu').value;
+    
+    // Fechar modal de confirmação
+    const confirmModal = document.getElementById('confirmBulkWarehouseModal');
+    const confirmModalInstance = bootstrap.Modal.getInstance(confirmModal);
+    if (confirmModalInstance) {
+        confirmModalInstance.hide();
+    }
+    
+    // Abrir modal de progresso
+    const progressModal = new bootstrap.Modal(document.getElementById('bulkWarehouseProgressModal'));
+    progressModal.show();
+    
+    const progressText = document.getElementById('bulkWarehouseProgressText');
+    
+    try {
+        const requestBody = {};
+        if (fulfillmentWarehouseId) {
+            requestBody.warehouse_id_fulfillment = parseInt(fulfillmentWarehouseId);
+        }
+        if (normalWarehouseId) {
+            requestBody.warehouse_id_normal = parseInt(normalWarehouseId);
+        }
+        
+        // Atualizar texto de progresso
+        if (progressText) {
+            progressText.textContent = 'Buscando anúncios e configurando depósitos...';
+        }
+        
+        const response = await fetch('/api/stock/announcements/bulk-warehouse-all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(requestBody)
+        });
+        
+        if (progressText) {
+            progressText.textContent = 'Processando resposta...';
+        }
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            
+            // Fechar modal de progresso
+            const progressModalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkWarehouseProgressModal'));
+            if (progressModalInstance) {
+                progressModalInstance.hide();
+            }
+            
+            showAlert(errorData.detail || errorData.error || 'Erro ao configurar depósitos', 'danger');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            // Fechar modal de progresso
+            const progressModalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkWarehouseProgressModal'));
+            if (progressModalInstance) {
+                progressModalInstance.hide();
+            }
+            
+            showAlert(data.error || 'Erro ao configurar depósitos', 'danger');
+            return;
+        }
+        
+        // Fechar modal de progresso
+        const progressModalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkWarehouseProgressModal'));
+        if (progressModalInstance) {
+            progressModalInstance.hide();
+        }
+        
+        // Fechar modal de configuração
+        const modalElement = document.getElementById('selectProductForBulkWarehouseModal');
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        
+        // Mostrar resumo
+        const successCount = data.success_count || 0;
+        const errorCount = data.error_count || 0;
+        
+        if (errorCount > 0) {
+            showAlert(`${successCount} anúncio(s) configurado(s) com sucesso. ${errorCount} anúncio(s) com erro.`, 'warning');
+        } else {
+            showToast(`${successCount} anúncio(s) configurado(s) com sucesso!`, 'success');
+        }
+        
+        // Recarregar produtos para atualizar a interface
+        loadProducts();
+        
+    } catch (error) {
+        console.error('Erro ao salvar configuração em massa:', error);
+        
+        // Fechar modal de progresso
+        const progressModalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkWarehouseProgressModal'));
+        if (progressModalInstance) {
+            progressModalInstance.hide();
+        }
+        
+        showAlert(`Erro ao salvar configuração: ${error.message}`, 'danger');
+    }
+}
+
+// Função para abrir modal de associação em massa
+async function openBulkWarehouseModal(productId) {
+    const modal = document.getElementById('bulkWarehouseModal');
+    const productIdInput = document.getElementById('bulkWarehouseProductId');
+    const summaryEl = document.getElementById('bulkWarehouseSummary');
+    
+    if (!modal || !productIdInput || !summaryEl) {
+        showAlert('Erro: Elementos do modal não encontrados', 'danger');
+        return;
+    }
+    
+    productIdInput.value = productId;
+    
+    // Carregar anúncios do cache
+    const announcements = announcementsCache[productId] || [];
+    
+    if (announcements.length === 0) {
+        showAlert('Nenhum anúncio encontrado para este produto', 'warning');
+        return;
+    }
+    
+    // Contar anúncios Full e normais
+    const fullAnnouncements = announcements.filter(a => a.is_fulfillment);
+    const normalAnnouncements = announcements.filter(a => !a.is_fulfillment);
+    
+    summaryEl.textContent = `${fullAnnouncements.length} anúncio(s) Full e ${normalAnnouncements.length} anúncio(s) normal(is) serão configurados`;
+    
+    // Carregar depósitos
+    await loadWarehousesForBulkConfig();
+    
+    // Abrir modal
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+}
+
+// Carregar depósitos para configuração em massa
+async function loadWarehousesForBulkConfig() {
+    const fulfillmentSelect = document.getElementById('bulkWarehouseFulfillment');
+    const normalSelect = document.getElementById('bulkWarehouseNormal');
+    
+    try {
+        const response = await fetch('/api/stock/warehouses', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            showAlert('Erro ao carregar depósitos', 'danger');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.warehouses) {
+            showAlert('Erro ao carregar depósitos', 'danger');
+            return;
+        }
+        
+        // Limpar selects
+        fulfillmentSelect.innerHTML = '<option value="">Selecione um depósito...</option>';
+        normalSelect.innerHTML = '<option value="">Selecione um depósito...</option>';
+        
+        // Preencher select de fulfillment apenas com depósitos fulfillment
+        const fulfillmentWarehouses = data.warehouses.filter(w => w.type === 'fulfillment' || w.is_shared);
+        fulfillmentWarehouses.forEach(warehouse => {
+            const option = document.createElement('option');
+            option.value = warehouse.id;
+            option.textContent = `${warehouse.name} (${warehouse.type === 'fulfillment' ? 'Fulfillment' : 'Compartilhado'})`;
+            fulfillmentSelect.appendChild(option);
+        });
+        
+        // Preencher select normal com todos os depósitos
+        data.warehouses.forEach(warehouse => {
+            const option = document.createElement('option');
+            option.value = warehouse.id;
+            option.textContent = `${warehouse.name} (${warehouse.type === 'fulfillment' ? 'Fulfillment' : 'Próprio'})`;
+            normalSelect.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Erro ao carregar depósitos:', error);
+        showAlert('Erro ao carregar depósitos', 'danger');
+    }
+}
+
+// Salvar configuração em massa
+async function saveBulkWarehouseConfig() {
+    const productId = parseInt(document.getElementById('bulkWarehouseProductId').value);
+    const fulfillmentWarehouseId = document.getElementById('bulkWarehouseFulfillment').value;
+    const normalWarehouseId = document.getElementById('bulkWarehouseNormal').value;
+    
+    if (!fulfillmentWarehouseId && !normalWarehouseId) {
+        showAlert('Selecione pelo menos um depósito para configurar', 'warning');
+        return;
+    }
+    
+    if (!productId) {
+        showAlert('Erro: ID do produto não encontrado', 'danger');
+        return;
+    }
+    
+    try {
+        const requestBody = {};
+        if (fulfillmentWarehouseId) {
+            requestBody.warehouse_id_fulfillment = parseInt(fulfillmentWarehouseId);
+        }
+        if (normalWarehouseId) {
+            requestBody.warehouse_id_normal = parseInt(normalWarehouseId);
+        }
+        
+        const response = await fetch(`/api/stock/products/${productId}/announcements/bulk-warehouse`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(requestBody)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            showAlert(errorData.detail || errorData.error || 'Erro ao configurar depósitos', 'danger');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            showAlert(data.error || 'Erro ao configurar depósitos', 'danger');
+            return;
+        }
+        
+        // Fechar modal
+        const modalElement = document.getElementById('bulkWarehouseModal');
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        
+        // Mostrar resumo
+        const successCount = data.success_count || 0;
+        const errorCount = data.error_count || 0;
+        
+        if (errorCount > 0) {
+            showAlert(`${successCount} anúncio(s) configurado(s) com sucesso. ${errorCount} anúncio(s) com erro.`, 'warning');
+        } else {
+            showToast(`${successCount} anúncio(s) configurado(s) com sucesso!`, 'success');
+        }
+        
+        // Recarregar anúncios
+        delete announcementsCache[productId];
+        await loadAnnouncements(productId);
+        
+    } catch (error) {
+        console.error('Erro ao salvar configuração em massa:', error);
+        showAlert(`Erro ao salvar configuração: ${error.message}`, 'danger');
+    }
 }
 
 // Funções auxiliares
