@@ -7,8 +7,9 @@ from typing import Optional
 from app.config.settings import settings
 from app.config.database import engine, Base, get_db
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import ProgrammingError, OperationalError, DisconnectionError
 import psycopg2.errors
+import time
 from app.routes.main_routes import main_router
 from app.routes.saas_routes import saas_router
 from app.routes.auth_routes import auth_router
@@ -318,10 +319,69 @@ async def startup_event():
             from app.config.database import SessionLocal
             from sqlalchemy import text
             
-            db = SessionLocal()
-            try:
-                # 0. PRIMEIRO: Adicionar colunas Asaas na tabela subscriptions (CRÍTICO - deve ser antes de qualquer query)
-                print("📋 [STARTUP] Executando migration: Adicionar colunas Asaas...")
+            # Função auxiliar para executar queries com retry
+            def execute_with_retry(query_func, description, max_retries=3, retry_delay=2):
+                """Executa uma função de query com retry em caso de erro de conexão"""
+                for attempt in range(max_retries):
+                    try:
+                        db = SessionLocal()
+                        try:
+                            return query_func(db)
+                        finally:
+                            db.close()
+                    except (OperationalError, DisconnectionError) as e:
+                        error_str = str(e).lower()
+                        # Verificar também no erro original (psycopg2)
+                        orig_error_str = ""
+                        if hasattr(e, 'orig') and e.orig:
+                            orig_error_str = str(e.orig).lower()
+                        
+                        is_connection_error = (
+                            "timeout" in error_str or
+                            "connection" in error_str or
+                            "server closed" in error_str or
+                            "could not connect" in error_str or
+                            "timeout" in orig_error_str or
+                            "connection" in orig_error_str or
+                            "server closed" in orig_error_str
+                        )
+                        
+                        if is_connection_error and attempt < max_retries - 1:
+                            print(f"⚠️ [STARTUP] Erro de conexão em {description} (tentativa {attempt + 1}/{max_retries}), tentando novamente em {retry_delay}s...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Backoff exponencial
+                            continue
+                        else:
+                            print(f"❌ [STARTUP] Erro ao executar {description}: {e}")
+                            if attempt == max_retries - 1:
+                                print(f"⚠️ [STARTUP] Continuando apesar do erro (pode ser temporário)...")
+                            return None
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        # Verificar se é erro de conexão mesmo sendo Exception genérica
+                        is_connection_error = (
+                            "timeout" in error_str or
+                            "connection" in error_str or
+                            "server closed" in error_str or
+                            "could not connect" in error_str or
+                            "operationalerror" in error_str
+                        )
+                        
+                        if is_connection_error and attempt < max_retries - 1:
+                            print(f"⚠️ [STARTUP] Erro de conexão em {description} (tentativa {attempt + 1}/{max_retries}), tentando novamente em {retry_delay}s...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Backoff exponencial
+                            continue
+                        else:
+                            print(f"❌ [STARTUP] Erro ao executar {description}: {e}")
+                            if attempt == max_retries - 1 and is_connection_error:
+                                print(f"⚠️ [STARTUP] Continuando apesar do erro (pode ser temporário)...")
+                            return None
+                return None
+            
+            # 0. PRIMEIRO: Adicionar colunas Asaas na tabela subscriptions (CRÍTICO - deve ser antes de qualquer query)
+            print("📋 [STARTUP] Executando migration: Adicionar colunas Asaas...")
+            def migration_asaas(db):
                 try:
                     # Verificar se as colunas já existem
                     check_query = text("""
@@ -358,13 +418,13 @@ async def startup_event():
                     print("✅ [STARTUP] Migration Asaas concluída")
                 except Exception as e:
                     db.rollback()
-                    print(f"❌ [STARTUP] Erro ao executar migration Asaas: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Continuar mesmo com erro, pois pode ser que as colunas já existam
-                
-                # 0.1. Adicionar campos de tokens de IA na tabela companies
-                print("📋 [STARTUP] Executando migration: Adicionar campos de tokens de IA...")
+                    raise  # Re-raise para ser capturado pelo retry
+            
+            execute_with_retry(migration_asaas, "migration Asaas")
+            
+            # 0.1. Adicionar campos de tokens de IA na tabela companies
+            print("📋 [STARTUP] Executando migration: Adicionar campos de tokens de IA...")
+            def migration_ai_tokens(db):
                 try:
                     # Verificar se as colunas já existem
                     check_query = text("""
@@ -394,12 +454,13 @@ async def startup_event():
                     print("✅ [STARTUP] Migration de tokens de IA concluída")
                 except Exception as e:
                     db.rollback()
-                    print(f"❌ [STARTUP] Erro ao executar migration de tokens de IA: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Continuar mesmo com erro, pois pode ser que as colunas já existam
-                
-                # 1. Criar tabelas OpenAI Assistants (se não existirem)
+                    raise  # Re-raise para ser capturado pelo retry
+            
+            execute_with_retry(migration_ai_tokens, "migration de tokens de IA")
+            
+            # 1. Criar tabelas OpenAI Assistants (se não existirem)
+            db = SessionLocal()
+            try:
                 print("📋 [STARTUP] Verificando tabelas OpenAI Assistants...")
                 try:
                     import importlib.util

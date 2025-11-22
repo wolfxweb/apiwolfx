@@ -158,6 +158,7 @@ class StockController:
         self,
         company_id: int,
         warehouse_id: Optional[int] = None,
+        search: Optional[str] = None,
         limit: int = 20,
         offset: int = 0,
         db: Session = None
@@ -168,6 +169,7 @@ class StockController:
             return service.get_product_stock(
                 company_id=company_id,
                 warehouse_id=warehouse_id,
+                search=search,
                 limit=limit,
                 offset=offset
             )

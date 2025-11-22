@@ -229,6 +229,7 @@ async def delete_warehouse(
 @stock_router.get("/stocks")
 async def list_all_stocks(
     warehouse_id: Optional[int] = Query(None, description="Filtrar por depósito"),
+    search: Optional[str] = Query(None, description="Buscar por nome ou SKU do produto"),
     limit: int = Query(20, description="Limite de resultados"),
     offset: int = Query(0, description="Offset"),
     session_token: str = Cookie(None, description="Token de sessão"),
@@ -252,6 +253,7 @@ async def list_all_stocks(
         result = controller.list_all_stocks(
             company_id=company_id,
             warehouse_id=warehouse_id,
+            search=search,
             limit=limit,
             offset=offset,
             db=db

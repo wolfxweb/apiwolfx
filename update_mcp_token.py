@@ -38,41 +38,45 @@ def get_valid_token_for_company(company_id: int) -> str:
             print(f"❌ Nenhuma conta ML ativa encontrada para company_id {company_id}")
             return None
         
-        # Tentar encontrar token válido
-        for account in accounts:
-            print(f"\n🔍 Buscando token para conta: {account.nickname}")
+        # Buscar token MAIS RECENTE de qualquer conta ativa (não apenas a primeira)
+        print(f"\n🔍 Buscando token mais recente entre todas as contas...")
+        
+        # Buscar token mais recente de todas as contas ativas
+        token = db.query(Token).join(MLAccount).filter(
+            MLAccount.company_id == company_id,
+            MLAccount.status == MLAccountStatus.ACTIVE,
+            Token.access_token.isnot(None),
+            Token.access_token != ''
+        ).order_by(desc(Token.created_at)).first()
+        
+        if token:
+            account = token.ml_account
+            print(f"   Conta: {account.nickname}")
+            print(f"   Token criado em: {token.created_at}")
             
-            # Buscar qualquer token
-            token = db.query(Token).filter(
-                Token.ml_account_id == account.id,
-                Token.access_token.isnot(None),
-                Token.access_token != ''
-            ).order_by(desc(Token.created_at)).first()
+            # Testar token
+            print(f"   Testando token...")
+            response = requests.get(
+                'https://api.mercadolibre.com/users/me',
+                headers={'Authorization': f'Bearer {token.access_token}'},
+                timeout=5
+            )
             
-            if token:
-                # Testar token
-                print(f"   Testando token...")
-                response = requests.get(
-                    'https://api.mercadolibre.com/users/me',
-                    headers={'Authorization': f'Bearer {token.access_token}'},
-                    timeout=5
-                )
+            if response.status_code == 200:
+                user_data = response.json()
+                print(f"   ✅ Token VÁLIDO!")
+                print(f"   Usuário ML: {user_data.get('nickname', 'N/A')}")
+                return token.access_token
+            else:
+                print(f"   ❌ Token expirado (status: {response.status_code})")
                 
-                if response.status_code == 200:
-                    user_data = response.json()
-                    print(f"   ✅ Token VÁLIDO!")
-                    print(f"   Usuário ML: {user_data.get('nickname', 'N/A')}")
-                    return token.access_token
-                else:
-                    print(f"   ❌ Token expirado (status: {response.status_code})")
-                    
-                    # Tentar renovar se houver refresh_token
-                    if token.refresh_token:
-                        print(f"   🔄 Tentando renovar com refresh_token...")
-                        new_token = refresh_token(token.refresh_token)
-                        if new_token:
-                            print(f"   ✅ Token renovado!")
-                            return new_token
+                # Tentar renovar se houver refresh_token
+                if token.refresh_token:
+                    print(f"   🔄 Tentando renovar com refresh_token...")
+                    new_token = refresh_token(token.refresh_token)
+                    if new_token:
+                        print(f"   ✅ Token renovado!")
+                        return new_token
         
         print(f"\n⚠️  Nenhum token válido encontrado")
         print(f"   É necessário fazer login via OAuth para obter um novo token")
@@ -136,7 +140,7 @@ def update_mcp_json(token: str, company_id: int):
         return False
 
 if __name__ == "__main__":
-    company_id = 15
+    company_id = 27  # Atualizado para company_id correto
     
     print("=" * 60)
     print("🔄 ATUALIZANDO TOKEN NO MCP.JSON")

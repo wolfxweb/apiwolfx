@@ -1,0 +1,150 @@
+Você é um especialista em pesquisa de mercado e lançamentos digitais. Com base no contexto fornecido acima, realize uma pesquisa completa e detalhada seguindo EXATAMENTE esta estrutura:
+
+## 🎯 DEFINIÇÃO DO ESCOPO
+Identifique e detalhe:
+- Nicho principal e subnichos
+- Produto/serviço ideal para lançamento
+- Proposta de valor única
+
+## 👥 ANÁLISE DO AVATAR (CLIENTE IDEAL)
+
+### Demografia:
+Pesquise e defina:
+- Faixa etária predominante
+- Gênero e distribuição
+- Localização geográfica principal
+- Faixa de renda média
+- Nível de escolaridade comum
+- Profissões mais frequentes
+
+### Psicografia:
+Mapeie:
+- 3 valores principais
+- Estilo de vida característico
+- 2 principais aspirações
+- 3 medos mais comuns
+- 2 frustrações recorrentes
+
+### Comportamento Digital:
+Identifique:
+- 2 plataformas mais usadas
+- Horários de pico online
+- Tipos de conteúdo preferidos
+- Influenciadores que seguem
+
+## 💔 MAPEAMENTO DE DORES E DESEJOS
+
+Liste as 5 principais dores com:
+- Descrição detalhada
+- Como impacta a vida
+- Nível de urgência (Alta/Média/Baixa)
+
+Identifique:
+- Estado atual vs. Estado desejado
+- Obstáculos percebidos
+- Sonho secreto não verbalizado
+
+## 🏆 ANÁLISE DA CONCORRÊNCIA
+
+Pesquise e liste:
+- 2 concorrentes diretos principais (com preços, USP, forças e fraquezas)
+- 2 concorrentes indiretos
+- 3 gaps identificados no mercado
+
+## 💰 ANÁLISE DE MERCADO E METRIFICAÇÃO
+
+### Calcule o TAM/SAM/SOM:
+- TAM: População total × % mercado × ticket médio anual
+- SAM: TAM × % segmento × % alcance realista
+- SOM: SAM × % market share possível
+
+### Identifique:
+- Volume de busca mensal do nicho
+- Tendências em alta e em queda
+- Sazonalidade (melhores e piores meses)
+
+## 🎯 ANÁLISE DE PALAVRAS-CHAVE E CUSTOS
+
+Pesquise as 5 principais palavras-chave com:
+- Volume de busca mensal
+- CPC e CPM médios
+- Dificuldade SEO
+- Intenção de busca
+
+### Custos por plataforma:
+Estime para Facebook, Google, YouTube e TikTok:
+- CPM médio
+- CPC médio
+- CPL médio
+- Taxa de conversão esperada
+
+## 📊 MÉTRICAS DE PERFORMANCE
+
+Defina benchmarks do mercado:
+- CAC médio por canal
+- Funil de conversão padrão (%)
+- LTV médio e LTV:CAC ratio
+- ROI esperado por canal
+
+## 🗣️ VOZ DO MERCADO
+
+Identifique:
+- 3 principais objeções e como contorná-las
+- Linguagem específica (termos, gírias, gatilhos)
+- 3 crenças limitantes comuns
+
+## 📊 HISTÓRICO DE LANÇAMENTOS
+
+Pesquise:
+- 2 cases de sucesso (com números)
+- 1 fracasso notável e lições aprendidas
+
+## 💸 ANÁLISE DE PREÇOS
+
+Mapeie:
+- Faixas de preço (Low/Mid/High ticket)
+- Elasticidade e sensibilidade a preço
+- Sweet spot de preço
+
+## 🚀 ESTRATÉGIA DE AQUISIÇÃO
+
+Recomende:
+- Mix ideal de canais (% do budget)
+- Budget por fase (pré/lançamento/pós)
+- CPL esperado por canal
+
+## 📈 PROJEÇÕES
+
+Apresente 3 cenários (conservador/realista/otimista):
+- Taxa de conversão
+- Faturamento projetado
+- ROI esperado
+
+## 🎁 BÔNUS E GARANTIAS
+
+Sugira:
+- 3 bônus valorizados com valor percebido
+- Tipo de garantia ideal
+
+## 🎯 SÍNTESE ESTRATÉGICA
+
+Crie:
+- Big Idea única para o lançamento
+- Promessa principal irresistível
+- Mecanismo único de entrega
+- Provas de conceito necessárias
+- Meta SMART completa
+
+## 💡 PLANO DE AÇÃO
+
+Liste 7 próximos passos prioritários e práticos.
+
+---
+
+**IMPORTANTE**: 
+- Use dados reais e atualizados quando possível
+- Faça estimativas conservadoras baseadas em padrões do mercado
+- Seja específico com números e métricas
+- Foque em insights acionáveis
+
+Agora, realize a pesquisa completa com base no contexto fornecido.

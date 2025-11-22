@@ -644,6 +644,8 @@ class InternalProductService:
                 )
             ).all()
             
+            logger.info(f"🔍 Buscando anúncios para produto interno {internal_product_id}: {len(sku_managements)} associações SKUManagement encontradas")
+            
             if not sku_managements:
                 return {
                     "success": True,
@@ -655,6 +657,14 @@ class InternalProductService:
             # O product_id referencia products.id, não ml_products.id, então usamos platform_item_id
             ml_item_ids = [sm.platform_item_id for sm in sku_managements if sm.platform_item_id]
             
+            logger.info(f"🔍 ml_item_ids coletados da SKUManagement: {ml_item_ids}")
+            
+            # Verificar se o anúncio específico está na lista
+            if "MLB4295303609" in ml_item_ids:
+                logger.info(f"✅ Anúncio MLB4295303609 encontrado na SKUManagement")
+            else:
+                logger.warning(f"⚠️ Anúncio MLB4295303609 NÃO encontrado na SKUManagement. ml_item_ids: {ml_item_ids}")
+            
             announcements = []
             
             # Buscar produtos ML pelos ml_item_ids (platform_item_id)
@@ -665,6 +675,15 @@ class InternalProductService:
                         MLProduct.company_id == company_id
                     )
                 ).all()
+                
+                logger.info(f"🔍 Produtos ML encontrados: {len(ml_products)} de {len(ml_item_ids)} ml_item_ids")
+                
+                # Verificar se o anúncio específico foi encontrado
+                found_mlb = [p for p in ml_products if p.ml_item_id == "MLB4295303609"]
+                if found_mlb:
+                    logger.info(f"✅ Anúncio MLB4295303609 encontrado na tabela MLProduct: {found_mlb[0].title}")
+                else:
+                    logger.warning(f"⚠️ Anúncio MLB4295303609 NÃO encontrado na tabela MLProduct (company_id={company_id})")
                 
                 for ml_product in ml_products:
                     ml_account = self.db.query(MLAccount).filter(

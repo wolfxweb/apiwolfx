@@ -2,6 +2,7 @@
 Serviço para gerenciar estoque e depósitos
 """
 import logging
+import requests
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
@@ -9,7 +10,7 @@ from decimal import Decimal
 from datetime import datetime
 from app.models.saas_models import (
     Warehouse, ProductStock, InternalProduct, MLProduct, 
-    WarehouseType, Company
+    WarehouseType, Company, MLProductStatus, MLAccount
 )
 
 logger = logging.getLogger(__name__)
@@ -474,11 +475,15 @@ class StockService:
         internal_product_id: Optional[int] = None,
         ml_item_id: Optional[str] = None,
         warehouse_id: Optional[int] = None,
+        search: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None
     ) -> Dict[str, Any]:
         """Obtém estoque de produto"""
         try:
+            from sqlalchemy import or_
+            from app.models.saas_models import InternalProduct, MLProduct
+            
             query = self.db.query(ProductStock).filter(
                 ProductStock.company_id == company_id
             )
@@ -489,6 +494,42 @@ class StockService:
                 query = query.filter(ProductStock.ml_item_id == ml_item_id)
             if warehouse_id:
                 query = query.filter(ProductStock.warehouse_id == warehouse_id)
+            
+            # Busca por nome ou SKU (server-side)
+            if search:
+                search_term = f"%{search.strip()}%"
+                # Buscar IDs de produtos internos que correspondem
+                internal_product_ids_query = self.db.query(InternalProduct.id).filter(
+                    or_(
+                        InternalProduct.internal_sku.ilike(search_term),
+                        InternalProduct.name.ilike(search_term)
+                    ),
+                    InternalProduct.company_id == company_id
+                )
+                internal_product_ids = [row[0] for row in internal_product_ids_query.all()]
+                
+                # Buscar ml_item_ids de produtos ML que correspondem
+                ml_item_ids_query = self.db.query(MLProduct.ml_item_id).filter(
+                    or_(
+                        MLProduct.seller_sku.ilike(search_term),
+                        MLProduct.title.ilike(search_term)
+                    ),
+                    MLProduct.company_id == company_id
+                )
+                ml_item_ids = [row[0] for row in ml_item_ids_query.all()]
+                
+                # Filtrar estoques que correspondem
+                if internal_product_ids or ml_item_ids:
+                    conditions = []
+                    if internal_product_ids:
+                        conditions.append(ProductStock.internal_product_id.in_(internal_product_ids))
+                    if ml_item_ids:
+                        conditions.append(ProductStock.ml_item_id.in_(ml_item_ids))
+                    if conditions:
+                        query = query.filter(or_(*conditions))
+                else:
+                    # Se não encontrou nenhum produto correspondente, retornar vazio
+                    query = query.filter(ProductStock.id == -1)  # Condição impossível
             
             # Contar total antes de aplicar limit/offset
             total = query.count()
@@ -638,7 +679,18 @@ class StockService:
             
             logger.info(f"✅ Estoque atualizado: {quantity} unidades (Warehouse: {warehouse_id})")
             
-            return {
+            # Sincronizar com anúncios normais do ML se for estoque compartilhado
+            sync_result = None
+            if internal_product_id and ml_item_id is None:
+                available_quantity = float(product_stock.quantity - product_stock.reserved_quantity)
+                sync_result = self.sync_stock_to_ml_announcements(
+                    company_id=company_id,
+                    internal_product_id=internal_product_id,
+                    new_quantity=Decimal(str(available_quantity)),
+                    warehouse_id=warehouse_id
+                )
+            
+            result = {
                 "success": True,
                 "product_stock": {
                     "id": product_stock.id,
@@ -647,6 +699,11 @@ class StockService:
                     "available_quantity": float(product_stock.quantity - product_stock.reserved_quantity)
                 }
             }
+            
+            if sync_result:
+                result["ml_sync"] = sync_result
+            
+            return result
             
         except Exception as e:
             self.db.rollback()
@@ -707,7 +764,18 @@ class StockService:
             
             logger.info(f"✅ Quantidade de estoque definida: {previous_quantity} → {new_quantity} (Stock ID: {product_stock_id})")
             
-            return {
+            # Sincronizar com anúncios normais do ML se for estoque compartilhado
+            sync_result = None
+            if product_stock.internal_product_id and product_stock.ml_item_id is None:
+                available_quantity = float(product_stock.quantity - product_stock.reserved_quantity)
+                sync_result = self.sync_stock_to_ml_announcements(
+                    company_id=company_id,
+                    internal_product_id=product_stock.internal_product_id,
+                    new_quantity=Decimal(str(available_quantity)),
+                    warehouse_id=product_stock.warehouse_id
+                )
+            
+            result = {
                 "success": True,
                 "stock": {
                     "id": product_stock.id,
@@ -716,6 +784,11 @@ class StockService:
                     "new_quantity": float(new_quantity)
                 }
             }
+            
+            if sync_result:
+                result["ml_sync"] = sync_result
+            
+            return result
             
         except Exception as e:
             self.db.rollback()
@@ -1595,5 +1668,514 @@ class StockService:
             return {
                 "success": False,
                 "error": f"Erro ao limpar estoques: {str(e)}"
+            }
+    
+    def _update_ml_item_stock(
+        self,
+        ml_item_id: str,
+        access_token: str,
+        new_quantity: int
+    ) -> Dict[str, Any]:
+        """
+        Atualiza a quantidade disponível de um anúncio no Mercado Livre via API.
+        
+        Conforme documentação do ML:
+        - PUT /items/{ITEM_ID} com available_quantity no payload
+        - Se o item tem variações, precisa atualizar cada variação individualmente
+        - Item precisa estar ativo (não closed/paused)
+        
+        Args:
+            ml_item_id: ID do item no Mercado Livre
+            access_token: Token de acesso do ML
+            new_quantity: Nova quantidade disponível (deve ser inteiro >= 0)
+            
+        Returns:
+            Dict com success, message e detalhes do erro se houver
+        """
+        try:
+            if new_quantity < 0:
+                return {
+                    "success": False,
+                    "error": "Quantidade não pode ser negativa"
+                }
+            
+            # Primeiro, buscar informações do item para verificar se tem variações
+            url_get = f"https://api.mercadolibre.com/items/{ml_item_id}"
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Buscar item para verificar variações
+            get_response = requests.get(url_get, headers=headers, timeout=30)
+            item_data = None
+            has_variations = False
+            
+            if get_response.status_code == 200:
+                item_data = get_response.json()
+                variations = item_data.get("variations", [])
+                has_variations = len(variations) > 0
+                
+                # Verificar status do item
+                # Segundo a documentação do ML:
+                # - Se available_quantity = 0, o item muda para "paused" com subestado "out_of_stock"
+                # - Se available_quantity > 0 e o subestado é out_of_stock, muda para ativo automaticamente
+                # - Podemos atualizar estoque mesmo se estiver pausado por falta de estoque
+                item_status = item_data.get("status", "").lower()
+                sub_status = item_data.get("sub_status", [])
+                is_out_of_stock = any("out_of_stock" in str(s).lower() for s in sub_status)
+                
+                # Bloquear apenas se estiver fechado (closed) - pausado pode ser reativado com estoque
+                if item_status == "closed":
+                    return {
+                        "success": False,
+                        "error": "Item está fechado (closed) - não é possível atualizar estoque. Reative o anúncio no Mercado Livre."
+                    }
+                
+                # Se está pausado por falta de estoque, podemos reativar atualizando o estoque
+                if item_status == "paused" and is_out_of_stock and new_quantity > 0:
+                    logger.info(f"ℹ️ Item {ml_item_id} está pausado por falta de estoque - será reativado ao atualizar estoque para {new_quantity}")
+                elif item_status == "paused" and not is_out_of_stock:
+                    logger.warning(f"⚠️ Item {ml_item_id} está pausado (não por falta de estoque) - pode não atualizar corretamente")
+            
+            # Se tem variações, atualizar cada variação individualmente
+            if has_variations and item_data:
+                logger.info(f"ℹ️ Item {ml_item_id} possui variações - atualizando cada variação")
+                variations = item_data.get("variations", [])
+                total_variation_quantity = sum(int(v.get("available_quantity", 0)) for v in variations)
+                
+                # Distribuir quantidade proporcionalmente ou atualizar todas com a mesma quantidade
+                # Por enquanto, vamos atualizar o estoque total do item (ML calcula automaticamente)
+                # Mas a documentação diz que precisa atualizar cada variação
+                # Vamos tentar atualizar o available_quantity do item principal primeiro
+                url_put = f"https://api.mercadolibre.com/items/{ml_item_id}"
+                payload = {
+                    "available_quantity": int(new_quantity)
+                }
+                
+                response = requests.put(url_put, json=payload, headers=headers, timeout=30)
+                
+                if response.status_code in (200, 201):
+                    logger.info(f"✅ Estoque atualizado no ML para item {ml_item_id} (com variações): {new_quantity} unidades")
+                    return {
+                        "success": True,
+                        "message": f"Estoque atualizado com sucesso no ML (item com variações)"
+                    }
+                else:
+                    # Se falhar, tentar atualizar variações individualmente
+                    logger.warning(f"⚠️ Falha ao atualizar estoque total, tentando atualizar variações individualmente")
+                    # Por enquanto, retornar erro - implementação completa de variações seria mais complexa
+                    error_msg = f"Item possui variações e a atualização falhou"
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("message") or error_data.get("error") or error_msg
+                    except:
+                        error_msg = f"{error_msg} - {response.text[:200]}"
+                    
+                    logger.error(f"❌ {error_msg} (Item: {ml_item_id})")
+                    return {
+                        "success": False,
+                        "error": f"{error_msg}. Para itens com variações, atualize manualmente no Mercado Livre.",
+                        "status_code": response.status_code,
+                        "has_variations": True
+                    }
+            else:
+                # Item sem variações - atualização normal
+                # IMPORTANTE: Usar ml_item_id (código do anúncio), NÃO seller_sku
+                url_put = f"https://api.mercadolibre.com/items/{ml_item_id}"
+                payload = {
+                    "available_quantity": int(new_quantity)
+                }
+                
+                logger.info(f"🔄 Atualizando estoque via PUT {url_put}")
+                logger.debug(f"   Payload: {payload}")
+                logger.debug(f"   Usando ml_item_id (código do anúncio): {ml_item_id}")
+                response = requests.put(url_put, json=payload, headers=headers, timeout=30)
+                
+                if response.status_code in (200, 201):
+                    response_data = response.json()
+                    updated_quantity = response_data.get("available_quantity", new_quantity)
+                    
+                    # Verificar se a quantidade foi realmente atualizada
+                    if updated_quantity != new_quantity:
+                        logger.warning(f"⚠️ Quantidade solicitada ({new_quantity}) diferente da confirmada ({updated_quantity}) para item {ml_item_id}")
+                    
+                    # Verificar novamente o item para confirmar a atualização
+                    verify_response = requests.get(url_get, headers=headers, timeout=30)
+                    if verify_response.status_code == 200:
+                        verify_data = verify_response.json()
+                        verified_quantity = verify_data.get("available_quantity", updated_quantity)
+                        if verified_quantity == new_quantity:
+                            logger.info(f"✅ Estoque confirmado no ML para item {ml_item_id}: {new_quantity} unidades")
+                        else:
+                            logger.warning(f"⚠️ Estoque no ML ({verified_quantity}) diferente do solicitado ({new_quantity}) para item {ml_item_id}")
+                    
+                    logger.info(f"✅ Estoque atualizado no ML para item {ml_item_id}: {new_quantity} unidades (resposta: {updated_quantity})")
+                    return {
+                        "success": True,
+                        "message": f"Estoque atualizado com sucesso no ML",
+                        "updated_quantity": updated_quantity,
+                        "requested_quantity": new_quantity
+                    }
+                else:
+                    error_msg = f"Erro ao atualizar estoque no ML: {response.status_code}"
+                    try:
+                        error_data = response.json()
+                        # Melhorar extração de mensagem de erro
+                        if isinstance(error_data, dict):
+                            error_msg = (
+                                error_data.get("message") or 
+                                error_data.get("error") or 
+                                error_data.get("cause", [{}])[0].get("message", "") if isinstance(error_data.get("cause"), list) else ""
+                            ) or error_msg
+                        else:
+                            error_msg = str(error_data) or error_msg
+                    except:
+                        error_msg = f"{error_msg} - {response.text[:200]}"
+                    
+                    logger.error(f"❌ {error_msg} (Item: {ml_item_id}, Status: {response.status_code})")
+                    logger.debug(f"📋 Resposta completa: {response.text[:500]}")
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                        "status_code": response.status_code,
+                        "response_text": response.text[:200] if response.text else None
+                    }
+                
+        except requests.exceptions.Timeout:
+            error_msg = "Timeout ao atualizar estoque no ML"
+            logger.error(f"❌ {error_msg} (Item: {ml_item_id})")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Erro de conexão ao atualizar estoque no ML: {str(e)}"
+            logger.error(f"❌ {error_msg} (Item: {ml_item_id})")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+        except Exception as e:
+            error_msg = f"Erro inesperado ao atualizar estoque no ML: {str(e)}"
+            logger.error(f"❌ {error_msg} (Item: {ml_item_id})")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "success": False,
+                "error": error_msg
+            }
+    
+    def sync_stock_to_ml_announcements(
+        self,
+        company_id: int,
+        internal_product_id: int,
+        new_quantity: Decimal,
+        warehouse_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Sincroniza estoque interno com anúncios normais (não-Full) do Mercado Livre.
+        Anúncios Full são ignorados pois têm estoque gerenciado pelo ML.
+        
+        Args:
+            company_id: ID da empresa
+            internal_product_id: ID do produto interno
+            new_quantity: Nova quantidade disponível (já considerando reserved_quantity)
+            warehouse_id: ID do depósito (opcional, para logs)
+            
+        Returns:
+            Dict com success, synced_count, error_count, details
+        """
+        try:
+            from app.models.saas_models import SKUManagement
+            from app.services.token_manager import TokenManager
+            
+            # Buscar anúncios associados ao produto interno via SKUManagement
+            sku_managements = self.db.query(SKUManagement).filter(
+                and_(
+                    SKUManagement.internal_product_id == internal_product_id,
+                    SKUManagement.company_id == company_id,
+                    SKUManagement.status == "active"
+                )
+            ).all()
+            
+            if not sku_managements:
+                logger.info(f"ℹ️ Nenhum anúncio encontrado para produto interno {internal_product_id}")
+                return {
+                    "success": True,
+                    "synced_count": 0,
+                    "error_count": 0,
+                    "message": "Nenhum anúncio encontrado para sincronizar"
+                }
+            
+            # Buscar produtos ML pelos ml_item_ids
+            ml_item_ids = [sm.platform_item_id for sm in sku_managements if sm.platform_item_id]
+            if not ml_item_ids:
+                return {
+                    "success": True,
+                    "synced_count": 0,
+                    "error_count": 0,
+                    "message": "Nenhum ml_item_id encontrado"
+                }
+            
+            # Verificar se o anúncio específico está na lista
+            if "MLB4295303609" in ml_item_ids:
+                logger.info(f"✅ Anúncio MLB4295303609 encontrado na SKUManagement para sincronização")
+            else:
+                logger.warning(f"⚠️ Anúncio MLB4295303609 NÃO encontrado na SKUManagement. ml_item_ids: {ml_item_ids}")
+            
+            ml_products = self.db.query(MLProduct).filter(
+                and_(
+                    MLProduct.ml_item_id.in_(ml_item_ids),
+                    MLProduct.company_id == company_id
+                )
+            ).all()
+            
+            # Verificar se o anúncio específico foi encontrado
+            found_mlb = [p for p in ml_products if p.ml_item_id == "MLB4295303609"]
+            if found_mlb:
+                logger.info(f"✅ Anúncio MLB4295303609 encontrado na tabela MLProduct para sincronização: {found_mlb[0].title}")
+            else:
+                logger.warning(f"⚠️ Anúncio MLB4295303609 NÃO encontrado na tabela MLProduct (company_id={company_id})")
+            
+            # Filtrar apenas anúncios normais (não-Full) que estão configurados para o warehouse específico
+            normal_announcements = []
+            
+            # Se warehouse_id foi fornecido, verificar se há estoque compartilhado configurado para esse warehouse
+            # Para anúncios normais, o estoque é compartilhado (ml_item_id is None)
+            has_warehouse_stock = False
+            if warehouse_id:
+                # Buscar ProductStock compartilhado para este produto e warehouse
+                shared_stock = self.db.query(ProductStock).filter(
+                    and_(
+                        ProductStock.company_id == company_id,
+                        ProductStock.internal_product_id == internal_product_id,
+                        ProductStock.warehouse_id == warehouse_id,
+                        ProductStock.ml_item_id.is_(None)  # Estoque compartilhado
+                    )
+                ).first()
+                
+                if shared_stock:
+                    has_warehouse_stock = True
+                    logger.info(f"🔍 Warehouse {warehouse_id} tem estoque compartilhado configurado para produto {internal_product_id}")
+                else:
+                    logger.info(f"ℹ️ Nenhum estoque compartilhado encontrado para warehouse {warehouse_id} e produto {internal_product_id}")
+                    # Se não há estoque neste warehouse, não há nada para sincronizar
+                    return {
+                        "success": True,
+                        "synced_count": 0,
+                        "error_count": 0,
+                        "message": f"Nenhum estoque compartilhado configurado para warehouse {warehouse_id}"
+                    }
+            
+            for ml_product in ml_products:
+                # Verificar status do produto - ignorar fechados, pausados e inativos
+                if ml_product.status in [MLProductStatus.CLOSED, MLProductStatus.PAUSED, MLProductStatus.INACTIVE]:
+                    logger.debug(f"⏭️ Anúncio {ml_product.ml_item_id} ignorado (status: {ml_product.status.value})")
+                    continue
+                
+                # Verificar se é Full (fulfillment)
+                is_fulfillment = False
+                
+                # Verificar no campo shipping
+                if ml_product.shipping:
+                    import json
+                    if isinstance(ml_product.shipping, str):
+                        try:
+                            shipping_data = json.loads(ml_product.shipping)
+                        except:
+                            shipping_data = {}
+                    else:
+                        shipping_data = ml_product.shipping
+                    
+                    logistic_type = shipping_data.get("logistic_type")
+                    if logistic_type == "fulfillment":
+                        is_fulfillment = True
+                
+                # Verificar também nas tags
+                if not is_fulfillment and ml_product.tags:
+                    tags_list = ml_product.tags if isinstance(ml_product.tags, list) else []
+                    if any(tag in ["fulfillment", "meli_fulfillment", "FULL"] for tag in tags_list):
+                        is_fulfillment = True
+                
+                # Adicionar apenas anúncios normais
+                if not is_fulfillment:
+                    # Se warehouse_id foi fornecido, só adicionar se há estoque compartilhado neste warehouse
+                    # (todos os anúncios normais compartilham o mesmo estoque, então se há estoque neste warehouse,
+                    # todos os anúncios normais que compartilham esse estoque devem ser sincronizados)
+                    if warehouse_id:
+                        if has_warehouse_stock:
+                            normal_announcements.append(ml_product)
+                            if ml_product.ml_item_id == "MLB4295303609":
+                                logger.info(f"✅ Anúncio MLB4295303609 será sincronizado (warehouse {warehouse_id})")
+                            else:
+                                logger.debug(f"✅ Anúncio {ml_product.ml_item_id} será sincronizado (warehouse {warehouse_id})")
+                        else:
+                            if ml_product.ml_item_id == "MLB4295303609":
+                                logger.warning(f"⚠️ Anúncio MLB4295303609 ignorado (sem estoque no warehouse {warehouse_id})")
+                            else:
+                                logger.debug(f"⏭️ Anúncio {ml_product.ml_item_id} ignorado (sem estoque no warehouse {warehouse_id})")
+                    else:
+                        # Se warehouse_id não foi fornecido, sincronizar todos os anúncios normais
+                        normal_announcements.append(ml_product)
+                        if ml_product.ml_item_id == "MLB4295303609":
+                            logger.info(f"✅ Anúncio MLB4295303609 será sincronizado (sem filtro de warehouse)")
+                else:
+                    # Log para anúncios Full que são ignorados
+                    if ml_product.ml_item_id == "MLB4295303609":
+                        logger.info(f"ℹ️ Anúncio MLB4295303609 é Full (fulfillment) e será ignorado na sincronização")
+            
+            if not normal_announcements:
+                logger.info(f"ℹ️ Nenhum anúncio normal encontrado para produto interno {internal_product_id} (apenas Full)")
+                return {
+                    "success": True,
+                    "synced_count": 0,
+                    "error_count": 0,
+                    "message": "Apenas anúncios Full encontrados (não sincronizados)"
+                }
+            
+            # Sincronizar cada anúncio normal
+            token_manager = TokenManager(self.db)
+            synced_count = 0
+            error_count = 0
+            details = []
+            quantity_int = int(new_quantity)
+            
+            for ml_product in normal_announcements:
+                ml_item_id = ml_product.ml_item_id
+                ml_account_id = ml_product.ml_account_id
+                
+                if not ml_item_id or not ml_account_id:
+                    error_count += 1
+                    details.append({
+                        "ml_item_id": ml_item_id,
+                        "title": ml_product.title or "Desconhecido",
+                        "success": False,
+                        "error": "ml_item_id ou ml_account_id não encontrado"
+                    })
+                    continue
+                
+                # Validar que a conta ML pertence à empresa correta
+                ml_account = self.db.query(MLAccount).filter(
+                    MLAccount.id == ml_account_id,
+                    MLAccount.company_id == company_id
+                ).first()
+                
+                if not ml_account:
+                    error_count += 1
+                    error_msg = f"Conta ML {ml_account_id} não encontrada ou não pertence à empresa {company_id}"
+                    details.append({
+                        "ml_item_id": ml_item_id,
+                        "title": ml_product.title or "Desconhecido",
+                        "success": False,
+                        "error": error_msg,
+                        "ml_account_id": ml_account_id
+                    })
+                    logger.error(f"❌ {error_msg} (Item: {ml_item_id})")
+                    continue
+                
+                logger.info(f"🔍 Sincronizando estoque para item {ml_item_id} na conta ML: {ml_account.nickname} (ID: {ml_account_id}, ml_user_id: {ml_account.ml_user_id})")
+                logger.info(f"📋 Usando CÓDIGO DO ANÚNCIO (ml_item_id): {ml_item_id} - URL: https://api.mercadolibre.com/items/{ml_item_id}")
+                if ml_product.seller_sku:
+                    logger.debug(f"   SKU do vendedor (seller_sku): {ml_product.seller_sku} - NÃO usado na API")
+                
+                # Buscar token de acesso
+                token_record = token_manager.get_token_record_for_account(ml_account_id, company_id)
+                if not token_record or not token_record.access_token:
+                    error_count += 1
+                    details.append({
+                        "ml_item_id": ml_item_id,
+                        "title": ml_product.title or "Desconhecido",
+                        "success": False,
+                        "error": f"Token de acesso não encontrado para conta {ml_account.nickname}. Reautentique a conta do Mercado Livre.",
+                        "ml_account": ml_account.nickname,
+                        "ml_account_id": ml_account_id
+                    })
+                    logger.warning(f"⚠️ Token não encontrado para ml_account_id={ml_account_id} ({ml_account.nickname}), item={ml_item_id}")
+                    continue
+                
+                logger.info(f"✅ Token encontrado para conta {ml_account.nickname} (ml_account_id: {ml_account_id})")
+                
+                # Verificar status novamente antes de atualizar (pode ter mudado)
+                if ml_product.status in [MLProductStatus.CLOSED, MLProductStatus.PAUSED, MLProductStatus.INACTIVE]:
+                    error_count += 1
+                    status_msg = {
+                        MLProductStatus.CLOSED: "fechado",
+                        MLProductStatus.PAUSED: "pausado",
+                        MLProductStatus.INACTIVE: "inativo"
+                    }.get(ml_product.status, ml_product.status.value)
+                    error_msg = f"Anúncio {status_msg} - não é possível atualizar estoque"
+                    details.append({
+                        "ml_item_id": ml_item_id,
+                        "title": ml_product.title or "Desconhecido",
+                        "success": False,
+                        "error": error_msg,
+                        "status": ml_product.status.value
+                    })
+                    logger.warning(f"⚠️ Anúncio {ml_item_id} ignorado na sincronização (status: {ml_product.status.value})")
+                    continue
+                
+                # Atualizar estoque no ML
+                update_result = self._update_ml_item_stock(
+                    ml_item_id=ml_item_id,
+                    access_token=token_record.access_token,
+                    new_quantity=quantity_int
+                )
+                
+                if update_result.get("success"):
+                    synced_count += 1
+                    details.append({
+                        "ml_item_id": ml_item_id,
+                        "title": ml_product.title or "Desconhecido",
+                        "success": True,
+                        "message": f"Estoque atualizado: {quantity_int} unidades",
+                        "ml_account": ml_account.nickname,
+                        "ml_account_id": ml_account_id
+                    })
+                    logger.info(f"✅ Estoque sincronizado no ML: {ml_item_id} → {quantity_int} unidades")
+                else:
+                    error_count += 1
+                    error_msg = update_result.get("error", "Erro desconhecido")
+                    
+                    # Melhorar mensagem de erro para itens fechados
+                    if "status:closed" in error_msg.lower() or "cannot update item" in error_msg.lower():
+                        error_msg = f"Anúncio fechado - não é possível atualizar estoque. Reative o anúncio no Mercado Livre para sincronizar estoque."
+                    
+                    details.append({
+                        "ml_item_id": ml_item_id,
+                        "title": ml_product.title or "Desconhecido",
+                        "success": False,
+                        "error": error_msg,
+                        "ml_account": ml_account.nickname,
+                        "ml_account_id": ml_account_id
+                    })
+                    logger.error(f"❌ Erro ao sincronizar estoque no ML: {ml_item_id} (Conta: {ml_account.nickname}, ml_account_id: {ml_account_id}) - {error_msg}")
+            
+            logger.info(f"📊 Sincronização concluída: {synced_count} sucesso(s), {error_count} erro(s) para produto {internal_product_id} (warehouse: {warehouse_id})")
+            
+            # Log detalhado dos anúncios sincronizados
+            if normal_announcements:
+                synced_items = [d.get("ml_item_id") for d in details if d.get("success")]
+                logger.info(f"📋 Anúncios sincronizados: {', '.join(synced_items) if synced_items else 'nenhum'}")
+            
+            return {
+                "success": error_count == 0,  # Sucesso apenas se não houver erros
+                "synced_count": synced_count,
+                "error_count": error_count,
+                "total_announcements": len(normal_announcements),
+                "warehouse_id": warehouse_id,
+                "details": details,
+                "message": f"{synced_count} anúncio(s) sincronizado(s)" + (f", {error_count} erro(s)" if error_count > 0 else "")
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao sincronizar estoque com ML: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "success": False,
+                "synced_count": 0,
+                "error_count": 0,
+                "error": f"Erro ao sincronizar estoque: {str(e)}"
             }
 

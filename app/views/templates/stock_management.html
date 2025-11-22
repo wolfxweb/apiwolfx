@@ -398,12 +398,21 @@
                         <label for="editStockNotes" class="form-label">Observações</label>
                         <textarea class="form-control" id="editStockNotes" rows="3" placeholder="Motivo da alteração (opcional)"></textarea>
                     </div>
+                    <!-- Indicador de sincronização -->
+                    <div id="syncStatusIndicator" class="alert alert-info d-none" role="alert">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-2" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <span id="syncStatusText">Sincronizando com Mercado Livre...</span>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="saveStockQuantity()">
-                    <i class="bi bi-check-circle"></i> Salvar
+                <button type="button" class="btn btn-secondary" id="cancelStockBtn" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveStockBtn" onclick="saveStockQuantity()">
+                    <i class="bi bi-check-circle"></i> <span id="saveStockBtnText">Salvar</span>
                 </button>
             </div>
         </div>
@@ -703,6 +712,9 @@ async function loadProductStock(page = 1) {
         if (warehouseFilter) {
             url += `warehouse_id=${warehouseFilter}&`;
         }
+        if (productSearch) {
+            url += `search=${encodeURIComponent(productSearch)}&`;
+        }
         url += `limit=${stockItemsPerPage}&offset=${(page - 1) * stockItemsPerPage}`;
         
         const response = await fetch(url, {
@@ -721,21 +733,8 @@ async function loadProductStock(page = 1) {
             return;
         }
         
-        // Filtrar por busca de produto se houver (client-side)
+        // Estoque já vem filtrado do servidor se houver busca
         let stocks = data.stocks || [];
-        if (productSearch) {
-            const searchLower = productSearch.toLowerCase();
-            stocks = stocks.filter(stock => {
-                const productName = (stock.product_name || '').toLowerCase();
-                const productSku = (stock.product_sku || '').toLowerCase();
-                const announcementTitle = (stock.announcement_title || '').toLowerCase();
-                const announcementSku = (stock.announcement_sku || '').toLowerCase();
-                return productName.includes(searchLower) || 
-                       productSku.includes(searchLower) ||
-                       announcementTitle.includes(searchLower) ||
-                       announcementSku.includes(searchLower);
-            });
-        }
         
         stockTotalItems = data.total || stocks.length;
         renderStocks(stocks);
@@ -862,6 +861,39 @@ function editStockQuantity(stockId, currentQuantity, productName) {
         productNameElement.textContent = productName || 'Produto';
         notesElement.value = '';
         
+        // Resetar indicador de sincronização
+        const syncIndicator = document.getElementById('syncStatusIndicator');
+        const syncStatusText = document.getElementById('syncStatusText');
+        const saveBtn = document.getElementById('saveStockBtn');
+        const saveBtnText = document.getElementById('saveStockBtnText');
+        const cancelBtn = document.getElementById('cancelStockBtn');
+        const quantityInput = document.getElementById('editStockQuantity');
+        const notesInput = document.getElementById('editStockNotes');
+        
+        if (syncIndicator) {
+            syncIndicator.classList.add('d-none');
+            syncIndicator.classList.remove('alert-success');
+            syncIndicator.classList.add('alert-info');
+        }
+        if (syncStatusText) {
+            syncStatusText.textContent = 'Sincronizando com Mercado Livre...';
+        }
+        if (saveBtn) {
+            saveBtn.disabled = false;
+        }
+        if (saveBtnText) {
+            saveBtnText.innerHTML = 'Salvar';
+        }
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+        }
+        if (quantityInput) {
+            quantityInput.disabled = false;
+        }
+        if (notesInput) {
+            notesInput.disabled = false;
+        }
+        
         const modal = new bootstrap.Modal(modalElement);
         modal.show();
         
@@ -882,6 +914,24 @@ async function saveStockQuantity() {
         return;
     }
     
+    // Elementos da UI
+    const saveBtn = document.getElementById('saveStockBtn');
+    const saveBtnText = document.getElementById('saveStockBtnText');
+    const cancelBtn = document.getElementById('cancelStockBtn');
+    const syncIndicator = document.getElementById('syncStatusIndicator');
+    const syncStatusText = document.getElementById('syncStatusText');
+    const quantityInput = document.getElementById('editStockQuantity');
+    const notesInput = document.getElementById('editStockNotes');
+    
+    // Desabilitar controles e mostrar indicador de sincronização
+    saveBtn.disabled = true;
+    cancelBtn.disabled = true;
+    quantityInput.disabled = true;
+    notesInput.disabled = true;
+    saveBtnText.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Salvando...';
+    syncIndicator.classList.remove('d-none');
+    syncStatusText.textContent = 'Salvando quantidade no sistema...';
+    
     try {
         const response = await fetch(`/api/stock/stocks/${stockId}/quantity`, {
             method: 'PUT',
@@ -895,24 +945,98 @@ async function saveStockQuantity() {
             })
         });
         
+        // Atualizar status para sincronização com ML
+        syncStatusText.textContent = 'Sincronizando com Mercado Livre...';
+        
         const data = await response.json();
         
         if (!response.ok || !data.success) {
+            // Restaurar controles em caso de erro
+            saveBtn.disabled = false;
+            cancelBtn.disabled = false;
+            quantityInput.disabled = false;
+            notesInput.disabled = false;
+            saveBtnText.innerHTML = '<i class="bi bi-check-circle"></i> Salvar';
+            syncIndicator.classList.add('d-none');
+            
             showNotification(data.error || 'Erro ao atualizar quantidade', 'error');
             return;
         }
         
-        showNotification('Quantidade atualizada com sucesso!', 'success');
+        // Verificar se houve sincronização com ML
+        if (data.ml_sync) {
+            const sync = data.ml_sync;
+            
+            if (sync.synced_count > 0) {
+                syncStatusText.textContent = `Sincronizando ${sync.synced_count} anúncio(s) com Mercado Livre...`;
+                // Pequeno delay para mostrar a mensagem
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            if (sync.error_count > 0) {
+                // Mostrar notificação de erro para sincronizações falhadas
+                const errorDetails = sync.details.filter(d => !d.success).map(d => {
+                    let errorMsg = d.error || 'Erro desconhecido';
+                    // Melhorar mensagem para itens fechados
+                    if (errorMsg.includes('fechado') || errorMsg.includes('closed') || d.status === 'closed') {
+                        errorMsg = `Anúncio fechado - reative no Mercado Livre para sincronizar estoque`;
+                    }
+                    return `${d.title || d.ml_item_id}: ${errorMsg}`;
+                }).join('; ');
+                
+                // Restaurar controles
+                saveBtn.disabled = false;
+                cancelBtn.disabled = false;
+                quantityInput.disabled = false;
+                notesInput.disabled = false;
+                saveBtnText.innerHTML = '<i class="bi bi-check-circle"></i> Salvar';
+                syncIndicator.classList.add('d-none');
+                
+                showNotification(
+                    `Estoque atualizado, mas houve erro ao sincronizar com ML: ${errorDetails}`,
+                    'warning'
+                );
+                return; // Não mostrar mensagem de sucesso se houver erros
+            }
+        }
+        
+        // Atualizar status final
+        syncStatusText.innerHTML = '<i class="bi bi-check-circle-fill text-success me-2"></i> Sincronização concluída!';
+        syncIndicator.classList.remove('alert-info');
+        syncIndicator.classList.add('alert-success');
+        
+        // Pequeno delay antes de fechar para mostrar sucesso
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Mostrar notificação de sucesso
+        let successMessage = 'Quantidade atualizada com sucesso!';
+        if (data.ml_sync && data.ml_sync.synced_count > 0) {
+            successMessage += ` ${data.ml_sync.synced_count} anúncio(s) sincronizado(s) com o Mercado Livre.`;
+        }
+        showNotification(successMessage, 'success');
         
         // Fechar modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('editStockQuantityModal'));
         modal.hide();
+        
+        // Restaurar estado inicial do indicador
+        syncIndicator.classList.remove('alert-success');
+        syncIndicator.classList.add('alert-info', 'd-none');
         
         // Recarregar estoques
         loadProductStock();
         
     } catch (error) {
         console.error('Erro ao salvar quantidade:', error);
+        
+        // Restaurar controles em caso de erro
+        saveBtn.disabled = false;
+        cancelBtn.disabled = false;
+        quantityInput.disabled = false;
+        notesInput.disabled = false;
+        saveBtnText.innerHTML = '<i class="bi bi-check-circle"></i> Salvar';
+        syncIndicator.classList.add('d-none');
+        
         showNotification(`Erro ao salvar quantidade: ${error.message}`, 'error');
     }
 }

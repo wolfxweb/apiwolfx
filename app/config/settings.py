@@ -19,7 +19,7 @@ class Settings:
             self.ml_client_secret = os.getenv("ML_CLIENT_SECRET")
         else:
             # Desenvolvimento: usa URL exposta via ngrok (fallback)
-            default_base_url = os.getenv("LOCAL_BASE_URL", "https://c92202f25e8e.ngrok-free.app")
+            default_base_url = os.getenv("LOCAL_BASE_URL", "https://48ef564aa2f3.ngrok-free.app")
             # Credenciais padrão de desenvolvimento (ID do aplicativo local)
             self.ml_app_id = os.getenv("ML_APP_ID", "3821568023399477")
             self.ml_client_secret = os.getenv("ML_CLIENT_SECRET", "3gDZs9aLX9jmm64MCXPmdSIaCf7rBRHa")
