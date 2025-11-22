@@ -727,3 +727,40 @@ async def bulk_configure_all_announcements_warehouse(
         logger.error(f"Erro ao configurar todos os anúncios em massa: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
+
+@stock_router.delete("/stocks/clear-all")
+async def clear_all_stocks(
+    session_token: str = Cookie(None, description="Token de sessão"),
+    db: Session = Depends(get_db)
+):
+    """Remove todos os estoques da empresa"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão não fornecido")
+    
+    try:
+        auth_controller = AuthController()
+        result = auth_controller.get_user_by_session(session_token, db)
+        
+        if result.get("error"):
+            raise HTTPException(status_code=401, detail=result.get("error"))
+        
+        current_user = result["user"]
+        company_id = current_user["company_id"]
+        
+        controller = StockController()
+        result = controller.clear_all_stocks(
+            company_id=company_id,
+            db=db
+        )
+        
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        
+        return JSONResponse(content=result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao limpar todos os estoques: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+

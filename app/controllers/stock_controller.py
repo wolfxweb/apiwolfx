@@ -405,4 +405,20 @@ class StockController:
                 "success": False,
                 "error": f"Erro ao buscar configurações: {str(e)}"
             }
+    
+    def clear_all_stocks(
+        self,
+        company_id: int,
+        db: Session = None
+    ) -> Dict[str, Any]:
+        """Remove todos os estoques da empresa"""
+        try:
+            service = StockService(db)
+            return service.clear_all_stocks(company_id=company_id)
+        except Exception as e:
+            logger.error(f"❌ Erro no controller ao limpar todos os estoques: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Erro ao limpar estoques: {str(e)}"
+            }
 

@@ -392,9 +392,16 @@ class StockService:
         company_id: int,
         warehouse_id: int,
         internal_product_id: Optional[int] = None,
-        ml_item_id: Optional[str] = None
+        ml_item_id: Optional[str] = None,
+        is_fulfillment: bool = False
     ) -> ProductStock:
-        """Obtém ou cria estoque de produto"""
+        """
+        Obtém ou cria estoque de produto.
+        
+        IMPORTANTE:
+        - Anúncios Full (fulfillment): estoque INDIVIDUAL por ml_item_id (cada anúncio tem seu próprio estoque)
+        - Anúncios normais: estoque COMPARTILHADO por produto interno (todos os anúncios compartilham)
+        """
         # Verificar se warehouse existe e é acessível
         warehouse = self.db.query(Warehouse).filter(
             and_(
@@ -409,28 +416,50 @@ class StockService:
         if not warehouse:
             raise ValueError("Depósito não encontrado ou sem permissão")
         
-        # Buscar estoque existente
-        query = self.db.query(ProductStock).filter(
+        if not internal_product_id:
+            raise ValueError("internal_product_id é obrigatório para criar estoque")
+        
+        # Para anúncios Full: estoque individual por ml_item_id
+        if is_fulfillment and ml_item_id:
+            product_stock = self.db.query(ProductStock).filter(
+                and_(
+                    ProductStock.company_id == company_id,
+                    ProductStock.warehouse_id == warehouse_id,
+                    ProductStock.internal_product_id == internal_product_id,
+                    ProductStock.ml_item_id == ml_item_id  # Estoque individual para Full
+                )
+            ).first()
+            
+            if not product_stock:
+                product_stock = ProductStock(
+                    company_id=company_id,
+                    warehouse_id=warehouse_id,
+                    internal_product_id=internal_product_id,
+                    ml_item_id=ml_item_id,  # Estoque individual para Full
+                    quantity=Decimal("0"),
+                    reserved_quantity=Decimal("0")
+                )
+                self.db.add(product_stock)
+                self.db.flush()
+            
+            return product_stock
+        
+        # Para anúncios normais: estoque compartilhado (sem ml_item_id)
+        product_stock = self.db.query(ProductStock).filter(
             and_(
                 ProductStock.company_id == company_id,
-                ProductStock.warehouse_id == warehouse_id
+                ProductStock.warehouse_id == warehouse_id,
+                ProductStock.internal_product_id == internal_product_id,
+                ProductStock.ml_item_id.is_(None)  # Estoque compartilhado
             )
-        )
-        
-        if internal_product_id:
-            query = query.filter(ProductStock.internal_product_id == internal_product_id)
-        if ml_item_id:
-            query = query.filter(ProductStock.ml_item_id == ml_item_id)
-        
-        product_stock = query.first()
+        ).first()
         
         if not product_stock:
-            # Criar novo estoque
             product_stock = ProductStock(
                 company_id=company_id,
                 warehouse_id=warehouse_id,
                 internal_product_id=internal_product_id,
-                ml_item_id=ml_item_id,
+                ml_item_id=None,  # Estoque compartilhado para anúncios normais
                 quantity=Decimal("0"),
                 reserved_quantity=Decimal("0")
             )
@@ -975,46 +1004,118 @@ class StockService:
             if ml_product and ml_product.available_quantity:
                 ml_available_quantity = Decimal(str(ml_product.available_quantity))
             
-            # Buscar estoque existente (se houver em outro depósito)
-            existing_stock = self.db.query(ProductStock).filter(
-                and_(
-                    ProductStock.company_id == company_id,
-                    ProductStock.internal_product_id == internal_product_id,
-                    ProductStock.ml_item_id == ml_item_id
-                )
-            ).first()
+            # Determinar se é anúncio Full (fulfillment)
+            is_fulfillment = False
+            if ml_product:
+                # Verificar no campo shipping (JSON)
+                if ml_product.shipping:
+                    import json
+                    if isinstance(ml_product.shipping, str):
+                        try:
+                            shipping_data = json.loads(ml_product.shipping)
+                        except:
+                            shipping_data = {}
+                    else:
+                        shipping_data = ml_product.shipping
+                    
+                    logistic_type = shipping_data.get("logistic_type")
+                    if logistic_type == "fulfillment":
+                        is_fulfillment = True
+                
+                # Verificar também nas tags
+                if not is_fulfillment and ml_product.tags:
+                    tags_list = ml_product.tags if isinstance(ml_product.tags, list) else []
+                    if any(tag in ["fulfillment", "meli_fulfillment", "FULL"] for tag in tags_list):
+                        is_fulfillment = True
             
-            # Se já existe estoque em outro depósito, transferir quantidade
-            if existing_stock and existing_stock.warehouse_id != warehouse_id:
-                if existing_stock.quantity > 0:
-                    # Transferir estoque para o novo depósito
-                    product_stock = self.get_or_create_product_stock(
-                        company_id=company_id,
-                        warehouse_id=warehouse_id,
-                        internal_product_id=internal_product_id,
-                        ml_item_id=ml_item_id
+            # Para anúncios Full: estoque individual por ml_item_id
+            # Para anúncios normais: estoque compartilhado (sem ml_item_id)
+            if is_fulfillment:
+                # Buscar estoque individual existente para este anúncio Full
+                existing_stock = self.db.query(ProductStock).filter(
+                    and_(
+                        ProductStock.company_id == company_id,
+                        ProductStock.internal_product_id == internal_product_id,
+                        ProductStock.ml_item_id == ml_item_id  # Estoque individual para Full
                     )
-                    product_stock.quantity = existing_stock.quantity
-                    product_stock.reserved_quantity = existing_stock.reserved_quantity
-                    # Marcar estoque antigo como zero
-                    existing_stock.quantity = Decimal("0")
-                    existing_stock.reserved_quantity = Decimal("0")
+                ).first()
+                
+                # Se já existe estoque em outro depósito, transferir quantidade
+                if existing_stock and existing_stock.warehouse_id != warehouse_id:
+                    if existing_stock.quantity > 0:
+                        # Transferir estoque para o novo depósito
+                        product_stock = self.get_or_create_product_stock(
+                            company_id=company_id,
+                            warehouse_id=warehouse_id,
+                            internal_product_id=internal_product_id,
+                            ml_item_id=ml_item_id,  # Estoque individual para Full
+                            is_fulfillment=True
+                        )
+                        product_stock.quantity = existing_stock.quantity
+                        product_stock.reserved_quantity = existing_stock.reserved_quantity
+                        # Marcar estoque antigo como zero
+                        existing_stock.quantity = Decimal("0")
+                        existing_stock.reserved_quantity = Decimal("0")
+                    else:
+                        product_stock = self.get_or_create_product_stock(
+                            company_id=company_id,
+                            warehouse_id=warehouse_id,
+                            internal_product_id=internal_product_id,
+                            ml_item_id=ml_item_id,  # Estoque individual para Full
+                            is_fulfillment=True
+                        )
                 else:
-                    # Se não tinha estoque, apenas criar/atualizar no novo depósito
+                    # Buscar ou criar ProductStock individual para Full
                     product_stock = self.get_or_create_product_stock(
                         company_id=company_id,
                         warehouse_id=warehouse_id,
                         internal_product_id=internal_product_id,
-                        ml_item_id=ml_item_id
+                        ml_item_id=ml_item_id,  # Estoque individual para Full
+                        is_fulfillment=True
                     )
             else:
-                # Buscar ou criar ProductStock para este anúncio
-                product_stock = self.get_or_create_product_stock(
-                    company_id=company_id,
-                    warehouse_id=warehouse_id,
-                    internal_product_id=internal_product_id,
-                    ml_item_id=ml_item_id
-                )
+                # Anúncios normais: estoque compartilhado
+                existing_stock = self.db.query(ProductStock).filter(
+                    and_(
+                        ProductStock.company_id == company_id,
+                        ProductStock.internal_product_id == internal_product_id,
+                        ProductStock.ml_item_id.is_(None)  # Estoque compartilhado
+                    )
+                ).first()
+                
+                # Se já existe estoque em outro depósito, transferir quantidade
+                if existing_stock and existing_stock.warehouse_id != warehouse_id:
+                    if existing_stock.quantity > 0:
+                        # Transferir estoque para o novo depósito
+                        product_stock = self.get_or_create_product_stock(
+                            company_id=company_id,
+                            warehouse_id=warehouse_id,
+                            internal_product_id=internal_product_id,
+                            ml_item_id=None,  # Estoque compartilhado
+                            is_fulfillment=False
+                        )
+                        product_stock.quantity = existing_stock.quantity
+                        product_stock.reserved_quantity = existing_stock.reserved_quantity
+                        # Marcar estoque antigo como zero
+                        existing_stock.quantity = Decimal("0")
+                        existing_stock.reserved_quantity = Decimal("0")
+                    else:
+                        product_stock = self.get_or_create_product_stock(
+                            company_id=company_id,
+                            warehouse_id=warehouse_id,
+                            internal_product_id=internal_product_id,
+                            ml_item_id=None,  # Estoque compartilhado
+                            is_fulfillment=False
+                        )
+                else:
+                    # Buscar ou criar ProductStock compartilhado
+                    product_stock = self.get_or_create_product_stock(
+                        company_id=company_id,
+                        warehouse_id=warehouse_id,
+                        internal_product_id=internal_product_id,
+                        ml_item_id=None,  # Estoque compartilhado
+                        is_fulfillment=False
+                    )
             
             # Se o estoque está vazio (0) e há quantidade disponível no ML, importar
             if product_stock.quantity == 0 and ml_available_quantity > 0:
@@ -1363,17 +1464,10 @@ class StockService:
             configs = []
             
             # Para cada anúncio, buscar configuração de estoque
+            # IMPORTANTE: Anúncios Full têm estoque individual, anúncios normais compartilham estoque
             for announcement in announcements_data:
                 ml_item_id = announcement.get("ml_item_id")
-                
-                # Buscar ProductStock para este anúncio
-                product_stock = self.db.query(ProductStock).filter(
-                    and_(
-                        ProductStock.company_id == company_id,
-                        ProductStock.internal_product_id == internal_product_id,
-                        ProductStock.ml_item_id == ml_item_id
-                    )
-                ).first()
+                is_fulfillment = announcement.get("is_fulfillment", False)
                 
                 warehouse_info = None
                 stock_info = {
@@ -1381,6 +1475,25 @@ class StockService:
                     "reserved_quantity": 0.0,
                     "available_quantity": 0.0
                 }
+                
+                # Para anúncios Full: buscar estoque individual por ml_item_id
+                # Para anúncios normais: buscar estoque compartilhado (sem ml_item_id)
+                if is_fulfillment:
+                    product_stock = self.db.query(ProductStock).filter(
+                        and_(
+                            ProductStock.company_id == company_id,
+                            ProductStock.internal_product_id == internal_product_id,
+                            ProductStock.ml_item_id == ml_item_id  # Estoque individual para Full
+                        )
+                    ).first()
+                else:
+                    product_stock = self.db.query(ProductStock).filter(
+                        and_(
+                            ProductStock.company_id == company_id,
+                            ProductStock.internal_product_id == internal_product_id,
+                            ProductStock.ml_item_id.is_(None)  # Estoque compartilhado
+                        )
+                    ).first()
                 
                 if product_stock:
                     # Buscar informações do depósito
@@ -1430,5 +1543,49 @@ class StockService:
             return {
                 "success": False,
                 "error": f"Erro ao buscar configurações: {str(e)}"
+            }
+    
+    def clear_all_stocks(
+        self,
+        company_id: int
+    ) -> Dict[str, Any]:
+        """Remove todos os estoques da empresa"""
+        try:
+            # Buscar todos os estoques da empresa
+            stocks = self.db.query(ProductStock).filter(
+                ProductStock.company_id == company_id
+            ).all()
+            
+            deleted_count = len(stocks)
+            
+            if deleted_count == 0:
+                return {
+                    "success": True,
+                    "message": "Nenhum estoque encontrado para remover",
+                    "deleted_count": 0
+                }
+            
+            # Remover todos os estoques
+            for stock in stocks:
+                self.db.delete(stock)
+            
+            self.db.commit()
+            
+            logger.info(f"✅ Todos os estoques removidos: {deleted_count} registro(s) da empresa {company_id}")
+            
+            return {
+                "success": True,
+                "message": f"Todos os estoques foram removidos com sucesso",
+                "deleted_count": deleted_count
+            }
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"❌ Erro ao limpar todos os estoques: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "success": False,
+                "error": f"Erro ao limpar estoques: {str(e)}"
             }
 
