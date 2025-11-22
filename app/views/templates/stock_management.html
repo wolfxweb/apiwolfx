@@ -25,47 +25,25 @@
 <!-- Tabs para diferentes visualizações -->
 <ul class="nav nav-tabs mb-4" id="stockTabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="warehouses-tab" data-bs-toggle="tab" data-bs-target="#warehouses" type="button" role="tab">
-            <i class="bi bi-building"></i> Depósitos
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stock" type="button" role="tab">
-            <i class="bi bi-box-seam"></i> Estoque por Produto
+        <button class="nav-link active" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stock" type="button" role="tab">
+            <i class="bi bi-box-seam"></i> Estoque
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="movements-tab" data-bs-toggle="tab" data-bs-target="#movements" type="button" role="tab">
-            <i class="bi bi-arrow-left-right"></i> Movimentações
+            <i class="bi bi-arrow-left-right"></i> Movimentação
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="warehouses-tab" data-bs-toggle="tab" data-bs-target="#warehouses" type="button" role="tab">
+            <i class="bi bi-building"></i> Depósitos
         </button>
     </li>
 </ul>
 
 <div class="tab-content" id="stockTabsContent">
-    <!-- Tab Depósitos -->
-    <div class="tab-pane fade show active" id="warehouses" role="tabpanel">
-        <div class="card">
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover" id="warehousesTable">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Nome</th>
-                                <th>Tipo</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="warehousesTableBody">
-                            <!-- Dados carregados via JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Tab Estoque por Produto -->
-    <div class="tab-pane fade" id="stock" role="tabpanel">
+    <div class="tab-pane fade show active" id="stock" role="tabpanel">
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
@@ -133,7 +111,7 @@
         </div>
     </div>
 
-    <!-- Tab Movimentações -->
+    <!-- Tab Movimentação -->
     <div class="tab-pane fade" id="movements" role="tabpanel">
         <div class="card mb-4">
             <div class="card-body">
@@ -210,6 +188,28 @@
                             </ul>
                         </nav>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Depósitos -->
+    <div class="tab-pane fade" id="warehouses" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="warehousesTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Nome</th>
+                                <th>Tipo</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="warehousesTableBody">
+                            <!-- Dados carregados via JavaScript -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -470,6 +470,8 @@ let movementTotalItems = 0;
 
 // Carregar depósitos ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
+    // Carregar dados da tab ativa (Estoque)
+    loadProductStock(1);
     loadWarehouses();
     
     // Adicionar listener para filtrar quando o depósito mudar
