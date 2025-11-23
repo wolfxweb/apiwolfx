@@ -1142,7 +1142,7 @@ class MLOrdersService:
                     from app.models.saas_models import StockMovement, StockMovementType
                     movement_check = self.db.query(StockMovement).filter(
                         StockMovement.ml_order_id == new_order.id,
-                        StockMovement.movement_type == StockMovementType.SALE
+                        StockMovement.movement_type == StockMovementType.SALE.value
                     ).first()
                     
                     if movement_check:
