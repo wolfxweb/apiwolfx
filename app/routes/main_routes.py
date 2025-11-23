@@ -1,18 +1,19 @@
-from fastapi import APIRouter, Depends, Request, Query, Cookie
+from fastapi import APIRouter, Depends, Request, Query, Cookie, BackgroundTasks
 from typing import Optional
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from app.routes.auth_routes import auth_router
 from app.routes.product_routes import product_router
 from app.routes.internal_product_routes import internal_product_router
 from app.routes.user_routes import user_router
 from app.routes.category_routes import category_router
 from app.routes.sku_management_routes import sku_management_router
-from app.controllers.auth_controller import get_current_user
+from app.controllers.auth_controller import get_current_user, AuthController
 from app.views.template_renderer import render_template
 from app.services.auto_sync_service import AutoSyncService
 from app.services.catalog_monitoring_service import CatalogMonitoringService
 from app.config.database import get_db
 from sqlalchemy.orm import Session
+import logging
 
 # Router principal que agrupa todas as rotas
 main_router = APIRouter()
@@ -146,4 +147,68 @@ async def test_catalog_monitoring(db: Session = Depends(get_db)):
             "error": str(e),
             "timestamp": "2025-01-13T12:57:00"
         }
+
+@main_router.get("/orders/sync")
+async def sync_orders_api(
+    background_tasks: BackgroundTasks,
+    ml_account_id: Optional[int] = Query(None),
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """
+    API para sincronizar orders da API do Mercado Libre (em background)
+    Rota alternativa para /ml/api/orders/sync - permite acesso via /api/orders/sync
+    """
+    try:
+        logging.info(f"🔍 SYNC ENDPOINT (/api/orders/sync): Recebeu requisição")
+        
+        if not session_token:
+            logging.warning("❌ Sem session_token")
+            return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
+        
+        result = AuthController().get_user_by_session(session_token, db)
+        if result.get("error"):
+            logging.warning(f"❌ Sessão inválida: {result.get('error')}")
+            return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        user_data = result["user"]
+        company_id = user_data["company"]["id"]
+        
+        logging.info(f"✅ Usuário autenticado: company_id={company_id}")
+        logging.info(f"🚀 Iniciando sincronização em background...")
+        
+        # Adicionar tarefa em background
+        from app.config.database import SessionLocal
+        from app.controllers.ml_orders_controller import MLOrdersController
+        
+        def sync_in_background():
+            """Executa sincronização em background"""
+            db_bg = SessionLocal()
+            try:
+                controller = MLOrdersController(db_bg)
+                result = controller.sync_orders(company_id=company_id, ml_account_id=ml_account_id, is_full_import=False)
+                logging.info(f"✅ BACKGROUND SYNC CONCLUÍDA: {result.get('total_saved', 0)} novos, {result.get('total_updated', 0)} atualizados")
+            except Exception as e:
+                logging.error(f"❌ BACKGROUND SYNC ERRO: {e}", exc_info=True)
+            finally:
+                db_bg.close()
+        
+        background_tasks.add_task(sync_in_background)
+        
+        # Retornar imediatamente
+        response_data = {
+            "success": True,
+            "message": "Sincronização iniciada em background. Aguarde alguns minutos e atualize a página.",
+            "status": "processing"
+        }
+        
+        logging.info(f"✅ Retornando resposta imediata")
+        return JSONResponse(content=response_data)
+        
+    except Exception as e:
+        logging.error(f"Erro no endpoint sync orders: {e}", exc_info=True)
+        return JSONResponse(content={
+            "success": False,
+            "error": f"Erro interno: {str(e)}"
+        }, status_code=500)
 
