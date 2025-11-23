@@ -131,7 +131,7 @@ Bem-vindo ao manual do sistema CELX! Este documento lista todas as funcionalidad
 - **Acesso**: Menu "Financeiro" → "Contas Bancárias"
 
 ### 23. Planejamento Financeiro
-- **Arquivo**: `23_Planejamento_Financeiro.md`
+- **Arquivo**: `26_Planejamento_Financeiro.md`
 - **Descrição**: Como criar e gerenciar planejamento financeiro anual
 - **Acesso**: Menu "Financeiro" → "Planejamento"
 
@@ -153,10 +153,10 @@ Bem-vindo ao manual do sistema CELX! Este documento lista todas as funcionalidad
 
 ## 🤖 Módulo: Inteligência Artificial
 
-### 26. Chat com IA
-- **Arquivo**: `26_Chat_IA.md`
+### 26. IA Insights
+- **Arquivo**: `23_Chat_IA.md`
 - **Descrição**: Como usar o chat com inteligência artificial para análises, suporte e consultas
-- **Acesso**: Menu principal → "Chat IA"
+- **Acesso**: Menu principal → "IA Insights"
 
 ---
 
@@ -188,15 +188,15 @@ Bem-vindo ao manual do sistema CELX! Este documento lista todas as funcionalidad
 - **Cadastrar conta a pagar**: Ver manual 18
 - **Ver fluxo de caixa**: Ver manual 19
 - **Responder perguntas**: Ver manual 24
-- **Usar chat IA**: Ver manual 26
+- **Usar IA Insights**: Ver manual 26
 
 ### Por Módulo:
 - **Autenticação**: Manuais 01 a 05
 - **Cadastros**: Manuais 06 a 09
 - **Mercado Livre**: Manuais 10 a 15
-- **Financeiro**: Manuais 16 a 23
+- **Financeiro**: Manuais 16 a 22 e 26
 - **Atendimento**: Manuais 24 a 25
-- **IA**: Manual 26
+- **IA**: Manual 23
 - **Admin**: Manual 27
 
 ---
@@ -206,7 +206,7 @@ Bem-vindo ao manual do sistema CELX! Este documento lista todas as funcionalidad
 - Sempre faça login antes de acessar as funcionalidades
 - Mantenha seus dados atualizados no perfil
 - Verifique o status do seu plano para garantir acesso a todas as funcionalidades
-- Use o chat IA para tirar dúvidas sobre o sistema
+- Use o IA Insights para tirar dúvidas sobre o sistema
 - Consulte os dashboards regularmente para acompanhar métricas
 
 ---
