@@ -405,6 +405,36 @@
     </div>
 </div>
 
+<!-- Modal de Erro -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="errorModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Erro ao Carregar Detalhes da Campanha
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3"><strong>Ocorreu um erro ao carregar os detalhes da campanha:</strong></p>
+                <div class="alert alert-danger mb-3" id="error-message">
+                    <pre id="error-details" class="mb-0" style="white-space: pre-wrap; font-size: 0.9rem;"></pre>
+                </div>
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Verifique sua conexão com a internet e tente novamente. Se o problema persistir, entre em contato com o suporte.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Tentar Novamente
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 /* Estilo dos popovers de ajuda */
 .popover {
@@ -518,6 +548,26 @@ async function loadCampaignDetails() {
             }
         });
         
+        // Verificar se a resposta HTTP foi bem-sucedida
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+            try {
+                const errorJson = JSON.parse(errorText);
+                if (errorJson.error) {
+                    errorMessage = errorJson.error;
+                } else if (errorJson.detail) {
+                    errorMessage = errorJson.detail;
+                }
+            } catch (e) {
+                if (errorText) {
+                    errorMessage += `\n\nResposta do servidor:\n${errorText.substring(0, 500)}`;
+                }
+            }
+            showErrorModal('Erro ao carregar detalhes da campanha', errorMessage);
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -527,11 +577,14 @@ async function loadCampaignDetails() {
             updateCampaignHeader(campaignData);
             updateKPIs(campaignData.metrics || {});
         } else {
-            showToast('Erro ao carregar detalhes da campanha', 'error');
+            const errorMessage = data.error || 'Erro desconhecido ao carregar detalhes da campanha';
+            showErrorModal('Erro ao carregar detalhes da campanha', errorMessage);
         }
     } catch (error) {
         console.error('Erro ao carregar detalhes:', error);
-        showToast('Erro ao carregar detalhes da campanha', 'error');
+        const errorMessage = error.message || 'Erro de conexão ou processamento';
+        const errorStack = error.stack ? `\n\nStack trace:\n${error.stack}` : '';
+        showErrorModal('Erro ao carregar detalhes da campanha', `${errorMessage}${errorStack}`);
     }
 }
 
@@ -555,11 +608,15 @@ async function loadCampaignAds() {
             adsData = data.ads || [];
             displayAds(adsData);
         } else {
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Erro: ${data.error}</td></tr>`;
+            const errorMessage = data.error || 'Erro desconhecido ao carregar anúncios';
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Erro: ${errorMessage}</td></tr>`;
+            showErrorModal('Erro ao carregar anúncios', errorMessage);
         }
     } catch (error) {
         console.error('Erro ao carregar anúncios:', error);
+        const errorMessage = error.message || 'Erro de conexão ao carregar anúncios';
         tbody.innerHTML = '<tr><td colspan="9" class="text-center text-danger">Erro ao carregar anúncios</td></tr>';
+        showErrorModal('Erro ao carregar anúncios', errorMessage);
     }
 }
 
@@ -1295,8 +1352,20 @@ function updateCharts() {
 
 async function loadPriceEvolution() {
     try {
-        const params = getPeriodParams();
-        const response = await fetch(`/ml/advertising/campaigns/${CAMPAIGN_ID}/price-evolution?${params}`);
+        const { dateFrom, dateTo } = getPeriodParams();
+        const queryParams = new URLSearchParams({
+            date_from: dateFrom,
+            date_to: dateTo
+        });
+        
+        const response = await fetch(`/ml/advertising/campaigns/${CAMPAIGN_ID}/price-evolution?${queryParams}`);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Erro HTTP ao buscar evolução de vendas:', response.status, errorText);
+            return;
+        }
+        
         const result = await response.json();
         
         if (!result.success) {
@@ -1327,6 +1396,7 @@ async function loadPriceEvolution() {
         
     } catch (error) {
         console.error('Erro ao carregar evolução de vendas e preços:', error);
+        // Não mostrar modal aqui pois é uma função secundária
     }
 }
 
@@ -1541,9 +1611,23 @@ function getCookie(name) {
     return cookieValue;
 }
 
+function showErrorModal(title, errorDetails) {
+    // Atualizar conteúdo da modal
+    document.getElementById('errorModalLabel').innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${title}`;
+    document.getElementById('error-details').textContent = errorDetails || 'Erro desconhecido';
+    
+    // Mostrar modal
+    const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+    errorModal.show();
+}
+
 function showToast(message, type = 'info') {
-    // Implementar toast notification
-    alert(message);
+    // Implementar toast notification simples (mantido para compatibilidade)
+    if (type === 'error') {
+        showErrorModal('Erro', message);
+    } else {
+        alert(message);
+    }
 }
 </script>
 
