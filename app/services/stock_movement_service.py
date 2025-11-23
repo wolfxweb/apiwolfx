@@ -275,6 +275,8 @@ class StockMovementService:
                     is_fulfillment = True
             
             # Se não especificou warehouse, tentar encontrar por ml_item_id ou internal_product_id
+            logger.info(f"🔍 [ESTOQUE] Buscando warehouse para ml_item_id={ml_item_id}, internal_product_id={internal_product_id}")
+            
             if not warehouse_id:
                 # Buscar estoque específico do anúncio (para Full)
                 product_stock = self.db.query(ProductStock).filter(
@@ -286,6 +288,7 @@ class StockMovementService:
                 
                 if product_stock:
                     warehouse_id = product_stock.warehouse_id
+                    logger.info(f"✅ [ESTOQUE] Warehouse encontrado via ml_item_id: {warehouse_id}")
                 elif internal_product_id:
                     # Buscar estoque compartilhado do produto interno
                     shared_stock = self.db.query(ProductStock).filter(
@@ -298,7 +301,9 @@ class StockMovementService:
                     
                     if shared_stock:
                         warehouse_id = shared_stock.warehouse_id
+                        logger.info(f"✅ [ESTOQUE] Warehouse encontrado via internal_product_id: {warehouse_id}")
                     else:
+                        logger.warning(f"⚠️ [ESTOQUE] Estoque compartilhado não encontrado para internal_product_id={internal_product_id}")
                         # Buscar fulfillment (compartilhado)
                         fulfillment_warehouse = self.db.query(Warehouse).filter(
                             and_(
@@ -309,14 +314,25 @@ class StockMovementService:
                         
                         if fulfillment_warehouse:
                             warehouse_id = fulfillment_warehouse.id
+                            logger.info(f"✅ [ESTOQUE] Warehouse fulfillment encontrado: {warehouse_id}")
+                        else:
+                            logger.warning(f"⚠️ [ESTOQUE] Warehouse fulfillment não encontrado")
+                else:
+                    logger.warning(f"⚠️ [ESTOQUE] Não há internal_product_id para buscar warehouse compartilhado")
             
             if not warehouse_id:
+                error_msg = f"Depósito não encontrado para este anúncio (ml_item_id={ml_item_id}, internal_product_id={internal_product_id})"
+                logger.error(f"❌ [ESTOQUE] {error_msg}")
                 return {
                     "success": False,
-                    "error": "Depósito não encontrado para este anúncio"
+                    "error": error_msg
                 }
             
+            logger.info(f"✅ [ESTOQUE] Warehouse definido: {warehouse_id}")
+            
             # PRIMEIRO: Dar baixa no estoque interno com quantidade DO ITEM
+            logger.info(f"📦 [ESTOQUE] Iniciando baixa no estoque: quantity={-quantity}, internal_product_id={internal_product_id}, ml_item_id={ml_item_id}, is_fulfillment={is_fulfillment}")
+            
             global_logger.log_event(
                 event_type="stock_sync/stock_decrease",
                 data={
@@ -342,20 +358,26 @@ class StockMovementService:
                 movement_type="sale"
             )
             
+            logger.info(f"📦 [ESTOQUE] Resultado do update_stock: success={result.get('success')}, error={result.get('error')}")
+            
             if not result.get("success"):
+                error_msg = result.get("error", "Erro desconhecido")
+                logger.error(f"❌ [ESTOQUE] Falha ao dar baixa no estoque: {error_msg}")
                 global_logger.log_event(
                     event_type="stock_sync/error",
                     data={
                         "action": "stock_decrease_failed",
                         "ml_order_id": str(order.ml_order_id),
                         "ml_item_id": ml_item_id,
-                        "error": result.get("error", "Erro desconhecido")
+                        "error": error_msg
                     },
                     company_id=company_id,
                     success=False,
-                    error_message=result.get("error", "Erro ao dar baixa no estoque")
+                    error_message=error_msg
                 )
                 return result
+            
+            logger.info(f"✅ [ESTOQUE] Baixa no estoque realizada com sucesso")
             
             # Obter quantidade após baixa
             if is_fulfillment:

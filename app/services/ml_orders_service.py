@@ -1073,8 +1073,8 @@ class MLOrdersService:
                 existing_order.updated_at = datetime.utcnow()
                 logger.info(f"✅ Pedido atualizado: ID={existing_order.id}, company_id={existing_order.company_id}")
                 
-                # NÃO sincronizar estoque em atualizações (evitar duplicação)
-                logger.info(f"ℹ️ Pedido {existing_order.ml_order_id} atualizado - não processando estoque novamente")
+                # NÃO sincronizar estoque em atualizações (apenas na criação)
+                logger.info(f"ℹ️ Pedido {existing_order.ml_order_id} atualizado - não processando estoque (estoque só é processado na criação)")
                 
                 return {"action": "updated", "order": existing_order}
             else:
@@ -1131,7 +1131,28 @@ class MLOrdersService:
                     # Não falhar a criação do pedido por causa do status interno
                 
                 # Sincronizar com estoque apenas para pedidos novos
-                self._sync_order_to_stock(new_order, company_id)
+                logger.info(f"📦 [CRIAÇÃO] Iniciando sincronização de estoque para pedido NOVO {new_order.ml_order_id} (ID interno: {new_order.id})")
+                logger.info(f"📦 [CRIAÇÃO] Company ID: {company_id}, Order Items: {len(new_order.order_items or [])} item(s)")
+                
+                try:
+                    self._sync_order_to_stock(new_order, company_id)
+                    logger.info(f"✅ [CRIAÇÃO] Sincronização de estoque concluída para pedido {new_order.ml_order_id}")
+                    
+                    # Verificar se movimentação foi criada
+                    from app.models.saas_models import StockMovement, StockMovementType
+                    movement_check = self.db.query(StockMovement).filter(
+                        StockMovement.ml_order_id == new_order.id,
+                        StockMovement.movement_type == StockMovementType.SALE
+                    ).first()
+                    
+                    if movement_check:
+                        logger.info(f"✅ [CRIAÇÃO] Confirmação: Movimentação de estoque criada (ID: {movement_check.id})")
+                    else:
+                        logger.warning(f"⚠️ [CRIAÇÃO] ATENÇÃO: Sincronização executada mas NÃO foi criada movimentação de estoque!")
+                except Exception as stock_sync_error:
+                    logger.error(f"❌ [CRIAÇÃO] ERRO ao sincronizar estoque do pedido NOVO {new_order.ml_order_id}: {stock_sync_error}", exc_info=True)
+                    # Não falhar a criação do pedido por causa do estoque, mas logar o erro
+                    # O pedido será criado mesmo se a sincronização de estoque falhar
                 
                 return {"action": "created", "order": new_order}
                 
@@ -1891,11 +1912,29 @@ class MLOrdersService:
             # Processar itens do pedido (pedido pode ter múltiplos itens)
             order_items = order.order_items or []
             
+            logger.info(f"🔍 [ESTOQUE] Pedido {order.ml_order_id} - Verificando order_items:")
+            logger.info(f"🔍 [ESTOQUE] Tipo de order_items: {type(order_items)}")
+            logger.info(f"🔍 [ESTOQUE] order_items é None? {order_items is None}")
+            logger.info(f"🔍 [ESTOQUE] order_items é lista vazia? {order_items == []}")
+            logger.info(f"🔍 [ESTOQUE] Quantidade de itens: {len(order_items) if order_items else 0}")
+            
             if not order_items:
-                logger.warning(f"⚠️ Pedido {order.ml_order_id} não tem itens para sincronizar")
+                logger.warning(f"⚠️ [ESTOQUE] Pedido {order.ml_order_id} não tem itens para sincronizar (order_items está vazio ou None)")
+                global_logger.log_event(
+                    event_type="stock_sync/error",
+                    data={
+                        "action": "no_items_in_order",
+                        "ml_order_id": str(order.ml_order_id),
+                        "order_id": order.id,
+                        "order_items": str(order_items)
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message="Pedido não tem itens"
+                )
                 return
             
-            logger.info(f"🔄 Processando {len(order_items)} item(ns) do pedido {order.ml_order_id} para sincronização com estoque")
+            logger.info(f"🔄 [ESTOQUE] Processando {len(order_items)} item(ns) do pedido {order.ml_order_id} para sincronização com estoque")
             
             # Log global: processando itens
             global_logger.log_event(
@@ -1916,20 +1955,54 @@ class MLOrdersService:
             items_success = 0
             items_errors = 0
             
-            for item_entry in order_items:
+            for idx, item_entry in enumerate(order_items):
+                logger.info(f"🔍 [ESTOQUE] Processando item {idx + 1}/{len(order_items)} do pedido {order.ml_order_id}")
+                logger.info(f"🔍 [ESTOQUE] Tipo do item_entry: {type(item_entry)}")
+                logger.info(f"🔍 [ESTOQUE] Conteúdo do item_entry: {str(item_entry)[:200]}")
+                
                 # Extrair dados do item
-                item_data = item_entry.get("item") if isinstance(item_entry, dict) else item_entry
+                if isinstance(item_entry, dict):
+                    item_data = item_entry.get("item")
+                    logger.info(f"🔍 [ESTOQUE] item_entry é dict, buscando campo 'item': {item_data is not None}")
+                    if not item_data:
+                        # Tentar usar o próprio item_entry como item_data
+                        item_data = item_entry
+                        logger.info(f"🔍 [ESTOQUE] Usando item_entry diretamente como item_data")
+                else:
+                    item_data = item_entry
+                    logger.info(f"🔍 [ESTOQUE] item_entry não é dict, usando diretamente")
+                
                 if not item_data:
+                    logger.warning(f"⚠️ [ESTOQUE] Item {idx + 1} do pedido {order.ml_order_id} não tem dados (item_data é None)")
                     continue
                 
-                ml_item_id = str(item_data.get("id") or item_data.get("item_id") or "")
-                item_quantity = int(item_entry.get("quantity", 1))  # Quantidade DO ITEM no pedido
+                logger.info(f"🔍 [ESTOQUE] item_data tipo: {type(item_data)}")
+                logger.info(f"🔍 [ESTOQUE] item_data keys: {list(item_data.keys()) if isinstance(item_data, dict) else 'não é dict'}")
                 
-                if not ml_item_id or item_quantity <= 0:
-                    logger.warning(f"⚠️ Item inválido no pedido {order.ml_order_id}: ml_item_id={ml_item_id}, quantity={item_quantity}")
+                # Extrair ml_item_id de múltiplas formas possíveis
+                ml_item_id = None
+                if isinstance(item_data, dict):
+                    ml_item_id = str(item_data.get("id") or item_data.get("item_id") or item_data.get("ml_item_id") or "")
+                elif isinstance(item_data, str):
+                    ml_item_id = item_data
+                else:
+                    ml_item_id = str(item_data) if item_data else ""
+                
+                # Extrair quantidade
+                if isinstance(item_entry, dict):
+                    item_quantity = int(item_entry.get("quantity", item_entry.get("qty", 1)))
+                else:
+                    item_quantity = 1
+                
+                logger.info(f"🔍 [ESTOQUE] ml_item_id extraído: '{ml_item_id}'")
+                logger.info(f"🔍 [ESTOQUE] item_quantity extraído: {item_quantity}")
+                
+                if not ml_item_id or ml_item_id == "None" or item_quantity <= 0:
+                    logger.warning(f"⚠️ [ESTOQUE] Item inválido no pedido {order.ml_order_id}: ml_item_id='{ml_item_id}', quantity={item_quantity}")
+                    items_errors += 1
                     continue
                 
-                logger.info(f"🔄 Processando item {ml_item_id} - quantidade: {item_quantity} unidades")
+                logger.info(f"🔄 [ESTOQUE] Processando item {ml_item_id} - quantidade: {item_quantity} unidades")
                 
                 # Sincronizar com estoque (baixa + sincronização ML se necessário)
                 result = movement_service.sync_sale_to_stock(
@@ -1965,6 +2038,14 @@ class MLOrdersService:
                 success=items_errors == 0,
                 error_message=f"{items_errors} item(s) com erro" if items_errors > 0 else None
             )
+            
+            # Commit das movimentações de estoque
+            try:
+                self.db.commit()
+                logger.info(f"✅ Movimentações de estoque commitadas para pedido {order.ml_order_id}")
+            except Exception as commit_error:
+                logger.error(f"❌ Erro ao commitar movimentações de estoque: {commit_error}", exc_info=True)
+                self.db.rollback()
                     
         except Exception as e:
             logger.error(f"❌ Erro ao sincronizar pedido com estoque: {e}", exc_info=True)

@@ -1422,17 +1422,35 @@ class MLNotificationsController:
                     ).first()
                     
                     if ml_account:
+                        logger.info(f"📦 [WEBHOOK] Iniciando criação/atualização do pedido {order_id} via webhook")
+                        logger.info(f"📦 [WEBHOOK] ML Account ID: {ml_account.id}, Company ID: {company_id}")
+                        
                         orders_service = MLOrdersService(db)
                         result = orders_service._save_order_to_database(order_data, ml_account.id, company_id)
                         
-                        if result.get("action") == "created":
-                            logger.info(f"✅ Novo pedido {order_id} criado com sucesso via webhook")
-                        elif result.get("action") == "updated":
-                            logger.info(f"✅ Pedido {order_id} atualizado via webhook")
+                        action = result.get("action")
+                        logger.info(f"📦 [WEBHOOK] Resultado do _save_order_to_database: action={action}")
+                        
+                        if action == "created":
+                            logger.info(f"✅ [WEBHOOK] Novo pedido {order_id} criado com sucesso via webhook - estoque deve ter sido sincronizado")
+                            # Verificar se houve sincronização de estoque
+                            from app.models.saas_models import StockMovement, StockMovementType
+                            order_obj = result.get("order")
+                            if order_obj:
+                                movement_check = db.query(StockMovement).filter(
+                                    StockMovement.ml_order_id == order_obj.id,
+                                    StockMovement.movement_type == StockMovementType.SALE
+                                ).first()
+                                if movement_check:
+                                    logger.info(f"✅ [WEBHOOK] Confirmação: Movimentação de estoque criada para pedido {order_id} (movement_id: {movement_check.id})")
+                                else:
+                                    logger.warning(f"⚠️ [WEBHOOK] ATENÇÃO: Pedido {order_id} criado mas NÃO tem movimentação de estoque!")
+                        elif action == "updated":
+                            logger.info(f"✅ [WEBHOOK] Pedido {order_id} atualizado via webhook (estoque não é sincronizado em atualizações)")
                         
                         # IMPORTANTE: Garantir commit após criar/atualizar pedido
                         db.commit()
-                        logger.info(f"✅ Commit realizado para pedido {order_id}")
+                        logger.info(f"✅ [WEBHOOK] Commit realizado para pedido {order_id}")
                         
                         # ✅ NOVO: Verificar nota fiscal após criar pedido (se status for PAID/CONFIRMED)
                         order_status = order_data.get("status", "").lower()
