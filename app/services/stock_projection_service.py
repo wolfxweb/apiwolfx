@@ -62,7 +62,7 @@ class StockProjectionService:
                 and_(
                     StockMovement.company_id == company_id,
                     StockMovement.product_stock_id.in_(product_stock_ids),
-                    StockMovement.movement_type == StockMovementType.SALE,
+                    StockMovement.movement_type == StockMovementType.SALE.value,
                     StockMovement.created_at >= date_from
                 )
             )
@@ -120,7 +120,7 @@ class StockProjectionService:
                 and_(
                     StockMovement.company_id == company_id,
                     StockMovement.product_stock_id.in_(product_stock_ids),
-                    StockMovement.movement_type == StockMovementType.SALE,
+                    StockMovement.movement_type == StockMovementType.SALE.value,
                     StockMovement.created_at >= date_from
                 )
             )

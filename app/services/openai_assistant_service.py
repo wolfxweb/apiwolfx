@@ -2486,7 +2486,7 @@ class OpenAIAssistantService:
                 if not product_id and not internal_product_id:
                     return {"error": "É obrigatório informar product_id ou internal_product_id"}
                 
-                from app.models.saas_models import StockMovement, ProductStock, InternalProduct
+                from app.models.saas_models import StockMovement, ProductStock, InternalProduct, StockMovementType
                 from datetime import datetime
                 
                 # Resolver internal_product_id
@@ -2532,7 +2532,13 @@ class OpenAIAssistantService:
                         pass
                 
                 if movement_type:
-                    query = query.filter(StockMovement.movement_type == movement_type)
+                    try:
+                        # Converter string para enum e usar .value na comparação
+                        enum_value = StockMovementType(movement_type).value
+                        query = query.filter(StockMovement.movement_type == enum_value)
+                    except (ValueError, AttributeError):
+                        # Se não conseguir converter, ignorar o filtro
+                        pass
                 
                 total = query.count()
                 movements = query.order_by(StockMovement.created_at.desc()).offset(offset).limit(limit).all()

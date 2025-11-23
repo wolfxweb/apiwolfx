@@ -1892,7 +1892,7 @@ class MLOrdersService:
             # Verificar se já existe movimentação para este pedido
             existing_movement = self.db.query(StockMovement).filter(
                 StockMovement.ml_order_id == order.id,
-                StockMovement.movement_type == StockMovementType.SALE
+                StockMovement.movement_type == StockMovementType.SALE.value
             ).first()
             
             if existing_movement:

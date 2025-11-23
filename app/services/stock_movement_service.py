@@ -117,7 +117,7 @@ class StockMovementService:
                 query = query.filter(StockMovement.warehouse_id == warehouse_id)
             
             if movement_type:
-                query = query.filter(StockMovement.movement_type == StockMovementType(movement_type))
+                query = query.filter(StockMovement.movement_type == StockMovementType(movement_type).value)
             
             if date_from:
                 query = query.filter(StockMovement.created_at >= date_from)
