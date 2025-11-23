@@ -305,11 +305,12 @@ class AdvertisingFullController:
             logger.error(f"❌ Erro ao buscar métricas: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def get_campaign_details(self, company_id: int, campaign_id: str, date_from: str = None, date_to: str = None):
+    def get_campaign_details(self, company_id: int, campaign_id: str, date_from: str = None, date_to: str = None, ml_account_id: int = None):
         """Busca detalhes completos de uma campanha com métricas (incluindo diárias e resumo)"""
         try:
             from datetime import datetime, timedelta
             import requests
+            from app.models.advertising_models import MLCampaign
             
             # Se não forneceu datas, usar últimos 30 dias por padrão
             if not date_to:
@@ -322,16 +323,48 @@ class AdvertisingFullController:
             else:
                 date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
             
-            logger.info(f"📊 Buscando detalhes da campanha {campaign_id} - período: {date_from} a {date_to}")
+            logger.info(f"📊 Buscando detalhes da campanha {campaign_id} - período: {date_from} a {date_to}, ml_account_id: {ml_account_id}")
             
-            # Buscar conta e token
-            account = self.db.query(MLAccount).filter(MLAccount.company_id == company_id).first()
+            # 1. Buscar a campanha no banco local para identificar a conta ML correta
+            local_campaign = self.db.query(MLCampaign).filter(
+                MLCampaign.campaign_id == campaign_id,
+                MLCampaign.company_id == company_id
+            ).first()
+            
+            # Se encontrou a campanha local, usar o ml_account_id dela
+            if local_campaign:
+                ml_account_id = local_campaign.ml_account_id
+                logger.info(f"✅ Campanha encontrada no banco local - ml_account_id: {ml_account_id}")
+            elif ml_account_id:
+                # Se não encontrou mas foi passado ml_account_id, usar ele
+                logger.info(f"ℹ️ Usando ml_account_id fornecido: {ml_account_id}")
+            else:
+                # Se não encontrou e não foi passado, tentar buscar pela primeira conta ativa
+                logger.warning(f"⚠️ Campanha não encontrada no banco local, tentando primeira conta ativa")
+            
+            # 2. Buscar conta ML correta
+            if ml_account_id:
+                account = self.db.query(MLAccount).filter(
+                    MLAccount.id == ml_account_id,
+                    MLAccount.company_id == company_id
+                ).first()
+            else:
+                # Fallback: buscar primeira conta ativa da empresa
+                from app.models.saas_models import MLAccountStatus
+                account = self.db.query(MLAccount).filter(
+                    MLAccount.company_id == company_id,
+                    MLAccount.status == MLAccountStatus.ACTIVE
+                ).first()
+            
             if not account:
                 return {"success": False, "error": "Conta ML não encontrada"}
             
+            logger.info(f"✅ Usando conta ML: {account.id} - {account.nickname} ({account.email})")
+            
+            # 3. Buscar associação usuário-conta
             user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
             if not user_ml:
-                return {"success": False, "error": "Usuário não associado à conta ML"}
+                return {"success": False, "error": f"Usuário não associado à conta ML '{account.nickname}' (ID: {account.id})"}
             
             access_token = self.token_manager.get_valid_token(user_ml.user_id)
             if not access_token:
@@ -390,11 +423,12 @@ class AdvertisingFullController:
             logger.error(f"❌ Erro ao buscar detalhes da campanha: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def get_campaign_ads(self, company_id: int, campaign_id: str, date_from: str = None, date_to: str = None, limit: int = 100):
+    def get_campaign_ads(self, company_id: int, campaign_id: str, date_from: str = None, date_to: str = None, limit: int = 100, ml_account_id: int = None):
         """Busca anúncios/produtos de uma campanha com suas métricas"""
         try:
             from datetime import datetime, timedelta
             import requests
+            from app.models.advertising_models import MLCampaign
             
             # Se não forneceu datas, usar últimos 30 dias por padrão
             if not date_to:
@@ -407,16 +441,48 @@ class AdvertisingFullController:
             else:
                 date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
             
-            logger.info(f"📦 Buscando anúncios da campanha {campaign_id} - período: {date_from} a {date_to}")
+            logger.info(f"📦 Buscando anúncios da campanha {campaign_id} - período: {date_from} a {date_to}, ml_account_id: {ml_account_id}")
             
-            # Buscar conta e token
-            account = self.db.query(MLAccount).filter(MLAccount.company_id == company_id).first()
+            # 1. Buscar a campanha no banco local para identificar a conta ML correta
+            local_campaign = self.db.query(MLCampaign).filter(
+                MLCampaign.campaign_id == campaign_id,
+                MLCampaign.company_id == company_id
+            ).first()
+            
+            # Se encontrou a campanha local, usar o ml_account_id dela
+            if local_campaign:
+                ml_account_id = local_campaign.ml_account_id
+                logger.info(f"✅ Campanha encontrada no banco local - ml_account_id: {ml_account_id}")
+            elif ml_account_id:
+                # Se não encontrou mas foi passado ml_account_id, usar ele
+                logger.info(f"ℹ️ Usando ml_account_id fornecido: {ml_account_id}")
+            else:
+                # Se não encontrou e não foi passado, tentar buscar pela primeira conta ativa
+                logger.warning(f"⚠️ Campanha não encontrada no banco local, tentando primeira conta ativa")
+            
+            # 2. Buscar conta ML correta
+            if ml_account_id:
+                account = self.db.query(MLAccount).filter(
+                    MLAccount.id == ml_account_id,
+                    MLAccount.company_id == company_id
+                ).first()
+            else:
+                # Fallback: buscar primeira conta ativa da empresa
+                from app.models.saas_models import MLAccountStatus
+                account = self.db.query(MLAccount).filter(
+                    MLAccount.company_id == company_id,
+                    MLAccount.status == MLAccountStatus.ACTIVE
+                ).first()
+            
             if not account:
                 return {"success": False, "error": "Conta ML não encontrada"}
             
+            logger.info(f"✅ Usando conta ML: {account.id} - {account.nickname} ({account.email})")
+            
+            # 3. Buscar associação usuário-conta
             user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
             if not user_ml:
-                return {"success": False, "error": "Usuário não associado à conta ML"}
+                return {"success": False, "error": f"Usuário não associado à conta ML '{account.nickname}' (ID: {account.id})"}
             
             access_token = self.token_manager.get_valid_token(user_ml.user_id)
             if not access_token:
@@ -500,14 +566,43 @@ class AdvertisingFullController:
             
             logger.info(f"📊 Calculando evolução de preços - Campanha: {campaign_id}, Período: {date_from} a {date_to}")
             
-            # Buscar conta e token para consultar a API do ML (mesma fonte da tabela "Anúncios da Campanha")
-            account = self.db.query(MLAccount).filter(MLAccount.company_id == company_id).first()
+            # 1. Buscar a campanha no banco local para identificar a conta ML correta
+            from app.models.advertising_models import MLCampaign
+            local_campaign = self.db.query(MLCampaign).filter(
+                MLCampaign.campaign_id == campaign_id,
+                MLCampaign.company_id == company_id
+            ).first()
+            
+            ml_account_id = None
+            if local_campaign:
+                ml_account_id = local_campaign.ml_account_id
+                logger.info(f"✅ Campanha encontrada no banco local - ml_account_id: {ml_account_id}")
+            else:
+                logger.warning(f"⚠️ Campanha não encontrada no banco local, tentando primeira conta ativa")
+            
+            # 2. Buscar conta ML correta
+            if ml_account_id:
+                account = self.db.query(MLAccount).filter(
+                    MLAccount.id == ml_account_id,
+                    MLAccount.company_id == company_id
+                ).first()
+            else:
+                # Fallback: buscar primeira conta ativa da empresa
+                from app.models.saas_models import MLAccountStatus
+                account = self.db.query(MLAccount).filter(
+                    MLAccount.company_id == company_id,
+                    MLAccount.status == MLAccountStatus.ACTIVE
+                ).first()
+            
             if not account:
                 return {"success": False, "error": "Conta ML não encontrada"}
             
+            logger.info(f"✅ Usando conta ML: {account.id} - {account.nickname} ({account.email})")
+            
+            # 3. Buscar associação usuário-conta
             user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
             if not user_ml:
-                return {"success": False, "error": "Usuário não associado à conta ML"}
+                return {"success": False, "error": f"Usuário não associado à conta ML '{account.nickname}' (ID: {account.id})"}
             
             access_token = self.token_manager.get_valid_token(user_ml.user_id)
             if not access_token:
