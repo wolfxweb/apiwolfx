@@ -79,7 +79,7 @@ else:
 
 # Inicializar FastAPI
 app = FastAPI(
-    title="CELX - Gestão Inteligente de Vendas para Marketplace",
+    title="SELVEZ - Gestão Inteligente de Vendas para Marketplace",
     description="Plataforma de gestão inteligente para marketplaces com Inteligência Artificial",
     version="2.0.0",
     docs_url="/docs"
@@ -1350,7 +1350,7 @@ async def api_update_company(
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")
 async def root(request: Request, session_token: str = Cookie(None), db: Session = Depends(get_db)):
-    """Página inicial - Landing page do CELX com menus do usuário se logado"""
+    """Página inicial - Landing page do SELVEZ com menus do usuário se logado"""
     from app.views.template_renderer import render_template
     from app.controllers.auth_controller import AuthController
     from app.models.saas_models import Subscription
