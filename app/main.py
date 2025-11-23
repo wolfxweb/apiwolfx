@@ -480,6 +480,7 @@ async def startup_event():
                 try:
                     import importlib.util
                     import os
+                    print("🔄 [STARTUP] Iniciando setup de ferramentas...")
                     tools_path = os.path.join(
                         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                         'database', 'fixes', '2025_11_16_create_openai_tools_tables.py'
@@ -490,17 +491,54 @@ async def startup_event():
                         spec.loader.exec_module(tools_module)
                         tools_module.run(db)
                         print("✅ [STARTUP] Tabelas de Ferramentas verificadas/criadas")
-                    # Seed de ferramentas padrão para análise de produto
+                    else:
+                        print(f"⚠️ [STARTUP] Arquivo de tabelas não encontrado: {tools_path}")
+                    # Primeiro, remover/desativar ferramentas antigas
+                    cleanup_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_11_23_remove_deprecated_tools.py'
+                    )
+                    if os.path.exists(cleanup_path):
+                        print(f"🔄 [STARTUP] Executando limpeza de ferramentas antigas...")
+                        spec_cleanup = importlib.util.spec_from_file_location("remove_deprecated_tools", cleanup_path)
+                        cleanup_module = importlib.util.module_from_spec(spec_cleanup)
+                        spec_cleanup.loader.exec_module(cleanup_module)
+                        cleanup_result = cleanup_module.run(db)
+                        if cleanup_result.get("success"):
+                            print(f"✅ [STARTUP] {cleanup_result.get('tools_deactivated', 0)} ferramentas antigas desativadas")
+                        else:
+                            print(f"⚠️ [STARTUP] Erro na limpeza: {cleanup_result.get('error', 'Erro desconhecido')}")
+                    else:
+                        print(f"⚠️ [STARTUP] Arquivo de limpeza não encontrado: {cleanup_path}")
+                    
+                    # Seed de TODAS as ferramentas do agente IA
                     seed_path = os.path.join(
                         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                        'database', 'fixes', '2025_11_16_seed_product_analysis_tools.py'
+                        'database', 'fixes', '2025_11_23_seed_all_ai_tools.py'
                     )
                     if os.path.exists(seed_path):
-                        spec2 = importlib.util.spec_from_file_location("seed_product_analysis_tools", seed_path)
+                        print(f"🔄 [STARTUP] Executando seed de ferramentas...")
+                        spec2 = importlib.util.spec_from_file_location("seed_all_ai_tools", seed_path)
                         seed_module = importlib.util.module_from_spec(spec2)
                         spec2.loader.exec_module(seed_module)
-                        seed_module.run(db)
-                        print("✅ [STARTUP] Ferramentas de análise de produto seedadas")
+                        result = seed_module.run(db)
+                        if result.get("success"):
+                            print(f"✅ [STARTUP] {result.get('tools_registered', 0)} ferramentas do agente IA registradas")
+                        else:
+                            print(f"⚠️ [STARTUP] Erro ao registrar ferramentas: {result.get('error', 'Erro desconhecido')}")
+                    else:
+                        print(f"⚠️ [STARTUP] Arquivo de seed não encontrado: {seed_path}")
+                        # Fallback para o script antigo se o novo não existir
+                        old_seed_path = os.path.join(
+                            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                            'database', 'fixes', '2025_11_16_seed_product_analysis_tools.py'
+                        )
+                        if os.path.exists(old_seed_path):
+                            spec2 = importlib.util.spec_from_file_location("seed_product_analysis_tools", old_seed_path)
+                            seed_module = importlib.util.module_from_spec(spec2)
+                            spec2.loader.exec_module(seed_module)
+                            seed_module.run(db)
+                            print("✅ [STARTUP] Ferramentas de análise de produto seedadas (script antigo)")
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível criar tabelas de Ferramentas: {e}")
 

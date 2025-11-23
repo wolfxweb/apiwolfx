@@ -1499,13 +1499,13 @@ class OpenAIAssistantService:
                     return {"error": "Produto não encontrado"}
                 return {
                     "id": p.id,
-                    "ml_item_id": p.ml_item_id,
-                    "price": float(p.price) if p.price else None,
-                    "available_quantity": p.available_quantity,
-                    "category_id": p.category_id,
-                    "listing_type_id": p.listing_type_id,
-                    "seller_sku": p.seller_sku,
-                    "title": p.title,
+                    "codigo_anuncio": p.ml_item_id,  # era ml_item_id
+                    "preco": float(p.price) if p.price else None,  # era price
+                    "estoque_disponivel": p.available_quantity,  # era available_quantity
+                    "categoria": p.category_id,  # era category_id
+                    "tipo_anuncio": p.listing_type_id,  # era listing_type_id
+                    "sku": p.seller_sku,  # era seller_sku
+                    "titulo": p.title,  # era title
                 }
 
             # ========== Product Attributes ==========
@@ -1518,11 +1518,11 @@ class OpenAIAssistantService:
                 if not p:
                     return {"error": "Produto não encontrado"}
                 return {
-                    "attributes": p.attributes,
-                    "variations": p.variations,
-                    "shipping": p.shipping,
-                    "tags": p.tags,
-                    "health": p.health,
+                    "atributos": p.attributes,  # era attributes
+                    "variacoes": p.variations,  # era variations
+                    "envio": p.shipping,  # era shipping
+                    "tags": p.tags,  # pode manter
+                    "saude_anuncio": p.health,  # era health
                 }
 
             # ========== Orders by Item ==========
@@ -1544,18 +1544,18 @@ class OpenAIAssistantService:
                     try:
                         if any((it.get("item", {}).get("id") == ml_item_id) for it in (o.order_items or [])):
                             result.append({
-                                "id": str(o.ml_order_id),
-                                "date": o.date_created.isoformat() if o.date_created else None,
-                                "total_amount": float(o.total_amount) if o.total_amount else 0,
-                                "status": (o.status.value if hasattr(o.status, 'value') else str(o.status)),
-                                "sale_fees": float(o.sale_fees) if o.sale_fees else 0,
-                                "shipping_cost": float(o.shipping_cost) if o.shipping_cost else 0,
-                                "coupon_amount": float(o.coupon_amount) if o.coupon_amount else 0,
+                                "id_pedido": str(o.ml_order_id),  # era "id"
+                                "data": o.date_created.isoformat() if o.date_created else None,  # era "date"
+                                "valor_total": float(o.total_amount) if o.total_amount else 0,  # era "total_amount"
+                                "status": (o.status.value if hasattr(o.status, 'value') else str(o.status)),  # OK manter
+                                "comissoes": float(o.sale_fees) if o.sale_fees else 0,  # era "sale_fees"
+                                "frete": float(o.shipping_cost) if o.shipping_cost else 0,  # era "shipping_cost"
+                                "desconto": float(o.coupon_amount) if o.coupon_amount else 0,  # era "coupon_amount"
                             })
                     except Exception:
                         # Ignorar pedidos malformados
                         continue
-                return {"orders": result}
+                return {"pedidos": result}  # era "orders"
 
             # ========== Sales Aggregates ==========
             if function_name == "get_sales_aggregates":
@@ -1796,16 +1796,19 @@ class OpenAIAssistantService:
                             continue
                     status_str = (o.status.value if hasattr(o.status, "value") else str(o.status)) if getattr(o, "status", None) is not None else None
                     result.append({
-                        "id": str(getattr(o, "ml_order_id", getattr(o, "id", None))),
-                        "date": o.date_created.isoformat() if getattr(o, "date_created", None) else None,
-                        "total_amount": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,
-                        "status": status_str,
-                        "sale_fees": float(o.sale_fees) if getattr(o, "sale_fees", None) else 0.0,
-                        "shipping_cost": float(o.shipping_cost) if getattr(o, "shipping_cost", None) else 0.0,
-                        "coupon_amount": float(o.coupon_amount) if getattr(o, "coupon_amount", None) else 0.0,
-                        "buyer_nickname": getattr(o, "buyer_nickname", None)
+                        "id_pedido": str(getattr(o, "ml_order_id", getattr(o, "id", None))),  # era "id"
+                        "data": o.date_created.isoformat() if getattr(o, "date_created", None) else None,  # era "date"
+                        "valor_total": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,  # era "total_amount"
+                        "status": status_str,  # OK manter
+                        "comissoes": float(o.sale_fees) if getattr(o, "sale_fees", None) else 0.0,  # era "sale_fees"
+                        "frete": float(o.shipping_cost) if getattr(o, "shipping_cost", None) else 0.0,  # era "shipping_cost"
+                        "desconto": float(o.coupon_amount) if getattr(o, "coupon_amount", None) else 0.0,  # era "coupon_amount"
+                        "comprador": getattr(o, "buyer_nickname", None)  # era "buyer_nickname"
                     })
-                return {"orders": result, "total": len(result)}
+                return {
+                    "pedidos": result,  # era "orders"
+                    "total_pedidos": len(result)  # era "total"
+                }
 
             # ========== Product Sales (by product or ml_item_id) ==========
             if function_name == "get_product_sales":
@@ -1894,15 +1897,15 @@ class OpenAIAssistantService:
                             continue
                         status_str = (o.status.value if hasattr(o.status, "value") else str(o.status)) if getattr(o, "status", None) is not None else None
                         results.append({
-                            "order_id": str(getattr(o, "ml_order_id", getattr(o, "id", None))),
-                            "date": o.date_created.isoformat() if getattr(o, "date_created", None) else None,
-                            "status": status_str,
-                            "total_amount": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,
-                            "quantity": qty
+                            "id_pedido": str(getattr(o, "ml_order_id", getattr(o, "id", None))),  # era "order_id"
+                            "data": o.date_created.isoformat() if getattr(o, "date_created", None) else None,  # era "date"
+                            "status": status_str,  # OK manter
+                            "valor_total": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,  # era "total_amount"
+                            "quantidade": qty  # era "quantity"
                         })
                     except Exception:
                         continue
-                return {"sales": results}
+                return {"vendas": results}  # era "sales"
 
             # ========== Catalog Competitors ==========
             if function_name == "get_catalog_competitors_db":
@@ -1913,7 +1916,7 @@ class OpenAIAssistantService:
                 svc = MLCatalogService(self.db)
                 data = svc.get_product_catalog_competitors(product_id, company_id) or {}
                 items = data.get("catalog_products", []) or []
-                return {"competitors": items[offset: offset + limit]}
+                return {"concorrentes": items[offset: offset + limit]}  # era "competitors"
 
             # ========== Ads Metrics ==========
             if function_name == "get_ads_metrics_by_item":
@@ -1943,7 +1946,10 @@ class OpenAIAssistantService:
                 total_costs = product_cost + other_costs + sale_price * (taxes_percent / 100.0) + sale_price * (marketing_percent / 100.0)
                 profit = sale_price - total_costs
                 margin_percent = (profit / sale_price * 100.0) if sale_price > 0 else 0.0
-                return {"profit": profit, "margin_percent": margin_percent}
+                return {
+                    "lucro": profit,  # era "profit"
+                    "margem_percentual": margin_percent  # era "margin_percent"
+                }
 
             # ========== Fee Preview (placeholder) ==========
             if function_name == "get_fee_preview_db":
@@ -1965,10 +1971,14 @@ class OpenAIAssistantService:
                         total_costs = product_cost + other_costs + price * (taxes_percent / 100.0) + price * (marketing_percent / 100.0)
                         profit = price - total_costs
                         margin_percent = (profit / price * 100.0) if price > 0 else 0.0
-                        sims.append({"price": price, "profit": profit, "margin_percent": margin_percent})
+                        sims.append({
+                            "preco": price,  # era "price"
+                            "lucro": profit,  # era "profit"
+                            "margem_percentual": margin_percent  # era "margin_percent"
+                        })
                     except Exception:
                         continue
-                return {"candidates": sims}
+                return {"candidatos": sims}  # era "candidates"
 
             # ========== Required Attributes (placeholder) ==========
             if function_name == "get_required_attributes_db":
@@ -1990,7 +2000,10 @@ class OpenAIAssistantService:
                 issues = []
                 if len(title) > maxlen:
                     issues.append(f"Título acima de {maxlen} caracteres")
-                return {"title": title, "issues": issues}
+                return {
+                    "titulo": title,  # era "title"
+                    "problemas": issues  # era "issues"
+                }
             
             # ========== Search products by name ==========
             if function_name == "search_products_by_name":
@@ -2013,13 +2026,13 @@ class OpenAIAssistantService:
                 results = []
                 for p in rows:
                     results.append({
-                        "id": p.id,
-                        "title": p.title,
-                        "seller_sku": p.seller_sku,
-                        "ml_item_id": p.ml_item_id,
-                        "price": float(p.price) if p.price else None
+                        "id": p.id,  # OK manter
+                        "titulo": p.title,  # era "title"
+                        "sku": p.seller_sku,  # era "seller_sku"
+                        "codigo_anuncio": p.ml_item_id,  # era "ml_item_id"
+                        "preco": float(p.price) if p.price else None  # era "price"
                     })
-                return {"results": results}
+                return {"resultados": results}  # era "results"
             
             # ========== Resolve product by code ==========
             if function_name == "resolve_product_by_code":
@@ -2056,43 +2069,660 @@ class OpenAIAssistantService:
                         # tentar SKU como fallback
                         product = self.db.query(MLProduct).filter(MLProduct.seller_sku == code, MLProduct.company_id == company_id).first()
                 if not product:
-                    return {"found": False}
+                    return {"encontrado": False}  # era "found"
                 return {
-                    "found": True,
-                    "product": {
-                        "id": product.id,
-                        "title": product.title,
-                        "seller_sku": product.seller_sku,
-                        "ml_item_id": product.ml_item_id,
-                        "price": float(product.price) if product.price else None
+                    "encontrado": True,  # era "found"
+                    "produto": {  # era "product"
+                        "id": product.id,  # OK manter
+                        "titulo": product.title,  # era "title"
+                        "sku": product.seller_sku,  # era "seller_sku"
+                        "codigo_anuncio": product.ml_item_id,  # era "ml_item_id"
+                        "preco": float(product.price) if product.price else None  # era "price"
                     }
                 }
             
-            # ======== Exemplos antigos (mantidos para compatibilidade) ========
-            if function_name == "get_ml_order_status":
-                # Exemplo: buscar status de pedido
+            # ========== Order Details ==========
+            if function_name == "get_order_details":
+                """
+                Obtém detalhes completos de um pedido, incluindo itens, comprador, envio, pagamentos e taxas.
+                """
                 order_id = function_args.get("order_id")
                 if not order_id:
                     return {"error": "order_id é obrigatório"}
                 
-                # Aqui você implementaria a lógica real
-                # Por enquanto, retornamos um exemplo
+                include_items = function_args.get("include_items", True)
+                include_shipping = function_args.get("include_shipping", True)
+                include_payments = function_args.get("include_payments", True)
+                include_billing = function_args.get("include_billing", True)
+                
+                from app.models.saas_models import MLOrder
+                # Tentar buscar por ml_order_id (BigInteger) ou order_id (String) ou id (Integer)
+                order = None
+                try:
+                    # Primeiro tentar como integer (id interno ou ml_order_id)
+                    if str(order_id).isdigit():
+                        order = self.db.query(MLOrder).filter(
+                            MLOrder.company_id == company_id,
+                            (MLOrder.id == int(order_id)) | (MLOrder.ml_order_id == int(order_id))
+                        ).first()
+                    # Se não encontrou, tentar como string (order_id)
+                    if not order:
+                        order = self.db.query(MLOrder).filter(
+                            MLOrder.company_id == company_id,
+                            MLOrder.order_id == str(order_id)
+                        ).first()
+                except Exception as e:
+                    logger.error(f"Erro ao buscar pedido {order_id}: {e}")
+                    return {"error": f"Erro ao buscar pedido: {str(e)}"}
+                
+                if not order:
+                    return {"error": "Pedido não encontrado"}
+                
+                # Processar itens do pedido
+                itens = []
+                if include_items and order.order_items:
+                    try:
+                        items_data = order.order_items if isinstance(order.order_items, list) else []
+                        for item in items_data:
+                            item_data = item.get("item", {})
+                            itens.append({
+                                "id_anuncio": item_data.get("id", ""),
+                                "titulo": item_data.get("title", ""),
+                                "quantidade": int(item.get("quantity", 1)),
+                                "preco_unitario": float(item.get("unit_price", 0)),
+                                "preco_total": float(item.get("unit_price", 0)) * int(item.get("quantity", 1)),
+                                "sku": item_data.get("seller_sku", ""),
+                                "variacao": item_data.get("variation", {}),
+                                "condicao": item_data.get("condition", "new")
+                            })
+                    except Exception as e:
+                        logger.warning(f"Erro ao processar itens do pedido: {e}")
+                
+                # Processar comprador
+                comprador = {}
+                if order.buyer_nickname:
+                    comprador = {
+                        "id": order.buyer_id,
+                        "apelido": order.buyer_nickname,
+                        "email": order.buyer_email,
+                        "nome": order.buyer_first_name,
+                        "sobrenome": order.buyer_last_name,
+                        "telefone": order.buyer_phone if isinstance(order.buyer_phone, dict) else {}
+                    }
+                
+                # Processar envio
+                envio = {}
+                if include_shipping:
+                    envio = {
+                        "id": order.shipping_id,
+                        "custo": float(order.shipping_cost) if order.shipping_cost else 0.0,
+                        "metodo": order.shipping_method,
+                        "status": order.shipping_status,
+                        "detalhes": order.shipping_details if isinstance(order.shipping_details, dict) else {}
+                    }
+                
+                # Processar pagamentos
+                pagamentos = []
+                if include_payments and order.payments:
+                    try:
+                        payments_data = order.payments if isinstance(order.payments, list) else []
+                        for payment in payments_data:
+                            pagamentos.append({
+                                "id": payment.get("id", ""),
+                                "metodo": payment.get("payment_method_id", ""),
+                                "tipo": payment.get("payment_type_id", ""),
+                                "status": payment.get("status", ""),
+                                "valor": float(payment.get("transaction_amount", 0)),
+                                "parcelas": int(payment.get("installments", 1))
+                            })
+                    except Exception as e:
+                        logger.warning(f"Erro ao processar pagamentos: {e}")
+                
+                # Processar taxas
+                taxas = {
+                    "total": float(order.sale_fees) if order.sale_fees else 0.0,
+                    "publicacao": 0.0,  # Não disponível diretamente
+                    "venda": float(order.sale_fees) if order.sale_fees else 0.0,
+                    "envio": 0.0,  # Não disponível diretamente
+                    "parcelamento": 0.0  # Não disponível diretamente
+                }
+                
+                # Processar billing se disponível
+                billing = {}
+                if include_billing and order.billing_details:
+                    billing = {
+                        "detalhes": order.billing_details if isinstance(order.billing_details, dict) else {},
+                        "breakdown_venda": order.billing_breakdown_sale if isinstance(order.billing_breakdown_sale, dict) else {},
+                        "breakdown_marketplace": order.billing_breakdown_marketplace if isinstance(order.billing_breakdown_marketplace, dict) else {}
+                    }
+                
+                # Resumo
+                subtotal = sum(item.get("preco_total", 0) for item in itens)
+                frete = float(order.shipping_cost) if order.shipping_cost else 0.0
+                descontos = float(order.coupon_amount) if order.coupon_amount else 0.0
+                total_taxas = taxas.get("total", 0.0)
+                
                 return {
-                    "order_id": order_id,
-                    "status": "pending",
-                    "message": "Função get_ml_order_status chamada com sucesso (implementação pendente)"
+                    "pedido": {
+                        "id_pedido": str(order.ml_order_id),
+                        "numero_pedido": order.order_id,
+                        "status": order.status.value if hasattr(order.status, 'value') else str(order.status),
+                        "status_detalhe": order.status_detail,
+                        "data_criacao": order.date_created.isoformat() if order.date_created else None,
+                        "data_fechamento": order.date_closed.isoformat() if order.date_closed else None,
+                        "ultima_atualizacao": order.last_updated.isoformat() if order.last_updated else None,
+                        "valor_total": float(order.total_amount) if order.total_amount else 0.0,
+                        "valor_pago": float(order.paid_amount) if order.paid_amount else 0.0,
+                        "moeda": order.currency_id or "BRL"
+                    },
+                    "comprador": comprador,
+                    "itens": itens,
+                    "envio": envio,
+                    "pagamentos": pagamentos,
+                    "taxas": taxas,
+                    "billing": billing if billing else None,
+                    "descontos": {
+                        "cupom_id": order.coupon_id,
+                        "valor_cupom": float(order.coupon_amount) if order.coupon_amount else 0.0,
+                        "descontos_aplicados": order.discounts_applied if isinstance(order.discounts_applied, list) else []
+                    },
+                    "resumo": {
+                        "total_itens": len(itens),
+                        "subtotal": subtotal,
+                        "frete": frete,
+                        "descontos": descontos,
+                        "taxas": total_taxas,
+                        "total": subtotal + frete - descontos + total_taxas
+                    }
                 }
             
-            elif function_name == "get_product_info":
-                # Exemplo: buscar informações de produto
-                product_id = function_args.get("product_id")
+            # ========== Catalog Monitoring Status ==========
+            if function_name == "get_catalog_monitoring_status":
+                """
+                Obtém status e informações do monitoramento de catálogo de um produto.
+                """
+                product_id = int(function_args.get("product_id"))
                 if not product_id:
                     return {"error": "product_id é obrigatório"}
                 
+                include_latest_history = function_args.get("include_latest_history", True)
+                include_statistics = function_args.get("include_statistics", True)
+                
+                from app.models.saas_models import MLProduct, MLCatalogMonitoring, MLCatalogHistory
+                from sqlalchemy import func, and_
+                
+                # Buscar produto
+                product = self.db.query(MLProduct).filter(
+                    MLProduct.id == product_id,
+                    MLProduct.company_id == company_id
+                ).first()
+                
+                if not product:
+                    return {"error": "Produto não encontrado"}
+                
+                # Buscar monitoramento
+                monitoring = self.db.query(MLCatalogMonitoring).filter(
+                    MLCatalogMonitoring.company_id == company_id,
+                    MLCatalogMonitoring.ml_product_id == product_id
+                ).first()
+                
+                if not monitoring:
+                    return {"error": "Monitoramento não configurado para este produto"}
+                
+                # Dados básicos do monitoramento
+                monitoramento_data = {
+                    "ativo": monitoring.is_active,
+                    "data_ativacao": monitoring.activated_at.isoformat() if monitoring.activated_at else None,
+                    "ultima_verificacao": monitoring.last_check_at.isoformat() if monitoring.last_check_at else None,
+                    "id_catalogo": monitoring.catalog_product_id
+                }
+                
+                # Contar total de verificações
+                total_verificacoes = self.db.query(func.count(MLCatalogHistory.id)).filter(
+                    MLCatalogHistory.company_id == company_id,
+                    MLCatalogHistory.catalog_product_id == monitoring.catalog_product_id
+                ).scalar() or 0
+                monitoramento_data["total_verificacoes"] = total_verificacoes
+                
+                # Histórico recente
+                historico_recente = {}
+                if include_latest_history:
+                    latest = self.db.query(MLCatalogHistory).filter(
+                        MLCatalogHistory.company_id == company_id,
+                        MLCatalogHistory.catalog_product_id == monitoring.catalog_product_id
+                    ).order_by(MLCatalogHistory.collected_at.desc()).first()
+                    
+                    if latest:
+                        # Processar dados do histórico
+                        catalog_data = latest.catalog_data if isinstance(latest.catalog_data, dict) else {}
+                        participants = catalog_data.get("participants", [])
+                        
+                        # Encontrar posição da empresa
+                        posicao_empresa = None
+                        preco_empresa = None
+                        tem_buy_box = False
+                        vencedor_buy_box = {}
+                        
+                        for idx, participant in enumerate(participants):
+                            if participant.get("seller_id") == str(product.seller_id) if product.seller_id else False:
+                                posicao_empresa = idx + 1
+                                preco_empresa = float(participant.get("price", 0)) / 100.0  # Converter de centavos
+                                tem_buy_box = participant.get("has_buy_box", False)
+                                break
+                        
+                        # Encontrar vencedor da Buy Box
+                        for participant in participants:
+                            if participant.get("has_buy_box", False):
+                                vencedor_buy_box = {
+                                    "id_vendedor": participant.get("seller_id", ""),
+                                    "apelido": participant.get("seller_nickname", ""),
+                                    "preco": float(participant.get("price", 0)) / 100.0  # Converter de centavos
+                                }
+                                break
+                        
+                        # Estatísticas de preços
+                        precos = [float(p.get("price", 0)) / 100.0 for p in participants if p.get("price")]
+                        estatisticas_precos = {}
+                        if precos:
+                            estatisticas_precos = {
+                                "menor_preco": min(precos),
+                                "maior_preco": max(precos),
+                                "preco_medio": sum(precos) / len(precos),
+                                "preco_mediano": sorted(precos)[len(precos) // 2] if precos else 0
+                            }
+                        
+                        # Estatísticas de quantidade
+                        quantidades = [int(p.get("available_quantity", 0)) for p in participants if p.get("available_quantity")]
+                        estatisticas_quantidade = {}
+                        if quantidades:
+                            estatisticas_quantidade = {
+                                "total_disponivel": sum(quantidades),
+                                "total_vendido": sum([int(p.get("sold_quantity", 0)) for p in participants])
+                            }
+                        
+                        historico_recente = {
+                            "data_coleta": latest.collected_at.isoformat() if latest.collected_at else None,
+                            "total_participantes": len(participants),
+                            "posicao_empresa": posicao_empresa,
+                            "preco_empresa": preco_empresa,
+                            "tem_buy_box": tem_buy_box,
+                            "vencedor_buy_box": vencedor_buy_box if vencedor_buy_box else None,
+                            "estatisticas_precos": estatisticas_precos,
+                            "estatisticas_quantidade": estatisticas_quantidade
+                        }
+                
+                # Estatísticas gerais
+                estatisticas_gerais = {}
+                if include_statistics and monitoring.activated_at:
+                    # Calcular dias monitorando
+                    from datetime import datetime, timezone
+                    dias_monitorando = (datetime.now(timezone.utc) - monitoring.activated_at).days if monitoring.activated_at else 0
+                    
+                    # Buscar todas as verificações
+                    all_history = self.db.query(MLCatalogHistory).filter(
+                        MLCatalogHistory.company_id == company_id,
+                        MLCatalogHistory.catalog_product_id == monitoring.catalog_product_id
+                    ).order_by(MLCatalogHistory.collected_at.asc()).all()
+                    
+                    posicoes = []
+                    vezes_com_buy_box = 0
+                    
+                    for hist in all_history:
+                        catalog_data = hist.catalog_data if isinstance(hist.catalog_data, dict) else {}
+                        participants = catalog_data.get("participants", [])
+                        
+                        # Encontrar posição da empresa
+                        for idx, participant in enumerate(participants):
+                            if participant.get("seller_id") == str(product.seller_id) if product.seller_id else False:
+                                posicoes.append(idx + 1)
+                                if participant.get("has_buy_box", False):
+                                    vezes_com_buy_box += 1
+                                break
+                    
+                    estatisticas_gerais = {
+                        "dias_monitorando": dias_monitorando,
+                        "melhor_posicao": min(posicoes) if posicoes else None,
+                        "pior_posicao": max(posicoes) if posicoes else None,
+                        "posicao_media": sum(posicoes) / len(posicoes) if posicoes else None,
+                        "vezes_com_buy_box": vezes_com_buy_box,
+                        "percentual_tempo_buy_box": (vezes_com_buy_box / len(all_history) * 100) if all_history else 0.0
+                    }
+                
+                return {
+                    "monitoramento": monitoramento_data,
+                    "historico_recente": historico_recente if historico_recente else None,
+                    "estatisticas_gerais": estatisticas_gerais if estatisticas_gerais else None
+                }
+            
+            # ========== Stock Tools ==========
+            if function_name == "get_stock_by_product":
+                """
+                Consulta estoque de um produto, incluindo quantidade disponível e reservada por depósito.
+                """
+                product_id = function_args.get("product_id")
+                internal_product_id = function_args.get("internal_product_id")
+                ml_item_id = function_args.get("ml_item_id")
+                warehouse_id = function_args.get("warehouse_id")
+                
+                if not product_id and not internal_product_id and not ml_item_id:
+                    return {"error": "É obrigatório informar product_id, internal_product_id ou ml_item_id"}
+                
+                from app.models.saas_models import ProductStock, InternalProduct, MLProduct, Warehouse
+                from app.services.stock_service import StockService
+                
+                # Resolver internal_product_id se necessário
+                if not internal_product_id:
+                    if product_id:
+                        # Tentar buscar produto interno pelo ID
+                        internal_product = self.db.query(InternalProduct).filter(
+                            InternalProduct.id == int(product_id),
+                            InternalProduct.company_id == company_id
+                        ).first()
+                        if internal_product:
+                            internal_product_id = internal_product.id
+                    elif ml_item_id:
+                        # Buscar via SKU Management
+                        from app.models.saas_models import SKUManagement
+                        sku = self.db.query(SKUManagement).filter(
+                            SKUManagement.company_id == company_id,
+                            SKUManagement.ml_item_id == str(ml_item_id)
+                        ).first()
+                        if sku:
+                            internal_product_id = sku.internal_product_id
+                
+                if not internal_product_id:
+                    return {"error": "Produto interno não encontrado"}
+                
+                # Buscar estoques
+                query = self.db.query(ProductStock).filter(
+                    ProductStock.company_id == company_id,
+                    ProductStock.internal_product_id == internal_product_id
+                )
+                
+                if warehouse_id:
+                    query = query.filter(ProductStock.warehouse_id == warehouse_id)
+                
+                stocks = query.all()
+                
+                warehouses_data = []
+                total_available = Decimal(0)
+                total_reserved = Decimal(0)
+                
+                for stock in stocks:
+                    warehouse = self.db.query(Warehouse).filter(Warehouse.id == stock.warehouse_id).first()
+                    available = Decimal(stock.quantity) if stock.quantity else Decimal(0)
+                    reserved = Decimal(stock.reserved_quantity) if stock.reserved_quantity else Decimal(0)
+                    
+                    warehouses_data.append({
+                        "warehouse_id": stock.warehouse_id,
+                        "warehouse_name": warehouse.name if warehouse else "Desconhecido",
+                        "available_quantity": float(available),
+                        "reserved_quantity": float(reserved)
+                    })
+                    
+                    total_available += available
+                    total_reserved += reserved
+                
                 return {
                     "product_id": product_id,
-                    "message": "Função get_product_info chamada com sucesso (implementação pendente)"
+                    "internal_product_id": internal_product_id,
+                    "warehouses": warehouses_data,
+                    "total_available": float(total_available),
+                    "total_reserved": float(total_reserved)
                 }
+            
+            if function_name == "get_stock_movements":
+                """
+                Lista movimentações de estoque de um produto.
+                """
+                product_id = function_args.get("product_id")
+                internal_product_id = function_args.get("internal_product_id")
+                start_date = function_args.get("start_date")
+                end_date = function_args.get("end_date")
+                movement_type = function_args.get("movement_type")
+                limit = int(function_args.get("limit", 50))
+                offset = int(function_args.get("offset", 0))
+                
+                if not product_id and not internal_product_id:
+                    return {"error": "É obrigatório informar product_id ou internal_product_id"}
+                
+                from app.models.saas_models import StockMovement, ProductStock, InternalProduct
+                from datetime import datetime
+                
+                # Resolver internal_product_id
+                if not internal_product_id and product_id:
+                    internal_product = self.db.query(InternalProduct).filter(
+                        InternalProduct.id == int(product_id),
+                        InternalProduct.company_id == company_id
+                    ).first()
+                    if internal_product:
+                        internal_product_id = internal_product.id
+                
+                if not internal_product_id:
+                    return {"error": "Produto interno não encontrado"}
+                
+                # Buscar product_stocks do produto
+                product_stocks = self.db.query(ProductStock).filter(
+                    ProductStock.company_id == company_id,
+                    ProductStock.internal_product_id == internal_product_id
+                ).all()
+                
+                stock_ids = [ps.id for ps in product_stocks]
+                
+                if not stock_ids:
+                    return {"movements": [], "total": 0}
+                
+                # Buscar movimentações
+                query = self.db.query(StockMovement).filter(
+                    StockMovement.product_stock_id.in_(stock_ids)
+                )
+                
+                if start_date:
+                    try:
+                        dt_start = datetime.fromisoformat(str(start_date)[:10])
+                        query = query.filter(StockMovement.created_at >= dt_start)
+                    except Exception:
+                        pass
+                
+                if end_date:
+                    try:
+                        dt_end = datetime.fromisoformat(str(end_date)[:10])
+                        query = query.filter(StockMovement.created_at <= dt_end)
+                    except Exception:
+                        pass
+                
+                if movement_type:
+                    query = query.filter(StockMovement.movement_type == movement_type)
+                
+                total = query.count()
+                movements = query.order_by(StockMovement.created_at.desc()).offset(offset).limit(limit).all()
+                
+                movements_data = []
+                for mov in movements:
+                    product_stock = self.db.query(ProductStock).filter(ProductStock.id == mov.product_stock_id).first()
+                    warehouse = None
+                    if product_stock:
+                        from app.models.saas_models import Warehouse
+                        warehouse = self.db.query(Warehouse).filter(Warehouse.id == product_stock.warehouse_id).first()
+                    
+                    movements_data.append({
+                        "id": mov.id,
+                        "data": mov.created_at.isoformat() if mov.created_at else None,
+                        "tipo": mov.movement_type.value if hasattr(mov.movement_type, 'value') else str(mov.movement_type),
+                        "quantidade": float(mov.quantity) if mov.quantity else 0.0,
+                        "observacoes": mov.notes,
+                        "warehouse_id": product_stock.warehouse_id if product_stock else None,
+                        "warehouse_name": warehouse.name if warehouse else None
+                    })
+                
+                return {
+                    "movements": movements_data,
+                    "total": total
+                }
+            
+            if function_name == "update_stock_quantity":
+                """
+                Atualiza quantidade de estoque de um produto.
+                """
+                internal_product_id = int(function_args.get("internal_product_id"))
+                warehouse_id = function_args.get("warehouse_id")
+                quantity = float(function_args.get("quantity"))
+                notes = function_args.get("notes", "")
+                movement_type = function_args.get("movement_type", "adjustment")
+                
+                if not internal_product_id:
+                    return {"error": "internal_product_id é obrigatório"}
+                
+                from app.services.stock_service import StockService
+                from app.models.saas_models import InternalProduct
+                
+                # Verificar se produto existe
+                product = self.db.query(InternalProduct).filter(
+                    InternalProduct.id == internal_product_id,
+                    InternalProduct.company_id == company_id
+                ).first()
+                
+                if not product:
+                    return {"error": "Produto não encontrado"}
+                
+                # Usar StockService para atualizar
+                stock_service = StockService(self.db)
+                
+                try:
+                    result = stock_service.update_stock(
+                        company_id=company_id,
+                        internal_product_id=internal_product_id,
+                        warehouse_id=warehouse_id,
+                        quantity_change=quantity,
+                        notes=notes,
+                        movement_type=movement_type
+                    )
+                    
+                    if result.get("success"):
+                        return {
+                            "success": True,
+                            "product_id": product.id,
+                            "internal_product_id": internal_product_id,
+                            "warehouse_id": result.get("warehouse_id"),
+                            "previous_quantity": result.get("previous_quantity"),
+                            "new_quantity": result.get("new_quantity"),
+                            "movement_id": result.get("movement_id")
+                        }
+                    else:
+                        return {"error": result.get("error", "Erro ao atualizar estoque")}
+                except Exception as e:
+                    logger.error(f"Erro ao atualizar estoque: {e}", exc_info=True)
+                    return {"error": f"Erro ao atualizar estoque: {str(e)}"}
+            
+            if function_name == "sync_stock_to_ml":
+                """
+                Sincroniza estoque interno com anúncios do Mercado Livre.
+                """
+                internal_product_id = int(function_args.get("internal_product_id"))
+                ml_account_id = function_args.get("ml_account_id")
+                
+                if not internal_product_id:
+                    return {"error": "internal_product_id é obrigatório"}
+                
+                from app.services.stock_service import StockService
+                from app.models.saas_models import InternalProduct
+                
+                # Verificar se produto existe
+                product = self.db.query(InternalProduct).filter(
+                    InternalProduct.id == internal_product_id,
+                    InternalProduct.company_id == company_id
+                ).first()
+                
+                if not product:
+                    return {"error": "Produto não encontrado"}
+                
+                # Usar StockService para sincronizar
+                stock_service = StockService(self.db)
+                
+                try:
+                    result = stock_service.sync_stock_to_ml_announcements(
+                        company_id=company_id,
+                        internal_product_id=internal_product_id,
+                        ml_account_id=ml_account_id
+                    )
+                    
+                    if result.get("success"):
+                        return {
+                            "success": True,
+                            "internal_product_id": internal_product_id,
+                            "synced_announcements": result.get("synced_announcements", []),
+                            "total_synced": result.get("total_synced", 0),
+                            "errors": result.get("errors", [])
+                        }
+                    else:
+                        return {"error": result.get("error", "Erro ao sincronizar estoque")}
+                except Exception as e:
+                    logger.error(f"Erro ao sincronizar estoque: {e}", exc_info=True)
+                    return {"error": f"Erro ao sincronizar estoque: {str(e)}"}
+            
+            # ========== Calculate (Mathematical Calculations) ==========
+            if function_name == "calculate":
+                """
+                Realiza cálculos matemáticos de forma segura.
+                """
+                expression = str(function_args.get("expression", "")).strip()
+                precision = int(function_args.get("precision", 2))
+                
+                if not expression:
+                    return {"error": "expression é obrigatória"}
+                
+                try:
+                    # Usar simpleeval para avaliação segura se disponível, senão usar eval com whitelist
+                    try:
+                        from simpleeval import SimpleEval
+                        evaluator = SimpleEval()
+                        result = evaluator.eval(expression)
+                    except ImportError:
+                        # Fallback para eval com whitelist limitada
+                        import math
+                        import operator
+                        
+                        # Whitelist de funções e operadores permitidos
+                        allowed_names = {
+                            "abs": abs,
+                            "round": round,
+                            "min": min,
+                            "max": max,
+                            "sum": sum,
+                            "sqrt": math.sqrt,
+                            "pi": math.pi,
+                            "e": math.e,
+                            "__builtins__": {}
+                        }
+                        
+                        # Validar que a expressão contém apenas caracteres seguros
+                        safe_chars = set("0123456789+-*/.()%abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_ ")
+                        if not all(c in safe_chars for c in expression):
+                            return {"error": "Expressão contém caracteres não permitidos"}
+                        
+                        # Tentar avaliar com eval (menos seguro, mas funcional)
+                        try:
+                            result = eval(expression, {"__builtins__": {}}, allowed_names)
+                        except Exception as e:
+                            return {"error": f"Erro ao calcular: {str(e)}"}
+                    
+                    # Formatar resultado com precisão
+                    if isinstance(result, (int, float)):
+                        formatted = round(result, precision)
+                        return {
+                            "result": formatted,
+                            "expression": expression,
+                            "formatted": f"{formatted:.{precision}f}"
+                        }
+                    else:
+                        return {
+                            "result": result,
+                            "expression": expression,
+                            "formatted": str(result)
+                        }
+                except Exception as e:
+                    logger.error(f"Erro ao calcular expressão '{expression}': {e}", exc_info=True)
+                    return {"error": f"Erro ao calcular: {str(e)}"}
             
             else:
                 # Função não implementada
@@ -2100,10 +2730,21 @@ class OpenAIAssistantService:
                 return {
                     "error": f"Função '{function_name}' não está implementada no sistema",
                     "available_functions": [
-                        "get_product_core","get_product_attributes","get_orders","get_product_sales","get_orders_by_item","get_sales_aggregates",
-                        "get_billing_breakdown","get_catalog_competitors_db","get_ads_metrics_by_item",
-                        "get_product_cost_config","compute_margin_db","get_fee_preview_db",
-                        "simulate_price_candidates","get_required_attributes_db","check_title_description_db"
+                        # Produtos ML
+                        "get_product_core", "get_product_attributes", "search_products_by_name", 
+                        "resolve_product_by_code", "check_title_description_db",
+                        # Pedidos e Vendas
+                        "get_orders", "get_product_sales", "get_orders_by_item", "get_sales_aggregates",
+                        "get_billing_breakdown", "get_order_details",
+                        # Estoque
+                        "get_stock_by_product", "get_stock_movements", "update_stock_quantity", "sync_stock_to_ml",
+                        # Catálogo
+                        "get_catalog_competitors_db", "get_catalog_monitoring_status",
+                        # Publicidade
+                        "get_ads_metrics_by_item",
+                        # Análises
+                        "compute_margin_db", "simulate_price_candidates", "calculate",
+                        "get_product_cost_config", "get_fee_preview_db", "get_required_attributes_db"
                     ]
                 }
                 
