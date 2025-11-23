@@ -959,6 +959,10 @@ async def stock_page_html(
         if result.get("error"):
             return RedirectResponse(url="/auth/login", status_code=302)
         
+        # Verificar se plano está inativo e redirecionar para profile
+        if result.get("should_redirect_to_profile"):
+            return RedirectResponse(url="/auth/profile", status_code=302)
+        
         user_data = result["user"]
         return render_template("stock_management.html", user=user_data, request=request)
     except Exception as e:
@@ -984,6 +988,10 @@ async def stock_projection_page_html(
         result = auth_controller.get_user_by_session(session_token, db)
         if result.get("error"):
             return RedirectResponse(url="/auth/login", status_code=302)
+        
+        # Verificar se plano está inativo e redirecionar para profile
+        if result.get("should_redirect_to_profile"):
+            return RedirectResponse(url="/auth/profile", status_code=302)
         
         user_data = result["user"]
         return render_template("stock_projection.html", user=user_data, request=request)

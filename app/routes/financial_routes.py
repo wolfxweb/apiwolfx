@@ -54,6 +54,10 @@ async def financial_categories(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result["user"]
     logger.info(f"🔍 DEBUG - user_data: {user_data}")
     logger.info(f"🔍 DEBUG - user_data keys: {list(user_data.keys()) if user_data else 'None'}")
@@ -75,6 +79,10 @@ async def financial_payables(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result["user"]
     
     from app.views.template_renderer import render_template
@@ -93,6 +101,10 @@ async def nova_conta_pagar(
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     user_data = result["user"]
     
@@ -113,6 +125,10 @@ async def editar_conta_pagar(
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     user_data = result["user"]
     company_id = get_company_id_from_user(user_data)
@@ -165,6 +181,10 @@ async def financial_cost_centers(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result["user"]
     logger.info(f"🔍 DEBUG - user_data: {user_data}")
     
@@ -184,6 +204,10 @@ async def financial_accounts(
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     user_data = result["user"]
     logger.info(f"🔍 DEBUG - user_data: {user_data}")
@@ -205,6 +229,10 @@ async def financial_account_transactions(
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     user_data = result["user"]
     
@@ -238,6 +266,10 @@ async def financial_receivables(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result["user"]
     logger.info(f"🔍 DEBUG - user_data: {user_data}")
     
@@ -257,6 +289,10 @@ async def financial_cashflow(
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     user_data = result["user"]
     logger.info(f"🔍 DEBUG - user_data: {user_data}")
@@ -278,6 +314,10 @@ async def financial_dashboard(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result["user"]
     logger.info(f"🔍 DEBUG - user_data: {user_data}")
     
@@ -298,6 +338,10 @@ async def financial_reports(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result["user"]
     
     from app.views.template_renderer import render_template
@@ -316,6 +360,10 @@ async def create_planning_page(
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     user_data = result["user"]
     
@@ -336,6 +384,10 @@ async def edit_planning_page(
     result = auth_controller.get_user_by_session(session_token, db)
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
+    
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
     
     user_data = result["user"]
     

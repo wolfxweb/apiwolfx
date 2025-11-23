@@ -526,11 +526,12 @@ async def api_get_company_subscription(
     from app.models.saas_models import Subscription
     
     try:
-        # Buscar assinatura ativa da empresa
+        # Buscar assinatura ativa da empresa (ou trial)
         subscription = db.query(Subscription).filter(
-            Subscription.company_id == company_id,
-            Subscription.status == "active"
-        ).first()
+            Subscription.company_id == company_id
+        ).filter(
+            (Subscription.status == "active") | (Subscription.is_trial == True)
+        ).order_by(Subscription.created_at.desc()).first()
         
         if not subscription:
             return {"subscription": None, "plan_template_id": None}
@@ -546,7 +547,10 @@ async def api_get_company_subscription(
                 "id": subscription.id,
                 "plan_name": subscription.plan_name,
                 "price": subscription.price,
-                "status": subscription.status
+                "status": subscription.status,
+                "is_trial": subscription.is_trial if subscription.is_trial is not None else False,
+                "ends_at": subscription.ends_at.isoformat() if subscription.ends_at else None,
+                "trial_ends_at": subscription.trial_ends_at.isoformat() if subscription.trial_ends_at else None
             },
             "plan_template_id": plan_template.id if plan_template else None
         }

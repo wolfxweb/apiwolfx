@@ -56,22 +56,26 @@ class AdvertisingFullController:
             logger.error(f"❌ Erro ao buscar advertiser_id: {e}", exc_info=True)
             return None
     
-    def get_campaigns(self, company_id: int):
+    def get_campaigns(self, company_id: int, ml_account_id: int = None):
         """Lista campanhas da empresa - BUSCA LOCAL"""
         try:
-            logger.info(f"📂 Buscando campanhas locais - company_id: {company_id}")
-            return self.sync_service.get_local_campaigns(company_id)
+            logger.info(f"📂 Buscando campanhas locais - company_id: {company_id}, ml_account_id: {ml_account_id}")
+            return self.sync_service.get_local_campaigns(company_id, ml_account_id)
         except Exception as e:
             logger.error(f"❌ ERRO: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def sync_campaigns(self, company_id: int):
-        """Sincroniza campanhas do ML para o banco local"""
+    def sync_campaigns(self, company_id: int, ml_account_id: int = None):
+        """Sincroniza campanhas do ML para o banco local - sincroniza todas as contas se ml_account_id não for fornecido"""
         try:
-            logger.info(f"🔄 Sincronizando campanhas - company_id: {company_id}")
-            return self.sync_service.sync_campaigns_for_company(company_id)
+            logger.info(f"🔄 Sincronizando campanhas - company_id: {company_id}, ml_account_id: {ml_account_id}")
+            result = self.sync_service.sync_campaigns_for_company(company_id, ml_account_id)
+            logger.info(f"✅ Resultado da sincronização: {result}")
+            return result
         except Exception as e:
-            logger.error(f"❌ ERRO: {e}", exc_info=True)
+            logger.error(f"❌ ERRO na sincronização: {e}", exc_info=True)
+            import traceback
+            logger.error(f"❌ Traceback completo: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
     
     def create_campaign(self, company_id: int, campaign_data: dict):

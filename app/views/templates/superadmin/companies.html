@@ -261,6 +261,29 @@
                             </div>
                         </div>
                     </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="subscriptionIsTrial" class="form-label">Status da Assinatura</label>
+                                <select class="form-select" id="subscriptionIsTrial">
+                                    <option value="false">Ativo (Pago)</option>
+                                    <option value="true">Trial (Gratuito)</option>
+                                </select>
+                                <div class="form-text">Define se a assinatura é trial ou paga</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="subscriptionStatus" class="form-label">Status da Subscription</label>
+                                <select class="form-select" id="subscriptionStatus">
+                                    <option value="active">Ativo</option>
+                                    <option value="inactive">Inativo</option>
+                                    <option value="pending">Pendente</option>
+                                </select>
+                                <div class="form-text">Status da subscription no sistema</div>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -590,17 +613,41 @@ async function editCompany(id) {
         const response = await fetch(`/api/superadmin/companies/${id}/subscription`);
         if (response.ok) {
             const data = await response.json();
-            if (data.subscription && data.plan_template_id) {
+            
+            // Atualizar plan_id se existir
+            if (data.plan_template_id) {
                 document.getElementById('planId').value = data.plan_template_id;
             } else {
                 document.getElementById('planId').value = '';
             }
+            
+            // Atualizar campos da subscription se existir
+            if (data.subscription) {
+                if (data.subscription.is_trial !== undefined) {
+                    document.getElementById('subscriptionIsTrial').value = data.subscription.is_trial ? 'true' : 'false';
+                } else {
+                    document.getElementById('subscriptionIsTrial').value = 'false';
+                }
+                if (data.subscription.status) {
+                    document.getElementById('subscriptionStatus').value = data.subscription.status;
+                } else {
+                    document.getElementById('subscriptionStatus').value = 'active';
+                }
+            } else {
+                // Valores padrão se não houver subscription
+                document.getElementById('subscriptionIsTrial').value = 'false';
+                document.getElementById('subscriptionStatus').value = 'active';
+            }
         } else {
             document.getElementById('planId').value = '';
+            document.getElementById('subscriptionIsTrial').value = 'false';
+            document.getElementById('subscriptionStatus').value = 'active';
         }
     } catch (error) {
         console.error('Erro ao buscar assinatura:', error);
         document.getElementById('planId').value = '';
+        document.getElementById('subscriptionIsTrial').value = 'false';
+        document.getElementById('subscriptionStatus').value = 'active';
     }
     
     const modal = new bootstrap.Modal(document.getElementById('companyModal'));
@@ -625,7 +672,10 @@ async function saveCompany() {
         description: document.getElementById('companyDescription').value,
         // Campos de plano
         plan_expires_at: document.getElementById('planExpiresAt').value || null,
-        plan_id: planId ? parseInt(planId) : null
+        plan_id: planId ? parseInt(planId) : null,
+        // Campos da subscription
+        subscription_is_trial: document.getElementById('subscriptionIsTrial').value === 'true',
+        subscription_status: document.getElementById('subscriptionStatus').value
     };
     
     const companyId = document.getElementById('companyId').value;

@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from app.config.database import SessionLocal
-from app.models.saas_models import Token, MLAccount, MLAccountStatus, Company
+from app.models.saas_models import Token, MLAccount, MLAccountStatus, Company, User
 from sqlalchemy import desc
 
 def get_valid_token_for_company(company_id: int) -> str:
@@ -140,12 +140,31 @@ def update_mcp_json(token: str, company_id: int):
         return False
 
 if __name__ == "__main__":
-    company_id = 27  # Atualizado para company_id correto
-    
     print("=" * 60)
     print("🔄 ATUALIZANDO TOKEN NO MCP.JSON")
     print("=" * 60)
     print()
+    
+    # Buscar company_id do usuário teste@teste.com
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == 'teste@teste.com').first()
+        
+        if user:
+            company_id = user.company_id
+            company = db.query(Company).filter(Company.id == company_id).first()
+            if company:
+                print(f"✅ Usuário encontrado: teste@teste.com")
+                print(f"✅ Company: {company.name} (ID: {company_id})")
+                print()
+            else:
+                print(f"❌ Company ID {company_id} não encontrada")
+                sys.exit(1)
+        else:
+            print("❌ Usuário teste@teste.com não encontrado")
+            sys.exit(1)
+    finally:
+        db.close()
     
     # Buscar token válido
     token = get_valid_token_for_company(company_id)
@@ -161,7 +180,7 @@ if __name__ == "__main__":
         print(f"\n⚠️  Não foi possível obter token válido")
         print(f"\n📋 Para obter um novo token:")
         print(f"   1. Acesse:")
-        print(f"      https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=6987936494418444&redirect_uri=https://9d175879a07f.ngrok-free.app/api/callback")
+        print(f"      https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=3821568023399477&redirect_uri=https://48ef564aa2f3.ngrok-free.app/api/callback")
         print(f"   2. Faça login e autorize a aplicação")
         print(f"   3. Execute este script novamente após o token ser salvo")
 

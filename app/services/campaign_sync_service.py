@@ -18,143 +18,217 @@ class CampaignSyncService:
         self.db = db
         self.token_manager = TokenManager(db)
     
-    def sync_campaigns_for_company(self, company_id: int):
-        """Sincroniza campanhas de uma empresa específica"""
+    def sync_campaigns_for_company(self, company_id: int, ml_account_id: int = None):
+        """Sincroniza campanhas de uma empresa específica - sincroniza TODAS as contas ML ativas se ml_account_id não for fornecido"""
         try:
             import requests
-            logger.info(f"🚀 Iniciando sincronização de campanhas - company_id: {company_id}")
+            from app.models.saas_models import MLAccountStatus
             
-            # 1. Buscar conta ML da empresa
-            account = self.db.query(MLAccount).filter(
-                MLAccount.company_id == company_id
-            ).first()
+            logger.info(f"🚀 Iniciando sincronização de campanhas - company_id: {company_id}, ml_account_id: {ml_account_id}")
             
-            if not account:
-                logger.warning(f"❌ Nenhuma conta ML para company_id: {company_id}")
-                return {"success": False, "error": "Conta ML não encontrada"}
+            # 1. Buscar contas ML ativas da empresa
+            accounts_query = self.db.query(MLAccount).filter(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
+            )
             
-            logger.info(f"✅ Conta encontrada: {account.nickname}")
+            if ml_account_id:
+                accounts_query = accounts_query.filter(MLAccount.id == ml_account_id)
             
-            # 2. Buscar usuário associado
-            user_ml = self.db.query(UserMLAccount).filter(
-                UserMLAccount.ml_account_id == account.id
-            ).first()
+            accounts = accounts_query.all()
             
-            if not user_ml:
-                logger.warning(f"❌ Nenhum usuário para conta {account.id}")
-                return {"success": False, "error": "Usuário não encontrado"}
+            if not accounts:
+                logger.warning(f"❌ Nenhuma conta ML ativa para company_id: {company_id}")
+                return {"success": False, "error": "Nenhuma conta ML ativa encontrada"}
             
-            logger.info(f"✅ Usuário: {user_ml.user_id}")
+            logger.info(f"✅ {len(accounts)} conta(s) ML encontrada(s)")
             
-            # 3. Obter token válido
-            access_token = self.token_manager.get_valid_token(user_ml.user_id)
-            if not access_token:
-                logger.error(f"❌ Sem token para user {user_ml.user_id}")
-                return {"success": False, "error": "Token não disponível"}
+            # Contadores totais
+            total_campaigns_synced = 0
+            total_products_synced = 0
+            total_metrics_synced = 0
+            accounts_processed = []
+            accounts_with_errors = []
             
-            logger.info(f"✅ Token obtido")
-            
-            # 4. Buscar advertiser_id
-            url = "https://api.mercadolibre.com/advertising/advertisers"
-            headers = {"Authorization": f"Bearer {access_token}"}
-            params = {"product_id": "PADS"}
-            
-            logger.info(f"📡 Buscando advertiser_id...")
-            response = requests.get(url, params=params, headers=headers, timeout=10)
-            
-            if response.status_code != 200:
-                logger.error(f"❌ Erro ao buscar advertiser: {response.status_code}")
-                return {"success": False, "error": f"API retornou {response.status_code}"}
-            
-            data = response.json()
-            advertisers = data.get("advertisers", [])
-            
-            if not advertisers:
-                logger.warning(f"⚠️ Nenhum advertiser encontrado para {account.nickname}")
-                return {"success": True, "message": "Nenhum advertiser encontrado", "campaigns_synced": 0}
-            
-            advertiser_id = advertisers[0].get("advertiser_id")
-            logger.info(f"✅ Advertiser ID: {advertiser_id}")
-            
-            # 5. Buscar campanhas da API
-            campaigns_url = f"https://api.mercadolibre.com/advertising/{account.site_id}/advertisers/{advertiser_id}/product_ads/campaigns/search"
-            logger.info(f"📡 Buscando campanhas...")
-            
-            # Adicionar header api-version
-            campaigns_headers = headers.copy()
-            campaigns_headers["api-version"] = "2"
-            
-            campaigns_response = requests.get(campaigns_url, headers=campaigns_headers, timeout=10)
-            
-            if campaigns_response.status_code != 200:
-                logger.error(f"❌ Erro ao buscar campanhas: {campaigns_response.status_code} - {campaigns_response.text[:200]}")
-                return {"success": False, "error": f"API retornou {campaigns_response.status_code}"}
-            
-            campaigns_data = campaigns_response.json()
-            # A API retorna as campanhas em "results", não em "campaigns"
-            campaigns = campaigns_data.get("results", campaigns_data.get("campaigns", []))
-            logger.info(f"✅ {len(campaigns)} campanhas encontradas na API")
-            
-            # 6. Salvar/Atualizar campanhas no banco
-            campaigns_synced = 0
-            products_synced = 0
-            
-            metrics_synced = 0
-            
-            for campaign_data in campaigns:
+            # 2. Processar cada conta ML
+            for account in accounts:
                 try:
-                    # Salvar campanha
-                    campaign_id = self._save_campaign(
-                        company_id=company_id,
+                    logger.info(f"📊 Processando conta: {account.nickname} (ID: {account.id})")
+                    
+                    # Buscar token usando TokenManager (método recomendado)
+                    token_record = self.token_manager.get_token_record_for_account(
                         ml_account_id=account.id,
-                        advertiser_id=advertiser_id,
-                        campaign_data=campaign_data
+                        company_id=company_id,
+                        expected_ml_user_id=str(account.ml_user_id) if account.ml_user_id else None
                     )
-                    self.db.commit()  # Commit individual para evitar rollback em cascata
-                    campaigns_synced += 1
                     
-                    # Sincronizar produtos da campanha
-                    if campaign_id:
-                        try:
-                            products_count = self._sync_campaign_products(
-                                campaign_id=str(campaign_data.get('id')),  # Converter para string
-                                site_id=account.site_id,
-                                access_token=access_token
-                            )
-                            self.db.commit()  # Commit dos produtos
-                            products_synced += products_count
-                        except Exception as e:
-                            logger.warning(f"⚠️ Erro ao sincronizar produtos da campanha {campaign_data.get('id')}: {e}")
-                            self.db.rollback()
+                    if not token_record or not token_record.access_token:
+                        logger.warning(f"⚠️ Nenhum token encontrado para conta {account.id} - pulando")
+                        accounts_with_errors.append({
+                            "account_id": account.id,
+                            "account_nickname": account.nickname,
+                            "error": "Token não encontrado"
+                        })
+                        continue
                     
-                    # Sincronizar métricas históricas (últimos 30 dias)
-                    if campaign_id:
+                    access_token = token_record.access_token
+                    
+                    # Verificar se o token está válido e renovar se necessário
+                    if not self.token_manager.test_token(access_token):
+                        logger.info(f"🔄 Token expirado para conta {account.id}, tentando renovar...")
+                        refreshed = self.token_manager._refresh_token_for_record(token_record)
+                        if refreshed and refreshed.access_token:
+                            access_token = refreshed.access_token
+                            logger.info(f"✅ Token renovado com sucesso para conta {account.id}")
+                        else:
+                            logger.warning(f"⚠️ Falha ao renovar token para conta {account.id} - pulando")
+                            accounts_with_errors.append({
+                                "account_id": account.id,
+                                "account_nickname": account.nickname,
+                                "error": "Falha ao renovar token"
+                            })
+                            continue
+                    
+                    # Buscar advertiser_id
+                    url = "https://api.mercadolibre.com/advertising/advertisers"
+                    headers = {"Authorization": f"Bearer {access_token}"}
+                    params = {"product_id": "PADS"}
+                    
+                    logger.info(f"📡 Buscando advertiser_id para {account.nickname}...")
+                    response = requests.get(url, params=params, headers=headers, timeout=10)
+                    
+                    if response.status_code != 200:
+                        logger.warning(f"⚠️ Erro ao buscar advertiser para {account.nickname}: {response.status_code}")
+                        accounts_with_errors.append({
+                            "account_id": account.id,
+                            "account_nickname": account.nickname,
+                            "error": f"API retornou {response.status_code}"
+                        })
+                        continue
+                    
+                    data = response.json()
+                    advertisers = data.get("advertisers", [])
+                    
+                    if not advertisers:
+                        logger.warning(f"⚠️ Nenhum advertiser encontrado para {account.nickname}")
+                        logger.warning(f"   Resposta da API: {data}")
+                        accounts_with_errors.append({
+                            "account_id": account.id,
+                            "account_nickname": account.nickname,
+                            "error": "Nenhum advertiser encontrado"
+                        })
+                        continue
+                    
+                    advertiser_id = advertisers[0].get("advertiser_id")
+                    logger.info(f"✅ Advertiser ID: {advertiser_id} para {account.nickname}")
+                    
+                    # Buscar campanhas da API
+                    campaigns_url = f"https://api.mercadolibre.com/advertising/{account.site_id}/advertisers/{advertiser_id}/product_ads/campaigns/search"
+                    logger.info(f"📡 Buscando campanhas para {account.nickname}...")
+                    
+                    campaigns_headers = headers.copy()
+                    campaigns_headers["api-version"] = "2"
+                    
+                    campaigns_response = requests.get(campaigns_url, headers=campaigns_headers, timeout=10)
+                    
+                    if campaigns_response.status_code != 200:
+                        logger.warning(f"⚠️ Erro ao buscar campanhas para {account.nickname}: {campaigns_response.status_code}")
+                        accounts_with_errors.append({
+                            "account_id": account.id,
+                            "account_nickname": account.nickname,
+                            "error": f"Erro ao buscar campanhas: {campaigns_response.status_code}"
+                        })
+                        continue
+                    
+                    campaigns_data = campaigns_response.json()
+                    campaigns = campaigns_data.get("results", campaigns_data.get("campaigns", []))
+                    logger.info(f"✅ {len(campaigns)} campanhas encontradas para {account.nickname}")
+                    
+                    # Salvar/Atualizar campanhas no banco
+                    account_campaigns_synced = 0
+                    account_products_synced = 0
+                    account_metrics_synced = 0
+                    
+                    for campaign_data in campaigns:
                         try:
-                            metrics_count = self._sync_campaign_metrics(
-                                campaign_id=campaign_id,
-                                ml_campaign_id=str(campaign_data.get('id')),  # Converter para string
-                                advertiser_id=str(advertiser_id),  # Converter para string
-                                access_token=access_token
+                            # Salvar campanha
+                            campaign_id = self._save_campaign(
+                                company_id=company_id,
+                                ml_account_id=account.id,
+                                advertiser_id=advertiser_id,
+                                campaign_data=campaign_data
                             )
-                            self.db.commit()  # Commit das métricas
-                            metrics_synced += metrics_count
+                            self.db.commit()
+                            account_campaigns_synced += 1
+                            
+                            # Sincronizar produtos da campanha
+                            if campaign_id:
+                                try:
+                                    products_count = self._sync_campaign_products(
+                                        campaign_id=str(campaign_data.get('id')),
+                                        site_id=account.site_id,
+                                        access_token=access_token
+                                    )
+                                    self.db.commit()
+                                    account_products_synced += products_count
+                                except Exception as e:
+                                    logger.warning(f"⚠️ Erro ao sincronizar produtos da campanha {campaign_data.get('id')}: {e}")
+                                    self.db.rollback()
+                            
+                            # Sincronizar métricas históricas
+                            if campaign_id:
+                                try:
+                                    metrics_count = self._sync_campaign_metrics(
+                                        campaign_id=campaign_id,
+                                        ml_campaign_id=str(campaign_data.get('id')),
+                                        advertiser_id=str(advertiser_id),
+                                        access_token=access_token
+                                    )
+                                    self.db.commit()
+                                    account_metrics_synced += metrics_count
+                                except Exception as e:
+                                    logger.warning(f"⚠️ Erro ao sincronizar métricas da campanha {campaign_data.get('id')}: {e}")
+                                    self.db.rollback()
+                            
                         except Exception as e:
-                            logger.warning(f"⚠️ Erro ao sincronizar métricas da campanha {campaign_data.get('id')}: {e}")
+                            logger.error(f"❌ Erro ao salvar campanha {campaign_data.get('id')}: {e}")
                             self.db.rollback()
+                            continue
+                    
+                    # Atualizar contadores totais
+                    total_campaigns_synced += account_campaigns_synced
+                    total_products_synced += account_products_synced
+                    total_metrics_synced += account_metrics_synced
+                    
+                    accounts_processed.append({
+                        "account_id": account.id,
+                        "account_nickname": account.nickname,
+                        "campaigns_synced": account_campaigns_synced,
+                        "products_synced": account_products_synced,
+                        "metrics_synced": account_metrics_synced
+                    })
+                    
+                    logger.info(f"✅ Conta {account.nickname}: {account_campaigns_synced} campanhas, {account_products_synced} produtos, {account_metrics_synced} métricas")
                     
                 except Exception as e:
-                    logger.error(f"❌ Erro ao salvar campanha {campaign_data.get('id')}: {e}")
-                    self.db.rollback()
+                    logger.error(f"❌ Erro ao processar conta {account.nickname}: {e}", exc_info=True)
+                    accounts_with_errors.append({
+                        "account_id": account.id,
+                        "account_nickname": account.nickname,
+                        "error": str(e)
+                    })
                     continue
             
-            logger.info(f"✅ Sincronização concluída: {campaigns_synced} campanhas, {products_synced} produtos, {metrics_synced} métricas")
+            logger.info(f"✅ Sincronização concluída: {total_campaigns_synced} campanhas, {total_products_synced} produtos, {total_metrics_synced} métricas em {len(accounts_processed)} conta(s)")
             
             return {
                 "success": True,
-                "campaigns_synced": campaigns_synced,
-                "products_synced": products_synced,
-                "metrics_synced": metrics_synced,
-                "total_campaigns": len(campaigns)
+                "campaigns_synced": total_campaigns_synced,
+                "products_synced": total_products_synced,
+                "metrics_synced": total_metrics_synced,
+                "accounts_processed": accounts_processed,
+                "accounts_with_errors": accounts_with_errors,
+                "total_accounts": len(accounts)
             }
             
         except Exception as e:
@@ -701,12 +775,18 @@ class CampaignSyncService:
         except Exception as e:
             logger.warning(f"⚠️ Erro ao atualizar totais da campanha {campaign_id}: {e}")
     
-    def get_local_campaigns(self, company_id: int):
+    def get_local_campaigns(self, company_id: int, ml_account_id: int = None):
         """Busca campanhas locais do banco de dados"""
         try:
-            campaigns = self.db.query(MLCampaign).filter(
+            query = self.db.query(MLCampaign).filter(
                 MLCampaign.company_id == company_id
-            ).order_by(MLCampaign.updated_at.desc()).all()
+            )
+            
+            # Filtrar por conta ML se fornecido
+            if ml_account_id:
+                query = query.filter(MLCampaign.ml_account_id == ml_account_id)
+            
+            campaigns = query.order_by(MLCampaign.updated_at.desc()).all()
             
             return {
                 "success": True,
@@ -721,6 +801,7 @@ class CampaignSyncService:
                         "total_impressions": c.total_impressions,
                         "roas": c.roas,
                         "last_sync": c.last_sync_at.isoformat() if c.last_sync_at else None,
+                        "ml_account_id": c.ml_account_id,  # Adicionar ml_account_id para filtro
                         "data": c.campaign_data
                     }
                     for c in campaigns

@@ -81,13 +81,24 @@ async def toggle_ml_orders_receivables(
         return {"success": False, "error": f"Erro interno: {str(e)}"}
 
 @main_router.get("/internal-products", response_class=HTMLResponse)
-async def internal_products_page(request: Request, session_token: str = Cookie(None)):
+async def internal_products_page(request: Request, session_token: str = Cookie(None), db: Session = Depends(get_db)):
     """Página de produtos internos - apenas usuários logados"""
+    from app.controllers.auth_controller import AuthController
+    
     if not session_token:
         return RedirectResponse(url="/auth/login", status_code=302)
     
     try:
-        user = get_current_user(session_token)
+        auth_controller = AuthController()
+        result = auth_controller.get_user_by_session(session_token, db)
+        if result.get("error"):
+            return RedirectResponse(url="/auth/login", status_code=302)
+        
+        # Verificar se plano está inativo e redirecionar para profile
+        if result.get("should_redirect_to_profile"):
+            return RedirectResponse(url="/auth/profile", status_code=302)
+        
+        user = result["user"]
         return render_template("internal_products.html", user=user)
     except Exception:
         # Se token expirado ou inválido, redirecionar para login

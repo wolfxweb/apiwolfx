@@ -33,6 +33,10 @@ async def highlights_page(
         if result.get("error"):
             return HTMLResponse(content="<script>window.location.href='/auth/login';</script>", status_code=401)
         
+        # Verificar se plano está inativo e redirecionar para profile
+        if result.get("should_redirect_to_profile"):
+            return HTMLResponse(content="<script>window.location.href='/auth/profile';</script>", status_code=302)
+        
         user_data = result["user"]
         
         return render_template("ml_highlights.html", request=request, user=user_data)

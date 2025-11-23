@@ -26,6 +26,10 @@ async def analytics_dashboard(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result["user"]
     
     from app.views.template_renderer import render_template

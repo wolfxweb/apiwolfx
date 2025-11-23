@@ -222,7 +222,8 @@ class SuperAdminController:
                 "features": company.features,
                 "created_at": company.created_at,
                 "updated_at": company.updated_at,
-                "trial_ends_at": company.trial_ends_at
+                "trial_ends_at": company.trial_ends_at,
+                "plan_expires_at": company.plan_expires_at
             },
             "users": users_data,
             "ml_accounts": ml_accounts_data,
@@ -232,15 +233,44 @@ class SuperAdminController:
     def update_company_status(self, company_id: int, status: str) -> bool:
         """Atualiza status da empresa"""
         try:
+            from app.models.saas_models import CompanyStatus
+            
             company = self.db.query(Company).filter(Company.id == company_id).first()
             if not company:
                 return False
             
-            company.status = status
+            # Converter string para Enum se necessário
+            if isinstance(status, str):
+                status_upper = status.upper()
+                if status_upper == "ACTIVE":
+                    company.status = CompanyStatus.ACTIVE
+                elif status_upper == "INACTIVE":
+                    company.status = CompanyStatus.INACTIVE
+                elif status_upper == "SUSPENDED":
+                    company.status = CompanyStatus.SUSPENDED
+                elif status_upper == "TRIAL":
+                    company.status = CompanyStatus.TRIAL
+                else:
+                    # Tentar usar o valor diretamente
+                    try:
+                        company.status = CompanyStatus[status_upper]
+                    except KeyError:
+                        print(f"⚠️ Status inválido: {status}")
+                        return False
+            elif isinstance(status, CompanyStatus):
+                company.status = status
+            else:
+                print(f"⚠️ Tipo de status inválido: {type(status)}")
+                return False
+            
             self.db.commit()
+            print(f"✅ Status da empresa {company_id} atualizado para: {company.status}")
             return True
-        except Exception:
+        except Exception as e:
             self.db.rollback()
+            print(f"❌ Erro ao atualizar status: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def create_plan(self, plan_data: Dict) -> bool:
@@ -302,8 +332,6 @@ class SuperAdminController:
                 sub.status = "inactive"
             
             # Criar nova assinatura
-            from datetime import datetime, timedelta
-            
             new_subscription = Subscription(
                 company_id=company_id,
                 plan_name=plan_name,
@@ -390,8 +418,6 @@ class SuperAdminController:
                 ).first()
                 
                 if plan_template:
-                    from datetime import datetime, timedelta
-                    
                     trial_days = plan_template.trial_days if hasattr(plan_template, 'trial_days') else 0
                     is_trial = trial_days > 0
                     
@@ -457,16 +483,186 @@ class SuperAdminController:
             company.slug = company_data["slug"]
             company.domain = company_data.get("domain") if company_data.get("domain") else None
             company.description = company_data.get("description")
-            company.status = company_data["status"]
+            
+            # Converter status string para Enum se necessário
+            if "status" in company_data:
+                status_value = company_data["status"]
+                if isinstance(status_value, str):
+                    # Converter string para CompanyStatus enum
+                    from app.models.saas_models import CompanyStatus
+                    try:
+                        # Tentar converter para enum (case insensitive)
+                        status_upper = status_value.upper()
+                        if status_upper == "ACTIVE":
+                            company.status = CompanyStatus.ACTIVE
+                        elif status_upper == "INACTIVE":
+                            company.status = CompanyStatus.INACTIVE
+                        elif status_upper == "SUSPENDED":
+                            company.status = CompanyStatus.SUSPENDED
+                        elif status_upper == "TRIAL":
+                            company.status = CompanyStatus.TRIAL
+                        else:
+                            # Tentar usar o valor diretamente
+                            company.status = CompanyStatus[status_upper]
+                    except (KeyError, ValueError):
+                        # Se não conseguir converter, manter o valor atual
+                        print(f"⚠️ Status inválido: {status_value}, mantendo status atual")
+                elif isinstance(status_value, CompanyStatus):
+                    company.status = status_value
+                else:
+                    print(f"⚠️ Tipo de status inválido: {type(status_value)}, mantendo status atual")
+            
             # Atualizar campos de plano
             if "plan_expires_at" in company_data:
-                company.plan_expires_at = company_data["plan_expires_at"]
+                plan_expires_at_value = company_data["plan_expires_at"]
+                if plan_expires_at_value:
+                    # Converter string para datetime se necessário
+                    if isinstance(plan_expires_at_value, str):
+                        try:
+                            # Tentar parsear formato ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS)
+                            if 'T' in plan_expires_at_value:
+                                # Formato com hora
+                                dt_value = datetime.fromisoformat(plan_expires_at_value.replace('Z', '+00:00'))
+                                # Converter para UTC se tiver timezone
+                                if dt_value.tzinfo:
+                                    dt_value = dt_value.replace(tzinfo=None)
+                                company.plan_expires_at = dt_value
+                            else:
+                                # Apenas data, adicionar hora 23:59:59 em UTC
+                                dt_value = datetime.strptime(plan_expires_at_value, '%Y-%m-%d')
+                                company.plan_expires_at = dt_value.replace(hour=23, minute=59, second=59)
+                        except ValueError:
+                            # Tentar outros formatos
+                            try:
+                                dt_value = datetime.strptime(plan_expires_at_value, '%Y-%m-%d %H:%M:%S')
+                                company.plan_expires_at = dt_value
+                            except ValueError:
+                                raise ValueError(f"Formato de data inválido: {plan_expires_at_value}")
+                    elif isinstance(plan_expires_at_value, datetime):
+                        # Se já é datetime, usar diretamente (remover timezone se houver)
+                        dt_value = plan_expires_at_value
+                        if dt_value.tzinfo:
+                            dt_value = dt_value.replace(tzinfo=None)
+                        company.plan_expires_at = dt_value
+                    else:
+                        company.plan_expires_at = None
+                else:
+                    company.plan_expires_at = None
+            
+            # Buscar subscription ativa existente (se houver)
+            active_subscription = self.db.query(Subscription).filter(
+                Subscription.company_id == company_id,
+                Subscription.status == 'active'
+            ).first()
+            
+            # Atualizar ou criar subscription se plan_id foi fornecido
+            if "plan_id" in company_data and company_data.get("plan_id"):
+                plan_template_id = company_data["plan_id"]
+                
+                # Buscar template do plano
+                plan_template = self.db.query(Subscription).filter(
+                    Subscription.id == plan_template_id,
+                    Subscription.status == "template"
+                ).first()
+                
+                if plan_template:
+                    if active_subscription:
+                        # Atualizar subscription existente com dados do template
+                        active_subscription.plan_name = plan_template.plan_name
+                        if hasattr(plan_template, 'price'):
+                            active_subscription.price = plan_template.price
+                        if hasattr(plan_template, 'currency'):
+                            active_subscription.currency = plan_template.currency
+                        if hasattr(plan_template, 'plan_features'):
+                            active_subscription.plan_features = plan_template.plan_features
+                        if hasattr(plan_template, 'description'):
+                            active_subscription.description = plan_template.description
+                        if hasattr(plan_template, 'billing_cycle'):
+                            active_subscription.billing_cycle = plan_template.billing_cycle
+                        if hasattr(plan_template, 'max_users'):
+                            active_subscription.max_users = plan_template.max_users
+                        if hasattr(plan_template, 'max_ml_accounts'):
+                            active_subscription.max_ml_accounts = plan_template.max_ml_accounts
+                        if hasattr(plan_template, 'ai_analysis_monthly'):
+                            active_subscription.ai_analysis_monthly = plan_template.ai_analysis_monthly
+                        
+                        print(f"✅ Subscription {active_subscription.id} atualizada com plano {plan_template.plan_name}")
+                    else:
+                        # Criar nova subscription
+                        # Usar valores do formulário se fornecidos, senão usar padrões
+                        subscription_status = company_data.get("subscription_status", "active")
+                        subscription_is_trial = company_data.get("subscription_is_trial", False)
+                        
+                        active_subscription = Subscription(
+                            company_id=company_id,
+                            plan_name=plan_template.plan_name,
+                            status=subscription_status,
+                            is_trial=bool(subscription_is_trial),
+                            starts_at=datetime.utcnow(),
+                            ends_at=company.plan_expires_at if company.plan_expires_at else (datetime.utcnow() + timedelta(days=30))
+                        )
+                        
+                        # Copiar campos do template se existirem
+                        if hasattr(plan_template, 'price'):
+                            active_subscription.price = plan_template.price
+                        if hasattr(plan_template, 'currency'):
+                            active_subscription.currency = plan_template.currency or "BRL"
+                        if hasattr(plan_template, 'plan_features'):
+                            active_subscription.plan_features = plan_template.plan_features
+                        if hasattr(plan_template, 'description'):
+                            active_subscription.description = plan_template.description
+                        if hasattr(plan_template, 'billing_cycle'):
+                            active_subscription.billing_cycle = plan_template.billing_cycle
+                        if hasattr(plan_template, 'max_users'):
+                            active_subscription.max_users = plan_template.max_users
+                        if hasattr(plan_template, 'max_ml_accounts'):
+                            active_subscription.max_ml_accounts = plan_template.max_ml_accounts
+                        if hasattr(plan_template, 'ai_analysis_monthly'):
+                            active_subscription.ai_analysis_monthly = plan_template.ai_analysis_monthly
+                        
+                        self.db.add(active_subscription)
+                        print(f"✅ Nova subscription criada com plano {plan_template.plan_name}")
+                else:
+                    print(f"⚠️ Template de plano {plan_template_id} não encontrado")
+            
+            # Atualizar campos da subscription se fornecidos (sempre, independente de plan_id)
+            if active_subscription:
+                # Atualizar ends_at se plan_expires_at foi definido
+                if company.plan_expires_at:
+                    active_subscription.ends_at = company.plan_expires_at
+                    print(f"✅ Subscription {active_subscription.id} - ends_at atualizado para: {active_subscription.ends_at}")
+                
+                # Atualizar is_trial se fornecido
+                if "subscription_is_trial" in company_data:
+                    active_subscription.is_trial = bool(company_data["subscription_is_trial"])
+                    print(f"✅ Subscription {active_subscription.id} - is_trial atualizado para: {active_subscription.is_trial}")
+                
+                # Atualizar status se fornecido
+                if "subscription_status" in company_data:
+                    active_subscription.status = company_data["subscription_status"]
+                    print(f"✅ Subscription {active_subscription.id} - status atualizado para: {active_subscription.status}")
+            elif company.plan_expires_at or "subscription_is_trial" in company_data or "subscription_status" in company_data:
+                # Se não há subscription mas há campos para atualizar, apenas logar
+                print(f"⚠️ Não há subscription ativa para atualizar. Campos ignorados: plan_expires_at, subscription_is_trial, subscription_status")
+            
+            # Log para debug
+            print(f"✅ Empresa {company_id} atualizada:")
+            print(f"   plan_expires_at = {company.plan_expires_at}")
+            print(f"   status = {company.status} (tipo: {type(company.status)})")
             
             self.db.commit()
             
+            # Recarregar a empresa do banco para garantir que foi salva
+            self.db.refresh(company)
+            print(f"✅ Empresa recarregada do banco:")
+            print(f"   plan_expires_at = {company.plan_expires_at}")
+            print(f"   status = {company.status} (tipo: {type(company.status)})")
+            
             return {
                 "id": company.id,
-                "message": "Empresa atualizada com sucesso"
+                "message": "Empresa atualizada com sucesso",
+                "plan_expires_at": company.plan_expires_at.isoformat() if company.plan_expires_at else None,
+                "status": company.status.value if hasattr(company.status, 'value') else str(company.status)
             }
         except Exception as e:
             self.db.rollback()

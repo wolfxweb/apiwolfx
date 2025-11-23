@@ -1,6 +1,6 @@
 """Rotas completas para publicidade"""
-from fastapi import APIRouter, Depends, HTTPException, Request, Cookie
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.config.database import get_db
@@ -49,8 +49,8 @@ router = APIRouter(prefix="/ml/advertising", tags=["Advertising"])
 @router.get("", response_class=HTMLResponse)
 async def advertising_page(request: Request, db: Session = Depends(get_db)):
     """Página de publicidade"""
-    # Verificar autenticação com redirect
-    user = get_current_user_or_redirect(request, db)
+    # Verificar autenticação com redirect (allow_profile=False para redirecionar se plano inativo)
+    user = get_current_user_or_redirect(request, db, allow_profile=False)
     
     # Se retornou RedirectResponse, retornar o redirect
     if isinstance(user, RedirectResponse):
@@ -62,16 +62,24 @@ async def advertising_page(request: Request, db: Session = Depends(get_db)):
     })
 
 @router.get("/campaigns")
-async def get_campaigns(user = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Lista campanhas locais (rápido)"""
+async def get_campaigns(
+    ml_account_id: Optional[int] = Query(None, description="ID da conta ML para filtrar campanhas"),
+    user = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Lista campanhas locais (rápido) - pode filtrar por conta ML"""
     controller = AdvertisingFullController(db)
-    return controller.get_campaigns(user["company"]["id"])
+    return controller.get_campaigns(user["company"]["id"], ml_account_id)
 
 @router.post("/campaigns/sync")
-async def sync_campaigns(user = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Sincroniza campanhas do Mercado Livre"""
+async def sync_campaigns(
+    ml_account_id: Optional[int] = Query(None, description="ID da conta ML específica (opcional - se não fornecido, sincroniza todas)"),
+    user = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Sincroniza campanhas do Mercado Livre - sincroniza todas as contas ativas se ml_account_id não for fornecido"""
     controller = AdvertisingFullController(db)
-    return controller.sync_campaigns(user["company"]["id"])
+    return controller.sync_campaigns(user["company"]["id"], ml_account_id)
 
 @router.post("/campaigns")
 async def create_campaign(
@@ -179,3 +187,49 @@ async def get_campaign_price_evolution(
     """Busca evolução do preço médio de venda dos produtos da campanha baseado nos pedidos reais"""
     controller = AdvertisingFullController(db)
     return controller.get_campaign_price_evolution(user["company"]["id"], campaign_id, date_from, date_to)
+
+@router.get("/api/accounts")
+async def get_ml_accounts_api(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para listar contas ML ativas da empresa"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result["user"]
+    company_id = user_data["company"]["id"]
+    
+    from app.models.saas_models import MLAccount, MLAccountStatus
+    
+    ml_accounts = db.query(MLAccount).filter(
+        MLAccount.company_id == company_id,
+        MLAccount.status == MLAccountStatus.ACTIVE
+    ).order_by(MLAccount.nickname.asc()).all()
+    
+    accounts_list = [
+        {
+            "id": acc.id,
+            "nickname": acc.nickname,
+            "email": acc.email,
+            "site_id": acc.site_id
+        }
+        for acc in ml_accounts
+    ]
+    
+    return JSONResponse(content={
+        "success": True,
+        "accounts": accounts_list,
+        "total_accounts": len(accounts_list)
+    })

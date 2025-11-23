@@ -39,6 +39,10 @@ async def orders_list(
     if result.get("error"):
         return RedirectResponse(url="/auth/login", status_code=302)
     
+    # Verificar se plano está inativo e redirecionar para profile
+    if result.get("should_redirect_to_profile"):
+        return RedirectResponse(url="/auth/profile", status_code=302)
+    
     user_data = result["user"]
     
     from app.views.template_renderer import render_template
@@ -59,6 +63,10 @@ async def order_details_page(
         result = AuthController().get_user_by_session(session_token, db)
         if result.get("error"):
             return RedirectResponse(url="/auth/login", status_code=302)
+        
+        # Verificar se plano está inativo e redirecionar para profile
+        if result.get("should_redirect_to_profile"):
+            return RedirectResponse(url="/auth/profile", status_code=302)
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]

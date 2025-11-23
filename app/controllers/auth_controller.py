@@ -109,31 +109,46 @@ class AuthController:
             should_redirect_to_profile = False
             plan_status = "active"
             
-            if company.status == CompanyStatus.INACTIVE:
-                should_redirect_to_profile = True
-                plan_status = "inactive"
-            elif subscription:
-                # Verificar se é trial e se está vencido
-                if subscription.is_trial:
-                    if subscription.trial_ends_at and subscription.trial_ends_at < dt.now():
-                        should_redirect_to_profile = True
-                        plan_status = "trial_expired"
-                    elif subscription.trial_ends_at and subscription.trial_ends_at >= dt.now():
-                        plan_status = "trial"
-                    else:
-                        # Trial sem data de término definida, considerar ativo
-                        plan_status = "trial"
-                elif subscription.status == "inactive":
-                    should_redirect_to_profile = True
-                    plan_status = "inactive"
-                elif subscription.ends_at and subscription.ends_at < dt.now():
+            # IMPORTANTE: Verificar primeiro o plan_expires_at da empresa (atualizado pelo superadmin)
+            if company.plan_expires_at:
+                if company.plan_expires_at < dt.now():
+                    # Plano vencido
                     should_redirect_to_profile = True
                     plan_status = "expired"
-            else:
-                # Sem assinatura, verificar se empresa está inativa
+                else:
+                    # Plano ainda válido
+                    plan_status = "active"
+                    should_redirect_to_profile = False
+            
+            # Se não tiver plan_expires_at ou se ainda não foi determinado, verificar outros critérios
+            if not should_redirect_to_profile:
                 if company.status == CompanyStatus.INACTIVE:
                     should_redirect_to_profile = True
                     plan_status = "inactive"
+                elif subscription:
+                    # Verificar se é trial e se está vencido
+                    if subscription.is_trial:
+                        if subscription.trial_ends_at and subscription.trial_ends_at < dt.now():
+                            should_redirect_to_profile = True
+                            plan_status = "trial_expired"
+                        elif subscription.trial_ends_at and subscription.trial_ends_at >= dt.now():
+                            plan_status = "trial"
+                        else:
+                            # Trial sem data de término definida, considerar ativo
+                            plan_status = "trial"
+                    elif subscription.status == "inactive":
+                        should_redirect_to_profile = True
+                        plan_status = "inactive"
+                    elif subscription.ends_at and subscription.ends_at < dt.now():
+                        # Só considerar vencido se não tiver plan_expires_at válido na empresa
+                        if not company.plan_expires_at or company.plan_expires_at < dt.now():
+                            should_redirect_to_profile = True
+                            plan_status = "expired"
+                else:
+                    # Sem assinatura, verificar se empresa está inativa
+                    if company.status == CompanyStatus.INACTIVE:
+                        should_redirect_to_profile = True
+                        plan_status = "inactive"
             
             # Criar sessão
             session_token = self._generate_session_token()
@@ -462,31 +477,50 @@ class AuthController:
             plan_status = "active"
             should_redirect_to_profile = False
             
-            if company.status == CompanyStatus.INACTIVE:
-                should_redirect_to_profile = True
-                plan_status = "inactive"
-            elif subscription:
-                # Verificar se é trial e se está vencido
-                if subscription.is_trial:
-                    if subscription.trial_ends_at and subscription.trial_ends_at < dt.now():
-                        should_redirect_to_profile = True
-                        plan_status = "trial_expired"
-                    elif subscription.trial_ends_at and subscription.trial_ends_at >= dt.now():
-                        plan_status = "trial"
-                    else:
-                        # Trial sem data de término definida, considerar ativo
-                        plan_status = "trial"
-                elif subscription.status == "inactive":
-                    should_redirect_to_profile = True
-                    plan_status = "inactive"
-                elif subscription.ends_at and subscription.ends_at < dt.now():
+            # IMPORTANTE: Verificar primeiro o plan_expires_at da empresa (atualizado pelo superadmin)
+            # Este campo tem prioridade sobre subscription.ends_at
+            if company.plan_expires_at:
+                now = dt.now()
+                if company.plan_expires_at < now:
+                    # Plano vencido
                     should_redirect_to_profile = True
                     plan_status = "expired"
-            else:
-                # Sem assinatura, verificar se empresa está inativa
+                    logger.info(f"🔒 Plano vencido para empresa {company.id}: plan_expires_at={company.plan_expires_at}, now={now}")
+                else:
+                    # Plano ainda válido
+                    plan_status = "active"
+                    should_redirect_to_profile = False
+                    logger.debug(f"✅ Plano válido para empresa {company.id}: plan_expires_at={company.plan_expires_at}")
+            
+            # Se não tiver plan_expires_at ou se ainda não foi determinado, verificar outros critérios
+            if not should_redirect_to_profile:
                 if company.status == CompanyStatus.INACTIVE:
                     should_redirect_to_profile = True
                     plan_status = "inactive"
+                elif subscription:
+                    # Verificar se é trial e se está vencido
+                    if subscription.is_trial:
+                        if subscription.trial_ends_at and subscription.trial_ends_at < dt.now():
+                            should_redirect_to_profile = True
+                            plan_status = "trial_expired"
+                        elif subscription.trial_ends_at and subscription.trial_ends_at >= dt.now():
+                            plan_status = "trial"
+                        else:
+                            # Trial sem data de término definida, considerar ativo
+                            plan_status = "trial"
+                    elif subscription.status == "inactive":
+                        should_redirect_to_profile = True
+                        plan_status = "inactive"
+                    elif subscription.ends_at and subscription.ends_at < dt.now():
+                        # Só considerar vencido se não tiver plan_expires_at válido na empresa
+                        if not company.plan_expires_at or company.plan_expires_at < dt.now():
+                            should_redirect_to_profile = True
+                            plan_status = "expired"
+                else:
+                    # Sem assinatura, verificar se empresa está inativa
+                    if company.status == CompanyStatus.INACTIVE:
+                        should_redirect_to_profile = True
+                        plan_status = "inactive"
             
             return {
                 "success": True,
