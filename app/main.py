@@ -498,36 +498,126 @@ async def startup_event():
                         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                         'database', 'fixes', '2025_11_23_remove_deprecated_tools.py'
                     )
+                    cleanup_executed = False
                     if os.path.exists(cleanup_path):
-                        print(f"🔄 [STARTUP] Executando limpeza de ferramentas antigas...")
-                        spec_cleanup = importlib.util.spec_from_file_location("remove_deprecated_tools", cleanup_path)
-                        cleanup_module = importlib.util.module_from_spec(spec_cleanup)
-                        spec_cleanup.loader.exec_module(cleanup_module)
-                        cleanup_result = cleanup_module.run(db)
-                        if cleanup_result.get("success"):
-                            print(f"✅ [STARTUP] {cleanup_result.get('tools_deactivated', 0)} ferramentas antigas desativadas")
-                        else:
-                            print(f"⚠️ [STARTUP] Erro na limpeza: {cleanup_result.get('error', 'Erro desconhecido')}")
-                    else:
-                        print(f"⚠️ [STARTUP] Arquivo de limpeza não encontrado: {cleanup_path}")
+                        try:
+                            print(f"🔄 [STARTUP] Executando limpeza de ferramentas antigas...")
+                            spec_cleanup = importlib.util.spec_from_file_location("remove_deprecated_tools", cleanup_path)
+                            cleanup_module = importlib.util.module_from_spec(spec_cleanup)
+                            spec_cleanup.loader.exec_module(cleanup_module)
+                            cleanup_result = cleanup_module.run(db)
+                            if cleanup_result.get("success"):
+                                print(f"✅ [STARTUP] {cleanup_result.get('tools_deactivated', 0)} ferramentas antigas desativadas")
+                                cleanup_executed = True
+                            else:
+                                print(f"⚠️ [STARTUP] Erro na limpeza: {cleanup_result.get('error', 'Erro desconhecido')}")
+                        except Exception as e:
+                            print(f"⚠️ [STARTUP] Erro ao executar script de limpeza: {e}")
+                    
+                    # Fallback: executar SQL diretamente se script não foi encontrado ou falhou
+                    if not cleanup_executed:
+                        print(f"🔄 [STARTUP] Executando limpeza via SQL direto (fallback)...")
+                        try:
+                            deprecated_tools = ["get_ml_order_status", "get_product_info"]
+                            for tool_name in deprecated_tools:
+                                db.execute(
+                                    text("UPDATE openai_tools SET is_active = FALSE WHERE name = :name"),
+                                    {"name": tool_name}
+                                )
+                                db.execute(
+                                    text("""
+                                        UPDATE openai_tool_handlers 
+                                        SET is_active = FALSE 
+                                        WHERE tool_id IN (SELECT id FROM openai_tools WHERE name = :name)
+                                    """),
+                                    {"name": tool_name}
+                                )
+                            db.commit()
+                            print(f"✅ [STARTUP] Limpeza via SQL concluída")
+                        except Exception as e:
+                            print(f"⚠️ [STARTUP] Erro na limpeza via SQL: {e}")
+                            db.rollback()
                     
                     # Seed de TODAS as ferramentas do agente IA
-                    seed_path = os.path.join(
-                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                        'database', 'fixes', '2025_11_23_seed_all_ai_tools.py'
-                    )
-                    if os.path.exists(seed_path):
-                        print(f"🔄 [STARTUP] Executando seed de ferramentas...")
-                        spec2 = importlib.util.spec_from_file_location("seed_all_ai_tools", seed_path)
-                        seed_module = importlib.util.module_from_spec(spec2)
-                        spec2.loader.exec_module(seed_module)
-                        result = seed_module.run(db)
-                        if result.get("success"):
-                            print(f"✅ [STARTUP] {result.get('tools_registered', 0)} ferramentas do agente IA registradas")
-                        else:
-                            print(f"⚠️ [STARTUP] Erro ao registrar ferramentas: {result.get('error', 'Erro desconhecido')}")
-                    else:
-                        print(f"⚠️ [STARTUP] Arquivo de seed não encontrado: {seed_path}")
+                    # Tentar múltiplos caminhos possíveis
+                    possible_seed_paths = [
+                        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'database', 'fixes', '2025_11_23_seed_all_ai_tools.py'),
+                        '/app/database/fixes/2025_11_23_seed_all_ai_tools.py',
+                        os.path.join(os.getcwd(), 'database', 'fixes', '2025_11_23_seed_all_ai_tools.py'),
+                    ]
+                    
+                    seed_executed = False
+                    seed_path = None
+                    for path in possible_seed_paths:
+                        if os.path.exists(path):
+                            seed_path = path
+                            break
+                    
+                    if seed_path:
+                        try:
+                            print(f"🔄 [STARTUP] Executando seed de ferramentas de {seed_path}...")
+                            spec2 = importlib.util.spec_from_file_location("seed_all_ai_tools", seed_path)
+                            seed_module = importlib.util.module_from_spec(spec2)
+                            spec2.loader.exec_module(seed_module)
+                            result = seed_module.run(db)
+                            if result.get("success"):
+                                print(f"✅ [STARTUP] {result.get('tools_registered', 0)} ferramentas do agente IA registradas")
+                                seed_executed = True
+                            else:
+                                print(f"⚠️ [STARTUP] Erro ao registrar ferramentas: {result.get('error', 'Erro desconhecido')}")
+                        except Exception as e:
+                            print(f"⚠️ [STARTUP] Erro ao executar script de seed: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    
+                    # Fallback: tentar importar diretamente se estiver no PYTHONPATH
+                    if not seed_executed:
+                        try:
+                            print(f"🔄 [STARTUP] Tentando importar seed_all_ai_tools diretamente...")
+                            import sys
+                            # Adicionar caminhos possíveis ao sys.path
+                            for base_path in [
+                                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                '/app',
+                                os.getcwd()
+                            ]:
+                                db_fixes_path = os.path.join(base_path, 'database', 'fixes')
+                                if db_fixes_path not in sys.path and os.path.exists(db_fixes_path):
+                                    sys.path.insert(0, db_fixes_path)
+                                    print(f"📁 [STARTUP] Adicionado ao path: {db_fixes_path}")
+                            
+                            # Tentar importar usando importlib com caminho absoluto
+                            import importlib.util
+                            for base_path in [
+                                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                '/app',
+                                os.getcwd()
+                            ]:
+                                potential_path = os.path.join(base_path, 'database', 'fixes', '2025_11_23_seed_all_ai_tools.py')
+                                if os.path.exists(potential_path):
+                                    print(f"📁 [STARTUP] Tentando importar de: {potential_path}")
+                                    spec = importlib.util.spec_from_file_location("seed_all_ai_tools_fallback", potential_path)
+                                    if spec and spec.loader:
+                                        seed_module = importlib.util.module_from_spec(spec)
+                                        spec.loader.exec_module(seed_module)
+                                        result = seed_module.run(db)
+                                        if result.get("success"):
+                                            print(f"✅ [STARTUP] {result.get('tools_registered', 0)} ferramentas do agente IA registradas (via import direto)")
+                                            seed_executed = True
+                                            break
+                        except Exception as e:
+                            print(f"⚠️ [STARTUP] Erro ao importar seed diretamente: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    
+                    if not seed_executed:
+                        print(f"❌ [STARTUP] IMPORTANTE: Não foi possível executar seed de ferramentas!")
+                        print(f"❌ [STARTUP] Verifique se os arquivos estão em /app/database/fixes/")
+                        print(f"❌ [STARTUP] Caminhos testados:")
+                        for path in possible_seed_paths:
+                            exists = "✅" if os.path.exists(path) else "❌"
+                            print(f"   {exists} {path}")
+                        print(f"❌ [STARTUP] Execute manualmente: python database/fixes/2025_11_23_seed_all_ai_tools.py")
                         # Fallback para o script antigo se o novo não existir
                         old_seed_path = os.path.join(
                             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),

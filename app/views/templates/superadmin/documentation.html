@@ -63,18 +63,40 @@
                 </div>
                 <div class="card-body">
                     {% if manuais_agente_ia %}
+                    <!-- Exemplo de Configuração (destaque) -->
+                    {% for manual in manuais_agente_ia %}
+                        {% if manual.is_example %}
+                        <div class="alert alert-info border-info mb-4">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-star-fill text-warning me-2 fs-5"></i>
+                                <h5 class="mb-0">Exemplo de Configuração de Agente</h5>
+                            </div>
+                            <p class="mb-2">
+                                <strong>{{ manual.nome }}</strong> - Este documento contém o prompt completo de instruções, mensagem de boas-vindas e template de prompt inicial para configurar um agente de IA no sistema.
+                            </p>
+                            <a href="/api/manual/agente_ia/{{ manual.arquivo }}" target="_blank" class="btn btn-info">
+                                <i class="bi bi-eye"></i> Visualizar Documento Completo
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                    
                     <div class="row">
                         {% for manual in manuais_agente_ia %}
                         <div class="col-md-6 col-lg-4 mb-3">
-                            <div class="card h-100 border-success">
+                            <div class="card h-100 {% if manual.is_example %}border-warning shadow-sm{% else %}border-success{% endif %}">
                                 <div class="card-body">
                                     <h6 class="card-title">
-                                        <i class="bi bi-tools text-success"></i> {{ manual.nome }}
+                                        <i class="bi {% if manual.is_example %}bi-star-fill text-warning{% else %}bi-tools text-success{% endif %}"></i> 
+                                        {{ manual.nome }}
+                                        {% if manual.is_example %}
+                                        <span class="badge bg-warning text-dark ms-2">Exemplo</span>
+                                        {% endif %}
                                     </h6>
                                     <p class="card-text text-muted small mb-2">
                                         <code class="text-secondary">{{ manual.arquivo }}</code>
                                     </p>
-                                    <a href="/api/manual/agente_ia/{{ manual.arquivo }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                    <a href="/api/manual/agente_ia/{{ manual.arquivo }}" target="_blank" class="btn btn-sm {% if manual.is_example %}btn-warning{% else %}btn-outline-success{% endif %}">
                                         <i class="bi bi-eye"></i> Visualizar
                                     </a>
                                 </div>

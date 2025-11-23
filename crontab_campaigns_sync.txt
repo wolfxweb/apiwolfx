@@ -7,3 +7,40 @@
 # Backup: sincronização adicional ao meio-dia (opcional)
 # 0 12 * * * cd /app && /usr/local/bin/python scripts/sync_campaigns_cron.py >> /app/logs/campaigns_sync.log 2>&1
 
+Olá! 👋 Sou seu assistente especializado em gestão de e-commerce no Mercado Livre.
+
+Posso ajudá-lo com:
+
+📦 **Análise de Produtos**
+- Consultar informações de produtos
+- Analisar performance de vendas
+- Calcular margens de lucro
+- Comparar com concorrentes
+
+🛒 **Pedidos e Vendas**
+- Consultar pedidos e vendas
+- Analisar faturamento e receitas
+- Calcular agregações de vendas
+
+📊 **Estoque**
+- Consultar estoque disponível
+- Rastrear movimentações
+- Sincronizar com Mercado Livre
+
+💰 **Análises Financeiras**
+- Calcular margens
+- Simular preços
+- Analisar rentabilidade
+
+📢 **Publicidade**
+- Analisar performance de campanhas
+- Calcular ROAS e métricas
+
+Para começar, você pode:
+- Informar o código de um produto (ID, SKU ou código ML)
+- Pedir análise de um produto pelo nome
+- Consultar pedidos ou vendas
+- Perguntar sobre estoque
+- Solicitar cálculos ou análises
+
+Como posso ajudá-lo hoje? 😊

@@ -784,34 +784,49 @@ class OpenAIAssistantService:
                     try:
                         content_json = json.loads(prev_msg.content)
                         if isinstance(content_json, dict) and "tool_calls" in content_json:
-                            # Primeiro, contar quantas mensagens 'tool' seguintes existem
-                            tool_messages_count = 0
+                            # Primeiro, coletar todas as mensagens 'tool' seguintes e extrair seus tool_call_ids
+                            tool_messages = []
+                            tool_call_ids_in_responses = set()
                             j = i + 1
                             while j < len(previous_messages) and previous_messages[j].role and previous_messages[j].role.strip().lower() == "tool":
-                                tool_messages_count += 1
+                                tool_msg = previous_messages[j]
+                                tool_call_id = None
+                                
+                                # Tentar extrair tool_call_id do content
+                                try:
+                                    tool_content = json.loads(tool_msg.content) if tool_msg.content else {}
+                                    if isinstance(tool_content, dict) and "tool_call_id" in tool_content:
+                                        tool_call_id = tool_content.get("tool_call_id")
+                                except (json.JSONDecodeError, TypeError):
+                                    pass
+                                
+                                if tool_call_id:
+                                    tool_call_ids_in_responses.add(tool_call_id)
+                                    tool_messages.append((j, tool_msg, tool_call_id))
+                                
                                 j += 1
                             
-                            # Reconstruir estrutura com tool_calls
+                            # Reconstruir estrutura com tool_calls - APENAS os que têm respostas
                             original_tool_calls = content_json["tool_calls"]
                             msg_dict["tool_calls"] = []
+                            valid_tool_call_ids = []
                             
-                            # Adicionar apenas tool_calls que têm mensagens 'tool' correspondentes
-                            tool_call_index = 0
                             for tc in original_tool_calls:
-                                # Se temos mensagens 'tool' suficientes, adicionar este tool_call
-                                if tool_call_index < tool_messages_count:
+                                tool_call_id = tc.get("id", "")
+                                # Adicionar apenas tool_calls que têm mensagens 'tool' correspondentes
+                                if tool_call_id in tool_call_ids_in_responses:
                                     msg_dict["tool_calls"].append({
-                                        "id": tc.get("id", ""),
+                                        "id": tool_call_id,
                                         "type": "function",
                                         "function": {
                                             "name": tc.get("function", {}).get("name", ""),
                                             "arguments": tc.get("function", {}).get("arguments", "{}")
                                         }
                                     })
-                                    tool_call_index += 1
+                                    valid_tool_call_ids.append(tool_call_id)
                                 else:
                                     # Tool call sem resposta correspondente - pular
-                                    logger.warning(f"⚠️ Tool call '{tc.get('id', 'unknown')}' sem resposta correspondente. Removendo do histórico.")
+                                    logger.warning(f"⚠️ Tool call '{tool_call_id}' sem resposta correspondente. Removendo do histórico.")
                             
                             # Se não há tool_calls válidos, tratar como mensagem normal
                             if not msg_dict["tool_calls"]:
@@ -827,11 +842,12 @@ class OpenAIAssistantService:
                             msg_dict["content"] = None
                             messages_history.append(msg_dict)
                             
-                            # Próximas mensagens 'tool' devem ser associadas a esta mensagem 'assistant'
-                            # Avançar e adicionar mensagens 'tool' seguintes com tool_call_id
+                            # Adicionar mensagens 'tool' correspondentes aos tool_calls válidos
+                            # Processar na ordem correta (sequencial)
                             i += 1
-                            tool_call_index = 0
-                            while i < len(previous_messages) and tool_call_index < len(msg_dict["tool_calls"]):
+                            processed_tool_call_ids = set()
+                            
+                            while i < len(previous_messages):
                                 tool_msg = previous_messages[i]
                                 
                                 # Validar role da mensagem tool
@@ -839,7 +855,7 @@ class OpenAIAssistantService:
                                 if not tool_role or tool_role.strip().lower() != "tool":
                                     break
                                 
-                                # Tentar extrair tool_call_id e name do content (JSON estruturado)
+                                # Tentar extrair tool_call_id do content
                                 tool_call_id = None
                                 tool_name = None
                                 tool_result = None
@@ -847,28 +863,32 @@ class OpenAIAssistantService:
                                 try:
                                     tool_content = json.loads(tool_msg.content) if tool_msg.content else {}
                                     if isinstance(tool_content, dict):
-                                        # Formato novo: {tool_call_id, name, result}
                                         if "tool_call_id" in tool_content:
                                             tool_call_id = tool_content.get("tool_call_id")
                                             tool_name = tool_content.get("name")
                                             tool_result = tool_content.get("result")
                                         else:
-                                            # Formato antigo: apenas resultado direto
                                             tool_result = tool_content
                                 except (json.JSONDecodeError, TypeError):
-                                    # Content não é JSON, tratar como string direta
                                     tool_result = tool_msg.content
                                 
-                                # Se não encontrou tool_call_id no content, usar do tool_calls correspondente
-                                if not tool_call_id and tool_call_index < len(msg_dict["tool_calls"]):
-                                    tool_call_id = msg_dict["tool_calls"][tool_call_index].get("id")
+                                # Se não encontrou tool_call_id, tentar usar o próximo tool_call válido não processado
+                                if not tool_call_id:
+                                    for tc in msg_dict["tool_calls"]:
+                                        tc_id = tc.get("id")
+                                        if tc_id not in processed_tool_call_ids:
+                                            tool_call_id = tc_id
+                                            break
                                 
-                                # Se não encontrou name, usar do tool_calls correspondente
-                                if not tool_name and tool_call_index < len(msg_dict["tool_calls"]):
-                                    tool_name = msg_dict["tool_calls"][tool_call_index].get("function", {}).get("name")
-                                
-                                # Validar se tool_call_id corresponde a um tool_call válido
-                                if tool_call_id and tool_call_id in [tc.get("id") for tc in msg_dict["tool_calls"]]:
+                                # Validar se tool_call_id está na lista de válidos e não foi processado
+                                if tool_call_id and tool_call_id in valid_tool_call_ids and tool_call_id not in processed_tool_call_ids:
+                                    # Se não encontrou name, buscar do tool_call correspondente
+                                    if not tool_name:
+                                        for tc in msg_dict["tool_calls"]:
+                                            if tc.get("id") == tool_call_id:
+                                                tool_name = tc.get("function", {}).get("name")
+                                                break
+                                    
                                     # Serializar resultado para content
                                     if tool_result is not None:
                                         content_str = json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, (dict, list)) else str(tool_result)
@@ -885,14 +905,15 @@ class OpenAIAssistantService:
                                         tool_dict["name"] = tool_name
                                     
                                     messages_history.append(tool_dict)
-                                    tool_call_index += 1
+                                    processed_tool_call_ids.add(tool_call_id)
                                 else:
-                                    # Tool message sem tool_call correspondente - pular
-                                    logger.warning(f"⚠️ Mensagem tool sem tool_call correspondente (tool_call_id: {tool_call_id}). Pulando.")
+                                    # Tool message sem tool_call correspondente ou já processado - pular
+                                    if tool_call_id:
+                                        logger.warning(f"⚠️ Mensagem tool sem tool_call correspondente ou já processado (tool_call_id: {tool_call_id}). Pulando.")
                                 
                                 i += 1
                             
-                            # Continuar loop sem incrementar i novamente (já foi incrementado)
+                            # Continuar loop (i já foi incrementado adequadamente)
                             continue
                     except (json.JSONDecodeError, KeyError, TypeError):
                         # Não é JSON com tool_calls, tratar como mensagem normal
@@ -928,8 +949,9 @@ class OpenAIAssistantService:
             
             # Validar e limpar mensagens antes de enviar
             # Remover tool_calls vazios de mensagens assistant
+            # IMPORTANTE: Garantir que cada tool_call tenha uma resposta correspondente
             cleaned_messages = []
-            for msg in messages_history:
+            for idx, msg in enumerate(messages_history):
                 if msg.get("role") == "assistant" and "tool_calls" in msg:
                     if not msg["tool_calls"] or len(msg["tool_calls"]) == 0:
                         # Remover tool_calls vazio
@@ -939,7 +961,41 @@ class OpenAIAssistantService:
                             msg_clean["content"] = ""
                         cleaned_messages.append(msg_clean)
                     else:
-                        cleaned_messages.append(msg)
+                        # Validar que cada tool_call tem uma resposta correspondente
+                        tool_call_ids = [tc.get("id") for tc in msg["tool_calls"]]
+                        # Verificar se há mensagens tool seguintes com esses tool_call_ids
+                        tool_responses = set()
+                        j = idx + 1
+                        while j < len(messages_history):
+                            next_msg = messages_history[j]
+                            if next_msg.get("role") == "tool":
+                                tool_call_id = next_msg.get("tool_call_id")
+                                if tool_call_id:
+                                    tool_responses.add(tool_call_id)
+                            elif next_msg.get("role") == "assistant":
+                                # Parar quando encontrar próxima mensagem assistant
+                                break
+                            j += 1
+                        
+                        # Filtrar apenas tool_calls que têm respostas
+                        valid_tool_calls = [tc for tc in msg["tool_calls"] if tc.get("id") in tool_responses]
+                        
+                        if len(valid_tool_calls) < len(msg["tool_calls"]):
+                            missing_ids = [tc.get("id") for tc in msg["tool_calls"] if tc.get("id") not in tool_responses]
+                            logger.warning(f"⚠️ Removendo {len(msg['tool_calls']) - len(valid_tool_calls)} tool_call(s) sem resposta: {missing_ids}")
+                            
+                            if valid_tool_calls:
+                                msg_clean = {k: v for k, v in msg.items()}
+                                msg_clean["tool_calls"] = valid_tool_calls
+                                cleaned_messages.append(msg_clean)
+                            else:
+                                # Se não há tool_calls válidos, tratar como mensagem normal
+                                msg_clean = {k: v for k, v in msg.items() if k != "tool_calls"}
+                                if "content" not in msg_clean or msg_clean["content"] is None:
+                                    msg_clean["content"] = ""
+                                cleaned_messages.append(msg_clean)
+                        else:
+                            cleaned_messages.append(msg)
                 else:
                     cleaned_messages.append(msg)
             

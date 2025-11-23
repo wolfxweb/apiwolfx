@@ -875,10 +875,13 @@ async def superadmin_documentation(
             for file in sorted(files_found):
                 # Excluir índices
                 if file.name not in ["00_INDICE_FERRAMENTAS.md", "AJUSTES_FERRAMENTAS.md"]:
+                    # Marcar PROMPT_INSTRUCOES_AGENTE.md como exemplo de configuração
+                    is_example = file.name == "PROMPT_INSTRUCOES_AGENTE.md"
                     manuais_agente_ia.append({
                         "nome": file.stem.replace("_", " ").title(),
                         "arquivo": file.name,
-                        "caminho": str(file.relative_to(base_dir))
+                        "caminho": str(file.relative_to(base_dir)),
+                        "is_example": is_example  # Flag para destacar como exemplo
                     })
             logger.info(f"✅ Manuais agente IA adicionados: {len(manuais_agente_ia)}")
         except Exception as e:
