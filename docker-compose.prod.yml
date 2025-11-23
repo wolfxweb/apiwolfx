@@ -59,7 +59,7 @@ services:
       - ALLOWED_HOSTS=celx.com.br,www.celx.com.br
       
       # OpenAI API
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       
     networks:
       - server

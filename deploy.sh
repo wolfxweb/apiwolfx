@@ -23,6 +23,14 @@ if [ -f "portainer.env" ]; then
     set -a
     source portainer.env
     set +a
+    
+    # Verificar se OPENAI_API_KEY foi carregada
+    if [ -z "$OPENAI_API_KEY" ]; then
+        echo -e "${YELLOW}⚠️  AVISO: OPENAI_API_KEY não está definida no portainer.env${NC}"
+        echo -e "${YELLOW}💡 Adicione a chave no arquivo portainer.env antes de fazer deploy${NC}"
+    else
+        echo -e "${GREEN}✅ OPENAI_API_KEY carregada (${#OPENAI_API_KEY} caracteres)${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠️  Arquivo portainer.env não encontrado - usando variáveis do sistema${NC}"
 fi
