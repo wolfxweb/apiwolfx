@@ -25,11 +25,20 @@ if [ -f "portainer.env" ]; then
     set +a
     
     # Verificar se OPENAI_API_KEY foi carregada
-    if [ -z "$OPENAI_API_KEY" ]; then
-        echo -e "${YELLOW}⚠️  AVISO: OPENAI_API_KEY não está definida no portainer.env${NC}"
+    if [ -z "$OPENAI_API_KEY" ] || [ "$OPENAI_API_KEY" = "" ]; then
+        echo -e "${RED}❌ ERRO: OPENAI_API_KEY não está definida ou está vazia no portainer.env${NC}"
         echo -e "${YELLOW}💡 Adicione a chave no arquivo portainer.env antes de fazer deploy${NC}"
+        echo -e "${YELLOW}   Exemplo: OPENAI_API_KEY=sk-proj-sua-chave-aqui${NC}"
+        read -p "Deseja continuar mesmo assim? (s/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+            echo -e "${YELLOW}⏸️  Deploy cancelado pelo usuário${NC}"
+            exit 1
+        fi
     else
         echo -e "${GREEN}✅ OPENAI_API_KEY carregada (${#OPENAI_API_KEY} caracteres)${NC}"
+        # Garantir que a variável está exportada para o Docker Swarm
+        export OPENAI_API_KEY
     fi
 else
     echo -e "${YELLOW}⚠️  Arquivo portainer.env não encontrado - usando variáveis do sistema${NC}"
@@ -81,6 +90,11 @@ echo -e "${YELLOW}🔨 Fazendo deploy no Docker Swarm...${NC}"
 echo -e "${BLUE}⏳ Isso pode levar alguns minutos...${NC}"
 
 # O docker stack deploy atualiza o stack se existir, ou cria se não existir
+# Exportar variáveis explicitamente para garantir que o Docker Swarm as veja
+export OPENAI_API_KEY
+export ASAAS_API_KEY
+export ASAAS_WEBHOOK_TOKEN
+
 docker stack deploy -c "$COMPOSE_FILE" "$STACK_NAME"
 
 # 4.1. Forçar atualização do serviço sem cache (força recriação dos containers)
