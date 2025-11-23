@@ -785,3 +785,312 @@ async def api_get_companies_for_filter(
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@superadmin_router.get("/superadmin/documentation", response_class=HTMLResponse)
+async def superadmin_documentation(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de documentação - Manuais do sistema e ferramentas do agente IA"""
+    from pathlib import Path
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Caminhos dos diretórios de manuais
+    # Tentar múltiplos caminhos possíveis
+    import os
+    
+    possible_base_dirs = [
+        Path("/app"),  # Docker/Produção (prioridade - código clonado do Git)
+        Path(__file__).parent.parent.parent.resolve(),  # app/routes -> app -> raiz (desenvolvimento local)
+        Path(os.getcwd()),  # Diretório de trabalho atual
+        Path("."),  # Relativo
+    ]
+    
+    # Também tentar dentro de public (se os manuais foram copiados)
+    possible_manuais_dirs = []
+    for base in possible_base_dirs:
+        possible_manuais_dirs.append(base / "manuais")
+        possible_manuais_dirs.append(base / "public" / "manuais")
+    
+    base_dir = None
+    manuais_dir_found = None
+    
+    for manuais_test in possible_manuais_dirs:
+        if manuais_test.exists() and manuais_test.is_dir():
+            # Encontrar o base_dir correspondente
+            if "public" in str(manuais_test):
+                base_dir = manuais_test.parent.parent  # public/manuais -> public -> raiz
+            else:
+                base_dir = manuais_test.parent  # manuais -> raiz
+            manuais_dir_found = manuais_test
+            logger.info(f"✅ Manuais dir encontrado: {manuais_dir_found.resolve()}")
+            logger.info(f"✅ Base dir: {base_dir.resolve()}")
+            break
+    
+    if not base_dir or not manuais_dir_found:
+        logger.error(f"❌ Não foi possível encontrar o diretório manuais. Tentados: {possible_manuais_dirs}")
+        # Retornar página vazia mas funcional
+        return render_template("superadmin/documentation.html", 
+                             request=request,
+                             manuais_gerais=[],
+                             manuais_agente_ia=[],
+                             error="Diretório de manuais não encontrado")
+    
+    manuais_dir = manuais_dir_found
+    agente_ia_dir = manuais_dir / "agente_ia"
+    
+    # Debug: verificar caminhos
+    logger.info(f"🔍 Manuais dir: {manuais_dir.resolve()}, exists: {manuais_dir.exists()}")
+    logger.info(f"🔍 Agente IA dir: {agente_ia_dir.resolve()}, exists: {agente_ia_dir.exists()}")
+    
+    # Listar manuais gerais
+    manuais_gerais = []
+    if manuais_dir.exists() and manuais_dir.is_dir():
+        try:
+            files_found = list(manuais_dir.glob("*.md"))
+            logger.info(f"📄 Arquivos .md encontrados em manuais/: {len(files_found)}")
+            for file in sorted(files_found):
+                # Excluir arquivos que não são manuais
+                if file.name not in ["00_INDICE_GERAL.md"] and not file.name.startswith("img"):
+                    manuais_gerais.append({
+                        "nome": file.stem.replace("_", " ").title(),
+                        "arquivo": file.name,
+                        "caminho": str(file.relative_to(base_dir))
+                    })
+            logger.info(f"✅ Manuais gerais adicionados: {len(manuais_gerais)}")
+        except Exception as e:
+            logger.error(f"❌ Erro ao listar manuais gerais: {e}", exc_info=True)
+    else:
+        logger.warning(f"⚠️ Diretório manuais não existe ou não é um diretório: {manuais_dir.resolve()}")
+    
+    # Listar manuais de agente IA
+    manuais_agente_ia = []
+    if agente_ia_dir.exists() and agente_ia_dir.is_dir():
+        try:
+            files_found = list(agente_ia_dir.glob("*.md"))
+            logger.info(f"📄 Arquivos .md encontrados em manuais/agente_ia/: {len(files_found)}")
+            for file in sorted(files_found):
+                # Excluir índices
+                if file.name not in ["00_INDICE_FERRAMENTAS.md", "AJUSTES_FERRAMENTAS.md"]:
+                    manuais_agente_ia.append({
+                        "nome": file.stem.replace("_", " ").title(),
+                        "arquivo": file.name,
+                        "caminho": str(file.relative_to(base_dir))
+                    })
+            logger.info(f"✅ Manuais agente IA adicionados: {len(manuais_agente_ia)}")
+        except Exception as e:
+            logger.error(f"❌ Erro ao listar manuais agente IA: {e}", exc_info=True)
+    else:
+        logger.warning(f"⚠️ Diretório agente_ia não existe ou não é um diretório: {agente_ia_dir.resolve()}")
+    
+    # Debug: log final
+    logger.info(f"📊 Resumo: {len(manuais_gerais)} manuais gerais, {len(manuais_agente_ia)} manuais agente IA")
+    
+    return render_template("superadmin/documentation.html", 
+                         request=request,
+                         manuais_gerais=manuais_gerais,
+                         manuais_agente_ia=manuais_agente_ia)
+
+@superadmin_router.get("/api/superadmin/documentation/debug")
+async def debug_documentation():
+    """Endpoint de debug para verificar caminhos dos manuais"""
+    from pathlib import Path
+    import os
+    
+    debug_info = {
+        "current_working_dir": str(Path(os.getcwd())),
+        "file_location": str(Path(__file__)),
+        "base_calculated": str(Path(__file__).parent.parent.parent.resolve()),
+        "manuais_paths": {}
+    }
+    
+    possible_bases = [
+        ("from_file", Path(__file__).parent.parent.parent.resolve()),
+        ("from_cwd", Path(os.getcwd())),
+        ("docker", Path("/app")),
+    ]
+    
+    for name, base in possible_bases:
+        manuais = base / "manuais"
+        debug_info["manuais_paths"][name] = {
+            "base": str(base),
+            "manuais_path": str(manuais),
+            "exists": manuais.exists(),
+            "is_dir": manuais.is_dir() if manuais.exists() else False,
+            "file_count": len(list(manuais.glob("*.md"))) if manuais.exists() else 0
+        }
+    
+    return debug_info
+
+@superadmin_router.get("/api/manual/{filename:path}")
+async def view_manual(filename: str):
+    """Visualiza um manual em formato Markdown renderizado como HTML"""
+    from pathlib import Path
+    from fastapi.responses import HTMLResponse
+    import os
+    
+    try:
+        import markdown
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Biblioteca markdown não instalada. Execute: pip install markdown")
+    
+    # Tentar múltiplos caminhos
+    possible_paths = [
+        Path("/app") / "manuais" / filename,  # Docker
+        Path("/app") / "public" / "manuais" / filename,  # Docker public
+        Path(__file__).parent.parent.parent / "manuais" / filename,  # Local
+        Path(__file__).parent.parent.parent / "public" / "manuais" / filename,  # Local public
+        Path(os.getcwd()) / "manuais" / filename,  # CWD
+        Path(os.getcwd()) / "public" / "manuais" / filename,  # CWD public
+    ]
+    
+    manual_path = None
+    for path in possible_paths:
+        if path.exists() and path.is_file():
+            manual_path = path
+            break
+    
+    if not manual_path:
+        raise HTTPException(status_code=404, detail=f"Manual não encontrado: {filename}")
+    
+    # Verificar segurança (deve estar em manuais ou public/manuais)
+    path_str = str(manual_path.resolve())
+    if "manuais" not in path_str or ".." in filename:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    
+    content = manual_path.read_text(encoding="utf-8")
+    
+    # Converter Markdown para HTML
+    try:
+        html_content = markdown.markdown(content, extensions=['fenced_code', 'tables'])
+    except Exception as e:
+        # Se falhar, usar apenas o texto puro
+        html_content = f"<pre>{content}</pre>"
+    
+    # Criar página HTML completa
+    html_page = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{filename} - Documentação</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+        <style>
+            body {{ padding: 20px; background-color: #f8f9fa; }}
+            .manual-container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .manual-header {{ border-bottom: 2px solid #007bff; padding-bottom: 15px; margin-bottom: 30px; }}
+            pre {{ background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }}
+            code {{ background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }}
+            pre code {{ background-color: transparent; padding: 0; }}
+            table {{ width: 100%; margin: 20px 0; }}
+            table th, table td {{ padding: 10px; border: 1px solid #dee2e6; }}
+            table th {{ background-color: #007bff; color: white; }}
+        </style>
+    </head>
+    <body>
+        <div class="manual-container">
+            <div class="manual-header">
+                <h1><i class="bi bi-file-text"></i> {filename}</h1>
+                <a href="/superadmin/documentation" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="manual-content">
+                {html_content}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=html_page)
+
+@superadmin_router.get("/api/manual/agente_ia/{filename:path}")
+async def view_agente_ia_manual(filename: str):
+    """Visualiza um manual de agente IA em formato Markdown renderizado como HTML"""
+    from pathlib import Path
+    from fastapi.responses import HTMLResponse
+    import os
+    
+    try:
+        import markdown
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Biblioteca markdown não instalada. Execute: pip install markdown")
+    
+    # Tentar múltiplos caminhos
+    possible_paths = [
+        Path("/app") / "manuais" / "agente_ia" / filename,  # Docker
+        Path("/app") / "public" / "manuais" / "agente_ia" / filename,  # Docker public
+        Path(__file__).parent.parent.parent / "manuais" / "agente_ia" / filename,  # Local
+        Path(__file__).parent.parent.parent / "public" / "manuais" / "agente_ia" / filename,  # Local public
+        Path(os.getcwd()) / "manuais" / "agente_ia" / filename,  # CWD
+        Path(os.getcwd()) / "public" / "manuais" / "agente_ia" / filename,  # CWD public
+    ]
+    
+    manual_path = None
+    for path in possible_paths:
+        if path.exists() and path.is_file():
+            manual_path = path
+            break
+    
+    if not manual_path:
+        raise HTTPException(status_code=404, detail=f"Manual não encontrado: {filename}")
+    
+    # Verificar segurança (deve estar em manuais/agente_ia ou public/manuais/agente_ia)
+    path_str = str(manual_path.resolve())
+    if "agente_ia" not in path_str or ".." in filename:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    
+    content = manual_path.read_text(encoding="utf-8")
+    
+    # Converter Markdown para HTML
+    try:
+        html_content = markdown.markdown(content, extensions=['fenced_code', 'tables'])
+    except Exception as e:
+        # Se falhar, usar apenas o texto puro
+        html_content = f"<pre>{content}</pre>"
+    
+    # Criar página HTML completa
+    html_page = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{filename} - Documentação Agente IA</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+        <style>
+            body {{ padding: 20px; background-color: #f8f9fa; }}
+            .manual-container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .manual-header {{ border-bottom: 2px solid #28a745; padding-bottom: 15px; margin-bottom: 30px; }}
+            pre {{ background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }}
+            code {{ background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }}
+            pre code {{ background-color: transparent; padding: 0; }}
+            table {{ width: 100%; margin: 20px 0; }}
+            table th, table td {{ padding: 10px; border: 1px solid #dee2e6; }}
+            table th {{ background-color: #28a745; color: white; }}
+        </style>
+    </head>
+    <body>
+        <div class="manual-container">
+            <div class="manual-header">
+                <h1><i class="bi bi-robot"></i> {filename}</h1>
+                <a href="/superadmin/documentation" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="manual-content">
+                {html_content}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=html_page)

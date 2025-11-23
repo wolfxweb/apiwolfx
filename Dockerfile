@@ -13,6 +13,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código da aplicação
 COPY . .
 
+# Garantir que os manuais estejam acessíveis
+# Os manuais serão copiados via COPY . . acima
+# E também serão montados via volume no docker-compose
+RUN mkdir -p /app/manuais/agente_ia /app/public/manuais/agente_ia || true
+
 # Criar diretório para logs
 RUN mkdir -p /app/logs
 

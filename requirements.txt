@@ -33,3 +33,5 @@ openai>=1.54.0
 # Processamento de arquivos
 PyPDF2==3.0.1
 pdfplumber==0.10.3
+# Renderização de Markdown
+markdown==3.5.1

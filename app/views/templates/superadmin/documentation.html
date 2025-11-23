@@ -1,0 +1,96 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Documentação - SuperAdmin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h2"><i class="bi bi-book"></i> Documentação do Sistema</h1>
+            <p class="text-muted">Manuais do sistema e documentação das ferramentas do agente IA</p>
+            {% if error %}
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> {{ error }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Manuais Gerais -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-file-text"></i> Manuais do Sistema</h5>
+                </div>
+                <div class="card-body">
+                    {% if manuais_gerais %}
+                    <div class="row">
+                        {% for manual in manuais_gerais %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card h-100 border-primary">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-file-earmark-text text-primary"></i> {{ manual.nome }}
+                                    </h6>
+                                    <p class="card-text text-muted small mb-2">
+                                        <code class="text-secondary">{{ manual.arquivo }}</code>
+                                    </p>
+                                    <a href="/api/manual/{{ manual.arquivo }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i> Visualizar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Nenhum manual encontrado.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manuais de Agente IA -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-robot"></i> Documentação das Ferramentas do Agente IA</h5>
+                </div>
+                <div class="card-body">
+                    {% if manuais_agente_ia %}
+                    <div class="row">
+                        {% for manual in manuais_agente_ia %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card h-100 border-success">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-tools text-success"></i> {{ manual.nome }}
+                                    </h6>
+                                    <p class="card-text text-muted small mb-2">
+                                        <code class="text-secondary">{{ manual.arquivo }}</code>
+                                    </p>
+                                    <a href="/api/manual/agente_ia/{{ manual.arquivo }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                        <i class="bi bi-eye"></i> Visualizar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Nenhum manual de agente IA encontrado.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
