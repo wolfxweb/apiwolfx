@@ -1439,7 +1439,7 @@ class MLNotificationsController:
                             if order_obj:
                                 movement_check = db.query(StockMovement).filter(
                                     StockMovement.ml_order_id == order_obj.id,
-                                    StockMovement.movement_type == StockMovementType.SALE
+                                    StockMovement.movement_type == StockMovementType.SALE.value
                                 ).first()
                                 if movement_check:
                                     logger.info(f"✅ [WEBHOOK] Confirmação: Movimentação de estoque criada para pedido {order_id} (movement_id: {movement_check.id})")

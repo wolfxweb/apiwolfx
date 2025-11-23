@@ -361,14 +361,18 @@ class AdvertisingFullController:
             
             logger.info(f"✅ Usando conta ML: {account.id} - {account.nickname} ({account.email})")
             
-            # 3. Buscar associação usuário-conta
-            user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
-            if not user_ml:
-                return {"success": False, "error": f"Usuário não associado à conta ML '{account.nickname}' (ID: {account.id})"}
+            # 3. Buscar token usando TokenManager com ml_account_id (renovação automática)
+            token_record = self.token_manager.get_token_record_for_account(
+                ml_account_id=account.id,
+                company_id=company_id,
+                expected_ml_user_id=str(account.ml_user_id) if account.ml_user_id else None
+            )
             
-            access_token = self.token_manager.get_valid_token(user_ml.user_id)
-            if not access_token:
-                return {"success": False, "error": "Não foi possível obter token válido"}
+            if not token_record or not token_record.access_token:
+                return {"success": False, "error": f"Não foi possível obter token válido para a conta ML '{account.nickname}' (ID: {account.id}). Verifique se a conta está conectada e autorizada."}
+            
+            access_token = token_record.access_token
+            logger.info(f"✅ Token obtido para conta ML {account.id} - user_id: {token_record.user_id}")
             
             # Buscar advertiser_id
             advertiser_id = self._get_advertiser_id(access_token)
@@ -479,14 +483,18 @@ class AdvertisingFullController:
             
             logger.info(f"✅ Usando conta ML: {account.id} - {account.nickname} ({account.email})")
             
-            # 3. Buscar associação usuário-conta
-            user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
-            if not user_ml:
-                return {"success": False, "error": f"Usuário não associado à conta ML '{account.nickname}' (ID: {account.id})"}
+            # 3. Buscar token usando TokenManager com ml_account_id (renovação automática)
+            token_record = self.token_manager.get_token_record_for_account(
+                ml_account_id=account.id,
+                company_id=company_id,
+                expected_ml_user_id=str(account.ml_user_id) if account.ml_user_id else None
+            )
             
-            access_token = self.token_manager.get_valid_token(user_ml.user_id)
-            if not access_token:
-                return {"success": False, "error": "Não foi possível obter token válido"}
+            if not token_record or not token_record.access_token:
+                return {"success": False, "error": f"Não foi possível obter token válido para a conta ML '{account.nickname}' (ID: {account.id}). Verifique se a conta está conectada e autorizada."}
+            
+            access_token = token_record.access_token
+            logger.info(f"✅ Token obtido para conta ML {account.id} - user_id: {token_record.user_id}")
             
             # Buscar advertiser_id
             advertiser_id = self._get_advertiser_id(access_token)
@@ -599,14 +607,18 @@ class AdvertisingFullController:
             
             logger.info(f"✅ Usando conta ML: {account.id} - {account.nickname} ({account.email})")
             
-            # 3. Buscar associação usuário-conta
-            user_ml = self.db.query(UserMLAccount).filter(UserMLAccount.ml_account_id == account.id).first()
-            if not user_ml:
-                return {"success": False, "error": f"Usuário não associado à conta ML '{account.nickname}' (ID: {account.id})"}
+            # 3. Buscar token usando TokenManager com ml_account_id (renovação automática)
+            token_record = self.token_manager.get_token_record_for_account(
+                ml_account_id=account.id,
+                company_id=company_id,
+                expected_ml_user_id=str(account.ml_user_id) if account.ml_user_id else None
+            )
             
-            access_token = self.token_manager.get_valid_token(user_ml.user_id)
-            if not access_token:
-                return {"success": False, "error": "Não foi possível obter token válido"}
+            if not token_record or not token_record.access_token:
+                return {"success": False, "error": f"Não foi possível obter token válido para a conta ML '{account.nickname}' (ID: {account.id}). Verifique se a conta está conectada e autorizada."}
+            
+            access_token = token_record.access_token
+            logger.info(f"✅ Token obtido para conta ML {account.id} - user_id: {token_record.user_id}")
             
             # Buscar advertiser_id
             advertiser_id = self._get_advertiser_id(access_token)
