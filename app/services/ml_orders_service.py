@@ -1902,9 +1902,11 @@ class MLOrdersService:
             movement_service = StockMovementService(self.db)
             
             # Verificar se já existe movimentação para este pedido
+            # IMPORTANTE: Usar o valor string diretamente para evitar problemas com enum no SQLAlchemy
+            sale_movement_type_value = "sale"  # StockMovementType.SALE.value
             existing_movement = self.db.query(StockMovement).filter(
                 StockMovement.ml_order_id == order.id,
-                StockMovement.movement_type == StockMovementType.SALE.value
+                StockMovement.movement_type == sale_movement_type_value
             ).first()
             
             if existing_movement:

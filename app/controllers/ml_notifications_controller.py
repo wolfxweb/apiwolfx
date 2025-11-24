@@ -1409,6 +1409,7 @@ class MLNotificationsController:
                     
             else:
                 logger.info(f"🆕 Pedido {order_id} não existe no banco, criando novo pedido via webhook")
+                logger.info(f"🆕 [WEBHOOK] ml_user_id recebido: {ml_user_id} (tipo: {type(ml_user_id)})")
                 
                 # Criar novo pedido usando MLOrdersService
                 try:
@@ -1417,19 +1418,33 @@ class MLNotificationsController:
                     
                     # IMPORTANTE: Buscar MLAccount específica baseada no ml_user_id da notificação
                     # Não usar qualquer conta ativa da empresa, mas sim a conta que corresponde ao dono do pedido
-                    ml_account = db.query(MLAccount).filter(
-                        MLAccount.company_id == company_id,
-                        MLAccount.ml_user_id == str(ml_user_id),
-                        MLAccount.status == MLAccountStatus.ACTIVE
-                    ).first()
+                    ml_account = None
+                    if ml_user_id:
+                        logger.info(f"🔍 [WEBHOOK] Buscando MLAccount para ml_user_id={ml_user_id}, company_id={company_id}")
+                        ml_account = db.query(MLAccount).filter(
+                            MLAccount.company_id == company_id,
+                            MLAccount.ml_user_id == str(ml_user_id),
+                            MLAccount.status == MLAccountStatus.ACTIVE
+                        ).first()
+                        if ml_account:
+                            logger.info(f"✅ [WEBHOOK] MLAccount encontrada: ID={ml_account.id}, nickname={ml_account.nickname}")
+                        else:
+                            logger.warning(f"⚠️ [WEBHOOK] MLAccount não encontrada para ml_user_id={ml_user_id}")
+                    else:
+                        logger.warning(f"⚠️ [WEBHOOK] ml_user_id não fornecido ao método _upsert_order")
                     
                     if not ml_account:
-                        # Fallback: se não encontrar pela ml_user_id, tentar qualquer conta ativa
-                        logger.warning(f"⚠️ [WEBHOOK] MLAccount não encontrada para ml_user_id={ml_user_id}, tentando qualquer conta ativa da empresa")
+                        # Fallback: se não encontrar pela ml_user_id ou ml_user_id não foi fornecido, tentar qualquer conta ativa
+                        if ml_user_id:
+                            logger.warning(f"⚠️ [WEBHOOK] MLAccount não encontrada para ml_user_id={ml_user_id}, tentando qualquer conta ativa da empresa")
+                        else:
+                            logger.warning(f"⚠️ [WEBHOOK] ml_user_id não fornecido, tentando qualquer conta ativa da empresa")
                         ml_account = db.query(MLAccount).filter(
                             MLAccount.company_id == company_id,
                             MLAccount.status == MLAccountStatus.ACTIVE
                         ).first()
+                        if ml_account:
+                            logger.info(f"✅ [WEBHOOK] MLAccount encontrada (fallback): ID={ml_account.id}, nickname={ml_account.nickname}")
                     
                     if ml_account:
                         logger.info(f"📦 [WEBHOOK] Iniciando criação/atualização do pedido {order_id} via webhook")
@@ -1499,15 +1514,20 @@ class MLNotificationsController:
                                 
                                 # IMPORTANTE: Buscar MLAccount específica baseada no ml_user_id da notificação
                                 from app.models.saas_models import MLAccount, MLAccountStatus
-                                ml_account = db.query(MLAccount).filter(
-                                    MLAccount.company_id == company_id,
-                                    MLAccount.ml_user_id == str(ml_user_id),
-                                    MLAccount.status == MLAccountStatus.ACTIVE
-                                ).first()
+                                ml_account = None
+                                if ml_user_id:
+                                    ml_account = db.query(MLAccount).filter(
+                                        MLAccount.company_id == company_id,
+                                        MLAccount.ml_user_id == str(ml_user_id),
+                                        MLAccount.status == MLAccountStatus.ACTIVE
+                                    ).first()
                                 
                                 if not ml_account:
-                                    # Fallback: se não encontrar pela ml_user_id, tentar qualquer conta ativa
-                                    logger.warning(f"⚠️ MLAccount não encontrada para ml_user_id={ml_user_id}, tentando qualquer conta ativa")
+                                    # Fallback: se não encontrar pela ml_user_id ou ml_user_id não foi fornecido, tentar qualquer conta ativa
+                                    if ml_user_id:
+                                        logger.warning(f"⚠️ MLAccount não encontrada para ml_user_id={ml_user_id}, tentando qualquer conta ativa")
+                                    else:
+                                        logger.warning(f"⚠️ ml_user_id não fornecido, tentando qualquer conta ativa")
                                     ml_account = db.query(MLAccount).filter(
                                         MLAccount.company_id == company_id,
                                         MLAccount.status == MLAccountStatus.ACTIVE
