@@ -561,14 +561,26 @@ async def startup_event():
                             spec2.loader.exec_module(seed_module)
                             result = seed_module.run(db)
                             if result.get("success"):
-                                print(f"✅ [STARTUP] {result.get('tools_registered', 0)} ferramentas do agente IA registradas")
-                                seed_executed = True
+                                # Garantir que o commit foi efetivado
+                                try:
+                                    db.commit()
+                                    # Verificar quantas ferramentas foram realmente criadas
+                                    tool_count = db.execute(text("SELECT COUNT(*) FROM openai_tools WHERE is_active = TRUE")).scalar()
+                                    print(f"✅ [STARTUP] {result.get('tools_registered', 0)} ferramentas registradas. Total ativo no banco: {tool_count}")
+                                    seed_executed = True
+                                except Exception as commit_error:
+                                    print(f"⚠️ [STARTUP] Erro ao confirmar commit: {commit_error}")
+                                    db.rollback()
                             else:
                                 print(f"⚠️ [STARTUP] Erro ao registrar ferramentas: {result.get('error', 'Erro desconhecido')}")
                         except Exception as e:
                             print(f"⚠️ [STARTUP] Erro ao executar script de seed: {e}")
                             import traceback
                             traceback.print_exc()
+                            try:
+                                db.rollback()
+                            except Exception:
+                                pass
                     
                     # Fallback: tentar importar diretamente se estiver no PYTHONPATH
                     if not seed_executed:
@@ -631,6 +643,21 @@ async def startup_event():
                             print("✅ [STARTUP] Ferramentas de análise de produto seedadas (script antigo)")
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível criar tabelas de Ferramentas: {e}")
+                finally:
+                    # IMPORTANTE: Fechar sessão e garantir que commits foram efetivados
+                    try:
+                        db.commit()
+                        # Verificar quantas ferramentas estão realmente no banco
+                        tool_count = db.execute(text("SELECT COUNT(*) FROM openai_tools WHERE is_active = TRUE")).scalar()
+                        print(f"📊 [STARTUP] Total de ferramentas ativas no banco após seed: {tool_count}")
+                    except Exception as commit_error:
+                        print(f"⚠️ [STARTUP] Erro ao fazer commit final: {commit_error}")
+                        try:
+                            db.rollback()
+                        except Exception:
+                            pass
+                    finally:
+                        db.close()
 
                 # 1.05 Criar agente "Analise produto" se não existir
                 try:

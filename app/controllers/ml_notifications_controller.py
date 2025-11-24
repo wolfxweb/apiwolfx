@@ -295,7 +295,7 @@ class MLNotificationsController:
             logger.info(f"💾 [NOTIF] ========== INICIANDO SALVAMENTO/ATUALIZAÇÃO NO BANCO ==========")
             logger.info(f"💾 [NOTIF] Order ID: {order_id}")
             logger.info(f"💾 [NOTIF] Company ID: {company_id}")
-            await self._upsert_order(order_data, company_id, db, access_token)
+            await self._upsert_order(order_data, company_id, db, access_token, ml_user_id=ml_user_id)
             logger.info(f"💾 [NOTIF] ✅ Função _upsert_order concluída para pedido {order_id}")
             
             logger.info(f"✅ ========== PEDIDO PROCESSADO COM SUCESSO ==========")
@@ -1072,7 +1072,7 @@ class MLNotificationsController:
             logger.error(f"❌ Erro ao buscar detalhes do produto: {e}")
             return None
     
-    async def _upsert_order(self, order_data: Dict[str, Any], company_id: int, db: Session, access_token: str = None):
+    async def _upsert_order(self, order_data: Dict[str, Any], company_id: int, db: Session, access_token: str = None, ml_user_id: int = None):
         """Atualiza ou cria pedido no banco de dados"""
         try:
             from sqlalchemy import text
@@ -1415,18 +1415,29 @@ class MLNotificationsController:
                     from app.services.ml_orders_service import MLOrdersService
                     from app.models.saas_models import MLAccount, MLAccountStatus
                     
-                    # Buscar MLAccount ativa da empresa
+                    # IMPORTANTE: Buscar MLAccount específica baseada no ml_user_id da notificação
+                    # Não usar qualquer conta ativa da empresa, mas sim a conta que corresponde ao dono do pedido
                     ml_account = db.query(MLAccount).filter(
                         MLAccount.company_id == company_id,
+                        MLAccount.ml_user_id == str(ml_user_id),
                         MLAccount.status == MLAccountStatus.ACTIVE
                     ).first()
+                    
+                    if not ml_account:
+                        # Fallback: se não encontrar pela ml_user_id, tentar qualquer conta ativa
+                        logger.warning(f"⚠️ [WEBHOOK] MLAccount não encontrada para ml_user_id={ml_user_id}, tentando qualquer conta ativa da empresa")
+                        ml_account = db.query(MLAccount).filter(
+                            MLAccount.company_id == company_id,
+                            MLAccount.status == MLAccountStatus.ACTIVE
+                        ).first()
                     
                     if ml_account:
                         logger.info(f"📦 [WEBHOOK] Iniciando criação/atualização do pedido {order_id} via webhook")
                         logger.info(f"📦 [WEBHOOK] ML Account ID: {ml_account.id}, Company ID: {company_id}")
                         
                         orders_service = MLOrdersService(db)
-                        result = orders_service._save_order_to_database(order_data, ml_account.id, company_id)
+                        # Passar o access_token que foi usado para obter o pedido
+                        result = orders_service._save_order_to_database(order_data, ml_account.id, company_id, access_token=access_token)
                         
                         action = result.get("action")
                         logger.info(f"📦 [WEBHOOK] Resultado do _save_order_to_database: action={action}")
@@ -1485,7 +1496,32 @@ class MLNotificationsController:
                                 
                                 # Usar a mesma lógica de atualização do bloco "if existing_order"
                                 orders_service = MLOrdersService(db)
-                                result = orders_service._save_order_to_database(order_data, ml_account.id, company_id)
+                                
+                                # IMPORTANTE: Buscar MLAccount específica baseada no ml_user_id da notificação
+                                from app.models.saas_models import MLAccount, MLAccountStatus
+                                ml_account = db.query(MLAccount).filter(
+                                    MLAccount.company_id == company_id,
+                                    MLAccount.ml_user_id == str(ml_user_id),
+                                    MLAccount.status == MLAccountStatus.ACTIVE
+                                ).first()
+                                
+                                if not ml_account:
+                                    # Fallback: se não encontrar pela ml_user_id, tentar qualquer conta ativa
+                                    logger.warning(f"⚠️ MLAccount não encontrada para ml_user_id={ml_user_id}, tentando qualquer conta ativa")
+                                    ml_account = db.query(MLAccount).filter(
+                                        MLAccount.company_id == company_id,
+                                        MLAccount.status == MLAccountStatus.ACTIVE
+                                    ).first()
+                                
+                                if ml_account:
+                                    # Tentar obter token para atualização
+                                    from app.services.token_manager import TokenManager
+                                    token_manager = TokenManager(db)
+                                    update_token = token_manager.get_active_token(ml_account.id, company_id)
+                                    result = orders_service._save_order_to_database(order_data, ml_account.id, company_id, access_token=update_token)
+                                else:
+                                    logger.error(f"❌ Não foi possível encontrar MLAccount para company_id={company_id}, ml_user_id={ml_user_id}")
+                                    raise RuntimeError(f"MLAccount não encontrada para processar pedido {order_id}")
                                 
                                 db.commit()
                                 logger.info(f"✅ Pedido {order_id} atualizado com sucesso após erro de chave duplicada")

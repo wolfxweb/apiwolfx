@@ -1013,8 +1013,15 @@ class MLOrdersService:
             logger.error(f"Erro ao calcular taxas da order: {e}")
             return None
     
-    def _save_order_to_database(self, order_data: Dict, ml_account_id: int, company_id: int) -> Dict:
-        """Salva ou atualiza uma order no banco de dados com informações completas"""
+    def _save_order_to_database(self, order_data: Dict, ml_account_id: int, company_id: int, access_token: str = None) -> Dict:
+        """Salva ou atualiza uma order no banco de dados com informações completas
+        
+        Args:
+            order_data: Dados do pedido da API do ML
+            ml_account_id: ID da conta ML
+            company_id: ID da empresa
+            access_token: Token opcional (se fornecido, será usado em vez de buscar um novo)
+        """
         try:
             ml_order_id = order_data.get("id")
             
@@ -1035,7 +1042,12 @@ class MLOrdersService:
             else:
                 logger.info(f"✨ Novo pedido - será criado com company_id={company_id}")
             
-            access_token = self._get_active_token(ml_account_id, company_id)
+            # Usar token fornecido ou buscar um novo
+            if not access_token:
+                logger.info(f"🔑 Token não fornecido, buscando token ativo...")
+                access_token = self._get_active_token(ml_account_id, company_id)
+            else:
+                logger.info(f"✅ Token fornecido, usando token existente")
 
             if not access_token:
                 raise RuntimeError(
