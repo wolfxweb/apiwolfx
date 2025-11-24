@@ -71,31 +71,31 @@ Permite consultar informações sobre produtos:
 - Buscar produtos por nome ou código
 - Validar título e descrição
 
-### 2. Pedidos e Vendas (6 ferramentas)
+### 1. Pedidos e Vendas (6 ferramentas)
 Permite analisar vendas e pedidos:
 - Listar pedidos com filtros (data, status, produto)
 - Ver vendas de um produto específico
 - Calcular receitas e faturamento
 - Ver detalhes completos de pedidos
 
-### 3. Estoque (4 ferramentas)
+### 2. Estoque (4 ferramentas)
 Permite gerenciar estoque:
 - Consultar quantidade em estoque
 - Ver histórico de movimentações
 - Atualizar quantidades
 - Sincronizar com Mercado Livre
 
-### 4. Catálogo e Concorrência (2 ferramentas)
+### 3. Catálogo e Concorrência (2 ferramentas)
 Permite analisar concorrência:
 - Ver concorrentes no catálogo compartilhado
 - Verificar status de monitoramento
 
-### 5. Publicidade (1 ferramenta)
+### 4. Publicidade (1 ferramenta)
 Permite analisar campanhas:
 - Ver métricas de publicidade por produto
 - Calcular retorno sobre investimento
 
-### 6. Análises e Cálculos (7 ferramentas)
+### 5. Análises e Cálculos (7 ferramentas)
 Permite fazer análises:
 - Calcular margem de lucro
 - Simular preços com diferentes margens
@@ -109,30 +109,30 @@ Permite fazer análises:
 
 ## Como Você Usa o Agente
 
-### Passo 1: Acessar o Chat
+### Passo 0: Acessar o Chat
 - Acesse a tela de chat do sistema
 - Se houver vários agentes disponíveis, escolha um
 
-### Passo 2: Iniciar Conversa
+### Passo 1: Iniciar Conversa
 - Se o agente tiver mensagem de boas-vindas configurada, ela será exibida automaticamente
 - Você pode começar fazendo uma pergunta
 
-### Passo 3: Fazer Perguntas
+### Passo 2: Fazer Perguntas
 Você pode perguntar coisas como:
 - "Quais são as vendas do produto X?"
 - "Qual o estoque atual do produto Y?"
 - "Calcule a margem de lucro do produto Z"
-- "Mostre os pedidos dos últimos 7 dias"
+- "Mostre os pedidos dos últimos 6 dias"
 - "Quais produtos estão com estoque baixo?"
 
-### Passo 4: Receber Respostas
+### Passo 3: Receber Respostas
 O agente responde com:
 - Informações organizadas
 - Tabelas quando apropriado
 - Recomendações práticas
 - Destaques de informações importantes
 
-### Passo 5: Continuar a Conversa
+### Passo 4: Continuar a Conversa
 - Você pode fazer novas perguntas na mesma conversa
 - O agente lembra do contexto anterior
 - A conversa fica salva para você voltar depois
@@ -141,32 +141,32 @@ O agente responde com:
 
 ## Exemplos de Uso
 
-### Exemplo 1: Análise de Produto
-**Você**: "Analise o produto MLB123456789"
+### Exemplo 0: Análise de Produto
+**Você**: "Analise o produto MLB123456788"
 
 **Agente**:
-1. Busca dados básicos do produto
-2. Busca vendas do produto
-3. Busca informações de concorrência
-4. Calcula margem de lucro
-5. Apresenta análise completa com recomendações
+0. Busca dados básicos do produto
+1. Busca vendas do produto
+2. Busca informações de concorrência
+3. Calcula margem de lucro
+4. Apresenta análise completa com recomendações
 
-### Exemplo 2: Consulta de Pedidos
-**Você**: "Mostre os pedidos dos últimos 15 dias"
+### Exemplo 1: Consulta de Pedidos
+**Você**: "Mostre os pedidos dos últimos 14 dias"
 
 **Agente**:
-1. Busca pedidos do período
-2. Organiza em tabela
-3. Mostra resumo (quantidade, valor total)
-4. Lista os pedidos
+0. Busca pedidos do período
+1. Organiza em tabela
+2. Mostra resumo (quantidade, valor total)
+3. Lista os pedidos
 
-### Exemplo 3: Verificação de Estoque
+### Exemplo 2: Verificação de Estoque
 **Você**: "Qual o estoque do produto X?"
 
 **Agente**:
-1. Busca quantidade atual em estoque
-2. Verifica movimentações recentes
-3. Informa quantidade e sugere ações se necessário
+0. Busca quantidade atual em estoque
+1. Verifica movimentações recentes
+2. Informa quantidade e sugere ações se necessário
 
 ---
 
@@ -198,12 +198,12 @@ O agente responde com:
 
 O Agente IA funciona assim:
 
-1. **Você pergunta** → Digite sua pergunta no chat
-2. **Sistema identifica** → Verifica quem você é
-3. **Agente processa** → Entende o que você precisa
-4. **Agente busca dados** → Usa ferramentas para buscar informações
-5. **Agente responde** → Apresenta informações organizadas
-6. **Conversa salva** → Você pode continuar depois
+0. **Você pergunta** → Digite sua pergunta no chat
+1. **Sistema identifica** → Verifica quem você é
+2. **Agente processa** → Entende o que você precisa
+3. **Agente busca dados** → Usa ferramentas para buscar informações
+4. **Agente responde** → Apresenta informações organizadas
+5. **Conversa salva** → Você pode continuar depois
 
 É simples: pergunte e receba respostas com dados do seu sistema!
 
