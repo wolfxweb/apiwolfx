@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}SELVEZ - Trial 7 Dias Grátis{% endblock %}
+
+{% block content %}
+<style>
+.trial-hero {
+    background: linear-gradient(135deg, #02C47C, #008F5A);
+    color: white;
+    padding: 100px 0 70px;
+}
+
+.trial-hero h1 {
+    font-size: 3rem;
+    font-weight: 700;
+}
+
+.trial-btn-primary {
+    background: linear-gradient(135deg, #FFD348, #FFB400);
+    border: none;
+    color: #111;
+    font-weight: 600;
+    padding: 14px 30px;
+    border-radius: 50px;
+}
+
+.trial-section {
+    padding: 80px 0;
+}
+
+.trial-card {
+    border-radius: 20px;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    height: 100%;
+}
+
+.trial-list li {
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+}
+
+.trial-list li i {
+    color: #02C47C;
+    margin-right: 10px;
+}
+
+.trial-form-card {
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    border: none;
+}
+
+.trial-form-card input {
+    padding: 16px;
+    border-radius: 12px;
+}
+
+.guarantee-badges span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f0fdf6;
+    border-radius: 30px;
+    padding: 10px 18px;
+    margin: 5px;
+    font-weight: 600;
+}
+
+.trial-steps li {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+</style>
+
+<section class="trial-hero">
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-7">
+                <p class="text-uppercase text-white-50 mb-2">Página de captura – trial 7 dias grátis</p>
+                <h1 class="mb-3">Teste o SELVEZ Grátis por 7 Dias — Sem Cartão, Sem Risco</h1>
+                <p class="lead mb-3">Automatize anúncios, estoque, pedidos, notas fiscais, etiquetas e monitore concorrentes no catálogo.</p>
+                <p class="lead mb-4">Experimente tudo agora, sem limites.</p>
+                <a href="/auth/register" class="btn trial-btn-primary btn-lg">➡️ Criar minha conta grátis (7 dias)</a>
+            </div>
+            <div class="col-lg-5">
+                <div class="card trial-card">
+                    <div class="card-body p-4">
+                        <h4 class="fw-bold">Tudo incluso no trial</h4>
+                        <ul class="trial-list list-unstyled mt-3 mb-0">
+                            <li><i class="bi bi-cpu"></i>IA integrada para vendas, estoque, margem e preço</li>
+                            <li><i class="bi bi-bullseye"></i>Monitoramento de catálogo com alertas de preço</li>
+                            <li><i class="bi bi-shop"></i>Gestão completa de anúncios</li>
+                            <li><i class="bi bi-box-seam"></i>Estoque automatizado e sincronizado</li>
+                            <li><i class="bi bi-receipt"></i>Pedidos com status, expedição e rastreio</li>
+                            <li><i class="bi bi-cash-coin"></i>Financeiro completo</li>
+                            <li><i class="bi bi-file-earmark-text"></i>NF integrada ao Mercado Livre</li>
+                            <li><i class="bi bi-printer"></i>Impressão de etiquetas</li>
+                            <li><i class="bi bi-cart-check"></i>Compras e fornecedores</li>
+                        </ul>
+                        <p class="mt-3 mb-0 fw-bold">👉 Tudo liberado. Sem travas.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="trial-section">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card trial-card h-100">
+                    <div class="card-body p-4">
+                        <h3 class="fw-bold mb-3">🚀 O que você vai usar durante o trial</h3>
+                        <p class="text-muted">Durante os 7 dias você tem acesso TOTAL a:</p>
+                        <ul class="trial-list list-unstyled">
+                            <li><i class="bi bi-cpu"></i>IA integrada: análises de vendas, estoque, margem, anúncios e simulações de preço</li>
+                            <li><i class="bi bi-bullseye"></i>Monitoramento de catálogo: descubra sempre que concorrentes baixarem o preço</li>
+                            <li><i class="bi bi-shop"></i>Gestão de anúncios: edite, importe e controle tudo no painel</li>
+                            <li><i class="bi bi-box-seam"></i>Estoque automatizado com sincronização em tempo real</li>
+                            <li><i class="bi bi-receipt"></i>Pedidos completos com status, expedição e rastreamento</li>
+                            <li><i class="bi bi-cash-stack"></i>Financeiro completo: contas, fluxo de caixa e centros de custo</li>
+                            <li><i class="bi bi-file-earmark-text"></i>Nota fiscal integrada ao Mercado Livre</li>
+                            <li><i class="bi bi-printer"></i>Impressão de etiquetas</li>
+                            <li><i class="bi bi-cart3"></i>Compras e fornecedores</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card trial-card h-100">
+                    <div class="card-body p-4">
+                        <h3 class="fw-bold mb-3">🧠 Por que é grátis e sem cartão?</h3>
+                        <p>Porque queremos que você sinta o poder do SELVEZ na prática.</p>
+                        <p>Se te ajudar (e vai ajudar), você continua. Se não gostar, basta não renovar. Simples assim.</p>
+                        <a href="/auth/register" class="btn btn-outline-success w-100">Começar agora</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="trial-section" style="background-color: #f6f8fb;">
+    <div class="container">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-6">
+                <h3 class="fw-bold mb-3">🎯 Comece em menos de 5 minutos</h3>
+                <ol class="trial-steps">
+                    <li>Crie sua conta</li>
+                    <li>Conecte sua conta Mercado Livre</li>
+                    <li>Veja seu estoque, anúncios e pedidos sincronizando</li>
+                    <li>A IA já começa a responder suas perguntas</li>
+                    <li>Você já pode operar normalmente</li>
+                </ol>
+                <a href="/auth/register" class="btn trial-btn-primary">➡️ Criar minha conta grátis</a>
+            </div>
+            <div class="col-lg-6">
+                <div class="card trial-card">
+                    <div class="card-body p-4">
+                        <h3 class="fw-bold mb-3">🔐 Garantia total</h3>
+                        <div class="guarantee-badges">
+                            <span><i class="bi bi-check"></i>Sem cartão</span>
+                            <span><i class="bi bi-check"></i>Sem compromisso</span>
+                            <span><i class="bi bi-check"></i>Sem contrato</span>
+                            <span><i class="bi bi-check"></i>Sem taxa</span>
+                            <span><i class="bi bi-check"></i>Sem risco</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="trial-section">
+    <div class="container">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-6 order-lg-2">
+                <div class="card trial-form-card">
+                    <div class="card-body p-5">
+                        <h3 class="fw-bold mb-3">✔ Formulário</h3>
+                        <p class="text-muted">Preencha e comece agora mesmo. Sem cartão.</p>
+                        <form onsubmit="window.location.href='/auth/register'; return false;">
+                            <div class="mb-3">
+                                <label class="form-label">Nome</label>
+                                <input type="text" class="form-control" placeholder="Seu nome" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">E-mail</label>
+                                <input type="email" class="form-control" placeholder="voce@suaempresa.com" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label">Senha</label>
+                                <input type="password" class="form-control" placeholder="Crie uma senha" required>
+                            </div>
+                            <button type="submit" class="btn trial-btn-primary w-100">➡️ Criar minha conta grátis (7 dias)</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6 order-lg-1">
+                <h3 class="fw-bold mb-3">O SELVEZ trabalha por você</h3>
+                <p class="lead">Enquanto você testa o trial, a plataforma já automatiza processos, sincroniza dados e mostra onde você está perdendo ou ganhando dinheiro.</p>
+                <p>Em menos de uma semana você sente a diferença. E se não fizer sentido, basta não continuar.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

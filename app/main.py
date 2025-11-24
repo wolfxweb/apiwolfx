@@ -1515,6 +1515,56 @@ async def root(request: Request, session_token: str = Cookie(None), db: Session 
     return render_template("home.html", request=request, user=user_data, plans=plans_data)
 
 
+@app.get("/paginatrial")
+async def trial_capture(request: Request, session_token: str = Cookie(None), db: Session = Depends(get_db)):
+    """Página de captura exclusiva para o trial de 7 dias"""
+    from app.views.template_renderer import render_template
+    from app.controllers.auth_controller import AuthController
+
+    user_data = None
+
+    if session_token:
+        controller = AuthController()
+        result = controller.get_user_by_session(session_token, db)
+        if not result.get("error"):
+            user_data = result.get("user")
+
+    return render_template("paginatrial.html", request=request, user=user_data)
+
+
+@app.get("/paginacalculadora")
+async def calculator_capture(request: Request, session_token: str = Cookie(None), db: Session = Depends(get_db)):
+    """Página de captura da calculadora de margem"""
+    from app.views.template_renderer import render_template
+    from app.controllers.auth_controller import AuthController
+
+    user_data = None
+
+    if session_token:
+        controller = AuthController()
+        result = controller.get_user_by_session(session_token, db)
+        if not result.get("error"):
+            user_data = result.get("user")
+
+    return render_template("paginacalculadora.html", request=request, user=user_data)
+
+
+@app.get("/obrigadacalculadora")
+async def calculator_thanks(request: Request, session_token: str = Cookie(None), db: Session = Depends(get_db)):
+    """Página de obrigado após download da calculadora"""
+    from app.views.template_renderer import render_template
+    from app.controllers.auth_controller import AuthController
+
+    user_data = None
+
+    if session_token:
+        controller = AuthController()
+        result = controller.get_user_by_session(session_token, db)
+        if not result.get("error"):
+            user_data = result.get("user")
+
+    return render_template("paginaobrigadacalculadora.html", request=request, user=user_data)
+
 
 @app.get("/login")
 async def login(state: str = None):

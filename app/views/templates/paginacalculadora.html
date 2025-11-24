@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Calculadora de Margem - SELVEZ{% endblock %}
+
+{% block content %}
+<style>
+.calc-hero {
+    padding: 110px 0 80px;
+    background: linear-gradient(135deg, #111, #02C47C);
+    color: white;
+}
+
+.calc-hero h1 {
+    font-size: 3rem;
+    font-weight: 700;
+}
+
+.calc-btn-primary {
+    background: linear-gradient(135deg, #FFD348, #FFB400);
+    border: none;
+    color: #111;
+    font-weight: 600;
+    padding: 14px 32px;
+    border-radius: 50px;
+}
+
+.calc-section {
+    padding: 80px 0;
+}
+
+.calc-card {
+    border: none;
+    border-radius: 22px;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.08);
+    height: 100%;
+}
+
+.calc-list li {
+    margin-bottom: 0.5rem;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.calc-list li i {
+    color: #02C47C;
+    font-size: 1.1rem;
+}
+
+.privacy-box {
+    background: #f6f8fb;
+    border-radius: 18px;
+    padding: 20px;
+    font-size: 0.95rem;
+}
+
+.calculator-form input {
+    padding: 16px;
+    border-radius: 12px;
+}
+</style>
+
+<section class="calc-hero">
+    <div class="container">
+        <div class="row g-5 align-items-center">
+            <div class="col-lg-7">
+                <p class="text-uppercase text-white-50 mb-2">Página de captura – Calculadora de Margem</p>
+                <h1 class="mb-3">Baixe Gratuitamente a Calculadora de Margem para Mercado Livre (XLSX + Atualizada)</h1>
+                <p class="lead mb-3">Descubra exatamente quanto você realmente lucra em cada venda — e pare de vender no prejuízo sem perceber.</p>
+                <a href="#form" class="btn calc-btn-primary">➡️ Baixar agora (Grátis)</a>
+            </div>
+            <div class="col-lg-5">
+                <div class="card calc-card">
+                    <div class="card-body p-4">
+                        <h4 class="fw-bold">Por que usar essa calculadora?</h4>
+                        <p class="mb-0">Ela considera todas as taxas do Mercado Livre e mostra sua margem real em segundos.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="calc-section">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card calc-card h-100">
+                    <div class="card-body p-4">
+                        <h3 class="fw-bold mb-3">🧮 O que essa calculadora vai te mostrar</h3>
+                        <ul class="calc-list list-unstyled">
+                            <li><i class="bi bi-check2"></i>Sua margem real após todas as taxas</li>
+                            <li><i class="bi bi-check2"></i>Impacto do frete, comissão e logística</li>
+                            <li><i class="bi bi-check2"></i>Se cada anúncio está lucrando ou dando prejuízo</li>
+                            <li><i class="bi bi-check2"></i>Quanto ajustar no preço para aumentar lucro</li>
+                            <li><i class="bi bi-check2"></i>Comparação de margem entre produtos</li>
+                            <li><i class="bi bi-check2"></i>Análise rápida para novos anúncios</li>
+                        </ul>
+                        <p class="fw-bold mt-3">💡 Muitos vendedores acham que têm lucro… até usarem essa planilha.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card calc-card h-100">
+                    <div class="card-body p-4">
+                        <h3 class="fw-bold mb-3">📉 Você pode estar perdendo dinheiro sem saber</h3>
+                        <p>O Mercado Livre cobra comissão, frete, logística, taxas por envio, custo do produto, embalagem e impostos.</p>
+                        <p>Depois disso, muitos anúncios ficam com:</p>
+                        <ul class="list-unstyled calc-list">
+                            <li><i class="bi bi-x-circle"></i>Margem baixa</li>
+                            <li><i class="bi bi-x-circle"></i>Margem negativa</li>
+                            <li><i class="bi bi-x-circle"></i>Lucro zero</li>
+                        </ul>
+                        <p class="fw-bold mb-0">📌 Essa calculadora mostra a verdade.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="calc-section" style="background-color: #f6f8fb;">
+    <div class="container">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-6">
+                <h3 class="fw-bold mb-3">🧲 Por que é gratuita?</h3>
+                <p>Porque queremos te ajudar a ter clareza — e apresentar o SELVEZ, que faz esse cálculo automaticamente para você.</p>
+                <p>Mas o arquivo é 100% grátis e sem compromisso.</p>
+            </div>
+            <div class="col-lg-6">
+                <div class="card calc-card">
+                    <div class="card-body p-4">
+                        <h3 class="fw-bold mb-3">🔒 Privacidade</h3>
+                        <p class="mb-2">Nada de spam. Você pode sair da lista a qualquer momento com 1 clique.</p>
+                        <div class="privacy-box">Nós respeitamos seu e-mail. Você só recebe o que pediu.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="calc-section" id="form">
+    <div class="container">
+        <div class="row g-5 align-items-center">
+            <div class="col-lg-6 order-lg-2">
+                <div class="card calc-card">
+                    <div class="card-body p-5">
+                        <h3 class="fw-bold mb-3">📝 Formulário</h3>
+                        <p class="text-muted">Digite seu melhor e-mail e receba agora:</p>
+                        <form class="calculator-form" onsubmit="window.location.href='/obrigadacalculadora'; return false;">
+                            <div class="mb-3">
+                                <label class="form-label">Nome</label>
+                                <input type="text" class="form-control" placeholder="Seu nome" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label">E-mail</label>
+                                <input type="email" class="form-control" placeholder="voce@suaempresa.com" required>
+                            </div>
+                            <button type="submit" class="btn calc-btn-primary w-100">➡️ Baixar Calculadora (Grátis)</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6 order-lg-1">
+                <h3 class="fw-bold mb-3">Receba o arquivo direto no seu e-mail</h3>
+                <p>É rápido, atualizado e pronto para usar.</p>
+                <p class="fw-bold">Baixe, preencha os dados dos seus produtos e veja os resultados na hora.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
