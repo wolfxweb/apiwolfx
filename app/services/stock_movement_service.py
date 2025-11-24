@@ -354,38 +354,35 @@ class StockMovementService:
                 success=True
             )
             
-            stock_service = StockService(self.db)
-            result = stock_service.update_stock(
-                company_id=company_id,
-                warehouse_id=warehouse_id,
-                quantity=-quantity,  # Negativo para saída - quantidade DO ITEM vendido
-                internal_product_id=internal_product_id,
-                ml_item_id=ml_item_id if is_fulfillment else None,  # Full tem ml_item_id, normal não
-                movement_type="sale"
-            )
+            # Para produtos fulfillment, não tentar dar baixa (estoque é gerenciado pelo ML)
+            # Apenas registrar a movimentação para histórico
+            stock_decrease_success = False
+            stock_service = None  # Inicializar para uso posterior na sincronização ML
             
-            logger.info(f"📦 [ESTOQUE] Resultado do update_stock: success={result.get('success')}, error={result.get('error')}")
-            
-            if not result.get("success"):
-                error_msg = result.get("error", "Erro desconhecido")
-                logger.error(f"❌ [ESTOQUE] Falha ao dar baixa no estoque: {error_msg}")
-                global_logger.log_event(
-                    event_type="stock_sync/error",
-                    data={
-                        "action": "stock_decrease_failed",
-                        "ml_order_id": str(order.ml_order_id),
-                        "ml_item_id": ml_item_id,
-                        "error": error_msg
-                    },
+            if is_fulfillment:
+                logger.info(f"ℹ️ [ESTOQUE] Produto fulfillment - pulando baixa no estoque (estoque gerenciado pelo ML), apenas registrando movimentação")
+                stock_decrease_success = True  # Considerar sucesso para continuar com registro
+            else:
+                stock_service = StockService(self.db)
+                result = stock_service.update_stock(
                     company_id=company_id,
-                    success=False,
-                    error_message=error_msg
+                    warehouse_id=warehouse_id,
+                    quantity=-quantity,  # Negativo para saída - quantidade DO ITEM vendido
+                    internal_product_id=internal_product_id,
+                    ml_item_id=None,  # Produtos normais não têm ml_item_id no estoque
+                    movement_type="sale"
                 )
-                return result
+                
+                logger.info(f"📦 [ESTOQUE] Resultado do update_stock: success={result.get('success')}, error={result.get('error')}")
+                stock_decrease_success = result.get("success", False)
+                
+                if not stock_decrease_success:
+                    error_msg = result.get("error", "Erro desconhecido")
+                    logger.warning(f"⚠️ [ESTOQUE] Falha ao dar baixa no estoque: {error_msg} - mas continuando para registrar movimentação")
             
-            logger.info(f"✅ [ESTOQUE] Baixa no estoque realizada com sucesso")
+            logger.info(f"✅ [ESTOQUE] Processando registro de movimentação...")
             
-            # Obter quantidade após baixa
+            # Obter ou criar ProductStock para registro
             if is_fulfillment:
                 # Para Full, buscar estoque específico do anúncio
                 product_stock = self.db.query(ProductStock).filter(
@@ -395,6 +392,21 @@ class StockMovementService:
                         ProductStock.ml_item_id == ml_item_id
                     )
                 ).first()
+                
+                # Para fulfillment, se não encontrar product_stock, criar um básico apenas para registro
+                if not product_stock:
+                    logger.warning(f"⚠️ ProductStock não encontrado para fulfillment ml_item_id {ml_item_id}, criando registro básico")
+                    product_stock = ProductStock(
+                        company_id=company_id,
+                        warehouse_id=warehouse_id,
+                        ml_item_id=ml_item_id,
+                        internal_product_id=internal_product_id,
+                        quantity=0,  # Para fulfillment, quantidade é gerenciada pelo ML
+                        reserved_quantity=0
+                    )
+                    self.db.add(product_stock)
+                    self.db.flush()
+                    logger.info(f"✅ ProductStock criado para registro de movimentação fulfillment")
             else:
                 # Para normal, buscar estoque compartilhado
                 product_stock = self.db.query(ProductStock).filter(
@@ -407,37 +419,63 @@ class StockMovementService:
                 ).first()
             
             if not product_stock:
-                logger.warning(f"⚠️ ProductStock não encontrado após baixa para ml_item_id {ml_item_id}")
+                logger.error(f"❌ ProductStock não encontrado após baixa para ml_item_id {ml_item_id}")
                 return {
                     "success": False,
                     "error": "Estoque não encontrado após baixa"
                 }
             
             # Calcular quantidade disponível após baixa
-            available_quantity = float(product_stock.quantity - product_stock.reserved_quantity)
+            # Para fulfillment, a quantidade pode ser 0 (gerenciada pelo ML)
+            available_quantity = float(product_stock.quantity - product_stock.reserved_quantity) if product_stock.quantity else 0.0
             
             # Formatar observação
             order_num = order_number or str(order.ml_order_id)
             order_dt = order_date or (order.date_created.strftime("%d/%m/%Y %H:%M") if order.date_created else "")
             channel = sales_channel or "Mercado Livre"
             notes = f"Venda - Pedido {order_num} - {order_dt} - {channel} - {quantity} unidade(s)"
+            if is_fulfillment:
+                notes += " (Fulfillment - estoque gerenciado pelo ML)"
             
-            # Registrar movimentação
-            self.record_movement(
+            # Para fulfillment, não alteramos a quantidade (estoque é gerenciado pelo ML)
+            # Para produtos normais, a quantidade já foi alterada pelo update_stock
+            if is_fulfillment:
+                # Para fulfillment, previous e new são iguais (não alteramos estoque)
+                previous_quantity = float(product_stock.quantity) if product_stock.quantity else 0.0
+                new_quantity = previous_quantity
+            elif stock_decrease_success:
+                # Para produtos normais com baixa bem-sucedida, calcular baseado na quantidade atual
+                previous_quantity = float(product_stock.quantity) + quantity
+                new_quantity = float(product_stock.quantity)
+            else:
+                # Para produtos normais com baixa falhada, usar quantidade atual (não alterada)
+                previous_quantity = float(product_stock.quantity) if product_stock.quantity else 0.0
+                new_quantity = previous_quantity
+            
+            # Registrar movimentação (sempre, mesmo se baixa falhou)
+            movement_result = self.record_movement(
                 company_id=company_id,
                 warehouse_id=warehouse_id,
                 product_stock_id=product_stock.id,
                 movement_type="sale",
                 quantity=-quantity,
-                previous_quantity=float(product_stock.quantity) + quantity,
-                new_quantity=float(product_stock.quantity),
+                previous_quantity=previous_quantity,
+                new_quantity=new_quantity,
                 reference_type="order",
                 reference_id=ml_order_id,
                 ml_order_id=ml_order_id,
                 notes=notes
             )
             
+            if not movement_result.get("success"):
+                logger.error(f"❌ Falha ao registrar movimentação: {movement_result.get('error')}")
+                return movement_result
+            
             logger.info(f"✅ Baixa no estoque: {quantity} unidade(s) do item {ml_item_id} (Pedido: {order_num})")
+            if is_fulfillment:
+                logger.info(f"ℹ️ [ESTOQUE] Movimentação registrada para fulfillment (estoque gerenciado pelo ML)")
+            elif not stock_decrease_success:
+                logger.warning(f"⚠️ [ESTOQUE] Movimentação registrada mas baixa de estoque falhou")
             
             # Log global: baixa realizada
             global_logger.log_event(
@@ -449,7 +487,9 @@ class StockMovementService:
                     "quantity_decreased": quantity,
                     "available_quantity_after": available_quantity,
                     "is_fulfillment": is_fulfillment,
-                    "warehouse_id": warehouse_id
+                    "warehouse_id": warehouse_id,
+                    "stock_decrease_success": stock_decrease_success,
+                    "movement_registered": True
                 },
                 company_id=company_id,
                 success=True
@@ -472,6 +512,10 @@ class StockMovementService:
                     company_id=company_id,
                     success=True
                 )
+                
+                # Garantir que stock_service está definido
+                if not stock_service:
+                    stock_service = StockService(self.db)
                 
                 sync_result = stock_service.sync_stock_to_ml_announcements(
                     company_id=company_id,
@@ -545,15 +589,18 @@ class StockMovementService:
                     "is_fulfillment": is_fulfillment,
                     "synced_ml": not is_fulfillment and internal_product_id is not None
                 },
-                company_id=company_id,
-                success=True
-            )
+                    company_id=company_id,
+                    success=True
+                )
             
+            # Retornar sucesso mesmo se baixa falhou, desde que movimentação foi registrada
             return {
                 "success": True,
                 "message": f"Venda sincronizada com estoque: {quantity} unidade(s)",
                 "available_quantity": available_quantity,
                 "is_fulfillment": is_fulfillment,
+                "stock_decreased": stock_decrease_success,
+                "movement_registered": True,
                 "synced_ml": not is_fulfillment and internal_product_id is not None
             }
             
