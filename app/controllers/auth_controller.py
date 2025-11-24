@@ -231,6 +231,11 @@ class AuthController:
                 if plan_template:
                     trial_days = plan_template.trial_days if hasattr(plan_template, 'trial_days') else 0
                     is_trial = trial_days > 0
+                    logger.info(f"🔍 Plano encontrado no banco:")
+                    logger.info(f"   - ID: {plan_template.id}")
+                    logger.info(f"   - Nome: {plan_template.plan_name}")
+                    logger.info(f"   - trial_days: {trial_days}")
+                    logger.info(f"   - is_trial (trial_days > 0): {is_trial}")
             
             # Validar e limpar CPF/CNPJ (remover caracteres não numéricos)
             cpf_cnpj_clean = None
@@ -285,7 +290,11 @@ class AuthController:
             
             # Criar assinatura do plano selecionado via Asaas
             checkout_url = None
-            if plan_id and plan_template:
+            # Verificar se é plano trial (por nome ou trial_days)
+            plan_name_lower = plan_template.plan_name.lower() if plan_template else ""
+            is_trial_plan = is_trial or "trial" in plan_name_lower
+            
+            if plan_id and plan_template and not is_trial_plan:
                 try:
                     # Importar AsaasController
                     from app.controllers.asaas_controller import AsaasController
@@ -294,11 +303,12 @@ class AuthController:
                     # Criar assinatura no Asaas
                     asaas_controller = AsaasController(db)
                     
-                    # Determinar billing_type baseado no payment_method
+                    # Determinar billing_type baseado no payment_method (usar PIX como padrão se None)
+                    payment_method_value = payment_method if payment_method else "PIX"
                     billing_type = "PIX"
-                    if payment_method == "CREDIT_CARD" or payment_method == "CREDIT_CARD_INSTALLMENT":
+                    if payment_method_value == "CREDIT_CARD" or payment_method_value == "CREDIT_CARD_INSTALLMENT":
                         billing_type = "CREDIT_CARD"
-                    elif payment_method == "BOLETO":
+                    elif payment_method_value == "BOLETO":
                         billing_type = "BOLETO"
                     
                     # Usar o documento salvo na empresa (CNPJ ou CPF)
@@ -307,7 +317,7 @@ class AuthController:
                         "email": email,
                         "cpf": document_to_save,  # Usar CNPJ da empresa ou CPF do usuário (já salvo no campo cnpj)
                         "billing_type": billing_type,
-                        "installments": installments if payment_method == "CREDIT_CARD_INSTALLMENT" else 1
+                        "installments": installments if payment_method_value == "CREDIT_CARD_INSTALLMENT" else 1
                     }
                     
                     asaas_result = asaas_controller.create_subscription(
@@ -318,11 +328,20 @@ class AuthController:
                     )
                     
                     # Obter invoiceUrl do resultado da criação da assinatura
+                    # O AsaasController retorna "invoice_url" (com underscore)
                     checkout_url = (
                         asaas_result.get("invoice_url") or 
                         asaas_result.get("invoiceUrl") or
-                        asaas_result.get("invoiceURL")
+                        asaas_result.get("invoiceURL") or
+                        asaas_result.get("checkout_url")
                     )
+                    
+                    logger.info(f"🔍 Tentando obter checkout_url do resultado do Asaas:")
+                    logger.info(f"   - invoice_url: {asaas_result.get('invoice_url')}")
+                    logger.info(f"   - invoiceUrl: {asaas_result.get('invoiceUrl')}")
+                    logger.info(f"   - invoiceURL: {asaas_result.get('invoiceURL')}")
+                    logger.info(f"   - checkout_url final: {checkout_url}")
+                    logger.info(f"   - Todas as chaves do resultado: {list(asaas_result.keys()) if isinstance(asaas_result, dict) else 'N/A'}")
                     
                     logger.info(f"✅ Assinatura Asaas criada para novo usuário {user.id}: {asaas_result.get('asaas_subscription_id')}")
                     logger.info(f"🔍 Resultado completo do Asaas: {json.dumps(asaas_result, indent=2, default=str) if isinstance(asaas_result, dict) else asaas_result}")
@@ -356,6 +375,31 @@ class AuthController:
                         trial_ends_at=datetime.utcnow() + timedelta(days=trial_days) if is_trial else None
                     )
                     db.add(subscription)
+            elif is_trial_plan and plan_template:
+                # Para plano trial, criar assinatura local diretamente como ativa
+                logger.info(f"ℹ️ Plano trial selecionado - criando assinatura local sem pagamento (não criando no Asaas)")
+                subscription = Subscription(
+                    company_id=company.id,
+                    plan_name=plan_template.plan_name,
+                    description=plan_template.description,
+                    price=plan_template.promotional_price if plan_template.promotional_price else plan_template.price,
+                    currency=plan_template.currency,
+                    billing_cycle=plan_template.billing_cycle,
+                    max_users=plan_template.max_users,
+                    max_ml_accounts=plan_template.max_ml_accounts,
+                    storage_gb=plan_template.storage_gb if hasattr(plan_template, 'storage_gb') else 5,
+                    ai_analysis_monthly=plan_template.ai_analysis_monthly if hasattr(plan_template, 'ai_analysis_monthly') else 10,
+                    catalog_monitoring_slots=plan_template.catalog_monitoring_slots if hasattr(plan_template, 'catalog_monitoring_slots') else 5,
+                    product_mining_slots=plan_template.product_mining_slots if hasattr(plan_template, 'product_mining_slots') else 10,
+                    product_monitoring_slots=plan_template.product_monitoring_slots if hasattr(plan_template, 'product_monitoring_slots') else 20,
+                    status="active",  # Ativo imediatamente para trial
+                    is_trial=is_trial,
+                    starts_at=datetime.utcnow(),
+                    ends_at=None,  # Trial não tem data de término fixa
+                    trial_ends_at=datetime.utcnow() + timedelta(days=trial_days) if is_trial else None
+                )
+                db.add(subscription)
+                db.commit()
             
             # Criar sessão inicial
             session_token = self._generate_session_token()
@@ -386,12 +430,25 @@ class AuthController:
             }
             
             # Adicionar URL de checkout se houver (CRÍTICO para redirecionamento)
+            # IMPORTANTE: Adicionar tanto checkout_url quanto invoice_url para garantir compatibilidade
             if checkout_url:
                 result["checkout_url"] = checkout_url
+                result["invoice_url"] = checkout_url  # Adicionar também como invoice_url para compatibilidade
                 logger.info(f"✅ Checkout URL adicionada ao resultado do registro: {checkout_url}")
+                logger.info(f"✅ Invoice URL também adicionada: {checkout_url}")
             else:
                 logger.warning(f"⚠️ ATENÇÃO: Checkout URL não disponível! Usuário será redirecionado para dashboard.")
-                logger.warning(f"⚠️ Resultado do Asaas: {asaas_result if 'asaas_result' in locals() else 'N/A'}")
+                if 'asaas_result' in locals() and asaas_result:
+                    logger.warning(f"⚠️ Resultado do Asaas recebido:")
+                    logger.warning(f"   - Tipo: {type(asaas_result)}")
+                    logger.warning(f"   - Chaves: {list(asaas_result.keys()) if isinstance(asaas_result, dict) else 'N/A'}")
+                    logger.warning(f"   - Conteúdo completo: {json.dumps(asaas_result, indent=2, default=str) if isinstance(asaas_result, dict) else asaas_result}")
+                else:
+                    logger.warning(f"⚠️ Resultado do Asaas: N/A (não foi criado ou não está disponível)")
+            
+            # Adicionar flag indicando se é plano trial
+            result["is_trial_plan"] = is_trial_plan
+            logger.info(f"✅ Flag is_trial_plan adicionada ao resultado: {is_trial_plan}")
             
             return result
             

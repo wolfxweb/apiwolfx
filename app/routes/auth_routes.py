@@ -114,7 +114,7 @@ async def register(
     password: str = Form(...),
     confirm_password: str = Form(...),
     plan_id: int = Form(None),
-    payment_method: str = Form("PIX"),
+    payment_method: str = Form(None),  # Opcional - não obrigatório para trial
     installments: int = Form(1),
     terms: bool = Form(False),
     newsletter: bool = Form(False),
@@ -131,6 +131,9 @@ async def register(
     if len(password) < 8:
         return auth_controller.get_register_page(error="A senha deve ter pelo menos 8 caracteres")
     
+    # Se payment_method não foi fornecido, usar PIX como padrão (para planos não-trial)
+    payment_method_value = payment_method if payment_method else "PIX"
+    
     result = auth_controller.register(
         company_name=company_name,
         company_domain=company_domain,
@@ -141,7 +144,7 @@ async def register(
         cpf_cnpj=cpf_cnpj,
         password=password,
         plan_id=plan_id,
-        payment_method=payment_method,
+        payment_method=payment_method_value,
         installments=installments,
         terms=terms,
         newsletter=newsletter,
@@ -163,6 +166,12 @@ async def register(
     logger.info(f"   - invoice_url: {result.get('invoice_url', 'NÃO DISPONÍVEL')}")
     logger.info(f"   - Todas as chaves: {list(result.keys())}")
     
+    # Verificar se é plano trial - se for, não redirecionar para pagamento
+    is_trial_plan = result.get("is_trial_plan", False)
+    
+    logger.info(f"🔍 Verificação de redirecionamento:")
+    logger.info(f"   - is_trial_plan: {is_trial_plan}")
+    
     # Tentar obter checkout_url de múltiplas fontes
     checkout_url = (
         result.get("checkout_url") or 
@@ -171,14 +180,28 @@ async def register(
         result.get("invoiceURL")
     )
     
-    redirect_url = checkout_url or "/dashboard"
+    logger.info(f"   - checkout_url obtido: {checkout_url}")
+    logger.info(f"   - result.get('checkout_url'): {result.get('checkout_url')}")
+    logger.info(f"   - result.get('invoice_url'): {result.get('invoice_url')}")
     
-    if checkout_url:
-        logger.info(f"🔄 Redirecionando para checkout do Asaas: {redirect_url}")
+    # Se for plano trial, não redirecionar para pagamento
+    if is_trial_plan:
+        redirect_url = "/dashboard"
+        logger.info(f"🔄 Plano trial selecionado - redirecionando para dashboard (sem pagamento)")
     else:
-        logger.error(f"❌ ERRO: Nenhuma URL de checkout encontrada! Redirecionando para dashboard")
-        logger.error(f"❌ Isso significa que o usuário não será redirecionado para pagamento!")
-        logger.error(f"❌ Chaves disponíveis no resultado: {list(result.keys())}")
+        redirect_url = checkout_url or "/dashboard"
+        
+        if checkout_url:
+            logger.info(f"🔄 Redirecionando para checkout do Asaas: {redirect_url}")
+        else:
+            logger.error(f"❌ ERRO: Nenhuma URL de checkout encontrada! Redirecionando para dashboard")
+            logger.error(f"❌ Isso significa que o usuário não será redirecionado para pagamento!")
+            logger.error(f"❌ Chaves disponíveis no resultado: {list(result.keys())}")
+            logger.error(f"❌ Valores das chaves relacionadas:")
+            logger.error(f"   - checkout_url: {result.get('checkout_url')}")
+            logger.error(f"   - invoice_url: {result.get('invoice_url')}")
+            logger.error(f"   - invoiceUrl: {result.get('invoiceUrl')}")
+            logger.error(f"   - invoiceURL: {result.get('invoiceURL')}")
     
     # Criar resposta de redirecionamento
     response = RedirectResponse(url=redirect_url, status_code=302)

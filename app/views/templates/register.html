@@ -166,12 +166,13 @@
                         <label for="plan_id" class="form-label">
                             <i class="bi bi-tag-fill"></i> Plano *
                         </label>
-                        <select class="form-select" id="plan_id" name="plan_id" required onchange="updatePlanInfo()">
+                        <select class="form-select" id="plan_id" name="plan_id" required onchange="updatePlanInfo(); togglePaymentFields();">
                             <option value="">Selecione um plano...</option>
                             {% for plan in plans %}
                             <option value="{{ plan.id }}" 
                                     data-price="{{ plan.price }}" 
                                     data-promotional="{{ plan.promotional_price or '' }}"
+                                    data-plan-name="{{ plan.plan_name|lower }}"
                                     {% if selected_plan and selected_plan == plan.id %}selected{% endif %}>
                                 {{ plan.plan_name }} - 
                                 {% if plan.promotional_price %}
@@ -233,11 +234,11 @@
                     </div>
                     
                     <!-- Forma de Pagamento -->
-                    <div class="mb-3">
+                    <div class="mb-3" id="payment_method_container">
                         <label for="payment_method" class="form-label">
-                            <i class="bi bi-credit-card"></i>Forma de Pagamento *
+                            <i class="bi bi-credit-card"></i>Forma de Pagamento <span id="payment_method_required">*</span>
                         </label>
-                        <select class="form-select" id="payment_method" name="payment_method" required>
+                        <select class="form-select" id="payment_method" name="payment_method">
                             <option value="PIX">PIX </option>
                             <option value="CREDIT_CARD">Cartão de Crédito </option>
        
@@ -446,6 +447,44 @@ function updatePlanInfo() {
         infoDiv.innerHTML = '';
     }
 }
+
+// Função para mostrar/ocultar campos de pagamento baseado no plano selecionado
+function togglePaymentFields() {
+    const select = document.getElementById('plan_id');
+    const selectedOption = select.options[select.selectedIndex];
+    const paymentMethodContainer = document.getElementById('payment_method_container');
+    const paymentMethodSelect = document.getElementById('payment_method');
+    const paymentMethodRequired = document.getElementById('payment_method_required');
+    const installmentsContainer = document.getElementById('installments_container');
+    
+    if (selectedOption.value) {
+        const planName = (selectedOption.dataset.planName || '').toLowerCase();
+        const isTrial = planName.includes('trial');
+        
+        if (isTrial) {
+            // Ocultar campos de pagamento para plano trial
+            paymentMethodContainer.style.display = 'none';
+            installmentsContainer.style.display = 'none';
+            paymentMethodSelect.removeAttribute('required');
+            paymentMethodRequired.style.display = 'none';
+        } else {
+            // Mostrar campos de pagamento para planos pagos
+            paymentMethodContainer.style.display = 'block';
+            paymentMethodSelect.setAttribute('required', 'required');
+            paymentMethodRequired.style.display = 'inline';
+        }
+    } else {
+        // Se nenhum plano selecionado, mostrar campos
+        paymentMethodContainer.style.display = 'block';
+        paymentMethodSelect.setAttribute('required', 'required');
+        paymentMethodRequired.style.display = 'inline';
+    }
+}
+
+// Chamar togglePaymentFields ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    togglePaymentFields();
+});
 
 // Atualizar info do plano se já estiver selecionado
 if (document.getElementById('plan_id').value) {
