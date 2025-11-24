@@ -1151,10 +1151,12 @@ class MLOrdersService:
                     logger.info(f"✅ [CRIAÇÃO] Sincronização de estoque concluída para pedido {new_order.ml_order_id}")
                     
                     # Verificar se movimentação foi criada
-                    from app.models.saas_models import StockMovement, StockMovementType
+                    from app.models.saas_models import StockMovement
+                    # IMPORTANTE: Usar string diretamente para evitar problemas com enum no SQLAlchemy
+                    sale_movement_type = "sale"  # StockMovementType.SALE.value
                     movement_check = self.db.query(StockMovement).filter(
                         StockMovement.ml_order_id == new_order.id,
-                        StockMovement.movement_type == StockMovementType.SALE.value
+                        StockMovement.movement_type == sale_movement_type
                     ).first()
                     
                     if movement_check:
