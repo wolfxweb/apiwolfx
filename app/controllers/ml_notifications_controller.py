@@ -1460,12 +1460,14 @@ class MLNotificationsController:
                         if action == "created":
                             logger.info(f"✅ [WEBHOOK] Novo pedido {order_id} criado com sucesso via webhook - estoque deve ter sido sincronizado")
                             # Verificar se houve sincronização de estoque
-                            from app.models.saas_models import StockMovement, StockMovementType
+                            from app.models.saas_models import StockMovement
+                            # IMPORTANTE: Usar string diretamente para evitar problemas com enum no SQLAlchemy
+                            sale_movement_type = "sale"  # StockMovementType.SALE.value
                             order_obj = result.get("order")
                             if order_obj:
                                 movement_check = db.query(StockMovement).filter(
                                     StockMovement.ml_order_id == order_obj.id,
-                                    StockMovement.movement_type == StockMovementType.SALE.value
+                                    StockMovement.movement_type == sale_movement_type
                                 ).first()
                                 if movement_check:
                                     logger.info(f"✅ [WEBHOOK] Confirmação: Movimentação de estoque criada para pedido {order_id} (movement_id: {movement_check.id})")
