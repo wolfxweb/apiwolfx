@@ -2589,11 +2589,17 @@ class OpenAIAssistantService:
                 
                 if movement_type:
                     try:
-                        # Converter string para enum e usar .value na comparação
-                        enum_value = StockMovementType(movement_type).value
-                        query = query.filter(StockMovement.movement_type == enum_value)
+                        # IMPORTANTE: Converter para string diretamente para evitar problemas com enum no SQLAlchemy
+                        if isinstance(movement_type, str):
+                            movement_type_str = movement_type
+                        else:
+                            # Se for um enum, extrair o value
+                            enum_obj = StockMovementType(movement_type)
+                            movement_type_str = str(enum_obj.value) if hasattr(enum_obj, 'value') else str(enum_obj)
+                        query = query.filter(StockMovement.movement_type == movement_type_str)
                     except (ValueError, AttributeError):
                         # Se não conseguir converter, ignorar o filtro
+                        logger.warning(f"⚠️ Valor inválido para movement_type: {movement_type}. Ignorando filtro.")
                         pass
                 
                 total = query.count()
