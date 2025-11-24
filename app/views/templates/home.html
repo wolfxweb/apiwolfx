@@ -116,6 +116,56 @@ body {
     box-shadow: 0 12px 30px rgba(0,0,0,0.08);
 }
 
+.plan-card {
+    background: white;
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+    height: 100%;
+    border: 1px solid rgba(2, 196, 124, 0.08);
+    position: relative;
+    overflow: hidden;
+}
+
+.plan-card.featured {
+    border: 2px solid #02C47C;
+    transform: translateY(-10px);
+}
+
+.plan-card .plan-badge {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #FFD348, #FFB400);
+    color: #111;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 20px;
+}
+
+.plan-price {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #02C47C;
+}
+
+.plan-price small {
+    font-size: 1rem;
+    color: #6c757d;
+}
+
+.plan-features li {
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+}
+
+.plan-features li i {
+    color: #02C47C;
+    margin-right: 8px;
+}
+
 .robot-background-icons {
     position: absolute;
     inset: 0;
@@ -255,8 +305,8 @@ body {
                     </div>
                     {% endfor %}
                 </div>
-                <p class="fw-bold text-white-50 mb-2">Exemplos reais que o SELVEZ responde:</p>
-                <ul class="text-white-50">
+                <p class="fw-bold text-white mb-2">Exemplos reais que o SELVEZ responde:</p>
+                <ul class="text-white">
                     <li>“Quais anúncios estão vendendo mais nos últimos 7 dias?”</li>
                     <li>“Qual será o impacto se eu baixar o preço em 5%?”</li>
                     <li>“Quais produtos estão com ruptura iminente?”</li>
@@ -394,54 +444,109 @@ body {
         <span><i class="bi bi-robot"></i></span>
     </div>
     <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="section-heading">Planos e preços</h2>
+            <p class="lead">Escolha o plano ideal e evolua conforme sua operação cresce.</p>
+            <p class="text-muted">Sem fidelidade • Sem multa • Sem contrato • Teste grátis</p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="plan-card h-100">
+                    <div class="special-feature-icon mb-3"><i class="bi bi-rocket"></i></div>
+                    <h4 class="fw-bold">Iniciante</h4>
+                    <p class="text-muted">Até 100 pedidos/mês • 1 conta ML</p>
+                    <p class="plan-price">R$99 <small>/mês</small></p>
+                    <ul class="plan-features list-unstyled mb-4">
+                        <li><i class="bi bi-check"></i>Dashboard completo</li>
+                        <li><i class="bi bi-check"></i>Estoque sincronizado</li>
+                        <li><i class="bi bi-check"></i>Pedidos + NF + etiquetas</li>
+                        <li><i class="bi bi-check"></i>Cadastro de fornecedores</li>
+                    </ul>
+                    <a href="/auth/register" class="btn btn-outline-success w-100">Começar agora</a>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="plan-card h-100 featured">
+                    <div class="plan-badge">Mais escolhido</div>
+                    <div class="special-feature-icon mb-3"><i class="bi bi-lightning-charge"></i></div>
+                    <h4 class="fw-bold">Intermediário</h4>
+                    <p class="text-muted">Operações em crescimento • 2 contas ML</p>
+                    <p class="plan-price">R$199 <small>/mês</small></p>
+                    <ul class="plan-features list-unstyled mb-4">
+                        <li><i class="bi bi-check"></i>Tudo do Iniciante</li>
+                        <li><i class="bi bi-check"></i>Gestão de campanhas</li>
+                        <li><i class="bi bi-check"></i>Monitoramento básico de catálogo</li>
+                        <li><i class="bi bi-check"></i>IA liberada para análises rápidas</li>
+                    </ul>
+                    <a href="/auth/register" class="btn btn-primary w-100">Testar grátis</a>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="plan-card h-100">
+                    <div class="special-feature-icon mb-3"><i class="bi bi-trophy"></i></div>
+                    <h4 class="fw-bold">Profissional</h4>
+                    <p class="text-muted">Múltiplos depósitos • operação avançada</p>
+                    <p class="plan-price">R$249 <small>/mês</small></p>
+                    <ul class="plan-features list-unstyled mb-4">
+                        <li><i class="bi bi-check"></i>Monitoramento ampliado</li>
+                        <li><i class="bi bi-check"></i>Dashboards avançados de finanças</li>
+                        <li><i class="bi bi-check"></i>Suporte prioritário</li>
+                        <li><i class="bi bi-check"></i>Automação de compras e logística</li>
+                    </ul>
+                    <a href="/auth/register" class="btn btn-outline-success w-100">Quero esse</a>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="plan-card h-100">
+                    <div class="special-feature-icon mb-3"><i class="bi bi-building"></i></div>
+                    <h4 class="fw-bold">Grandes Operações</h4>
+                    <p class="text-muted">Escala alta • múltiplas marcas e times</p>
+                    <p class="plan-price">Sob medida</p>
+                    <ul class="plan-features list-unstyled mb-4">
+                        <li><i class="bi bi-check"></i>Monitoramento ilimitado do catálogo</li>
+                        <li><i class="bi bi-check"></i>IA completa e automações custom</li>
+                        <li><i class="bi bi-check"></i>Contas ML ilimitadas</li>
+                        <li><i class="bi bi-check"></i>Onboarding dedicado</li>
+                    </ul>
+                    <a href="/auth/register" class="btn btn-outline-success w-100">Falar com vendas</a>
+                </div>
+            </div>
+        </div>
+        <p class="text-center text-muted mt-4">Valores sugeridos para planos mensais. Consulte condições especiais para anual ou operações customizadas.</p>
+    </div>
+</section>
+
+<section class="py-5 full-width-section section-with-robots section-with-robots-light" style="background-color: #fdfdfd;">
+    <div class="robot-background-icons">
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+    </div>
+    <div class="container">
         <div class="text-center mb-4">
-            <h2 class="section-heading">💰 PLANOS E PREÇOS</h2>
-            <p class="lead">Planos para todos os níveis de operação:</p>
-            <p>iniciante • intermediário • profissional • grandes operações</p>
+            <h2 class="section-heading">Perguntas frequentes</h2>
+            <p class="lead">Respostas rápidas para quem está avaliando migrar para o SELVEZ.</p>
         </div>
-        <div class="table-responsive mb-3">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Plano</th>
-                        <th>Indicado para</th>
-                        <th>Destaques</th>
-                        <th>Preço mensal*</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="fw-bold">Iniciante</td>
-                        <td>Quem está começando ou tem até 100 pedidos/mês</td>
-                        <td>Dashboard completo, estoque sincronizado, pedidos, NF/etiquetas e fornecedores</td>
-                        <td>R$99/mês</td>
-                    </tr>
-                    <tr>
-                        <td class="fw-bold">Intermediário</td>
-                        <td>Operações em crescimento com múltiplas contas ML</td>
-                        <td>Inclui campanhas, monitoramento básico e IA para até 2 contas</td>
-                        <td>R$199/mês</td>
-                    </tr>
-                    <tr>
-                        <td class="fw-bold">Profissional</td>
-                        <td>Quem precisa de marketing avançado, múltiplos depósitos e processos mais complexos</td>
-                        <td>Monitoramento ampliado, dashboards avançados e suporte prioritário</td>
-                        <td>R$249/mês</td>
-                    </tr>
-                    <tr>
-                        <td class="fw-bold">Grandes Operações</td>
-                        <td>Alto volume, múltiplas marcas e times</td>
-                        <td>Monitoramento ilimitado, IA completa, automações personalizadas e contas ilimitadas</td>
-                        <td>Sob medida</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="row g-4">
+            {% set faqs = [
+                ('"Uso outro sistema, preciso trocar?"', 'Se você quer monitoramento de catálogo, IA, notas fiscais automáticas e fluxo completo integrado, sim — o SELVEZ substitui vários sistemas em uma única plataforma.'),
+                ('"Não tenho tempo para aprender."', 'O onboarding é guiado, a IA orienta cada etapa e você conta com suporte humano. Você aprende usando.'),
+                ('"E se eu não gostar?"', 'Teste grátis, sem contrato e sem risco. Só continue se fizer sentido para o seu negócio.'),
+                ('"É caro?"', 'Mais caro é perder vendas por estoque desatualizado ou ser derrubado no catálogo. Os planos pagam o investimento em poucos dias.'),
+                ('"Consigo importar meus dados?"', 'Sim. Importamos anúncios, pedidos e produtos existentes e acompanhamos todo o processo com materiais e suporte.'),
+                ('"Preciso de conhecimento técnico?"', 'Não. A interface foi criada para vendedores e gestores e funciona sem conhecimento técnico.')
+            ] %}
+            {% for question, answer in faqs %}
+            <div class="col-md-6">
+                <div class="card feature-card h-100">
+                    <div class="card-body">
+                        <h5 class="fw-bold">{{ question }}</h5>
+                        <p class="text-muted mb-0">{{ answer }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
         </div>
-        <p class="text-center text-muted">Sem fidelidade. Sem multa. Sem contrato. Teste grátis e só pague quando fizer sentido.</p>
-        <div class="text-center mt-4">
-            <a href="/auth/register" class="btn btn-primary-custom">Quero escolher meu plano</a>
-        </div>
-        <p class="text-center text-muted mt-3">*Valores sugeridos para planos mensais. Consulte condições para anual ou operações customizadas.</p>
     </div>
 </section>
 
