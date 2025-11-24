@@ -166,6 +166,29 @@ body {
     margin-right: 8px;
 }
 
+.floating-whatsapp {
+    position: fixed;
+    right: 30px;
+    bottom: 30px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #25D366;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    z-index: 999;
+    transition: transform 0.2s ease;
+}
+
+.floating-whatsapp:hover {
+    transform: scale(1.05);
+    color: white;
+}
+
 .robot-background-icons {
     position: absolute;
     inset: 0;
@@ -345,7 +368,7 @@ body {
                     <li>posição no catálogo</li>
                     <li>variação de concorrência</li>
                 </ul>
-                <p class="lead">A cada 12 horas o sistema coleta tudo.</p>
+                <p class="lead">A cada 24 horas o sistema coleta tudo.</p>
                 <p class="fw-bold">👉 Você sempre sabe quando alguém tenta te derrubar no catálogo.</p>
             </div>
             <div class="col-lg-6">
@@ -550,5 +573,9 @@ body {
     </div>
 </section>
 
+
+<a href="https://wa.me/559999999999" class="floating-whatsapp" target="_blank" rel="noopener">
+    <i class="bi bi-whatsapp"></i>
+</a>
 
 {% endblock %}
