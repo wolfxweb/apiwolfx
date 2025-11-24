@@ -4,7 +4,7 @@ Serviço para calcular projeções de estoque e recomendações
 import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc
+from sqlalchemy import and_, or_, func, desc, cast, String
 from sqlalchemy.sql import extract
 from decimal import Decimal
 from datetime import datetime, timedelta
@@ -62,7 +62,7 @@ class StockProjectionService:
                 and_(
                     StockMovement.company_id == company_id,
                     StockMovement.product_stock_id.in_(product_stock_ids),
-                    StockMovement.movement_type == "sale",  # StockMovementType.SALE.value
+                    cast(StockMovement.movement_type, String) == "sale",  # StockMovementType.SALE.value
                     StockMovement.created_at >= date_from
                 )
             )
@@ -120,7 +120,7 @@ class StockProjectionService:
                 and_(
                     StockMovement.company_id == company_id,
                     StockMovement.product_stock_id.in_(product_stock_ids),
-                    StockMovement.movement_type == "sale",  # StockMovementType.SALE.value
+                    cast(StockMovement.movement_type, String) == "sale",  # StockMovementType.SALE.value
                     StockMovement.created_at >= date_from
                 )
             )

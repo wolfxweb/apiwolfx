@@ -1152,11 +1152,12 @@ class MLOrdersService:
                     
                     # Verificar se movimentação foi criada
                     from app.models.saas_models import StockMovement
-                    # IMPORTANTE: Usar string diretamente para evitar problemas com enum no SQLAlchemy
+                    from sqlalchemy import cast, String
+                    # IMPORTANTE: Usar cast para evitar problemas com EnumValueType no SQLAlchemy
                     sale_movement_type = "sale"  # StockMovementType.SALE.value
                     movement_check = self.db.query(StockMovement).filter(
                         StockMovement.ml_order_id == new_order.id,
-                        StockMovement.movement_type == sale_movement_type
+                        cast(StockMovement.movement_type, String) == sale_movement_type
                     ).first()
                     
                     if movement_check:
@@ -1904,11 +1905,12 @@ class MLOrdersService:
             movement_service = StockMovementService(self.db)
             
             # Verificar se já existe movimentação para este pedido
-            # IMPORTANTE: Usar o valor string diretamente para evitar problemas com enum no SQLAlchemy
+            # IMPORTANTE: Usar cast para evitar problemas com EnumValueType no SQLAlchemy
+            from sqlalchemy import cast, String
             sale_movement_type_value = "sale"  # StockMovementType.SALE.value
             existing_movement = self.db.query(StockMovement).filter(
                 StockMovement.ml_order_id == order.id,
-                StockMovement.movement_type == sale_movement_type_value
+                cast(StockMovement.movement_type, String) == sale_movement_type_value
             ).first()
             
             if existing_movement:

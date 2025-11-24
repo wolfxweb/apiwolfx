@@ -117,12 +117,13 @@ class StockMovementService:
                 query = query.filter(StockMovement.warehouse_id == warehouse_id)
             
             if movement_type:
-                # IMPORTANTE: Converter para string diretamente para evitar problemas com enum no SQLAlchemy
+                # IMPORTANTE: Usar cast para evitar problemas com EnumValueType no SQLAlchemy
+                from sqlalchemy import cast, String
                 movement_type_str = str(movement_type) if not isinstance(movement_type, str) else movement_type
                 # Se for um enum, extrair o value
                 if hasattr(movement_type, 'value'):
                     movement_type_str = str(movement_type.value)
-                query = query.filter(StockMovement.movement_type == movement_type_str)
+                query = query.filter(cast(StockMovement.movement_type, String) == movement_type_str)
             
             if date_from:
                 query = query.filter(StockMovement.created_at >= date_from)
