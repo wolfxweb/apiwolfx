@@ -26,6 +26,22 @@ body {
     color: white;
 }
 
+.section-with-robots {
+    position: relative;
+    overflow: hidden;
+}
+
+.section-with-robots > .container,
+.section-with-robots > .container-fluid {
+    position: relative;
+    z-index: 1;
+}
+
+.hero-section {
+    position: relative;
+    overflow: hidden;
+}
+
 .full-width-section {
     width: 100vw;
     margin-left: calc(-50vw + 50%);
@@ -99,9 +115,53 @@ body {
     border-radius: 16px;
     box-shadow: 0 12px 30px rgba(0,0,0,0.08);
 }
+
+.robot-background-icons {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.robot-background-icons span {
+    position: absolute;
+    color: rgba(255, 255, 255, 0.1);
+    font-size: 4rem;
+    animation: robotFloat 8s ease-in-out infinite;
+}
+
+.section-with-robots-light .robot-background-icons span {
+    color: rgba(0, 0, 0, 0.06);
+}
+
+.robot-background-icons span:nth-child(2) {
+    left: 60%;
+    top: 20%;
+    font-size: 5rem;
+    animation-duration: 10s;
+}
+
+.robot-background-icons span:nth-child(3) {
+    left: 20%;
+    bottom: 10%;
+    font-size: 6rem;
+    animation-duration: 12s;
+}
+
+@keyframes robotFloat {
+    0% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-20px) rotate(8deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+}
 </style>
 
-<section class="hero-section full-width-section">
+<section class="hero-section full-width-section section-with-robots">
+    <div class="robot-background-icons">
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+    </div>
     <div class="container py-5" style="min-height: 100vh; display: flex; align-items: center;">
         <div class="row g-5 align-items-center">
             <div class="col-lg-7">
@@ -135,7 +195,12 @@ body {
     </div>
 </section>
 
-<section class="py-5 full-width-section" style="background-color: #ffffff;">
+<section class="py-5 full-width-section section-with-robots section-with-robots-light" style="background-color: #ffffff;">
+    <div class="robot-background-icons">
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+    </div>
     <div class="container">
         <div class="text-center mb-4">
             <h2 class="section-heading">⭐ POR QUE O SELVEZ É DIFERENTE</h2>
@@ -171,7 +236,12 @@ body {
     </div>
 </section>
 
-<section class="py-5 section-dark full-width-section">
+<section class="py-5 section-dark full-width-section section-with-robots">
+    <div class="robot-background-icons">
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+    </div>
     <div class="container">
         <div class="row g-4 align-items-center">
             <div class="col-lg-6">
@@ -206,7 +276,12 @@ body {
     </div>
 </section>
 
-<section class="py-5 full-width-section" style="background-color: #fff;">
+<section class="py-5 full-width-section section-with-robots section-with-robots-light" style="background-color: #fff;">
+    <div class="robot-background-icons">
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+    </div>
     <div class="container">
         <div class="row g-4 align-items-center">
             <div class="col-lg-6">
@@ -236,18 +311,23 @@ body {
     </div>
 </section>
 
-<section class="py-5 full-width-section" style="background-color: #f6f8fb;">
+<section class="py-5 full-width-section section-with-robots section-with-robots-light" style="background-color: #f6f8fb;">
+    <div class="robot-background-icons">
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+    </div>
     <div class="container">
         <div class="row g-4">
             {% set modules = [
-                ('bi-shop', '🛒 ANÚNCIOS DO MERCADO LIVRE – 100% CENTRALIZADOS', ['Crie e edite anúncios','Importe anúncios existentes','Gerencie preços e quantidades','Associe produtos internos','Veja métricas completas','Controle campanhas com clareza','Filtros avançados por conta, status e categoria','Tudo organizado, tudo sincronizado.']),
-                ('bi-box-seam', '📦 ESTOQUE AUTOMATIZADO – NUNCA MAIS PERCA VENDAS', ['Estoque por depósito','Movimentação automática por pedido','Atualizações em tempo real','Sincroniza com todos os anúncios associados','Alertas de estoque baixo','Histórico completo de movimentações','Evita rupturas e prejuízos']),
-                ('bi-receipt', '📑 PEDIDOS DO MERCADO LIVRE – DA VENDA À ENTREGA', ['Atualização automática','Status interno: separação, expedição, envio','Filtros por conta, período, tipo de frete','Código de rastreamento','Controle de erros e exceções','Reduza tempo, aumente entregas no prazo e elimine caos operacional.']),
-                ('bi-file-earmark-text', '🧾 EMISSÃO DE NOTA FISCAL DIRETA DO MERCADO LIVRE', ['Emita NF no painel','100% sincronizado com o pedido','Sem baixar arquivos','Sem sistemas externos','Sem retrabalho','Simples, rápido e integrado.']),
-                ('bi-printer', '🏷️ IMPRESSÃO DE ETIQUETAS – AUTOMÁTICA E RÁPIDA', ['Gere a etiqueta','Imprima direto','Integra com o pedido','Sem desencontro de dados']),
-                ('bi-cash-stack', '💳 FINANCEIRO COMPLETO', ['Contas a pagar','Contas a receber','Fluxo de caixa','Categorias e centros de custo','Planejamento financeiro','Controle consolidado por período, categoria e operação','Você finalmente entende quanto realmente lucra.']),
-                ('bi-people', '🧑‍🤝‍🧑 FORNECEDORES – SUA BASE DE SUPRIMENTO ORGANIZADA', ['cadastro completo de fornecedores','contatos, documentos e histórico','vínculo de produtos','relatórios por fornecedor','visão clara de quem entrega, quando e como','Fornecedores organizados = menos ruptura e mais crescimento.']),
-                ('bi-clipboard-check', '📦 COMPRAS (ORDENS DE COMPRA) – SEM FALTAR MERCADORIA', ['crie ordens de compra','controle datas previstas','registre recebimentos','atualize estoque automaticamente','controle custos reais','acompanhe cada etapa do processo','Você compra o necessário, no tempo certo, com controle total.'])
+                ('bi-shop', 'ANÚNCIOS DO MERCADO LIVRE – 100% CENTRALIZADOS', ['Crie e edite anúncios','Importe anúncios existentes','Gerencie preços e quantidades','Associe produtos internos','Veja métricas completas','Controle campanhas com clareza','Filtros avançados por conta, status e categoria','Tudo organizado, tudo sincronizado.']),
+                ('bi-box-seam', 'ESTOQUE AUTOMATIZADO – NUNCA MAIS PERCA VENDAS', ['Estoque por depósito','Movimentação automática por pedido','Atualizações em tempo real','Sincroniza com todos os anúncios associados','Alertas de estoque baixo','Histórico completo de movimentações','Evita rupturas e prejuízos']),
+                ('bi-receipt', 'PEDIDOS DO MERCADO LIVRE – DA VENDA À ENTREGA', ['Atualização automática','Status interno: separação, expedição, envio','Filtros por conta, período, tipo de frete','Código de rastreamento','Controle de erros e exceções','Reduza tempo, aumente entregas no prazo e elimine caos operacional.']),
+                ('bi-file-earmark-text', 'EMISSÃO DE NOTA FISCAL DIRETA DO MERCADO LIVRE', ['Emita NF no painel','100% sincronizado com o pedido','Sem baixar arquivos','Sem sistemas externos','Sem retrabalho','Simples, rápido e integrado.']),
+                ('bi-printer', 'IMPRESSÃO DE ETIQUETAS – AUTOMÁTICA E RÁPIDA', ['Gere a etiqueta','Imprima direto','Integra com o pedido','Sem desencontro de dados']),
+                ('bi-cash-stack', 'FINANCEIRO COMPLETO', ['Contas a pagar','Contas a receber','Fluxo de caixa','Categorias e centros de custo','Planejamento financeiro','Controle consolidado por período, categoria e operação','Você finalmente entende quanto realmente lucra.']),
+                ('bi-people', 'FORNECEDORES – SUA BASE DE SUPRIMENTO ORGANIZADA', ['cadastro completo de fornecedores','contatos, documentos e histórico','vínculo de produtos','relatórios por fornecedor','visão clara de quem entrega, quando e como','Fornecedores organizados = menos ruptura e mais crescimento.']),
+                ('bi-clipboard-check', 'COMPRAS (ORDENS DE COMPRA) – SEM FALTAR MERCADORIA', ['crie ordens de compra','controle datas previstas','registre recebimentos','atualize estoque automaticamente','controle custos reais','acompanhe cada etapa do processo','Você compra o necessário, no tempo certo, com controle total.'])
             ] %}
             {% for icon, title, items in modules %}
             <div class="col-md-6">
@@ -268,7 +348,12 @@ body {
     </div>
 </section>
 
-<section class="py-5 full-width-section" style="background-color: #fff;">
+<section class="py-5 full-width-section section-with-robots section-with-robots-light" style="background-color: #fff;">
+    <div class="robot-background-icons">
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+    </div>
     <div class="container">
         <div class="text-center mb-4">
             <h2 class="section-heading text-uppercase">Benefícios</h2>
@@ -302,7 +387,12 @@ body {
 
 <!-- Section removed per request -->
 
-<section id="planos" class="py-5 full-width-section" style="background-color: #fff;">
+<section id="planos" class="py-5 full-width-section section-with-robots section-with-robots-light" style="background-color: #fff;">
+    <div class="robot-background-icons">
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+        <span><i class="bi bi-robot"></i></span>
+    </div>
     <div class="container">
         <div class="text-center mb-4">
             <h2 class="section-heading">💰 PLANOS E PREÇOS</h2>
@@ -355,11 +445,5 @@ body {
     </div>
 </section>
 
-<!-- Final CTA removed per request -->
 
-<footer class="py-4 full-width-section" style="background-color: #111; color: white;">
-    <div class="container text-center">
-        <p class="mb-0">SELVEZ – Inteligência, automação e controle para vendedores profissionais de Mercado Livre.</p>
-    </div>
-</footer>
 {% endblock %}
