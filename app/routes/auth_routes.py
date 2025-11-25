@@ -286,13 +286,12 @@ async def payment_success_page(
                     logger.error(f"❌ Erro ao verificar/atualizar pagamento: {e}", exc_info=True)
                     # Continuar mesmo com erro - mostrar página de sucesso
             
-            # Redirecionar para página inicial (login) após 5 segundos
-            # A página de login mostrará mensagem de sucesso
+            # Redirecionar para página inicial (/) após 5 segundos
             return render_template(
                 "payment_success.html",
                 {
                     "user": user_data,
-                    "redirect_url": "/auth/login",
+                    "redirect_url": "/",
                     "redirect_delay": 5
                 }
             )
