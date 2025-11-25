@@ -87,6 +87,33 @@
                             </select>
                         </div>
                         
+                        <!-- Status interno -->
+                        <div class="col-12">
+                            <label class="form-label small text-uppercase text-muted d-block mb-2">Status interno</label>
+                            <div class="d-flex flex-column gap-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_aguardando_processamento" value="aguardando_processamento" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_aguardando_processamento">Aguardando processamento</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_separacao" value="separacao" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_separacao">Separação</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_expedicao" value="expedicao" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_expedicao">Expedição</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_pronto_envio" value="pronto_envio" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_pronto_envio">Pronto para envio</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_enviado" value="enviado" onchange="applyFilters()">
+                                    <label class="form-check-label" for="internal_status_enviado">Enviado</label>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <!-- Modalidade de envio -->
                         <div class="col-12">
                             <label class="form-label small text-uppercase text-muted d-block mb-2">Modalidade de envio</label>
@@ -161,33 +188,6 @@
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="status_filter" id="status_cancelled" value="cancelled" onchange="applyFilters()">
                                     <label class="form-check-label" for="status_cancelled">Cancelado</label>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Status interno -->
-                        <div class="col-12">
-                            <label class="form-label small text-uppercase text-muted d-block mb-2">Status interno</label>
-                            <div class="d-flex flex-column gap-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_aguardando_processamento" value="aguardando_processamento" onchange="applyFilters()">
-                                    <label class="form-check-label" for="internal_status_aguardando_processamento">Aguardando processamento</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_separacao" value="separacao" onchange="applyFilters()">
-                                    <label class="form-check-label" for="internal_status_separacao">Separação</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_expedicao" value="expedicao" onchange="applyFilters()">
-                                    <label class="form-check-label" for="internal_status_expedicao">Expedição</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_pronto_envio" value="pronto_envio" onchange="applyFilters()">
-                                    <label class="form-check-label" for="internal_status_pronto_envio">Pronto para envio</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="internal_status_filter" id="internal_status_enviado" value="enviado" onchange="applyFilters()">
-                                    <label class="form-check-label" for="internal_status_enviado">Enviado</label>
                                 </div>
                             </div>
                         </div>

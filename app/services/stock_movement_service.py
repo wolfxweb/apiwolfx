@@ -369,14 +369,14 @@ class StockMovementService:
                 success=True
             )
             
-            # Para produtos fulfillment, não tentar dar baixa (estoque é gerenciado pelo ML)
-            # Apenas registrar a movimentação para histórico
+            # Para produtos fulfillment, também atualizar a quantidade no ProductStock
             stock_decrease_success = False
             stock_service = None  # Inicializar para uso posterior na sincronização ML
+            product_stock_fulfillment = None  # Variável para armazenar ProductStock de fulfillment
             
             if is_fulfillment:
                 # Para fulfillment, também atualizar a quantidade no ProductStock para histórico
-                logger.info(f"ℹ️ [ESTOQUE] Produto fulfillment - atualizando quantidade no ProductStock para histórico")
+                logger.info(f"ℹ️ [ESTOQUE] Produto fulfillment - atualizando quantidade no ProductStock")
                 # Buscar ou criar ProductStock primeiro
                 product_stock_fulfillment = self.db.query(ProductStock).filter(
                     and_(
@@ -437,34 +437,33 @@ class StockMovementService:
             
             # Obter ou criar ProductStock para registro
             if is_fulfillment:
-                # Para Full, buscar estoque específico do anúncio (já foi atualizado acima)
-                product_stock = self.db.query(ProductStock).filter(
-                    and_(
-                        ProductStock.company_id == company_id,
-                        ProductStock.warehouse_id == warehouse_id,
-                        ProductStock.ml_item_id == ml_item_id
-                    )
-                ).first()
-                
-                # Se não encontrou, usar o que foi criado acima (product_stock_fulfillment)
-                if not product_stock:
-                    # Se chegou aqui, significa que não foi criado acima, criar agora
-                    logger.warning(f"⚠️ ProductStock não encontrado para fulfillment ml_item_id {ml_item_id}, criando registro básico")
-                    product_stock = ProductStock(
-                        company_id=company_id,
-                        warehouse_id=warehouse_id,
-                        ml_item_id=ml_item_id,
-                        internal_product_id=internal_product_id,  # Pode ser None para fulfillment sem associação
-                        quantity=Decimal("0"),  # Iniciar com 0
-                        reserved_quantity=Decimal("0")
-                    )
-                    self.db.add(product_stock)
-                    self.db.flush()
-                    logger.info(f"✅ ProductStock criado para registro de movimentação fulfillment")
+                # Para Full, usar o ProductStock que já foi atualizado acima
+                if product_stock_fulfillment:
+                    product_stock = product_stock_fulfillment
+                    logger.info(f"✅ ProductStock fulfillment usado (quantidade atual: {product_stock.quantity})")
                 else:
-                    # ProductStock já existe e foi atualizado acima, apenas refresh para garantir dados atualizados
-                    self.db.refresh(product_stock)
-                    logger.info(f"✅ ProductStock fulfillment encontrado e atualizado (quantidade atual: {product_stock.quantity})")
+                    # Fallback: buscar se não foi criado acima (não deveria acontecer)
+                    product_stock = self.db.query(ProductStock).filter(
+                        and_(
+                            ProductStock.company_id == company_id,
+                            ProductStock.warehouse_id == warehouse_id,
+                            ProductStock.ml_item_id == ml_item_id
+                        )
+                    ).first()
+                    
+                    if not product_stock:
+                        logger.warning(f"⚠️ ProductStock não encontrado para fulfillment ml_item_id {ml_item_id}, criando registro básico")
+                        product_stock = ProductStock(
+                            company_id=company_id,
+                            warehouse_id=warehouse_id,
+                            ml_item_id=ml_item_id,
+                            internal_product_id=internal_product_id,
+                            quantity=Decimal("0"),
+                            reserved_quantity=Decimal("0")
+                        )
+                        self.db.add(product_stock)
+                        self.db.flush()
+                        logger.info(f"✅ ProductStock criado para registro de movimentação fulfillment")
             elif not internal_product_id:
                 # Produto normal SEM internal_product_id - criar ProductStock apenas com ml_item_id para histórico
                 logger.warning(f"⚠️ [ESTOQUE] Produto normal sem internal_product_id - criando ProductStock apenas para histórico")

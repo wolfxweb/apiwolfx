@@ -1078,15 +1078,65 @@ class MLOrdersService:
                 logger.info(f"📝 Company ID atual do pedido: {existing_order.company_id}")
                 logger.info(f"📝 Company ID que será usado: {company_id}")
                 
+                # IMPORTANTE: Campos que NÃO devem ser atualizados automaticamente
+                # - id: ID interno do banco
+                # - ml_order_id: ID único do pedido ML (não deve mudar)
+                # - created_at: Data de criação (não deve mudar)
+                # - processing_status: Status interno (gerenciado manualmente, não via notificação)
+                excluded_fields = ["id", "ml_order_id", "created_at", "processing_status"]
+                
+                # Salvar status interno atual ANTES da atualização (se existir)
+                # IMPORTANTE: Status interno só é criado/atualizado manualmente, nunca via notificação
+                from app.models.saas_models import MLOrderProcessingStatus
+                current_processing_status = self.db.query(MLOrderProcessingStatus).filter(
+                    MLOrderProcessingStatus.order_id == existing_order.id
+                ).first()
+                current_status_value = current_processing_status.status if current_processing_status else None
+                current_updated_by = current_processing_status.updated_by if current_processing_status else None
+                
+                if current_processing_status:
+                    logger.info(f"ℹ️ [ATUALIZAÇÃO] Status interno atual preservado: {current_status_value} (updated_by: {current_updated_by})")
+                else:
+                    logger.info(f"ℹ️ [ATUALIZAÇÃO] Pedido não tem status interno - não será criado automaticamente em atualizações")
+                
+                # Atualizar apenas campos do pedido ML (não status interno)
                 for key, value in order_dict.items():
-                    if key not in ["id", "ml_order_id", "created_at"]:
-                        setattr(existing_order, key, value)
+                    if key not in excluded_fields:
+                        # Verificar se não é um relacionamento que possa afetar o status interno
+                        if hasattr(existing_order, key):
+                            setattr(existing_order, key, value)
                 
                 existing_order.updated_at = datetime.utcnow()
                 logger.info(f"✅ Pedido atualizado: ID={existing_order.id}, company_id={existing_order.company_id}")
                 
+                # GARANTIR que o status interno não foi alterado ou criado durante a atualização
+                # Verificar novamente após a atualização
+                if current_processing_status:
+                    # Refresh para garantir que temos os dados atualizados
+                    self.db.refresh(current_processing_status)
+                    if current_processing_status.status != current_status_value:
+                        logger.warning(f"⚠️ [ATUALIZAÇÃO] ATENÇÃO: Status interno foi alterado de '{current_status_value}' para '{current_processing_status.status}'!")
+                        logger.warning(f"⚠️ [ATUALIZAÇÃO] Restaurando valor original: '{current_status_value}'")
+                        current_processing_status.status = current_status_value
+                        current_processing_status.updated_by = current_updated_by  # Preservar quem atualizou
+                        self.db.flush()
+                        logger.info(f"✅ [ATUALIZAÇÃO] Status interno restaurado para: {current_status_value}")
+                    else:
+                        logger.info(f"✅ [ATUALIZAÇÃO] Status interno preservado corretamente: {current_status_value}")
+                else:
+                    # Verificar se foi criado um status interno durante a atualização (não deveria acontecer)
+                    new_processing_status = self.db.query(MLOrderProcessingStatus).filter(
+                        MLOrderProcessingStatus.order_id == existing_order.id
+                    ).first()
+                    if new_processing_status:
+                        logger.warning(f"⚠️ [ATUALIZAÇÃO] ATENÇÃO: Status interno foi criado durante atualização! Removendo.")
+                        self.db.delete(new_processing_status)
+                        self.db.flush()
+                        logger.info(f"✅ [ATUALIZAÇÃO] Status interno removido (não deve ser criado em atualizações)")
+                
                 # NÃO sincronizar estoque em atualizações (apenas na criação)
                 logger.info(f"ℹ️ Pedido {existing_order.ml_order_id} atualizado - não processando estoque (estoque só é processado na criação)")
+                logger.info(f"ℹ️ Pedido {existing_order.ml_order_id} atualizado - status interno NÃO foi alterado (gerenciado manualmente)")
                 
                 return {"action": "updated", "order": existing_order}
             else:
