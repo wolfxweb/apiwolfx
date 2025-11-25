@@ -294,7 +294,22 @@ class AuthController:
             plan_name_lower = plan_template.plan_name.lower() if plan_template else ""
             is_trial_plan = is_trial or "trial" in plan_name_lower
             
+            logger.info(f"🔍 Verificação de plano trial (APÓS buscar do banco):")
+            logger.info(f"   - plan_id recebido: {plan_id}")
+            logger.info(f"   - plan_template encontrado: {plan_template is not None}")
+            if plan_template:
+                logger.info(f"   - plan_template.id: {plan_template.id}")
+                logger.info(f"   - plan_name: {plan_template.plan_name}")
+                logger.info(f"   - plan_name_lower: {plan_name_lower}")
+                logger.info(f"   - trial_days: {trial_days}")
+                logger.info(f"   - is_trial (trial_days > 0): {is_trial}")
+                logger.info(f"   - 'trial' in plan_name_lower: {'trial' in plan_name_lower}")
+                logger.info(f"   - is_trial_plan (resultado final): {is_trial_plan}")
+            else:
+                logger.warning(f"   ⚠️ plan_template é None! Não foi possível verificar se é trial.")
+            
             if plan_id and plan_template and not is_trial_plan:
+                logger.info(f"✅ Plano NÃO é trial (plan_id={plan_id}, plan_name='{plan_template.plan_name}') - criando assinatura no Asaas")
                 try:
                     # Importar AsaasController
                     from app.controllers.asaas_controller import AsaasController
@@ -353,7 +368,20 @@ class AuthController:
                         logger.error(f"❌ Isso impedirá o redirecionamento para pagamento!")
                 except Exception as e:
                     logger.error(f"❌ Erro ao criar assinatura Asaas durante registro: {e}")
-                    # Continuar mesmo com erro - criar assinatura local básica
+                    logger.error(f"❌ Detalhes do erro: {str(e)}")
+                    import traceback
+                    logger.error(f"❌ Traceback completo: {traceback.format_exc()}")
+                    
+                    # Se o erro for relacionado a CPF/CNPJ inválido, retornar erro específico
+                    error_str = str(e).lower()
+                    if "cpf" in error_str or "cnpj" in error_str or "inválido" in error_str or "invalid" in error_str:
+                        logger.error(f"❌ ERRO: CPF/CNPJ inválido ou rejeitado pelo Asaas")
+                        return {
+                            "error": "O CPF/CNPJ informado é inválido ou foi rejeitado pelo sistema de pagamento. Por favor, verifique os dados e tente novamente."
+                        }
+                    
+                    # Para outros erros, continuar mas sem checkout_url
+                    logger.warning(f"⚠️ Continuando registro sem checkout_url devido a erro no Asaas")
                     subscription = Subscription(
                         company_id=company.id,
                         plan_name=plan_template.plan_name,

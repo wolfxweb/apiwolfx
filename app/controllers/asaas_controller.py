@@ -192,6 +192,13 @@ class AsaasController:
                 # Remover emojis da descrição (Asaas não permite emojis)
                 payment_description = _remove_emojis(f"{plan.plan_name} - Primeiro pagamento")
                 
+                # Obter URL de callback do settings
+                from app.config.settings import settings
+                # URL de callback após pagamento bem-sucedido
+                # O Asaas pode redirecionar para esta URL após o pagamento ser confirmado
+                # Tentar múltiplos campos possíveis conforme documentação do Asaas
+                callback_url = f"{settings.base_url}/auth/payment-success"
+                
                 payment_data = {
                     "customer": asaas_customer_id,
                     "billingType": billing_type,
@@ -201,6 +208,16 @@ class AsaasController:
                     "externalReference": f"company_{company_id}_user_{user_id}_initial"
                     # NÃO incluir "subscription" aqui - igual ao teste que funcionou
                 }
+                
+                # Adicionar URL de callback/retorno (tentar múltiplos campos possíveis)
+                # O Asaas pode usar diferentes campos dependendo da versão da API
+                # Tentar callback primeiro (mais comum)
+                payment_data["callback"] = callback_url
+                # Também tentar returnUrl (algumas versões do Asaas usam este)
+                # payment_data["returnUrl"] = callback_url
+                
+                logger.info(f"🔗 URL de callback configurada: {callback_url}")
+                logger.info(f"📋 Dados do pagamento com callback: {json.dumps(payment_data, indent=2, default=str)}")
                 
                 # Adicionar parcelamento se for cartão de crédito parcelado
                 if billing_type == "CREDIT_CARD":
@@ -397,10 +414,34 @@ class AsaasController:
             # Usar documento da empresa (CNPJ ou CPF) se disponível, senão usar do subscriber_data
             cpf_cnpj_for_asaas = company_document or subscriber_data.get("cpf") or subscriber_data.get("document")
             
-            # PRIMEIRO: Tentar buscar cliente existente por CPF/CNPJ no Asaas
+            # Validar CPF/CNPJ antes de usar
+            # O Asaas valida CPF/CNPJ e rejeita se inválido
+            # Se for inválido, não enviar o campo (tornar opcional)
+            cpf_cnpj_validated = None
             if cpf_cnpj_for_asaas:
-                logger.info(f"🔍 Buscando cliente existente por CPF/CNPJ: {cpf_cnpj_for_asaas}")
-                existing_customer = self.asaas_service.find_customer_by_cpf_cnpj(cpf_cnpj_for_asaas)
+                # Remover zeros à esquerda para CPF (CPF não pode começar com zero)
+                cpf_cnpj_clean = cpf_cnpj_for_asaas.lstrip('0')
+                
+                # Se for CPF (11 dígitos), verificar se não é uma sequência inválida
+                if len(cpf_cnpj_clean) == 11:
+                    # CPF não pode ser sequência de números iguais (ex: 11111111111)
+                    if len(set(cpf_cnpj_clean)) == 1:
+                        logger.warning(f"⚠️ CPF inválido (sequência repetida): {cpf_cnpj_for_asaas}")
+                        cpf_cnpj_validated = None
+                    else:
+                        # Restaurar zeros à esquerda se necessário para manter 11 dígitos
+                        cpf_cnpj_validated = cpf_cnpj_clean.zfill(11) if len(cpf_cnpj_clean) < 11 else cpf_cnpj_clean
+                elif len(cpf_cnpj_clean) == 14:
+                    # CNPJ - manter como está
+                    cpf_cnpj_validated = cpf_cnpj_clean
+                else:
+                    logger.warning(f"⚠️ CPF/CNPJ com formato inválido: {cpf_cnpj_for_asaas} (tamanho: {len(cpf_cnpj_clean)})")
+                    cpf_cnpj_validated = None
+            
+            # PRIMEIRO: Tentar buscar cliente existente por CPF/CNPJ no Asaas (apenas se válido)
+            if cpf_cnpj_validated:
+                logger.info(f"🔍 Buscando cliente existente por CPF/CNPJ: {cpf_cnpj_validated}")
+                existing_customer = self.asaas_service.find_customer_by_cpf_cnpj(cpf_cnpj_validated)
                 if existing_customer and existing_customer.get("id"):
                     customer_id = existing_customer["id"]
                     logger.info(f"✅ Cliente existente encontrado no Asaas: {customer_id}")
@@ -429,7 +470,6 @@ class AsaasController:
                 "name": subscriber_data.get("name", subscriber_data.get("email", "Cliente")),
                 "email": subscriber_data.get("email"),
                 "phone": subscriber_data.get("phone"),
-                "cpfCnpj": cpf_cnpj_for_asaas,
                 "postalCode": subscriber_data.get("postal_code"),
                 "address": subscriber_data.get("address"),
                 "addressNumber": subscriber_data.get("address_number"),
@@ -439,6 +479,13 @@ class AsaasController:
                 "state": subscriber_data.get("state"),
                 "externalReference": f"company_{company_id}_user_{user_id}"
             }
+            
+            # Adicionar CPF/CNPJ apenas se válido (tornar opcional para evitar erro do Asaas)
+            if cpf_cnpj_validated:
+                customer_data["cpfCnpj"] = cpf_cnpj_validated
+                logger.info(f"✅ CPF/CNPJ validado e será enviado: {cpf_cnpj_validated}")
+            else:
+                logger.warning(f"⚠️ CPF/CNPJ inválido ou não fornecido - criando cliente sem documento (Asaas pode aceitar)")
             
             # Remover campos None
             customer_data = {k: v for k, v in customer_data.items() if v is not None}
@@ -667,25 +714,49 @@ class AsaasController:
                             # Remover trial_ends_at
                             company.trial_ends_at = None
                             
-                            # Adicionar tokens mensais do plano
-                            # Os dados do plano estão na própria subscription (ai_analysis_monthly)
+                            # Atualizar tokens comprados do plano ao campo ai_tokens_purchased
+                            # Pegar o valor de ai_analysis_monthly do plano e usar o maior valor
                             if subscription.ai_analysis_monthly:
-                                tokens_to_add = subscription.ai_analysis_monthly
-                                # Adicionar tokens mensais (não substituir, somar)
-                                if not company.ai_tokens_monthly:
-                                    company.ai_tokens_monthly = 0
-                                company.ai_tokens_monthly += tokens_to_add
-                                logger.info(f"✅ Tokens mensais adicionados: +{tokens_to_add} tokens (total: {company.ai_tokens_monthly})")
+                                tokens_from_plan = subscription.ai_analysis_monthly
+                                current_tokens = company.ai_tokens_purchased if company.ai_tokens_purchased else 0
+                                
+                                # Usar o maior valor entre o atual e o do plano
+                                new_tokens_value = max(current_tokens, tokens_from_plan)
+                                
+                                # Se o valor do plano for maior, atualizar
+                                if tokens_from_plan > current_tokens:
+                                    company.ai_tokens_purchased = new_tokens_value
+                                    logger.info(f"✅ Tokens comprados atualizados para empresa {company.id}: {current_tokens} → {new_tokens_value}")
+                                    logger.info(f"   - Valor do plano '{subscription.plan_name}': {tokens_from_plan}")
+                                    logger.info(f"   - Valor anterior: {current_tokens}")
+                                    logger.info(f"   - Novo valor (maior): {new_tokens_value}")
+                                else:
+                                    logger.info(f"ℹ️ Tokens comprados mantidos para empresa {company.id}: {current_tokens} (plano tem {tokens_from_plan}, menor que atual)")
                             else:
                                 logger.warning(f"⚠️ Assinatura '{subscription.plan_name}' não tem ai_analysis_monthly definido")
                             
-                            logger.info(f"✅ Empresa {company.id} atualizada: status={company.status}, plan_expires_at={company.plan_expires_at}, ai_tokens_monthly={company.ai_tokens_monthly}")
+                            # Fazer flush das alterações da empresa antes do commit da assinatura
+                            self.db.flush()
+                            logger.info(f"✅ Empresa {company.id} atualizada: status={company.status}, plan_expires_at={company.plan_expires_at}, ai_tokens_purchased={company.ai_tokens_purchased}")
+                    
+                    # Fazer commit das alterações da assinatura e empresa
+                    subscription.updated_at = datetime.now()
+                    self.db.commit()
+                    self.db.refresh(subscription)
+                    if subscription.company_id:
+                        company = self.db.query(Company).filter(Company.id == subscription.company_id).first()
+                        if company:
+                            self.db.refresh(company)
                     
                     logger.info(f"✅ Assinatura {subscription.id} ativada após pagamento confirmado")
                     logger.info(f"   - Status: {subscription.status}")
                     logger.info(f"   - is_trial: {subscription.is_trial}")
+                    logger.info(f"   - starts_at: {subscription.starts_at}")
                     logger.info(f"   - ends_at: {subscription.ends_at}")
                     logger.info(f"   - next_charge_date: {subscription.next_charge_date}")
+                    logger.info(f"   - company_id: {subscription.company_id}")
+                    if subscription.company_id:
+                        logger.info(f"   - Empresa status: {company.status if 'company' in locals() else 'N/A'}")
                 elif event == "PAYMENT_OVERDUE":
                     subscription.status = "overdue"
                     logger.info(f"⚠️ Assinatura {subscription.id} marcada como overdue")
@@ -695,12 +766,17 @@ class AsaasController:
                 elif event == "PAYMENT_CHECKOUT_VIEWED":
                     # Apenas logar, não alterar status (já está pendente)
                     logger.info(f"ℹ️ Checkout visualizado para assinatura {subscription.id}, pagamento ainda pendente")
+                    # Fazer commit mesmo sem alterações para registrar o evento
+                    subscription.updated_at = datetime.now()
+                    self.db.commit()
+                    self.db.refresh(subscription)
                 else:
                     logger.info(f"ℹ️ Evento '{event}' recebido para assinatura {subscription.id}, sem ação específica")
+                    # Fazer commit mesmo sem alterações para registrar o evento
+                    subscription.updated_at = datetime.now()
+                    self.db.commit()
+                    self.db.refresh(subscription)
                 
-                subscription.updated_at = datetime.now()
-                self.db.commit()
-                self.db.refresh(subscription)
                 logger.info(f"✅ Status da assinatura {subscription.id} atualizado para: {subscription.status}")
             else:
                 logger.warning(f"⚠️ Nenhuma assinatura encontrada para processar webhook")

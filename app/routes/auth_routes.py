@@ -5,6 +5,8 @@ from fastapi import APIRouter, Request, Form, Depends, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+import json
+import logging
 
 from app.config.database import get_db
 from app.controllers.auth_controller import AuthController
@@ -189,12 +191,9 @@ async def register(
         redirect_url = "/dashboard"
         logger.info(f"🔄 Plano trial selecionado - redirecionando para dashboard (sem pagamento)")
     else:
-        redirect_url = checkout_url or "/dashboard"
-        
-        if checkout_url:
-            logger.info(f"🔄 Redirecionando para checkout do Asaas: {redirect_url}")
-        else:
-            logger.error(f"❌ ERRO: Nenhuma URL de checkout encontrada! Redirecionando para dashboard")
+        # Para planos não-trial, checkout_url é OBRIGATÓRIO
+        if not checkout_url:
+            logger.error(f"❌ ERRO CRÍTICO: Plano NÃO é trial mas checkout_url não está disponível!")
             logger.error(f"❌ Isso significa que o usuário não será redirecionado para pagamento!")
             logger.error(f"❌ Chaves disponíveis no resultado: {list(result.keys())}")
             logger.error(f"❌ Valores das chaves relacionadas:")
@@ -202,6 +201,12 @@ async def register(
             logger.error(f"   - invoice_url: {result.get('invoice_url')}")
             logger.error(f"   - invoiceUrl: {result.get('invoiceUrl')}")
             logger.error(f"   - invoiceURL: {result.get('invoiceURL')}")
+            logger.error(f"❌ Resultado completo do registro: {json.dumps(result, indent=2, default=str)}")
+            # Ainda assim redirecionar para dashboard, mas com erro visível
+            redirect_url = "/dashboard?error=checkout_error"
+        else:
+            redirect_url = checkout_url
+            logger.info(f"🔄 Redirecionando para checkout do Asaas: {redirect_url}")
     
     # Criar resposta de redirecionamento
     response = RedirectResponse(url=redirect_url, status_code=302)
@@ -228,27 +233,72 @@ async def payment_success_page(
 ):
     """
     Página de sucesso após pagamento confirmado pelo Asaas
+    Verifica o status do pagamento e atualiza a assinatura se necessário
     Redireciona para o dashboard após alguns segundos
     """
     from app.views.template_renderer import render_template
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     # Verificar se há sessão válida
     if session_token:
         auth_controller = AuthController()
         result = auth_controller.validate_session(session_token)
         if result.get("valid"):
-            # Redirecionar para dashboard após 3 segundos
+            user_data = result["user"]
+            company_id = user_data.get("company_id")
+            
+            # Se houver payment_id, verificar status do pagamento e atualizar assinatura
+            if payment_id:
+                try:
+                    logger.info(f"🔍 Verificando status do pagamento {payment_id} para atualizar assinatura...")
+                    from app.controllers.asaas_controller import AsaasController
+                    from app.services.asaas_service import asaas_service
+                    
+                    # Buscar informações do pagamento no Asaas
+                    payment_info = asaas_service._make_request("GET", f"/payments/{payment_id}")
+                    payment_status = payment_info.get("status", "").upper()
+                    
+                    logger.info(f"📊 Status do pagamento {payment_id}: {payment_status}")
+                    
+                    # Se o pagamento está confirmado, processar como webhook
+                    if payment_status in ["CONFIRMED", "RECEIVED"]:
+                        logger.info(f"✅ Pagamento {payment_id} confirmado! Processando atualização da assinatura...")
+                        
+                        # Criar notificação simulada para processar
+                        notification_data = {
+                            "event": "PAYMENT_CONFIRMED",
+                            "payment": {
+                                "id": payment_id,
+                                "status": payment_status
+                            }
+                        }
+                        
+                        # Processar webhook para atualizar assinatura
+                        asaas_controller = AsaasController(db)
+                        webhook_result = asaas_controller.process_webhook_notification(notification_data)
+                        
+                        logger.info(f"✅ Webhook processado: {webhook_result}")
+                    else:
+                        logger.info(f"ℹ️ Pagamento {payment_id} ainda não confirmado (status: {payment_status})")
+                except Exception as e:
+                    logger.error(f"❌ Erro ao verificar/atualizar pagamento: {e}", exc_info=True)
+                    # Continuar mesmo com erro - mostrar página de sucesso
+            
+            # Redirecionar para página inicial (login) após 5 segundos
+            # A página de login mostrará mensagem de sucesso
             return render_template(
                 "payment_success.html",
                 {
-                    "user": result["user"],
-                    "redirect_url": "/dashboard",
-                    "redirect_delay": 3
+                    "user": user_data,
+                    "redirect_url": "/auth/login",
+                    "redirect_delay": 5
                 }
             )
     
-    # Se não houver sessão, redirecionar para login
-    return RedirectResponse(url="/auth/login?success=Pagamento confirmado. Faça login para acessar.", status_code=302)
+    # Se não houver sessão, redirecionar para página inicial
+    return RedirectResponse(url="/", status_code=302)
 
 @auth_router.get("/logout")
 async def logout(
@@ -391,17 +441,74 @@ async def profile(
     company_result = db.execute(company_query, {"company_id": company_id}).fetchone()
     company_info = dict(company_result._mapping) if company_result else {}
     
-    # Informações da assinatura (incluindo trial)
+    # Informações da assinatura (incluindo trial e pending)
+    # Buscar assinatura mais recente (active, pending ou trial)
     subscription_query = text("""
         SELECT * FROM subscriptions 
         WHERE company_id = :company_id 
-        AND (status = 'active' OR is_trial = true)
+        AND (status = 'active' OR status = 'pending' OR is_trial = true)
         ORDER BY created_at DESC 
         LIMIT 1
     """)
     
     subscription_result = db.execute(subscription_query, {"company_id": company_id}).fetchone()
     subscription_info = dict(subscription_result._mapping) if subscription_result else {}
+    
+    # Se não houver assinatura ou se não tiver nome do plano, buscar plano selecionado durante registro
+    # e calcular vencimento (data atual + 7 dias)
+    from datetime import datetime, timedelta
+    if not subscription_info or not subscription_info.get("plan_name"):
+        # Buscar última assinatura criada para esta empresa (mesmo que pendente ou sem status)
+        fallback_subscription_query = text("""
+            SELECT * FROM subscriptions 
+            WHERE company_id = :company_id 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """)
+        fallback_result = db.execute(fallback_subscription_query, {"company_id": company_id}).fetchone()
+        if fallback_result:
+            subscription_info = dict(fallback_result._mapping)
+        
+        # Se ainda não tiver nome do plano, buscar do template de planos disponíveis
+        # ou usar "Plano Selecionado" como padrão
+        if not subscription_info.get("plan_name"):
+            # Buscar planos templates disponíveis
+            plans_query = text("""
+                SELECT plan_name, id FROM subscriptions 
+                WHERE status = 'template' 
+                ORDER BY price ASC
+            """)
+            plans_result = db.execute(plans_query).fetchall()
+            
+            # Se houver apenas um plano template, usar ele
+            # Caso contrário, tentar identificar pelo preço ou usar o primeiro
+            if plans_result:
+                if len(plans_result) == 1:
+                    subscription_info["plan_name"] = plans_result[0].plan_name if hasattr(plans_result[0], 'plan_name') else plans_result[0][0]
+                else:
+                    # Se houver múltiplos planos, usar o primeiro (ou tentar identificar pelo preço da assinatura)
+                    subscription_info["plan_name"] = plans_result[0].plan_name if hasattr(plans_result[0], 'plan_name') else plans_result[0][0]
+            else:
+                subscription_info["plan_name"] = "Plano Selecionado"
+        
+        # Calcular vencimento: data atual + 7 dias se não tiver
+        if not subscription_info.get("ends_at"):
+            # Converter para datetime se for string
+            if isinstance(subscription_info.get("ends_at"), str):
+                try:
+                    subscription_info["ends_at"] = datetime.fromisoformat(subscription_info["ends_at"].replace('Z', '+00:00'))
+                except:
+                    subscription_info["ends_at"] = datetime.now() + timedelta(days=7)
+            else:
+                subscription_info["ends_at"] = datetime.now() + timedelta(days=7)
+            subscription_info["calculated_expiry"] = True  # Flag para indicar que foi calculado
+    elif subscription_info.get("ends_at") and not isinstance(subscription_info.get("ends_at"), datetime):
+        # Garantir que ends_at seja datetime
+        try:
+            if isinstance(subscription_info["ends_at"], str):
+                subscription_info["ends_at"] = datetime.fromisoformat(subscription_info["ends_at"].replace('Z', '+00:00'))
+        except:
+            subscription_info["ends_at"] = datetime.now() + timedelta(days=7)
     
     # Verificar se a assinatura está cancelada no Asaas (tem endDate)
     is_cancelled = False
@@ -452,7 +559,7 @@ async def plans_page(
     subscription_query = text("""
         SELECT * FROM subscriptions 
         WHERE company_id = :company_id 
-        AND (status = 'active' OR is_trial = true)
+        AND (status = 'active' OR status = 'pending' OR is_trial = true)
         ORDER BY created_at DESC 
         LIMIT 1
     """)
