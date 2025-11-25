@@ -1457,38 +1457,63 @@ class MLNotificationsController:
                         action = result.get("action")
                         logger.info(f"📦 [WEBHOOK] Resultado do _save_order_to_database: action={action}")
                         
-                        # IMPORTANTE: Fazer commit ANTES de qualquer verificação adicional
-                        # O pedido deve ser salvo mesmo se houver erro na verificação de estoque
+                        # ETAPA 1: Commit do pedido primeiro (pedido + status interno)
                         try:
+                            logger.info(f"💾 [WEBHOOK] ETAPA 1: Preparando commit do pedido {order_id}")
                             db.commit()
-                            logger.info(f"✅ [WEBHOOK] Commit realizado para pedido {order_id} (action={action})")
+                            logger.info(f"✅ [WEBHOOK] ETAPA 1: Pedido {order_id} commitado com sucesso (action={action})")
                         except Exception as commit_error:
                             logger.error(f"❌ [WEBHOOK] Erro ao fazer commit do pedido {order_id}: {commit_error}", exc_info=True)
                             db.rollback()
+                            logger.error(f"❌ [WEBHOOK] Rollback realizado - pedido NÃO foi salvo")
                             raise
                         
-                        # Verificações opcionais APÓS o commit (não devem impedir o salvamento do pedido)
+                        # ETAPA 2: Sincronizar estoque (apenas para pedidos novos)
+                        logger.info(f"🔍 [WEBHOOK] Verificando se precisa sincronizar estoque: action={action}, needs_stock_sync={result.get('needs_stock_sync')}")
+                        
                         if action == "created":
-                            logger.info(f"✅ [WEBHOOK] Novo pedido {order_id} criado com sucesso via webhook - estoque deve ter sido sincronizado")
-                            # Verificar se houve sincronização de estoque (opcional - não deve impedir commit)
-                            try:
-                                from app.models.saas_models import StockMovement
-                                from sqlalchemy import cast, String
-                                # IMPORTANTE: Usar cast para evitar problemas com EnumValueType no SQLAlchemy
-                                sale_movement_type = "sale"  # StockMovementType.SALE.value
-                                order_obj = result.get("order")
-                                if order_obj:
-                                    movement_check = db.query(StockMovement).filter(
+                            needs_sync = result.get("needs_stock_sync", False)
+                            order_obj = result.get("order")
+                            
+                            logger.info(f"🔍 [WEBHOOK] Pedido novo detectado - needs_sync={needs_sync}, order_obj={'existe' if order_obj else 'None'}")
+                            
+                            if needs_sync and order_obj:
+                                try:
+                                    logger.info(f"💾 [WEBHOOK] ETAPA 2: Iniciando sincronização de estoque para pedido {order_id} (ID interno: {order_obj.id})")
+                                    logger.info(f"💾 [WEBHOOK] Order items: {len(order_obj.order_items or [])} item(s)")
+                                    
+                                    orders_service._sync_order_to_stock(order_obj, company_id, sync_ml_skus=False)
+                                    logger.info(f"✅ [WEBHOOK] ETAPA 2: Sincronização de estoque concluída para pedido {order_id}")
+                                    
+                                    # Verificar movimentações criadas
+                                    from app.models.saas_models import StockMovement
+                                    from sqlalchemy import cast, String
+                                    sale_movement_type = "sale"
+                                    movement_count = db.query(StockMovement).filter(
                                         StockMovement.ml_order_id == order_obj.id,
                                         cast(StockMovement.movement_type, String) == sale_movement_type
-                                    ).first()
-                                    if movement_check:
-                                        logger.info(f"✅ [WEBHOOK] Confirmação: Movimentação de estoque criada para pedido {order_id} (movement_id: {movement_check.id})")
+                                    ).count()
+                                    
+                                    if movement_count > 0:
+                                        logger.info(f"✅ [WEBHOOK] Confirmação: {movement_count} movimentação(ões) de estoque criada(s) e commitada(s)")
                                     else:
-                                        logger.warning(f"⚠️ [WEBHOOK] ATENÇÃO: Pedido {order_id} criado mas NÃO tem movimentação de estoque!")
-                            except Exception as check_error:
-                                # Não falhar por causa da verificação de estoque (pedido já foi commitado)
-                                logger.warning(f"⚠️ [WEBHOOK] Erro ao verificar movimentação de estoque (não crítico, pedido já salvo): {check_error}")
+                                        logger.warning(f"⚠️ [WEBHOOK] ATENÇÃO: Nenhuma movimentação de estoque criada após sincronização!")
+                                        logger.warning(f"⚠️ [WEBHOOK] Isso pode indicar que não havia itens no pedido ou houve erro na sincronização")
+                                except Exception as stock_sync_error:
+                                    logger.error(f"❌ [WEBHOOK] Erro ao sincronizar estoque do pedido {order_id}: {stock_sync_error}", exc_info=True)
+                                    # Não fazer rollback do pedido - ele já foi salvo
+                                    # As movimentações podem ser reprocessadas depois
+                            elif not needs_sync:
+                                logger.warning(f"⚠️ [WEBHOOK] Pedido criado mas needs_stock_sync=False - sincronização não será feita")
+                            elif not order_obj:
+                                logger.error(f"❌ [WEBHOOK] Pedido criado mas order_obj é None - não é possível sincronizar estoque")
+                        
+                        # ETAPA 3: Sincronizar SKUs não-full com ML (pode ser feito depois em background)
+                        # Por enquanto, não fazemos aqui para não bloquear a resposta do webhook
+                        # Pode ser feito em uma task assíncrona depois
+                        
+                        if action == "created":
+                            logger.info(f"✅ [WEBHOOK] Novo pedido {order_id} processado com sucesso")
                         elif action == "updated":
                             logger.info(f"✅ [WEBHOOK] Pedido {order_id} atualizado via webhook (estoque não é sincronizado em atualizações)")
                         

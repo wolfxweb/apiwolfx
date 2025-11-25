@@ -34,9 +34,14 @@ class StockMovementService:
         reference_id: Optional[int] = None,
         ml_order_id: Optional[int] = None,
         notes: Optional[str] = None,
-        created_by: Optional[int] = None
+        created_by: Optional[int] = None,
+        commit: bool = True
     ) -> Dict[str, Any]:
-        """Registra uma movimentação de estoque"""
+        """Registra uma movimentação de estoque
+        
+        Args:
+            commit: Se True, faz commit imediato. Se False, apenas adiciona à sessão (para commit posterior).
+        """
         try:
             # Verificar se product_stock pertence à empresa
             product_stock = self.db.query(ProductStock).filter(
@@ -68,10 +73,14 @@ class StockMovementService:
             )
             
             self.db.add(movement)
-            self.db.commit()
-            self.db.refresh(movement)
             
-            logger.info(f"✅ Movimentação registrada: {movement_type} - {quantity} unidades (Stock ID: {product_stock_id})")
+            if commit:
+                self.db.commit()
+                self.db.refresh(movement)
+                logger.info(f"✅ Movimentação registrada e commitada: {movement_type} - {quantity} unidades (Stock ID: {product_stock_id}, Movement ID: {movement.id})")
+            else:
+                self.db.flush()  # Apenas flush para obter o ID sem commit
+                logger.info(f"✅ Movimentação adicionada à sessão (sem commit): {movement_type} - {quantity} unidades (Stock ID: {product_stock_id}, Movement ID: {movement.id})")
             
             return {
                 "success": True,
@@ -84,8 +93,9 @@ class StockMovementService:
             }
             
         except Exception as e:
-            self.db.rollback()
-            logger.error(f"❌ Erro ao registrar movimentação: {str(e)}")
+            if commit:
+                self.db.rollback()
+            logger.error(f"❌ Erro ao registrar movimentação: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "error": f"Erro ao registrar movimentação: {str(e)}"
@@ -195,9 +205,14 @@ class StockMovementService:
         warehouse_id: Optional[int] = None,
         order_number: Optional[str] = None,
         order_date: Optional[str] = None,
-        sales_channel: Optional[str] = None
+        sales_channel: Optional[str] = None,
+        sync_ml_skus: bool = False
     ) -> Dict[str, Any]:
-        """Sincroniza venda com estoque - PRIMEIRO dá baixa, DEPOIS sincroniza com ML se necessário"""
+        """Sincroniza venda com estoque - PRIMEIRO dá baixa, DEPOIS sincroniza com ML se necessário
+        
+        Args:
+            sync_ml_skus: Se True, sincroniza SKUs não-full com ML após registrar movimentação
+        """
         try:
             from app.models.saas_models import MLOrder, SKUManagement, MLProduct, MLAccount, MLAccountStatus
             from app.services.stock_service import StockService
@@ -360,16 +375,54 @@ class StockMovementService:
             stock_service = None  # Inicializar para uso posterior na sincronização ML
             
             if is_fulfillment:
-                logger.info(f"ℹ️ [ESTOQUE] Produto fulfillment - pulando baixa no estoque (estoque gerenciado pelo ML), apenas registrando movimentação")
+                # Para fulfillment, também atualizar a quantidade no ProductStock para histórico
+                logger.info(f"ℹ️ [ESTOQUE] Produto fulfillment - atualizando quantidade no ProductStock para histórico")
+                # Buscar ou criar ProductStock primeiro
+                product_stock_fulfillment = self.db.query(ProductStock).filter(
+                    and_(
+                        ProductStock.company_id == company_id,
+                        ProductStock.warehouse_id == warehouse_id,
+                        ProductStock.ml_item_id == ml_item_id
+                    )
+                ).first()
+                
+                if not product_stock_fulfillment:
+                    # Criar ProductStock se não existir
+                    product_stock_fulfillment = ProductStock(
+                        company_id=company_id,
+                        warehouse_id=warehouse_id,
+                        ml_item_id=ml_item_id,
+                        internal_product_id=internal_product_id,
+                        quantity=Decimal("0"),
+                        reserved_quantity=Decimal("0")
+                    )
+                    self.db.add(product_stock_fulfillment)
+                    self.db.flush()
+                    logger.info(f"✅ ProductStock criado para fulfillment")
+                
+                # Atualizar quantidade (diminuir a quantidade vendida)
+                previous_qty = float(product_stock_fulfillment.quantity) if product_stock_fulfillment.quantity else 0.0
+                new_qty = max(0.0, previous_qty - quantity)
+                product_stock_fulfillment.quantity = Decimal(str(new_qty))
+                product_stock_fulfillment.last_movement_date = datetime.utcnow()
+                self.db.flush()
+                
+                logger.info(f"📦 [ESTOQUE] Fulfillment: quantidade atualizada {previous_qty} → {new_qty} (venda de {quantity} unidade(s))")
                 stock_decrease_success = True  # Considerar sucesso para continuar com registro
+            elif not internal_product_id:
+                # Produto normal sem internal_product_id - não pode dar baixa no estoque compartilhado
+                logger.warning(f"⚠️ [ESTOQUE] Produto normal sem internal_product_id - pulando baixa no estoque, apenas registrando movimentação")
+                logger.warning(f"⚠️ [ESTOQUE] ml_item_id={ml_item_id} não está associado a um produto interno via SKUManagement")
+                stock_decrease_success = True  # Considerar sucesso para continuar com registro (apenas histórico)
             else:
+                # Produto normal COM internal_product_id - dar baixa no estoque compartilhado
                 stock_service = StockService(self.db)
                 result = stock_service.update_stock(
                     company_id=company_id,
                     warehouse_id=warehouse_id,
                     quantity=-quantity,  # Negativo para saída - quantidade DO ITEM vendido
                     internal_product_id=internal_product_id,
-                    ml_item_id=None,  # Produtos normais não têm ml_item_id no estoque
+                    ml_item_id=None,  # Produtos normais não têm ml_item_id no estoque compartilhado
                     movement_type="sale"
                 )
                 
@@ -384,7 +437,7 @@ class StockMovementService:
             
             # Obter ou criar ProductStock para registro
             if is_fulfillment:
-                # Para Full, buscar estoque específico do anúncio
+                # Para Full, buscar estoque específico do anúncio (já foi atualizado acima)
                 product_stock = self.db.query(ProductStock).filter(
                     and_(
                         ProductStock.company_id == company_id,
@@ -393,22 +446,51 @@ class StockMovementService:
                     )
                 ).first()
                 
-                # Para fulfillment, se não encontrar product_stock, criar um básico apenas para registro
+                # Se não encontrou, usar o que foi criado acima (product_stock_fulfillment)
                 if not product_stock:
+                    # Se chegou aqui, significa que não foi criado acima, criar agora
                     logger.warning(f"⚠️ ProductStock não encontrado para fulfillment ml_item_id {ml_item_id}, criando registro básico")
                     product_stock = ProductStock(
                         company_id=company_id,
                         warehouse_id=warehouse_id,
                         ml_item_id=ml_item_id,
-                        internal_product_id=internal_product_id,
-                        quantity=0,  # Para fulfillment, quantidade é gerenciada pelo ML
-                        reserved_quantity=0
+                        internal_product_id=internal_product_id,  # Pode ser None para fulfillment sem associação
+                        quantity=Decimal("0"),  # Iniciar com 0
+                        reserved_quantity=Decimal("0")
                     )
                     self.db.add(product_stock)
                     self.db.flush()
                     logger.info(f"✅ ProductStock criado para registro de movimentação fulfillment")
+                else:
+                    # ProductStock já existe e foi atualizado acima, apenas refresh para garantir dados atualizados
+                    self.db.refresh(product_stock)
+                    logger.info(f"✅ ProductStock fulfillment encontrado e atualizado (quantidade atual: {product_stock.quantity})")
+            elif not internal_product_id:
+                # Produto normal SEM internal_product_id - criar ProductStock apenas com ml_item_id para histórico
+                logger.warning(f"⚠️ [ESTOQUE] Produto normal sem internal_product_id - criando ProductStock apenas para histórico")
+                product_stock = self.db.query(ProductStock).filter(
+                    and_(
+                        ProductStock.company_id == company_id,
+                        ProductStock.warehouse_id == warehouse_id,
+                        ProductStock.ml_item_id == ml_item_id,
+                        ProductStock.internal_product_id.is_(None)
+                    )
+                ).first()
+                
+                if not product_stock:
+                    product_stock = ProductStock(
+                        company_id=company_id,
+                        warehouse_id=warehouse_id,
+                        ml_item_id=ml_item_id,
+                        internal_product_id=None,  # Sem associação com produto interno
+                        quantity=0,  # Não gerencia quantidade (apenas histórico)
+                        reserved_quantity=0
+                    )
+                    self.db.add(product_stock)
+                    self.db.flush()
+                    logger.info(f"✅ ProductStock criado para registro histórico (sem internal_product_id)")
             else:
-                # Para normal, buscar estoque compartilhado
+                # Para normal COM internal_product_id, buscar estoque compartilhado
                 product_stock = self.db.query(ProductStock).filter(
                     and_(
                         ProductStock.company_id == company_id,
@@ -417,9 +499,24 @@ class StockMovementService:
                         ProductStock.ml_item_id.is_(None)  # Estoque compartilhado
                     )
                 ).first()
+                
+                # Se não encontrou após a baixa, tentar criar (deve ter sido criado pelo update_stock, mas garantir)
+                if not product_stock:
+                    logger.warning(f"⚠️ ProductStock não encontrado após baixa - criando estoque compartilhado")
+                    product_stock = ProductStock(
+                        company_id=company_id,
+                        warehouse_id=warehouse_id,
+                        internal_product_id=internal_product_id,
+                        ml_item_id=None,  # Estoque compartilhado
+                        quantity=0,
+                        reserved_quantity=0
+                    )
+                    self.db.add(product_stock)
+                    self.db.flush()
+                    logger.info(f"✅ ProductStock criado para estoque compartilhado")
             
             if not product_stock:
-                logger.error(f"❌ ProductStock não encontrado após baixa para ml_item_id {ml_item_id}")
+                logger.error(f"❌ ProductStock não encontrado/criado para ml_item_id {ml_item_id}, internal_product_id={internal_product_id}")
                 return {
                     "success": False,
                     "error": "Estoque não encontrado após baixa"
@@ -429,20 +526,25 @@ class StockMovementService:
             # Para fulfillment, a quantidade pode ser 0 (gerenciada pelo ML)
             available_quantity = float(product_stock.quantity - product_stock.reserved_quantity) if product_stock.quantity else 0.0
             
-            # Formatar observação
+            # Formatar observação com número do pedido
             order_num = order_number or str(order.ml_order_id)
             order_dt = order_date or (order.date_created.strftime("%d/%m/%Y %H:%M") if order.date_created else "")
             channel = sales_channel or "Mercado Livre"
-            notes = f"Venda - Pedido {order_num} - {order_dt} - {channel} - {quantity} unidade(s)"
+            # Referência principal: "Pedido {número}"
+            notes = f"Pedido {order_num} - {order_dt} - {channel} - {quantity} unidade(s)"
             if is_fulfillment:
                 notes += " (Fulfillment - estoque gerenciado pelo ML)"
             
-            # Para fulfillment, não alteramos a quantidade (estoque é gerenciado pelo ML)
-            # Para produtos normais, a quantidade já foi alterada pelo update_stock
+            # Calcular previous_quantity e new_quantity para refletir a baixa
+            # Mesmo para fulfillment, registramos a baixa na movimentação (mesmo que não altere o estoque físico)
             if is_fulfillment:
-                # Para fulfillment, previous e new são iguais (não alteramos estoque)
-                previous_quantity = float(product_stock.quantity) if product_stock.quantity else 0.0
-                new_quantity = previous_quantity
+                # Para fulfillment: registrar a baixa na movimentação mesmo que não altere o estoque físico
+                # Pegar quantidade atual do ProductStock (pode ser 0 ou valor anterior)
+                current_qty = float(product_stock.quantity) if product_stock.quantity else 0.0
+                previous_quantity = current_qty
+                # Diminuir a quantidade vendida (mesmo que não altere o estoque físico, registramos na movimentação)
+                new_quantity = max(0.0, current_qty - quantity)
+                logger.info(f"📦 [ESTOQUE] Fulfillment: registrando baixa de {quantity} unidade(s) - {previous_quantity} → {new_quantity}")
             elif stock_decrease_success:
                 # Para produtos normais com baixa bem-sucedida, calcular baseado na quantidade atual
                 previous_quantity = float(product_stock.quantity) + quantity
@@ -453,6 +555,7 @@ class StockMovementService:
                 new_quantity = previous_quantity
             
             # Registrar movimentação (sempre, mesmo se baixa falhou)
+            # IMPORTANTE: commit=False para que o commit seja feito em _sync_order_to_stock
             movement_result = self.record_movement(
                 company_id=company_id,
                 warehouse_id=warehouse_id,
@@ -464,7 +567,8 @@ class StockMovementService:
                 reference_type="order",
                 reference_id=ml_order_id,
                 ml_order_id=ml_order_id,
-                notes=notes
+                notes=notes,
+                commit=False  # Commit será feito em _sync_order_to_stock
             )
             
             if not movement_result.get("success"):
@@ -496,7 +600,8 @@ class StockMovementService:
             )
             
             # DEPOIS: Se produto normal (não Full) e tem internal_product_id, sincronizar com ML
-            if not is_fulfillment and internal_product_id:
+            # Apenas se sync_ml_skus=True (sincronização pode ser feita depois em lote)
+            if sync_ml_skus and not is_fulfillment and internal_product_id:
                 logger.info(f"🔄 Sincronizando estoque com ML para produto {internal_product_id} - quantidade após baixa: {available_quantity}")
                 
                 # Log global: início da sincronização ML

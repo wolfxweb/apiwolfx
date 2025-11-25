@@ -1142,34 +1142,13 @@ class MLOrdersService:
                     logger.warning(f"⚠️ Erro ao gerenciar status interno automaticamente: {e}", exc_info=True)
                     # Não falhar a criação do pedido por causa do status interno
                 
-                # Sincronizar com estoque apenas para pedidos novos
-                logger.info(f"📦 [CRIAÇÃO] Iniciando sincronização de estoque para pedido NOVO {new_order.ml_order_id} (ID interno: {new_order.id})")
+                # NÃO sincronizar estoque aqui - será feito depois que o pedido for commitado
+                # Isso permite salvar o pedido primeiro e depois processar o estoque separadamente
+                logger.info(f"📦 [CRIAÇÃO] Pedido NOVO {new_order.ml_order_id} criado (ID interno: {new_order.id})")
                 logger.info(f"📦 [CRIAÇÃO] Company ID: {company_id}, Order Items: {len(new_order.order_items or [])} item(s)")
+                logger.info(f"📦 [CRIAÇÃO] Sincronização de estoque será feita após commit do pedido")
                 
-                try:
-                    self._sync_order_to_stock(new_order, company_id)
-                    logger.info(f"✅ [CRIAÇÃO] Sincronização de estoque concluída para pedido {new_order.ml_order_id}")
-                    
-                    # Verificar se movimentação foi criada
-                    from app.models.saas_models import StockMovement
-                    from sqlalchemy import cast, String
-                    # IMPORTANTE: Usar cast para evitar problemas com EnumValueType no SQLAlchemy
-                    sale_movement_type = "sale"  # StockMovementType.SALE.value
-                    movement_check = self.db.query(StockMovement).filter(
-                        StockMovement.ml_order_id == new_order.id,
-                        cast(StockMovement.movement_type, String) == sale_movement_type
-                    ).first()
-                    
-                    if movement_check:
-                        logger.info(f"✅ [CRIAÇÃO] Confirmação: Movimentação de estoque criada (ID: {movement_check.id})")
-                    else:
-                        logger.warning(f"⚠️ [CRIAÇÃO] ATENÇÃO: Sincronização executada mas NÃO foi criada movimentação de estoque!")
-                except Exception as stock_sync_error:
-                    logger.error(f"❌ [CRIAÇÃO] ERRO ao sincronizar estoque do pedido NOVO {new_order.ml_order_id}: {stock_sync_error}", exc_info=True)
-                    # Não falhar a criação do pedido por causa do estoque, mas logar o erro
-                    # O pedido será criado mesmo se a sincronização de estoque falhar
-                
-                return {"action": "created", "order": new_order}
+                return {"action": "created", "order": new_order, "needs_stock_sync": True}
                 
         except Exception as e:
             logger.error(f"Erro ao salvar order no banco: {e}", exc_info=True)
@@ -1880,8 +1859,14 @@ class MLOrdersService:
         except Exception as e:
             logger.error(f"❌ Erro ao verificar NF do pedido {order_id}: {e}", exc_info=True)
     
-    def _sync_order_to_stock(self, order, company_id: int):
-        """Sincroniza pedido criado com estoque - processa cada item do pedido"""
+    def _sync_order_to_stock(self, order, company_id: int, sync_ml_skus: bool = True):
+        """Sincroniza pedido criado com estoque - processa cada item do pedido
+        
+        Args:
+            order: Objeto MLOrder já commitado no banco
+            company_id: ID da empresa
+            sync_ml_skus: Se True, sincroniza SKUs não-full com ML após registrar movimentações
+        """
         try:
             from app.services.stock_movement_service import StockMovementService
             from app.models.saas_models import StockMovement, StockMovementType
@@ -2022,7 +2007,7 @@ class MLOrdersService:
                 
                 logger.info(f"🔄 [ESTOQUE] Processando item {ml_item_id} - quantidade: {item_quantity} unidades")
                 
-                # Sincronizar com estoque (baixa + sincronização ML se necessário)
+                # Sincronizar com estoque (baixa apenas - sincronização ML será feita depois)
                 result = movement_service.sync_sale_to_stock(
                     company_id=company_id,
                     ml_order_id=order.id,
@@ -2030,7 +2015,8 @@ class MLOrdersService:
                     quantity=item_quantity,
                     order_number=str(order.ml_order_id),
                     order_date=order_date,
-                    sales_channel="Mercado Livre"
+                    sales_channel="Mercado Livre",
+                    sync_ml_skus=False  # Sincronização ML será feita depois em lote
                 )
                 
                 items_processed += 1
@@ -2057,13 +2043,43 @@ class MLOrdersService:
                 error_message=f"{items_errors} item(s) com erro" if items_errors > 0 else None
             )
             
-            # Commit das movimentações de estoque
+            # ETAPA 1: Commit das movimentações de estoque (pedido já foi commitado antes)
+            # IMPORTANTE: Commit separado das movimentações após o pedido estar salvo
             try:
+                logger.info(f"💾 [ESTOQUE] Preparando commit das movimentações de estoque para pedido {order.ml_order_id}")
+                logger.info(f"💾 [ESTOQUE] Itens processados: {items_processed}, sucesso: {items_success}, erros: {items_errors}")
+                
+                # Fazer flush primeiro para garantir que todas as movimentações estejam na sessão
+                self.db.flush()
+                logger.info(f"💾 [ESTOQUE] Flush realizado - movimentações adicionadas à sessão")
+                
+                # Commit das movimentações (pedido já foi commitado antes)
                 self.db.commit()
-                logger.info(f"✅ Movimentações de estoque commitadas para pedido {order.ml_order_id}")
+                logger.info(f"✅ [ESTOQUE] Commit das movimentações realizado com sucesso para pedido {order.ml_order_id}")
+                
+                # Verificar após commit
+                from app.models.saas_models import StockMovement
+                from sqlalchemy import cast, String
+                
+                committed_movements = self.db.query(StockMovement).filter(
+                    StockMovement.ml_order_id == order.id,
+                    cast(StockMovement.movement_type, String) == "sale"
+                ).count()
+                
+                logger.info(f"✅ [ESTOQUE] Movimentações confirmadas no banco: {committed_movements}")
+                
+                if committed_movements == 0 and items_success > 0:
+                    logger.error(f"❌ [ESTOQUE] CRÍTICO: Nenhuma movimentação foi salva após commit para pedido {order.ml_order_id}!")
+                    logger.error(f"❌ [ESTOQUE] Itens processados com sucesso: {items_success}, mas nenhuma movimentação no banco!")
+                elif committed_movements > 0:
+                    logger.info(f"✅ [ESTOQUE] Sucesso: {committed_movements} movimentação(ões) salva(s) no banco")
+                    
             except Exception as commit_error:
-                logger.error(f"❌ Erro ao commitar movimentações de estoque: {commit_error}", exc_info=True)
+                logger.error(f"❌ [ESTOQUE] Erro ao commitar movimentações de estoque: {commit_error}", exc_info=True)
                 self.db.rollback()
+                logger.error(f"❌ [ESTOQUE] Rollback realizado - movimentações não foram salvas")
+                # Não fazer raise - o pedido já foi salvo, apenas logar o erro
+                # As movimentações podem ser reprocessadas depois se necessário
                     
         except Exception as e:
             logger.error(f"❌ Erro ao sincronizar pedido com estoque: {e}", exc_info=True)
