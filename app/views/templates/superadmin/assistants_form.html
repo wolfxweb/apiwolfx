@@ -380,7 +380,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sincronizar conteúdo do editor de instruções com textarea oculto
     quillEditor.on('text-change', function() {
         const html = quillEditor.root.innerHTML;
+        const text = quillEditor.root.textContent || quillEditor.root.innerText || '';
+        // Sincronizar com textarea sempre que houver mudança
         document.getElementById('assistantInstructions').value = html;
+        // Log para debug (apenas se houver conteúdo significativo)
+        if (text.trim().length > 10) {
+            console.log('Quill atualizado:', { htmlLength: html.length, textLength: text.length });
+        }
     });
     
     // Configurar editor Quill para Prompt Inicial
@@ -829,14 +835,54 @@ async function saveAssistant(event) {
     const model = document.getElementById('assistantModel').value;
     const isGPT5 = model.startsWith('gpt-5');
     
-    // Obter HTML formatado do editor Quill
-    let instructions = quillEditor ? quillEditor.root.innerHTML : document.getElementById('assistantInstructions').value;
+    // Obter HTML formatado do editor Quill - FORÇAR sincronização antes
+    let instructions = '';
+    if (quillEditor) {
+        // Forçar atualização do textarea antes de capturar
+        const quillHTML = quillEditor.root.innerHTML;
+        const quillText = quillEditor.root.textContent || quillEditor.root.innerText || '';
+        document.getElementById('assistantInstructions').value = quillHTML;
+        
+        // Usar HTML do Quill se tiver conteúdo de texto
+        if (quillText.trim() !== '') {
+            instructions = quillHTML;
+        } else {
+            // Se Quill está vazio, tentar textarea (pode ter sido preenchido manualmente)
+            instructions = document.getElementById('assistantInstructions').value || '';
+        }
+    } else {
+        // Sem Quill, usar textarea diretamente
+        instructions = document.getElementById('assistantInstructions').value || '';
+    }
     
-    // Validar se as instruções não estão vazias
-    if (!instructions || instructions.trim() === '' || instructions === '<p><br></p>' || instructions === '<p></p>') {
+    // Garantir que temos algo válido - remover apenas tags vazias do Quill
+    instructions = instructions.trim();
+    if (instructions === '<p><br></p>' || instructions === '<p></p>' || instructions === '<br>') {
+        instructions = '';
+    }
+    
+    // Validar se as instruções não estão vazias (remover HTML para validar conteúdo real)
+    const instructionsText = instructions.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (!instructionsText || instructionsText === '') {
         showNotification('Por favor, preencha as instruções do agente', 'error');
+        console.error('Instruções vazias detectadas:', { 
+            instructions, 
+            instructionsText,
+            quillEditor: !!quillEditor,
+            quillContent: quillEditor ? quillEditor.root.textContent : 'N/A'
+        });
         return;
     }
+    
+    // Garantir que o textarea está sincronizado antes de enviar
+    document.getElementById('assistantInstructions').value = instructions;
+    
+    console.log('Salvando instruções:', { 
+        length: instructions.length, 
+        textLength: instructionsText.length,
+        preview: instructions.substring(0, 200),
+        hasQuill: !!quillEditor 
+    });
     
     const formData = {
         name: document.getElementById('assistantName').value,
@@ -917,6 +963,14 @@ async function saveAssistant(event) {
             : '/api/openai/assistants/';
         
         const method = assistantId ? 'PUT' : 'POST';
+        
+        // Log para debug
+        console.log('Enviando dados:', {
+            assistantId: assistantId,
+            instructionsLength: formData.instructions?.length || 0,
+            instructionsPreview: formData.instructions?.substring(0, 200) || 'VAZIO',
+            hasQuill: !!quillEditor
+        });
         
         const response = await fetch(url, {
             method: method,

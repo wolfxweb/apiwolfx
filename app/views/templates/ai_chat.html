@@ -297,7 +297,7 @@
     
     <div class="row g-0 h-100" style="overflow: hidden; min-height: 0;">
         <!-- Sidebar de Conversas -->
-        <div class="col-lg-4 col-md-5 col-12 conversations-sidebar" id="conversationsSidebar">
+        <div class="col-lg-3 col-md-5 col-12 conversations-sidebar" id="conversationsSidebar">
             <div class="conversations-header">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="mb-0">Conversas</h6>
@@ -338,7 +338,7 @@
         </div>
         
         <!-- Área de Chat -->
-        <div class="col-lg-8 col-md-7 col-12 chat-area">
+        <div class="col-lg-9 col-md-7 col-12 chat-area">
             <!-- Botão toggle para mobile (apenas quando vazio) -->
             <div class="chat-header d-lg-none" id="emptyStateHeader" style="padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; background-color: white; flex-shrink: 0;">
                 <button class="btn btn-sm btn-outline-secondary sidebar-toggle-btn" onclick="toggleSidebar()" type="button">
@@ -659,10 +659,25 @@ async function loadConversation(threadId, assistantId) {
 function renderMessages(messages) {
     const container = document.getElementById('chatMessages');
     
+    // Remover mensagens duplicadas baseado em id único ou combinação de role + content + created_at
+    const seenMessages = new Set();
+    const uniqueMessages = messages.filter(m => {
+        // Criar chave única para identificar duplicatas
+        const messageKey = m.id 
+            ? `id_${m.id}` 
+            : `${m.role}_${String(m.content || '').substring(0, 50)}_${m.created_at || ''}`;
+        
+        if (seenMessages.has(messageKey)) {
+            return false; // Mensagem duplicada, ignorar
+        }
+        seenMessages.add(messageKey);
+        return true; // Mensagem única, incluir
+    });
+    
     // Filtrar apenas mensagens de usuário e assistente (ignorar system)
     // Para assistente: mostrar apenas respostas textuais (não JSON puro ou tool_calls)
     // Para usuário: mostrar todas
-    const visibleMessages = messages
+    const visibleMessages = uniqueMessages
         .filter(m => m.role !== 'system')
         .filter(m => {
             // Mensagens do usuário sempre aparecem

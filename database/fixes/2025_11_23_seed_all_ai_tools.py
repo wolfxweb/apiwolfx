@@ -38,14 +38,14 @@ ALL_TOOLS = [
     },
     {
         "name": "search_products_by_name",
-        "description": "Busca produtos por nome ou SKU, permitindo encontrar produtos de forma flexível",
+        "description": "Busca produtos por nome (título) ou SKU usando busca parcial e case-insensitive. Use esta ferramenta quando o usuário mencionar o NOME de um produto mas não souber o código. Retorna lista de produtos que correspondem ao termo de busca, permitindo que o usuário escolha o produto correto antes de fazer análises detalhadas.",
         "handler": "search_products_by_name",
         "schema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Termo de busca (nome ou SKU)"},
-                "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100},
-                "include_sku": {"type": "boolean", "default": True, "description": "Se deve buscar também por SKU"}
+                "query": {"type": "string", "description": "Termo de busca (nome/título do produto ou SKU). Pode ser uma palavra ou parte do nome. A busca é parcial e case-insensitive."},
+                "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100, "description": "Número máximo de resultados a retornar"},
+                "include_sku": {"type": "boolean", "default": True, "description": "Se True, busca também no campo SKU além do título. Se False, busca apenas no título."}
             },
             "required": ["query"]
         }
@@ -276,6 +276,34 @@ ALL_TOOLS = [
                 "days": {"type": "integer", "default": 30, "description": "Número de dias para trás a partir de hoje"}
             },
             "required": ["ml_item_id", "ml_account_id"]
+        }
+    },
+    {
+        "name": "get_products_with_ads",
+        "description": "Lista produtos que têm anúncios ativos (Product Ads). Busca produtos que estão em campanhas ativas ou que tiveram vendas por anúncio. Use esta ferramenta quando o usuário perguntar quais produtos têm anúncios, quais produtos estão anunciando, ou produtos com publicidade.",
+        "handler": "get_products_with_ads",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "ml_account_id": {"type": "integer", "description": "ID da conta ML (opcional - se não informado, busca em todas as contas)"},
+                "only_active_campaigns": {"type": "boolean", "default": True, "description": "Se True, retorna apenas produtos em campanhas ativas. Se False, inclui também produtos com vendas por anúncio."},
+                "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500},
+                "offset": {"type": "integer", "default": 0, "minimum": 0}
+            }
+        }
+    },
+    {
+        "name": "get_total_advertising_expenses",
+        "description": "Calcula o total de despesas com anúncios (publicidade) em um período. Agrega custos de publicidade de pedidos e/ou campanhas. Use esta ferramenta quando o usuário perguntar sobre despesas totais com anúncios, gastos com publicidade, investimento em marketing, ou custos de campanhas.",
+        "handler": "get_total_advertising_expenses",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "Data inicial no formato YYYY-MM-DD (opcional)"},
+                "end_date": {"type": "string", "description": "Data final no formato YYYY-MM-DD (opcional)"},
+                "ml_account_id": {"type": "integer", "description": "ID da conta ML (opcional - se não informado, soma todas as contas)"},
+                "source": {"type": "string", "enum": ["orders", "campaigns", "both"], "default": "both", "description": "Fonte dos dados: 'orders' (apenas pedidos), 'campaigns' (apenas campanhas), 'both' (ambos)"}
+            }
         }
     },
     

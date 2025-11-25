@@ -335,6 +335,9 @@ class OpenAIAssistantService:
             if description is not None:
                 db_assistant.description = description
             if instructions is not None:
+                # Log para debug
+                logger.info(f"📝 Atualizando instruções do agente {assistant_id}: {len(instructions)} caracteres")
+                logger.debug(f"📝 Preview das instruções: {instructions[:200]}...")
                 db_assistant.instructions = instructions
             if model is not None:
                 db_assistant.model = model
@@ -398,6 +401,12 @@ class OpenAIAssistantService:
             
             self.db.commit()
             self.db.refresh(db_assistant)
+            
+            # Verificar se instruções foram salvas
+            if db_assistant.instructions:
+                logger.info(f"✅ Instruções salvas: {len(db_assistant.instructions)} caracteres")
+            else:
+                logger.warning(f"⚠️ Instruções estão vazias após salvar!")
             
             # Verificar se ferramentas foram salvas
             if db_assistant.tools_config:
@@ -1811,6 +1820,10 @@ class OpenAIAssistantService:
                         q = q.filter(MLOrder.buyer_nickname.ilike(like))
                     except Exception:
                         pass
+                # IMPORTANTE: Contar total ANTES de aplicar limit/offset e filtros por item
+                # Para filtros por item, precisamos contar depois de filtrar, então vamos fazer isso em duas etapas
+                # Primeiro, vamos buscar todos os pedidos que passam pelos filtros básicos
+                
                 # Ordenação recente
                 if hasattr(MLOrder, "date_created"):
                     q = q.order_by(MLOrder.date_created.desc())
@@ -1825,20 +1838,22 @@ class OpenAIAssistantService:
                 limit = function_args.get("limit")
                 offset = int(function_args.get("offset", 0))
                 
-                # Se houver filtros além do company_id, ignorar limite (retornar todos)
-                if has_filters:
-                    rows = q.offset(offset).all()
-                elif limit is not None:
-                    limit = int(limit)
-                    rows = q.offset(offset).limit(limit).all()
-                else:
-                    # Sem filtros e sem limite informado - aplicar limite padrão de segurança
-                    rows = q.offset(offset).limit(1000).all()
-                
-                result = []
-                for o in rows:
-                    # Se há filtro por item(s), verificar se o pedido contém algum dos itens
-                    if ml_item_ids_to_filter:
+                # Se há filtro por item, precisamos buscar todos os pedidos primeiro para filtrar depois
+                # Caso contrário, podemos contar diretamente
+                if ml_item_ids_to_filter:
+                    # Com filtro por item: buscar todos os pedidos que passam pelos filtros básicos
+                    # Depois filtrar por item e contar
+                    if has_filters:
+                        all_rows = q.all()
+                    elif limit is not None:
+                        limit = int(limit)
+                        all_rows = q.offset(offset).limit(limit).all()
+                    else:
+                        all_rows = q.offset(offset).limit(1000).all()
+                    
+                    # Filtrar por item e contar
+                    result = []
+                    for o in all_rows:
                         try:
                             items = o.order_items or []
                             has_item = any(
@@ -1847,24 +1862,72 @@ class OpenAIAssistantService:
                             )
                             if not has_item:
                                 continue
+                            
+                            status_str = (o.status.value if hasattr(o.status, "value") else str(o.status)) if getattr(o, "status", None) is not None else None
+                            result.append({
+                                "id_pedido": str(getattr(o, "ml_order_id", getattr(o, "id", None))),
+                                "data": o.date_created.isoformat() if getattr(o, "date_created", None) else None,
+                                "valor_total": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,
+                                "status": status_str,
+                                "comissoes": float(o.sale_fees) if getattr(o, "sale_fees", None) else 0.0,
+                                "frete": float(o.shipping_cost) if getattr(o, "shipping_cost", None) else 0.0,
+                                "desconto": float(o.coupon_amount) if getattr(o, "coupon_amount", None) else 0.0,
+                                "comprador": getattr(o, "buyer_nickname", None)
+                            })
                         except Exception as e:
                             logger.warning(f"⚠️ Erro ao verificar item no pedido {getattr(o, 'ml_order_id', getattr(o, 'id', 'unknown'))}: {e}")
                             continue
-                    status_str = (o.status.value if hasattr(o.status, "value") else str(o.status)) if getattr(o, "status", None) is not None else None
-                    result.append({
-                        "id_pedido": str(getattr(o, "ml_order_id", getattr(o, "id", None))),  # era "id"
-                        "data": o.date_created.isoformat() if getattr(o, "date_created", None) else None,  # era "date"
-                        "valor_total": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,  # era "total_amount"
-                        "status": status_str,  # OK manter
-                        "comissoes": float(o.sale_fees) if getattr(o, "sale_fees", None) else 0.0,  # era "sale_fees"
-                        "frete": float(o.shipping_cost) if getattr(o, "shipping_cost", None) else 0.0,  # era "shipping_cost"
-                        "desconto": float(o.coupon_amount) if getattr(o, "coupon_amount", None) else 0.0,  # era "coupon_amount"
-                        "comprador": getattr(o, "buyer_nickname", None)  # era "buyer_nickname"
-                    })
-                return {
-                    "pedidos": result,  # era "orders"
-                    "total_pedidos": len(result)  # era "total"
-                }
+                    
+                    # Contar total considerando filtros por item
+                    # Para isso, precisamos contar todos os pedidos que passam pelos filtros básicos e têm o item
+                    total_count = 0
+                    for o in q.all():
+                        try:
+                            items = o.order_items or []
+                            has_item = any(
+                                (it.get("item", {}).get("id") in [str(mid) for mid in ml_item_ids_to_filter])
+                                for it in items
+                            )
+                            if has_item:
+                                total_count += 1
+                        except Exception:
+                            continue
+                    
+                    return {
+                        "pedidos": result,
+                        "total_pedidos": total_count  # Total real considerando filtros por item
+                    }
+                else:
+                    # Sem filtro por item: podemos contar diretamente do banco
+                    total_count = q.count()
+                    
+                    # Aplicar limit/offset apenas na busca dos resultados
+                    if has_filters:
+                        rows = q.offset(offset).all()
+                    elif limit is not None:
+                        limit = int(limit)
+                        rows = q.offset(offset).limit(limit).all()
+                    else:
+                        rows = q.offset(offset).limit(1000).all()
+                    
+                    result = []
+                    for o in rows:
+                        status_str = (o.status.value if hasattr(o.status, "value") else str(o.status)) if getattr(o, "status", None) is not None else None
+                        result.append({
+                            "id_pedido": str(getattr(o, "ml_order_id", getattr(o, "id", None))),
+                            "data": o.date_created.isoformat() if getattr(o, "date_created", None) else None,
+                            "valor_total": float(o.total_amount) if getattr(o, "total_amount", None) else 0.0,
+                            "status": status_str,
+                            "comissoes": float(o.sale_fees) if getattr(o, "sale_fees", None) else 0.0,
+                            "frete": float(o.shipping_cost) if getattr(o, "shipping_cost", None) else 0.0,
+                            "desconto": float(o.coupon_amount) if getattr(o, "coupon_amount", None) else 0.0,
+                            "comprador": getattr(o, "buyer_nickname", None)
+                        })
+                    
+                    return {
+                        "pedidos": result,
+                        "total_pedidos": total_count  # Total real do banco, não len(result)
+                    }
 
             # ========== Product Sales (by product or ml_item_id) ==========
             if function_name == "get_product_sales":
@@ -1984,7 +2047,206 @@ class OpenAIAssistantService:
                 from app.services.ml_product_ads_service import MLProductAdsService
                 ads = MLProductAdsService(self.db)
                 return ads.get_product_advertising_metrics(ml_item_id=ml_item_id, ml_account_id=ml_account_id, days=days) or {}
-
+            
+            # ========== Products with Ads ==========
+            if function_name == "get_products_with_ads":
+                """
+                Lista produtos que têm anúncios ativos (Product Ads).
+                Busca produtos que estão em campanhas ativas ou que tiveram vendas por anúncio.
+                """
+                ml_account_id = function_args.get("ml_account_id")
+                only_active_campaigns = bool(function_args.get("only_active_campaigns", True))
+                limit = int(function_args.get("limit", 50))
+                offset = int(function_args.get("offset", 0))
+                
+                from app.models.saas_models import MLProduct, MLOrder
+                from app.models.advertising_models import MLCampaign, MLCampaignProduct
+                from sqlalchemy import distinct, or_, and_
+                
+                products_with_ads = set()
+                
+                # Método 1: Buscar produtos em campanhas ativas
+                if only_active_campaigns:
+                    campaign_query = self.db.query(MLCampaign).filter(
+                        MLCampaign.company_id == company_id,
+                        MLCampaign.status == "active"
+                    )
+                    if ml_account_id:
+                        campaign_query = campaign_query.filter(MLCampaign.ml_account_id == ml_account_id)
+                    
+                    active_campaigns = campaign_query.all()
+                    campaign_ids = [c.id for c in active_campaigns]
+                    
+                    if campaign_ids:
+                        campaign_products = self.db.query(MLCampaignProduct).filter(
+                            MLCampaignProduct.campaign_id.in_(campaign_ids),
+                            MLCampaignProduct.status == "active"
+                        ).all()
+                        
+                        product_ids_from_campaigns = [cp.ml_product_id for cp in campaign_products]
+                        products_with_ads.update(product_ids_from_campaigns)
+                
+                # Método 2: Buscar produtos com vendas por anúncio (is_advertising_sale = True)
+                orders_query = self.db.query(MLOrder).filter(
+                    MLOrder.company_id == company_id,
+                    MLOrder.is_advertising_sale == True,
+                    MLOrder.order_items.isnot(None)
+                )
+                if ml_account_id:
+                    orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
+                
+                orders_with_ads = orders_query.all()
+                
+                # Extrair ml_item_ids dos pedidos
+                ml_item_ids_with_ads = set()
+                for order in orders_with_ads:
+                    try:
+                        items = order.order_items or []
+                        for item in items:
+                            item_id = item.get("item", {}).get("id")
+                            if item_id:
+                                ml_item_ids_with_ads.add(str(item_id))
+                    except Exception:
+                        continue
+                
+                # Buscar produtos por ml_item_id
+                if ml_item_ids_with_ads:
+                    products_from_orders = self.db.query(MLProduct).filter(
+                        MLProduct.company_id == company_id,
+                        MLProduct.ml_item_id.in_(list(ml_item_ids_with_ads))
+                    ).all()
+                    product_ids_from_orders = [p.id for p in products_from_orders]
+                    products_with_ads.update(product_ids_from_orders)
+                
+                # Buscar informações dos produtos
+                if not products_with_ads:
+                    return {
+                        "produtos": [],
+                        "total": 0,
+                        "message": "Nenhum produto com anúncios encontrado"
+                    }
+                
+                products_query = self.db.query(MLProduct).filter(
+                    MLProduct.company_id == company_id,
+                    MLProduct.id.in_(list(products_with_ads))
+                )
+                
+                total = products_query.count()
+                products = products_query.order_by(MLProduct.updated_at.desc() if hasattr(MLProduct, 'updated_at') else MLProduct.id.desc()).offset(offset).limit(limit).all()
+                
+                results = []
+                for p in products:
+                    results.append({
+                        "id": p.id,
+                        "titulo": p.title,
+                        "sku": p.seller_sku,
+                        "codigo_anuncio": p.ml_item_id,
+                        "preco": float(p.price) if p.price else None,
+                        "status": p.status.value if hasattr(p.status, 'value') else str(p.status) if p.status else None
+                    })
+                
+                return {
+                    "produtos": results,
+                    "total": total,
+                    "mostrando": len(results)
+                }
+            
+            # ========== Total Advertising Expenses ==========
+            if function_name == "get_total_advertising_expenses":
+                """
+                Calcula o total de despesas com anúncios em um período.
+                Agrega custos de publicidade de pedidos e/ou campanhas.
+                """
+                start_date = function_args.get("start_date")
+                end_date = function_args.get("end_date")
+                ml_account_id = function_args.get("ml_account_id")
+                source = function_args.get("source", "both")  # "orders", "campaigns", "both"
+                
+                from datetime import datetime, timedelta
+                from sqlalchemy import func
+                from app.models.saas_models import MLOrder
+                from app.models.advertising_models import MLCampaign, MLCampaignMetrics
+                
+                total_from_orders = 0.0
+                total_from_campaigns = 0.0
+                
+                # Fonte 1: Despesas de pedidos (advertising_cost)
+                if source in ["orders", "both"]:
+                    orders_query = self.db.query(func.sum(MLOrder.advertising_cost)).filter(
+                        MLOrder.company_id == company_id,
+                        MLOrder.is_advertising_sale == True,
+                        MLOrder.advertising_cost.isnot(None),
+                        MLOrder.advertising_cost > 0
+                    )
+                    
+                    if ml_account_id:
+                        orders_query = orders_query.filter(MLOrder.ml_account_id == ml_account_id)
+                    
+                    if start_date:
+                        try:
+                            dt_start = datetime.fromisoformat(str(start_date)[:10])
+                            orders_query = orders_query.filter(MLOrder.date_created >= dt_start)
+                        except Exception:
+                            pass
+                    
+                    if end_date:
+                        try:
+                            dt_end = datetime.fromisoformat(str(end_date)[:10]) + timedelta(days=1)
+                            orders_query = orders_query.filter(MLOrder.date_created < dt_end)
+                        except Exception:
+                            pass
+                    
+                    result_orders = orders_query.scalar()
+                    total_from_orders = float(result_orders) if result_orders else 0.0
+                
+                # Fonte 2: Despesas de campanhas (spent de ml_campaign_metrics)
+                if source in ["campaigns", "both"]:
+                    campaigns_query = self.db.query(MLCampaign).filter(
+                        MLCampaign.company_id == company_id
+                    )
+                    if ml_account_id:
+                        campaigns_query = campaigns_query.filter(MLCampaign.ml_account_id == ml_account_id)
+                    
+                    campaigns = campaigns_query.all()
+                    campaign_ids = [c.id for c in campaigns]
+                    
+                    if campaign_ids:
+                        metrics_query = self.db.query(func.sum(MLCampaignMetrics.spent)).filter(
+                            MLCampaignMetrics.campaign_id.in_(campaign_ids),
+                            MLCampaignMetrics.spent.isnot(None),
+                            MLCampaignMetrics.spent > 0
+                        )
+                        
+                        if start_date:
+                            try:
+                                dt_start = datetime.fromisoformat(str(start_date)[:10])
+                                metrics_query = metrics_query.filter(MLCampaignMetrics.metric_date >= dt_start)
+                            except Exception:
+                                pass
+                        
+                        if end_date:
+                            try:
+                                dt_end = datetime.fromisoformat(str(end_date)[:10]) + timedelta(days=1)
+                                metrics_query = metrics_query.filter(MLCampaignMetrics.metric_date < dt_end)
+                            except Exception:
+                                pass
+                        
+                        result_campaigns = metrics_query.scalar()
+                        total_from_campaigns = float(result_campaigns) if result_campaigns else 0.0
+                
+                total_expenses = total_from_orders + total_from_campaigns
+                
+                return {
+                    "despesas_totais": total_expenses,
+                    "despesas_pedidos": total_from_orders if source in ["orders", "both"] else None,
+                    "despesas_campanhas": total_from_campaigns if source in ["campaigns", "both"] else None,
+                    "periodo": {
+                        "inicio": start_date,
+                        "fim": end_date
+                    },
+                    "fonte": source
+                }
+            
             # ========== Product Cost Config (placeholder) ==========
             if function_name == "get_product_cost_config":
                 # TODO: substituir por leitura real de tabela de custos
@@ -2078,6 +2340,10 @@ class OpenAIAssistantService:
                 else:
                     q = q.filter(MLProduct.title.ilike(like))
                 q = q.order_by(MLProduct.updated_at.desc()) if hasattr(MLProduct, 'updated_at') else q
+                
+                # Contar total antes de aplicar limit
+                total_encontrados = q.count()
+                
                 rows = q.limit(limit).all()
                 results = []
                 for p in rows:
@@ -2088,7 +2354,11 @@ class OpenAIAssistantService:
                         "codigo_anuncio": p.ml_item_id,  # era "ml_item_id"
                         "preco": float(p.price) if p.price else None  # era "price"
                     })
-                return {"resultados": results}  # era "results"
+                return {
+                    "resultados": results,  # era "results"
+                    "total_encontrados": total_encontrados,  # Total de produtos que correspondem à busca
+                    "mostrando": len(results)  # Quantos estão sendo retornados (limitado)
+                }
             
             # ========== Resolve product by code ==========
             if function_name == "resolve_product_by_code":
@@ -2810,7 +3080,7 @@ class OpenAIAssistantService:
                         # Catálogo
                         "get_catalog_competitors_db", "get_catalog_monitoring_status",
                         # Publicidade
-                        "get_ads_metrics_by_item",
+                        "get_ads_metrics_by_item", "get_products_with_ads", "get_total_advertising_expenses",
                         # Análises
                         "compute_margin_db", "simulate_price_candidates", "calculate",
                         "get_product_cost_config", "get_fee_preview_db", "get_required_attributes_db"
