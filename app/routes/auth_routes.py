@@ -209,7 +209,8 @@ async def register(
             logger.info(f"🔄 Redirecionando para checkout do Asaas: {redirect_url}")
     
     # Criar resposta de redirecionamento
-    response = RedirectResponse(url=redirect_url, status_code=302)
+    # Usar 303 See Other após POST para evitar reenvio ao recarregar página
+    response = RedirectResponse(url=redirect_url, status_code=303)
     
     # Definir cookie de sessão (secure=True em produção HTTPS)
     response.set_cookie(
