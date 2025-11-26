@@ -8,11 +8,15 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
+import pytz
 
 from app.models.saas_models import MLOrder, OrderStatus, MLAccount, Token, User, Company
 from sqlalchemy import or_
 
 logger = logging.getLogger(__name__)
+
+# Timezone de São Paulo
+SAO_PAULO_TZ = pytz.timezone('America/Sao_Paulo')
 
 class ShipmentService:
     def __init__(self, db: Session):
@@ -523,7 +527,9 @@ class ShipmentService:
                     date_created = order_data.get("date_created")
                     if date_created:
                         try:
-                            parsed_date = datetime.fromisoformat(date_created.replace('Z', '+00:00'))
+                            # Converter de UTC para horário de São Paulo
+                            dt_utc = datetime.fromisoformat(date_created.replace('Z', '+00:00'))
+                            parsed_date = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
                             if parsed_date != order.date_created:
                                 order.date_created = parsed_date
                                 status_updated = True
@@ -533,7 +539,9 @@ class ShipmentService:
                     date_closed = order_data.get("date_closed")
                     if date_closed:
                         try:
-                            parsed_date = datetime.fromisoformat(date_closed.replace('Z', '+00:00'))
+                            # Converter de UTC para horário de São Paulo
+                            dt_utc = datetime.fromisoformat(date_closed.replace('Z', '+00:00'))
+                            parsed_date = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
                             if parsed_date != order.date_closed:
                                 order.date_closed = parsed_date
                                 status_updated = True
@@ -543,7 +551,9 @@ class ShipmentService:
                     last_updated = order_data.get("last_updated")
                     if last_updated:
                         try:
-                            parsed_date = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                            # Converter de UTC para horário de São Paulo
+                            dt_utc = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                            parsed_date = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
                             if parsed_date != order.last_updated:
                                 order.last_updated = parsed_date
                                 status_updated = True
@@ -697,8 +707,10 @@ class ShipmentService:
                                     # Atualizar shipping_date usando date_shipped do status_history (mais preciso)
                                     if date_shipped:
                                         try:
-                                            order.shipping_date = datetime.fromisoformat(date_shipped.replace('Z', '+00:00'))
-                                            logger.info(f"✅ Shipping date atualizado do status_history: {date_shipped}")
+                                            # Converter de UTC para horário de São Paulo
+                                            dt_utc = datetime.fromisoformat(date_shipped.replace('Z', '+00:00'))
+                                            order.shipping_date = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
+                                            logger.info(f"✅ Shipping date atualizado do status_history: {date_shipped} (convertido para horário de São Paulo)")
                                         except Exception as e:
                                             logger.warning(f"Erro ao parsear date_shipped: {e}")
                                     else:
@@ -706,8 +718,10 @@ class ShipmentService:
                                         shipping_date = shipment_data.get("date_created")
                                         if shipping_date:
                                             try:
-                                                order.shipping_date = datetime.fromisoformat(shipping_date.replace('Z', '+00:00'))
-                                                logger.info(f"✅ Shipping date atualizado do date_created: {shipping_date}")
+                                                # Converter de UTC para horário de São Paulo
+                                                dt_utc = datetime.fromisoformat(shipping_date.replace('Z', '+00:00'))
+                                                order.shipping_date = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
+                                                logger.info(f"✅ Shipping date atualizado do date_created: {shipping_date} (convertido para horário de São Paulo)")
                                             except Exception as e:
                                                 logger.warning(f"Erro ao parsear shipping_date: {e}")
                                     
@@ -717,8 +731,10 @@ class ShipmentService:
                                     estimated_date = estimated_delivery.get("date")
                                     if estimated_date:
                                         try:
-                                            order.estimated_delivery_date = datetime.fromisoformat(estimated_date.replace('Z', '+00:00'))
-                                            logger.info(f"✅ Estimated delivery date atualizado: {estimated_date}")
+                                            # Converter de UTC para horário de São Paulo
+                                            dt_utc = datetime.fromisoformat(estimated_date.replace('Z', '+00:00'))
+                                            order.estimated_delivery_date = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
+                                            logger.info(f"✅ Estimated delivery date atualizado: {estimated_date} (convertido para horário de São Paulo)")
                                         except Exception as e:
                                             logger.warning(f"Erro ao parsear estimated_date: {e}")
                                     

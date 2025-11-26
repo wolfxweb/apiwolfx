@@ -391,19 +391,6 @@ ALL_TOOLS = [
             },
             "required": ["category_id"]
         }
-    },
-    {
-        "name": "check_title_description_db",
-        "description": "Valida o título e descrição do produto, verificando se atendem aos critérios de qualidade",
-        "handler": "check_title_description_db",
-        "schema": {
-            "type": "object",
-            "properties": {
-                "product_id": {"type": "integer", "description": "ID interno do produto no sistema"},
-                "max_title_length": {"type": "integer", "default": 60, "description": "Tamanho máximo permitido para o título"}
-            },
-            "required": ["product_id"]
-        }
     }
 ]
 

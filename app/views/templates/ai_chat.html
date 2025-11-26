@@ -639,6 +639,9 @@ async function loadConversation(threadId, assistantId) {
                 document.getElementById('chatAssistantName').innerHTML = 
                     `<i class="bi bi-robot"></i> ${escapeHtml(data.thread.assistant_name)}`;
                 
+                // Limpar mensagens antes de carregar (evitar duplicação)
+                document.getElementById('chatMessages').innerHTML = '';
+                
                 // Carregar mensagens
                 renderMessages(data.messages);
                 
@@ -1049,6 +1052,9 @@ function selectAgent(assistantId) {
     
     showChatArea();
     showNotification('Nova conversa iniciada', 'success');
+    
+    // Limpar mensagens antes de chamar tryInitiateWelcome
+    document.getElementById('chatMessages').innerHTML = '';
 }
 
 // Chamar backend para criar thread e obter mensagem de boas‑vindas (se habilitada)

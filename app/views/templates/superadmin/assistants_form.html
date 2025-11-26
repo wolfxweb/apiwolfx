@@ -155,10 +155,10 @@
                                             <i class="bi bi-info-circle text-info ms-1" 
                                                data-bs-toggle="tooltip" 
                                                data-bs-placement="top" 
-                                               title="Limite máximo de tokens na resposta. Tokens são unidades de texto (palavras, pontuação, espaços). Valores maiores permitem respostas mais longas, mas consomem mais tokens e podem ser mais lentos."></i>
+                                               title="Limite máximo de tokens na resposta (max_completion_tokens para GPT-5). Tokens são unidades de texto (palavras, pontuação, espaços). IMPORTANTE: O GPT-5 suporta até 400.000 tokens de contexto total (input + output). Este campo limita apenas os tokens da resposta (output). Valores maiores permitem respostas mais longas, mas consomem mais tokens e podem ser mais lentos. Recomendado: 4.000-16.000 para uso geral, até 100.000+ para respostas muito longas."></i>
                                         </label>
                                         <input type="number" class="form-control" id="assistantMaxTokens" name="max_tokens" 
-                                               min="1" max="8000" value="4000">
+                                               min="1" max="1000000" value="4000">
                                     </div>
                                 </div>
                             </div>
@@ -415,7 +415,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sincronizar conteúdo do editor de prompt com textarea oculto
     quillPromptEditor.on('text-change', function() {
         const html = quillPromptEditor.root.innerHTML;
+        const text = quillPromptEditor.root.textContent || quillPromptEditor.root.innerText || '';
+        // Sincronizar com textarea sempre que houver mudança
         document.getElementById('assistantInitialPrompt').value = html;
+        // Log para debug (apenas se houver conteúdo significativo)
+        if (text.trim().length > 10) {
+            console.log('Quill Prompt atualizado:', { htmlLength: html.length, textLength: text.length });
+        }
     });
     
     // Configurar editor Quill para Mensagem de Boas‑vindas
@@ -561,6 +567,19 @@ async function loadAssistantData(id) {
                             }
                         }, 100);
                     }
+                } else {
+                    // Limpar o editor se não houver initial_prompt
+                    if (quillPromptEditor) {
+                        quillPromptEditor.root.innerHTML = '';
+                        document.getElementById('assistantInitialPrompt').value = '';
+                    } else {
+                        setTimeout(function() {
+                            if (quillPromptEditor) {
+                                quillPromptEditor.root.innerHTML = '';
+                            }
+                            document.getElementById('assistantInitialPrompt').value = '';
+                        }, 100);
+                    }
                 }
                 
                 // Boas‑vindas: habilitado, usar modelo e mensagem
@@ -584,22 +603,9 @@ async function loadAssistantData(id) {
                     welcomeMessageEl.value = '';
                 }
                 
-                // Configurar reasoning_effort e verbosity (se existirem)
-                // IMPORTANTE: Carregar ANTES de chamar handleModelChange() para garantir que os valores estejam definidos
-                if (assistant.reasoning_effort) {
-                    const reasoningSelect = document.getElementById('assistantReasoningEffort');
-                    if (reasoningSelect) {
-                        reasoningSelect.value = assistant.reasoning_effort;
-                        console.log('✅ Reasoning Effort carregado:', assistant.reasoning_effort);
-                    }
-                }
-                if (assistant.verbosity) {
-                    const verbositySelect = document.getElementById('assistantVerbosity');
-                    if (verbositySelect) {
-                        verbositySelect.value = assistant.verbosity;
-                        console.log('✅ Verbosity carregado:', assistant.verbosity);
-                    }
-                }
+                // Preservar valores de reasoning_effort e verbosity antes de chamar handleModelChange()
+                const savedReasoningEffort = assistant.reasoning_effort || null;
+                const savedVerbosity = assistant.verbosity || null;
                 
                 // Carregar ferramentas da Assistants API (Code Interpreter e File Search)
                 if (assistant.tools_config) {
@@ -624,9 +630,34 @@ async function loadAssistantData(id) {
                     loadTools(customTools);
                 }
                 
-                // IMPORTANTE: Chamar handleModelChange() DEPOIS de carregar todos os dados
-                // para mostrar/esconder os campos corretos baseado no modelo
+                // IMPORTANTE: Chamar handleModelChange() PRIMEIRO para mostrar/esconder os campos corretos
+                // baseado no modelo, DEPOIS restaurar os valores salvos
                 handleModelChange();
+                
+                // Função para restaurar valores (usada imediatamente e com fallback)
+                const restoreGPT5Values = () => {
+                    if (savedReasoningEffort) {
+                        const reasoningSelect = document.getElementById('assistantReasoningEffort');
+                        if (reasoningSelect) {
+                            reasoningSelect.value = savedReasoningEffort;
+                            console.log('✅ Reasoning Effort restaurado:', savedReasoningEffort);
+                        }
+                    }
+                    if (savedVerbosity) {
+                        const verbositySelect = document.getElementById('assistantVerbosity');
+                        if (verbositySelect) {
+                            verbositySelect.value = savedVerbosity;
+                            console.log('✅ Verbosity restaurado:', savedVerbosity);
+                        }
+                    }
+                };
+                
+                // Restaurar valores imediatamente
+                restoreGPT5Values();
+                
+                // Fallback: restaurar novamente após um pequeno delay para garantir
+                // que os campos estejam visíveis e prontos
+                setTimeout(restoreGPT5Values, 100);
                 
                 // Verificar suporte do modelo após carregar dados (para mostrar aviso se necessário)
                 checkAssistantsAPISupport();
@@ -898,13 +929,43 @@ async function saveAssistant(event) {
         welcome_use_model: document.getElementById('welcomeUseModel')?.checked || false
     };
     
-    // Obter HTML formatado do editor Quill do prompt
-    let initialPrompt = quillPromptEditor ? quillPromptEditor.root.innerHTML : document.getElementById('assistantInitialPrompt').value;
-    // Remover tags vazias do Quill (se o editor estiver vazio)
-    if (initialPrompt && (initialPrompt.trim() === '' || initialPrompt === '<p><br></p>' || initialPrompt === '<p></p>')) {
-        initialPrompt = null;
+    // Obter HTML formatado do editor Quill do prompt - FORÇAR sincronização
+    let initialPrompt = '';
+    if (quillPromptEditor) {
+        // Forçar atualização do textarea antes de capturar
+        const quillHTML = quillPromptEditor.root.innerHTML;
+        const quillText = quillPromptEditor.root.textContent || quillPromptEditor.root.innerText || '';
+        document.getElementById('assistantInitialPrompt').value = quillHTML;
+        
+        // Usar HTML do Quill se tiver conteúdo de texto
+        if (quillText.trim() !== '') {
+            initialPrompt = quillHTML;
+        } else {
+            initialPrompt = document.getElementById('assistantInitialPrompt').value || '';
+        }
+    } else {
+        initialPrompt = document.getElementById('assistantInitialPrompt').value || '';
     }
-    formData.initial_prompt = initialPrompt;
+    
+    // Remover tags vazias do Quill (se o editor estiver vazio)
+    initialPrompt = initialPrompt.trim();
+    if (initialPrompt === '<p><br></p>' || initialPrompt === '<p></p>' || initialPrompt === '<br>' || initialPrompt === '') {
+        // Usar string vazia para indicar que o campo deve ser limpo no backend
+        initialPrompt = '';
+    }
+    
+    // Garantir que o textarea está sincronizado
+    document.getElementById('assistantInitialPrompt').value = initialPrompt;
+    
+    // Enviar string vazia para limpar o campo (backend tratará como None)
+    // IMPORTANTE: Sempre enviar, mesmo se vazio, para permitir limpar o campo
+    formData.initial_prompt = initialPrompt || '';
+    
+    console.log('Prompt inicial capturado:', { 
+        length: initialPrompt ? initialPrompt.length : 0,
+        preview: initialPrompt ? initialPrompt.substring(0, 100) : 'null',
+        hasQuill: !!quillPromptEditor 
+    });
     
     // Mensagem de boas‑vindas (HTML)
     let welcomeMsg = quillWelcomeEditor ? quillWelcomeEditor.root.innerHTML : (document.getElementById('welcomeMessage')?.value || '');
@@ -929,9 +990,19 @@ async function saveAssistant(event) {
     // Adicionar parâmetros baseado no modelo
     if (isGPT5) {
         // GPT-5 usa reasoning_effort e verbosity
-        formData.reasoning_effort = document.getElementById('assistantReasoningEffort').value || 'medium';
-        formData.verbosity = document.getElementById('assistantVerbosity').value || 'medium';
+        const reasoningEffortEl = document.getElementById('assistantReasoningEffort');
+        const verbosityEl = document.getElementById('assistantVerbosity');
+        
+        formData.reasoning_effort = reasoningEffortEl ? reasoningEffortEl.value : 'medium';
+        formData.verbosity = verbosityEl ? verbosityEl.value : 'medium';
         formData.temperature = null;  // GPT-5 não usa temperature
+        
+        console.log('GPT-5 - Parâmetros capturados:', {
+            reasoning_effort: formData.reasoning_effort,
+            verbosity: formData.verbosity,
+            reasoningElExists: !!reasoningEffortEl,
+            verbosityElExists: !!verbosityEl
+        });
     } else {
         // GPT-4 e anteriores usam temperature
         formData.temperature = parseFloat(document.getElementById('assistantTemperature').value) || null;
@@ -967,9 +1038,17 @@ async function saveAssistant(event) {
         // Log para debug
         console.log('Enviando dados:', {
             assistantId: assistantId,
+            model: model,
+            isGPT5: isGPT5,
             instructionsLength: formData.instructions?.length || 0,
             instructionsPreview: formData.instructions?.substring(0, 200) || 'VAZIO',
-            hasQuill: !!quillEditor
+            initialPromptLength: formData.initial_prompt?.length || 0,
+            initialPromptPreview: formData.initial_prompt?.substring(0, 100) || 'null',
+            reasoning_effort: formData.reasoning_effort,
+            verbosity: formData.verbosity,
+            temperature: formData.temperature,
+            hasQuill: !!quillEditor,
+            hasQuillPrompt: !!quillPromptEditor
         });
         
         const response = await fetch(url, {

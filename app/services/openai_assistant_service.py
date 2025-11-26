@@ -72,12 +72,12 @@ class OpenAIAssistantService:
     def _needs_max_completion_tokens(self, model: str) -> bool:
         """Verifica se o modelo requer max_completion_tokens ao invés de max_tokens"""
         # Modelos que requerem max_completion_tokens
-        # Baseado na documentação da OpenAI, modelos GPT-5 mais recentes podem usar max_completion_tokens
+        # Baseado na documentação da OpenAI, modelos GPT-5 mais recentes requerem max_completion_tokens
         if not model:
             return False
-        # gpt-5-nano e outros modelos GPT-5 específicos podem requerer max_completion_tokens
-        # Por enquanto, vamos verificar se é gpt-5-nano especificamente
-        return model.startswith("gpt-5-nano")
+        # Todos os modelos GPT-5 requerem max_completion_tokens ao invés de max_tokens
+        # Verificar se é um modelo GPT-5
+        return model.startswith("gpt-5")
     
     def _is_model_supported_by_assistants_api(self, model: str) -> bool:
         """Verifica se o modelo é suportado pela Assistants API"""
@@ -357,12 +357,24 @@ class OpenAIAssistantService:
                 if tools is not None:
                     current_config["tools"] = tools
                     logger.info(f"🔧 Atualizando {len(tools)} ferramenta(s) para agente GPT-5")
+                
+                # Sempre atualizar reasoning_effort e verbosity se fornecidos (mesmo que seja None, para limpar)
                 if reasoning_effort is not None:
                     current_config["reasoning_effort"] = reasoning_effort
+                    logger.info(f"📝 Atualizando reasoning_effort: {reasoning_effort}")
                 if verbosity is not None:
                     current_config["verbosity"] = verbosity
+                    logger.info(f"📝 Atualizando verbosity: {verbosity}")
                 
-                db_assistant.tools_config = current_config if current_config else None
+                # Sempre salvar o config se tiver reasoning_effort, verbosity ou tools
+                # Mesmo que não tenha tools, se tiver reasoning_effort ou verbosity, deve salvar
+                if current_config and (current_config.get("reasoning_effort") or current_config.get("verbosity") or current_config.get("tools")):
+                    db_assistant.tools_config = current_config
+                    logger.info(f"✅ Tools config salvo com: reasoning_effort={current_config.get('reasoning_effort')}, verbosity={current_config.get('verbosity')}, tools={len(current_config.get('tools', []))}")
+                else:
+                    # Se não há nada para salvar, manter None ou config vazio
+                    db_assistant.tools_config = None if not current_config else current_config
+                
                 db_assistant.temperature = None  # GPT-5 não usa temperature
             elif not is_reasoning:
                 # GPT-4 e anteriores: usar temperature normalmente
@@ -389,7 +401,15 @@ class OpenAIAssistantService:
             if memory_data is not None:
                 db_assistant.memory_data = memory_data
             if initial_prompt is not None:
-                db_assistant.initial_prompt = initial_prompt
+                # Tratar string vazia como None para limpar o campo
+                if initial_prompt == '':
+                    logger.info(f"📝 Limpando initial_prompt do agente {assistant_id} (campo vazio)")
+                    db_assistant.initial_prompt = None
+                else:
+                    # Log para debug
+                    logger.info(f"📝 Atualizando initial_prompt do agente {assistant_id}: {len(initial_prompt)} caracteres")
+                    logger.debug(f"📝 Preview do initial_prompt: {initial_prompt[:200]}...")
+                    db_assistant.initial_prompt = initial_prompt
             if welcome_enabled is not None:
                 db_assistant.welcome_enabled = bool(welcome_enabled)
             if welcome_use_model is not None:
@@ -408,11 +428,29 @@ class OpenAIAssistantService:
             else:
                 logger.warning(f"⚠️ Instruções estão vazias após salvar!")
             
+            # Verificar se initial_prompt foi salvo
+            if db_assistant.initial_prompt:
+                logger.info(f"✅ Initial prompt salvo: {len(db_assistant.initial_prompt)} caracteres")
+            else:
+                logger.info("ℹ️ Initial prompt não configurado (null)")
+            
             # Verificar se ferramentas foram salvas
             if db_assistant.tools_config:
-                logger.info(f"✅ Ferramentas atualizadas no banco: {json.dumps(db_assistant.tools_config, ensure_ascii=False)}")
+                logger.info(f"✅ Tools config atualizado no banco: {json.dumps(db_assistant.tools_config, ensure_ascii=False)}")
+                # Verificar reasoning_effort e verbosity especificamente
+                if is_gpt5:
+                    if "reasoning_effort" in db_assistant.tools_config:
+                        logger.info(f"✅ Reasoning effort salvo: {db_assistant.tools_config['reasoning_effort']}")
+                    else:
+                        logger.warning(f"⚠️ Reasoning effort NÃO encontrado no tools_config!")
+                    if "verbosity" in db_assistant.tools_config:
+                        logger.info(f"✅ Verbosity salvo: {db_assistant.tools_config['verbosity']}")
+                    else:
+                        logger.warning(f"⚠️ Verbosity NÃO encontrado no tools_config!")
             else:
                 logger.info("ℹ️ Nenhuma ferramenta configurada (tools_config é None)")
+                if is_gpt5:
+                    logger.warning(f"⚠️ GPT-5 sem tools_config - reasoning_effort e verbosity podem não estar salvos!")
             
             logger.info(f"✅ Agente atualizado com sucesso: {db_assistant.id}")
             
@@ -524,16 +562,21 @@ class OpenAIAssistantService:
             })
             
             # Preparar parâmetros para Chat Completions
+            # IMPORTANTE: Usar o modelo configurado no agente (db_assistant.model)
+            model_name = db_assistant.model
             chat_params = {
-                "model": db_assistant.model,
+                "model": model_name,
                 "messages": messages_history,
             }
             
             # Adicionar limite de tokens (alguns modelos usam max_completion_tokens ao invés de max_tokens)
-            if self._needs_max_completion_tokens(db_assistant.model):
+            logger.info(f"🔍 Verificando parâmetro de tokens para modelo: {model_name}")
+            if self._needs_max_completion_tokens(model_name):
                 chat_params["max_completion_tokens"] = db_assistant.max_tokens
+                logger.info(f"✅ Usando max_completion_tokens={db_assistant.max_tokens} para modelo {model_name}")
             else:
                 chat_params["max_tokens"] = db_assistant.max_tokens
+                logger.info(f"✅ Usando max_tokens={db_assistant.max_tokens} para modelo {model_name}")
             
             # Adicionar parâmetros específicos do modelo
             if self._is_gpt5_model(db_assistant.model):
@@ -938,23 +981,82 @@ class OpenAIAssistantService:
                 messages_history.append(msg_dict)
                 i += 1
             
-            # Adicionar mensagem atual do usuário
-            # IMPORTANTE: Usar APENAS a mensagem do usuário, sem modificações
-            messages_history.append({
-                "role": "user",
-                "content": message or ""
-            })
+            # Processar welcome_message se mensagem está vazia e não há mensagens anteriores
+            # IMPORTANTE: Verificar se já existe welcome_message salva no banco para evitar duplicação
+            is_empty_message = not message or not message.strip()
+            has_welcome_in_db = False
+            if is_empty_message and not previous_messages:
+                # Verificar se já existe uma mensagem de boas-vindas salva no banco
+                existing_welcome = self.db.query(OpenAIAssistantMessage).filter(
+                    OpenAIAssistantMessage.thread_id == db_thread.id,
+                    OpenAIAssistantMessage.role == "assistant"
+                ).first()
+                if existing_welcome:
+                    has_welcome_in_db = True
+                    logger.info("ℹ️ Welcome message já existe no banco, não processando novamente")
             
-            # Salvar mensagem do usuário no banco
-            if message and message.strip():
-                # Salvar mensagem do usuário no banco (original)
-                user_message = OpenAIAssistantMessage(
-                    thread_id=db_thread.id,
-                    role="user",
-                    content=message
-                )
-                self.db.add(user_message)
-                self.db.flush()
+            # Se mensagem está vazia, não há mensagens anteriores e welcome está habilitado, processar welcome_message ANTES de adicionar mensagem vazia
+            if is_empty_message and not previous_messages and db_assistant.welcome_enabled and db_assistant.welcome_message and not has_welcome_in_db:
+                welcome_text = self._strip_html_tags(db_assistant.welcome_message) if db_assistant.welcome_message else ""
+                if welcome_text.strip():
+                    if db_assistant.welcome_use_model:
+                        # Usar o modelo para gerar a mensagem de boas-vindas
+                        # Adicionar welcome_message como prompt para o modelo
+                        welcome_prompt = f"Gere uma mensagem de boas-vindas baseada nas seguintes instruções: {welcome_text}"
+                        # Adicionar mensagem do usuário com o prompt de boas-vindas
+                        messages_history.append({
+                            "role": "user",
+                            "content": welcome_prompt
+                        })
+                        # Salvar mensagem do usuário no banco (com o prompt de boas-vindas)
+                        user_message = OpenAIAssistantMessage(
+                            thread_id=db_thread.id,
+                            role="user",
+                            content=welcome_prompt
+                        )
+                        self.db.add(user_message)
+                        self.db.flush()
+                    else:
+                        # Retornar welcome_message diretamente sem chamar o modelo
+                        logger.info("📝 Retornando welcome_message diretamente (sem usar modelo)")
+                        # Salvar welcome_message no banco
+                        welcome_message_db = OpenAIAssistantMessage(
+                            thread_id=db_thread.id,
+                            role="assistant",
+                            content=welcome_text
+                        )
+                        self.db.add(welcome_message_db)
+                        db_thread.last_message_at = datetime.utcnow()
+                        db_thread.updated_at = datetime.utcnow()
+                        self.db.commit()
+                        
+                        return {
+                            "success": True,
+                            "response": welcome_text,
+                            "thread_id": openai_thread_id,
+                            "usage": None
+                        }
+                else:
+                    # Se welcome_text está vazio após strip, não processar welcome
+                    logger.warning("⚠️ Welcome message está vazia após remover HTML, ignorando")
+            else:
+                # Adicionar mensagem atual do usuário (apenas se não for welcome_message)
+                # IMPORTANTE: Usar APENAS a mensagem do usuário, sem modificações
+                messages_history.append({
+                    "role": "user",
+                    "content": message or ""
+                })
+                
+                # Salvar mensagem do usuário no banco
+                if message and message.strip():
+                    # Salvar mensagem do usuário no banco (original)
+                    user_message = OpenAIAssistantMessage(
+                        thread_id=db_thread.id,
+                        role="user",
+                        content=message
+                    )
+                    self.db.add(user_message)
+                    self.db.flush()
             
             # Validar e limpar mensagens antes de enviar
             # Remover tool_calls vazios de mensagens assistant
@@ -1009,16 +1111,21 @@ class OpenAIAssistantService:
                     cleaned_messages.append(msg)
             
             # Preparar parâmetros para Chat Completions
+            # IMPORTANTE: Usar o modelo configurado no agente (db_assistant.model)
+            model_name = db_assistant.model
             chat_params = {
-                "model": db_assistant.model,
+                "model": model_name,
                 "messages": cleaned_messages,
             }
             
             # Adicionar limite de tokens (alguns modelos usam max_completion_tokens ao invés de max_tokens)
-            if self._needs_max_completion_tokens(db_assistant.model):
+            logger.info(f"🔍 Verificando parâmetro de tokens para modelo: {model_name}")
+            if self._needs_max_completion_tokens(model_name):
                 chat_params["max_completion_tokens"] = db_assistant.max_tokens
+                logger.info(f"✅ Usando max_completion_tokens={db_assistant.max_tokens} para modelo {model_name}")
             else:
                 chat_params["max_tokens"] = db_assistant.max_tokens
+                logger.info(f"✅ Usando max_tokens={db_assistant.max_tokens} para modelo {model_name}")
             
             # Adicionar parâmetros específicos do modelo
             if self._is_gpt5_model(db_assistant.model):
@@ -1562,6 +1669,10 @@ class OpenAIAssistantService:
                 p = self.db.query(MLProduct).filter(MLProduct.id == product_id, MLProduct.company_id == company_id).first()
                 if not p:
                     return {"error": "Produto não encontrado"}
+                
+                # Verificar se é produto de catálogo
+                is_catalog = bool(p.catalog_listing) or bool(p.catalog_product_id)
+                
                 return {
                     "id": p.id,
                     "codigo_anuncio": p.ml_item_id,  # era ml_item_id
@@ -1571,6 +1682,8 @@ class OpenAIAssistantService:
                     "tipo_anuncio": p.listing_type_id,  # era listing_type_id
                     "sku": p.seller_sku,  # era seller_sku
                     "titulo": p.title,  # era title
+                    "eh_catalogo": is_catalog,  # Indica se o produto é de catálogo compartilhado
+                    "catalog_product_id": p.catalog_product_id if p.catalog_product_id else None,  # ID do produto no catálogo ML
                 }
 
             # ========== Product Attributes ==========
@@ -2347,12 +2460,16 @@ class OpenAIAssistantService:
                 rows = q.limit(limit).all()
                 results = []
                 for p in rows:
+                    # Verificar se é produto de catálogo
+                    is_catalog = bool(p.catalog_listing) or bool(p.catalog_product_id)
                     results.append({
                         "id": p.id,  # OK manter
                         "titulo": p.title,  # era "title"
                         "sku": p.seller_sku,  # era "seller_sku"
                         "codigo_anuncio": p.ml_item_id,  # era "ml_item_id"
-                        "preco": float(p.price) if p.price else None  # era "price"
+                        "preco": float(p.price) if p.price else None,  # era "price"
+                        "eh_catalogo": is_catalog,  # Indica se o produto é de catálogo compartilhado
+                        "catalog_product_id": p.catalog_product_id if p.catalog_product_id else None,  # ID do produto no catálogo ML
                     })
                 return {
                     "resultados": results,  # era "results"
@@ -2396,6 +2513,10 @@ class OpenAIAssistantService:
                         product = self.db.query(MLProduct).filter(MLProduct.seller_sku == code, MLProduct.company_id == company_id).first()
                 if not product:
                     return {"encontrado": False}  # era "found"
+                
+                # Verificar se é produto de catálogo
+                is_catalog = bool(product.catalog_listing) or bool(product.catalog_product_id)
+                
                 return {
                     "encontrado": True,  # era "found"
                     "produto": {  # era "product"
@@ -2403,7 +2524,9 @@ class OpenAIAssistantService:
                         "titulo": product.title,  # era "title"
                         "sku": product.seller_sku,  # era "seller_sku"
                         "codigo_anuncio": product.ml_item_id,  # era "ml_item_id"
-                        "preco": float(product.price) if product.price else None  # era "price"
+                        "preco": float(product.price) if product.price else None,  # era "price"
+                        "eh_catalogo": is_catalog,  # Indica se o produto é de catálogo compartilhado
+                        "catalog_product_id": product.catalog_product_id if product.catalog_product_id else None,  # ID do produto no catálogo ML
                     }
                 }
             

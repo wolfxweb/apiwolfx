@@ -3,12 +3,16 @@ from typing import Dict, List, Optional, Any
 import logging
 import requests
 from datetime import datetime, timedelta
+import pytz
 
 from app.models.saas_models import MLOrder, MLAccount, MLAccountStatus, OrderStatus
 from app.services.token_manager import TokenManager
 from app.utils.notification_logger import global_logger
 
 logger = logging.getLogger(__name__)
+
+# Timezone de São Paulo
+SAO_PAULO_TZ = pytz.timezone('America/Sao_Paulo')
 
 class MLOrdersService:
     def __init__(self, db: Session):
@@ -1106,7 +1110,8 @@ class MLOrdersService:
                         if hasattr(existing_order, key):
                             setattr(existing_order, key, value)
                 
-                existing_order.updated_at = datetime.utcnow()
+                # Usar horário de São Paulo para updated_at
+                existing_order.updated_at = datetime.now(SAO_PAULO_TZ).replace(tzinfo=None)
                 logger.info(f"✅ Pedido atualizado: ID={existing_order.id}, company_id={existing_order.company_id}")
                 
                 # GARANTIR que o status interno não foi alterado ou criado durante a atualização
@@ -1276,26 +1281,38 @@ class MLOrdersService:
             order_status = status_mapping.get(status, "PENDING")
             logger.info(f"📊 Status do pedido: '{status}' -> '{order_status}'")
             
-            # Converter datas
+            # Converter datas de UTC para horário de São Paulo
             date_created = None
             if order_data.get("date_created"):
                 try:
-                    date_created = datetime.fromisoformat(order_data["date_created"].replace('Z', '+00:00'))
-                except:
+                    # Converter de UTC para datetime com timezone
+                    dt_utc = datetime.fromisoformat(order_data["date_created"].replace('Z', '+00:00'))
+                    # Converter para horário de São Paulo e remover timezone (naive datetime)
+                    date_created = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
+                except Exception as e:
+                    logger.warning(f"Erro ao converter date_created: {e}")
                     pass
             
             date_closed = None
             if order_data.get("date_closed"):
                 try:
-                    date_closed = datetime.fromisoformat(order_data["date_closed"].replace('Z', '+00:00'))
-                except:
+                    # Converter de UTC para datetime com timezone
+                    dt_utc = datetime.fromisoformat(order_data["date_closed"].replace('Z', '+00:00'))
+                    # Converter para horário de São Paulo e remover timezone (naive datetime)
+                    date_closed = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
+                except Exception as e:
+                    logger.warning(f"Erro ao converter date_closed: {e}")
                     pass
             
             last_updated = None
             if order_data.get("last_updated"):
                 try:
-                    last_updated = datetime.fromisoformat(order_data["last_updated"].replace('Z', '+00:00'))
-                except:
+                    # Converter de UTC para datetime com timezone
+                    dt_utc = datetime.fromisoformat(order_data["last_updated"].replace('Z', '+00:00'))
+                    # Converter para horário de São Paulo e remover timezone (naive datetime)
+                    last_updated = dt_utc.astimezone(SAO_PAULO_TZ).replace(tzinfo=None)
+                except Exception as e:
+                    logger.warning(f"Erro ao converter last_updated: {e}")
                     pass
             
             # Extrair dados do comprador
