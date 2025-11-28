@@ -311,6 +311,16 @@ class OpenAIAssistantController:
             logger.error(f"❌ Erro ao usar assistente em modo chat: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
+    def get_tokens_balance(self, company_id: int) -> Dict:
+        """Obtém saldo de tokens da empresa"""
+        try:
+            from app.services.token_balance_service import TokenBalanceService
+            token_service = TokenBalanceService(self.db)
+            return token_service.get_balance(company_id)
+        except Exception as e:
+            logger.error(f"❌ Erro ao obter saldo de tokens: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
     def get_chat_history(self, thread_id: str, company_id: int, user_id: Optional[int] = None, limit: int = 50) -> Dict:
         """Obtém histórico de mensagens de uma thread"""
         try:

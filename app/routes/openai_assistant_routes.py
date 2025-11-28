@@ -5,7 +5,7 @@ import logging
 import json
 from typing import Optional, List, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query, Body, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -532,35 +532,190 @@ async def use_assistant_chat(
     db: Session = Depends(get_db)
 ):
     """Usa um assistente em modo chat"""
-    company_id = user.get("company", {}).get("id")
-    if not company_id:
-        raise HTTPException(status_code=400, detail="Company ID não encontrado")
-    
-    # Processar arquivos se fornecidos
-    context_data = request_data.context_data or {}
-    if request_data.files_data:
-        files_context = FileProcessorService.format_for_context(request_data.files_data)
-        if files_context:
-            context_data.update(files_context)
-    
-    controller = OpenAIAssistantController(db)
-    result = controller.use_assistant_chat(
-        assistant_id=request_data.assistant_id,
-        company_id=company_id,
-        user_id=user.get("id"),
-        message=request_data.message,
-        thread_id=request_data.thread_id,
-        context_data=context_data,
-        use_case=request_data.use_case
-    )
-    
-    if not result.get("success"):
-        # Verificar se é erro de autenticação/sessão
-        if result.get("requires_login"):
-            raise HTTPException(status_code=401, detail=result.get("error", "Sessão expirada. Por favor, faça login novamente."))
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao usar agente"))
-    
-    return result
+    try:
+        # Tentar diferentes formas de obter company_id
+        company_id = None
+        if isinstance(user, dict):
+            # Primeiro tentar user["company_id"] (mais direto)
+            if "company_id" in user:
+                company_id = user.get("company_id")
+            # Se não encontrou, tentar user["company"]["id"]
+            if not company_id and "company" in user:
+                if isinstance(user["company"], dict):
+                    company_id = user["company"].get("id")
+                elif hasattr(user["company"], "id"):
+                    company_id = user["company"].id
+        
+        if not company_id:
+            logger.error(f"❌ Company ID não encontrado. User object: {user}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "Company ID não encontrado",
+                    "debug": {
+                        "user_type": str(type(user)),
+                        "user_keys": list(user.keys()) if isinstance(user, dict) else None
+                    }
+                }
+            )
+        
+        logger.info(f"✅ Company ID obtido: {company_id}")
+        
+        # Processar arquivos se fornecidos
+        context_data = request_data.context_data or {}
+        if request_data.files_data:
+            files_context = FileProcessorService.format_for_context(request_data.files_data)
+            if files_context:
+                context_data.update(files_context)
+        
+        controller = OpenAIAssistantController(db)
+        result = controller.use_assistant_chat(
+            assistant_id=request_data.assistant_id,
+            company_id=company_id,
+            user_id=user.get("id"),
+            message=request_data.message,
+            thread_id=request_data.thread_id,
+            context_data=context_data,
+            use_case=request_data.use_case
+        )
+        
+        if not result.get("success"):
+            # Verificar se é erro de autenticação/sessão
+            if result.get("requires_login"):
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "success": False,
+                        "error": result.get("error", "Sessão expirada. Por favor, faça login novamente."),
+                        "requires_login": True,
+                        "tokens_balance": result.get("tokens_balance")
+                    }
+                )
+            
+            # Retornar erro com informações de saldo se disponível
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+        
+        return result
+    except Exception as e:
+        logger.error(f"❌ Erro inesperado em use_assistant_chat: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+        )
+
+
+@openai_assistant_router.get("/tokens/balance")
+async def get_tokens_balance(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Retorna saldo de tokens da empresa"""
+    try:
+        # Obter usuário manualmente para ter melhor controle de erros
+        session_token = request.cookies.get("session_token")
+        if not session_token:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "success": False,
+                    "error": "Sessão não encontrada"
+                }
+            )
+        
+        result = auth_controller.get_user_by_session(session_token, db)
+        if result.get("error"):
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "success": False,
+                    "error": result["error"]
+                }
+            )
+        
+        user = result.get("user")
+        if not user:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "success": False,
+                    "error": "Usuário não encontrado na sessão"
+                }
+            )
+        
+        # Log do user completo para debug
+        logger.info(f"🔍 User object recebido: {user}")
+        logger.info(f"🔍 User type: {type(user)}")
+        if isinstance(user, dict):
+            logger.info(f"🔍 User keys: {list(user.keys())}")
+        
+        # Tentar diferentes formas de obter company_id
+        company_id = None
+        if isinstance(user, dict):
+            # Primeiro tentar user["company_id"] (mais direto)
+            if "company_id" in user:
+                company_id = user.get("company_id")
+                logger.info(f"🔍 Company ID obtido de user['company_id']: {company_id}")
+            
+            # Se não encontrou, tentar user["company"]["id"]
+            if not company_id and "company" in user:
+                if isinstance(user["company"], dict):
+                    company_id = user["company"].get("id")
+                    logger.info(f"🔍 Company ID obtido de user['company']['id']: {company_id}")
+                elif hasattr(user["company"], "id"):
+                    company_id = user["company"].id
+                    logger.info(f"🔍 Company ID obtido de user['company'].id: {company_id}")
+        
+        if not company_id:
+            logger.error(f"❌ Company ID não encontrado. User object: {user}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "Company ID não encontrado",
+                    "debug": {
+                        "user_type": str(type(user)),
+                        "user_keys": list(user.keys()) if isinstance(user, dict) else None,
+                        "user_company": user.get("company") if isinstance(user, dict) else None
+                    }
+                }
+            )
+        
+        logger.info(f"✅ Usando company_id: {company_id}")
+        
+        controller = OpenAIAssistantController(db)
+        result = controller.get_tokens_balance(company_id)
+        
+        if not result.get("success"):
+            logger.error(f"❌ Erro ao obter saldo: {result.get('error')}")
+            return JSONResponse(
+                status_code=400,
+                content=result
+            )
+        
+        logger.info(f"✅ Resultado do saldo: {result}")
+        return JSONResponse(
+            status_code=200,
+            content=result
+        )
+    except HTTPException as e:
+        # Re-raise HTTPException para manter o comportamento padrão do FastAPI
+        raise
+    except Exception as e:
+        logger.error(f"❌ Erro inesperado ao obter saldo: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erro interno: {str(e)}"
+            }
+        )
 
 
 @openai_assistant_router.post("/process-files")

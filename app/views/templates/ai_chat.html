@@ -287,6 +287,43 @@
             height: calc(100vh - 80px);
         }
     }
+    
+    /* Estilos para barra de saldo de tokens */
+    .tokens-balance-bar {
+        padding: 0.5rem;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+    
+    .tokens-value {
+        font-weight: 600;
+    }
+    
+    .tokens-value.zero {
+        color: #dc3545;
+    }
+    
+    .tokens-value.low {
+        color: #ffc107;
+    }
+    
+    .tokens-alert {
+        padding: 0.5rem;
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 0.25rem;
+        margin-top: 0.5rem;
+        font-size: 0.875rem;
+        color: #856404;
+    }
+    
+    .tokens-alert.error {
+        background-color: #f8d7da;
+        border-color: #dc3545;
+        color: #721c24;
+    }
 </style>
 {% endblock %}
 
@@ -305,7 +342,15 @@
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
-                <button class="btn btn-primary w-100 mb-2" onclick="startNewChat()">
+                <!-- Barra de saldo de tokens -->
+                <div class="tokens-balance-bar mb-2" id="tokensBalanceBar">
+                    <small class="text-muted d-block">
+                        <span>Mensais: <strong id="tokensMonthly" class="tokens-value">0</strong></span>
+                        <span class="ms-2">Comprados: <strong id="tokensPurchased" class="tokens-value">0</strong></span>
+                        <span class="ms-2">Total: <strong id="tokensTotal" class="tokens-value">0</strong></span>
+                    </small>
+                </div>
+                <button type="button" class="btn btn-primary w-100 mb-2" onclick="event.preventDefault(); event.stopPropagation(); startNewChat(event);">
                     <i class="bi bi-plus-circle"></i> Nova Conversa
                 </button>
                 <!-- Campo de pesquisa de conversas -->
@@ -369,7 +414,7 @@
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteCurrentConversation()" title="Deletar conversa">
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="event.preventDefault(); event.stopPropagation(); deleteCurrentConversation(event);" title="Deletar conversa">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </div>
@@ -386,8 +431,8 @@
                                class="form-control" 
                                id="chatInput" 
                                placeholder="Digite sua mensagem..."
-                               onkeypress="if(event.key === 'Enter') sendMessage()">
-                        <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">
+                               onkeypress="if(event.key === 'Enter' && !isSendingMessage) { event.preventDefault(); event.stopPropagation(); sendMessage(event); }">
+                        <button type="button" class="btn btn-primary" id="sendBtn" onclick="event.preventDefault(); event.stopPropagation(); sendMessage(event);">
                             <i class="bi bi-send"></i>
                         </button>
                     </div>
@@ -440,10 +485,17 @@ function closeSidebarOnMobile() {
     }
 }
 
+// Flags de controle para evitar duplicação
+let isInitializingWelcome = false;
+let isLoadingConversation = false;
+let isSendingMessage = false;
+let loadedMessageIds = new Set(); // IDs de mensagens já carregadas no DOM
+
 // Carregar conversas e agentes ao iniciar
 document.addEventListener('DOMContentLoaded', function() {
     loadAssistants();
     loadConversations();
+    checkTokensBalance(); // Carregar saldo ao inicializar
     
     // Verificar se há código de produto na URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -595,13 +647,13 @@ function renderConversationsList() {
         
         return `
             <div class="conversation-item ${conv.thread_id === currentThreadId ? 'active' : ''}" 
-                 onclick="loadConversation('${conv.thread_id}', ${conv.assistant_id}); closeSidebarOnMobile();">
+                 onclick="event.preventDefault(); event.stopPropagation(); loadConversation('${conv.thread_id}', ${conv.assistant_id}); closeSidebarOnMobile();">
                 <div>
                     <div class="conversation-title">${escapeHtml(displayTitle)}</div>
                     <div class="conversation-meta">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>${conv.message_count} mensagens • ${date}</div>
-                            <i class="bi bi-trash text-danger" style="cursor: pointer;" title="Remover conversa" aria-label="Remover conversa" onclick="deleteConversation(event, '${conv.thread_id}')"></i>
+                            <i class="bi bi-trash text-danger" style="cursor: pointer;" title="Remover conversa" aria-label="Remover conversa" onclick="event.preventDefault(); event.stopPropagation(); deleteConversation(event, '${conv.thread_id}');"></i>
                         </div>
                     </div>
                 </div>
@@ -612,6 +664,18 @@ function renderConversationsList() {
 
 // Carregar uma conversa específica
 async function loadConversation(threadId, assistantId) {
+    // Prevenir múltiplas chamadas simultâneas
+    if (isLoadingConversation) {
+        console.log('⏳ Já carregando conversa, ignorando chamada duplicada');
+        return;
+    }
+    
+    // Se já está carregando a mesma conversa, ignorar
+    if (currentThreadId === threadId && isLoadingConversation) {
+        return;
+    }
+    
+    isLoadingConversation = true;
     currentThreadId = threadId;
     currentAssistantId = assistantId;
     
@@ -639,8 +703,9 @@ async function loadConversation(threadId, assistantId) {
                 document.getElementById('chatAssistantName').innerHTML = 
                     `<i class="bi bi-robot"></i> ${escapeHtml(data.thread.assistant_name)}`;
                 
-                // Limpar mensagens antes de carregar (evitar duplicação)
+                // Limpar mensagens e IDs carregados antes de carregar (evitar duplicação)
                 document.getElementById('chatMessages').innerHTML = '';
+                loadedMessageIds.clear();
                 
                 // Carregar mensagens
                 renderMessages(data.messages);
@@ -655,6 +720,8 @@ async function loadConversation(threadId, assistantId) {
     } catch (error) {
         console.error('Erro ao carregar conversa:', error);
         showNotification('Erro ao carregar conversa', 'error');
+    } finally {
+        isLoadingConversation = false;
     }
 }
 
@@ -670,10 +737,21 @@ function renderMessages(messages) {
             ? `id_${m.id}` 
             : `${m.role}_${String(m.content || '').substring(0, 50)}_${m.created_at || ''}`;
         
+        // Verificar se já está no DOM (pelo ID se disponível)
+        if (m.id && loadedMessageIds.has(m.id)) {
+            return false; // Mensagem já está no DOM
+        }
+        
         if (seenMessages.has(messageKey)) {
             return false; // Mensagem duplicada, ignorar
         }
         seenMessages.add(messageKey);
+        
+        // Adicionar ID à lista de mensagens carregadas
+        if (m.id) {
+            loadedMessageIds.add(m.id);
+        }
+        
         return true; // Mensagem única, incluir
     });
     
@@ -700,8 +778,9 @@ function renderMessages(messages) {
                 const content = formatMessage(msg.content || '');
                 const role = msg.role || 'user';
                 
+                const messageIdAttr = msg.id ? `data-message-id="${msg.id}"` : '';
                 return `
-                    <div class="message ${role}">
+                    <div class="message ${role}" ${messageIdAttr}>
                         <div class="message-wrapper">
                             <div class="message-content">${content}</div>
                             <div class="message-time">${timeStr}</div>
@@ -836,17 +915,175 @@ function scrollToBottom() {
     container.scrollTop = container.scrollHeight;
 }
 
-// Enviar mensagem
-async function sendMessage() {
+// Verificar e atualizar saldo de tokens
+async function checkTokensBalance() {
+    try {
+        const response = await fetch('/api/openai/assistants/tokens/balance', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            console.warn('⚠️ Não autenticado');
+            return false;
+        }
+        
+        // Verificar se a resposta é JSON válido
+        let result;
+        try {
+            result = await response.json();
+        } catch (e) {
+            const text = await response.text();
+            console.error('Erro ao parsear resposta JSON:', text);
+            console.error('Status:', response.status);
+            return false;
+        }
+        
+        if (!response.ok) {
+            console.error('Erro HTTP:', response.status, result);
+            // FastAPI pode retornar erro em diferentes formatos
+            const errorMessage = result.detail || result.error || result.message || 'Erro desconhecido';
+            console.error('Detalhe do erro:', errorMessage);
+            
+            // Se tiver debug info, mostrar
+            if (result.debug) {
+                console.error('Debug info:', result.debug);
+            }
+            
+            // Mesmo com erro, tentar atualizar display com zeros
+            updateTokensBalanceDisplay(0, 0, 0);
+            return false;
+        }
+        
+        if (result.success) {
+            updateTokensBalanceDisplay(result.monthly || 0, result.purchased || 0, result.total || 0);
+            return result.total > 0;
+        } else {
+            const errorMessage = result.error || result.detail || 'Erro desconhecido';
+            console.error('Erro ao obter saldo:', errorMessage);
+            // Mesmo com erro, atualizar display com zeros
+            updateTokensBalanceDisplay(0, 0, 0);
+            return false;
+        }
+    } catch (error) {
+        console.error('Erro ao verificar saldo:', error);
+        return false;
+    }
+}
+
+// Atualizar exibição do saldo de tokens
+function updateTokensBalanceDisplay(monthly, purchased, total) {
+    const monthlyEl = document.getElementById('tokensMonthly');
+    const purchasedEl = document.getElementById('tokensPurchased');
+    const totalEl = document.getElementById('tokensTotal');
+    const balanceBar = document.getElementById('tokensBalanceBar');
+    
+    if (monthlyEl) {
+        monthlyEl.textContent = monthly.toLocaleString('pt-BR');
+        monthlyEl.className = 'tokens-value' + (monthly === 0 ? ' zero' : '');
+    }
+    
+    if (purchasedEl) {
+        purchasedEl.textContent = purchased.toLocaleString('pt-BR');
+        purchasedEl.className = 'tokens-value' + (purchased === 0 ? ' zero' : '');
+    }
+    
+    if (totalEl) {
+        totalEl.textContent = total.toLocaleString('pt-BR');
+        totalEl.className = 'tokens-value' + (total === 0 ? ' zero' : (total < 1000 ? ' low' : ''));
+    }
+    
+    // Remover alerta anterior se existir
+    const existingAlert = balanceBar.querySelector('.tokens-alert');
+    if (existingAlert) {
+        existingAlert.remove();
+    }
+    
+    // Adicionar alerta se saldo for zero
+    if (total === 0) {
+        const alert = document.createElement('div');
+        alert.className = 'tokens-alert error';
+        alert.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Você não possui créditos de tokens disponíveis. Entre em contato para adquirir mais tokens.';
+        balanceBar.appendChild(alert);
+    }
+    
+    // Desabilitar input e botão se saldo for zero
     const input = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    
+    if (total === 0) {
+        if (input) {
+            input.disabled = true;
+            input.placeholder = 'Saldo de tokens insuficiente';
+        }
+        if (sendBtn) {
+            sendBtn.disabled = true;
+        }
+    } else {
+        if (input) {
+            input.disabled = false;
+            input.placeholder = 'Digite sua mensagem...';
+        }
+        if (sendBtn) {
+            sendBtn.disabled = false;
+        }
+    }
+}
+
+// Enviar mensagem
+async function sendMessage(event) {
+    // Prevenir comportamento padrão se for evento de form ou botão
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Verificar se o evento veio do botão correto ou do Enter
+        const target = event.target || event.currentTarget;
+        const isSendButton = target && (target.id === 'sendBtn' || target.closest('#sendBtn'));
+        const isEnterKey = event.type === 'keypress' && event.key === 'Enter';
+        
+        // Se não for do botão de enviar nem Enter, ignorar
+        if (!isSendButton && !isEnterKey) {
+            console.log('⏭️ Evento não é do botão de enviar, ignorando');
+            return;
+        }
+    }
+    
+    // Prevenir múltiplas requisições simultâneas
+    if (isSendingMessage) {
+        console.log('⏳ Já enviando mensagem, ignorando chamada duplicada');
+        return;
+    }
+    
+    const input = document.getElementById('chatInput');
+    if (!input) {
+        console.error('❌ Input não encontrado');
+        return;
+    }
+    
     const message = input.value.trim();
     
-    if (!message) return;
+    if (!message) {
+        console.log('⏭️ Mensagem vazia, ignorando');
+        return;
+    }
     
     if (!currentAssistantId) {
         showNotification('Por favor, selecione um agente primeiro', 'error');
         return;
     }
+    
+    // Verificar saldo antes de enviar
+    const hasBalance = await checkTokensBalance();
+    if (!hasBalance) {
+        showNotification('Você não possui créditos de tokens disponíveis. Entre em contato para adquirir mais tokens.', 'error');
+        return;
+    }
+    
+    isSendingMessage = true;
     
     // Desabilitar input
     input.disabled = true;
@@ -879,11 +1116,78 @@ async function sendMessage() {
             return;
         }
         
-        const result = await response.json();
+        // Tentar ler a resposta mesmo se houver erro
+        let result;
+        try {
+            result = await response.json();
+        } catch (e) {
+            // Se não conseguir parsear JSON, ler como texto
+            const text = await response.text();
+            console.error('Erro ao parsear resposta JSON:', text);
+            showNotification('Erro ao processar resposta do servidor', 'error');
+            return;
+        }
+        
+        if (!response.ok) {
+            // Erro HTTP (400, 500, etc.)
+            const errorMessage = result.detail || result.error || result.message || `Erro ${response.status}: ${response.statusText}`;
+            console.error('Erro HTTP:', response.status, errorMessage, result);
+            
+            // Verificar se é erro de saldo insuficiente
+            if (errorMessage.includes('Saldo insuficiente') || errorMessage.includes('tokens')) {
+                showNotification('Saldo insuficiente de tokens. Entre em contato para adquirir mais tokens.', 'error');
+                // Atualizar saldo se vier na resposta
+                if (result.tokens_balance) {
+                    updateTokensBalanceDisplay(
+                        result.tokens_balance.monthly || 0,
+                        result.tokens_balance.purchased || 0,
+                        result.tokens_balance.total || 0
+                    );
+                } else {
+                    checkTokensBalance();
+                }
+            } else if (errorMessage.includes('Company ID')) {
+                showNotification('Erro de autenticação. Por favor, faça login novamente.', 'error');
+                setTimeout(() => {
+                    window.location.href = '/auth/login';
+                }, 2000);
+            } else {
+                showNotification('Erro: ' + errorMessage, 'error');
+            }
+            return;
+        }
         
         if (result.success) {
-            // Adicionar resposta do assistente
-            addMessageToChat('assistant', result.response);
+            // Adicionar resposta do assistente (a mensagem já foi salva no backend)
+            // Não adicionar se já está carregada do banco (evitar duplicação)
+            // Apenas adicionar se for uma nova resposta (não está no DOM)
+            const container = document.getElementById('chatMessages');
+            const existingMessages = container.querySelectorAll('.message.assistant');
+            const responseExists = Array.from(existingMessages).some(msg => {
+                const msgContent = msg.querySelector('.message-content')?.textContent?.trim() || '';
+                return msgContent === result.response.trim();
+            });
+            
+            if (!responseExists) {
+                // Verificar também se não está em loadedMessageIds (caso tenha ID)
+                // Se a mensagem tem ID e já está em loadedMessageIds, não adicionar
+                const messageId = result.message_id || null;
+                if (!messageId || !loadedMessageIds.has(messageId)) {
+                    addMessageToChat('assistant', result.response, messageId);
+                }
+            }
+            
+            // Atualizar saldo de tokens com valores retornados
+            if (result.tokens_balance) {
+                updateTokensBalanceDisplay(
+                    result.tokens_balance.monthly || 0,
+                    result.tokens_balance.purchased || 0,
+                    result.tokens_balance.total || 0
+                );
+            } else {
+                // Se não vier na resposta, buscar novamente
+                checkTokensBalance();
+            }
             
             // Atualizar thread_id se for nova conversa
             if (result.thread_id && !currentThreadId) {
@@ -892,28 +1196,71 @@ async function sendMessage() {
                 loadConversations();
             }
         } else {
-            showNotification('Erro: ' + (result.error || 'Erro desconhecido'), 'error');
+            // Verificar se é erro de saldo insuficiente
+            const errorMessage = result.error || result.detail || 'Erro desconhecido';
+            if (errorMessage.includes('Saldo insuficiente') || errorMessage.includes('tokens')) {
+                showNotification('Saldo insuficiente de tokens. Entre em contato para adquirir mais tokens.', 'error');
+                // Atualizar saldo se vier na resposta
+                if (result.tokens_balance) {
+                    updateTokensBalanceDisplay(
+                        result.tokens_balance.monthly || 0,
+                        result.tokens_balance.purchased || 0,
+                        result.tokens_balance.total || 0
+                    );
+                } else {
+                    checkTokensBalance();
+                }
+            } else {
+                showNotification('Erro: ' + errorMessage, 'error');
+            }
         }
     } catch (error) {
         console.error('Erro ao enviar mensagem:', error);
         showNotification('Erro ao enviar mensagem', 'error');
     } finally {
-        // Reabilitar input
-        input.disabled = false;
-        sendBtn.disabled = false;
-        sendBtn.innerHTML = '<i class="bi bi-send"></i>';
-        input.focus();
+        isSendingMessage = false;
+        // Verificar saldo e reabilitar input apenas se houver saldo
+        checkTokensBalance().then(hasBalance => {
+            if (hasBalance) {
+                input.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="bi bi-send"></i>';
+                input.focus();
+            }
+        });
     }
 }
 
 // Adicionar mensagem ao chat
-function addMessageToChat(role, content) {
+function addMessageToChat(role, content, messageId = null) {
     const container = document.getElementById('chatMessages');
+    
+    // Verificar se a mensagem já existe no DOM (por ID ou conteúdo)
+    if (messageId && loadedMessageIds.has(messageId)) {
+        console.log(`⏭️ Mensagem ${messageId} já está no DOM, ignorando`);
+        return;
+    }
+    
+    // Verificar se o conteúdo já existe no DOM (para evitar duplicação)
+    const existingMessages = container.querySelectorAll('.message.' + role);
+    const contentExists = Array.from(existingMessages).some(msg => {
+        const msgContent = msg.querySelector('.message-content')?.textContent?.trim() || '';
+        return msgContent === content.trim();
+    });
+    
+    if (contentExists) {
+        console.log('⏭️ Mensagem com mesmo conteúdo já está no DOM, ignorando');
+        return;
+    }
+    
     const date = new Date();
     const timeStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
+    if (messageId) {
+        messageDiv.setAttribute('data-message-id', messageId);
+    }
     messageDiv.innerHTML = `
         <div class="message-wrapper">
             <div class="message-content">${formatMessage(content)}</div>
@@ -922,6 +1269,12 @@ function addMessageToChat(role, content) {
     `;
     
     container.appendChild(messageDiv);
+    
+    // Adicionar ID à lista de mensagens carregadas
+    if (messageId) {
+        loadedMessageIds.add(messageId);
+    }
+    
     scrollToBottom();
 }
 
@@ -1013,7 +1366,7 @@ function showAgentSelectionModal(assistants) {
                     </div>
                     <div class="modal-body">
                         ${assistants.map(a => `
-                            <div class="card mb-2" style="cursor: pointer;" onclick="selectAgent(${a.id})">
+                            <div class="card mb-2" style="cursor: pointer;" onclick="event.preventDefault(); event.stopPropagation(); selectAgent(${a.id}, event);">
                                 <div class="card-body">
                                     <h6 class="card-title">${escapeHtml(a.name)}</h6>
                                     <p class="card-text text-muted small">${escapeHtml(a.description || 'Sem descrição')}</p>
@@ -1042,7 +1395,12 @@ function showAgentSelectionModal(assistants) {
 }
 
 // Selecionar agente
-function selectAgent(assistantId) {
+function selectAgent(assistantId, event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
     currentAssistantId = assistantId;
     currentThreadId = null;
     
@@ -1053,14 +1411,36 @@ function selectAgent(assistantId) {
     showChatArea();
     showNotification('Nova conversa iniciada', 'success');
     
+    // Atualizar saldo ao selecionar agente
+    checkTokensBalance();
+    
     // Limpar mensagens antes de chamar tryInitiateWelcome
     document.getElementById('chatMessages').innerHTML = '';
+    loadedMessageIds.clear(); // Limpar IDs carregados
 }
 
 // Chamar backend para criar thread e obter mensagem de boas‑vindas (se habilitada)
 async function tryInitiateWelcome() {
+    // Prevenir múltiplas chamadas simultâneas
+    if (isInitializingWelcome) {
+        console.log('⏳ Já inicializando welcome, ignorando chamada duplicada');
+        return;
+    }
+    
+    // Se já tem thread, não precisa inicializar welcome novamente
+    if (currentThreadId) {
+        console.log('ℹ️ Thread já existe, não inicializando welcome');
+        return;
+    }
+    
+    isInitializingWelcome = true;
+    
     try {
-        if (!currentAssistantId) return;
+        if (!currentAssistantId) {
+            isInitializingWelcome = false;
+            return;
+        }
+        
         // Chamar com mensagem vazia; serviço retornará apenas boas‑vindas se configurada
         const response = await fetch('/api/openai/assistants/use/chat', {
             method: 'POST',
@@ -1080,23 +1460,44 @@ async function tryInitiateWelcome() {
             return;
         }
         
-        if (!response.ok) return;
+        if (!response.ok) {
+            isInitializingWelcome = false;
+            return;
+        }
+        
         const result = await response.json();
         if (result && result.success && result.response) {
-            // exibe boas‑vindas e guarda thread
-            addMessageToChat('assistant', result.response);
+            // Verificar se a mensagem já não está no DOM antes de adicionar
+            const container = document.getElementById('chatMessages');
+            const existingMessages = container.querySelectorAll('.message.assistant');
+            const messageExists = Array.from(existingMessages).some(msg => {
+                return msg.textContent.trim() === result.response.trim();
+            });
+            
+            if (!messageExists) {
+                // exibe boas‑vindas e guarda thread
+                addMessageToChat('assistant', result.response);
+            }
+            
             if (result.thread_id) {
                 currentThreadId = result.thread_id;
                 loadConversations();
             }
         }
     } catch (e) {
-        // silencioso
+        console.error('Erro ao inicializar welcome:', e);
+    } finally {
+        isInitializingWelcome = false;
     }
 }
 
 // Deletar conversa atual
-async function deleteCurrentConversation() {
+async function deleteCurrentConversation(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
     if (!currentThreadId) return;
     
     const confirmed = await showConfirmModal('Tem certeza que deseja deletar esta conversa?');

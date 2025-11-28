@@ -71,12 +71,11 @@ class OpenAIAssistantService:
     
     def _needs_max_completion_tokens(self, model: str) -> bool:
         """Verifica se o modelo requer max_completion_tokens ao invés de max_tokens"""
-        # Modelos que requerem max_completion_tokens
-        # Baseado na documentação da OpenAI, modelos GPT-5 mais recentes requerem max_completion_tokens
+        # Modelos GPT-5 requerem max_completion_tokens ao invés de max_tokens
+        # Baseado no erro da API: "Unsupported parameter: 'max_tokens' is not supported with this model"
         if not model:
             return False
-        # Todos os modelos GPT-5 requerem max_completion_tokens ao invés de max_tokens
-        # Verificar se é um modelo GPT-5
+        # Todos os modelos GPT-5 requerem max_completion_tokens
         return model.startswith("gpt-5")
     
     def _is_model_supported_by_assistants_api(self, model: str) -> bool:
@@ -569,14 +568,18 @@ class OpenAIAssistantService:
                 "messages": messages_history,
             }
             
-            # Adicionar limite de tokens (alguns modelos usam max_completion_tokens ao invés de max_tokens)
-            logger.info(f"🔍 Verificando parâmetro de tokens para modelo: {model_name}")
+            # Adicionar limite de tokens (modelos GPT-5 usam max_completion_tokens ao invés de max_tokens)
+            logger.info(f"🔍 Verificando parâmetro de tokens para modelo: {model_name} (tipo: {type(model_name)})")
             if self._needs_max_completion_tokens(model_name):
                 chat_params["max_completion_tokens"] = db_assistant.max_tokens
                 logger.info(f"✅ Usando max_completion_tokens={db_assistant.max_tokens} para modelo {model_name}")
+                # Remover max_tokens se existir (não deve existir, mas garantir)
+                chat_params.pop("max_tokens", None)
             else:
                 chat_params["max_tokens"] = db_assistant.max_tokens
                 logger.info(f"✅ Usando max_tokens={db_assistant.max_tokens} para modelo {model_name}")
+                # Remover max_completion_tokens se existir (não deve existir, mas garantir)
+                chat_params.pop("max_completion_tokens", None)
             
             # Adicionar parâmetros específicos do modelo
             if self._is_gpt5_model(db_assistant.model):
@@ -721,6 +724,32 @@ class OpenAIAssistantService:
         """Usa um assistente em modo chat (conversa contínua)"""
         if not self.client:
             return {"success": False, "error": "OpenAI API key não configurada."}
+        
+        # Verificar saldo de tokens antes de processar
+        from app.services.token_balance_service import TokenBalanceService
+        token_service = TokenBalanceService(self.db)
+        
+        # Verificar saldo disponível (estimativa conservadora: verificar se há pelo menos 100 tokens)
+        # O débito real será feito após obter o total_tokens real
+        logger.info(f"🔍 Verificando saldo de tokens para company_id: {company_id}")
+        balance_check = token_service.check_balance(company_id, 100)
+        logger.info(f"📊 Resultado da verificação de saldo: {balance_check}")
+        
+        if not balance_check.get("success"):
+            # Retornar erro com informações de saldo - NÃO fazer chamada à API
+            logger.warning(f"⚠️ Saldo insuficiente de tokens. Bloqueando chamada à API.")
+            balance_info = token_service.get_balance(company_id)
+            error_response = {
+                "success": False,
+                "error": balance_check.get("error", "Saldo insuficiente de tokens"),
+                "tokens_balance": {
+                    "monthly": balance_info.get("monthly", 0),
+                    "purchased": balance_info.get("purchased", 0),
+                    "total": balance_info.get("total", 0)
+                } if balance_info.get("success") else None
+            }
+            logger.info(f"🚫 Retornando erro de saldo insuficiente: {error_response}")
+            return error_response
         
         # Criar registro de uso
         usage_record = OpenAIAssistantUsage(
@@ -986,14 +1015,18 @@ class OpenAIAssistantService:
             is_empty_message = not message or not message.strip()
             has_welcome_in_db = False
             if is_empty_message and not previous_messages:
+                # Usar lock para evitar race conditions em requisições simultâneas
                 # Verificar se já existe uma mensagem de boas-vindas salva no banco
+                # Usar with_for_update para lock na linha durante a verificação
                 existing_welcome = self.db.query(OpenAIAssistantMessage).filter(
                     OpenAIAssistantMessage.thread_id == db_thread.id,
                     OpenAIAssistantMessage.role == "assistant"
-                ).first()
+                ).with_for_update(skip_locked=True).first()
                 if existing_welcome:
                     has_welcome_in_db = True
                     logger.info("ℹ️ Welcome message já existe no banco, não processando novamente")
+                    # Fazer flush para liberar o lock
+                    self.db.flush()
             
             # Se mensagem está vazia, não há mensagens anteriores e welcome está habilitado, processar welcome_message ANTES de adicionar mensagem vazia
             if is_empty_message and not previous_messages and db_assistant.welcome_enabled and db_assistant.welcome_message and not has_welcome_in_db:
@@ -1019,16 +1052,27 @@ class OpenAIAssistantService:
                     else:
                         # Retornar welcome_message diretamente sem chamar o modelo
                         logger.info("📝 Retornando welcome_message diretamente (sem usar modelo)")
-                        # Salvar welcome_message no banco
-                        welcome_message_db = OpenAIAssistantMessage(
-                            thread_id=db_thread.id,
-                            role="assistant",
-                            content=welcome_text
-                        )
-                        self.db.add(welcome_message_db)
-                        db_thread.last_message_at = datetime.utcnow()
-                        db_thread.updated_at = datetime.utcnow()
-                        self.db.commit()
+                        # Verificar novamente antes de salvar (double-check para evitar race condition)
+                        existing_welcome_check = self.db.query(OpenAIAssistantMessage).filter(
+                            OpenAIAssistantMessage.thread_id == db_thread.id,
+                            OpenAIAssistantMessage.role == "assistant",
+                            OpenAIAssistantMessage.content == welcome_text
+                        ).first()
+                        
+                        if not existing_welcome_check:
+                            # Salvar welcome_message no banco
+                            welcome_message_db = OpenAIAssistantMessage(
+                                thread_id=db_thread.id,
+                                role="assistant",
+                                content=welcome_text
+                            )
+                            self.db.add(welcome_message_db)
+                            db_thread.last_message_at = datetime.utcnow()
+                            db_thread.updated_at = datetime.utcnow()
+                            self.db.commit()
+                            logger.info("✅ Welcome message salva no banco")
+                        else:
+                            logger.info("ℹ️ Welcome message já existe (verificação final), não salvando novamente")
                         
                         return {
                             "success": True,
@@ -1049,14 +1093,25 @@ class OpenAIAssistantService:
                 
                 # Salvar mensagem do usuário no banco
                 if message and message.strip():
-                    # Salvar mensagem do usuário no banco (original)
-                    user_message = OpenAIAssistantMessage(
-                        thread_id=db_thread.id,
-                        role="user",
-                        content=message
-                    )
-                    self.db.add(user_message)
-                    self.db.flush()
+                    # Verificar se a mensagem já existe no banco (evitar duplicação)
+                    existing_user_message = self.db.query(OpenAIAssistantMessage).filter(
+                        OpenAIAssistantMessage.thread_id == db_thread.id,
+                        OpenAIAssistantMessage.role == "user",
+                        OpenAIAssistantMessage.content == message
+                    ).order_by(OpenAIAssistantMessage.created_at.desc()).first()
+                    
+                    if not existing_user_message:
+                        # Salvar mensagem do usuário no banco (original)
+                        user_message = OpenAIAssistantMessage(
+                            thread_id=db_thread.id,
+                            role="user",
+                            content=message
+                        )
+                        self.db.add(user_message)
+                        self.db.flush()
+                        logger.info(f"✅ Mensagem do usuário salva no banco (thread_id: {db_thread.id})")
+                    else:
+                        logger.info(f"ℹ️ Mensagem do usuário já existe no banco, não salvando novamente (thread_id: {db_thread.id})")
             
             # Validar e limpar mensagens antes de enviar
             # Remover tool_calls vazios de mensagens assistant
@@ -1118,14 +1173,18 @@ class OpenAIAssistantService:
                 "messages": cleaned_messages,
             }
             
-            # Adicionar limite de tokens (alguns modelos usam max_completion_tokens ao invés de max_tokens)
-            logger.info(f"🔍 Verificando parâmetro de tokens para modelo: {model_name}")
+            # Adicionar limite de tokens (modelos GPT-5 usam max_completion_tokens ao invés de max_tokens)
+            logger.info(f"🔍 Verificando parâmetro de tokens para modelo: {model_name} (tipo: {type(model_name)})")
             if self._needs_max_completion_tokens(model_name):
                 chat_params["max_completion_tokens"] = db_assistant.max_tokens
                 logger.info(f"✅ Usando max_completion_tokens={db_assistant.max_tokens} para modelo {model_name}")
+                # Remover max_tokens se existir (não deve existir, mas garantir)
+                chat_params.pop("max_tokens", None)
             else:
                 chat_params["max_tokens"] = db_assistant.max_tokens
                 logger.info(f"✅ Usando max_tokens={db_assistant.max_tokens} para modelo {model_name}")
+                # Remover max_completion_tokens se existir (não deve existir, mas garantir)
+                chat_params.pop("max_completion_tokens", None)
             
             # Adicionar parâmetros específicos do modelo
             if self._is_gpt5_model(db_assistant.model):
@@ -1190,13 +1249,24 @@ class OpenAIAssistantService:
                 response_text = response.get("response", "")
                 response_data_size = len(response_text.encode('utf-8'))
                 
-                # Salvar resposta do assistente no banco
-                assistant_message = OpenAIAssistantMessage(
-                    thread_id=db_thread.id,
-                    role="assistant",
-                    content=response_text
-                )
-                self.db.add(assistant_message)
+                # Verificar se a mensagem já existe no banco (evitar duplicação)
+                existing_message = self.db.query(OpenAIAssistantMessage).filter(
+                    OpenAIAssistantMessage.thread_id == db_thread.id,
+                    OpenAIAssistantMessage.role == "assistant",
+                    OpenAIAssistantMessage.content == response_text
+                ).order_by(OpenAIAssistantMessage.created_at.desc()).first()
+                
+                if not existing_message:
+                    # Salvar resposta do assistente no banco apenas se não existir
+                    assistant_message = OpenAIAssistantMessage(
+                        thread_id=db_thread.id,
+                        role="assistant",
+                        content=response_text
+                    )
+                    self.db.add(assistant_message)
+                    logger.info(f"✅ Mensagem do assistente salva no banco (thread_id: {db_thread.id})")
+                else:
+                    logger.info(f"ℹ️ Mensagem do assistente já existe no banco, não salvando novamente (thread_id: {db_thread.id})")
                 
                 # Obter uso de tokens
                 usage_info_dict = response.get("usage", {})
@@ -1228,10 +1298,41 @@ class OpenAIAssistantService:
                 usage_record.response_data_size = response_data_size
                 usage_record.thread_id = openai_thread_id
                 
+                tokens_balance = None
                 if usage_info:
                     usage_record.prompt_tokens = usage_info.prompt_tokens
                     usage_record.completion_tokens = usage_info.completion_tokens
                     usage_record.total_tokens = usage_info.total_tokens
+                    
+                    # Debitar tokens após obter o total real
+                    total_tokens_to_debit = usage_info.total_tokens
+                    debit_result = token_service.debit_tokens(company_id, total_tokens_to_debit)
+                    
+                    if not debit_result.get("success"):
+                        # Se débito falhar, fazer rollback
+                        self.db.rollback()
+                        logger.error(f"❌ Falha ao debitar tokens: {debit_result.get('error')}")
+                        return {
+                            "success": False,
+                            "error": f"Erro ao debitar tokens: {debit_result.get('error')}",
+                            "tokens_balance": None
+                        }
+                    
+                    # Obter saldo atualizado após débito
+                    updated_balance = token_service.get_balance(company_id)
+                    tokens_balance = {
+                        "monthly": updated_balance.get("monthly", 0),
+                        "purchased": updated_balance.get("purchased", 0),
+                        "total": updated_balance.get("total", 0)
+                    } if updated_balance.get("success") else None
+                else:
+                    # Se não houver usage_info, obter saldo atual sem debitar
+                    balance_info = token_service.get_balance(company_id)
+                    tokens_balance = {
+                        "monthly": balance_info.get("monthly", 0),
+                        "purchased": balance_info.get("purchased", 0),
+                        "total": balance_info.get("total", 0)
+                    } if balance_info.get("success") else None
                 
                 self.db.commit()
                 
@@ -1243,7 +1344,8 @@ class OpenAIAssistantService:
                         "prompt_tokens": usage_info.prompt_tokens if usage_info else 0,
                         "completion_tokens": usage_info.completion_tokens if usage_info else 0,
                         "total_tokens": usage_info.total_tokens if usage_info else 0
-                    } if usage_info else None
+                    } if usage_info else None,
+                    "tokens_balance": tokens_balance
                 }
             else:
                 # Tratar erro de forma mais amigável
@@ -1272,11 +1374,20 @@ class OpenAIAssistantService:
                 usage_record.duration_seconds = time.time() - start_time
                 self.db.commit()
                 
+                # Obter saldo atual (mesmo em caso de erro, não debitamos)
+                balance_info = token_service.get_balance(company_id)
+                tokens_balance = {
+                    "monthly": balance_info.get("monthly", 0),
+                    "purchased": balance_info.get("purchased", 0),
+                    "total": balance_info.get("total", 0)
+                } if balance_info.get("success") else None
+                
                 return {
                     "success": True,
                     "response": friendly_msg,
                     "thread_id": openai_thread_id,
-                    "usage": None
+                    "usage": None,
+                    "tokens_balance": tokens_balance
                 }
                 
         except Exception as e:
@@ -1291,10 +1402,22 @@ class OpenAIAssistantService:
             # Verificar se é erro de autenticação
             error_str = str(e).lower()
             if "authentication" in error_str or "unauthorized" in error_str or "session" in error_str or "login" in error_str or "pendingrollback" in error_str:
+                # Obter saldo atual para retornar na resposta
+                try:
+                    balance_info = token_service.get_balance(company_id)
+                    tokens_balance = {
+                        "monthly": balance_info.get("monthly", 0),
+                        "purchased": balance_info.get("purchased", 0),
+                        "total": balance_info.get("total", 0)
+                    } if balance_info.get("success") else None
+                except:
+                    tokens_balance = None
+                
                 return {
                     "success": False,
                     "error": "Sessão expirada. Por favor, faça login novamente.",
-                    "requires_login": True
+                    "requires_login": True,
+                    "tokens_balance": tokens_balance
                 }
             
             # Tentar salvar status de erro (com nova transação)
@@ -1311,7 +1434,22 @@ class OpenAIAssistantService:
                 except:
                     pass
             
-            return {"success": False, "error": str(e)[:500]}
+            # Obter saldo atual para retornar na resposta de erro
+            try:
+                balance_info = token_service.get_balance(company_id)
+                tokens_balance = {
+                    "monthly": balance_info.get("monthly", 0),
+                    "purchased": balance_info.get("purchased", 0),
+                    "total": balance_info.get("total", 0)
+                } if balance_info.get("success") else None
+            except:
+                tokens_balance = None
+            
+            return {
+                "success": False,
+                "error": str(e)[:500],
+                "tokens_balance": tokens_balance
+            }
     
     def _process_chat_with_tools(
         self, 
@@ -1370,6 +1508,20 @@ class OpenAIAssistantService:
             
             # Atualizar chat_params com mensagens validadas
             chat_params["messages"] = cleaned_messages
+            
+            # Garantir que não há conflito entre max_tokens e max_completion_tokens
+            # Se o modelo é GPT-5, garantir que max_tokens não está presente
+            model_name = chat_params.get("model", "")
+            if model_name.startswith("gpt-5"):
+                if "max_tokens" in chat_params:
+                    logger.warning(f"⚠️ Removendo max_tokens do chat_params para modelo GPT-5: {model_name}")
+                    del chat_params["max_tokens"]
+                if "max_completion_tokens" not in chat_params:
+                    logger.warning(f"⚠️ max_completion_tokens não encontrado para modelo GPT-5: {model_name}. Adicionando valor padrão.")
+                    chat_params["max_completion_tokens"] = 4000
+            
+            # Log dos parâmetros antes da chamada
+            logger.info(f"📤 Parâmetros da chamada: model={chat_params.get('model')}, max_tokens={chat_params.get('max_tokens', 'N/A')}, max_completion_tokens={chat_params.get('max_completion_tokens', 'N/A')}")
             
             # Fazer chamada ao Chat Completions
             response = self.client.chat.completions.create(**chat_params)
@@ -1561,14 +1713,9 @@ class OpenAIAssistantService:
                 # Não há tool calls, retornar resposta final
                 response_text = message.content or ""
                 
-                # Salvar resposta final do assistente no banco
-                assistant_message = OpenAIAssistantMessage(
-                    thread_id=db_thread.id,
-                    role="assistant",
-                    content=response_text
-                )
-                self.db.add(assistant_message)
-                self.db.flush()
+                # NÃO salvar aqui - será salvo no código principal (use_assistant_chat_mode)
+                # para evitar duplicação, pois o código principal já verifica duplicatas
+                logger.info(f"✅ Resposta final obtida (não salvando aqui para evitar duplicação)")
                 
                 return {
                     "success": True,
