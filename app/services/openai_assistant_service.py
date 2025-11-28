@@ -1306,17 +1306,35 @@ class OpenAIAssistantService:
                     
                     # Debitar tokens após obter o total real
                     total_tokens_to_debit = usage_info.total_tokens
+                    
+                    # Log detalhado antes do débito
+                    logger.info(f"💰 [DÉBITO TOKENS] Iniciando débito para company_id={company_id}, thread_id={openai_thread_id}")
+                    logger.info(f"💰 [DÉBITO TOKENS] Tokens a debitar: {total_tokens_to_debit} (prompt: {usage_info.prompt_tokens}, completion: {usage_info.completion_tokens})")
+                    logger.info(f"💰 [DÉBITO TOKENS] Assistente: {db_assistant.name} (ID: {assistant_id})")
+                    logger.info(f"💰 [DÉBITO TOKENS] Usuário: {user_id}, Mensagem: {message[:100] if message else 'N/A'}...")
+                    
+                    # Obter saldo antes do débito
+                    balance_before = token_service.get_balance(company_id)
+                    if balance_before.get("success"):
+                        logger.info(f"💰 [DÉBITO TOKENS] Saldo ANTES: monthly={balance_before.get('monthly', 0)}, purchased={balance_before.get('purchased', 0)}, total={balance_before.get('total', 0)}")
+                    
                     debit_result = token_service.debit_tokens(company_id, total_tokens_to_debit)
                     
                     if not debit_result.get("success"):
                         # Se débito falhar, fazer rollback
                         self.db.rollback()
-                        logger.error(f"❌ Falha ao debitar tokens: {debit_result.get('error')}")
+                        logger.error(f"❌ [DÉBITO TOKENS] Falha ao debitar tokens: {debit_result.get('error')}")
+                        logger.error(f"❌ [DÉBITO TOKENS] Company ID: {company_id}, Thread ID: {openai_thread_id}, Tokens tentados: {total_tokens_to_debit}")
                         return {
                             "success": False,
                             "error": f"Erro ao debitar tokens: {debit_result.get('error')}",
                             "tokens_balance": None
                         }
+                    
+                    # Log após débito bem-sucedido
+                    logger.info(f"✅ [DÉBITO TOKENS] Débito realizado com sucesso: {total_tokens_to_debit} tokens")
+                    logger.info(f"✅ [DÉBITO TOKENS] Saldo DEPOIS: monthly={debit_result.get('monthly', 0)}, purchased={debit_result.get('purchased', 0)}, total={debit_result.get('total', 0)}")
+                    logger.info(f"✅ [DÉBITO TOKENS] Company ID: {company_id}, Thread ID: {openai_thread_id}, Usage Record ID: {usage_record.id}")
                     
                     # Obter saldo atualizado após débito
                     updated_balance = token_service.get_balance(company_id)

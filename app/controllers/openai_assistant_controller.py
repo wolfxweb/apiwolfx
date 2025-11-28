@@ -2,6 +2,7 @@
 Controller para gerenciar assistentes OpenAI
 """
 import logging
+import json
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -22,6 +23,42 @@ class OpenAIAssistantController:
     def __init__(self, db: Session):
         self.db = db
         self.service = OpenAIAssistantService(db)
+    
+    def _is_internal_message(self, content: Optional[str]) -> bool:
+        """
+        Verifica se uma mensagem é interna (JSON puro ou tool_calls)
+        Replica a lógica do frontend isInternalMessage()
+        """
+        try:
+            if not content:
+                return False
+            
+            # Converter para string se necessário
+            text = str(content).strip()
+            
+            if not text:
+                return False
+            
+            # Ocultar quando o modelo retorna instrução de chamada de ferramenta
+            if '"tool_calls"' in text or '"function"' in text:
+                return True
+            
+            # Ocultar qualquer blob JSON puro (objeto/array) - são respostas técnicas de ferramentas
+            # Verificar se começa e termina com {} ou [] e é JSON válido
+            if ((text.startswith('{') and text.endswith('}')) or
+                (text.startswith('[') and text.endswith(']'))):
+                try:
+                    json.loads(text)
+                    # Se é JSON válido puro (sem texto ao redor), ocultar
+                    return True
+                except (json.JSONDecodeError, ValueError):
+                    # Não é JSON válido, manter visível (pode ser texto com formatação)
+                    pass
+            
+            return False
+        except Exception as e:
+            logger.error(f"Erro ao verificar mensagem interna: {e}")
+            return False  # Em caso de erro, mostrar a mensagem
     
     def list_assistants(self, active_only: bool = True) -> Dict:
         """Lista todos os assistentes"""
@@ -572,6 +609,43 @@ class OpenAIAssistantController:
                             first_user_message = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
                             break
                 
+                # Contar apenas mensagens visíveis (mesma lógica do frontend)
+                # Remove: system, tool, e assistant que são JSON puro ou tool_calls
+                # IMPORTANTE: Remover duplicatas ANTES de contar (mesma lógica do frontend)
+                visible_count = 0
+                seen_message_keys = set()  # Para evitar contar duplicatas (mesma lógica do frontend)
+                
+                if thread.messages:
+                    # Ordenar mensagens por data (como o frontend faz)
+                    sorted_messages = sorted(thread.messages, key=lambda m: m.created_at if m.created_at else datetime.min)
+                    
+                    for msg in sorted_messages:
+                        # Ignorar mensagens system e tool (mesma lógica do frontend)
+                        if msg.role in ["system", "tool"]:
+                            continue
+                        
+                        # Criar chave única para identificar duplicatas (mesma lógica do frontend)
+                        if msg.id:
+                            message_key = f"id_{msg.id}"
+                        else:
+                            content_preview = (msg.content or "")[:50]
+                            created_at_str = msg.created_at.isoformat() if msg.created_at else ""
+                            message_key = f"{msg.role}_{content_preview}_{created_at_str}"
+                        
+                        # Verificar se já foi contada (evitar duplicatas)
+                        if message_key in seen_message_keys:
+                            continue
+                        
+                        seen_message_keys.add(message_key)
+                        
+                        # Mensagens do usuário sempre contam
+                        if msg.role == "user":
+                            visible_count += 1
+                        # Mensagens do assistente: contar apenas se não for mensagem interna
+                        elif msg.role == "assistant":
+                            if not self._is_internal_message(msg.content):
+                                visible_count += 1
+                
                 threads_list.append({
                     "thread_id": thread.thread_id,
                     "assistant_id": thread.assistant_id,
@@ -579,7 +653,7 @@ class OpenAIAssistantController:
                     "title": first_user_message or "Nova conversa",
                     "last_message_at": thread.last_message_at.isoformat() if thread.last_message_at else None,
                     "created_at": thread.created_at.isoformat() if thread.created_at else None,
-                    "message_count": len(thread.messages) if thread.messages else 0
+                    "message_count": visible_count
                 })
             
             return {

@@ -42,17 +42,38 @@ async def get_pricing_analysis_by_sku(
         Análise completa de preços, custos, margens e competitividade
     """
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Log do SKU recebido
+        logger.info(f"🔍 [get_pricing_analysis_by_sku] SKU recebido: '{internal_sku}' (type: {type(internal_sku)}, len: {len(internal_sku)})")
+        logger.info(f"🔍 [get_pricing_analysis_by_sku] Company ID: {user.get('company', {}).get('id')}")
+        
+        # Limpar e normalizar SKU
+        internal_sku = internal_sku.strip() if internal_sku else ""
+        logger.info(f"🔍 [get_pricing_analysis_by_sku] SKU após strip: '{internal_sku}'")
+        
+        company_id = user.get("company", {}).get("id")
+        if not company_id:
+            logger.error(f"❌ [get_pricing_analysis_by_sku] Company ID não encontrado no user object")
+            raise HTTPException(status_code=400, detail="Company ID não encontrado")
+        
         controller = PricingAnalysisController(db)
-        result = controller.get_pricing_analysis_by_sku(internal_sku, user["company"]["id"])
+        result = controller.get_pricing_analysis_by_sku(internal_sku, company_id)
         
         if result.get("error"):
+            logger.error(f"❌ [get_pricing_analysis_by_sku] Erro na busca: {result.get('error')}")
             raise HTTPException(status_code=404, detail=result["error"])
         
+        logger.info(f"✅ [get_pricing_analysis_by_sku] Análise retornada com sucesso para SKU: '{internal_sku}'")
         return result
         
     except HTTPException:
         raise
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"❌ [get_pricing_analysis_by_sku] Erro inesperado: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
 @router.post("/analysis/skus")

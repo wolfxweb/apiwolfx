@@ -4,6 +4,7 @@ Controller para análise de preços e taxas
 import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 from app.services.internal_product_service import InternalProductService
 from app.services.ml_product_service import MLProductService
 from app.models.saas_models import Company
@@ -30,14 +31,42 @@ class PricingAnalysisController:
             pricing_data = result["pricing_data"]
             
             # Buscar produto ML associado se existir
+            # base_product_id referencia products.id (tabela antiga), não ml_products.id
+            # Vamos buscar via SKUManagement ou diretamente pelo SKU
             ml_product_data = None
-            if pricing_data["base_product_id"]:
-                ml_product = self.ml_product_service.get_ml_product_by_id(
-                    pricing_data["base_product_id"], 
-                    company_id
-                )
-                if ml_product.get("success"):
-                    ml_product_data = ml_product["product"]
+            if pricing_data.get("base_product_id"):
+                # Buscar produto ML associado via SKUManagement
+                from app.models.saas_models import SKUManagement, MLProduct
+                sku_managements = self.db.query(SKUManagement).filter(
+                    and_(
+                        SKUManagement.internal_product_id == pricing_data["product_id"],
+                        SKUManagement.company_id == company_id,
+                        SKUManagement.status == "active"
+                    )
+                ).all()
+                
+                if sku_managements:
+                    # Pegar o primeiro ml_item_id encontrado
+                    ml_item_id = sku_managements[0].platform_item_id
+                    if ml_item_id:
+                        ml_product = self.db.query(MLProduct).filter(
+                            and_(
+                                MLProduct.ml_item_id == ml_item_id,
+                                MLProduct.company_id == company_id
+                            )
+                        ).first()
+                        
+                        if ml_product:
+                            ml_product_data = {
+                                "id": ml_product.id,
+                                "ml_item_id": ml_product.ml_item_id,
+                                "title": ml_product.title,
+                                "price": float(ml_product.price) if ml_product.price else 0.0,
+                                "status": ml_product.status.value if ml_product.status else None,
+                                "seller_sku": ml_product.seller_sku,
+                                "available_quantity": ml_product.available_quantity or 0,
+                                "sold_quantity": ml_product.sold_quantity or 0
+                            }
             
             # Calcular análise comparativa
             analysis = self._calculate_pricing_analysis(pricing_data, ml_product_data)
@@ -70,14 +99,42 @@ class PricingAnalysisController:
             
             for pricing_data in pricing_data_list:
                 # Buscar produto ML associado se existir
+                # base_product_id referencia products.id (tabela antiga), não ml_products.id
+                # Vamos buscar via SKUManagement ou diretamente pelo SKU
                 ml_product_data = None
-                if pricing_data["base_product_id"]:
-                    ml_product = self.ml_product_service.get_ml_product_by_id(
-                        pricing_data["base_product_id"], 
-                        company_id
-                    )
-                    if ml_product.get("success"):
-                        ml_product_data = ml_product["product"]
+                if pricing_data.get("base_product_id"):
+                    # Buscar produto ML associado via SKUManagement
+                    from app.models.saas_models import SKUManagement, MLProduct
+                    sku_managements = self.db.query(SKUManagement).filter(
+                        and_(
+                            SKUManagement.internal_product_id == pricing_data["product_id"],
+                            SKUManagement.company_id == company_id,
+                            SKUManagement.status == "active"
+                        )
+                    ).all()
+                    
+                    if sku_managements:
+                        # Pegar o primeiro ml_item_id encontrado
+                        ml_item_id = sku_managements[0].platform_item_id
+                        if ml_item_id:
+                            ml_product = self.db.query(MLProduct).filter(
+                                and_(
+                                    MLProduct.ml_item_id == ml_item_id,
+                                    MLProduct.company_id == company_id
+                                )
+                            ).first()
+                            
+                            if ml_product:
+                                ml_product_data = {
+                                    "id": ml_product.id,
+                                    "ml_item_id": ml_product.ml_item_id,
+                                    "title": ml_product.title,
+                                    "price": float(ml_product.price) if ml_product.price else 0.0,
+                                    "status": ml_product.status.value if ml_product.status else None,
+                                    "seller_sku": ml_product.seller_sku,
+                                    "available_quantity": ml_product.available_quantity or 0,
+                                    "sold_quantity": ml_product.sold_quantity or 0
+                                }
                 
                 # Calcular análise comparativa
                 analysis = self._calculate_pricing_analysis(pricing_data, ml_product_data)

@@ -111,10 +111,13 @@ class TokenBalanceService:
             Inclui saldos atualizados após o débito
         """
         try:
+            logger.info(f"🔒 [DEBIT_TOKENS] Iniciando débito - Company ID: {company_id}, Tokens: {total_tokens}")
+            
             # Usar select_for_update para evitar race conditions
             company = self.db.query(Company).filter(Company.id == company_id).with_for_update().first()
             
             if not company:
+                logger.error(f"❌ [DEBIT_TOKENS] Empresa não encontrada: {company_id}")
                 return {
                     "success": False,
                     "error": "Empresa não encontrada"
@@ -125,8 +128,11 @@ class TokenBalanceService:
             purchased = company.ai_tokens_purchased or 0
             total_available = monthly + purchased
             
+            logger.info(f"📊 [DEBIT_TOKENS] Saldo atual - Monthly: {monthly}, Purchased: {purchased}, Total: {total_available}")
+            
             # Verificar se há saldo suficiente
             if total_available < total_tokens:
+                logger.warning(f"⚠️ [DEBIT_TOKENS] Saldo insuficiente - Requerido: {total_tokens}, Disponível: {total_available}")
                 return {
                     "success": False,
                     "error": "Saldo insuficiente de tokens",
@@ -138,24 +144,33 @@ class TokenBalanceService:
             
             # Debitar primeiro de ai_tokens_monthly
             remaining_to_debit = total_tokens
+            monthly_debited = 0
+            purchased_debited = 0
             
             if monthly > 0:
                 if monthly >= remaining_to_debit:
                     # Todo o débito pode ser feito de monthly
+                    monthly_debited = remaining_to_debit
                     company.ai_tokens_monthly = monthly - remaining_to_debit
                     remaining_to_debit = 0
+                    logger.info(f"💳 [DEBIT_TOKENS] Débito completo de monthly: {monthly_debited} tokens")
                 else:
                     # Usar todo monthly e continuar com purchased
+                    monthly_debited = monthly
                     remaining_to_debit -= monthly
                     company.ai_tokens_monthly = 0
+                    logger.info(f"💳 [DEBIT_TOKENS] Débito parcial de monthly: {monthly_debited} tokens, restante: {remaining_to_debit}")
             
             # Se ainda faltar, debitar de ai_tokens_purchased
             if remaining_to_debit > 0:
                 if purchased >= remaining_to_debit:
+                    purchased_debited = remaining_to_debit
                     company.ai_tokens_purchased = purchased - remaining_to_debit
                     remaining_to_debit = 0
+                    logger.info(f"💳 [DEBIT_TOKENS] Débito de purchased: {purchased_debited} tokens")
                 else:
                     # Não deveria chegar aqui (já verificamos saldo total)
+                    logger.error(f"❌ [DEBIT_TOKENS] Erro interno: saldo insuficiente durante débito - Restante: {remaining_to_debit}, Purchased: {purchased}")
                     return {
                         "success": False,
                         "error": "Erro interno: saldo insuficiente durante débito"
@@ -169,9 +184,11 @@ class TokenBalanceService:
             updated_purchased = company.ai_tokens_purchased or 0
             updated_total = updated_monthly + updated_purchased
             
-            logger.info(f"✅ Tokens debitados: {total_tokens} tokens da empresa {company_id}")
-            logger.info(f"   - Saldo anterior: monthly={monthly}, purchased={purchased}, total={total_available}")
-            logger.info(f"   - Saldo atualizado: monthly={updated_monthly}, purchased={updated_purchased}, total={updated_total}")
+            logger.info(f"✅ [DEBIT_TOKENS] Débito concluído com sucesso")
+            logger.info(f"   📊 Total debitado: {total_tokens} tokens (Monthly: {monthly_debited}, Purchased: {purchased_debited})")
+            logger.info(f"   📊 Saldo anterior: monthly={monthly}, purchased={purchased}, total={total_available}")
+            logger.info(f"   📊 Saldo atualizado: monthly={updated_monthly}, purchased={updated_purchased}, total={updated_total}")
+            logger.info(f"   🔒 [DEBIT_TOKENS] Company ID: {company_id}, Transação única concluída")
             
             return {
                 "success": True,
@@ -181,7 +198,7 @@ class TokenBalanceService:
                 "total": updated_total
             }
         except Exception as e:
-            logger.error(f"❌ Erro ao debitar tokens: {e}", exc_info=True)
+            logger.error(f"❌ [DEBIT_TOKENS] Erro ao debitar tokens - Company ID: {company_id}, Tokens: {total_tokens}", exc_info=True)
             self.db.rollback()
             return {
                 "success": False,

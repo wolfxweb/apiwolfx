@@ -1711,8 +1711,10 @@ async function loadPricingAnalysis(product) {
     console.log('🔍 Buscando dados internos para SKU:', sku);
     
     try {
-        // Buscar dados do produto interno
-        const internalResponse = await fetch(`/api/pricing/analysis/sku/${sku}`, {
+        // Buscar dados do produto interno (codificar SKU para URL)
+        const encodedSku = encodeURIComponent(sku);
+        console.log('🔍 SKU codificado para URL:', encodedSku);
+        const internalResponse = await fetch(`/api/pricing/analysis/sku/${encodedSku}`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json'

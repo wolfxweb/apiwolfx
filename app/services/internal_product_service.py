@@ -472,6 +472,14 @@ class InternalProductService:
     def get_pricing_data_by_sku(self, internal_sku: str, company_id: int) -> Dict[str, Any]:
         """Busca dados de preços e taxas por SKU interno para análise"""
         try:
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Limpar SKU (remover espaços, normalizar)
+            internal_sku = internal_sku.strip() if internal_sku else ""
+            logger.info(f"🔍 [get_pricing_data_by_sku] Buscando SKU: '{internal_sku}', Company ID: {company_id}")
+            
+            # Primeiro tentar buscar diretamente pelo internal_sku
             product = self.db.query(InternalProduct).filter(
                 and_(
                     InternalProduct.internal_sku == internal_sku,
@@ -480,7 +488,58 @@ class InternalProductService:
                 )
             ).first()
             
+            if product:
+                logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado diretamente: ID={product.id}, SKU={product.internal_sku}")
+            else:
+                logger.info(f"⚠️ [get_pricing_data_by_sku] Produto não encontrado diretamente, tentando via SKUManagement...")
+            
+            # Se não encontrou, tentar buscar via SKUManagement (seller_sku do ML)
             if not product:
+                from app.models.saas_models import SKUManagement
+                sku_management = self.db.query(SKUManagement).filter(
+                    and_(
+                        SKUManagement.sku == internal_sku,
+                        SKUManagement.company_id == company_id,
+                        SKUManagement.status == "active",
+                        SKUManagement.internal_product_id.isnot(None)
+                    )
+                ).first()
+                
+                if sku_management:
+                    logger.info(f"✅ [get_pricing_data_by_sku] Encontrado em SKUManagement: ID={sku_management.id}, Internal Product ID={sku_management.internal_product_id}")
+                    
+                    if sku_management.internal_product_id:
+                        product = self.db.query(InternalProduct).filter(
+                            and_(
+                                InternalProduct.id == sku_management.internal_product_id,
+                                InternalProduct.company_id == company_id,
+                                InternalProduct.status == "active"
+                            )
+                        ).first()
+                        
+                        if product:
+                            logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado via SKUManagement: ID={product.id}, SKU={product.internal_sku}")
+                        else:
+                            logger.warning(f"⚠️ [get_pricing_data_by_sku] Produto interno não encontrado pelo ID {sku_management.internal_product_id}")
+                else:
+                    logger.warning(f"⚠️ [get_pricing_data_by_sku] SKU não encontrado em SKUManagement")
+            
+            # Se ainda não encontrou, tentar busca case-insensitive
+            if not product:
+                logger.info(f"⚠️ [get_pricing_data_by_sku] Tentando busca case-insensitive...")
+                product = self.db.query(InternalProduct).filter(
+                    and_(
+                        InternalProduct.internal_sku.ilike(internal_sku),
+                        InternalProduct.company_id == company_id,
+                        InternalProduct.status == "active"
+                    )
+                ).first()
+                
+                if product:
+                    logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado com busca case-insensitive: ID={product.id}, SKU={product.internal_sku} (original: '{internal_sku}')")
+            
+            if not product:
+                logger.error(f"❌ [get_pricing_data_by_sku] Produto interno com SKU '{internal_sku}' não encontrado para company_id {company_id}")
                 return {"error": f"Produto interno com SKU '{internal_sku}' não encontrado"}
             
             # Calcular dados para análise de preços

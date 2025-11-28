@@ -652,7 +652,7 @@ function renderConversationsList() {
                     <div class="conversation-title">${escapeHtml(displayTitle)}</div>
                     <div class="conversation-meta">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div>${conv.message_count} mensagens • ${date}</div>
+                            <div>${date}</div>
                             <i class="bi bi-trash text-danger" style="cursor: pointer;" title="Remover conversa" aria-label="Remover conversa" onclick="event.preventDefault(); event.stopPropagation(); deleteConversation(event, '${conv.thread_id}');"></i>
                         </div>
                     </div>
