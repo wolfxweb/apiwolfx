@@ -85,8 +85,28 @@
             
             <div class="row mb-3">
                 <div class="col-md-12">
-                    <p class="mb-1 text-muted small">Descrição</p>
-                    <p class="mb-0" id="taskDescription" style="white-space: pre-wrap;"></p>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <p class="mb-0 text-muted small">Descrição</p>
+                        {% if user.id == task.created_by or user.role in ['company_admin', 'super_admin'] %}
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="editDescriptionBtn" onclick="toggleEditDescription()">
+                            <i class="bi bi-pencil"></i> Editar
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div id="descriptionView">
+                        <p class="mb-0" id="taskDescription" style="white-space: pre-wrap;"></p>
+                    </div>
+                    <div id="descriptionEdit" style="display: none;">
+                        <textarea class="form-control" id="taskDescriptionEdit" rows="6"></textarea>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-primary" onclick="saveDescription()">
+                                <i class="bi bi-check"></i> Salvar
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="cancelEditDescription()">
+                                <i class="bi bi-x"></i> Cancelar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -331,6 +351,76 @@ async function updateTaskStatus() {
     } catch (error) {
         console.error('Erro ao atualizar status:', error);
         showError('Erro ao atualizar status');
+    }
+}
+
+// Toggle edição de descrição
+function toggleEditDescription() {
+    const viewDiv = document.getElementById('descriptionView');
+    const editDiv = document.getElementById('descriptionEdit');
+    const editBtn = document.getElementById('editDescriptionBtn');
+    
+    if (viewDiv.style.display === 'none') {
+        // Cancelar edição
+        viewDiv.style.display = 'block';
+        editDiv.style.display = 'none';
+        editBtn.innerHTML = '<i class="bi bi-pencil"></i> Editar';
+    } else {
+        // Iniciar edição
+        viewDiv.style.display = 'none';
+        editDiv.style.display = 'block';
+        document.getElementById('taskDescriptionEdit').value = taskData.description || '';
+        editBtn.innerHTML = '<i class="bi bi-x"></i> Cancelar';
+    }
+}
+
+// Cancelar edição de descrição
+function cancelEditDescription() {
+    toggleEditDescription();
+}
+
+// Salvar descrição
+async function saveDescription() {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+        window.location.href = '/auth/login';
+        return;
+    }
+    
+    const newDescription = document.getElementById('taskDescriptionEdit').value;
+    
+    try {
+        const response = await fetch(`/api/tasks/${taskData.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                description: newDescription
+            })
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Descrição atualizada com sucesso!');
+            // Atualizar dados locais
+            Object.assign(taskData, data.task);
+            renderTaskData();
+            toggleEditDescription();
+        } else {
+            showError('Erro ao atualizar descrição: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar descrição:', error);
+        showError('Erro ao atualizar descrição');
     }
 }
 

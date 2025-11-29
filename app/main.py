@@ -502,14 +502,21 @@ async def startup_event():
                         print("✅ [STARTUP] Tabelas de suporte verificadas/criadas")
                     
                     # Criar tabelas de RH
+                    print("📋 [STARTUP] Verificando tabelas de RH...")
                     hr_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
                                             'database', 'fixes', 'create_hr_tables.py')
+                    # Tentar caminho alternativo se não encontrar
+                    if not os.path.exists(hr_script_path):
+                        hr_script_path = os.path.join('/app', 'database', 'fixes', 'create_hr_tables.py')
                     if os.path.exists(hr_script_path):
+                        print(f"📋 [STARTUP] Script encontrado: {hr_script_path}")
                         hr_spec = importlib.util.spec_from_file_location("create_hr_tables", hr_script_path)
                         hr_module = importlib.util.module_from_spec(hr_spec)
                         hr_spec.loader.exec_module(hr_module)
                         hr_module.create_hr_tables()
                         print("✅ [STARTUP] Tabelas de RH verificadas/criadas")
+                    else:
+                        print(f"⚠️ [STARTUP] Script de RH não encontrado. Tentou: {hr_script_path}")
                     
                     # Criar tabelas de Tarefas
                     print("📋 [STARTUP] Verificando tabelas de Tarefas...")

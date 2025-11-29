@@ -114,6 +114,28 @@
     </div>
 </div>
 
+<!-- Modal Confirmar Exclusão -->
+<div class="modal fade" id="deleteTaskModal" tabindex="-1" aria-labelledby="deleteTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteTaskModalLabel">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir a tarefa <strong id="deleteTaskTitle"></strong>?</p>
+                <p class="text-muted small">Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteTaskBtn">
+                    <i class="bi bi-trash"></i> Excluir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Criar Tarefa -->
 <div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -314,8 +336,20 @@ async function loadTasks() {
     }
 }
 
-// Renderizar tarefas
-function renderTasks() {
+// Verificar se usuário pode deletar (criador ou admin)
+function canDeleteTask(task) {
+    const userRole = '{{ user.role }}';
+    const userId = {{ user.id }};
+    
+    if (userRole === 'company_admin' || userRole === 'super_admin') {
+        return true;
+    }
+    
+    return task.created_by === userId;
+}
+
+// Renderizar tarefas (função original)
+function renderTasksOriginal() {
     const container = document.getElementById('tasksContainer');
     
     if (allTasks.length === 0) {
@@ -331,6 +365,8 @@ function renderTasks() {
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const userRole = '{{ user.role }}';
+    const userId = {{ user.id }};
     
     container.innerHTML = allTasks.map(task => {
         const dueDate = new Date(task.due_date);
@@ -345,6 +381,8 @@ function renderTasks() {
             }
         }
         
+        const canDelete = (userRole === 'company_admin' || userRole === 'super_admin' || task.created_by === userId);
+        
         return `
             <tr class="${rowClass}">
                 <td>${task.id}</td>
@@ -357,9 +395,16 @@ function renderTasks() {
                 <td>${formatDate(task.due_date)}</td>
                 <td>${task.product_name ? escapeHtml(task.product_name) : '-'}</td>
                 <td>
-                    <a href="/tasks/${task.id}" class="btn btn-sm btn-outline-primary" title="Ver tarefa">
-                        <i class="bi bi-eye"></i>
-                    </a>
+                    <div class="btn-group" role="group">
+                        <a href="/tasks/${task.id}" class="btn btn-sm btn-outline-primary" title="Ver tarefa">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        ${canDelete ? `
+                        <button class="btn btn-sm btn-outline-danger delete-task-btn" data-task-id="${task.id}" data-task-title="${escapeHtml(task.title)}" title="Excluir tarefa">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        ` : ''}
+                    </div>
                 </td>
             </tr>
         `;
@@ -417,6 +462,61 @@ async function createTask(event) {
     } catch (error) {
         console.error('Erro ao criar tarefa:', error);
         showError('Erro ao criar tarefa');
+    }
+}
+
+// Abrir modal de confirmação de exclusão
+function openDeleteTaskModal(taskId, taskTitle) {
+    document.getElementById('deleteTaskTitle').textContent = taskTitle;
+    const modal = new bootstrap.Modal(document.getElementById('deleteTaskModal'));
+    
+    // Remover event listeners anteriores
+    const confirmBtn = document.getElementById('confirmDeleteTaskBtn');
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    
+    // Adicionar novo event listener
+    newConfirmBtn.addEventListener('click', () => {
+        deleteTask(taskId);
+        modal.hide();
+    });
+    
+    modal.show();
+}
+
+// Deletar tarefa
+async function deleteTask(taskId) {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+        window.location.href = '/auth/login';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+            method: 'DELETE',
+            headers: {
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Tarefa excluída com sucesso!');
+            loadTasks();
+        } else {
+            showError('Erro ao excluir tarefa: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao excluir tarefa:', error);
+        showError('Erro ao excluir tarefa');
     }
 }
 
@@ -501,12 +601,32 @@ function createToastContainer() {
     return container;
 }
 
+// Configurar event listeners para botões de deletar
+function setupDeleteButtons() {
+    document.querySelectorAll('.delete-task-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const taskId = this.getAttribute('data-task-id');
+            const taskTitle = this.getAttribute('data-task-title');
+            openDeleteTaskModal(parseInt(taskId), taskTitle);
+        });
+    });
+}
+
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
     loadCompanyUsers();
     loadInternalProducts();
     loadTasks();
 });
+
+// Renderizar tarefas (wrapper que configura botões)
+function renderTasks() {
+    renderTasksOriginal();
+    // Configurar event listeners após renderizar
+    setTimeout(() => {
+        setupDeleteButtons();
+    }, 100);
+}
 </script>
 {% endblock %}
 

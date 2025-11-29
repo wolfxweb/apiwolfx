@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def create_hr_tables():
     """Cria todas as tabelas de RH no banco de dados"""
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:  # begin() faz commit automático
             # Criar tabela employees
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS employees (
@@ -226,8 +226,7 @@ def create_hr_tables():
                 CREATE INDEX IF NOT EXISTS ix_employee_permissions_submenu_name ON employee_permissions(submenu_name);
             """))
             
-            conn.commit()
-            logger.info("✅ Tabelas de RH criadas com sucesso!")
+            logger.info("✅ Tabelas de RH verificadas/criadas com sucesso!")
             
     except Exception as e:
         logger.error(f"❌ Erro ao criar tabelas de RH: {e}", exc_info=True)
