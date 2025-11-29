@@ -315,6 +315,15 @@ function getManualIcon(filename, title) {
     if (filenameLower.includes('ordem') || filenameLower.includes('compra') || titleLower.includes('ordem')) {
         return 'bi-file-earmark-text';
     }
+    if (filenameLower.includes('empresa') || titleLower.includes('empresa')) {
+        return 'bi-building';
+    }
+    if (filenameLower.includes('recursos') || filenameLower.includes('humanos') || filenameLower.includes('rh') || titleLower.includes('recursos') || titleLower.includes('humanos')) {
+        return 'bi-people';
+    }
+    if (filenameLower.includes('tarefa') || titleLower.includes('tarefa')) {
+        return 'bi-list-check';
+    }
     if (filenameLower.includes('anuncio') || titleLower.includes('anúncio')) {
         return 'bi-megaphone';
     }

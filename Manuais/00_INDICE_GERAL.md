@@ -57,6 +57,21 @@ Bem-vindo ao manual do sistema CELX! Este documento lista todas as funcionalidad
 - **Descrição**: Como criar, editar e gerenciar ordens de compra
 - **Acesso**: Menu "Cadastros" → "Ordem de Compra"
 
+### 27. Empresa
+- **Arquivo**: `27_Empresa.md`
+- **Descrição**: Como visualizar e editar dados cadastrais, fiscais e configurações da empresa
+- **Acesso**: Menu "Cadastros" → "Empresa"
+
+### 28. Recursos Humanos
+- **Arquivo**: `28_Recursos_Humanos.md`
+- **Descrição**: Como cadastrar, gerenciar funcionários, criar contas de usuário e configurar permissões individuais
+- **Acesso**: Menu "Cadastros" → "RH"
+
+### 29. Tarefas e Atividades
+- **Arquivo**: `29_Tarefas.md`
+- **Descrição**: Como criar, gerenciar e acompanhar tarefas da empresa, atribuir responsáveis e definir prazos
+- **Acesso**: Menu "Cadastros" → "Tarefas"
+
 ---
 
 ## 🛒 Módulo: Mercado Livre
