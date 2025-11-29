@@ -27,6 +27,41 @@ class CreateTicketRequest(BaseModel):
     priority: str = "medium"
 
 
+@support_router.get("/support/ticket/{ticket_id}", response_class=HTMLResponse)
+async def view_ticket_page(
+    ticket_id: int,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Página para visualizar um chamado específico"""
+    if not session_token:
+        return RedirectResponse(url="/login", status_code=302)
+    
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return RedirectResponse(url="/login", status_code=302)
+    
+    user_data = result["user"]
+    company_id = user_data.get("company", {}).get("id")
+    
+    if not company_id:
+        return RedirectResponse(url="/support", status_code=302)
+    
+    controller = SupportController(db)
+    ticket_result = controller.get_ticket(ticket_id, company_id)
+    
+    if not ticket_result.get("success"):
+        return RedirectResponse(url="/support", status_code=302)
+    
+    return render_template(
+        "support_ticket_view.html",
+        request=request,
+        user=user_data,
+        ticket=ticket_result.get("ticket")
+    )
+
+
 @support_router.get("/support", response_class=HTMLResponse)
 async def support_page(
     request: Request,
@@ -398,6 +433,122 @@ async def list_attachments_api(
     
     controller = SupportController(db)
     response = controller.get_ticket_attachments(ticket_id, company_id)
+    
+    if response.get("success"):
+        return JSONResponse(content=response)
+    else:
+        return JSONResponse(
+            status_code=404 if "não encontrado" in response.get("error", "").lower() else 500,
+            content=response
+        )
+
+
+@support_router.post("/api/support/tickets/{ticket_id}/messages", response_class=JSONResponse)
+async def add_message_api(
+    ticket_id: int,
+    request: Request,
+    message_data: dict = Body(...),
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para adicionar uma mensagem a um chamado"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result["user"]
+    company_id = user_data.get("company", {}).get("id")
+    user_id = user_data.get("id")
+    
+    if not company_id:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Company ID não encontrado"}
+        )
+    
+    message_content = message_data.get("message", "").strip()
+    if not message_content:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Mensagem não pode estar vazia"}
+        )
+    
+    controller = SupportController(db)
+    response = controller.add_message_to_ticket(
+        ticket_id=ticket_id,
+        company_id=company_id,
+        user_id=user_id,
+        message_content=message_content,
+        is_from_support=False
+    )
+    
+    # Se houver anexos, fazer upload
+    if response.get("success") and message_data.get("attachments"):
+        # Upload será feito separadamente via endpoint de attachments
+        pass
+    
+    if response.get("success"):
+        return JSONResponse(content=response)
+    else:
+        return JSONResponse(
+            status_code=404 if "não encontrado" in response.get("error", "").lower() else 500,
+            content=response
+        )
+
+
+@support_router.patch("/api/support/tickets/{ticket_id}/status", response_class=JSONResponse)
+async def update_ticket_status_api(
+    ticket_id: int,
+    request: Request,
+    status_data: dict = Body(...),
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar o status de um chamado"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    result = AuthController().get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result["user"]
+    company_id = user_data.get("company", {}).get("id")
+    
+    if not company_id:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Company ID não encontrado"}
+        )
+    
+    new_status = status_data.get("status", "").strip()
+    if not new_status:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Status não pode estar vazio"}
+        )
+    
+    controller = SupportController(db)
+    response = controller.update_ticket_status(
+        ticket_id=ticket_id,
+        company_id=company_id,
+        status=new_status
+    )
     
     if response.get("success"):
         return JSONResponse(content=response)

@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+
+{% block title %}Chamado #{{ ticket.id }} - Suporte{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0"><i class="bi bi-ticket"></i> Chamado #{{ ticket.id }}</h2>
+                <a href="/support" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Card Único com todas as informações -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <!-- Informações do Chamado -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Informações do Chamado</h5>
+                        
+                        <!-- Assunto - Ocupa 12 colunas -->
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <p class="mb-1 text-muted small">Assunto</p>
+                                <p class="mb-0"><strong id="ticketSubject"></strong></p>
+                            </div>
+                        </div>
+                        
+                        <!-- Status, Prioridade, Categoria -->
+                        <div class="row mb-3">
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Status</p>
+                                <p class="mb-0" id="ticketStatusBadge"></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Prioridade</p>
+                                <p class="mb-0" id="ticketPriorityBadge"></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Categoria</p>
+                                <p class="mb-0" id="ticketCategory"></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Usuário</p>
+                                <p class="mb-0"><strong id="ticketUserName"></strong></p>
+                            </div>
+                        </div>
+                        
+                        <!-- Datas -->
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Criado em</p>
+                                <p class="mb-0"><strong id="ticketCreatedAt"></strong></p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <p class="mb-1 text-muted small">Atualizado em</p>
+                                <p class="mb-0"><strong id="ticketUpdatedAt"></strong></p>
+                            </div>
+                            <div class="col-md-3 mb-3" id="ticketClosedAtSection" style="display: none;">
+                                <p class="mb-1 text-muted small">Fechado em</p>
+                                <p class="mb-0"><strong id="ticketClosedAt"></strong></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Descrição -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Descrição</h5>
+                        <p style="white-space: pre-wrap;" id="ticketDescription" class="mb-0"></p>
+                    </div>
+                    
+                    <div id="attachmentsSection" style="display: none;">
+                        <hr class="my-4">
+                        <!-- Anexos -->
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-paperclip"></i> Anexos</h5>
+                            <div id="attachmentsList"></div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Mensagens -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="mb-0"><i class="bi bi-chat-dots"></i> Mensagens</h5>
+                            {% if ticket.status != 'closed' %}
+                            <button type="button" class="btn btn-primary btn-sm" id="addMessageBtn">
+                                <i class="bi bi-plus-circle"></i> Adicionar Mensagem
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div id="messagesList"></div>
+                    </div>
+                    
+                    {% if ticket.status != 'closed' %}
+                    <hr class="my-4">
+                    
+                    <!-- Ações -->
+                    <div>
+                        <h5 class="mb-3"><i class="bi bi-gear"></i> Ações</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="statusSelect" class="form-label">Alterar Status</label>
+                                <select class="form-select" id="statusSelect">
+                                    <option value="open" {% if ticket.status == 'open' %}selected{% endif %}>Aberto</option>
+                                    <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>Em Atendimento</option>
+                                    <option value="waiting_user" {% if ticket.status == 'waiting_user' %}selected{% endif %}>Aguardando Usuário</option>
+                                    <option value="resolved" {% if ticket.status == 'resolved' %}selected{% endif %}>Resolvido</option>
+                                    <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>Finalizado</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end mb-3">
+                                <button type="button" class="btn btn-primary" onclick="updateTicketStatus()">
+                                    <i class="bi bi-check-circle"></i> Salvar Status
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <hr class="my-4">
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> Este chamado está finalizado e não pode ser alterado.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para adicionar mensagem -->
+<div class="modal fade" id="addMessageModal" tabindex="-1" aria-labelledby="addMessageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addMessageModalLabel">Adicionar Mensagem</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addMessageForm" onsubmit="addMessage(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="newMessage" class="form-label">Mensagem <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="newMessage" rows="5" required placeholder="Digite sua mensagem..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="messageAttachments" class="form-label">Anexos (opcional)</label>
+                        <input type="file" class="form-control" id="messageAttachments" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt">
+                        <small class="text-muted">Tamanho máximo: 10MB por arquivo.</small>
+                        <div id="messageAttachmentsPreview" class="mt-2"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Enviar Mensagem
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+const ticketId = {{ ticket.id }};
+const ticketData = {{ ticket | tojson }};
+
+// Definir funções primeiro
+function openAddMessageModal() {
+    console.log('Abrindo modal de mensagem...');
+    const newMessageEl = document.getElementById('newMessage');
+    const attachmentsEl = document.getElementById('messageAttachments');
+    const previewEl = document.getElementById('messageAttachmentsPreview');
+    
+    if (newMessageEl) newMessageEl.value = '';
+    if (attachmentsEl) attachmentsEl.value = '';
+    if (previewEl) previewEl.innerHTML = '';
+    
+    const modalElement = document.getElementById('addMessageModal');
+    if (!modalElement) {
+        console.error('Modal não encontrado!');
+        return;
+    }
+    
+    try {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Erro ao abrir modal:', error);
+        // Fallback: mostrar modal manualmente
+        modalElement.classList.add('show');
+        modalElement.style.display = 'block';
+        document.body.classList.add('modal-open');
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'modalBackdrop';
+        document.body.appendChild(backdrop);
+    }
+}
+
+function removeMessageAttachment(index) {
+    const input = document.getElementById('messageAttachments');
+    if (!input) return;
+    
+    const dt = new DataTransfer();
+    
+    for (let i = 0; i < input.files.length; i++) {
+        if (i !== index) {
+            dt.items.add(input.files[i]);
+        }
+    }
+    
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change'));
+}
+
+async function updateTicketStatus() {
+    const statusSelect = document.getElementById('statusSelect');
+    if (!statusSelect) {
+        showError('Seletor de status não encontrado.');
+        return;
+    }
+    
+    const newStatus = statusSelect.value;
+    
+    if (!newStatus) {
+        showError('Por favor, selecione um status.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/support/tickets/${ticketId}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                status: newStatus
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Status atualizado com sucesso!');
+            // Recarregar página após 1 segundo
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showError('Erro ao atualizar status: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar status:', error);
+        showError('Erro ao atualizar status: ' + error.message);
+    }
+}
+
+// Tornar funções globais IMEDIATAMENTE (antes do DOMContentLoaded)
+window.openAddMessageModal = openAddMessageModal;
+window.updateTicketStatus = updateTicketStatus;
+window.removeMessageAttachment = removeMessageAttachment;
+
+console.log('Funções globais definidas:', {
+    openAddMessageModal: typeof window.openAddMessageModal,
+    updateTicketStatus: typeof window.updateTicketStatus,
+    removeMessageAttachment: typeof window.removeMessageAttachment
+});
+
+// Renderizar dados do ticket
+document.addEventListener('DOMContentLoaded', function() {
+    renderTicketData();
+    renderMessages();
+    renderAttachments();
+    setupMessageAttachmentsPreview();
+    
+    // Configurar botão de adicionar mensagem
+    const addMessageBtn = document.getElementById('addMessageBtn');
+    if (addMessageBtn) {
+        addMessageBtn.addEventListener('click', function() {
+            openAddMessageModal();
+        });
+    }
+});
+
+function renderTicketData() {
+    try {
+        console.log('Renderizando dados do ticket:', ticketData);
+        
+        // Assunto
+        const subjectEl = document.getElementById('ticketSubject');
+        if (subjectEl) {
+            subjectEl.textContent = ticketData.subject || 'N/A';
+        } else {
+            console.error('Elemento ticketSubject não encontrado');
+        }
+        
+        // Status
+        const statusBadge = getStatusBadge(ticketData.status);
+        const statusEl = document.getElementById('ticketStatusBadge');
+        if (statusEl) {
+            statusEl.innerHTML = statusBadge;
+        }
+        
+        // Prioridade
+        const priorityBadge = getPriorityBadge(ticketData.priority);
+        const priorityEl = document.getElementById('ticketPriorityBadge');
+        if (priorityEl) {
+            priorityEl.innerHTML = priorityBadge;
+        }
+        
+        // Categoria
+        const categoryEl = document.getElementById('ticketCategory');
+        if (categoryEl) {
+            if (ticketData.category) {
+                categoryEl.innerHTML = '<span class="badge bg-secondary">' + escapeHtml(ticketData.category) + '</span>';
+            } else {
+                categoryEl.innerHTML = '<span class="text-muted">N/A</span>';
+            }
+        }
+        
+        // Usuário
+        const userEl = document.getElementById('ticketUserName');
+        if (userEl) {
+            userEl.textContent = ticketData.user_name || 'Usuário';
+        }
+        
+        // Descrição
+        const descEl = document.getElementById('ticketDescription');
+        if (descEl) {
+            descEl.textContent = ticketData.description || 'Sem descrição';
+        }
+        
+        // Datas
+        const createdEl = document.getElementById('ticketCreatedAt');
+        if (createdEl) {
+            createdEl.textContent = formatDate(ticketData.created_at);
+        }
+        
+        const updatedEl = document.getElementById('ticketUpdatedAt');
+        if (updatedEl) {
+            updatedEl.textContent = formatDate(ticketData.updated_at);
+        }
+        
+        if (ticketData.closed_at) {
+            const closedSection = document.getElementById('ticketClosedAtSection');
+            const closedEl = document.getElementById('ticketClosedAt');
+            if (closedSection) closedSection.style.display = 'block';
+            if (closedEl) closedEl.textContent = formatDate(ticketData.closed_at);
+        }
+    } catch (error) {
+        console.error('Erro ao renderizar dados do ticket:', error);
+    }
+}
+
+function renderMessages() {
+    const container = document.getElementById('messagesList');
+    
+    if (!ticketData.messages || ticketData.messages.length === 0) {
+        container.innerHTML = '<div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> Nenhuma mensagem ainda neste chamado.</div>';
+        return;
+    }
+    
+    let html = '<div class="list-group">';
+    ticketData.messages.forEach(msg => {
+        const senderClass = msg.is_from_support ? 'list-group-item-info' : '';
+        html += `
+            <div class="list-group-item ${senderClass} mb-2">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <strong>${msg.is_from_support ? 'Equipe de Suporte' : 'Você'}</strong>
+                        <small class="text-muted ms-2">${formatDate(msg.created_at)}</small>
+                    </div>
+                </div>
+                <p style="white-space: pre-wrap;" class="mb-0">${escapeHtml(msg.message || '')}</p>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+function renderAttachments() {
+    if (!ticketData.attachments || ticketData.attachments.length === 0) {
+        document.getElementById('attachmentsSection').style.display = 'none';
+        return;
+    }
+    
+    document.getElementById('attachmentsSection').style.display = 'block';
+    const container = document.getElementById('attachmentsList');
+    
+    let html = '<div class="list-group">';
+    ticketData.attachments.forEach(att => {
+        html += `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-paperclip me-2"></i>
+                    <a href="${att.file_url}" target="_blank" class="text-decoration-none">${escapeHtml(att.filename)}</a>
+                    <small class="text-muted ms-2">(${(att.file_size / 1024).toFixed(2)} KB)</small>
+                </div>
+                <a href="${att.file_url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-download"></i> Baixar
+                </a>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+// Adicionar mensagem ao chamado
+async function addMessage(event) {
+    event.preventDefault();
+    
+    const message = document.getElementById('newMessage').value.trim();
+    const attachmentsInput = document.getElementById('messageAttachments');
+    
+    if (!message) {
+        showError('Por favor, digite uma mensagem.');
+        return;
+    }
+    
+    try {
+        // Adicionar mensagem
+        const response = await fetch(`/api/support/tickets/${ticketId}/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            showError('Erro ao adicionar mensagem: ' + (data.error || 'Erro desconhecido'));
+            return;
+        }
+        
+        // Se houver anexos, fazer upload
+        if (attachmentsInput.files.length > 0) {
+            const formData = new FormData();
+            for (let i = 0; i < attachmentsInput.files.length; i++) {
+                formData.append('files', attachmentsInput.files[i]);
+            }
+            formData.append('message_id', data.message.id);
+            
+            try {
+                const uploadResponse = await fetch(`/api/support/tickets/${ticketId}/attachments`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const uploadData = await uploadResponse.json();
+                if (!uploadData.success) {
+                    console.warn('Aviso: Mensagem enviada mas alguns anexos não foram enviados');
+                }
+            } catch (uploadError) {
+                console.error('Erro ao fazer upload de anexos:', uploadError);
+            }
+        }
+        
+        // Fechar modal
+        const addMessageModal = bootstrap.Modal.getInstance(document.getElementById('addMessageModal'));
+        addMessageModal.hide();
+        
+        // Recarregar página
+        window.location.reload();
+    } catch (error) {
+        console.error('Erro ao adicionar mensagem:', error);
+        showError('Erro ao adicionar mensagem');
+    }
+}
+
+
+// Preview de anexos na mensagem
+function setupMessageAttachmentsPreview() {
+    const messageAttachmentsInput = document.getElementById('messageAttachments');
+    if (messageAttachmentsInput) {
+        messageAttachmentsInput.addEventListener('change', function() {
+            const preview = document.getElementById('messageAttachmentsPreview');
+            if (!preview) return;
+            
+            preview.innerHTML = '';
+            
+            if (this.files.length > 0) {
+                const list = document.createElement('ul');
+                list.className = 'list-group list-group-flush';
+                
+                for (let i = 0; i < this.files.length; i++) {
+                    const file = this.files[i];
+                    const listItem = document.createElement('li');
+                    listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    
+                    const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                    listItem.innerHTML = `
+                        <div>
+                            <i class="bi bi-file-earmark me-2"></i>
+                            ${escapeHtml(file.name)}
+                            <small class="text-muted">(${fileSize} MB)</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="removeMessageAttachment(${i})">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    `;
+                    list.appendChild(listItem);
+                }
+                
+                preview.appendChild(list);
+            }
+        });
+    }
+}
+
+// Funções auxiliares
+function getStatusBadge(status) {
+    const badges = {
+        'open': '<span class="badge bg-primary">Aberto</span>',
+        'in_progress': '<span class="badge bg-info">Em Atendimento</span>',
+        'waiting_user': '<span class="badge bg-warning">Aguardando</span>',
+        'resolved': '<span class="badge bg-success">Resolvido</span>',
+        'closed': '<span class="badge bg-secondary">Finalizado</span>'
+    };
+    return badges[status] || '<span class="badge bg-secondary">' + status + '</span>';
+}
+
+function getPriorityBadge(priority) {
+    const badges = {
+        'low': '<span class="badge bg-secondary">Baixa</span>',
+        'medium': '<span class="badge bg-info">Média</span>',
+        'high': '<span class="badge bg-warning">Alta</span>',
+        'urgent': '<span class="badge bg-danger">Urgente</span>'
+    };
+    return badges[priority] || '<span class="badge bg-secondary">' + priority + '</span>';
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString('pt-BR');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showError(message) {
+    // Usar toast do Bootstrap se disponível
+    if (typeof showToast === 'function') {
+        showToast(message, 'error');
+    } else {
+        alert('Erro: ' + message);
+    }
+}
+
+function showSuccess(message) {
+    // Usar toast do Bootstrap se disponível
+    if (typeof showToast === 'function') {
+        showToast(message, 'success');
+    } else {
+        alert('Sucesso: ' + message);
+    }
+}
+</script>
+{% endblock %}

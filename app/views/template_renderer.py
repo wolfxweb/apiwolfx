@@ -2,6 +2,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi import Request
 from pathlib import Path
+import json
 
 # Configurar templates com Jinja2 nativo
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -20,7 +21,17 @@ def format_brl(value):
     except (ValueError, TypeError):
         return "R$ 0,00"
 
+def tojson(value):
+    """Converte valor para JSON string (já retorna como safe/markup)"""
+    try:
+        from markupsafe import Markup
+        return Markup(json.dumps(value, ensure_ascii=False, default=str))
+    except ImportError:
+        # Fallback se Markup não estiver disponível
+        return json.dumps(value, ensure_ascii=False, default=str)
+
 templates.env.filters['brl'] = format_brl
+templates.env.filters['tojson'] = tojson
 
 def render_template(template_name: str, request: Request = None, **context) -> HTMLResponse:
     """Função de conveniência para renderizar templates usando Jinja2 nativo"""

@@ -166,4 +166,34 @@ class SupportController:
     ) -> Dict[str, Any]:
         """Lista anexos de um chamado"""
         return self.support_service.get_ticket_attachments(ticket_id, company_id)
+    
+    def add_message_to_ticket(
+        self,
+        ticket_id: int,
+        company_id: int,
+        user_id: Optional[int],
+        message_content: str,
+        is_from_support: bool = False
+    ) -> Dict[str, Any]:
+        """Adiciona uma mensagem a um chamado"""
+        return self.support_service.add_message_to_ticket(
+            ticket_id=ticket_id,
+            company_id=company_id,
+            user_id=user_id,
+            message_content=message_content,
+            is_from_support=is_from_support
+        )
+    
+    def update_ticket_status(
+        self,
+        ticket_id: int,
+        company_id: int,
+        status: str
+    ) -> Dict[str, Any]:
+        """Atualiza o status de um chamado"""
+        return self.support_service.update_ticket_status(
+            ticket_id=ticket_id,
+            company_id=company_id,
+            status=status
+        )
 

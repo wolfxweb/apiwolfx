@@ -193,20 +193,39 @@
     </div>
 </div>
 
-<!-- Modal para visualizar chamado -->
-<div class="modal fade" id="ticketModal" tabindex="-1" aria-labelledby="ticketModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+
+<!-- Modal para adicionar mensagem -->
+<div class="modal fade" id="addMessageModal" tabindex="-1" aria-labelledby="addMessageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="ticketModalLabel">Detalhes do Chamado</h5>
+                <h5 class="modal-title" id="addMessageModalLabel">Adicionar Mensagem</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="ticketModalBody">
-                <!-- Conteúdo será inserido aqui -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-            </div>
+            <form id="addMessageForm" onsubmit="addMessage(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="currentTicketId" value="">
+                    <div class="mb-3">
+                        <label for="newMessage" class="form-label">Mensagem <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="newMessage" rows="5" required placeholder="Digite sua mensagem..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="messageAttachments" class="form-label">Anexos (opcional)</label>
+                        <input type="file" class="form-control" id="messageAttachments" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt">
+                        <small class="text-muted">Tamanho máximo: 10MB por arquivo.</small>
+                        <div id="messageAttachmentsPreview" class="mt-2"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Enviar Mensagem
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
         </div>
     </div>
 </div>
@@ -515,7 +534,7 @@ function renderTickets() {
         const priorityBadge = getPriorityBadge(ticket.priority);
         
         html += `
-            <div class="list-group-item list-group-item-action" onclick="viewTicket(${ticket.id});" style="cursor: pointer;">
+            <div class="list-group-item list-group-item-action" onclick="window.location.href='/support/ticket/' + ${ticket.id};" style="cursor: pointer;">
                 <div class="d-flex w-100 justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <h6 class="mb-1">${escapeHtml(ticket.subject)}</h6>
@@ -666,115 +685,66 @@ function removeAttachment(index) {
     input.dispatchEvent(new Event('change'));
 }
 
-// Visualizar chamado
-async function viewTicket(ticketId) {
-    try {
-        const response = await fetch(`/api/support/tickets/${ticketId}`);
-        const data = await response.json();
-        
-        if (data.success && data.ticket) {
-            const ticket = data.ticket;
-            const statusBadge = getStatusBadge(ticket.status);
-            const priorityBadge = getPriorityBadge(ticket.priority);
+
+// Preview de anexos na mensagem
+document.addEventListener('DOMContentLoaded', function() {
+    const messageAttachmentsInput = document.getElementById('messageAttachments');
+    if (messageAttachmentsInput) {
+        messageAttachmentsInput.addEventListener('change', function() {
+            const preview = document.getElementById('messageAttachmentsPreview');
+            preview.innerHTML = '';
             
-            let html = `
-                <div class="mb-3">
-                    <h6>Assunto</h6>
-                    <p>${escapeHtml(ticket.subject)}</p>
-                </div>
+            if (this.files.length > 0) {
+                const list = document.createElement('ul');
+                list.className = 'list-group list-group-flush';
                 
-                <div class="mb-3">
-                    <h6>Status</h6>
-                    <p>${statusBadge}</p>
-                </div>
+                for (let i = 0; i < this.files.length; i++) {
+                    const file = this.files[i];
+                    const listItem = document.createElement('li');
+                    listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    
+                    const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                    listItem.innerHTML = `
+                        <div>
+                            <i class="bi bi-file-earmark me-2"></i>
+                            ${escapeHtml(file.name)}
+                            <small class="text-muted">(${fileSize} MB)</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="removeMessageAttachment(${i})">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    `;
+                    list.appendChild(listItem);
+                }
                 
-                <div class="mb-3">
-                    <h6>Prioridade</h6>
-                    <p>${priorityBadge}</p>
-                </div>
-                
-                ${ticket.category ? `
-                <div class="mb-3">
-                    <h6>Categoria</h6>
-                    <p><span class="badge bg-secondary">${escapeHtml(ticket.category)}</span></p>
-                </div>
-                ` : ''}
-                
-                <div class="mb-3">
-                    <h6>Descrição</h6>
-                    <p style="white-space: pre-wrap;">${escapeHtml(ticket.description)}</p>
-                </div>
-                
-                ${ticket.attachments && ticket.attachments.length > 0 ? `
-                <div class="mb-3">
-                    <h6>Anexos</h6>
-                    <div class="list-group">
-                        ${ticket.attachments.map(att => `
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <i class="bi bi-paperclip me-2"></i>
-                                    <a href="${att.file_url}" target="_blank" class="text-decoration-none">${escapeHtml(att.filename)}</a>
-                                    <small class="text-muted ms-2">(${(att.file_size / 1024).toFixed(2)} KB)</small>
-                                </div>
-                                <a href="${att.file_url}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-download"></i> Baixar
-                                </a>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                ` : ''}
-                
-                ${ticket.messages && ticket.messages.length > 0 ? `
-                <div class="mb-3">
-                    <h6>Mensagens</h6>
-                    <div class="list-group">
-                        ${ticket.messages.map(msg => `
-                            <div class="list-group-item">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div>
-                                        <strong>${msg.is_from_support ? 'Equipe de Suporte' : 'Você'}</strong>
-                                        <small class="text-muted ms-2">${formatDate(msg.created_at)}</small>
-                                    </div>
-                                </div>
-                                <p style="white-space: pre-wrap;" class="mb-0">${escapeHtml(msg.message)}</p>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                ` : '<div class="alert alert-warning">Aguardando resposta do suporte.</div>'}
-                
-                <div class="mb-3">
-                    <small class="text-muted">
-                        Criado em ${formatDate(ticket.created_at)}
-                        ${ticket.updated_at && ticket.updated_at !== ticket.created_at ? ` • Atualizado em ${formatDate(ticket.updated_at)}` : ''}
-                        ${ticket.closed_at ? ` • Fechado em ${formatDate(ticket.closed_at)}` : ''}
-                    </small>
-                </div>
-            `;
-            
-            document.getElementById('ticketModalBody').innerHTML = html;
-            document.getElementById('ticketModalLabel').textContent = ticket.subject;
-            
-            const modal = new bootstrap.Modal(document.getElementById('ticketModal'));
-            modal.show();
-        } else {
-            showError('Erro ao carregar chamado: ' + (data.error || 'Chamado não encontrado'));
-        }
-    } catch (error) {
-        console.error('Erro ao visualizar chamado:', error);
-        showError('Erro ao carregar chamado');
+                preview.appendChild(list);
+            }
+        });
     }
+});
+
+function removeMessageAttachment(index) {
+    const input = document.getElementById('messageAttachments');
+    const dt = new DataTransfer();
+    
+    for (let i = 0; i < input.files.length; i++) {
+        if (i !== index) {
+            dt.items.add(input.files[i]);
+        }
+    }
+    
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change'));
 }
 
 // Funções auxiliares
 function getStatusBadge(status) {
     const badges = {
         'open': '<span class="badge bg-primary">Aberto</span>',
-        'in_progress': '<span class="badge bg-info">Em Andamento</span>',
+        'in_progress': '<span class="badge bg-info">Em Atendimento</span>',
         'waiting_user': '<span class="badge bg-warning">Aguardando</span>',
         'resolved': '<span class="badge bg-success">Resolvido</span>',
-        'closed': '<span class="badge bg-secondary">Fechado</span>'
+        'closed': '<span class="badge bg-secondary">Finalizado</span>'
     };
     return badges[status] || '<span class="badge bg-secondary">' + status + '</span>';
 }
