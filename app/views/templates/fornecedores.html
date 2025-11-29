@@ -16,17 +16,16 @@
 
 <!-- Filtros -->
 <div class="card mb-4">
-
     <div class="card-body">
         <div class="row g-3">
             <!-- Busca -->
-            <div class="col-8">
+            <div class="col-12 col-md-6 col-lg-8">
                 <label for="searchInput" class="form-label">Buscar</label>
                 <input type="text" class="form-control" id="searchInput" placeholder="Nome, email...">
             </div>
             
             <!-- Status -->
-            <div class="col-2">
+            <div class="col-12 col-md-3 col-lg-2">
                 <label for="statusFilter" class="form-label">Status</label>
                 <select class="form-select" id="statusFilter">
                     <option value="">Todos</option>
@@ -36,14 +35,14 @@
             </div>
             
             <!-- Ações -->
-            <div class="col-2">
-                <label class="form-label">&nbsp;</label>
+            <div class="col-12 col-md-3 col-lg-2">
+                <label class="form-label d-none d-md-block">&nbsp;</label>
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
-                        <i class="bi bi-search"></i> Filtrar
+                    <button type="button" class="btn btn-primary flex-fill" onclick="applyFilters()">
+                        <i class="bi bi-search"></i> <span class="d-none d-sm-inline">Filtrar</span>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
-                        <i class="bi bi-x-circle"></i> Limpar
+                    <button type="button" class="btn btn-outline-secondary flex-fill" onclick="clearFilters()">
+                        <i class="bi bi-x-circle"></i> <span class="d-none d-sm-inline">Limpar</span>
                     </button>
                 </div>
             </div>
