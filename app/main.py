@@ -1302,6 +1302,7 @@ async def edit_company_page(
         "created_at": result.created_at,
         "trial_ends_at": result.trial_ends_at,
         "ml_orders_as_receivables": result.ml_orders_as_receivables,
+        "hide_product_data": getattr(result, 'hide_product_data', False),
         "total_users": result.total_users,
         "total_ml_accounts": result.total_ml_accounts,
         # Campos adicionais
@@ -1485,7 +1486,12 @@ async def api_update_company(
             company.ml_orders_as_receivables = company_data['ml_orders_as_receivables']
         
         if 'hide_product_data' in company_data:
-            company.hide_product_data = company_data['hide_product_data']
+            # Garantir que seja boolean
+            hide_data_value = company_data['hide_product_data']
+            if isinstance(hide_data_value, str):
+                hide_data_value = hide_data_value.lower() in ('true', '1', 'yes')
+            company.hide_product_data = bool(hide_data_value)
+            print(f"DEBUG: Hide Product Data atualizado para: {company.hide_product_data} (tipo: {type(company.hide_product_data)})")
         
         # Salvar alterações
         print(f"DEBUG: Salvando alterações no banco...")

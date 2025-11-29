@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Detalhes do Produto - {{ product.title }}{% endblock %}
+{% block title %}Detalhes do Produto - {% if should_hide_product_data(user) %}****{% else %}{{ product.title }}{% endif %}{% endblock %}
 
 {% block content %}
 {% set condition_map = {
@@ -56,7 +56,7 @@
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h1 class="h3 mb-2">{{ product.title }}</h1>
+                        <h1 class="h3 mb-2">{% if should_hide_product_data(user) %}****{% else %}{{ product.title }}{% endif %}</h1>
                         <p class="text-muted mb-3">{{ product.subtitle }}</p>
                     </div>
                     <div class="d-flex gap-2">
@@ -85,7 +85,12 @@
                         </h6>
                     </div>
                     <div class="card-body">
-                        {% if product.pictures and product.pictures|length > 0 %}
+                        {% if should_hide_product_data(user) %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-lock text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2">Imagens ocultas</p>
+                        </div>
+                        {% elif product.pictures and product.pictures|length > 0 %}
                         <div class="row g-2">
                             {% for picture in product.pictures %}
                             <div class="col-6">
@@ -456,7 +461,7 @@
                                 <strong>ID do Vendedor:</strong> {{ product.seller_id }}
                             </div>
                             <div class="col-md-6 mb-3">
-                                <strong>SKU:</strong> {{ product.seller_sku }}
+                                <strong>SKU:</strong> {% if should_hide_product_data(user) %}****{% else %}{{ product.seller_sku }}{% endif %}
                             </div>
                             <div class="col-md-6 mb-3">
                                 <strong>Última Sincronização:</strong> {{ product.last_sync }}

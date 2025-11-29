@@ -692,13 +692,21 @@ function renderProducts(products) {
         return;
     }
     
+    const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
     let html = '';
     products.forEach(product => {
-        const thumbnail = product.thumbnail ? 
-            `<img src="${product.thumbnail}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;" alt="${product.title}">` :
+        const productTitle = hideData ? '****' : (product.title.length > 50 ? product.title.substring(0, 50) + '...' : product.title);
+        const productSku = hideData ? '****' : (product.seller_sku || 'N/A');
+        const thumbnail = hideData ? 
             `<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                <i class="bi bi-image text-muted"></i>
-            </div>`;
+                <i class="bi bi-lock text-muted"></i>
+            </div>` :
+            (product.thumbnail ? 
+                `<img src="${product.thumbnail}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;" alt="${product.title}">` :
+                `<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <i class="bi bi-image text-muted"></i>
+                </div>`
+            );
         
         html += `
             <tr>
@@ -709,7 +717,7 @@ function renderProducts(products) {
                     <div class="d-flex align-items-center">
                         ${thumbnail}
                         <div>
-                           <div class="fw-medium">${product.title.length > 50 ? product.title.substring(0, 50) + '...' : product.title}</div>
+                           <div class="fw-medium">${productTitle}</div>
                            <small class="text-muted">
                                ID: ${product.ml_item_id}
                                ${product.catalog_listing ? '<span class="badge bg-info ms-2">Catálogo</span>' : ''}
@@ -724,10 +732,10 @@ function renderProducts(products) {
                                    <i class="bi bi-truck"></i> ${getShippingType(product.shipping)}
                                </small>
                            </div>
-                           ${product.seller_sku ? `
+                           ${product.seller_sku || hideData ? `
                            <div class="mt-1">
                                <small class="text-secondary">
-                                   <i class="bi bi-upc-scan"></i> SKU: <strong>${product.seller_sku}</strong>
+                                   <i class="bi bi-upc-scan"></i> SKU: <strong>${productSku}</strong>
                                </small>
                            </div>
                            ` : ''}

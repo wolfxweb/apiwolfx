@@ -868,25 +868,34 @@ function renderProducts(products, total = null) {
     
     // Atualizar contador com total correto
     const displayTotal = total !== null ? total : products.length;
+    const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
     
     let html = '';
     products.forEach(product => {
+        const productName = hideData ? '****' : (product.name.length > 50 ? product.name.substring(0, 50) + '...' : product.name);
+        const productSku = hideData ? '****' : (product.internal_sku || 'N/A');
+        const productImage = hideData ? 
+            `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="bi bi-lock text-muted"></i>
+            </div>` :
+            (product.main_image ? 
+                `<img src="${product.main_image}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;" alt="Produto">` :
+                `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <i class="bi bi-box-seam text-muted"></i>
+                </div>`
+            );
+        
         html += `
             <tr>
                 <td>
                     <div class="d-flex align-items-center">
                         <div class="me-2" style="width: 40px; height: 40px;">
-                            ${product.main_image ? 
-                                `<img src="${product.main_image}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;" alt="Produto">` :
-                                `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                    <i class="bi bi-box-seam text-muted"></i>
-                                </div>`
-                            }
+                            ${productImage}
                         </div>
                         <div>
-                           <div class="fw-medium">${product.name.length > 50 ? product.name.substring(0, 50) + '...' : product.name}</div>
+                           <div class="fw-medium">${productName}</div>
                            <small class="text-muted">
-                               SKU: ${product.internal_sku || 'N/A'}
+                               SKU: ${productSku}
                            </small>
                            <br>
                            <small class="text-info" style="cursor: pointer;" onclick="toggleAnnouncements(${product.id})" title="Clique para ver anúncios">
@@ -1921,6 +1930,7 @@ async function loadAnnouncements(productId) {
 
 function renderAnnouncementsTable(productId, announcements) {
     const content = document.getElementById(`announcements-content-${productId}`);
+    const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
     
     if (!announcements || announcements.length === 0) {
         content.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum anúncio associado a este produto.</div>';
@@ -1954,18 +1964,25 @@ function renderAnnouncementsTable(productId, announcements) {
                           announcement.status === 'paused' ? 'Pausado' : 
                           announcement.status === 'closed' ? 'Fechado' : 'Inativo';
         
+        const announcementTitle = hideData ? '****' : (announcement.title.length > 60 ? announcement.title.substring(0, 60) + '...' : announcement.title);
+        const announcementImage = hideData ? 
+            `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                <i class="bi bi-lock text-muted"></i>
+            </div>` :
+            (announcement.thumbnail ? 
+                `<img src="${announcement.thumbnail}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;" alt="Anúncio">` :
+                `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                    <i class="bi bi-image text-muted"></i>
+                </div>`
+            );
+        
         html += `
             <tr>
                 <td>
-                    ${announcement.thumbnail ? 
-                        `<img src="${announcement.thumbnail}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;" alt="Anúncio">` :
-                        `<div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                            <i class="bi bi-image text-muted"></i>
-                        </div>`
-                    }
+                    ${announcementImage}
                 </td>
                 <td>
-                    <div class="fw-medium">${announcement.title.length > 60 ? announcement.title.substring(0, 60) + '...' : announcement.title}</div>
+                    <div class="fw-medium">${announcementTitle}</div>
                     <small class="text-muted">ID: ${announcement.ml_item_id}</small>
                 </td>
                 <td>
@@ -2007,11 +2024,11 @@ function renderAnnouncementsTable(productId, announcements) {
                         <button class="btn btn-sm btn-outline-primary config-warehouse-btn" 
                                 data-product-id="${productId}"
                                 data-ml-item-id="${announcement.ml_item_id}"
-                                data-announcement-title="${(announcement.title || announcement.ml_item_id).replace(/"/g, '&quot;')}"
+                                data-announcement-title="${hideData ? 'Produto' : ((announcement.title || announcement.ml_item_id).replace(/"/g, '&quot;'))}"
                                 title="Configurar depósito">
                             <i class="bi bi-gear"></i>
                         </button>
-                        ${announcement.permalink ? 
+                        ${announcement.permalink && !hideData ? 
                             `<a href="${announcement.permalink}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Ver no Mercado Livre">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>` :

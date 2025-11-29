@@ -92,8 +92,23 @@ def has_menu_permission(user: Optional[Dict[str, Any]], menu_name: str, submenu_
         # Em caso de erro, retornar False por segurança
         return False
 
-# Adicionar função global ao ambiente Jinja2
+def should_hide_product_data(user: Optional[Dict[str, Any]]) -> bool:
+    """
+    Verifica se deve ocultar dados dos produtos (nome, SKU, imagem).
+    Retorna True se a empresa do usuário tiver hide_product_data ativado.
+    """
+    if not user:
+        return False
+    
+    company = user.get("company")
+    if isinstance(company, dict):
+        return company.get("hide_product_data", False)
+    
+    return False
+
+# Adicionar funções globais ao ambiente Jinja2
 templates.env.globals['has_menu_permission'] = has_menu_permission
+templates.env.globals['should_hide_product_data'] = should_hide_product_data
 
 def render_template(template_name: str, request: Request = None, **context) -> HTMLResponse:
     """Função de conveniência para renderizar templates usando Jinja2 nativo"""

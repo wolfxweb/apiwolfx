@@ -445,9 +445,16 @@ function renderProducts(products) {
     
     products.forEach(product => {
         const isComplete = product.cost_price && product.tax_rate && product.marketing_cost;
+        const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
         const statusBadge = isComplete ? 
             '<span class="badge bg-success">Completo</span>' : 
             '<span class="badge bg-warning">Incompleto</span>';
+        const productTitle = hideData ? '****' : product.title;
+        const productSku = hideData ? '****' : (product.sku || '-');
+        const productImage = hideData ? 
+            '<div class="bg-light d-flex align-items-center justify-content-center img-thumbnail" style="width: 50px; height: 50px;"><i class="bi bi-lock text-muted"></i></div>' :
+            `<img src="${product.thumbnail || '/static/images/no-image.png'}" 
+                 class="img-thumbnail" style="width: 50px; height: 50px; object-fit: cover;">`;
         
         tbody.innerHTML += `
             <tr>
@@ -456,16 +463,15 @@ function renderProducts(products) {
                            onchange="toggleProductSelection(${product.id})">
                 </td>
                 <td>
-                    <img src="${product.thumbnail || '/static/images/no-image.png'}" 
-                         class="img-thumbnail" style="width: 50px; height: 50px; object-fit: cover;">
+                    ${productImage}
                 </td>
                 <td>
                     <div>
-                        <strong>${product.title}</strong>
+                        <strong>${productTitle}</strong>
                         <br><small class="text-muted">ID: ${product.ml_item_id}</small>
                     </div>
                 </td>
-                <td>${product.sku || '-'}</td>
+                <td>${productSku}</td>
                 <td>${product.cost_price || '-'}</td>
                 <td>${product.tax_rate || '-'}</td>
                 <td>${product.marketing_cost || '-'}</td>

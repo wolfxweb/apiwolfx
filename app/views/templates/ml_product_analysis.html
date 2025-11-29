@@ -557,12 +557,30 @@ function renderProductInfo(product) {
             status: product.status
         });
         
+        const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
         if (thumbnail) {
-            thumbnail.src = product.thumbnail || '/static/images/no-image.png';
-            console.log('🖼️ Thumbnail definido:', thumbnail.src);
+            if (hideData) {
+                thumbnail.style.display = 'none';
+                // Criar div com ícone de cadeado se não existir
+                if (!thumbnail.parentElement.querySelector('.bi-lock')) {
+                    const lockDiv = document.createElement('div');
+                    lockDiv.className = 'd-flex align-items-center justify-content-center bg-light rounded';
+                    lockDiv.style.width = thumbnail.style.width || '100px';
+                    lockDiv.style.height = thumbnail.style.height || '100px';
+                    const lockIcon = document.createElement('i');
+                    lockIcon.className = 'bi bi-lock text-muted';
+                    lockIcon.style.fontSize = '2rem';
+                    lockDiv.appendChild(lockIcon);
+                    thumbnail.parentElement.appendChild(lockDiv);
+                }
+            } else {
+                thumbnail.src = product.thumbnail || '/static/images/no-image.png';
+                thumbnail.style.display = '';
+                console.log('🖼️ Thumbnail definido:', thumbnail.src);
+            }
         }
         if (title) {
-            title.textContent = product.title || 'Sem título';
+            title.textContent = hideData ? '****' : (product.title || 'Sem título');
             console.log('📝 Título definido:', title.textContent);
         }
         
@@ -1675,8 +1693,9 @@ async function loadMarketingAnalysis(product) {
 async function loadPricingAnalysis(product) {
     console.log('💰 Carregando análise de preços para produto:', product);
     
+    const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
     // Verificar se o produto tem SKU
-    const sku = product.seller_custom_field || product.sku || product.seller_sku;
+    const sku = hideData ? '****' : (product.seller_custom_field || product.sku || product.seller_sku);
     
     if (!sku) {
         console.log('⚠️ Produto sem SKU - mostrando mensagem informativa');
@@ -2521,7 +2540,8 @@ async function loadSalesAnalysis(product) {
             </div>
         `;
         
-        const sku = product.seller_custom_field || product.sku || product.seller_sku;
+        const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
+        const sku = hideData ? '****' : (product.seller_custom_field || product.sku || product.seller_sku);
         const mlItemId = product.ml_item_id;
         
         let skuData = null;

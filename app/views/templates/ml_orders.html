@@ -2485,33 +2485,39 @@ function renderDetailsSummary(order) {
 
     const totalAmount = order.total_amount || 0;
     const currencyForTotal = order.currency_id || defaultCurrency;
+    const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
 
     const rows = itemsToRender.map(item => {
         const quantityValue = item.quantity || 1;
         const unitPrice = item.unitPrice || 0;
         const totalLine = item.totalPrice || (unitPrice * quantityValue);
         const currency = item.currency || defaultCurrency;
-        const sanitizedThumbUrlAttr = sanitizeText(item.thumbnail || '');
-        const sanitizedTitleAttr = sanitizeText(item.title || 'Imagem do produto');
-        const thumbnailHtml = item.thumbnail
-            ? `<button type="button" class="order-image-thumb btn btn-link p-0 border-0" data-image-url="${sanitizedThumbUrlAttr}" data-image-title="${sanitizedTitleAttr}" onclick="handleProductImageClick(this)">
-                    <img src="${sanitizedThumbUrlAttr}" alt="${sanitizedTitleAttr}" class="img-fluid rounded" style="width:48px;height:48px;object-fit:cover;">
-               </button>`
-            : '<span class="text-muted">—</span>';
+        const productTitle = hideData ? '****' : sanitizeText(item.title || '');
+        const productSku = hideData ? '****' : sanitizeText(item.sellerSku || '');
+        const sanitizedThumbUrlAttr = hideData ? '' : sanitizeText(item.thumbnail || '');
+        const sanitizedTitleAttr = hideData ? 'Produto' : sanitizeText(item.title || 'Imagem do produto');
+        const thumbnailHtml = hideData ? 
+            '<span class="text-muted"><i class="bi bi-lock"></i></span>' :
+            (item.thumbnail
+                ? `<button type="button" class="order-image-thumb btn btn-link p-0 border-0" data-image-url="${sanitizedThumbUrlAttr}" data-image-title="${sanitizedTitleAttr}" onclick="handleProductImageClick(this)">
+                        <img src="${sanitizedThumbUrlAttr}" alt="${sanitizedTitleAttr}" class="img-fluid rounded" style="width:48px;height:48px;object-fit:cover;">
+                   </button>`
+                : '<span class="text-muted">—</span>');
         const infoSegments = [];
-        if (item.sellerSku) {
-            infoSegments.push(`SKU: <span class="text-dark">${sanitizeText(item.sellerSku)}</span>`);
+        if (item.sellerSku || hideData) {
+            infoSegments.push(`SKU: <span class="text-dark">${productSku}</span>`);
         }
-        if (item.gtin) {
+        if (item.gtin && !hideData) {
             infoSegments.push(`GTIN: <span class="text-dark">${sanitizeText(item.gtin)}</span>`);
         }
         const infoHtml = infoSegments.length
             ? `<div class="text-muted small d-flex flex-wrap gap-2">${infoSegments.join('<span class="text-muted">•</span>')}</div>`
             : '';
-        const normalizedPermalink = item.permalink ? normalizeItemImageUrl(item.permalink) : '';
-        const titleContent = normalizedPermalink
-            ? `<a href="${normalizedPermalink}" target="_blank" rel="noopener" class="link-primary link-underline-opacity-0 link-underline-opacity-75-hover">${sanitizeText(item.title)}</a>`
-            : sanitizeText(item.title);
+        const normalizedPermalink = hideData ? '' : (item.permalink ? normalizeItemImageUrl(item.permalink) : '');
+        const titleContent = hideData ? '****' :
+            (normalizedPermalink
+                ? `<a href="${normalizedPermalink}" target="_blank" rel="noopener" class="link-primary link-underline-opacity-0 link-underline-opacity-75-hover">${productTitle}</a>`
+                : productTitle);
 
         return `
             <tr>

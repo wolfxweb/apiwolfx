@@ -763,28 +763,33 @@ function renderStocks(stocks) {
         return;
     }
     
+    const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
     stocks.forEach(stock => {
         const row = document.createElement('tr');
         
         // Determinar o que exibir na coluna "Anúncio"
         let announcementDisplay = '';
         if (stock.announcement_title) {
+            const productTitle = hideData ? '****' : escapeHtml(stock.announcement_title);
+            const productSku = hideData ? '****' : escapeHtml(stock.announcement_sku || stock.ml_item_id || 'N/A');
             announcementDisplay = `
-                <strong>${escapeHtml(stock.announcement_title)}</strong><br>
-                <small class="text-muted">SKU: ${escapeHtml(stock.announcement_sku || stock.ml_item_id || 'N/A')}</small>
+                <strong>${productTitle}</strong><br>
+                <small class="text-muted">SKU: ${productSku}</small>
             `;
         } else if (stock.product_name) {
+            const productTitle = hideData ? '****' : escapeHtml(stock.product_name);
+            const productSku = hideData ? '****' : escapeHtml(stock.product_sku || 'N/A');
             announcementDisplay = `
-                <strong>${escapeHtml(stock.product_name)}</strong><br>
-                <small class="text-muted">SKU: ${escapeHtml(stock.product_sku || 'N/A')}</small>
+                <strong>${productTitle}</strong><br>
+                <small class="text-muted">SKU: ${productSku}</small>
             `;
         } else {
             announcementDisplay = '<span class="text-muted">Sem identificação</span>';
         }
         
         // Preparar valores para os botões (garantir que sejam strings válidas)
-        const productName = String(stock.announcement_title || stock.product_name || 'Produto');
-        const announcementTitle = String(stock.announcement_title || stock.ml_item_id || '');
+        const productName = hideData ? 'Produto' : String(stock.announcement_title || stock.product_name || 'Produto');
+        const announcementTitle = hideData ? '' : String(stock.announcement_title || stock.ml_item_id || '');
         const productNameEscaped = JSON.stringify(productName);
         const announcementTitleEscaped = JSON.stringify(announcementTitle);
         

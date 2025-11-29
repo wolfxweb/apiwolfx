@@ -988,18 +988,26 @@ function renderProducts(products) {
         const statusText = product.status === 'active' ? 'Ativo' :
                           product.status === 'paused' ? 'Pausado' : 'Inativo';
         
+        const hideData = {{ 'true' if should_hide_product_data(user) else 'false' }};
+        const productTitle = hideData ? '****' : (product.title.substring(0, 60) + (product.title.length > 60 ? '...' : ''));
+        const productImage = hideData ? 
+            `<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="bi bi-lock text-muted"></i>
+            </div>` :
+            (product.thumbnail ? 
+                `<img src="${product.thumbnail}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">` :
+                `<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <i class="bi bi-image text-muted"></i>
+                </div>`
+            );
+        
         return `
             <tr>
                 <td>
                     <div class="d-flex align-items-center">
-                        ${product.thumbnail ? 
-                            `<img src="${product.thumbnail}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">` :
-                            `<div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                <i class="bi bi-image text-muted"></i>
-                            </div>`
-                        }
+                        ${productImage}
                         <div>
-                            <div class="fw-medium">${product.title.substring(0, 60)}${product.title.length > 60 ? '...' : ''}</div>
+                            <div class="fw-medium">${productTitle}</div>
                             <small class="text-muted">ID: ${product.ml_item_id}</small>
                         </div>
                     </div>

@@ -157,9 +157,9 @@
                                     <tr>
                                         <td>
                                             <div>
-                                                <strong>{{ item.item.title }}</strong>
+                                                <strong>{% if should_hide_product_data(user) %}****{% else %}{{ item.item.title }}{% endif %}</strong>
                                                 <br>
-                                                <small class="text-muted">SKU: {{ item.item.seller_sku if item.item.seller_sku else 'N/A' }}</small>
+                                                <small class="text-muted">SKU: {% if should_hide_product_data(user) %}****{% else %}{{ item.item.seller_sku if item.item.seller_sku else 'N/A' }}{% endif %}</small>
                                             </div>
                                         </td>
                                         <td>{{ item.quantity }}</td>
