@@ -129,14 +129,15 @@ def run_daily_full_sync():
     except Exception as e:
         print(f"❌ Erro na auto-sync meia-noite: {e}")
 
-# JOB 1: Sincronização rápida a cada 30 minutos (pedidos novos)
-scheduler.add_job(
-    func=run_recent_sync,
-    trigger=IntervalTrigger(minutes=30),
-    id='auto_sync_recent_orders',
-    name='Sincronização automática - Pedidos novos (30min)',
-    replace_existing=True
-)
+# JOB 1: Sincronização rápida a cada 30 minutos (pedidos novos) - DESABILITADO
+# Webhook orders_v2 mantém pedidos atualizados automaticamente
+# scheduler.add_job(
+#     func=run_recent_sync,
+#     trigger=IntervalTrigger(minutes=30),
+#     id='auto_sync_recent_orders',
+#     name='Sincronização automática - Pedidos novos (30min)',
+#     replace_existing=True
+# )
 
 # JOB 2: Sincronização completa à meia-noite (últimos 7 dias) - INATIVO
 # scheduler.add_job(
@@ -1102,20 +1103,23 @@ async def startup_event():
             print(f"⚠️ [STARTUP] Erro ao executar migrações automáticas: {e}")
             print("ℹ️ [STARTUP] Continuando inicialização...")
         
-        # Scheduler comentado - Webhook orders_v2 mantém pedidos atualizados automaticamente
-        # print(f"🔧 [STARTUP] Scheduler rodando antes: {scheduler.running}")
-        # if not scheduler.running:
-        #     print("🔧 [STARTUP] Iniciando scheduler...")
-        #     scheduler.start()
-        #     print(f"🔧 [STARTUP] Scheduler rodando depois: {scheduler.running}")
-        #     print(f"🔧 [STARTUP] Jobs ativos: {len(scheduler.get_jobs())}")
-        #     print("   📦 JOB 1: Pedidos novos - A cada 30 minutos")
-        #     print("   🌙 JOB 2: Últimos 7 dias completos - INATIVO")
-        #     print("   📊 JOB 3: Monitoramento de Catálogo - A cada 12 horas")
-        # else:
-        #     print("🔄 Scheduler já está rodando")
+        # Scheduler: Habilitar apenas para jobs que não dependem de webhook
+        # JOB 1 (sync pedidos): Desabilitado - Webhook orders_v2 mantém pedidos atualizados
+        # JOB 3 (catálogo): Habilitado - Monitoramento de catálogo
+        # JOB 4 (Asaas): Habilitado - Sincronização com Asaas
+        # JOB 5 (ML Cash): Habilitado - Processamento de lançamentos ML Cash
         
-        print("🔄 [STARTUP] Scheduler desabilitado - Webhook orders_v2 ativo")
+        print(f"🔧 [STARTUP] Scheduler rodando antes: {scheduler.running}")
+        if not scheduler.running:
+            print("🔧 [STARTUP] Iniciando scheduler...")
+            scheduler.start()
+            print(f"✅ [STARTUP] Scheduler iniciado")
+            print(f"📋 [STARTUP] Jobs ativos: {len(scheduler.get_jobs())}")
+            for job in scheduler.get_jobs():
+                next_run = job.next_run_time.strftime('%Y-%m-%d %H:%M:%S') if job.next_run_time else 'N/A'
+                print(f"   - {job.name} (ID: {job.id}) - Próxima execução: {next_run}")
+        else:
+            print("🔄 [STARTUP] Scheduler já está rodando")
         
         print("✅ [STARTUP] Aplicação inicializada com sucesso!")
         
