@@ -1,0 +1,508 @@
+{% extends "base.html" %}
+
+{% block title %}Recursos Humanos - Funcionários{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Padrão do Sistema -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-people"></i> Recursos Humanos</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEmployeeModal">
+                <i class="bi bi-plus-circle"></i> Novo Funcionário
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="hrTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="employees-tab" data-bs-toggle="tab" data-bs-target="#employees" type="button" role="tab">
+                <i class="bi bi-person"></i> Funcionários
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="payroll-tab" data-bs-toggle="tab" data-bs-target="#payroll" type="button" role="tab">
+                <i class="bi bi-cash-coin"></i> Folha de Pagamento
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="vacations-tab" data-bs-toggle="tab" data-bs-target="#vacations" type="button" role="tab">
+                <i class="bi bi-calendar-check"></i> Férias
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="benefits-tab" data-bs-toggle="tab" data-bs-target="#benefits" type="button" role="tab">
+                <i class="bi bi-gift"></i> Benefícios
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="hrTabsContent">
+        <!-- Tab: Funcionários -->
+        <div class="tab-pane fade show active" id="employees" role="tabpanel">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex gap-2">
+                            <select class="form-select form-select-sm" style="width: auto; max-width: 200px;" id="statusFilter" onchange="loadEmployees()">
+                                <option value="">Todos</option>
+                                <option value="active">Ativos</option>
+                                <option value="inactive">Inativos</option>
+                                <option value="on_leave">Afastados</option>
+                            </select>
+                            <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar funcionário..." style="width: 250px;" onkeyup="handleSearch()">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="employeesTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nome</th>
+                                    <th>CPF</th>
+                                    <th>Cargo</th>
+                                    <th>Departamento</th>
+                                    <th>Salário Base</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeesContainer">
+                                <tr>
+                                    <td colspan="8" class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Carregando funcionários...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Folha de Pagamento -->
+        <div class="tab-pane fade" id="payroll" role="tabpanel">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <p class="text-muted">Funcionalidade de Folha de Pagamento em desenvolvimento...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Férias -->
+        <div class="tab-pane fade" id="vacations" role="tabpanel">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <p class="text-muted">Funcionalidade de Férias em desenvolvimento...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Benefícios -->
+        <div class="tab-pane fade" id="benefits" role="tabpanel">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <p class="text-muted">Funcionalidade de Benefícios em desenvolvimento...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Criar Funcionário -->
+<div class="modal fade" id="createEmployeeModal" tabindex="-1" aria-labelledby="createEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createEmployeeModalLabel">Novo Funcionário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="createEmployeeForm" onsubmit="createEmployee(event)">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="nome_completo" class="form-label">Nome Completo <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="nome_completo" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="cpf" class="form-label">CPF <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="cpf" required placeholder="000.000.000-00">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="rg" class="form-label">RG</label>
+                            <input type="text" class="form-control" id="rg">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="data_nascimento" class="form-label">Data de Nascimento</label>
+                            <input type="date" class="form-control" id="data_nascimento">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="data_admissao" class="form-label">Data de Admissão <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="data_admissao" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="email" class="form-label">E-mail</label>
+                            <input type="email" class="form-control" id="email">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="telefone" class="form-label">Telefone</label>
+                            <input type="text" class="form-control" id="telefone" placeholder="(00) 00000-0000">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="cargo" class="form-label">Cargo</label>
+                            <input type="text" class="form-control" id="cargo">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="departamento" class="form-label">Departamento</label>
+                            <input type="text" class="form-control" id="departamento">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="salario_base" class="form-label">Salário Base <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="salario_base" step="0.01" min="0" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="tipo_contrato" class="form-label">Tipo de Contrato</label>
+                            <select class="form-select" id="tipo_contrato">
+                                <option value="clt">CLT</option>
+                                <option value="pj">PJ</option>
+                                <option value="estagio">Estágio</option>
+                                <option value="temporario">Temporário</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="carga_horaria" class="form-label">Carga Horária (horas/mês)</label>
+                            <input type="number" class="form-control" id="carga_horaria" value="220" min="0">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="financial_category_id" class="form-label">Categoria Financeira</label>
+                            <select class="form-select" id="financial_category_id">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="cost_center_id" class="form-label">Centro de Custo</label>
+                            <select class="form-select" id="cost_center_id">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="endereco" class="form-label">Endereço</label>
+                        <textarea class="form-control" id="endereco" rows="2"></textarea>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="mb-3">Conta de Usuário (Opcional)</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="user_email" class="form-label">E-mail para Login</label>
+                            <input type="email" class="form-control" id="user_email" placeholder="Deixe em branco se não criar conta">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="user_password" class="form-label">Senha</label>
+                            <input type="password" class="form-control" id="user_password" placeholder="Obrigatório se criar conta">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="user_role" class="form-label">Nível de Acesso</label>
+                            <select class="form-select" id="user_role">
+                                <option value="viewer">Visualizador</option>
+                                <option value="analyst">Analista</option>
+                                <option value="manager">Gerente</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let employees = [];
+let searchTimeout;
+
+// Carregar funcionários ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadEmployees();
+    loadFinancialCategories();
+    loadCostCenters();
+});
+
+// Carregar funcionários
+async function loadEmployees() {
+    const status = document.getElementById('statusFilter')?.value || '';
+    const search = document.getElementById('searchInput')?.value || '';
+    
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (search) params.append('search', search);
+    
+    const url = `/api/hr/employees${params.toString() ? '?' + params.toString() : ''}`;
+    
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            employees = data.employees || [];
+            renderEmployees();
+        } else {
+            showError('Erro ao carregar funcionários: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao carregar funcionários:', error);
+        showError('Erro ao carregar funcionários');
+    }
+}
+
+// Renderizar funcionários
+function renderEmployees() {
+    const container = document.getElementById('employeesContainer');
+    
+    if (employees.length === 0) {
+        container.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <h5 class="mt-3">Nenhum funcionário encontrado</h5>
+                    <p class="text-muted">Comece cadastrando seu primeiro funcionário.</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    let html = '';
+    employees.forEach(employee => {
+        const statusBadge = getStatusBadge(employee.status);
+        
+        html += `
+            <tr>
+                <td>#${employee.id}</td>
+                <td>${escapeHtml(employee.nome_completo || 'N/A')}</td>
+                <td>${escapeHtml(employee.cpf || 'N/A')}</td>
+                <td>${escapeHtml(employee.cargo || '-')}</td>
+                <td>${escapeHtml(employee.departamento || '-')}</td>
+                <td>R$ ${formatCurrency(employee.salario_base || 0)}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <a href="/hr/employee/${employee.id}" class="btn btn-sm btn-primary">
+                        <i class="bi bi-eye"></i> Ver
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Criar funcionário
+async function createEmployee(event) {
+    event.preventDefault();
+    
+    const userEmail = document.getElementById('user_email').value.trim();
+    const userPassword = document.getElementById('user_password').value.trim();
+    
+    if (userEmail && !userPassword) {
+        showError('Senha é obrigatória ao criar conta de usuário.');
+        return;
+    }
+    
+    const formData = {
+        nome_completo: document.getElementById('nome_completo').value.trim(),
+        cpf: document.getElementById('cpf').value.trim(),
+        rg: document.getElementById('rg').value.trim() || null,
+        data_nascimento: document.getElementById('data_nascimento').value || null,
+        data_admissao: document.getElementById('data_admissao').value,
+        email: document.getElementById('email').value.trim() || null,
+        telefone: document.getElementById('telefone').value.trim() || null,
+        cargo: document.getElementById('cargo').value.trim() || null,
+        departamento: document.getElementById('departamento').value.trim() || null,
+        salario_base: parseFloat(document.getElementById('salario_base').value),
+        tipo_contrato: document.getElementById('tipo_contrato').value,
+        carga_horaria: parseInt(document.getElementById('carga_horaria').value) || 220,
+        financial_category_id: document.getElementById('financial_category_id').value || null,
+        cost_center_id: document.getElementById('cost_center_id').value || null,
+        endereco: document.getElementById('endereco').value.trim() || null,
+        user_email: userEmail || null,
+        user_password: userPassword || null,
+        user_role: document.getElementById('user_role').value
+    };
+    
+    if (!formData.nome_completo || !formData.cpf || !formData.data_admissao || !formData.salario_base) {
+        showError('Por favor, preencha todos os campos obrigatórios.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/hr/employees', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Funcionário criado com sucesso!');
+            document.getElementById('createEmployeeForm').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createEmployeeModal'));
+            modal.hide();
+            loadEmployees();
+        } else {
+            showError('Erro ao criar funcionário: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao criar funcionário:', error);
+        showError('Erro ao criar funcionário');
+    }
+}
+
+// Buscar funcionários
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadEmployees();
+    }, 500);
+}
+
+// Carregar categorias financeiras
+async function loadFinancialCategories() {
+    try {
+        const response = await fetch('/api/financial/categories');
+        const data = await response.json();
+        
+        if (data.success && data.categories) {
+            const select = document.getElementById('financial_category_id');
+            data.categories.forEach(cat => {
+                if (cat.type === 'expense') {
+                    const option = document.createElement('option');
+                    option.value = cat.id;
+                    option.textContent = cat.name;
+                    select.appendChild(option);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao carregar categorias financeiras:', error);
+    }
+}
+
+// Carregar centros de custo
+async function loadCostCenters() {
+    try {
+        const response = await fetch('/api/financial/cost-centers');
+        const data = await response.json();
+        
+        if (data.success && data.cost_centers) {
+            const select = document.getElementById('cost_center_id');
+            data.cost_centers.forEach(cc => {
+                const option = document.createElement('option');
+                option.value = cc.id;
+                option.textContent = cc.name;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao carregar centros de custo:', error);
+    }
+}
+
+// Funções auxiliares
+function getStatusBadge(status) {
+    const badges = {
+        'active': '<span class="badge bg-success">Ativo</span>',
+        'inactive': '<span class="badge bg-secondary">Inativo</span>',
+        'on_leave': '<span class="badge bg-warning">Afastado</span>',
+        'terminated': '<span class="badge bg-danger">Demitido</span>'
+    };
+    return badges[status] || '<span class="badge bg-secondary">' + status + '</span>';
+}
+
+function formatCurrency(value) {
+    return parseFloat(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    const title = type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : type === 'warning' ? 'Atenção' : 'Info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+function showError(message) {
+    showToast(message, 'error');
+}
+
+function showSuccess(message) {
+    showToast(message, 'success');
+}
+</script>
+{% endblock %}
+

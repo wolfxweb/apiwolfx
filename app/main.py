@@ -42,6 +42,7 @@ from app.routes.stock_routes import stock_router
 from app.routes.stock_projection_routes import stock_projection_router
 from app.routes.internal_product_routes import internal_product_router
 from app.routes.support_routes import support_router
+from app.routes.hr_routes import hr_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -266,6 +267,16 @@ async def startup_event():
                         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'supportticketstatus') THEN
                             CREATE TYPE supportticketstatus AS ENUM ('open', 'in_progress', 'waiting_user', 'resolved', 'closed');
                         END IF;
+                        
+                        -- Criar/atualizar enum userrole se não existir
+                        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'userrole') THEN
+                            CREATE TYPE userrole AS ENUM ('super_admin', 'company_admin', 'manager', 'analyst', 'viewer');
+                        ELSE
+                            -- Se o enum já existe, adicionar valores que faltam
+                            IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'userrole') AND enumlabel = 'analyst') THEN
+                                ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'analyst';
+                            END IF;
+                        END IF;
                     END $$;
                 """)
                 db_enum.execute(create_enums_sql)
@@ -478,18 +489,30 @@ async def startup_event():
                         spec.loader.exec_module(module)
                         module.create_openai_assistants_tables()
                         print("✅ [STARTUP] Tabelas OpenAI Assistants verificadas/criadas")
-                        
-                        # Criar tabelas de suporte
-                        support_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                                                'database', 'fixes', 'create_support_tickets_tables.py')
-                        if os.path.exists(support_script_path):
-                            support_spec = importlib.util.spec_from_file_location("create_support_tickets_tables", support_script_path)
-                            support_module = importlib.util.module_from_spec(support_spec)
-                            support_spec.loader.exec_module(support_module)
-                            support_module.create_support_tickets_tables()
-                            print("✅ [STARTUP] Tabelas de suporte verificadas/criadas")
+                    
+                    # Criar tabelas de suporte
+                    support_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                            'database', 'fixes', 'create_support_tickets_tables.py')
+                    if os.path.exists(support_script_path):
+                        support_spec = importlib.util.spec_from_file_location("create_support_tickets_tables", support_script_path)
+                        support_module = importlib.util.module_from_spec(support_spec)
+                        support_spec.loader.exec_module(support_module)
+                        support_module.create_support_tickets_tables()
+                        print("✅ [STARTUP] Tabelas de suporte verificadas/criadas")
+                    
+                    # Criar tabelas de RH
+                    hr_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                            'database', 'fixes', 'create_hr_tables.py')
+                    if os.path.exists(hr_script_path):
+                        hr_spec = importlib.util.spec_from_file_location("create_hr_tables", hr_script_path)
+                        hr_module = importlib.util.module_from_spec(hr_spec)
+                        hr_spec.loader.exec_module(hr_module)
+                        hr_module.create_hr_tables()
+                        print("✅ [STARTUP] Tabelas de RH verificadas/criadas")
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Tabelas podem já existir: {e}")
+                finally:
+                    db.close()
  
                 # 1.0 Criar/garantir tabelas de Ferramentas reutilizáveis
                 try:
@@ -1105,6 +1128,7 @@ app.include_router(activity_router)  # Para /api/activity/summary
 app.include_router(openai_assistant_router)  # Para /api/openai/assistants
 app.include_router(openai_chat_router)  # Para /ai/chat (HTML)
 app.include_router(support_router)  # Para /support (HTML) e /api/support (API)
+app.include_router(hr_router)  # Para /hr (HTML) e /api/hr (API)
 app.include_router(tools_router)  # Para /api/openai/tools
 app.include_router(stock_router, prefix="/api")  # Para /api/stock (API)
 app.include_router(stock_projection_router, prefix="/api")  # Para /api/stock/projections

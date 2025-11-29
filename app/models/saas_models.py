@@ -180,7 +180,7 @@ class User(Base):
     last_login = Column(DateTime)
     
     # Roles e permissões
-    role = Column(Enum(UserRole), default=UserRole.VIEWER, index=True)
+    role = Column(Enum(UserRole, native_enum=False, length=20), default=UserRole.VIEWER, index=True)
     permissions = Column(JSON)  # Permissões específicas
     
     # Timestamps

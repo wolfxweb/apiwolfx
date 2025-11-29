@@ -1,0 +1,647 @@
+{% extends "base.html" %}
+
+{% block title %}Funcionário #{{ employee.id }} - RH{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-person"></i> Funcionário: {{ employee.nome_completo }}</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="/hr" class="btn btn-outline-secondary btn-sm me-2">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editEmployeeModal">
+                <i class="bi bi-pencil"></i> Editar
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="employeeTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab">
+                <i class="bi bi-info-circle"></i> Informações
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="permissions-tab" data-bs-toggle="tab" data-bs-target="#permissions" type="button" role="tab">
+                <i class="bi bi-shield-lock"></i> Permissões
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="payroll-tab" data-bs-toggle="tab" data-bs-target="#payroll" type="button" role="tab">
+                <i class="bi bi-cash-coin"></i> Folha de Pagamento
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="employeeTabsContent">
+        <!-- Tab: Informações -->
+        <div class="tab-pane fade show active" id="info" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Nome Completo</p>
+                            <p class="mb-0"><strong id="employeeNomeCompleto"></strong></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">CPF</p>
+                            <p class="mb-0" id="employeeCpf"></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">RG</p>
+                            <p class="mb-0" id="employeeRg"></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Status</p>
+                            <p class="mb-0" id="employeeStatus"></p>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">E-mail</p>
+                            <p class="mb-0" id="employeeEmail"></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Telefone</p>
+                            <p class="mb-0" id="employeeTelefone"></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Data de Nascimento</p>
+                            <p class="mb-0" id="employeeDataNascimento"></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Data de Admissão</p>
+                            <p class="mb-0" id="employeeDataAdmissao"></p>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Cargo</p>
+                            <p class="mb-0" id="employeeCargo"></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Departamento</p>
+                            <p class="mb-0" id="employeeDepartamento"></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Salário Base</p>
+                            <p class="mb-0" id="employeeSalarioBase"></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1 text-muted small">Tipo de Contrato</p>
+                            <p class="mb-0" id="employeeTipoContrato"></p>
+                        </div>
+                    </div>
+                    
+                    <div id="userAccountSection" style="display: none;">
+                        <hr>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <p class="mb-1 text-muted small">Conta de Usuário</p>
+                                <p class="mb-0"><span class="badge bg-success">Usuário criado</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-1 text-muted small">Nível de Acesso</p>
+                                <p class="mb-0" id="employeeRole"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Permissões -->
+        <div class="tab-pane fade" id="permissions" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <div id="noUserAccount" style="display: none;">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> Este funcionário não possui conta de usuário. 
+                            Crie uma conta na aba "Informações" (editar funcionário) para configurar permissões.
+                        </div>
+                    </div>
+                    <div id="permissionsContent">
+                        <p class="text-muted mb-4">Configure quais menus e funcionalidades este funcionário pode acessar.</p>
+                        <div id="permissionsList">
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Carregando permissões...</p>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <button type="button" class="btn btn-primary" onclick="savePermissions()" id="savePermissionsBtn" style="display: none;">
+                                <i class="bi bi-save"></i> Salvar Permissões
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Folha de Pagamento -->
+        <div class="tab-pane fade" id="payroll" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-muted">Histórico de folha de pagamento em desenvolvimento...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Funcionário -->
+<div class="modal fade" id="editEmployeeModal" tabindex="-1" aria-labelledby="editEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editEmployeeModalLabel">Editar Funcionário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editEmployeeForm" onsubmit="updateEmployee(event)">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_nome_completo" class="form-label">Nome Completo <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="edit_nome_completo" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_cpf" class="form-label">CPF <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="edit_cpf" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_rg" class="form-label">RG</label>
+                            <input type="text" class="form-control" id="edit_rg">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_data_nascimento" class="form-label">Data de Nascimento</label>
+                            <input type="date" class="form-control" id="edit_data_nascimento">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_data_admissao" class="form-label">Data de Admissão <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="edit_data_admissao" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_email" class="form-label">E-mail</label>
+                            <input type="email" class="form-control" id="edit_email">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_telefone" class="form-label">Telefone</label>
+                            <input type="text" class="form-control" id="edit_telefone">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_cargo" class="form-label">Cargo</label>
+                            <input type="text" class="form-control" id="edit_cargo">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_departamento" class="form-label">Departamento</label>
+                            <input type="text" class="form-control" id="edit_departamento">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_salario_base" class="form-label">Salário Base <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="edit_salario_base" step="0.01" min="0" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_tipo_contrato" class="form-label">Tipo de Contrato</label>
+                            <select class="form-select" id="edit_tipo_contrato">
+                                <option value="clt">CLT</option>
+                                <option value="pj">PJ</option>
+                                <option value="estagio">Estágio</option>
+                                <option value="temporario">Temporário</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_carga_horaria" class="form-label">Carga Horária (horas/mês)</label>
+                            <input type="number" class="form-control" id="edit_carga_horaria" value="220" min="0">
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="mb-3">Conta de Usuário</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_user_email" class="form-label">E-mail para Login</label>
+                            <input type="email" class="form-control" id="edit_user_email" placeholder="Deixe em branco se não criar conta">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_user_password" class="form-label">Senha</label>
+                            <input type="password" class="form-control" id="edit_user_password" placeholder="Deixe em branco para não alterar">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_user_role" class="form-label">Nível de Acesso</label>
+                            <select class="form-select" id="edit_user_role">
+                                <option value="viewer">Visualizador</option>
+                                <option value="analyst">Analista</option>
+                                <option value="manager">Gerente</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const employee = {{ employee | tojson }};
+let currentPermissions = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    renderEmployeeData();
+    // Sempre tentar carregar permissões quando a aba for clicada
+    const permissionsTab = document.getElementById('permissions-tab');
+    if (permissionsTab) {
+        permissionsTab.addEventListener('shown.bs.tab', function() {
+            loadPermissions();
+        });
+    }
+    // Carregar imediatamente se já estiver na aba de permissões
+    if (window.location.hash === '#permissions' || document.getElementById('permissions').classList.contains('active')) {
+        loadPermissions();
+    }
+});
+
+function renderEmployeeData() {
+    document.getElementById('employeeNomeCompleto').textContent = employee.nome_completo || 'N/A';
+    document.getElementById('employeeCpf').textContent = employee.cpf || 'N/A';
+    document.getElementById('employeeRg').textContent = employee.rg || '-';
+    document.getElementById('employeeStatus').innerHTML = getStatusBadge(employee.status);
+    document.getElementById('employeeEmail').textContent = employee.email || '-';
+    document.getElementById('employeeTelefone').textContent = employee.telefone || '-';
+    document.getElementById('employeeDataNascimento').textContent = employee.data_nascimento ? formatDate(employee.data_nascimento) : '-';
+    document.getElementById('employeeDataAdmissao').textContent = employee.data_admissao ? formatDate(employee.data_admissao) : '-';
+    document.getElementById('employeeCargo').textContent = employee.cargo || '-';
+    document.getElementById('employeeDepartamento').textContent = employee.departamento || '-';
+    document.getElementById('employeeSalarioBase').textContent = employee.salario_base ? 'R$ ' + formatCurrency(employee.salario_base) : '-';
+    document.getElementById('employeeTipoContrato').textContent = getContractTypeLabel(employee.tipo_contrato);
+    
+    // Preencher formulário de edição
+    document.getElementById('edit_nome_completo').value = employee.nome_completo || '';
+    document.getElementById('edit_cpf').value = employee.cpf || '';
+    document.getElementById('edit_rg').value = employee.rg || '';
+    document.getElementById('edit_data_nascimento').value = employee.data_nascimento || '';
+    document.getElementById('edit_data_admissao').value = employee.data_admissao || '';
+    document.getElementById('edit_email').value = employee.email || '';
+    document.getElementById('edit_telefone').value = employee.telefone || '';
+    document.getElementById('edit_cargo').value = employee.cargo || '';
+    document.getElementById('edit_departamento').value = employee.departamento || '';
+    document.getElementById('edit_salario_base').value = employee.salario_base || '';
+    document.getElementById('edit_tipo_contrato').value = employee.tipo_contrato || 'clt';
+    document.getElementById('edit_carga_horaria').value = employee.carga_horaria || 220;
+    
+    // Se tem user_id, mostrar seção de conta
+    if (employee.user_id) {
+        document.getElementById('userAccountSection').style.display = 'block';
+        document.getElementById('employeeRole').innerHTML = getRoleBadge(employee.user_role);
+        document.getElementById('edit_user_email').value = employee.user_email || '';
+        document.getElementById('edit_user_role').value = employee.user_role || 'viewer';
+    }
+}
+
+async function updateEmployee(event) {
+    event.preventDefault();
+    
+    const formData = {
+        nome_completo: document.getElementById('edit_nome_completo').value.trim(),
+        cpf: document.getElementById('edit_cpf').value.trim(),
+        rg: document.getElementById('edit_rg').value.trim() || null,
+        data_nascimento: document.getElementById('edit_data_nascimento').value || null,
+        data_admissao: document.getElementById('edit_data_admissao').value,
+        email: document.getElementById('edit_email').value.trim() || null,
+        telefone: document.getElementById('edit_telefone').value.trim() || null,
+        cargo: document.getElementById('edit_cargo').value.trim() || null,
+        departamento: document.getElementById('edit_departamento').value.trim() || null,
+        salario_base: parseFloat(document.getElementById('edit_salario_base').value),
+        tipo_contrato: document.getElementById('edit_tipo_contrato').value,
+        carga_horaria: parseInt(document.getElementById('edit_carga_horaria').value) || 220,
+        user_email: document.getElementById('edit_user_email').value.trim() || null,
+        user_password: document.getElementById('edit_user_password').value.trim() || null,
+        user_role: document.getElementById('edit_user_role').value
+    };
+    
+    try {
+        const response = await fetch(`/api/hr/employees/${employee.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Funcionário atualizado com sucesso!');
+            location.reload();
+        } else {
+            showError('Erro ao atualizar funcionário: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar funcionário:', error);
+        showError('Erro ao atualizar funcionário');
+    }
+}
+
+async function loadPermissions() {
+    if (!employee.user_id) {
+        document.getElementById('noUserAccount').style.display = 'block';
+        document.getElementById('permissionsContent').style.display = 'none';
+        document.getElementById('savePermissionsBtn').style.display = 'none';
+        return;
+    }
+    
+    document.getElementById('noUserAccount').style.display = 'none';
+    document.getElementById('permissionsContent').style.display = 'block';
+    
+    // Mostrar loading
+    document.getElementById('permissionsList').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p class="mt-2 text-muted">Carregando permissões...</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch(`/api/hr/employees/${employee.id}/permissions`);
+        const data = await response.json();
+        
+        if (data.success) {
+            currentPermissions = data.permissions || [];
+            renderPermissions();
+            document.getElementById('savePermissionsBtn').style.display = 'block';
+        } else {
+            // Se não houver permissões, renderizar com todas desmarcadas
+            currentPermissions = [];
+            renderPermissions();
+            document.getElementById('savePermissionsBtn').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar permissões:', error);
+        document.getElementById('permissionsList').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-circle"></i> Erro ao carregar permissões. Tente novamente.
+            </div>
+        `;
+    }
+}
+
+function renderPermissions() {
+    const menus = {
+        'cadastros': {
+            name: 'Cadastros',
+            submenus: ['produtos', 'estoque', 'fornecedores', 'ordem-compra', 'empresa']
+        },
+        'ml': {
+            name: 'Mercado Livre',
+            submenus: ['dashboard', 'anuncios', 'pedidos', 'publicidade', 'mais-vendidos', 'contas']
+        },
+        'financeiro': {
+            name: 'Financeiro',
+            submenus: ['dashboard', 'contas-receber', 'contas-pagar', 'fluxo-caixa', 'categorias', 'centros-custo', 'contas-bancarias', 'planejamento']
+        },
+        'atendimento': {
+            name: 'Atendimento',
+            submenus: ['perguntas', 'pos-venda']
+        },
+        'ia': {
+            name: 'IA Insights',
+            submenus: []
+        },
+        'suporte': {
+            name: 'Suporte',
+            submenus: []
+        }
+    };
+    
+    let html = '';
+    for (const [menuKey, menuData] of Object.entries(menus)) {
+        const menuPerm = currentPermissions.find(p => p.menu_name === menuKey && !p.submenu_name);
+        // Se não há permissão definida, considerar como false (sem acesso)
+        const hasMenuAccess = menuPerm ? menuPerm.has_access : false;
+        
+        html += `
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <div class="form-check">
+                        <input class="form-check-input menu-checkbox" type="checkbox" 
+                               id="menu_${menuKey}" 
+                               data-menu="${menuKey}"
+                               ${hasMenuAccess ? 'checked' : ''}
+                               onchange="toggleMenu('${menuKey}')">
+                        <label class="form-check-label fw-bold" for="menu_${menuKey}" style="cursor: pointer;">
+                            <i class="bi bi-folder"></i> ${menuData.name}
+                        </label>
+                    </div>
+                </div>
+                <div class="card-body">
+                    ${menuData.submenus.length > 0 ? menuData.submenus.map(submenu => {
+                        const submenuPerm = currentPermissions.find(p => p.menu_name === menuKey && p.submenu_name === submenu);
+                        // Se não há permissão específica, usar a do menu pai
+                        const hasSubmenuAccess = submenuPerm ? submenuPerm.has_access : hasMenuAccess;
+                        return `
+                            <div class="form-check ms-4 mb-2">
+                                <input class="form-check-input submenu-checkbox" type="checkbox" 
+                                       id="submenu_${menuKey}_${submenu}" 
+                                       data-menu="${menuKey}"
+                                       data-submenu="${submenu}"
+                                       ${hasSubmenuAccess ? 'checked' : ''}
+                                       ${!hasMenuAccess ? 'disabled' : ''}
+                                       onchange="updateSubmenuState('${menuKey}', '${submenu}')">
+                                <label class="form-check-label" for="submenu_${menuKey}_${submenu}" style="cursor: pointer;">
+                                    ${submenu.charAt(0).toUpperCase() + submenu.slice(1).replace(/-/g, ' ')}
+                                </label>
+                            </div>
+                        `;
+                    }).join('') : '<p class="text-muted mb-0 ms-4"><small>Sem submenus</small></p>'}
+                </div>
+            </div>
+        `;
+    }
+    
+    document.getElementById('permissionsList').innerHTML = html;
+}
+
+function updateSubmenuState(menuKey, submenu) {
+    // Esta função é chamada quando um submenu é marcado/desmarcado
+    // Pode ser usada para lógica adicional se necessário
+}
+
+function toggleMenu(menuKey) {
+    const menuCheckbox = document.getElementById(`menu_${menuKey}`);
+    const submenus = document.querySelectorAll(`.submenu-checkbox[data-menu="${menuKey}"]`);
+    
+    submenus.forEach(submenu => {
+        submenu.disabled = !menuCheckbox.checked;
+        if (!menuCheckbox.checked) {
+            submenu.checked = false;
+        }
+    });
+}
+
+async function savePermissions() {
+    const permissions = [];
+    
+    // Coletar permissões de menus
+    document.querySelectorAll('.menu-checkbox').forEach(checkbox => {
+        const menuKey = checkbox.dataset.menu;
+        permissions.push({
+            menu_name: menuKey,
+            submenu_name: null,
+            has_access: checkbox.checked
+        });
+    });
+    
+    // Coletar permissões de submenus
+    document.querySelectorAll('.submenu-checkbox:not(:disabled)').forEach(checkbox => {
+        permissions.push({
+            menu_name: checkbox.dataset.menu,
+            submenu_name: checkbox.dataset.submenu,
+            has_access: checkbox.checked
+        });
+    });
+    
+    try {
+        const response = await fetch(`/api/hr/employees/${employee.id}/permissions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ permissions })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Permissões salvas com sucesso!');
+            currentPermissions = permissions;
+        } else {
+            showError('Erro ao salvar permissões: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao salvar permissões:', error);
+        showError('Erro ao salvar permissões');
+    }
+}
+
+// Funções auxiliares
+function getStatusBadge(status) {
+    const badges = {
+        'active': '<span class="badge bg-success">Ativo</span>',
+        'inactive': '<span class="badge bg-secondary">Inativo</span>',
+        'on_leave': '<span class="badge bg-warning">Afastado</span>',
+        'terminated': '<span class="badge bg-danger">Demitido</span>'
+    };
+    return badges[status] || '<span class="badge bg-secondary">' + status + '</span>';
+}
+
+function getRoleBadge(role) {
+    const badges = {
+        'viewer': '<span class="badge bg-info">Visualizador</span>',
+        'analyst': '<span class="badge bg-primary">Analista</span>',
+        'manager': '<span class="badge bg-warning">Gerente</span>',
+        'company_admin': '<span class="badge bg-success">Administrador</span>',
+        'super_admin': '<span class="badge bg-danger">Super Admin</span>'
+    };
+    return badges[role] || '<span class="badge bg-secondary">' + role + '</span>';
+}
+
+function getContractTypeLabel(type) {
+    const labels = {
+        'clt': 'CLT',
+        'pj': 'PJ',
+        'estagio': 'Estágio',
+        'temporario': 'Temporário'
+    };
+    return labels[type] || type;
+}
+
+function formatCurrency(value) {
+    return parseFloat(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-BR');
+}
+
+function showToast(message, type = 'info') {
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    const title = type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : type === 'warning' ? 'Atenção' : 'Info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+function showError(message) {
+    showToast(message, 'error');
+}
+
+function showSuccess(message) {
+    showToast(message, 'success');
+}
+</script>
+{% endblock %}
+

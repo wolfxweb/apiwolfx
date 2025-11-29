@@ -255,6 +255,9 @@
                             <li><a class="dropdown-item" href="/fornecedores"><i class="bi bi-truck"></i> Fornecedores</a></li>
                             <li><a class="dropdown-item" href="/ordem-compra"><i class="bi bi-file-earmark-text"></i> Ordem de Compra</a></li>
                             <li><a class="dropdown-item" href="/auth/company/edit"><i class="bi bi-building"></i> Empresa</a></li>
+                            {% if user and (user.role == 'company_admin' or user.role == 'super_admin') %}
+                            <li><a class="dropdown-item" href="/hr"><i class="bi bi-people"></i> RH</a></li>
+                            {% endif %}
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
