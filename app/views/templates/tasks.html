@@ -52,26 +52,12 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label for="categoryFilter" class="form-label">Categoria</label>
-                    <select class="form-select" id="categoryFilter" onchange="loadTasks()">
-                        <option value="">Todas</option>
-                        <option value="vendas">Vendas</option>
-                        <option value="suporte">Suporte</option>
-                        <option value="desenvolvimento">Desenvolvimento</option>
-                        <option value="marketing">Marketing</option>
-                        <option value="financeiro">Financeiro</option>
-                        <option value="rh">RH</option>
-                        <option value="operacional">Operacional</option>
-                        <option value="outro">Outro</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
                     <label for="assignedToFilter" class="form-label">Atribuído a</label>
                     <select class="form-select" id="assignedToFilter" onchange="loadTasks()">
                         <option value="">Todos</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <label for="searchInput" class="form-label">Buscar</label>
                     <input type="text" class="form-control" id="searchInput" placeholder="Título ou descrição..." onkeyup="handleSearch()">
                 </div>
@@ -87,19 +73,17 @@
                     <thead class="table-dark">
                         <tr>
                             <th style="width: 25%;">Título</th>
-                            <th style="width: 100px;">Status</th>
-                            <th style="width: 120px;">Categoria</th>
-                            <th style="width: 100px;">Prioridade</th>
-                            <th style="width: 120px;">Atribuído a</th>
-                            <th style="width: 120px;">Criado por</th>
-                            <th style="width: 130px;">Data de Vencimento</th>
                             <th style="width: 15%;">Produto</th>
+                            <th style="width: 120px;">Atribuído a</th>
+                            <th style="width: 130px;">Data de Vencimento</th>
+                            <th style="width: 100px;">Prioridade</th>
+                            <th style="width: 100px;">Status</th>
                             <th style="width: 100px;">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="tasksContainer">
                         <tr>
-                            <td colspan="9" class="text-center py-5">
+                            <td colspan="7" class="text-center py-5">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Carregando...</span>
                                 </div>
@@ -298,13 +282,11 @@ async function loadTasks() {
     }
     
     const status = document.getElementById('statusFilter').value;
-    const category = document.getElementById('categoryFilter').value;
     const assignedTo = document.getElementById('assignedToFilter').value;
     const search = document.getElementById('searchInput').value;
     
     const params = new URLSearchParams();
     if (status) params.append('status', status);
-    if (category) params.append('category', category);
     if (assignedTo) params.append('assigned_to', assignedTo);
     if (search) params.append('search', search);
     
@@ -354,7 +336,7 @@ function renderTasksOriginal() {
     if (allTasks.length === 0) {
         container.innerHTML = `
             <tr>
-                <td colspan="9" class="text-center py-5 text-muted">
+                <td colspan="7" class="text-center py-5 text-muted">
                     Nenhuma tarefa encontrada
                 </td>
             </tr>
@@ -385,13 +367,11 @@ function renderTasksOriginal() {
         return `
             <tr class="${rowClass}">
                 <td>${escapeHtml(task.title)}</td>
-                <td>${getStatusBadge(task.status)}</td>
-                <td>${task.category ? escapeHtml(task.category) : '-'}</td>
-                <td>${getPriorityBadge(task.priority)}</td>
-                <td>${task.assignee_name || '-'}</td>
-                <td>${task.creator_name || '-'}</td>
-                <td>${formatDate(task.due_date)}</td>
                 <td>${task.product_name ? escapeHtml(task.product_name) : '-'}</td>
+                <td>${task.assignee_name || '-'}</td>
+                <td>${formatDate(task.due_date)}</td>
+                <td>${getPriorityBadge(task.priority)}</td>
+                <td>${getStatusBadge(task.status)}</td>
                 <td>
                     <div class="btn-group" role="group">
                         <a href="/tasks/${task.id}" class="btn btn-sm btn-outline-primary" title="Ver tarefa">
