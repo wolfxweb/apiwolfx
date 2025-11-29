@@ -5,15 +5,15 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, date
 from decimal import Decimal
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, desc, func
 from app.models.hr_models import (
     Employee, Payroll, PayrollItem, EmployeeVacation, EmployeeBenefit,
     EmployeeStatus, PayrollStatus, VacationStatus
 )
 from app.models.saas_models import User, UserRole
+from app.models.financial_models import FinancialCategory, CostCenter
 from app.controllers.auth_controller import AuthController
-# FinancialCategory e CostCenter serão importados quando necessário
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,10 @@ class HRService:
     def get_employee(self, employee_id: int, company_id: int) -> Dict[str, Any]:
         """Obtém um funcionário específico"""
         try:
-            employee = self.db.query(Employee).filter(
+            employee = self.db.query(Employee).options(
+                joinedload(Employee.financial_category),
+                joinedload(Employee.cost_center)
+            ).filter(
                 and_(
                     Employee.id == employee_id,
                     Employee.company_id == company_id
@@ -210,18 +213,20 @@ class HRService:
             # Atualizar status do funcionário
             if status is not None:
                 employee.status = status
-                # Sincronizar status com usuário
+                # Sincronizar status com usuário - IMPORTANTE: inativar usuário na tabela users
                 if employee.user_id:
                     user = self.db.query(User).filter(User.id == employee.user_id).first()
                     if user:
-                        # Se funcionário inativo, inativar usuário também
+                        # Se funcionário inativo ou demitido, inativar usuário também (perde acesso ao sistema)
                         if status in ['inactive', 'terminated']:
                             user.is_active = False
-                            logger.info(f"✅ Usuário inativado junto com funcionário: User ID={user.id}")
+                            logger.info(f"✅ Usuário inativado na tabela users (sem acesso ao sistema): User ID={user.id}, Email={user.email}")
                         # Se funcionário ativo, reativar usuário também
                         elif status == 'active':
                             user.is_active = True
-                            logger.info(f"✅ Usuário reativado junto com funcionário: User ID={user.id}")
+                            logger.info(f"✅ Usuário reativado na tabela users (com acesso ao sistema): User ID={user.id}, Email={user.email}")
+                else:
+                    logger.warning(f"⚠️ Funcionário ID={employee_id} não possui user_id vinculado, não é possível inativar usuário")
             
             # Gerenciar conta de usuário
             if user_email:
@@ -664,6 +669,8 @@ class HRService:
             "carga_horaria": employee.carga_horaria,
             "financial_category_id": employee.financial_category_id,
             "cost_center_id": employee.cost_center_id,
+            "financial_category_name": employee.financial_category.name if hasattr(employee, 'financial_category') and employee.financial_category else None,
+            "cost_center_name": employee.cost_center.name if hasattr(employee, 'cost_center') and employee.cost_center else None,
             "user_email": user_email,
             "user_role": user_role,
             "created_at": employee.created_at.isoformat() if employee.created_at else None,

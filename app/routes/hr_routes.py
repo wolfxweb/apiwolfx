@@ -235,10 +235,11 @@ async def update_employee_api(
             content={"success": False, "error": "Company ID não encontrado"}
         )
     
-    # Extrair campos de usuário
+    # Extrair campos de usuário e status
     user_email = employee_data.pop("user_email", None)
     user_password = employee_data.pop("user_password", None)
     user_role = employee_data.pop("user_role", None)
+    status = employee_data.pop("status", None)
     
     # Converter datas se fornecidas
     if employee_data.get("data_admissao"):
@@ -254,6 +255,17 @@ async def update_employee_api(
     if employee_data.get("salario_base"):
         employee_data["salario_base"] = Decimal(str(employee_data["salario_base"]))
     
+    # Converter financial_category_id e cost_center_id (strings vazias para None)
+    if employee_data.get("financial_category_id") == "" or employee_data.get("financial_category_id") is None:
+        employee_data["financial_category_id"] = None
+    elif employee_data.get("financial_category_id"):
+        employee_data["financial_category_id"] = int(employee_data["financial_category_id"])
+    
+    if employee_data.get("cost_center_id") == "" or employee_data.get("cost_center_id") is None:
+        employee_data["cost_center_id"] = None
+    elif employee_data.get("cost_center_id"):
+        employee_data["cost_center_id"] = int(employee_data["cost_center_id"])
+    
     controller = HRController(db)
     result = controller.update_employee(
         employee_id=employee_id,
@@ -261,6 +273,7 @@ async def update_employee_api(
         user_email=user_email,
         user_password=user_password,
         user_role=user_role,
+        status=status,
         **employee_data
     )
     
