@@ -1,7 +1,6 @@
 """Rotas completas para publicidade"""
 from fastapi import APIRouter, Depends, HTTPException, Request, Cookie, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.controllers.advertising_full_controller import AdvertisingFullController
@@ -9,7 +8,8 @@ from app.controllers.auth_controller import AuthController
 from app.models.saas_models import User
 from typing import Optional
 
-templates = Jinja2Templates(directory="app/views/templates")
+# Usar templates do template_renderer para ter acesso a has_menu_permission
+from app.views.template_renderer import templates
 
 def get_current_user_or_redirect(request: Request, db: Session = Depends(get_db), allow_profile: bool = False):
     """

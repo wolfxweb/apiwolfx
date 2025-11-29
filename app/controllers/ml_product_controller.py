@@ -19,14 +19,13 @@ from app.models.saas_models import (
 )
 from app.services.ml_product_service import MLProductService
 from app.services.token_manager import TokenManager
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import requests
 import mimetypes
 import time
 
-# Configurar templates com Jinja2 nativo
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "views" / "templates")
+# Usar templates do template_renderer para ter acesso a has_menu_permission
+from app.views.template_renderer import templates
 
 logger = logging.getLogger(__name__)
 
@@ -360,18 +359,10 @@ class MLProductController:
                 ).all()
             
             if not ml_accounts:
-                return templates.TemplateResponse('ml_products.html', {
-                    "request": request,
-                    "user": user_data,
-                    "ml_accounts": [],
-                    "products": [],
-                    "total_products": 0,
-                    "current_account": None,
-                    "current_status": status,
-                    "page": page,
-                    "limit": limit,
-                    "error": 'Nenhuma conta ML ativa encontrada'
-                })
+                from app.views.template_renderer import render_template
+                return render_template('ml_products.html', request=request, user=user_data,
+                    ml_accounts=[], products=[], total_products=0, current_account=None,
+                    current_status=status, page=page, limit=limit, error='Nenhuma conta ML ativa encontrada')
             
             # Se não especificou conta, usar a primeira
             if not ml_account_id:

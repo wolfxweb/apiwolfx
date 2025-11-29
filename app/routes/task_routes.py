@@ -3,17 +3,15 @@ Rotas para sistema de Tarefas e Atividades
 """
 from fastapi import APIRouter, Depends, Request, Cookie, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.controllers.task_controller import TaskController
 from app.controllers.auth_controller import AuthController
-from app.views.template_renderer import render_template
+from app.views.template_renderer import render_template, templates
 from typing import Optional
 from datetime import date
 
 task_router = APIRouter()
-templates = Jinja2Templates(directory="app/views/templates")
 
 
 def get_current_user_or_redirect(session_token: Optional[str], db: Session):

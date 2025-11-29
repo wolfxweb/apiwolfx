@@ -3462,10 +3462,16 @@ async def get_expenses_filters(
         
         # Próximos 6 meses
         for i in range(1, 7):
+            # Usar primeiro dia do mês para evitar erro de "day is out of range"
             if today.month + i > 12:
-                month_date = today.replace(year=today.year + 1, month=today.month + i - 12)
+                # Próximo ano
+                next_year = today.year + 1
+                next_month = today.month + i - 12
             else:
-                month_date = today.replace(month=today.month + i)
+                next_year = today.year
+                next_month = today.month + i
+            # Usar dia 1 para evitar problemas com meses que têm menos dias
+            month_date = datetime(next_year, next_month, 1)
             month_key = month_date.strftime('%m/%Y')
             month_list.append(month_key)
         
@@ -3632,10 +3638,16 @@ async def get_revenues_filters(
         
         # Próximos 6 meses
         for i in range(1, 7):
+            # Usar primeiro dia do mês para evitar erro de "day is out of range"
             if today.month + i > 12:
-                month_date = today.replace(year=today.year + 1, month=today.month + i - 12)
+                # Próximo ano
+                next_year = today.year + 1
+                next_month = today.month + i - 12
             else:
-                month_date = today.replace(month=today.month + i)
+                next_year = today.year
+                next_month = today.month + i
+            # Usar dia 1 para evitar problemas com meses que têm menos dias
+            month_date = datetime(next_year, next_month, 1)
             month_list.append(month_date.strftime('%m/%Y'))
         
         return {

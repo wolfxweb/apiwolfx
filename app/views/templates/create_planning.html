@@ -4,11 +4,11 @@
 
 {% block content %}
 <style>
-/* Estilo customizado para accordion ativo */
+/* Estilo customizado para accordion ativo - cor verde do sistema */
 .accordion-button:not(.collapsed) {
-    background-color: #000000 !important;
+    background-color: #02C47C !important;
     color: #ffffff !important;
-    border-color: #000000 !important;
+    border-color: #02C47C !important;
 }
 
 .accordion-button:not(.collapsed)::after {
@@ -16,12 +16,13 @@
 }
 
 .accordion-button:focus {
-    box-shadow: 0 0 0 0.25rem rgba(0, 0, 0, 0.25);
+    box-shadow: 0 0 0 0.25rem rgba(2, 196, 124, 0.25);
 }
 
-.accordion-button:hover {
-    background-color: #333333 !important;
+.accordion-button:hover:not(.collapsed) {
+    background-color: #00A86B !important;
     color: #ffffff !important;
+    border-color: #00A86B !important;
 }
 </style>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
