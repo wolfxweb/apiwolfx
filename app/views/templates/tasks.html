@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}Tarefas e Atividades{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Abas não selecionadas com texto verde do sistema */
+    .nav-tabs .nav-link:not(.active) {
+        color: #02C47C !important;
+    }
+    
+    .nav-tabs .nav-link:not(.active):hover {
+        color: #00A86B !important;
+    }
+    
+    /* Indicador visual para tarefas vencidas */
+    .task-overdue {
+        background-color: #fff3cd !important;
+    }
+    
+    .task-due-today {
+        background-color: #ffeaa7 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Padrão do Sistema -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-list-check"></i> Tarefas e Atividades</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+                <i class="bi bi-plus-circle"></i> Nova Tarefa
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="statusFilter" class="form-label">Status</label>
+                    <select class="form-select" id="statusFilter" onchange="loadTasks()">
+                        <option value="">Todos</option>
+                        <option value="pending">Pendente</option>
+                        <option value="in_progress">Em Andamento</option>
+                        <option value="waiting">Aguardando</option>
+                        <option value="completed">Concluída</option>
+                        <option value="cancelled">Cancelada</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="categoryFilter" class="form-label">Categoria</label>
+                    <select class="form-select" id="categoryFilter" onchange="loadTasks()">
+                        <option value="">Todas</option>
+                        <option value="vendas">Vendas</option>
+                        <option value="suporte">Suporte</option>
+                        <option value="desenvolvimento">Desenvolvimento</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="financeiro">Financeiro</option>
+                        <option value="rh">RH</option>
+                        <option value="operacional">Operacional</option>
+                        <option value="outro">Outro</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="assignedToFilter" class="form-label">Atribuído a</label>
+                    <select class="form-select" id="assignedToFilter" onchange="loadTasks()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="searchInput" class="form-label">Buscar</label>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Título ou descrição..." onkeyup="handleSearch()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Tarefas -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="tasksTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Título</th>
+                            <th>Status</th>
+                            <th>Categoria</th>
+                            <th>Prioridade</th>
+                            <th>Atribuído a</th>
+                            <th>Criado por</th>
+                            <th>Data de Vencimento</th>
+                            <th>Produto</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasksContainer">
+                        <tr>
+                            <td colspan="10" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Carregando tarefas...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Criar Tarefa -->
+<div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createTaskModalLabel">Nova Tarefa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="createTaskForm" onsubmit="createTask(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="taskTitle" class="form-label">Título <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="taskTitle" required placeholder="Digite o título da tarefa">
+                    </div>
+                    <div class="mb-3">
+                        <label for="taskDescription" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="taskDescription" rows="4" placeholder="Descreva o que deve ser feito..."></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="taskCategory" class="form-label">Categoria</label>
+                            <select class="form-select" id="taskCategory">
+                                <option value="">Selecione...</option>
+                                <option value="vendas">Vendas</option>
+                                <option value="suporte">Suporte</option>
+                                <option value="desenvolvimento">Desenvolvimento</option>
+                                <option value="marketing">Marketing</option>
+                                <option value="financeiro">Financeiro</option>
+                                <option value="rh">RH</option>
+                                <option value="operacional">Operacional</option>
+                                <option value="outro">Outro</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="taskPriority" class="form-label">Prioridade</label>
+                            <select class="form-select" id="taskPriority">
+                                <option value="low">Baixa</option>
+                                <option value="medium" selected>Média</option>
+                                <option value="high">Alta</option>
+                                <option value="urgent">Urgente</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="taskDueDate" class="form-label">Data de Vencimento <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="taskDueDate" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="taskAssignedTo" class="form-label">Atribuído a</label>
+                            <select class="form-select" id="taskAssignedTo">
+                                <option value="">Ninguém</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="taskProduct" class="form-label">Produto Associado (Opcional)</label>
+                        <select class="form-select" id="taskProduct">
+                            <option value="">Nenhum</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar Tarefa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let allTasks = [];
+let searchTimeout;
+
+// Obter token de sessão
+function getSessionToken() {
+    return document.cookie.split('; ').find(row => row.startsWith('session_token='))?.split('=')[1] || null;
+}
+
+// Carregar usuários da empresa
+async function loadCompanyUsers() {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) return;
+    
+    try {
+        const response = await fetch('/api/tasks/users/list', {
+            headers: {
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.users) {
+                const assignedToSelect = document.getElementById('taskAssignedTo');
+                const assignedToFilter = document.getElementById('assignedToFilter');
+                
+                // Limpar selects
+                assignedToSelect.innerHTML = '<option value="">Ninguém</option>';
+                assignedToFilter.innerHTML = '<option value="">Todos</option>';
+                
+                // Popular selects
+                data.users.forEach(user => {
+                    const option1 = document.createElement('option');
+                    option1.value = user.id;
+                    option1.textContent = user.name;
+                    assignedToSelect.appendChild(option1);
+                    
+                    const option2 = document.createElement('option');
+                    option2.value = user.id;
+                    option2.textContent = user.name;
+                    assignedToFilter.appendChild(option2);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar usuários:', error);
+    }
+}
+
+// Carregar produtos internos
+async function loadInternalProducts() {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) return;
+    
+    try {
+        const response = await fetch('/api/internal-products/list?limit=10000&offset=0', {
+            headers: {
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.products) {
+                const productSelect = document.getElementById('taskProduct');
+                productSelect.innerHTML = '<option value="">Nenhum</option>';
+                
+                data.products.forEach(product => {
+                    const option = document.createElement('option');
+                    option.value = product.id;
+                    option.textContent = product.name;
+                    productSelect.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar produtos:', error);
+    }
+}
+
+// Carregar tarefas
+async function loadTasks() {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+        window.location.href = '/auth/login';
+        return;
+    }
+    
+    const status = document.getElementById('statusFilter').value;
+    const category = document.getElementById('categoryFilter').value;
+    const assignedTo = document.getElementById('assignedToFilter').value;
+    const search = document.getElementById('searchInput').value;
+    
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (category) params.append('category', category);
+    if (assignedTo) params.append('assigned_to', assignedTo);
+    if (search) params.append('search', search);
+    
+    try {
+        const response = await fetch(`/api/tasks?${params.toString()}`, {
+            headers: {
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            allTasks = data.tasks || [];
+            renderTasks();
+        } else {
+            showError('Erro ao carregar tarefas: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao carregar tarefas:', error);
+        showError('Erro ao carregar tarefas');
+    }
+}
+
+// Renderizar tarefas
+function renderTasks() {
+    const container = document.getElementById('tasksContainer');
+    
+    if (allTasks.length === 0) {
+        container.innerHTML = `
+            <tr>
+                <td colspan="10" class="text-center py-5 text-muted">
+                    Nenhuma tarefa encontrada
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    container.innerHTML = allTasks.map(task => {
+        const dueDate = new Date(task.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        let rowClass = '';
+        if (task.status !== 'completed' && task.status !== 'cancelled') {
+            if (dueDate < today) {
+                rowClass = 'task-overdue';
+            } else if (dueDate.getTime() === today.getTime()) {
+                rowClass = 'task-due-today';
+            }
+        }
+        
+        return `
+            <tr class="${rowClass}">
+                <td>${task.id}</td>
+                <td>${escapeHtml(task.title)}</td>
+                <td>${getStatusBadge(task.status)}</td>
+                <td>${task.category ? escapeHtml(task.category) : '-'}</td>
+                <td>${getPriorityBadge(task.priority)}</td>
+                <td>${task.assignee_name || '-'}</td>
+                <td>${task.creator_name || '-'}</td>
+                <td>${formatDate(task.due_date)}</td>
+                <td>${task.product_name ? escapeHtml(task.product_name) : '-'}</td>
+                <td>
+                    <a href="/tasks/${task.id}" class="btn btn-sm btn-outline-primary" title="Ver tarefa">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Criar tarefa
+async function createTask(event) {
+    event.preventDefault();
+    
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+        window.location.href = '/auth/login';
+        return;
+    }
+    
+    const taskData = {
+        title: document.getElementById('taskTitle').value,
+        description: document.getElementById('taskDescription').value,
+        category: document.getElementById('taskCategory').value || null,
+        priority: document.getElementById('taskPriority').value,
+        due_date: document.getElementById('taskDueDate').value,
+        assigned_to: document.getElementById('taskAssignedTo').value || null,
+        product_id: document.getElementById('taskProduct').value || null,
+        status: 'pending'
+    };
+    
+    try {
+        const response = await fetch('/api/tasks', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include',
+            body: JSON.stringify(taskData)
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Tarefa criada com sucesso!');
+            document.getElementById('createTaskForm').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createTaskModal'));
+            modal.hide();
+            loadTasks();
+        } else {
+            showError('Erro ao criar tarefa: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao criar tarefa:', error);
+        showError('Erro ao criar tarefa');
+    }
+}
+
+// Busca com debounce
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadTasks();
+    }, 500);
+}
+
+// Helpers
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge bg-secondary">Pendente</span>',
+        'in_progress': '<span class="badge bg-primary">Em Andamento</span>',
+        'waiting': '<span class="badge bg-warning">Aguardando</span>',
+        'completed': '<span class="badge bg-success">Concluída</span>',
+        'cancelled': '<span class="badge bg-danger">Cancelada</span>'
+    };
+    return badges[status] || status;
+}
+
+function getPriorityBadge(priority) {
+    const badges = {
+        'low': '<span class="badge bg-info">Baixa</span>',
+        'medium': '<span class="badge bg-warning">Média</span>',
+        'high': '<span class="badge bg-orange">Alta</span>',
+        'urgent': '<span class="badge bg-danger">Urgente</span>'
+    };
+    return badges[priority] || priority;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showSuccess(message) {
+    showToast(message, 'success');
+}
+
+function showError(message) {
+    showToast(message, 'danger');
+}
+
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = 'toast align-items-center text-white bg-' + type + ' border-0';
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${escapeHtml(message)}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    toast.addEventListener('hidden.bs.toast', () => toast.remove());
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', () => {
+    loadCompanyUsers();
+    loadInternalProducts();
+    loadTasks();
+});
+</script>
+{% endblock %}
+

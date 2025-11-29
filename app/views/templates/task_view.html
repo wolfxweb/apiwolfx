@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+
+{% block title %}Tarefa #{{ task.id }} - {{ task.title }}{% endblock %}
+
+{% block content %}
+<style>
+    /* Cor verde para tabs não selecionadas */
+    .nav-tabs .nav-link:not(.active) {
+        color: #02C47C !important;
+    }
+    .nav-tabs .nav-link:not(.active):hover {
+        color: #00A86B !important;
+    }
+</style>
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-list-check"></i> Tarefa #{{ task.id }}</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="/tasks" class="btn btn-outline-secondary btn-sm me-2">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+            {% if user.id == task.created_by or user.role in ['company_admin', 'super_admin'] or user.id == task.assigned_to %}
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editTaskModal">
+                <i class="bi bi-pencil"></i> Editar
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Informações da Tarefa -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Título</p>
+                    <p class="mb-0"><strong id="taskTitle"></strong></p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Status</p>
+                    <p class="mb-0" id="taskStatus"></p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Prioridade</p>
+                    <p class="mb-0" id="taskPriority"></p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Categoria</p>
+                    <p class="mb-0" id="taskCategory"></p>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Criado por</p>
+                    <p class="mb-0" id="taskCreatedBy"></p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Atribuído a</p>
+                    <p class="mb-0" id="taskAssignedTo"></p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Data de Vencimento</p>
+                    <p class="mb-0" id="taskDueDate"></p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Data de Conclusão</p>
+                    <p class="mb-0" id="taskCompletedAt"></p>
+                </div>
+            </div>
+            
+            {% if task.product_id %}
+            <hr>
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <p class="mb-1 text-muted small">Produto Associado</p>
+                    <p class="mb-0" id="taskProduct"></p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <hr>
+            
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <p class="mb-1 text-muted small">Descrição</p>
+                    <p class="mb-0" id="taskDescription" style="white-space: pre-wrap;"></p>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Criado em</p>
+                    <p class="mb-0" id="taskCreatedAt"></p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1 text-muted small">Atualizado em</p>
+                    <p class="mb-0" id="taskUpdatedAt"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                {% if user.id == task.assigned_to or user.id == task.created_by or user.role in ['company_admin', 'super_admin'] %}
+                <div class="col-md-6">
+                    <label for="statusSelect" class="form-label">Alterar Status</label>
+                    <div class="input-group">
+                        <select class="form-select" id="statusSelect">
+                            <option value="pending">Pendente</option>
+                            <option value="in_progress">Em Andamento</option>
+                            <option value="waiting">Aguardando</option>
+                            <option value="completed">Concluída</option>
+                            <option value="cancelled">Cancelada</option>
+                        </select>
+                        <button class="btn btn-primary" type="button" onclick="updateTaskStatus()">
+                            <i class="bi bi-check"></i> Salvar Status
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Tarefa -->
+{% if user.id == task.created_by or user.role in ['company_admin', 'super_admin'] or user.id == task.assigned_to %}
+<div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editTaskModalLabel">Editar Tarefa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editTaskForm" onsubmit="updateTask(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="editTaskTitle" class="form-label">Título <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editTaskTitle" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editTaskDescription" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="editTaskDescription" rows="4"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="editTaskCategory" class="form-label">Categoria</label>
+                            <select class="form-select" id="editTaskCategory">
+                                <option value="">Selecione...</option>
+                                <option value="vendas">Vendas</option>
+                                <option value="suporte">Suporte</option>
+                                <option value="desenvolvimento">Desenvolvimento</option>
+                                <option value="marketing">Marketing</option>
+                                <option value="financeiro">Financeiro</option>
+                                <option value="rh">RH</option>
+                                <option value="operacional">Operacional</option>
+                                <option value="outro">Outro</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="editTaskPriority" class="form-label">Prioridade</label>
+                            <select class="form-select" id="editTaskPriority">
+                                <option value="low">Baixa</option>
+                                <option value="medium">Média</option>
+                                <option value="high">Alta</option>
+                                <option value="urgent">Urgente</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="editTaskDueDate" class="form-label">Data de Vencimento <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="editTaskDueDate" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="editTaskAssignedTo" class="form-label">Atribuído a</label>
+                            <select class="form-select" id="editTaskAssignedTo">
+                                <option value="">Ninguém</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editTaskProduct" class="form-label">Produto Associado (Opcional)</label>
+                        <select class="form-select" id="editTaskProduct">
+                            <option value="">Nenhum</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+const taskData = {{ task | tojson }};
+const companyUsers = {{ company_users | tojson }};
+
+// Obter token de sessão
+function getSessionToken() {
+    return document.cookie.split('; ').find(row => row.startsWith('session_token='))?.split('=')[1] || null;
+}
+
+// Renderizar dados da tarefa
+function renderTaskData() {
+    document.getElementById('taskTitle').textContent = taskData.title || '-';
+    document.getElementById('taskStatus').innerHTML = getStatusBadge(taskData.status);
+    document.getElementById('taskPriority').innerHTML = getPriorityBadge(taskData.priority);
+    document.getElementById('taskCategory').textContent = taskData.category || '-';
+    document.getElementById('taskCreatedBy').textContent = taskData.creator_name || '-';
+    document.getElementById('taskAssignedTo').textContent = taskData.assignee_name || '-';
+    document.getElementById('taskDueDate').textContent = formatDate(taskData.due_date);
+    document.getElementById('taskCompletedAt').textContent = taskData.completed_at ? formatDate(taskData.completed_at) : '-';
+    document.getElementById('taskProduct').textContent = taskData.product_name || '-';
+    document.getElementById('taskDescription').textContent = taskData.description || '-';
+    document.getElementById('taskCreatedAt').textContent = formatDateTime(taskData.created_at);
+    document.getElementById('taskUpdatedAt').textContent = formatDateTime(taskData.updated_at);
+    
+    // Preencher select de status
+    const statusSelect = document.getElementById('statusSelect');
+    if (statusSelect) {
+        statusSelect.value = taskData.status;
+    }
+    
+    // Preencher modal de edição
+    if (document.getElementById('editTaskTitle')) {
+        document.getElementById('editTaskTitle').value = taskData.title || '';
+        document.getElementById('editTaskDescription').value = taskData.description || '';
+        document.getElementById('editTaskCategory').value = taskData.category || '';
+        document.getElementById('editTaskPriority').value = taskData.priority || 'medium';
+        document.getElementById('editTaskDueDate').value = taskData.due_date || '';
+        document.getElementById('editTaskAssignedTo').value = taskData.assigned_to || '';
+        document.getElementById('editTaskProduct').value = taskData.product_id || '';
+    }
+}
+
+// Carregar usuários e produtos
+async function loadCompanyUsers() {
+    const assignedToSelect = document.getElementById('editTaskAssignedTo');
+    if (assignedToSelect) {
+        assignedToSelect.innerHTML = '<option value="">Ninguém</option>';
+        companyUsers.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.id;
+            option.textContent = user.name;
+            assignedToSelect.appendChild(option);
+        });
+    }
+}
+
+async function loadInternalProducts() {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) return;
+    
+    try {
+        const response = await fetch('/api/internal-products/list?limit=10000&offset=0', {
+            headers: {
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.products) {
+                const productSelect = document.getElementById('editTaskProduct');
+                if (productSelect) {
+                    productSelect.innerHTML = '<option value="">Nenhum</option>';
+                    data.products.forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.id;
+                        option.textContent = product.name;
+                        productSelect.appendChild(option);
+                    });
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar produtos:', error);
+    }
+}
+
+// Atualizar status da tarefa
+async function updateTaskStatus() {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+        window.location.href = '/auth/login';
+        return;
+    }
+    
+    const status = document.getElementById('statusSelect').value;
+    
+    try {
+        const response = await fetch(`/api/tasks/${taskData.id}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include',
+            body: JSON.stringify({ status })
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Status atualizado com sucesso!');
+            // Atualizar dados locais
+            Object.assign(taskData, data.task);
+            renderTaskData();
+        } else {
+            showError('Erro ao atualizar status: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar status:', error);
+        showError('Erro ao atualizar status');
+    }
+}
+
+// Atualizar tarefa
+async function updateTask(event) {
+    event.preventDefault();
+    
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+        window.location.href = '/auth/login';
+        return;
+    }
+    
+    const taskDataUpdate = {
+        title: document.getElementById('editTaskTitle').value,
+        description: document.getElementById('editTaskDescription').value,
+        category: document.getElementById('editTaskCategory').value || null,
+        priority: document.getElementById('editTaskPriority').value,
+        due_date: document.getElementById('editTaskDueDate').value,
+        assigned_to: document.getElementById('editTaskAssignedTo').value || null,
+        product_id: document.getElementById('editTaskProduct').value || null
+    };
+    
+    try {
+        const response = await fetch(`/api/tasks/${taskData.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Cookie': `session_token=${sessionToken}`
+            },
+            credentials: 'include',
+            body: JSON.stringify(taskDataUpdate)
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess('Tarefa atualizada com sucesso!');
+            // Atualizar dados locais
+            Object.assign(taskData, data.task);
+            renderTaskData();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editTaskModal'));
+            modal.hide();
+        } else {
+            showError('Erro ao atualizar tarefa: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar tarefa:', error);
+        showError('Erro ao atualizar tarefa');
+    }
+}
+
+// Helpers
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge bg-secondary">Pendente</span>',
+        'in_progress': '<span class="badge bg-primary">Em Andamento</span>',
+        'waiting': '<span class="badge bg-warning">Aguardando</span>',
+        'completed': '<span class="badge bg-success">Concluída</span>',
+        'cancelled': '<span class="badge bg-danger">Cancelada</span>'
+    };
+    return badges[status] || status;
+}
+
+function getPriorityBadge(priority) {
+    const badges = {
+        'low': '<span class="badge bg-info">Baixa</span>',
+        'medium': '<span class="badge bg-warning">Média</span>',
+        'high': '<span class="badge bg-orange">Alta</span>',
+        'urgent': '<span class="badge bg-danger">Urgente</span>'
+    };
+    return badges[priority] || priority;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('pt-BR');
+}
+
+function showSuccess(message) {
+    showToast(message, 'success');
+}
+
+function showError(message) {
+    showToast(message, 'danger');
+}
+
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = 'toast align-items-center text-white bg-' + type + ' border-0';
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${escapeHtml(message)}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    toast.addEventListener('hidden.bs.toast', () => toast.remove());
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', () => {
+    renderTaskData();
+    loadCompanyUsers();
+    loadInternalProducts();
+});
+</script>
+{% endblock %}
+

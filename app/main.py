@@ -43,6 +43,7 @@ from app.routes.stock_projection_routes import stock_projection_router
 from app.routes.internal_product_routes import internal_product_router
 from app.routes.support_routes import support_router
 from app.routes.hr_routes import hr_router
+from app.routes.task_routes import task_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -509,6 +510,23 @@ async def startup_event():
                         hr_spec.loader.exec_module(hr_module)
                         hr_module.create_hr_tables()
                         print("✅ [STARTUP] Tabelas de RH verificadas/criadas")
+                    
+                    # Criar tabelas de Tarefas
+                    print("📋 [STARTUP] Verificando tabelas de Tarefas...")
+                    task_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                            'database', 'fixes', 'create_tasks_tables.py')
+                    # Tentar caminho alternativo se não encontrar
+                    if not os.path.exists(task_script_path):
+                        task_script_path = os.path.join('/app', 'database', 'fixes', 'create_tasks_tables.py')
+                    if os.path.exists(task_script_path):
+                        print(f"📋 [STARTUP] Script encontrado: {task_script_path}")
+                        task_spec = importlib.util.spec_from_file_location("create_tasks_tables", task_script_path)
+                        task_module = importlib.util.module_from_spec(task_spec)
+                        task_spec.loader.exec_module(task_module)
+                        task_module.create_tasks_tables()
+                        print("✅ [STARTUP] Tabelas de Tarefas verificadas/criadas")
+                    else:
+                        print(f"⚠️ [STARTUP] Script de tarefas não encontrado. Tentou: {task_script_path}")
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Tabelas podem já existir: {e}")
                 finally:
@@ -1129,6 +1147,7 @@ app.include_router(openai_assistant_router)  # Para /api/openai/assistants
 app.include_router(openai_chat_router)  # Para /ai/chat (HTML)
 app.include_router(support_router)  # Para /support (HTML) e /api/support (API)
 app.include_router(hr_router)  # Para /hr (HTML) e /api/hr (API)
+app.include_router(task_router)  # Para /tasks (HTML) e /api/tasks (API)
 app.include_router(tools_router)  # Para /api/openai/tools
 app.include_router(stock_router, prefix="/api")  # Para /api/stock (API)
 app.include_router(stock_projection_router, prefix="/api")  # Para /api/stock/projections
