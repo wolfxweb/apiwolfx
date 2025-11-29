@@ -3,6 +3,8 @@ from fastapi.responses import HTMLResponse
 from fastapi import Request
 from pathlib import Path
 import json
+from typing import Optional, Dict, Any
+from sqlalchemy.orm import Session
 
 # Configurar templates com Jinja2 nativo
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -32,6 +34,66 @@ def tojson(value):
 
 templates.env.filters['brl'] = format_brl
 templates.env.filters['tojson'] = tojson
+
+def has_menu_permission(user: Optional[Dict[str, Any]], menu_name: str, submenu_name: Optional[str] = None, request: Optional[Request] = None) -> bool:
+    """
+    Verifica se o usuário tem permissão para acessar um menu/submenu.
+    Se o usuário for company_admin ou super_admin, sempre retorna True.
+    Caso contrário, verifica as permissões do funcionário vinculado.
+    """
+    if not user:
+        return False
+    
+    # Company admin e super admin têm acesso total
+    user_role = user.get("role")
+    if user_role in ["company_admin", "super_admin"]:
+        return True
+    
+    # Se não tiver request, não pode verificar permissões individuais
+    if not request:
+        return False
+    
+    try:
+        from app.config.database import get_db
+        from app.services.hr_permissions_service import HRPermissionsService
+        from app.models.hr_models import Employee
+        
+        # Obter db do request
+        db = next(get_db())
+        
+        try:
+            user_id = user.get("id")
+            company_id = user.get("company_id") or (user.get("company", {}).get("id") if isinstance(user.get("company"), dict) else None)
+            
+            if not user_id or not company_id:
+                return False
+            
+            # Buscar funcionário vinculado ao usuário
+            employee = db.query(Employee).filter(
+                Employee.user_id == user_id,
+                Employee.company_id == company_id,
+                Employee.status == "active"
+            ).first()
+            
+            if not employee:
+                return False
+            
+            # Verificar permissão usando o serviço
+            permissions_service = HRPermissionsService(db)
+            return permissions_service.check_permission(
+                employee_id=employee.id,
+                company_id=company_id,
+                menu_name=menu_name,
+                submenu_name=submenu_name
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        # Em caso de erro, retornar False por segurança
+        return False
+
+# Adicionar função global ao ambiente Jinja2
+templates.env.globals['has_menu_permission'] = has_menu_permission
 
 def render_template(template_name: str, request: Request = None, **context) -> HTMLResponse:
     """Função de conveniência para renderizar templates usando Jinja2 nativo"""

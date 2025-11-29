@@ -245,57 +245,105 @@
                             <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
                     </li>
+                    {% if has_menu_permission(user, 'cadastros', 'produtos', request) or has_menu_permission(user, 'cadastros', 'estoque', request) or has_menu_permission(user, 'cadastros', 'fornecedores', request) or has_menu_permission(user, 'cadastros', 'ordem-compra', request) or has_menu_permission(user, 'cadastros', 'empresa', request) or has_menu_permission(user, 'cadastros', 'rh', request) %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="cadastrosDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-person-plus"></i> Cadastros
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="cadastrosDropdown">
+                            {% if has_menu_permission(user, 'cadastros', 'produtos', request) %}
                             <li><a class="dropdown-item" href="/api/internal-products"><i class="bi bi-box-seam"></i> Produtos</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'cadastros', 'estoque', request) %}
                             <li><a class="dropdown-item" href="/estoque"><i class="bi bi-boxes"></i> Estoque</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'cadastros', 'fornecedores', request) %}
                             <li><a class="dropdown-item" href="/fornecedores"><i class="bi bi-truck"></i> Fornecedores</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'cadastros', 'ordem-compra', request) %}
                             <li><a class="dropdown-item" href="/ordem-compra"><i class="bi bi-file-earmark-text"></i> Ordem de Compra</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'cadastros', 'empresa', request) %}
                             <li><a class="dropdown-item" href="/auth/company/edit"><i class="bi bi-building"></i> Empresa</a></li>
-                            {% if user and (user.role == 'company_admin' or user.role == 'super_admin') %}
+                            {% endif %}
+                            {% if has_menu_permission(user, 'cadastros', 'rh', request) %}
                             <li><a class="dropdown-item" href="/hr"><i class="bi bi-people"></i> RH</a></li>
                             {% endif %}
                         </ul>
                     </li>
+                    {% endif %}
+                    {% if has_menu_permission(user, 'ml', 'dashboard', request) or has_menu_permission(user, 'ml', 'anuncios', request) or has_menu_permission(user, 'ml', 'pedidos', request) or has_menu_permission(user, 'ml', 'publicidade', request) or has_menu_permission(user, 'ml', 'mais-vendidos', request) or has_menu_permission(user, 'ml', 'contas', request) %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="mlDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-shop"></i> Mercado Livre
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="mlDropdown">
+                            {% if has_menu_permission(user, 'ml', 'dashboard', request) %}
                             <li><a class="dropdown-item" href="/analytics"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'ml', 'dashboard', request) or has_menu_permission(user, 'ml', 'anuncios', request) %}
                             <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'ml', 'anuncios', request) %}
                             <li><a class="dropdown-item" href="/ml/products"><i class="bi bi-megaphone"></i> Anúncios</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'ml', 'pedidos', request) %}
                             <li><a class="dropdown-item" href="/ml/orders"><i class="bi bi-cart"></i> Pedidos</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'ml', 'publicidade', request) %}
                             <li><a class="dropdown-item" href="/ml/advertising"><i class="bi bi-bullseye"></i> Publicidade</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'ml', 'mais-vendidos', request) %}
                             <li><a class="dropdown-item" href="/ml/highlights"><i class="bi bi-trophy-fill"></i> Mais Vendidos</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'ml', 'contas', request) %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/ml/accounts"><i class="bi bi-people"></i> Contas</a></li>
+                            {% endif %}
                         </ul>
                     </li>
                     {% endif %}
                     
-                    {% if user %}
+                    {% if has_menu_permission(user, 'financeiro', 'dashboard', request) or has_menu_permission(user, 'financeiro', 'contas-receber', request) or has_menu_permission(user, 'financeiro', 'contas-pagar', request) or has_menu_permission(user, 'financeiro', 'fluxo-caixa', request) or has_menu_permission(user, 'financeiro', 'categorias', request) or has_menu_permission(user, 'financeiro', 'centros-custo', request) or has_menu_permission(user, 'financeiro', 'contas-bancarias', request) or has_menu_permission(user, 'financeiro', 'planejamento', request) %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="financialDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-currency-dollar"></i> Financeiro
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="financialDropdown">
+                            {% if has_menu_permission(user, 'financeiro', 'dashboard', request) %}
                             <li><a class="dropdown-item" href="/financial/dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'dashboard', request) or has_menu_permission(user, 'financeiro', 'contas-receber', request) %}
                             <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'contas-receber', request) %}
                             <li><a class="dropdown-item" href="/financial/receivables"><i class="bi bi-arrow-down-circle"></i> Contas a Receber</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'contas-pagar', request) %}
                             <li><a class="dropdown-item" href="/financial/payables"><i class="bi bi-arrow-up-circle"></i> Contas a Pagar</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'fluxo-caixa', request) %}
                             <li><a class="dropdown-item" href="/financial/cashflow"><i class="bi bi-graph-up"></i> Fluxo de Caixa</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'categorias', request) or has_menu_permission(user, 'financeiro', 'centros-custo', request) %}
                             <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'categorias', request) %}
                             <li><a class="dropdown-item" href="/financial/categories"><i class="bi bi-tags"></i> Categorias</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'centros-custo', request) %}
                             <li><a class="dropdown-item" href="/financial/cost-centers"><i class="bi bi-building"></i> Centros de Custo</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'contas-bancarias', request) %}
                             <li><a class="dropdown-item" href="/financial/accounts"><i class="bi bi-bank"></i> Contas Bancárias</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'financeiro', 'planejamento', request) %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/financial/reports"><i class="bi bi-calendar-check"></i> Planejamento</a></li>
+                            {% endif %}
                         </ul>
                     </li>
+                    {% endif %}
                     {# Menu Pedidos oculto temporariamente
                     <li class="nav-item">
                         <a class="nav-link" href="/api/shipments">
@@ -303,27 +351,35 @@
                         </a>
                     </li>
                     #}
+                    {% if has_menu_permission(user, 'atendimento', 'perguntas', request) or has_menu_permission(user, 'atendimento', 'pos-venda', request) %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="customerServiceDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-headset"></i> Atendimento ao Cliente
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="customerServiceDropdown">
+                            {% if has_menu_permission(user, 'atendimento', 'perguntas', request) %}
                             <li><a class="dropdown-item" href="/questions"><i class="bi bi-question-circle"></i> Perguntas</a></li>
+                            {% endif %}
+                            {% if has_menu_permission(user, 'atendimento', 'pos-venda', request) %}
                             <li><a class="dropdown-item" href="/messages"><i class="bi bi-chat-dots"></i> Pós-venda</a></li>
+                            {% endif %}
                         </ul>
                     </li>
+                    {% endif %}
+                    {% endif %}
+                    {% if has_menu_permission(user, 'ia', None, request) %}
                     <li class="nav-item">
                         <a class="nav-link" href="/ai/chat">
                             <i class="bi bi-robot"></i> IA Insights
                         </a>
                     </li>
+                    {% endif %}
                     {% if user and user.role == 'super_admin' %}
                     <li class="nav-item">
                         <a class="nav-link" href="/superadmin/tools">
                             <i class="bi bi-wrench-adjustable"></i> Ferramentas
                         </a>
                     </li>
-                    {% endif %}
                     {% endif %}
                 </ul>
                 
