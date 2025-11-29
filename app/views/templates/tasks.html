@@ -86,21 +86,20 @@
                 <table class="table table-hover" id="tasksTable">
                     <thead class="table-dark">
                         <tr>
-                            <th>ID</th>
-                            <th>Título</th>
-                            <th>Status</th>
-                            <th>Categoria</th>
-                            <th>Prioridade</th>
-                            <th>Atribuído a</th>
-                            <th>Criado por</th>
-                            <th>Data de Vencimento</th>
-                            <th>Produto</th>
-                            <th>Ações</th>
+                            <th style="width: 25%;">Título</th>
+                            <th style="width: 100px;">Status</th>
+                            <th style="width: 120px;">Categoria</th>
+                            <th style="width: 100px;">Prioridade</th>
+                            <th style="width: 120px;">Atribuído a</th>
+                            <th style="width: 120px;">Criado por</th>
+                            <th style="width: 130px;">Data de Vencimento</th>
+                            <th style="width: 15%;">Produto</th>
+                            <th style="width: 100px;">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="tasksContainer">
                         <tr>
-                            <td colspan="10" class="text-center py-5">
+                            <td colspan="9" class="text-center py-5">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Carregando...</span>
                                 </div>
@@ -355,7 +354,7 @@ function renderTasksOriginal() {
     if (allTasks.length === 0) {
         container.innerHTML = `
             <tr>
-                <td colspan="10" class="text-center py-5 text-muted">
+                <td colspan="9" class="text-center py-5 text-muted">
                     Nenhuma tarefa encontrada
                 </td>
             </tr>
@@ -385,7 +384,6 @@ function renderTasksOriginal() {
         
         return `
             <tr class="${rowClass}">
-                <td>${task.id}</td>
                 <td>${escapeHtml(task.title)}</td>
                 <td>${getStatusBadge(task.status)}</td>
                 <td>${task.category ? escapeHtml(task.category) : '-'}</td>
