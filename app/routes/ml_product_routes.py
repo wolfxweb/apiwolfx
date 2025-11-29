@@ -660,7 +660,13 @@ async def get_product_analysis_page(
     user = Depends(get_current_user_or_redirect)
 ):
     """Página de análise do produto"""
+    # Verificar se user é um RedirectResponse (redirecionamento)
+    from fastapi.responses import RedirectResponse
+    if isinstance(user, RedirectResponse):
+        return user
+    
     # A função get_current_user_or_redirect já faz o redirecionamento se necessário
+    # Se chegou aqui, o usuário está autenticado e com plano ativo
     
     try:
         controller = MLProductController(db)

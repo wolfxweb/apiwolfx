@@ -489,7 +489,14 @@ class InternalProductService:
             ).first()
             
             if product:
-                logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado diretamente: ID={product.id}, SKU={product.internal_sku}")
+                # Verificar se o produto encontrado tem valores cadastrados
+                has_values = product.cost_price and float(product.cost_price) > 0
+                if has_values:
+                    logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado diretamente (com valores): ID={product.id}, SKU={product.internal_sku}")
+                else:
+                    logger.info(f"⚠️ [get_pricing_data_by_sku] Produto encontrado diretamente mas sem valores: ID={product.id}, SKU={product.internal_sku}. Continuando busca...")
+                    # Continuar procurando se não tiver valores
+                    product = None
             else:
                 logger.info(f"⚠️ [get_pricing_data_by_sku] Produto não encontrado diretamente, tentando via SKUManagement...")
             
@@ -509,7 +516,7 @@ class InternalProductService:
                     logger.info(f"✅ [get_pricing_data_by_sku] Encontrado em SKUManagement: ID={sku_management.id}, Internal Product ID={sku_management.internal_product_id}")
                     
                     if sku_management.internal_product_id:
-                        product = self.db.query(InternalProduct).filter(
+                        found_product = self.db.query(InternalProduct).filter(
                             and_(
                                 InternalProduct.id == sku_management.internal_product_id,
                                 InternalProduct.company_id == company_id,
@@ -517,26 +524,87 @@ class InternalProductService:
                             )
                         ).first()
                         
-                        if product:
-                            logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado via SKUManagement: ID={product.id}, SKU={product.internal_sku}")
+                        if found_product:
+                            # Verificar se o produto encontrado tem valores cadastrados
+                            has_values = found_product.cost_price and float(found_product.cost_price) > 0
+                            if has_values:
+                                product = found_product
+                                logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado via SKUManagement (com valores): ID={product.id}, SKU={product.internal_sku}")
+                            else:
+                                logger.info(f"⚠️ [get_pricing_data_by_sku] Produto encontrado via SKUManagement mas sem valores: ID={found_product.id}, SKU={found_product.internal_sku}. Continuando busca...")
+                                # Continuar procurando se não tiver valores
                         else:
                             logger.warning(f"⚠️ [get_pricing_data_by_sku] Produto interno não encontrado pelo ID {sku_management.internal_product_id}")
                 else:
                     logger.warning(f"⚠️ [get_pricing_data_by_sku] SKU não encontrado em SKUManagement")
             
+            # Se ainda não encontrou, tentar busca parcial PRIMEIRO (ex: "M24FB-610A" pode encontrar "MG-M24FB-610A")
+            # Isso é importante porque pode haver produtos com prefixos (ex: "MG-M24FB-610A" contém "M24FB-610A")
+            if not product:
+                logger.info(f"⚠️ [get_pricing_data_by_sku] Tentando busca parcial (contém SKU)...")
+                # Buscar produtos que contenham o SKU no final (ex: "MG-M24FB-610A" contém "M24FB-610A")
+                products = self.db.query(InternalProduct).filter(
+                    and_(
+                        InternalProduct.internal_sku.ilike(f"%{internal_sku}"),
+                        InternalProduct.company_id == company_id,
+                        InternalProduct.status == "active"
+                    )
+                ).all()
+                
+                if products:
+                    # Priorizar produto que termina com o SKU E tem valores cadastrados (cost_price > 0)
+                    best_match = None
+                    best_match_with_values = None
+                    
+                    for p in products:
+                        if p.internal_sku.upper().endswith(internal_sku.upper()):
+                            # Se tem valores cadastrados, é melhor match
+                            has_values = p.cost_price and float(p.cost_price) > 0
+                            if has_values:
+                                best_match_with_values = p
+                                logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado com busca parcial (termina com + tem valores): ID={p.id}, SKU={p.internal_sku} (buscado: '{internal_sku}')")
+                                break
+                            elif not best_match:
+                                # Guardar como fallback se não tiver valores
+                                best_match = p
+                    
+                    # Priorizar produto com valores
+                    if best_match_with_values:
+                        product = best_match_with_values
+                    elif best_match:
+                        product = best_match
+                    else:
+                        # Se não encontrou terminando com, usar o primeiro que contém
+                        product = products[0]
+                        logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado com busca parcial (contém): ID={product.id}, SKU={product.internal_sku} (buscado: '{internal_sku}')")
+            
             # Se ainda não encontrou, tentar busca case-insensitive
             if not product:
                 logger.info(f"⚠️ [get_pricing_data_by_sku] Tentando busca case-insensitive...")
-                product = self.db.query(InternalProduct).filter(
+                products = self.db.query(InternalProduct).filter(
                     and_(
                         InternalProduct.internal_sku.ilike(internal_sku),
                         InternalProduct.company_id == company_id,
                         InternalProduct.status == "active"
                     )
-                ).first()
+                ).all()
                 
-                if product:
-                    logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado com busca case-insensitive: ID={product.id}, SKU={product.internal_sku} (original: '{internal_sku}')")
+                if products:
+                    # Priorizar produto com valores cadastrados
+                    best_match = None
+                    for p in products:
+                        has_values = p.cost_price and float(p.cost_price) > 0
+                        if has_values:
+                            best_match = p
+                            logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado com busca case-insensitive (com valores): ID={p.id}, SKU={p.internal_sku} (original: '{internal_sku}')")
+                            break
+                    
+                    if best_match:
+                        product = best_match
+                    else:
+                        # Usar o primeiro se nenhum tiver valores
+                        product = products[0]
+                        logger.info(f"✅ [get_pricing_data_by_sku] Produto encontrado com busca case-insensitive: ID={product.id}, SKU={product.internal_sku} (original: '{internal_sku}')")
             
             if not product:
                 logger.error(f"❌ [get_pricing_data_by_sku] Produto interno com SKU '{internal_sku}' não encontrado para company_id {company_id}")
@@ -544,10 +612,46 @@ class InternalProductService:
             
             # Calcular dados para análise de preços
             cost_price = float(product.cost_price) if product.cost_price else 0.0
-            tax_rate = float(product.tax_rate) if product.tax_rate else 0.0
-            marketing_cost = float(product.marketing_cost) if product.marketing_cost else 0.0
             other_costs = float(product.other_costs) if product.other_costs else 0.0
             selling_price = float(product.selling_price) if product.selling_price else 0.0
+            
+            # Buscar empresa para usar valores padrão se necessário
+            company = self.db.query(Company).filter(Company.id == company_id).first()
+            
+            # Taxa de imposto: usar do produto, se não tiver, usar da empresa
+            tax_rate = float(product.tax_rate) if product.tax_rate else 0.0
+            if tax_rate == 0.0 and company:
+                # Tentar usar aliquota_simples primeiro, depois média das alíquotas
+                if company.aliquota_simples:
+                    tax_rate = float(company.aliquota_simples)
+                    logger.info(f"📊 [get_pricing_data_by_sku] Usando aliquota_simples da empresa ({tax_rate}%) para produto ID {product.id}")
+                else:
+                    # Calcular média das alíquotas disponíveis
+                    aliquotas = []
+                    if company.aliquota_ir:
+                        aliquotas.append(float(company.aliquota_ir))
+                    if company.aliquota_csll:
+                        aliquotas.append(float(company.aliquota_csll))
+                    if company.aliquota_pis:
+                        aliquotas.append(float(company.aliquota_pis))
+                    if company.aliquota_cofins:
+                        aliquotas.append(float(company.aliquota_cofins))
+                    if company.aliquota_icms:
+                        aliquotas.append(float(company.aliquota_icms))
+                    if company.aliquota_iss:
+                        aliquotas.append(float(company.aliquota_iss))
+                    
+                    if aliquotas:
+                        tax_rate = sum(aliquotas) / len(aliquotas)
+                        logger.info(f"📊 [get_pricing_data_by_sku] Usando média das alíquotas da empresa ({tax_rate:.2f}%) para produto ID {product.id}")
+            
+            # Custo de marketing: usar do produto, se não tiver, calcular da empresa
+            marketing_cost = float(product.marketing_cost) if product.marketing_cost else 0.0
+            if marketing_cost == 0.0 and company and company.percentual_marketing and selling_price > 0:
+                # Calcular marketing cost baseado no percentual da empresa sobre o preço de venda
+                percentual_marketing = float(company.percentual_marketing)
+                marketing_cost = (selling_price * percentual_marketing / 100)
+                logger.info(f"📊 [get_pricing_data_by_sku] Calculando marketing cost da empresa ({percentual_marketing}% sobre R$ {selling_price:.2f} = R$ {marketing_cost:.2f}) para produto ID {product.id}")
             
             # Calcular totais
             total_costs = cost_price + marketing_cost + other_costs
@@ -607,15 +711,48 @@ class InternalProductService:
             if not products:
                 return {"error": "Nenhum produto encontrado com os SKUs fornecidos"}
             
+            # Buscar empresa uma vez para usar valores padrão se necessário
+            company = self.db.query(Company).filter(Company.id == company_id).first()
+            
             pricing_data = []
             found_skus = []
             
             for product in products:
                 cost_price = float(product.cost_price) if product.cost_price else 0.0
-                tax_rate = float(product.tax_rate) if product.tax_rate else 0.0
-                marketing_cost = float(product.marketing_cost) if product.marketing_cost else 0.0
                 other_costs = float(product.other_costs) if product.other_costs else 0.0
                 selling_price = float(product.selling_price) if product.selling_price else 0.0
+                
+                # Taxa de imposto: usar do produto, se não tiver, usar da empresa
+                tax_rate = float(product.tax_rate) if product.tax_rate else 0.0
+                if tax_rate == 0.0 and company:
+                    # Tentar usar aliquota_simples primeiro, depois média das alíquotas
+                    if company.aliquota_simples:
+                        tax_rate = float(company.aliquota_simples)
+                    else:
+                        # Calcular média das alíquotas disponíveis
+                        aliquotas = []
+                        if company.aliquota_ir:
+                            aliquotas.append(float(company.aliquota_ir))
+                        if company.aliquota_csll:
+                            aliquotas.append(float(company.aliquota_csll))
+                        if company.aliquota_pis:
+                            aliquotas.append(float(company.aliquota_pis))
+                        if company.aliquota_cofins:
+                            aliquotas.append(float(company.aliquota_cofins))
+                        if company.aliquota_icms:
+                            aliquotas.append(float(company.aliquota_icms))
+                        if company.aliquota_iss:
+                            aliquotas.append(float(company.aliquota_iss))
+                        
+                        if aliquotas:
+                            tax_rate = sum(aliquotas) / len(aliquotas)
+                
+                # Custo de marketing: usar do produto, se não tiver, calcular da empresa
+                marketing_cost = float(product.marketing_cost) if product.marketing_cost else 0.0
+                if marketing_cost == 0.0 and company and company.percentual_marketing and selling_price > 0:
+                    # Calcular marketing cost baseado no percentual da empresa sobre o preço de venda
+                    percentual_marketing = float(company.percentual_marketing)
+                    marketing_cost = (selling_price * percentual_marketing / 100)
                 
                 # Calcular totais
                 total_costs = cost_price + marketing_cost + other_costs

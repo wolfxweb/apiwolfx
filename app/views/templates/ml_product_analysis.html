@@ -1781,21 +1781,57 @@ async function loadPricingAnalysis(product) {
 
 function renderPricingAnalysis(data, product, mlFeesData = null) {
     console.log('🎨 Renderizando análise de preços:', data, 'Taxas ML:', mlFeesData);
+    console.log('📦 Estrutura completa de data:', JSON.stringify(data, null, 2));
+    console.log('📦 Product:', product);
     
     const feesContainer = document.getElementById('marketplace-fees');
+    
+    // Verificar estrutura de dados
+    if (!data || !data.analysis || !data.analysis.internal_product) {
+        console.error('❌ Estrutura de dados inválida:', data);
+        feesContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Erro:</strong> Estrutura de dados inválida. Verifique o console para mais detalhes.
+            </div>
+        `;
+        return;
+    }
+    
     const internalProduct = data.analysis.internal_product;
     const productPrice = parseFloat(product.price) || 0;
+    
+    console.log('📊 Dados do produto interno recebidos:', internalProduct);
+    console.log('💰 Valores brutos:', {
+        cost_price: internalProduct.cost_price,
+        tax_rate: internalProduct.tax_rate,
+        marketing_cost: internalProduct.marketing_cost,
+        other_costs: internalProduct.other_costs,
+        selling_price: internalProduct.selling_price
+    });
     
     // Calcular valores
     const costPrice = parseFloat(internalProduct.cost_price) || 0;
     const taxPercentage = parseFloat(internalProduct.tax_rate) || 0;
-    const marketingPercentage = parseFloat(internalProduct.marketing_cost) || 0;
+    // marketing_cost vem do backend como VALOR FIXO em reais, não percentual
+    const marketingCost = parseFloat(internalProduct.marketing_cost) || 0;
     const otherCosts = parseFloat(internalProduct.other_costs) || 0;
     const expectedMargin = parseFloat(internalProduct.expected_profit_margin) || 0;
     
+    console.log('💰 Valores parseados:', {
+        costPrice,
+        taxPercentage,
+        marketingCost,
+        otherCosts,
+        productPrice
+    });
+    
     // Calcular valores monetários
     const taxAmount = (productPrice * taxPercentage / 100);
-    const marketingAmount = (productPrice * marketingPercentage / 100);
+    // marketing_cost já é um valor em reais, não precisa calcular percentual
+    const marketingAmount = marketingCost;
+    // Calcular percentual de marketing para exibição (se necessário)
+    const marketingPercentage = productPrice > 0 ? (marketingAmount / productPrice * 100) : 0;
     
     // Custos internos
     const totalInternalCosts = costPrice + taxAmount + marketingAmount + otherCosts;
