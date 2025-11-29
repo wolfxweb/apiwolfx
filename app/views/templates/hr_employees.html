@@ -14,101 +14,45 @@
         </div>
     </div>
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4" id="hrTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="employees-tab" data-bs-toggle="tab" data-bs-target="#employees" type="button" role="tab">
-                <i class="bi bi-person"></i> Funcionários
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="payroll-tab" data-bs-toggle="tab" data-bs-target="#payroll" type="button" role="tab">
-                <i class="bi bi-cash-coin"></i> Folha de Pagamento
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="vacations-tab" data-bs-toggle="tab" data-bs-target="#vacations" type="button" role="tab">
-                <i class="bi bi-calendar-check"></i> Férias
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="benefits-tab" data-bs-toggle="tab" data-bs-target="#benefits" type="button" role="tab">
-                <i class="bi bi-gift"></i> Benefícios
-            </button>
-        </li>
-    </ul>
-
-    <!-- Tab Content -->
-    <div class="tab-content" id="hrTabsContent">
-        <!-- Tab: Funcionários -->
-        <div class="tab-pane fade show active" id="employees" role="tabpanel">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div class="d-flex gap-2">
-                            <select class="form-select form-select-sm" style="width: auto; max-width: 200px;" id="statusFilter" onchange="loadEmployees()">
-                                <option value="">Todos</option>
-                                <option value="active">Ativos</option>
-                                <option value="inactive">Inativos</option>
-                                <option value="on_leave">Afastados</option>
-                            </select>
-                            <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar funcionário..." style="width: 250px;" onkeyup="handleSearch()">
-                        </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-hover" id="employeesTable">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Nome</th>
-                                    <th>CPF</th>
-                                    <th>Cargo</th>
-                                    <th>Departamento</th>
-                                    <th>Salário Base</th>
-                                    <th>Status</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="employeesContainer">
-                                <tr>
-                                    <td colspan="8" class="text-center py-5">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Carregando...</span>
-                                        </div>
-                                        <p class="mt-2 text-muted">Carregando funcionários...</p>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+    <!-- Lista de Funcionários -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto; max-width: 200px;" id="statusFilter" onchange="loadEmployees()">
+                        <option value="">Todos</option>
+                        <option value="active">Ativos</option>
+                        <option value="inactive">Inativos</option>
+                        <option value="on_leave">Afastados</option>
+                    </select>
+                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar funcionário..." style="width: 250px;" onkeyup="handleSearch()">
                 </div>
             </div>
-        </div>
-
-        <!-- Tab: Folha de Pagamento -->
-        <div class="tab-pane fade" id="payroll" role="tabpanel">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <p class="text-muted">Funcionalidade de Folha de Pagamento em desenvolvimento...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab: Férias -->
-        <div class="tab-pane fade" id="vacations" role="tabpanel">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <p class="text-muted">Funcionalidade de Férias em desenvolvimento...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab: Benefícios -->
-        <div class="tab-pane fade" id="benefits" role="tabpanel">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <p class="text-muted">Funcionalidade de Benefícios em desenvolvimento...</p>
-                </div>
+            <div class="table-responsive">
+                <table class="table table-hover" id="employeesTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>CPF</th>
+                            <th>Cargo</th>
+                            <th>Departamento</th>
+                            <th>Salário Base</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="employeesContainer">
+                        <tr>
+                            <td colspan="8" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Carregando funcionários...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -312,8 +256,8 @@ function renderEmployees() {
                 <td>R$ ${formatCurrency(employee.salario_base || 0)}</td>
                 <td>${statusBadge}</td>
                 <td>
-                    <a href="/hr/employee/${employee.id}" class="btn btn-sm btn-primary">
-                        <i class="bi bi-eye"></i> Ver
+                    <a href="/hr/employee/${employee.id}" class="btn btn-sm btn-primary" title="Ver funcionário">
+                        <i class="bi bi-eye"></i>
                     </a>
                 </td>
             </tr>

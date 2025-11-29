@@ -3,6 +3,15 @@
 {% block title %}Funcionário #{{ employee.id }} - RH{% endblock %}
 
 {% block content %}
+<style>
+    /* Cor verde para tabs não selecionadas */
+    .nav-tabs .nav-link:not(.active) {
+        color: #02C47C !important;
+    }
+    .nav-tabs .nav-link:not(.active):hover {
+        color: #00A86B !important;
+    }
+</style>
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -27,11 +36,6 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="permissions-tab" data-bs-toggle="tab" data-bs-target="#permissions" type="button" role="tab">
                 <i class="bi bi-shield-lock"></i> Permissões
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="payroll-tab" data-bs-toggle="tab" data-bs-target="#payroll" type="button" role="tab">
-                <i class="bi bi-cash-coin"></i> Folha de Pagamento
             </button>
         </li>
     </ul>
@@ -146,15 +150,6 @@
                             </button>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab: Folha de Pagamento -->
-        <div class="tab-pane fade" id="payroll" role="tabpanel">
-            <div class="card">
-                <div class="card-body">
-                    <p class="text-muted">Histórico de folha de pagamento em desenvolvimento...</p>
                 </div>
             </div>
         </div>
