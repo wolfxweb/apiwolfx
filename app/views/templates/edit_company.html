@@ -8,9 +8,9 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0">Editar Empresa</h2>
-                <a href="/auth/profile" class="btn btn-outline-secondary btn-sm">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.history.back();">
                     <i class="bi bi-arrow-left"></i> Voltar
-                </a>
+                </button>
             </div>
         </div>
     </div>
@@ -335,7 +335,8 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="trialEndsAt" class="form-label">Trial Expira em</label>
-                            <input type="date" class="form-control" id="trialEndsAt" value="{% if company.trial_ends_at %}{{ company.trial_ends_at.strftime('%Y-%m-%d') }}{% endif %}">
+                            <input type="date" class="form-control" id="trialEndsAt" value="{% if company.trial_ends_at %}{{ company.trial_ends_at.strftime('%Y-%m-%d') }}{% endif %}" readonly>
+                            <div class="form-text">Data de trial não pode ser alterada</div>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -403,7 +404,7 @@ async function saveCompany() {
             name: document.getElementById('companyName').value,
             domain: document.getElementById('companyDomain').value,
             description: document.getElementById('companyDescription').value,
-            trial_ends_at: document.getElementById('trialEndsAt').value || null,
+            // trial_ends_at não é enviado - não pode ser alterado
             ml_orders_as_receivables: document.getElementById('mlOrdersReceivables').checked,
             
             razao_social: document.getElementById('razaoSocial').value,

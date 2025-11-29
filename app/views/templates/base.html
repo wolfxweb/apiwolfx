@@ -240,11 +240,13 @@
                         </a>
                     </li>
                     {% if user %}
+                    {% if has_menu_permission(user, 'dashboard', None, request) %}
                     <li class="nav-item">
                         <a class="nav-link" href="/auth/dashboard">
                             <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
                     </li>
+                    {% endif %}
                     {% if has_menu_permission(user, 'cadastros', 'produtos', request) or has_menu_permission(user, 'cadastros', 'estoque', request) or has_menu_permission(user, 'cadastros', 'fornecedores', request) or has_menu_permission(user, 'cadastros', 'ordem-compra', request) or has_menu_permission(user, 'cadastros', 'empresa', request) or has_menu_permission(user, 'cadastros', 'rh', request) or has_menu_permission(user, 'cadastros', 'tarefas', request) %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="cadastrosDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">

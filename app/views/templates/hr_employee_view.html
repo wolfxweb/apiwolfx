@@ -557,9 +557,13 @@ async function loadPermissions() {
 
 function renderPermissions() {
     const menus = {
+        'dashboard': {
+            name: 'Dashboard Principal',
+            submenus: []
+        },
         'cadastros': {
             name: 'Cadastros',
-            submenus: ['produtos', 'estoque', 'fornecedores', 'ordem-compra', 'empresa']
+            submenus: ['produtos', 'estoque', 'fornecedores', 'ordem-compra', 'empresa', 'rh', 'tarefas']
         },
         'ml': {
             name: 'Mercado Livre',
