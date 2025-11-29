@@ -558,22 +558,52 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function showError(message) {
-    // Usar toast do Bootstrap se disponível
-    if (typeof showToast === 'function') {
-        showToast(message, 'error');
-    } else {
-        alert('Erro: ' + message);
+function showToast(message, type = 'info') {
+    // Criar toast usando Bootstrap
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
     }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    const title = type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : type === 'warning' ? 'Atenção' : 'Info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    // Remover elemento após esconder
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+function showError(message) {
+    showToast(message, 'error');
 }
 
 function showSuccess(message) {
-    // Usar toast do Bootstrap se disponível
-    if (typeof showToast === 'function') {
-        showToast(message, 'success');
-    } else {
-        alert('Sucesso: ' + message);
-    }
+    showToast(message, 'success');
 }
 </script>
 {% endblock %}

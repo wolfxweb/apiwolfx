@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc
+from sqlalchemy import and_, desc, func
 from app.models.saas_models import SupportTicket, SupportTicketStatus, SupportTicketMessage, SupportTicketAttachment, User
 from app.config.settings import settings
 
@@ -537,6 +537,66 @@ class SupportService:
             }
         except Exception as e:
             logger.error(f"Erro ao obter chamado: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def update_ticket_status(self, ticket_id: int, company_id: int, status: str) -> Dict[str, Any]:
+        """Atualiza o status de um chamado"""
+        try:
+            
+            ticket = self.db.query(SupportTicket).filter(
+                and_(
+                    SupportTicket.id == ticket_id,
+                    SupportTicket.company_id == company_id
+                )
+            ).first()
+            
+            if not ticket:
+                return {
+                    "success": False,
+                    "error": "Chamado não encontrado"
+                }
+            
+            # Validar o novo status
+            valid_statuses = ["open", "in_progress", "waiting_user", "resolved", "closed"]
+            if status not in valid_statuses:
+                return {
+                    "success": False,
+                    "error": f"Status inválido: {status}. Status válidos: {', '.join(valid_statuses)}"
+                }
+            
+            # Atualizar status
+            ticket.status = status
+            
+            # Se fechado, definir closed_at; caso contrário, limpar
+            from datetime import datetime, timezone
+            if status == "closed":
+                ticket.closed_at = datetime.now(timezone.utc)
+            else:
+                ticket.closed_at = None  # Limpar data de fechamento se reaberto/alterado
+            
+            # Atualizar updated_at (o onupdate já faz isso, mas vamos garantir)
+            ticket.updated_at = datetime.now(timezone.utc)
+            
+            self.db.commit()
+            self.db.refresh(ticket)
+            
+            logger.info(f"✅ Status do chamado {ticket_id} atualizado para: {status}")
+            
+            return {
+                "success": True,
+                "ticket": {
+                    "id": ticket.id,
+                    "status": ticket.status,
+                    "closed_at": ticket.closed_at.isoformat() if ticket.closed_at else None,
+                    "updated_at": ticket.updated_at.isoformat() if ticket.updated_at else None
+                }
+            }
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Erro ao atualizar status do chamado {ticket_id}: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)
