@@ -1,0 +1,920 @@
+{% extends "base.html" %}
+
+{% block title %}Suporte{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Padrão do Sistema -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-headset"></i> Suporte</h1>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="supportTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="manuals-tab" data-bs-toggle="tab" data-bs-target="#manuals" type="button" role="tab">
+                <i class="bi bi-book"></i> Documentação
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tickets-tab" data-bs-toggle="tab" data-bs-target="#tickets" type="button" role="tab">
+                <i class="bi bi-ticket"></i> Meus Chamados
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="new-ticket-tab" data-bs-toggle="tab" data-bs-target="#new-ticket" type="button" role="tab">
+                <i class="bi bi-plus-circle"></i> Novo Chamado
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="supportTabsContent">
+        <!-- Tab: Documentação -->
+        <div class="tab-pane fade show active" id="manuals" role="tabpanel">
+            <!-- Busca -->
+            <div class="card mb-4" id="searchCard">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-10">
+                            <label for="searchInput" class="form-label">Buscar na Documentação</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Digite o termo de busca..." onkeyup="handleSearch()">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button class="btn btn-primary w-100" onclick="performSearch()">
+                                <i class="bi bi-search"></i> Buscar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resultados da Busca -->
+            <div class="card mb-4" id="searchResults" style="display: none;">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-search"></i> Resultados da Busca</h5>
+                </div>
+                <div class="card-body" id="searchResultsContent">
+                    <!-- Resultados serão inseridos aqui -->
+                </div>
+            </div>
+
+            <!-- Lista de Manuais -->
+            <div class="card mb-4" id="manualsList">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="manualsTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Manual</th>
+                                    <th style="width: 100px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manualsContainer">
+                                <tr>
+                                    <td colspan="2" class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Carregando manuais...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visualizador de Manual -->
+            <div class="card mb-4" id="manualViewer" style="display: none;">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0" id="manualTitle"></h5>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="closeManual()">
+                        <i class="bi bi-x"></i> Fechar
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="manualContent" style="max-height: 70vh; overflow-y: auto;">
+                        <!-- Conteúdo do manual será inserido aqui -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Meus Chamados -->
+        <div class="tab-pane fade" id="tickets" role="tabpanel">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-ticket"></i> Meus Chamados</h5>
+                    <select class="form-select form-select-sm" style="width: auto; max-width: 200px;" id="ticketStatusFilter" onchange="loadTickets()">
+                        <option value="">Todos</option>
+                        <option value="open">Abertos</option>
+                        <option value="in_progress">Em Andamento</option>
+                        <option value="waiting_user">Aguardando Resposta</option>
+                        <option value="resolved">Resolvidos</option>
+                        <option value="closed">Fechados</option>
+                    </select>
+                </div>
+                <div class="card-body">
+                    <div id="ticketsContainer">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Carregando chamados...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Novo Chamado -->
+        <div class="tab-pane fade" id="new-ticket" role="tabpanel">
+            <div class="row">
+                <div class="col-12 col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Abrir Novo Chamado</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="newTicketForm" onsubmit="createTicket(event)">
+                                <div class="mb-3">
+                                    <label for="ticketSubject" class="form-label">Assunto <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="ticketSubject" required maxlength="500" placeholder="Digite o assunto do chamado...">
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="ticketCategory" class="form-label">Categoria</label>
+                                        <select class="form-select" id="ticketCategory">
+                                            <option value="">Selecione...</option>
+                                            <option value="bug">Bug/Erro</option>
+                                            <option value="dúvida">Dúvida</option>
+                                            <option value="sugestão">Sugestão</option>
+                                            <option value="funcionalidade">Nova Funcionalidade</option>
+                                            <option value="outro">Outro</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="ticketPriority" class="form-label">Prioridade</label>
+                                        <select class="form-select" id="ticketPriority">
+                                            <option value="low">Baixa</option>
+                                            <option value="medium" selected>Média</option>
+                                            <option value="high">Alta</option>
+                                            <option value="urgent">Urgente</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                        <div class="mb-3">
+                            <label for="ticketDescription" class="form-label">Descrição <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="ticketDescription" rows="8" required placeholder="Descreva detalhadamente sua solicitação, dúvida ou problema..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="ticketAttachments" class="form-label">Anexos (opcional)</label>
+                            <input type="file" class="form-control" id="ticketAttachments" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt">
+                            <small class="text-muted">Você pode anexar imagens, PDFs ou documentos. Tamanho máximo: 10MB por arquivo.</small>
+                            <div id="attachmentsPreview" class="mt-2"></div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send"></i> Enviar Chamado
+                            </button>
+                        </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para visualizar chamado -->
+<div class="modal fade" id="ticketModal" tabindex="-1" aria-labelledby="ticketModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ticketModalLabel">Detalhes do Chamado</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="ticketModalBody">
+                <!-- Conteúdo será inserido aqui -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let searchTimeout;
+let manuals = [];
+let tickets = [];
+
+// Carregar manuais ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadManuals();
+    loadTickets();
+});
+
+// Carregar lista de manuais
+async function loadManuals() {
+    try {
+        const response = await fetch('/api/support/manuals');
+        const data = await response.json();
+        
+        if (data.success) {
+            manuals = data.manuals || [];
+            renderManuals();
+        } else {
+            showError('Erro ao carregar manuais: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao carregar manuais:', error);
+        showError('Erro ao carregar manuais');
+    }
+}
+
+// Obter ícone baseado no nome/tipo do manual
+function getManualIcon(filename, title) {
+    const filenameLower = filename.toLowerCase();
+    const titleLower = title.toLowerCase();
+    
+    // Mapeamento de ícones por palavras-chave
+    if (filenameLower.includes('login') || filenameLower.includes('registro') || titleLower.includes('login')) {
+        return 'bi-box-arrow-in-right';
+    }
+    if (filenameLower.includes('perfil') || titleLower.includes('perfil')) {
+        return 'bi-person';
+    }
+    if (filenameLower.includes('dashboard') || titleLower.includes('dashboard')) {
+        return 'bi-speedometer2';
+    }
+    if (filenameLower.includes('plano') || filenameLower.includes('assinatura') || titleLower.includes('plano')) {
+        return 'bi-credit-card';
+    }
+    if (filenameLower.includes('produto') || titleLower.includes('produto')) {
+        return 'bi-box-seam';
+    }
+    if (filenameLower.includes('estoque') || titleLower.includes('estoque')) {
+        return 'bi-boxes';
+    }
+    if (filenameLower.includes('fornecedor') || titleLower.includes('fornecedor')) {
+        return 'bi-truck';
+    }
+    if (filenameLower.includes('ordem') || filenameLower.includes('compra') || titleLower.includes('ordem')) {
+        return 'bi-file-earmark-text';
+    }
+    if (filenameLower.includes('anuncio') || titleLower.includes('anúncio')) {
+        return 'bi-megaphone';
+    }
+    if (filenameLower.includes('pedido') || titleLower.includes('pedido')) {
+        return 'bi-cart';
+    }
+    if (filenameLower.includes('publicidade') || titleLower.includes('publicidade')) {
+        return 'bi-bullseye';
+    }
+    if (filenameLower.includes('vendedido') || titleLower.includes('vendedido')) {
+        return 'bi-trophy-fill';
+    }
+    if (filenameLower.includes('conta') || titleLower.includes('conta')) {
+        return 'bi-people';
+    }
+    if (filenameLower.includes('financeiro') || titleLower.includes('financeiro')) {
+        return 'bi-cash-coin';
+    }
+    if (filenameLower.includes('receber') || titleLower.includes('receber')) {
+        return 'bi-arrow-down-circle';
+    }
+    if (filenameLower.includes('pagar') || titleLower.includes('pagar')) {
+        return 'bi-arrow-up-circle';
+    }
+    if (filenameLower.includes('fluxo') || filenameLower.includes('caixa') || titleLower.includes('fluxo')) {
+        return 'bi-graph-up';
+    }
+    if (filenameLower.includes('categoria') || titleLower.includes('categoria')) {
+        return 'bi-tags';
+    }
+    if (filenameLower.includes('centro') || filenameLower.includes('custo') || titleLower.includes('centro')) {
+        return 'bi-building';
+    }
+    if (filenameLower.includes('bancaria') || titleLower.includes('bancária')) {
+        return 'bi-bank';
+    }
+    if (filenameLower.includes('pergunta') || titleLower.includes('pergunta')) {
+        return 'bi-question-circle';
+    }
+    if (filenameLower.includes('pos') || filenameLower.includes('venda') || titleLower.includes('pós-venda')) {
+        return 'bi-chat-dots';
+    }
+    if (filenameLower.includes('chat') || filenameLower.includes('ia') || titleLower.includes('chat')) {
+        return 'bi-robot';
+    }
+    if (filenameLower.includes('indice') || filenameLower.includes('índice') || titleLower.includes('índice')) {
+        return 'bi-list-ul';
+    }
+    
+    // Ícone padrão
+    return 'bi-file-earmark-text';
+}
+
+// Renderizar lista de manuais
+function renderManuals() {
+    const container = document.getElementById('manualsContainer');
+    
+    if (manuals.length === 0) {
+        container.innerHTML = `
+            <tr>
+                <td colspan="2" class="text-center py-5">
+                    <p class="text-muted mb-0">Nenhum manual encontrado.</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    let html = '';
+    manuals.forEach(manual => {
+        const icon = getManualIcon(manual.filename, manual.title);
+        html += `
+            <tr style="cursor: pointer;" onclick="openManual('${manual.filename}');">
+                <td>
+                    <div class="d-flex align-items-center">
+                        <i class="bi ${icon} me-3" style="font-size: 1.2rem; color: #6c757d;"></i>
+                        <div class="fw-normal">${escapeHtml(manual.title)}</div>
+                    </div>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-link text-muted p-0" onclick="event.stopPropagation(); openManual('${manual.filename}');">
+                        <i class="bi bi-arrow-right"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Abrir manual
+async function openManual(filename) {
+    try {
+        const response = await fetch(`/api/support/manuals/${encodeURIComponent(filename)}`);
+        const data = await response.json();
+        
+        if (data.success && data.manual) {
+            const manual = data.manual;
+            const icon = getManualIcon(manual.filename, manual.title);
+            
+            // Atualizar título com ícone
+            document.getElementById('manualTitle').innerHTML = `
+                <i class="bi ${icon} me-2 text-muted"></i>
+                ${escapeHtml(manual.title)}
+            `;
+            
+            // Converter Markdown para HTML (simples)
+            const content = convertMarkdownToHtml(manual.content);
+            document.getElementById('manualContent').innerHTML = content;
+            
+            // Scroll para o topo
+            document.getElementById('manualContent').scrollTop = 0;
+            
+            // Mostrar visualizador e ocultar lista
+            document.getElementById('manualsList').style.display = 'none';
+            document.getElementById('manualViewer').style.display = 'block';
+            document.getElementById('searchResults').style.display = 'none';
+            
+            // Scroll suave para o visualizador
+            document.getElementById('manualViewer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            showError('Erro ao carregar manual: ' + (data.error || 'Manual não encontrado'));
+        }
+    } catch (error) {
+        console.error('Erro ao abrir manual:', error);
+        showError('Erro ao carregar manual');
+    }
+}
+
+// Fechar manual
+function closeManual() {
+    document.getElementById('manualsList').style.display = 'block';
+    document.getElementById('manualViewer').style.display = 'none';
+}
+
+// Buscar na documentação
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        performSearch();
+    }, 500);
+}
+
+async function performSearch() {
+    const query = document.getElementById('searchInput').value.trim();
+    
+    if (query.length < 2) {
+        document.getElementById('searchResults').style.display = 'none';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/support/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderSearchResults(data.results || [], query);
+        } else {
+            showError('Erro ao buscar: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao buscar:', error);
+        showError('Erro ao buscar na documentação');
+    }
+}
+
+// Renderizar resultados da busca
+function renderSearchResults(results, query) {
+    const container = document.getElementById('searchResultsContent');
+    const searchResultsDiv = document.getElementById('searchResults');
+    
+    if (results.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center py-4">Nenhum resultado encontrado.</p>';
+        searchResultsDiv.style.display = 'block';
+        return;
+    }
+    
+    let html = `<p class="text-muted mb-3">Encontrados ${results.length} resultado(s) para "<strong>${escapeHtml(query)}</strong>"</p>`;
+    
+    results.forEach(result => {
+        const icon = getManualIcon(result.filename, result.title);
+        html += `
+            <div class="mb-3 pb-3 border-bottom">
+                <div class="d-flex align-items-center mb-2">
+                    <i class="bi ${icon} me-2"></i>
+                    <a href="#" class="text-decoration-none fw-medium" onclick="openManual('${result.filename}'); return false;">${escapeHtml(result.title)}</a>
+                </div>
+                <p class="text-muted small mb-2">${result.match_count} ocorrência(s) encontrada(s)</p>
+                ${result.matches.map(match => `
+                    <div class="border-start border-primary ps-3 mb-2">
+                        <small class="text-muted">Linha ${match.line}:</small>
+                        <pre class="mb-0 small bg-light p-2 rounded">${escapeHtml(match.context)}</pre>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    searchResultsDiv.style.display = 'block';
+}
+
+// Carregar chamados
+async function loadTickets() {
+    const status = document.getElementById('ticketStatusFilter')?.value || '';
+    const url = `/api/support/tickets${status ? '?status=' + encodeURIComponent(status) : ''}`;
+    
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            tickets = data.tickets || [];
+            renderTickets();
+        } else {
+            showError('Erro ao carregar chamados: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao carregar chamados:', error);
+        showError('Erro ao carregar chamados');
+    }
+}
+
+// Renderizar lista de chamados
+function renderTickets() {
+    const container = document.getElementById('ticketsContainer');
+    
+    if (tickets.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted"></i>
+                <h5 class="mt-3">Nenhum chamado encontrado</h5>
+                <p class="text-muted">Você ainda não possui chamados de suporte.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="list-group">';
+    tickets.forEach(ticket => {
+        const statusBadge = getStatusBadge(ticket.status);
+        const priorityBadge = getPriorityBadge(ticket.priority);
+        
+        html += `
+            <div class="list-group-item list-group-item-action" onclick="viewTicket(${ticket.id});" style="cursor: pointer;">
+                <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${escapeHtml(ticket.subject)}</h6>
+                        <p class="mb-1 text-muted small">${escapeHtml(ticket.description.substring(0, 150))}${ticket.description.length > 150 ? '...' : ''}</p>
+                        <small class="text-muted">
+                            ${ticket.category ? `<span class="badge bg-secondary me-1">${escapeHtml(ticket.category)}</span>` : ''}
+                            ${priorityBadge}
+                            Criado em ${formatDate(ticket.created_at)}
+                        </small>
+                    </div>
+                    <div>
+                        ${statusBadge}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+// Criar novo chamado
+async function createTicket(event) {
+    event.preventDefault();
+    
+    const subject = document.getElementById('ticketSubject').value.trim();
+    const description = document.getElementById('ticketDescription').value.trim();
+    const category = document.getElementById('ticketCategory').value;
+    const priority = document.getElementById('ticketPriority').value;
+    const attachmentsInput = document.getElementById('ticketAttachments');
+    
+    if (!subject || !description) {
+        showError('Por favor, preencha todos os campos obrigatórios.');
+        return;
+    }
+    
+    try {
+        // Criar o chamado primeiro
+        const response = await fetch('/api/support/tickets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                subject: subject,
+                description: description,
+                category: category || null,
+                priority: priority
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            showError('Erro ao criar chamado: ' + (data.error || 'Erro desconhecido'));
+            return;
+        }
+        
+        const ticketId = data.ticket.id;
+        
+        // Se houver anexos, fazer upload
+        if (attachmentsInput.files.length > 0) {
+            const formData = new FormData();
+            for (let i = 0; i < attachmentsInput.files.length; i++) {
+                formData.append('files', attachmentsInput.files[i]);
+            }
+            
+            try {
+                const uploadResponse = await fetch(`/api/support/tickets/${ticketId}/attachments`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const uploadData = await uploadResponse.json();
+                if (!uploadData.success) {
+                    console.warn('Aviso: Chamado criado mas alguns anexos não foram enviados');
+                }
+            } catch (uploadError) {
+                console.error('Erro ao fazer upload de anexos:', uploadError);
+                // Não falhar o processo se o upload de anexos falhar
+            }
+        }
+        
+        showSuccess('Chamado criado com sucesso!');
+        document.getElementById('newTicketForm').reset();
+        document.getElementById('attachmentsPreview').innerHTML = '';
+        
+        // Recarregar lista de chamados e mudar para a aba de chamados
+        loadTickets();
+        const ticketsTab = document.getElementById('tickets-tab');
+        const ticketsTabInstance = new bootstrap.Tab(ticketsTab);
+        ticketsTabInstance.show();
+    } catch (error) {
+        console.error('Erro ao criar chamado:', error);
+        showError('Erro ao criar chamado');
+    }
+}
+
+// Preview de anexos
+document.addEventListener('DOMContentLoaded', function() {
+    const attachmentsInput = document.getElementById('ticketAttachments');
+    if (attachmentsInput) {
+        attachmentsInput.addEventListener('change', function() {
+            const preview = document.getElementById('attachmentsPreview');
+            preview.innerHTML = '';
+            
+            if (this.files.length > 0) {
+                const list = document.createElement('ul');
+                list.className = 'list-group list-group-flush';
+                
+                for (let i = 0; i < this.files.length; i++) {
+                    const file = this.files[i];
+                    const listItem = document.createElement('li');
+                    listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    
+                    const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                    listItem.innerHTML = `
+                        <div>
+                            <i class="bi bi-file-earmark me-2"></i>
+                            ${escapeHtml(file.name)}
+                            <small class="text-muted">(${fileSize} MB)</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="removeAttachment(${i})">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    `;
+                    list.appendChild(listItem);
+                }
+                
+                preview.appendChild(list);
+            }
+        });
+    }
+});
+
+function removeAttachment(index) {
+    const input = document.getElementById('ticketAttachments');
+    const dt = new DataTransfer();
+    
+    for (let i = 0; i < input.files.length; i++) {
+        if (i !== index) {
+            dt.items.add(input.files[i]);
+        }
+    }
+    
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change'));
+}
+
+// Visualizar chamado
+async function viewTicket(ticketId) {
+    try {
+        const response = await fetch(`/api/support/tickets/${ticketId}`);
+        const data = await response.json();
+        
+        if (data.success && data.ticket) {
+            const ticket = data.ticket;
+            const statusBadge = getStatusBadge(ticket.status);
+            const priorityBadge = getPriorityBadge(ticket.priority);
+            
+            let html = `
+                <div class="mb-3">
+                    <h6>Assunto</h6>
+                    <p>${escapeHtml(ticket.subject)}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Status</h6>
+                    <p>${statusBadge}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Prioridade</h6>
+                    <p>${priorityBadge}</p>
+                </div>
+                
+                ${ticket.category ? `
+                <div class="mb-3">
+                    <h6>Categoria</h6>
+                    <p><span class="badge bg-secondary">${escapeHtml(ticket.category)}</span></p>
+                </div>
+                ` : ''}
+                
+                <div class="mb-3">
+                    <h6>Descrição</h6>
+                    <p style="white-space: pre-wrap;">${escapeHtml(ticket.description)}</p>
+                </div>
+                
+                ${ticket.attachments && ticket.attachments.length > 0 ? `
+                <div class="mb-3">
+                    <h6>Anexos</h6>
+                    <div class="list-group">
+                        ${ticket.attachments.map(att => `
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-paperclip me-2"></i>
+                                    <a href="${att.file_url}" target="_blank" class="text-decoration-none">${escapeHtml(att.filename)}</a>
+                                    <small class="text-muted ms-2">(${(att.file_size / 1024).toFixed(2)} KB)</small>
+                                </div>
+                                <a href="${att.file_url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-download"></i> Baixar
+                                </a>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+                
+                ${ticket.messages && ticket.messages.length > 0 ? `
+                <div class="mb-3">
+                    <h6>Mensagens</h6>
+                    <div class="list-group">
+                        ${ticket.messages.map(msg => `
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <strong>${msg.is_from_support ? 'Equipe de Suporte' : 'Você'}</strong>
+                                        <small class="text-muted ms-2">${formatDate(msg.created_at)}</small>
+                                    </div>
+                                </div>
+                                <p style="white-space: pre-wrap;" class="mb-0">${escapeHtml(msg.message)}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : '<div class="alert alert-warning">Aguardando resposta do suporte.</div>'}
+                
+                <div class="mb-3">
+                    <small class="text-muted">
+                        Criado em ${formatDate(ticket.created_at)}
+                        ${ticket.updated_at && ticket.updated_at !== ticket.created_at ? ` • Atualizado em ${formatDate(ticket.updated_at)}` : ''}
+                        ${ticket.closed_at ? ` • Fechado em ${formatDate(ticket.closed_at)}` : ''}
+                    </small>
+                </div>
+            `;
+            
+            document.getElementById('ticketModalBody').innerHTML = html;
+            document.getElementById('ticketModalLabel').textContent = ticket.subject;
+            
+            const modal = new bootstrap.Modal(document.getElementById('ticketModal'));
+            modal.show();
+        } else {
+            showError('Erro ao carregar chamado: ' + (data.error || 'Chamado não encontrado'));
+        }
+    } catch (error) {
+        console.error('Erro ao visualizar chamado:', error);
+        showError('Erro ao carregar chamado');
+    }
+}
+
+// Funções auxiliares
+function getStatusBadge(status) {
+    const badges = {
+        'open': '<span class="badge bg-primary">Aberto</span>',
+        'in_progress': '<span class="badge bg-info">Em Andamento</span>',
+        'waiting_user': '<span class="badge bg-warning">Aguardando</span>',
+        'resolved': '<span class="badge bg-success">Resolvido</span>',
+        'closed': '<span class="badge bg-secondary">Fechado</span>'
+    };
+    return badges[status] || '<span class="badge bg-secondary">' + status + '</span>';
+}
+
+function getPriorityBadge(priority) {
+    const badges = {
+        'low': '<span class="badge bg-secondary">Baixa</span>',
+        'medium': '<span class="badge bg-info">Média</span>',
+        'high': '<span class="badge bg-warning">Alta</span>',
+        'urgent': '<span class="badge bg-danger">Urgente</span>'
+    };
+    return badges[priority] || '<span class="badge bg-secondary">' + priority + '</span>';
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString('pt-BR');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function convertMarkdownToHtml(markdown) {
+    // Conversão melhorada de Markdown para HTML
+    let html = markdown;
+    
+    // Code blocks primeiro (para não interferir)
+    html = html.replace(/```([\s\S]*?)```/g, function(match, code) {
+        return '<pre class="bg-light p-3 rounded border"><code>' + escapeHtml(code) + '</code></pre>';
+    });
+    
+    // Inline code (apenas fora de code blocks)
+    html = html.replace(/`([^`\n]+)`/g, '<code class="bg-light px-1 rounded">$1</code>');
+    
+    // Headers (do maior para o menor)
+    html = html.replace(/^#### (.*$)/gim, '<h4 class="mt-4 mb-3">$1</h4>');
+    html = html.replace(/^### (.*$)/gim, '<h3 class="mt-4 mb-3">$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2 class="mt-4 mb-3 border-bottom pb-2">$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1 class="mt-4 mb-3 border-bottom pb-2">$1</h1>');
+    
+    // Separadores
+    html = html.replace(/^---$/gim, '<hr class="my-4">');
+    
+    // Listas não ordenadas (processar blocos)
+    html = html.replace(/(?:^[-*] .+(?:\n|$))+/gm, function(match) {
+        const items = match.trim().split('\n').map(line => {
+            const content = line.replace(/^[-*] /, '').trim();
+            return '<li>' + processInlineMarkdown(content) + '</li>';
+        }).join('');
+        return '<ul class="mb-3">' + items + '</ul>';
+    });
+    
+    // Listas ordenadas
+    html = html.replace(/(?:^\d+\. .+(?:\n|$))+/gm, function(match) {
+        const items = match.trim().split('\n').map(line => {
+            const match = line.match(/^\d+\. (.*)/);
+            return '<li>' + processInlineMarkdown(match ? match[1] : line) + '</li>';
+        }).join('');
+        return '<ol class="mb-3">' + items + '</ol>';
+    });
+    
+    // Processar parágrafos (linhas que não são headers, listas, etc)
+    const lines = html.split('\n');
+    const processedLines = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Pular linhas já processadas (headers, listas, code blocks, separadores)
+        if (trimmed.startsWith('<') || trimmed === '') {
+            processedLines.push(line);
+        } else if (trimmed && !trimmed.match(/^<[h|u|o|l|p|d|h]/)) {
+            processedLines.push('<p class="mb-3">' + processInlineMarkdown(line) + '</p>');
+        } else {
+            processedLines.push(line);
+        }
+    }
+    
+    html = processedLines.join('\n');
+    
+    return html;
+}
+
+// Processar markdown inline (bold, italic, links)
+function processInlineMarkdown(text) {
+    let html = text;
+    
+    // Bold
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Italic
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" class="text-primary">$1 <i class="bi bi-box-arrow-up-right"></i></a>');
+    
+    // Escapar HTML restante
+    const tempDiv = document.createElement('div');
+    tempDiv.textContent = html;
+    html = tempDiv.innerHTML;
+    
+    // Restaurar tags processadas (desescapar)
+    html = html.replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/g, '<strong>$1</strong>');
+    html = html.replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/g, '<em>$1</em>');
+    html = html.replace(/&lt;code class="bg-light px-1 rounded"&gt;(.*?)&lt;\/code&gt;/g, '<code class="bg-light px-1 rounded">$1</code>');
+    html = html.replace(/&lt;a href="([^"]+)" target="_blank" class="text-primary"&gt;(.*?) &lt;i class="bi bi-box-arrow-up-right"&gt;&lt;\/i&gt;&lt;\/a&gt;/g, '<a href="$1" target="_blank" class="text-primary">$2 <i class="bi bi-box-arrow-up-right"></i></a>');
+    
+    return html;
+}
+
+function showError(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed bottom-0 end-0 m-3 border-0 shadow-sm';
+    alertDiv.style.zIndex = '9999';
+    alertDiv.style.maxWidth = '400px';
+    alertDiv.innerHTML = `
+        <small>${escapeHtml(message)}</small>
+        <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 4000);
+}
+
+function showSuccess(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed bottom-0 end-0 m-3 border-0 shadow-sm';
+    alertDiv.style.zIndex = '9999';
+    alertDiv.style.maxWidth = '400px';
+    alertDiv.innerHTML = `
+        <small>${escapeHtml(message)}</small>
+        <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 4000);
+}
+</script>
+
+{% endblock %}
+

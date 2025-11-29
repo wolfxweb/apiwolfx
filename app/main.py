@@ -41,6 +41,7 @@ from app.routes.openai_assistant_routes import openai_assistant_router, openai_c
 from app.routes.stock_routes import stock_router
 from app.routes.stock_projection_routes import stock_projection_router
 from app.routes.internal_product_routes import internal_product_router
+from app.routes.support_routes import support_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -261,6 +262,10 @@ async def startup_event():
                         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stockmovementtype') THEN
                             CREATE TYPE stockmovementtype AS ENUM ('in', 'out', 'adjustment', 'transfer', 'sale', 'purchase', 'reservation', 'release');
                         END IF;
+                        
+                        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'supportticketstatus') THEN
+                            CREATE TYPE supportticketstatus AS ENUM ('open', 'in_progress', 'waiting_user', 'resolved', 'closed');
+                        END IF;
                     END $$;
                 """)
                 db_enum.execute(create_enums_sql)
@@ -473,6 +478,16 @@ async def startup_event():
                         spec.loader.exec_module(module)
                         module.create_openai_assistants_tables()
                         print("✅ [STARTUP] Tabelas OpenAI Assistants verificadas/criadas")
+                        
+                        # Criar tabelas de suporte
+                        support_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                                'database', 'fixes', 'create_support_tickets_tables.py')
+                        if os.path.exists(support_script_path):
+                            support_spec = importlib.util.spec_from_file_location("create_support_tickets_tables", support_script_path)
+                            support_module = importlib.util.module_from_spec(support_spec)
+                            support_spec.loader.exec_module(support_module)
+                            support_module.create_support_tickets_tables()
+                            print("✅ [STARTUP] Tabelas de suporte verificadas/criadas")
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Tabelas podem já existir: {e}")
  
@@ -1089,6 +1104,7 @@ app.include_router(ml_messages_router)  # Para /messages (HTML) e /api/messages 
 app.include_router(activity_router)  # Para /api/activity/summary
 app.include_router(openai_assistant_router)  # Para /api/openai/assistants
 app.include_router(openai_chat_router)  # Para /ai/chat (HTML)
+app.include_router(support_router)  # Para /support (HTML) e /api/support (API)
 app.include_router(tools_router)  # Para /api/openai/tools
 app.include_router(stock_router, prefix="/api")  # Para /api/stock (API)
 app.include_router(stock_projection_router, prefix="/api")  # Para /api/stock/projections

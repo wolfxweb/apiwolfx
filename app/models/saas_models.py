@@ -1835,3 +1835,110 @@ class StockProjection(Base):
         Index('ix_stock_projections_last_calculated', 'last_calculated_at'),
     )
 
+
+class SupportTicketStatus(enum.Enum):
+    """Status do chamado de suporte"""
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    WAITING_USER = "waiting_user"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+
+class SupportTicket(Base):
+    """Chamados de suporte dos usuários"""
+    __tablename__ = "support_tickets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    
+    # Dados do chamado
+    subject = Column(String(500), nullable=False)  # Assunto
+    description = Column(Text, nullable=False)  # Descrição detalhada
+    category = Column(String(100))  # Categoria (ex: "bug", "dúvida", "sugestão", "outro")
+    priority = Column(String(20), default="medium")  # Prioridade: low, medium, high, urgent
+    
+    # Status/Situação - usar String com constraint para compatibilidade
+    status = Column(String(20), default="open", nullable=False, index=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)  # Data de abertura
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    closed_at = Column(DateTime(timezone=True), nullable=True)  # Data de fechamento
+    
+    # Relacionamentos
+    company = relationship("Company")
+    user = relationship("User", foreign_keys=[user_id])
+    messages = relationship("SupportTicketMessage", back_populates="ticket", cascade="all, delete-orphan", order_by="SupportTicketMessage.created_at")
+    attachments = relationship("SupportTicketAttachment", back_populates="ticket", cascade="all, delete-orphan", order_by="SupportTicketAttachment.created_at")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_support_tickets_company_status', 'company_id', 'status'),
+        Index('ix_support_tickets_user', 'user_id'),
+        Index('ix_support_tickets_created', 'created_at'),
+    )
+
+
+class SupportTicketMessage(Base):
+    """Mensagens de um chamado de suporte"""
+    __tablename__ = "support_ticket_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("support_tickets.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Usuário que enviou (pode ser null se for sistema)
+    
+    # Tipo de mensagem
+    is_from_support = Column(Boolean, default=False, nullable=False)  # True = equipe de suporte, False = usuário
+    
+    # Conteúdo
+    message = Column(Text, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    # Relacionamentos
+    ticket = relationship("SupportTicket", back_populates="messages")
+    user = relationship("User")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_support_ticket_messages_ticket', 'ticket_id'),
+        Index('ix_support_ticket_messages_user', 'user_id'),
+        Index('ix_support_ticket_messages_created', 'created_at'),
+    )
+
+
+class SupportTicketAttachment(Base):
+    """Anexos de chamados de suporte"""
+    __tablename__ = "support_ticket_attachments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("support_tickets.id"), nullable=False, index=True)
+    message_id = Column(Integer, ForeignKey("support_ticket_messages.id"), nullable=True, index=True)  # Anexo pode estar associado a uma mensagem específica
+    
+    # Dados do arquivo
+    filename = Column(String(500), nullable=False)  # Nome original do arquivo
+    file_path = Column(String(1000), nullable=False)  # Caminho do arquivo no servidor
+    file_size = Column(BigInteger)  # Tamanho em bytes
+    content_type = Column(String(100))  # Tipo MIME (ex: image/jpeg, application/pdf)
+    
+    # Usuário que fez upload
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    # Relacionamentos
+    ticket = relationship("SupportTicket", back_populates="attachments")
+    message = relationship("SupportTicketMessage")
+    user = relationship("User", foreign_keys=[uploaded_by])
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_support_ticket_attachments_ticket', 'ticket_id'),
+        Index('ix_support_ticket_attachments_message', 'message_id'),
+        Index('ix_support_ticket_attachments_user', 'uploaded_by'),
+    )
+
