@@ -534,6 +534,22 @@ async def startup_event():
                         print("✅ [STARTUP] Tabelas de Tarefas verificadas/criadas")
                     else:
                         print(f"⚠️ [STARTUP] Script de tarefas não encontrado. Tentou: {task_script_path}")
+                    
+                    # Adicionar coluna hide_product_data
+                    print("🔒 [STARTUP] Verificando coluna hide_product_data...")
+                    hide_data_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                                'database', 'fixes', 'add_hide_product_data_column.py')
+                    if not os.path.exists(hide_data_script_path):
+                        hide_data_script_path = os.path.join('/app', 'database', 'fixes', 'add_hide_product_data_column.py')
+                    if os.path.exists(hide_data_script_path):
+                        print(f"🔒 [STARTUP] Script encontrado: {hide_data_script_path}")
+                        hide_data_spec = importlib.util.spec_from_file_location("add_hide_product_data_column", hide_data_script_path)
+                        hide_data_module = importlib.util.module_from_spec(hide_data_spec)
+                        hide_data_spec.loader.exec_module(hide_data_module)
+                        hide_data_module.add_hide_product_data_column()
+                        print("✅ [STARTUP] Coluna hide_product_data verificada/criada")
+                    else:
+                        print(f"⚠️ [STARTUP] Script hide_product_data não encontrado. Tentou: {hide_data_script_path}")
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Tabelas podem já existir: {e}")
                 finally:
@@ -1468,6 +1484,9 @@ async def api_update_company(
         if 'ml_orders_as_receivables' in company_data:
             company.ml_orders_as_receivables = company_data['ml_orders_as_receivables']
         
+        if 'hide_product_data' in company_data:
+            company.hide_product_data = company_data['hide_product_data']
+        
         # Salvar alterações
         print(f"DEBUG: Salvando alterações no banco...")
         try:
@@ -1522,7 +1541,8 @@ async def api_update_company(
                 "status": company.status,
                 "description": company.description,
                 "trial_ends_at": company.trial_ends_at.isoformat() if company.trial_ends_at else None,
-                "ml_orders_as_receivables": company.ml_orders_as_receivables
+                "ml_orders_as_receivables": company.ml_orders_as_receivables,
+                "hide_product_data": company.hide_product_data
             }
         }
         

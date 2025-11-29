@@ -342,10 +342,20 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="mlOrdersReceivables" class="form-label">Configurações</label>
-                            <div class="form-check form-switch">
+                            <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" id="mlOrdersReceivables" {% if company.ml_orders_as_receivables %}checked{% endif %}>
                                 <label class="form-check-label" for="mlOrdersReceivables">
                                     Pedidos ML como Contas a Receber
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="hideProductData" {% if company.hide_product_data %}checked{% endif %}>
+                                <label class="form-check-label" for="hideProductData">
+                                    <strong>Ocultar dados dos produtos</strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        Quando ativado, o SKU e nome dos produtos serão exibidos como "****" e as imagens não serão mostradas.
+                                    </small>
                                 </label>
                             </div>
                         </div>
@@ -406,6 +416,7 @@ async function saveCompany() {
             description: document.getElementById('companyDescription').value,
             // trial_ends_at não é enviado - não pode ser alterado
             ml_orders_as_receivables: document.getElementById('mlOrdersReceivables').checked,
+            hide_product_data: document.getElementById('hideProductData').checked,
             
             razao_social: document.getElementById('razaoSocial').value,
             nome_fantasia: document.getElementById('nomeFantasia').value,

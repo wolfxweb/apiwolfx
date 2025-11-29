@@ -619,7 +619,8 @@ class AuthController:
                     "company": {
                         "id": company.id,
                         "name": company.name,
-                        "slug": company.slug
+                        "slug": company.slug,
+                        "hide_product_data": company.hide_product_data if hasattr(company, 'hide_product_data') else False
                     } if company else None
                 },
                 "plan_status": plan_status,

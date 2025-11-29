@@ -49,6 +49,7 @@ class Company(Base):
     # Configurações
     features = Column(JSON)  # Features habilitadas
     ml_orders_as_receivables = Column(Boolean, default=True)  # Considerar pedidos ML como contas a receber
+    hide_product_data = Column(Boolean, default=False)  # Ocultar SKU, nome e imagem dos produtos
     
     # Plano e Limites
     plan_expires_at = Column(DateTime)  # Data de vencimento do plano
