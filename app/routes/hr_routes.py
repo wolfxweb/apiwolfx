@@ -183,25 +183,53 @@ async def get_users_stats_api(
     try:
         logger.info(f"🔍 [USERS STATS] Buscando estatísticas para Company ID: {company_id}")
         
+        # Buscar TODAS as assinaturas da empresa para debug
+        all_subscriptions = db.query(Subscription).filter(
+            Subscription.company_id == company_id
+        ).order_by(Subscription.created_at.desc()).all()
+        logger.info(f"📋 [USERS STATS] Total de assinaturas encontradas para Company ID {company_id}: {len(all_subscriptions)}")
+        for sub in all_subscriptions:
+            logger.info(f"   - Subscription ID: {sub.id}, Status: {sub.status}, Is Trial: {sub.is_trial}, Plan Name: {sub.plan_name}, Max Users: {sub.max_users}, Created At: {sub.created_at}")
+        
         # Buscar assinatura ativa
         subscription = db.query(Subscription).filter(
             Subscription.company_id == company_id,
             (Subscription.status == "active") | (Subscription.is_trial == True)
         ).order_by(Subscription.created_at.desc()).first()
         
+        if subscription:
+            logger.info(f"✅ [USERS STATS] Assinatura ativa encontrada: ID={subscription.id}, Status={subscription.status}, Is Trial={subscription.is_trial}, Plan Name={subscription.plan_name}, Max Users (assinatura)={subscription.max_users}")
+        else:
+            logger.warning(f"⚠️ [USERS STATS] Nenhuma assinatura ativa encontrada para Company ID {company_id}")
+        
         # Obter max_users do plano
+        # SEMPRE buscar do template do plano, pois ele é a fonte da verdade
+        # A assinatura pode ter valores antigos
         max_users = None
         if subscription:
-            max_users = subscription.max_users
-            # Se não tiver max_users na assinatura, buscar do template
-            if not max_users or max_users <= 0:
-                if subscription.plan_name:
-                    plan_template = db.query(Subscription).filter(
-                        Subscription.plan_name == subscription.plan_name,
-                        Subscription.status == "template"
-                    ).first()
-                    if plan_template and plan_template.max_users:
+            logger.info(f"🔍 [USERS STATS] Max Users da assinatura: {subscription.max_users}")
+            
+            # SEMPRE buscar do template do plano (fonte da verdade)
+            if subscription.plan_name:
+                plan_template = db.query(Subscription).filter(
+                    Subscription.plan_name == subscription.plan_name,
+                    Subscription.status == "template"
+                ).first()
+                
+                if plan_template:
+                    logger.info(f"📋 [USERS STATS] Template encontrado: ID={plan_template.id}, Plan Name={plan_template.plan_name}, Max Users={plan_template.max_users}")
+                    if plan_template.max_users and plan_template.max_users > 0:
                         max_users = plan_template.max_users
+                        logger.info(f"✅ [USERS STATS] Usando max_users do template (fonte da verdade): {max_users}")
+                    else:
+                        logger.warning(f"⚠️ [USERS STATS] Template encontrado mas sem max_users válido, usando da assinatura")
+                        max_users = subscription.max_users
+                else:
+                    logger.warning(f"⚠️ [USERS STATS] Template do plano '{subscription.plan_name}' não encontrado, usando da assinatura")
+                    max_users = subscription.max_users
+            else:
+                logger.warning(f"⚠️ [USERS STATS] Assinatura sem plan_name, usando max_users da assinatura")
+                max_users = subscription.max_users
         
         # Contar TODOS os funcionários ATIVOS (independente de terem conta de usuário)
         active_employees = db.query(Employee).filter(
