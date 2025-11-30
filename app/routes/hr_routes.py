@@ -200,8 +200,11 @@ async def create_employee_api(
     if result.get("success"):
         return JSONResponse(content=result)
     else:
+        # Retornar status 400 para erros de validação (limite, CPF duplicado, etc)
+        error_message = result.get("error", "").lower()
+        status_code = 400 if any(keyword in error_message for keyword in ["já cadastrado", "limite", "atingido", "e-mail já"]) else 500
         return JSONResponse(
-            status_code=400 if "já cadastrado" in result.get("error", "").lower() else 500,
+            status_code=status_code,
             content=result
         )
 

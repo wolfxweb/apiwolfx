@@ -355,6 +355,7 @@ async function createEmployee(event) {
             headers: {
                 'Content-Type': 'application/json'
             },
+            credentials: 'include',
             body: JSON.stringify(formData)
         });
         
@@ -367,11 +368,14 @@ async function createEmployee(event) {
             modal.hide();
             loadEmployees();
         } else {
-            showError('Erro ao criar funcionário: ' + (data.error || 'Erro desconhecido'));
+            // Exibir mensagem de erro do backend
+            const errorMessage = data.error || 'Erro desconhecido';
+            showError(errorMessage);
+            console.error('Erro ao criar funcionário:', data);
         }
     } catch (error) {
         console.error('Erro ao criar funcionário:', error);
-        showError('Erro ao criar funcionário');
+        showError('Erro ao criar funcionário. Verifique sua conexão e tente novamente.');
     }
 }
 

@@ -41,10 +41,19 @@ class HRService:
     def _count_active_users(self, company_id: int) -> int:
         """Conta usuários ativos da empresa"""
         try:
-            count = self.db.query(User).filter(
+            # Buscar todos os usuários ativos da empresa para log detalhado
+            active_users = self.db.query(User).filter(
                 User.company_id == company_id,
                 User.is_active == True
-            ).count()
+            ).all()
+            
+            count = len(active_users)
+            
+            # Log detalhado dos usuários encontrados
+            user_ids = [u.id for u in active_users]
+            user_emails = [u.email for u in active_users]
+            logger.info(f"📊 [LIMITE USUÁRIOS] Usuários ativos encontrados para Company ID {company_id}: {count} usuários (IDs: {user_ids}, Emails: {user_emails})")
+            
             return count
         except Exception as e:
             logger.error(f"Erro ao contar usuários ativos: {e}", exc_info=True)
@@ -53,10 +62,15 @@ class HRService:
     def _check_user_limit(self, company_id: int) -> Dict[str, Any]:
         """Verifica se a empresa pode criar mais usuários"""
         try:
+            logger.info(f"🔍 [LIMITE USUÁRIOS] Iniciando verificação para Company ID: {company_id}")
+            
+            # 1. Pegar company_id do usuário (já vem como parâmetro)
+            # 2. Buscar assinatura ativa da empresa
             subscription = self._get_active_subscription(company_id)
             
             # Se não houver assinatura, permitir criação (comportamento atual)
             if not subscription:
+                logger.warning(f"⚠️ [LIMITE USUÁRIOS] Company ID: {company_id} não possui assinatura ativa - PERMITINDO criação")
                 return {
                     "allowed": True,
                     "max_users": None,
@@ -64,27 +78,68 @@ class HRService:
                     "message": None
                 }
             
-            # Se não houver limite definido, permitir
-            if not subscription.max_users or subscription.max_users <= 0:
-                return {
-                    "allowed": True,
-                    "max_users": None,
-                    "current_users": 0,
-                    "message": None
-                }
+            logger.info(f"📋 [LIMITE USUÁRIOS] Assinatura encontrada: ID={subscription.id}, Plan Name={subscription.plan_name}, Status={subscription.status}, Max Users (assinatura)={subscription.max_users}")
             
-            # Contar usuários ativos
-            current_users = self._count_active_users(company_id)
+            # 3. Obter max_users do plano
+            # Se a assinatura não tiver max_users, buscar do template do plano
             max_users = subscription.max_users
             
+            if not max_users or max_users <= 0:
+                logger.info(f"🔍 [LIMITE USUÁRIOS] Assinatura não tem max_users definido, buscando template do plano '{subscription.plan_name}'")
+                # Buscar template do plano pelo plan_name
+                if subscription.plan_name:
+                    plan_template = self.db.query(Subscription).filter(
+                        Subscription.plan_name == subscription.plan_name,
+                        Subscription.status == "template"
+                    ).first()
+                    
+                    if plan_template:
+                        logger.info(f"📋 [LIMITE USUÁRIOS] Template encontrado: ID={plan_template.id}, Max Users={plan_template.max_users}")
+                        if plan_template.max_users and plan_template.max_users > 0:
+                            max_users = plan_template.max_users
+                            logger.info(f"✅ [LIMITE USUÁRIOS] Usando max_users do template do plano '{subscription.plan_name}': {max_users}")
+                        else:
+                            logger.warning(f"⚠️ [LIMITE USUÁRIOS] Template do plano '{subscription.plan_name}' encontrado mas sem max_users válido - PERMITINDO criação")
+                            return {
+                                "allowed": True,
+                                "max_users": None,
+                                "current_users": 0,
+                                "message": None
+                            }
+                    else:
+                        logger.warning(f"⚠️ [LIMITE USUÁRIOS] Template do plano '{subscription.plan_name}' NÃO encontrado - PERMITINDO criação")
+                        return {
+                            "allowed": True,
+                            "max_users": None,
+                            "current_users": 0,
+                            "message": None
+                        }
+                else:
+                    logger.warning(f"⚠️ [LIMITE USUÁRIOS] Assinatura sem plan_name - PERMITINDO criação")
+                    return {
+                        "allowed": True,
+                        "max_users": None,
+                        "current_users": 0,
+                        "message": None
+                    }
+            
+            # 4. Contar usuários ativos da empresa (apenas is_active=True)
+            current_users = self._count_active_users(company_id)
+            
+            logger.info(f"🔍 [LIMITE USUÁRIOS] Company ID: {company_id}, Plano: {subscription.plan_name}, Usuários ativos: {current_users}, Limite: {max_users}")
+            
             # Verificar se atingiu o limite
+            # IMPORTANTE: Se current_users >= max_users, BLOQUEAR (não pode criar mais)
             if current_users >= max_users:
+                logger.warning(f"🚫 [LIMITE USUÁRIOS] LIMITE ATINGIDO! Company ID: {company_id}, Ativos: {current_users}, Limite: {max_users} - BLOQUEANDO criação")
                 return {
                     "allowed": False,
                     "max_users": max_users,
                     "current_users": current_users,
                     "message": f"Limite máximo de usuários atingido. O plano permite {max_users} usuários e você já possui {current_users} usuários ativos. Entre em contato para atualizar seu plano."
                 }
+            
+            logger.info(f"✅ [LIMITE USUÁRIOS] AINDA PODE CRIAR! Company ID: {company_id}, Ativos: {current_users}/{max_users} - PERMITINDO criação")
             
             return {
                 "allowed": True,
@@ -93,7 +148,7 @@ class HRService:
                 "message": None
             }
         except Exception as e:
-            logger.error(f"Erro ao verificar limite de usuários: {e}", exc_info=True)
+            logger.error(f"❌ [LIMITE USUÁRIOS] Erro ao verificar limite de usuários: {e}", exc_info=True)
             # Em caso de erro, permitir criação (fail-safe)
             return {
                 "allowed": True,
