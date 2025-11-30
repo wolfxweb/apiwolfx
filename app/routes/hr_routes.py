@@ -13,7 +13,9 @@ from app.config.database import get_db
 from app.controllers.hr_controller import HRController
 from app.controllers.auth_controller import AuthController
 from app.views.template_renderer import render_template
-from app.models.saas_models import UserRole
+from app.models.saas_models import UserRole, User, Subscription
+from app.models.hr_models import Employee
+from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +151,119 @@ async def list_employees_api(
         return JSONResponse(
             status_code=500,
             content=result
+        )
+
+
+@hr_router.get("/api/hr/users/stats", response_class=JSONResponse)
+async def get_users_stats_api(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter estatísticas de usuários do plano"""
+    user = get_current_user_or_redirect(session_token, db)
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    if not check_company_admin(user):
+        return JSONResponse(
+            status_code=403,
+            content={"success": False, "error": "Acesso negado"}
+        )
+    
+    company_id = user.get("company", {}).get("id")
+    if not company_id:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Company ID não encontrado"}
+        )
+    
+    try:
+        logger.info(f"🔍 [USERS STATS] Buscando estatísticas para Company ID: {company_id}")
+        
+        # Buscar assinatura ativa
+        subscription = db.query(Subscription).filter(
+            Subscription.company_id == company_id,
+            (Subscription.status == "active") | (Subscription.is_trial == True)
+        ).order_by(Subscription.created_at.desc()).first()
+        
+        # Obter max_users do plano
+        max_users = None
+        if subscription:
+            max_users = subscription.max_users
+            # Se não tiver max_users na assinatura, buscar do template
+            if not max_users or max_users <= 0:
+                if subscription.plan_name:
+                    plan_template = db.query(Subscription).filter(
+                        Subscription.plan_name == subscription.plan_name,
+                        Subscription.status == "template"
+                    ).first()
+                    if plan_template and plan_template.max_users:
+                        max_users = plan_template.max_users
+        
+        # Contar TODOS os funcionários ATIVOS (independente de terem conta de usuário)
+        active_employees = db.query(Employee).filter(
+            and_(
+                Employee.company_id == company_id,
+                Employee.status == "active"
+            )
+        ).all()
+        active_users_count = len(active_employees)
+        
+        # Log detalhado dos funcionários ativos
+        active_employee_ids = [e.id for e in active_employees]
+        active_employee_names = [e.nome_completo for e in active_employees]
+        logger.info(f"📊 [USERS STATS] Funcionários ATIVOS para Company ID {company_id}: {active_users_count} funcionários (IDs: {active_employee_ids}, Nomes: {active_employee_names})")
+        
+        # Contar TODOS os funcionários INATIVOS (independente de terem conta de usuário)
+        inactive_employees = db.query(Employee).filter(
+            and_(
+                Employee.company_id == company_id,
+                Employee.status == "inactive"
+            )
+        ).all()
+        inactive_users_count = len(inactive_employees)
+        
+        # Log detalhado dos funcionários inativos
+        inactive_employee_ids = [e.id for e in inactive_employees]
+        inactive_employee_names = [e.nome_completo for e in inactive_employees]
+        logger.info(f"📊 [USERS STATS] Funcionários INATIVOS para Company ID {company_id}: {inactive_users_count} funcionários (IDs: {inactive_employee_ids}, Nomes: {inactive_employee_names})")
+        
+        # Contar total de funcionários (para comparação)
+        total_employees = db.query(Employee).filter(
+            Employee.company_id == company_id
+        ).count()
+        employees_with_user = db.query(Employee).filter(
+            and_(
+                Employee.company_id == company_id,
+                Employee.user_id.isnot(None)
+            )
+        ).count()
+        employees_without_user = total_employees - employees_with_user
+        logger.info(f"📊 [USERS STATS] Total de funcionários: {total_employees}, Com conta de usuário: {employees_with_user}, Sem conta de usuário: {employees_without_user}")
+        
+        # Verificar se há usuários de outras empresas (para debug)
+        total_users_all_companies = db.query(User).count()
+        logger.info(f"📊 [USERS STATS] Total de usuários no sistema (todas as empresas): {total_users_all_companies}")
+        
+        result = {
+            "success": True,
+            "stats": {
+                "max_users": max_users,
+                "active_users": active_users_count,
+                "inactive_users": inactive_users_count
+            }
+        }
+        logger.info(f"✅ [USERS STATS] Retornando estatísticas: {result}")
+        
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Erro ao obter estatísticas de usuários: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro ao obter estatísticas"}
         )
 
 

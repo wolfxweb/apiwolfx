@@ -14,6 +14,46 @@
         </div>
     </div>
 
+    <!-- KPIs de Usuários -->
+    <div class="row mb-4" id="usersStatsContainer">
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-muted mb-2">
+                        <i class="bi bi-people-fill"></i> Limite do Plano
+                    </h5>
+                    <h2 class="mb-0" id="maxUsersKPI">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    </h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-success mb-2">
+                        <i class="bi bi-check-circle-fill"></i> Usuários Ativos
+                    </h5>
+                    <h2 class="mb-0 text-success" id="activeUsersKPI">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    </h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-danger mb-2">
+                        <i class="bi bi-x-circle-fill"></i> Usuários Inativos
+                    </h5>
+                    <h2 class="mb-0 text-danger" id="inactiveUsersKPI">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    </h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Lista de Funcionários -->
     <div class="card mb-4">
         <div class="card-body">
@@ -216,9 +256,64 @@ let searchTimeout;
 // Carregar funcionários ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     loadEmployees();
+    loadUsersStats();
     loadFinancialCategories();
     loadCostCenters();
 });
+
+// Carregar estatísticas de usuários
+async function loadUsersStats() {
+    try {
+        const response = await fetch('/api/hr/users/stats', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.stats) {
+            const stats = data.stats;
+            
+            // Atualizar KPI de limite do plano
+            const maxUsersEl = document.getElementById('maxUsersKPI');
+            if (maxUsersEl) {
+                maxUsersEl.textContent = stats.max_users !== null && stats.max_users !== undefined 
+                    ? stats.max_users 
+                    : 'N/A';
+            }
+            
+            // Atualizar KPI de usuários ativos
+            const activeUsersEl = document.getElementById('activeUsersKPI');
+            if (activeUsersEl) {
+                activeUsersEl.textContent = stats.active_users || 0;
+            }
+            
+            // Atualizar KPI de usuários inativos
+            const inactiveUsersEl = document.getElementById('inactiveUsersKPI');
+            if (inactiveUsersEl) {
+                inactiveUsersEl.textContent = stats.inactive_users || 0;
+            }
+        } else {
+            console.error('Erro ao carregar estatísticas de usuários:', data.error);
+            // Exibir valores padrão em caso de erro
+            const maxUsersEl = document.getElementById('maxUsersKPI');
+            const activeUsersEl = document.getElementById('activeUsersKPI');
+            const inactiveUsersEl = document.getElementById('inactiveUsersKPI');
+            if (maxUsersEl) maxUsersEl.textContent = 'N/A';
+            if (activeUsersEl) activeUsersEl.textContent = '0';
+            if (inactiveUsersEl) inactiveUsersEl.textContent = '0';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar estatísticas de usuários:', error);
+        // Exibir valores padrão em caso de erro
+        const maxUsersEl = document.getElementById('maxUsersKPI');
+        const activeUsersEl = document.getElementById('activeUsersKPI');
+        const inactiveUsersEl = document.getElementById('inactiveUsersKPI');
+        if (maxUsersEl) maxUsersEl.textContent = 'N/A';
+        if (activeUsersEl) activeUsersEl.textContent = '0';
+        if (inactiveUsersEl) inactiveUsersEl.textContent = '0';
+    }
+}
 
 // Carregar funcionários
 async function loadEmployees() {
@@ -361,20 +456,32 @@ async function createEmployee(event) {
         
         const data = await response.json();
         
-        if (data.success) {
+        console.log('📋 [CREATE EMPLOYEE] Resposta da API:', {
+            status: response.status,
+            success: data.success,
+            error: data.error,
+            data: data
+        });
+        
+        // Verificar tanto o status HTTP quanto o campo success
+        if (response.ok && data.success) {
             showSuccess('Funcionário criado com sucesso!');
             document.getElementById('createEmployeeForm').reset();
             const modal = bootstrap.Modal.getInstance(document.getElementById('createEmployeeModal'));
             modal.hide();
             loadEmployees();
+            loadUsersStats(); // Atualizar KPIs
         } else {
             // Exibir mensagem de erro do backend
             const errorMessage = data.error || 'Erro desconhecido';
             showError(errorMessage);
-            console.error('Erro ao criar funcionário:', data);
+            console.error('❌ [CREATE EMPLOYEE] Erro ao criar funcionário:', {
+                status: response.status,
+                data: data
+            });
         }
     } catch (error) {
-        console.error('Erro ao criar funcionário:', error);
+        console.error('❌ [CREATE EMPLOYEE] Erro na requisição:', error);
         showError('Erro ao criar funcionário. Verifique sua conexão e tente novamente.');
     }
 }
@@ -527,6 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const modal = bootstrap.Modal.getInstance(document.getElementById('deleteEmployeeModal'));
                     modal.hide();
                     loadEmployees();
+                    loadUsersStats(); // Atualizar KPIs
                 } else {
                     showError('Erro ao remover funcionário: ' + (data.error || 'Erro desconhecido'));
                 }

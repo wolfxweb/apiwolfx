@@ -29,10 +29,24 @@ class HRService:
     def _get_active_subscription(self, company_id: int) -> Optional[Subscription]:
         """Obtém a assinatura ativa da empresa"""
         try:
+            # Buscar todas as assinaturas da empresa para debug
+            all_subscriptions = self.db.query(Subscription).filter(
+                Subscription.company_id == company_id
+            ).all()
+            logger.info(f"🔍 [GET SUBSCRIPTION] Company ID: {company_id}, Total de assinaturas encontradas: {len(all_subscriptions)}")
+            for sub in all_subscriptions:
+                logger.info(f"   - Subscription ID: {sub.id}, Status: {sub.status}, Is Trial: {sub.is_trial}, Plan Name: {sub.plan_name}, Max Users: {sub.max_users}")
+            
             subscription = self.db.query(Subscription).filter(
                 Subscription.company_id == company_id,
                 (Subscription.status == "active") | (Subscription.is_trial == True)
             ).order_by(Subscription.created_at.desc()).first()
+            
+            if subscription:
+                logger.info(f"✅ [GET SUBSCRIPTION] Assinatura ativa encontrada: ID={subscription.id}, Status={subscription.status}, Is Trial={subscription.is_trial}, Plan Name={subscription.plan_name}, Max Users={subscription.max_users}")
+            else:
+                logger.warning(f"⚠️ [GET SUBSCRIPTION] Nenhuma assinatura ativa encontrada para Company ID: {company_id}")
+            
             return subscription
         except Exception as e:
             logger.error(f"Erro ao buscar assinatura ativa: {e}", exc_info=True)
@@ -68,13 +82,16 @@ class HRService:
             # 2. Buscar assinatura ativa da empresa
             subscription = self._get_active_subscription(company_id)
             
-            # Se não houver assinatura, permitir criação (comportamento atual)
+            # Se não houver assinatura, usar valor padrão (permitir criação por enquanto, mas logar)
             if not subscription:
-                logger.warning(f"⚠️ [LIMITE USUÁRIOS] Company ID: {company_id} não possui assinatura ativa - PERMITINDO criação")
+                logger.warning(f"⚠️ [LIMITE USUÁRIOS] Company ID: {company_id} não possui assinatura ativa - PERMITINDO criação (comportamento atual)")
+                # Contar usuários ativos para log, mas permitir criação
+                current_users = self._count_active_users(company_id)
+                logger.info(f"📊 [LIMITE USUÁRIOS] Company ID: {company_id}, Sem assinatura, Usuários ativos: {current_users}")
                 return {
                     "allowed": True,
                     "max_users": None,
-                    "current_users": 0,
+                    "current_users": current_users,
                     "message": None
                 }
             
@@ -99,28 +116,34 @@ class HRService:
                             max_users = plan_template.max_users
                             logger.info(f"✅ [LIMITE USUÁRIOS] Usando max_users do template do plano '{subscription.plan_name}': {max_users}")
                         else:
-                            logger.warning(f"⚠️ [LIMITE USUÁRIOS] Template do plano '{subscription.plan_name}' encontrado mas sem max_users válido - PERMITINDO criação")
+                            # Template encontrado mas sem max_users válido - BLOQUEAR criação
+                            logger.error(f"❌ [LIMITE USUÁRIOS] Template do plano '{subscription.plan_name}' encontrado mas sem max_users válido - BLOQUEANDO criação")
+                            current_users = self._count_active_users(company_id)
                             return {
-                                "allowed": True,
+                                "allowed": False,
                                 "max_users": None,
-                                "current_users": 0,
-                                "message": None
+                                "current_users": current_users,
+                                "message": f"Erro na configuração do plano. O template do plano '{subscription.plan_name}' não possui limite de usuários definido. Entre em contato com o suporte."
                             }
                     else:
-                        logger.warning(f"⚠️ [LIMITE USUÁRIOS] Template do plano '{subscription.plan_name}' NÃO encontrado - PERMITINDO criação")
+                        # Template não encontrado - BLOQUEAR criação
+                        logger.error(f"❌ [LIMITE USUÁRIOS] Template do plano '{subscription.plan_name}' NÃO encontrado - BLOQUEANDO criação")
+                        current_users = self._count_active_users(company_id)
                         return {
-                            "allowed": True,
+                            "allowed": False,
                             "max_users": None,
-                            "current_users": 0,
-                            "message": None
+                            "current_users": current_users,
+                            "message": f"Erro na configuração do plano. O template do plano '{subscription.plan_name}' não foi encontrado. Entre em contato com o suporte."
                         }
                 else:
-                    logger.warning(f"⚠️ [LIMITE USUÁRIOS] Assinatura sem plan_name - PERMITINDO criação")
+                    # Assinatura sem plan_name - BLOQUEAR criação
+                    logger.error(f"❌ [LIMITE USUÁRIOS] Assinatura sem plan_name - BLOQUEANDO criação")
+                    current_users = self._count_active_users(company_id)
                     return {
-                        "allowed": True,
+                        "allowed": False,
                         "max_users": None,
-                        "current_users": 0,
-                        "message": None
+                        "current_users": current_users,
+                        "message": f"Erro na configuração da assinatura. A assinatura não possui nome do plano definido. Entre em contato com o suporte."
                     }
             
             # 4. Contar usuários ativos da empresa (apenas is_active=True)
@@ -130,23 +153,28 @@ class HRService:
             
             # Verificar se atingiu o limite
             # IMPORTANTE: Se current_users >= max_users, BLOQUEAR (não pode criar mais)
+            logger.info(f"🔍 [LIMITE USUÁRIOS] Comparação: {current_users} >= {max_users} = {current_users >= max_users}")
             if current_users >= max_users:
                 logger.warning(f"🚫 [LIMITE USUÁRIOS] LIMITE ATINGIDO! Company ID: {company_id}, Ativos: {current_users}, Limite: {max_users} - BLOQUEANDO criação")
-                return {
+                result = {
                     "allowed": False,
                     "max_users": max_users,
                     "current_users": current_users,
                     "message": f"Limite máximo de usuários atingido. O plano permite {max_users} usuários e você já possui {current_users} usuários ativos. Entre em contato para atualizar seu plano."
                 }
+                logger.info(f"📋 [LIMITE USUÁRIOS] Retornando resultado: {result}")
+                return result
             
             logger.info(f"✅ [LIMITE USUÁRIOS] AINDA PODE CRIAR! Company ID: {company_id}, Ativos: {current_users}/{max_users} - PERMITINDO criação")
             
-            return {
+            result = {
                 "allowed": True,
                 "max_users": max_users,
                 "current_users": current_users,
                 "message": None
             }
+            logger.info(f"📋 [LIMITE USUÁRIOS] Retornando resultado: {result}")
+            return result
         except Exception as e:
             logger.error(f"❌ [LIMITE USUÁRIOS] Erro ao verificar limite de usuários: {e}", exc_info=True)
             # Em caso de erro, permitir criação (fail-safe)
@@ -191,13 +219,17 @@ class HRService:
             user = None
             # Se email e senha foram fornecidos, criar usuário
             if user_email and user_password:
+                logger.info(f"🔍 [CREATE EMPLOYEE] Criando funcionário com conta de usuário. Company ID: {company_id}, Email: {user_email}")
                 # Verificar limite de usuários antes de criar
                 limit_check = self._check_user_limit(company_id)
+                logger.info(f"📋 [CREATE EMPLOYEE] Resultado da validação de limite: {limit_check}")
                 if not limit_check["allowed"]:
+                    logger.warning(f"🚫 [CREATE EMPLOYEE] LIMITE ATINGIDO! Bloqueando criação. Company ID: {company_id}, Mensagem: {limit_check.get('message')}")
                     return {
                         "success": False,
                         "error": limit_check["message"]
                     }
+                logger.info(f"✅ [CREATE EMPLOYEE] Limite OK, prosseguindo com criação do usuário. Company ID: {company_id}")
                 
                 # Verificar se email já existe
                 existing_user = self.db.query(User).filter(User.email == user_email).first()
@@ -235,7 +267,12 @@ class HRService:
                 self.db.add(user)
                 self.db.flush()  # Para obter o ID sem fazer commit ainda
                 user_id = user.id
+                
+                # Verificar se o company_id foi salvo corretamente
                 logger.info(f"✅ Usuário criado na tabela users: Email={user_email}, Role={role_enum.value}, User ID={user_id}, Company ID={company_id}")
+                # Verificar novamente após flush
+                self.db.refresh(user)
+                logger.info(f"🔍 [CREATE EMPLOYEE] Verificação pós-flush: User ID={user.id}, Company ID={user.company_id}, Email={user.email}, Is Active={user.is_active}")
             
             employee = Employee(
                 company_id=company_id,
@@ -414,13 +451,17 @@ class HRService:
                         employee.user_id = None
                 else:
                     # Não tem usuário, criar novo - VERIFICAR LIMITE ANTES
+                    logger.info(f"🔍 [UPDATE EMPLOYEE] Criando nova conta de usuário para funcionário. Company ID: {company_id}, Email: {user_email}")
                     # Verificar limite de usuários antes de criar
                     limit_check = self._check_user_limit(company_id)
+                    logger.info(f"📋 [UPDATE EMPLOYEE] Resultado da validação de limite: {limit_check}")
                     if not limit_check["allowed"]:
+                        logger.warning(f"🚫 [UPDATE EMPLOYEE] LIMITE ATINGIDO! Bloqueando criação. Company ID: {company_id}, Mensagem: {limit_check.get('message')}")
                         return {
                             "success": False,
                             "error": limit_check["message"]
                         }
+                    logger.info(f"✅ [UPDATE EMPLOYEE] Limite OK, prosseguindo com criação do usuário. Company ID: {company_id}")
                     
                     existing_user = self.db.query(User).filter(User.email == user_email).first()
                     if existing_user:
