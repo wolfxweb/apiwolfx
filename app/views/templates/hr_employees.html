@@ -233,6 +233,7 @@
 let employees = [];
 let searchTimeout;
 let currentStats = null; // Armazenar estatísticas atuais para verificar limite
+let isProcessingStatusChange = false; // Flag para controlar se há operação de ativar/inativar em andamento
 
 // Carregar funcionários ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
@@ -467,10 +468,34 @@ function updateActivateButtons(stats) {
     });
 }
 
+// Desabilitar todos os botões de ativar/inativar
+function disableAllStatusButtons() {
+    document.querySelectorAll('.activate-employee-btn, .deactivate-employee-btn').forEach(btn => {
+        btn.disabled = true;
+    });
+}
+
+// Reabilitar todos os botões de ativar/inativar
+function enableAllStatusButtons() {
+    document.querySelectorAll('.activate-employee-btn, .deactivate-employee-btn').forEach(btn => {
+        btn.disabled = false;
+    });
+    // Atualizar estado dos botões de ativar baseado no limite
+    if (currentStats) {
+        updateActivateButtons(currentStats);
+    }
+}
+
 // Configurar event listeners para botões de ativar
 function setupActivateButtons() {
     document.querySelectorAll('.activate-employee-btn').forEach(btn => {
         btn.addEventListener('click', async function() {
+            // Verificar se já há uma operação em andamento
+            if (isProcessingStatusChange) {
+                showError('Aguarde a operação anterior terminar.');
+                return;
+            }
+            
             // Verificar limite antes de ativar
             if (!canActivateEmployee()) {
                 const maxUsers = currentStats?.max_users || 'N/A';
@@ -482,10 +507,11 @@ function setupActivateButtons() {
             const employeeId = parseInt(this.getAttribute('data-employee-id'));
             const employeeName = this.getAttribute('data-employee-name');
             
-            // Desabilitar botão para evitar duplo clique
+            // Marcar que há operação em andamento e desabilitar todos os botões
+            isProcessingStatusChange = true;
             const originalHTML = this.innerHTML;
-            this.disabled = true;
             this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            disableAllStatusButtons();
             
             try {
                 const response = await fetch(`/api/hr/employees/${employeeId}`, {
@@ -503,20 +529,19 @@ function setupActivateButtons() {
                 
                 if (data.success) {
                     showSuccess('Funcionário ativado com sucesso!');
-                    loadEmployees();
-                    loadUsersStats(); // Atualizar KPIs
+                    // Recarregar lista e estatísticas (os botões serão recriados)
+                    await loadEmployees();
+                    await loadUsersStats(); // Atualizar KPIs
                 } else {
                     showError('Erro ao ativar funcionário: ' + (data.error || 'Erro desconhecido'));
-                    // Reabilitar botão em caso de erro
-                    this.disabled = false;
-                    this.innerHTML = originalHTML;
                 }
             } catch (error) {
                 console.error('Erro ao ativar funcionário:', error);
                 showError('Erro ao ativar funcionário');
-                // Reabilitar botão em caso de erro
-                this.disabled = false;
-                this.innerHTML = originalHTML;
+            } finally {
+                // Sempre reabilitar flag após a operação
+                // Os botões serão recriados pelo loadEmployees()
+                isProcessingStatusChange = false;
             }
         });
     });
@@ -526,13 +551,20 @@ function setupActivateButtons() {
 function setupDeactivateButtons() {
     document.querySelectorAll('.deactivate-employee-btn').forEach(btn => {
         btn.addEventListener('click', async function() {
+            // Verificar se já há uma operação em andamento
+            if (isProcessingStatusChange) {
+                showError('Aguarde a operação anterior terminar.');
+                return;
+            }
+            
             const employeeId = parseInt(this.getAttribute('data-employee-id'));
             const employeeName = this.getAttribute('data-employee-name');
             
-            // Desabilitar botão para evitar duplo clique
+            // Marcar que há operação em andamento e desabilitar todos os botões
+            isProcessingStatusChange = true;
             const originalHTML = this.innerHTML;
-            this.disabled = true;
             this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            disableAllStatusButtons();
             
             try {
                 const response = await fetch(`/api/hr/employees/${employeeId}`, {
@@ -550,20 +582,19 @@ function setupDeactivateButtons() {
                 
                 if (data.success) {
                     showSuccess('Funcionário inativado com sucesso!');
-                    loadEmployees();
-                    loadUsersStats(); // Atualizar KPIs
+                    // Recarregar lista e estatísticas (os botões serão recriados)
+                    await loadEmployees();
+                    await loadUsersStats(); // Atualizar KPIs
                 } else {
                     showError('Erro ao inativar funcionário: ' + (data.error || 'Erro desconhecido'));
-                    // Reabilitar botão em caso de erro
-                    this.disabled = false;
-                    this.innerHTML = originalHTML;
                 }
             } catch (error) {
                 console.error('Erro ao inativar funcionário:', error);
                 showError('Erro ao inativar funcionário');
-                // Reabilitar botão em caso de erro
-                this.disabled = false;
-                this.innerHTML = originalHTML;
+            } finally {
+                // Sempre reabilitar flag após a operação
+                // Os botões serão recriados pelo loadEmployees()
+                isProcessingStatusChange = false;
             }
         });
     });
