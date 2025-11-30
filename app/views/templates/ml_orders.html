@@ -1059,6 +1059,9 @@ function applyFilters() {
     const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
     history.replaceState(null, '', newUrl);
 
+    // Salvar filtros no localStorage
+    saveFiltersToLocalStorage();
+
     currentPage = 1;
     loadOrders(1);
 }
@@ -1070,10 +1073,131 @@ function clearFilters() {
     }
 
     toggleCustomPeriod();
+    clearFiltersFromLocalStorage();
     history.replaceState(null, '', window.location.pathname);
     syncFiltersWithUrl();
     currentPage = 1;
     loadOrders(1);
+}
+
+// =====================================================
+// FUNÇÕES DE LOCALSTORAGE PARA FILTROS
+// =====================================================
+
+/**
+ * Coleta todos os valores dos filtros do formulário
+ */
+function collectFilterValues() {
+    return {
+        search_query: document.getElementById('search_query')?.value.trim() || '',
+        account_filter: document.getElementById('account_filter')?.value || '',
+        period_filter: document.getElementById('period_filter')?.value || '',
+        customDateFrom: document.getElementById('customDateFrom')?.value || '',
+        customDateTo: document.getElementById('customDateTo')?.value || '',
+        internal_status_filter: Array.from(document.querySelectorAll('input[name="internal_status_filter"]:checked')).map(cb => cb.value),
+        logistic_filter: Array.from(document.querySelectorAll('input[name="logistic_filter"]:checked')).map(cb => cb.value),
+        status_filter: Array.from(document.querySelectorAll('input[name="status_filter"]:checked')).map(cb => cb.value)
+    };
+}
+
+/**
+ * Salva os filtros atuais no localStorage
+ */
+function saveFiltersToLocalStorage() {
+    try {
+        const filters = collectFilterValues();
+        localStorage.setItem('ml_orders_filters', JSON.stringify(filters));
+        console.log('✅ Filtros salvos no localStorage:', filters);
+    } catch (error) {
+        console.error('❌ Erro ao salvar filtros no localStorage:', error);
+    }
+}
+
+/**
+ * Carrega os filtros do localStorage e aplica no formulário
+ */
+function loadFiltersFromLocalStorage() {
+    try {
+        const savedFilters = localStorage.getItem('ml_orders_filters');
+        if (!savedFilters) {
+            console.log('ℹ️ Nenhum filtro salvo encontrado no localStorage');
+            return false;
+        }
+
+        const filters = JSON.parse(savedFilters);
+        console.log('📥 Filtros carregados do localStorage:', filters);
+
+        // Restaurar busca rápida
+        if (filters.search_query) {
+            const searchInput = document.getElementById('search_query');
+            if (searchInput) searchInput.value = filters.search_query;
+        }
+
+        // Restaurar conta (será aplicado após loadAccountsFilter ser chamado)
+        // Armazenar temporariamente para aplicar depois
+        window._pendingAccountFilter = filters.account_filter;
+
+        // Restaurar período
+        if (filters.period_filter) {
+            const periodSelect = document.getElementById('period_filter');
+            if (periodSelect) {
+                periodSelect.value = filters.period_filter;
+                
+                // Se for período customizado, restaurar as datas
+                if (filters.period_filter === 'custom') {
+                    toggleCustomPeriod(true);
+                    if (filters.customDateFrom) {
+                        const customFromInput = document.getElementById('customDateFrom');
+                        if (customFromInput) customFromInput.value = filters.customDateFrom;
+                    }
+                    if (filters.customDateTo) {
+                        const customToInput = document.getElementById('customDateTo');
+                        if (customToInput) customToInput.value = filters.customDateTo;
+                    }
+                } else {
+                    toggleCustomPeriod(false);
+                }
+            }
+        }
+
+        // Restaurar checkboxes de status interno
+        if (Array.isArray(filters.internal_status_filter) && filters.internal_status_filter.length > 0) {
+            document.querySelectorAll('input[name="internal_status_filter"]').forEach(cb => {
+                cb.checked = filters.internal_status_filter.includes(cb.value);
+            });
+        }
+
+        // Restaurar checkboxes de modalidade de envio
+        if (Array.isArray(filters.logistic_filter) && filters.logistic_filter.length > 0) {
+            document.querySelectorAll('input[name="logistic_filter"]').forEach(cb => {
+                cb.checked = filters.logistic_filter.includes(cb.value);
+            });
+        }
+
+        // Restaurar checkboxes de status de envio
+        if (Array.isArray(filters.status_filter) && filters.status_filter.length > 0) {
+            document.querySelectorAll('input[name="status_filter"]').forEach(cb => {
+                cb.checked = filters.status_filter.includes(cb.value);
+            });
+        }
+
+        return true;
+    } catch (error) {
+        console.error('❌ Erro ao carregar filtros do localStorage:', error);
+        return false;
+    }
+}
+
+/**
+ * Remove os filtros do localStorage
+ */
+function clearFiltersFromLocalStorage() {
+    try {
+        localStorage.removeItem('ml_orders_filters');
+        console.log('🗑️ Filtros removidos do localStorage');
+    } catch (error) {
+        console.error('❌ Erro ao remover filtros do localStorage:', error);
+    }
 }
 
 // Função utilitária para formatar datas em pt-BR com hora padrão
@@ -1372,8 +1496,21 @@ document.addEventListener('DOMContentLoaded', function() {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
     
-    syncFiltersWithUrl();
-    loadOrders();
+    // Carregar filtros do localStorage primeiro
+    const hasSavedFilters = loadFiltersFromLocalStorage();
+    
+    // Se não houver parâmetros na URL mas houver filtros salvos, aplicar os filtros salvos
+    const urlParams = new URLSearchParams(window.location.search);
+    if (hasSavedFilters && urlParams.toString() === '') {
+        // Aplicar os filtros salvos após um pequeno delay para garantir que os selects foram populados
+        setTimeout(() => {
+            applyFilters();
+        }, 200);
+    } else {
+        // Sincronizar com URL (que pode ter prioridade sobre localStorage)
+        syncFiltersWithUrl();
+        loadOrders();
+    }
 });
 
 
@@ -1631,7 +1768,11 @@ function loadAccountsFilter(accounts) {
         return;
     }
     
-    const currentValue = new URLSearchParams(window.location.search).get('account_filter') || '';
+    // Priorizar URL, depois localStorage
+    const urlValue = new URLSearchParams(window.location.search).get('account_filter') || '';
+    const localStorageValue = window._pendingAccountFilter || '';
+    const currentValue = urlValue || localStorageValue;
+    
     select.innerHTML = '<option value="">Todas as contas</option>';
     
     (accounts || []).forEach(account => {
@@ -1641,6 +1782,11 @@ function loadAccountsFilter(accounts) {
         option.selected = String(currentValue) === String(account.id);
         select.appendChild(option);
     });
+    
+    // Limpar variável temporária após aplicar
+    if (window._pendingAccountFilter) {
+        window._pendingAccountFilter = null;
+    }
 }
 
 function renderInvoiceDropdown(order) {
