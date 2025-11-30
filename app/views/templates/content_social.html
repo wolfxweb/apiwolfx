@@ -1,0 +1,299 @@
+{% extends "superadmin/base.html" if is_superadmin else "base.html" %}
+
+{% block title %}Planejamento de Conteúdo - Social{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Padrão do Sistema -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-instagram"></i> Posts Sociais</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createSocialModal">
+                <i class="bi bi-plus-circle"></i> Novo Post Social
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto; max-width: 200px;" id="statusFilter" onchange="loadSocialPosts()">
+                        <option value="">Todos os Status</option>
+                        <option value="draft">Rascunho</option>
+                        <option value="scheduled">Agendado</option>
+                        <option value="published">Publicado</option>
+                        <option value="cancelled">Cancelado</option>
+                    </select>
+                    <select class="form-select form-select-sm" style="width: auto; max-width: 200px;" id="canalFilter" onchange="loadSocialPosts()">
+                        <option value="">Todos os Canais</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Facebook">Facebook</option>
+                        <option value="Twitter">Twitter</option>
+                        <option value="LinkedIn">LinkedIn</option>
+                        <option value="TikTok">TikTok</option>
+                    </select>
+                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar posts..." style="width: 250px;" onkeyup="handleSearch()">
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover" id="socialTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Título</th>
+                            <th>Canal</th>
+                            <th>Tipo</th>
+                            <th>Data Publicação</th>
+                            <th>Status</th>
+                            <th>Responsável</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="socialContainer">
+                        <tr>
+                            <td colspan="8" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Carregando posts...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Criar Post Social -->
+<div class="modal fade" id="createSocialModal" tabindex="-1" aria-labelledby="createSocialModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createSocialModalLabel">Novo Post Social</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="createSocialForm" onsubmit="createSocialPost(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="socialTitulo" class="form-label">Título <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="socialTitulo" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="socialCanal" class="form-label">Canal</label>
+                            <select class="form-select" id="socialCanal">
+                                <option value="Instagram">Instagram</option>
+                                <option value="Facebook">Facebook</option>
+                                <option value="Twitter">Twitter</option>
+                                <option value="LinkedIn">LinkedIn</option>
+                                <option value="TikTok">TikTok</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="socialTipo" class="form-label">Tipo</label>
+                            <select class="form-select" id="socialTipo">
+                                <option value="Post">Post</option>
+                                <option value="Story">Story</option>
+                                <option value="Reels">Reels</option>
+                                <option value="Vídeo">Vídeo</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="socialDataPublicacao" class="form-label">Data de Publicação</label>
+                            <input type="datetime-local" class="form-control" id="socialDataPublicacao">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="socialStatus" class="form-label">Status</label>
+                            <select class="form-select" id="socialStatus">
+                                <option value="draft">Rascunho</option>
+                                <option value="scheduled">Agendado</option>
+                                <option value="published">Publicado</option>
+                                <option value="cancelled">Cancelado</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="socialCopy" class="form-label">Copy</label>
+                        <textarea class="form-control" id="socialCopy" rows="4"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar Post</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let allSocialPosts = [];
+let searchTimeout;
+
+// Carregar posts sociais
+async function loadSocialPosts() {
+    try {
+        const status = document.getElementById('statusFilter').value;
+        const canal = document.getElementById('canalFilter').value;
+        const search = document.getElementById('searchInput').value.trim();
+        
+        const params = new URLSearchParams();
+        if (status) params.append('status', status);
+        if (canal) params.append('canal', canal);
+        if (search) params.append('search', search);
+        
+        const response = await fetch(`/api/content/social?${params.toString()}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao carregar posts');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            allSocialPosts = result.data;
+            renderSocialPosts();
+        } else {
+            console.error('Erro ao carregar posts:', result.error);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar posts:', error);
+    }
+}
+
+// Renderizar posts sociais
+function renderSocialPosts() {
+    const container = document.getElementById('socialContainer');
+    
+    if (allSocialPosts.length === 0) {
+        container.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-5 text-muted">
+                    Nenhum post encontrado.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    container.innerHTML = allSocialPosts.map(post => `
+        <tr>
+            <td>${post.id}</td>
+            <td>${post.titulo || '-'}</td>
+            <td>${post.canal || '-'}</td>
+            <td>${post.tipo || '-'}</td>
+            <td>${post.data_publicacao ? new Date(post.data_publicacao).toLocaleDateString('pt-BR') : '-'}</td>
+            <td><span class="badge bg-${post.status === 'published' ? 'success' : 'secondary'}">${post.status || 'draft'}</span></td>
+            <td>-</td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="editSocialPost(${post.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteSocialPost(${post.id})" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Criar post social
+async function createSocialPost(event) {
+    event.preventDefault();
+    
+    const formData = {
+        titulo: document.getElementById('socialTitulo').value.trim(),
+        canal: document.getElementById('socialCanal').value,
+        tipo: document.getElementById('socialTipo').value,
+        data_publicacao: document.getElementById('socialDataPublicacao').value || null,
+        status: document.getElementById('socialStatus').value,
+        copy: document.getElementById('socialCopy').value.trim() || null
+    };
+    
+    if (!formData.titulo) {
+        alert('Por favor, preencha o título.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/content/social', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            alert('Post social criado com sucesso!');
+            document.getElementById('createSocialForm').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createSocialModal'));
+            modal.hide();
+            loadSocialPosts();
+        } else {
+            alert(data.error || 'Erro ao criar post');
+        }
+    } catch (error) {
+        console.error('Erro ao criar post:', error);
+        alert('Erro ao criar post. Verifique sua conexão e tente novamente.');
+    }
+}
+
+// Buscar posts
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadSocialPosts();
+    }, 500);
+}
+
+// Editar post
+function editSocialPost(postId) {
+    alert('Funcionalidade de edição em desenvolvimento');
+}
+
+// Excluir post
+async function deleteSocialPost(postId) {
+    if (!confirm('Tem certeza que deseja excluir este post?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/content/social/${postId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            alert('Post excluído com sucesso!');
+            loadSocialPosts();
+        } else {
+            alert(data.error || 'Erro ao excluir post');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir post:', error);
+        alert('Erro ao excluir post. Verifique sua conexão e tente novamente.');
+    }
+}
+
+// Carregar ao iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    loadSocialPosts();
+});
+</script>
+{% endblock %}
+

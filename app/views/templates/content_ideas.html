@@ -1,0 +1,258 @@
+{% extends "superadmin/base.html" if is_superadmin else "base.html" %}
+
+{% block title %}Planejamento de Conteúdo - Ideias{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Padrão do Sistema -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-lightbulb"></i> Ideias de Conteúdo</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createIdeaModal">
+                <i class="bi bi-plus-circle"></i> Nova Ideia
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar ideias..." style="width: 250px;" onkeyup="handleSearch()">
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover" id="ideasTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Título</th>
+                            <th>Tags</th>
+                            <th>Criado em</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ideasContainer">
+                        <tr>
+                            <td colspan="5" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Carregando ideias...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Criar Ideia -->
+<div class="modal fade" id="createIdeaModal" tabindex="-1" aria-labelledby="createIdeaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createIdeaModalLabel">Nova Ideia</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="createIdeaForm" onsubmit="createIdea(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="ideaTitulo" class="form-label">Título <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ideaTitulo" required placeholder="Digite o título da ideia">
+                    </div>
+                    <div class="mb-3">
+                        <label for="ideaDescricao" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="ideaDescricao" rows="4" placeholder="Descreva a ideia..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="ideaTags" class="form-label">Tags</label>
+                        <input type="text" class="form-control" id="ideaTags" placeholder="tag1, tag2, tag3">
+                        <small class="form-text text-muted">Separe as tags por vírgula</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar Ideia</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let allIdeas = [];
+let searchTimeout;
+
+// Carregar ideias
+async function loadIdeas() {
+    try {
+        const search = document.getElementById('searchInput').value.trim();
+        const url = `/api/content/ideas${search ? `?search=${encodeURIComponent(search)}` : ''}`;
+        
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao carregar ideias');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            allIdeas = result.data;
+            renderIdeas();
+        } else {
+            console.error('Erro ao carregar ideias:', result.error);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar ideias:', error);
+    }
+}
+
+// Renderizar ideias
+function renderIdeas() {
+    const container = document.getElementById('ideasContainer');
+    
+    if (allIdeas.length === 0) {
+        container.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center py-5 text-muted">
+                    Nenhuma ideia encontrada.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    container.innerHTML = allIdeas.map(idea => `
+        <tr>
+            <td>${idea.id}</td>
+            <td>${idea.titulo || '-'}</td>
+            <td>${idea.tags || '-'}</td>
+            <td>${idea.created_at ? new Date(idea.created_at).toLocaleDateString('pt-BR') : '-'}</td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="editIdea(${idea.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="convertToSocial(${idea.id})" title="Converter em Social">
+                        <i class="bi bi-instagram"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="convertToBlog(${idea.id})" title="Converter em Blog">
+                        <i class="bi bi-file-text"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteIdea(${idea.id})" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Criar ideia
+async function createIdea(event) {
+    event.preventDefault();
+    
+    const formData = {
+        titulo: document.getElementById('ideaTitulo').value.trim(),
+        descricao: document.getElementById('ideaDescricao').value.trim() || null,
+        tags: document.getElementById('ideaTags').value.trim() || null
+    };
+    
+    if (!formData.titulo) {
+        alert('Por favor, preencha o título.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/content/ideas', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            alert('Ideia criada com sucesso!');
+            document.getElementById('createIdeaForm').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createIdeaModal'));
+            modal.hide();
+            loadIdeas();
+        } else {
+            alert(data.error || 'Erro ao criar ideia');
+        }
+    } catch (error) {
+        console.error('Erro ao criar ideia:', error);
+        alert('Erro ao criar ideia. Verifique sua conexão e tente novamente.');
+    }
+}
+
+// Buscar ideias
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadIdeas();
+    }, 500);
+}
+
+// Editar ideia
+function editIdea(ideaId) {
+    const idea = allIdeas.find(i => i.id === ideaId);
+    if (!idea) return;
+    
+    // Preencher modal de edição (implementar modal de edição similar)
+    alert('Funcionalidade de edição em desenvolvimento');
+}
+
+// Converter para Social
+function convertToSocial(ideaId) {
+    alert('Funcionalidade de conversão para Social em desenvolvimento');
+}
+
+// Converter para Blog
+function convertToBlog(ideaId) {
+    alert('Funcionalidade de conversão para Blog em desenvolvimento');
+}
+
+// Excluir ideia
+async function deleteIdea(ideaId) {
+    if (!confirm('Tem certeza que deseja excluir esta ideia?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/content/ideas/${ideaId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            alert('Ideia excluída com sucesso!');
+            loadIdeas();
+        } else {
+            alert(data.error || 'Erro ao excluir ideia');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir ideia:', error);
+        alert('Erro ao excluir ideia. Verifique sua conexão e tente novamente.');
+    }
+}
+
+// Carregar ao iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    loadIdeas();
+});
+</script>
+{% endblock %}
+

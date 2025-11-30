@@ -1418,3 +1418,57 @@ async def superadmin_get_ticket_attachments_api(
             status_code=404,
             content=response
         )
+
+# ========== ROTAS DE MARKETING (PLANEJAMENTO DE CONTEÚDO) ==========
+
+@superadmin_router.get("/superadmin/content/calendar", response_class=HTMLResponse)
+async def superadmin_content_calendar(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de calendário de conteúdo - SuperAdmin"""
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return RedirectResponse(url="/superadmin/login", status_code=302)
+    
+    return render_template("content_calendar.html", request=request, user=user_data, is_superadmin=True)
+
+@superadmin_router.get("/superadmin/content/ideas", response_class=HTMLResponse)
+async def superadmin_content_ideas(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de ideias - SuperAdmin"""
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return RedirectResponse(url="/superadmin/login", status_code=302)
+    
+    return render_template("content_ideas.html", request=request, user=user_data, is_superadmin=True)
+
+@superadmin_router.get("/superadmin/content/social", response_class=HTMLResponse)
+async def superadmin_content_social(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de posts sociais - SuperAdmin"""
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return RedirectResponse(url="/superadmin/login", status_code=302)
+    
+    return render_template("content_social.html", request=request, user=user_data, is_superadmin=True)
+
+@superadmin_router.get("/superadmin/content/blog", response_class=HTMLResponse)
+async def superadmin_content_blog(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de posts do blog - SuperAdmin"""
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return RedirectResponse(url="/superadmin/login", status_code=302)
+    
+    return render_template("content_blog.html", request=request, user=user_data, is_superadmin=True)

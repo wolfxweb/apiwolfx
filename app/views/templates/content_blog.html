@@ -1,0 +1,316 @@
+{% extends "superadmin/base.html" if is_superadmin else "base.html" %}
+
+{% block title %}Planejamento de Conteúdo - Blog{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Padrão do Sistema -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-file-text"></i> Posts do Blog</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBlogModal">
+                <i class="bi bi-plus-circle"></i> Novo Artigo
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto; max-width: 200px;" id="statusFilter" onchange="loadBlogPosts()">
+                        <option value="">Todos os Status</option>
+                        <option value="draft">Rascunho</option>
+                        <option value="scheduled">Agendado</option>
+                        <option value="published">Publicado</option>
+                        <option value="archived">Arquivado</option>
+                    </select>
+                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar artigos..." style="width: 250px;" onkeyup="handleSearch()">
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover" id="blogTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Título</th>
+                            <th>Slug</th>
+                            <th>Data Publicação</th>
+                            <th>Status</th>
+                            <th>Responsável</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="blogContainer">
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Carregando artigos...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Criar Post Blog -->
+<div class="modal fade" id="createBlogModal" tabindex="-1" aria-labelledby="createBlogModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createBlogModalLabel">Novo Artigo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="createBlogForm" onsubmit="createBlogPost(event)">
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" id="blogTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="content-tab" data-bs-toggle="tab" data-bs-target="#content" type="button">Conteúdo</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="seo-tab" data-bs-toggle="tab" data-bs-target="#seo" type="button">SEO</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="blogTabContent">
+                        <div class="tab-pane fade show active" id="content" role="tabpanel">
+                            <div class="mb-3 mt-3">
+                                <label for="blogTitulo" class="form-label">Título <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="blogTitulo" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="blogSubtitulo" class="form-label">Subtítulo</label>
+                                <input type="text" class="form-control" id="blogSubtitulo">
+                            </div>
+                            <div class="mb-3">
+                                <label for="blogSlug" class="form-label">Slug</label>
+                                <input type="text" class="form-control" id="blogSlug" placeholder="Será gerado automaticamente">
+                                <small class="form-text text-muted">URL amigável do artigo</small>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="blogDataPublicacao" class="form-label">Data de Publicação</label>
+                                    <input type="datetime-local" class="form-control" id="blogDataPublicacao">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="blogStatus" class="form-label">Status</label>
+                                    <select class="form-select" id="blogStatus">
+                                        <option value="draft">Rascunho</option>
+                                        <option value="scheduled">Agendado</option>
+                                        <option value="published">Publicado</option>
+                                        <option value="archived">Arquivado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="blogConteudo" class="form-label">Conteúdo HTML</label>
+                                <textarea class="form-control" id="blogConteudo" rows="10"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="blogTags" class="form-label">Tags</label>
+                                <input type="text" class="form-control" id="blogTags" placeholder="tag1, tag2, tag3">
+                                <small class="form-text text-muted">Separe as tags por vírgula</small>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="seo" role="tabpanel">
+                            <div class="mb-3 mt-3">
+                                <label for="blogSeoTitle" class="form-label">SEO Title</label>
+                                <input type="text" class="form-control" id="blogSeoTitle" placeholder="Será usado o título se vazio">
+                            </div>
+                            <div class="mb-3">
+                                <label for="blogSeoDescription" class="form-label">SEO Description</label>
+                                <textarea class="form-control" id="blogSeoDescription" rows="3" placeholder="Será gerado automaticamente do conteúdo"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="blogSeoKeywords" class="form-label">SEO Keywords</label>
+                                <input type="text" class="form-control" id="blogSeoKeywords" placeholder="keyword1, keyword2, keyword3">
+                                <small class="form-text text-muted">Separe as keywords por vírgula</small>
+                            </div>
+                            <div class="mb-3">
+                                <label for="blogFeaturedImage" class="form-label">Featured Image (URL)</label>
+                                <input type="text" class="form-control" id="blogFeaturedImage" placeholder="https://...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar Artigo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let allBlogPosts = [];
+let searchTimeout;
+
+// Carregar posts do blog
+async function loadBlogPosts() {
+    try {
+        const status = document.getElementById('statusFilter').value;
+        const search = document.getElementById('searchInput').value.trim();
+        
+        const params = new URLSearchParams();
+        if (status) params.append('status', status);
+        if (search) params.append('search', search);
+        
+        const response = await fetch(`/api/content/blog?${params.toString()}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao carregar artigos');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            allBlogPosts = result.data;
+            renderBlogPosts();
+        } else {
+            console.error('Erro ao carregar artigos:', result.error);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar artigos:', error);
+    }
+}
+
+// Renderizar posts do blog
+function renderBlogPosts() {
+    const container = document.getElementById('blogContainer');
+    
+    if (allBlogPosts.length === 0) {
+        container.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-5 text-muted">
+                    Nenhum artigo encontrado.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    container.innerHTML = allBlogPosts.map(post => `
+        <tr>
+            <td>${post.id}</td>
+            <td>${post.titulo || '-'}</td>
+            <td><code>${post.slug || '-'}</code></td>
+            <td>${post.data_publicacao ? new Date(post.data_publicacao).toLocaleDateString('pt-BR') : '-'}</td>
+            <td><span class="badge bg-${post.status === 'published' ? 'success' : 'secondary'}">${post.status || 'draft'}</span></td>
+            <td>-</td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="editBlogPost(${post.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteBlogPost(${post.id})" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Criar post do blog
+async function createBlogPost(event) {
+    event.preventDefault();
+    
+    const formData = {
+        titulo: document.getElementById('blogTitulo').value.trim(),
+        subtitulo: document.getElementById('blogSubtitulo').value.trim() || null,
+        slug: document.getElementById('blogSlug').value.trim() || null,
+        data_publicacao: document.getElementById('blogDataPublicacao').value || null,
+        status: document.getElementById('blogStatus').value,
+        conteudo_html: document.getElementById('blogConteudo').value.trim() || null,
+        tags: document.getElementById('blogTags').value.trim() || null,
+        seo_title: document.getElementById('blogSeoTitle').value.trim() || null,
+        seo_description: document.getElementById('blogSeoDescription').value.trim() || null,
+        seo_keywords: document.getElementById('blogSeoKeywords').value.trim() || null,
+        featured_image: document.getElementById('blogFeaturedImage').value.trim() || null
+    };
+    
+    if (!formData.titulo) {
+        alert('Por favor, preencha o título.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/content/blog', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            alert('Artigo criado com sucesso!');
+            document.getElementById('createBlogForm').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createBlogModal'));
+            modal.hide();
+            loadBlogPosts();
+        } else {
+            alert(data.error || 'Erro ao criar artigo');
+        }
+    } catch (error) {
+        console.error('Erro ao criar artigo:', error);
+        alert('Erro ao criar artigo. Verifique sua conexão e tente novamente.');
+    }
+}
+
+// Buscar artigos
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadBlogPosts();
+    }, 500);
+}
+
+// Editar artigo
+function editBlogPost(postId) {
+    alert('Funcionalidade de edição em desenvolvimento');
+}
+
+// Excluir artigo
+async function deleteBlogPost(postId) {
+    if (!confirm('Tem certeza que deseja excluir este artigo?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/content/blog/${postId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            alert('Artigo excluído com sucesso!');
+            loadBlogPosts();
+        } else {
+            alert(data.error || 'Erro ao excluir artigo');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir artigo:', error);
+        alert('Erro ao excluir artigo. Verifique sua conexão e tente novamente.');
+    }
+}
+
+// Carregar ao iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    loadBlogPosts();
+});
+</script>
+{% endblock %}
+

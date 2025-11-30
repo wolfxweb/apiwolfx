@@ -44,6 +44,7 @@ from app.routes.internal_product_routes import internal_product_router
 from app.routes.support_routes import support_router
 from app.routes.hr_routes import hr_router
 from app.routes.task_routes import task_router
+from app.routes.content_routes import content_router
 # from app.routes.settings_routes import router as settings_router  # Removido
 
 # Scheduler para sincronização automática
@@ -535,6 +536,23 @@ async def startup_event():
                         print("✅ [STARTUP] Tabelas de Tarefas verificadas/criadas")
                     else:
                         print(f"⚠️ [STARTUP] Script de tarefas não encontrado. Tentou: {task_script_path}")
+                    
+                    # Criar tabelas de Planejamento de Conteúdo
+                    print("📋 [STARTUP] Verificando tabelas de Planejamento de Conteúdo...")
+                    content_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                            'database', 'fixes', 'create_content_tables.py')
+                    # Tentar caminho alternativo se não encontrar
+                    if not os.path.exists(content_script_path):
+                        content_script_path = os.path.join('/app', 'database', 'fixes', 'create_content_tables.py')
+                    if os.path.exists(content_script_path):
+                        print(f"📋 [STARTUP] Script encontrado: {content_script_path}")
+                        content_spec = importlib.util.spec_from_file_location("create_content_tables", content_script_path)
+                        content_module = importlib.util.module_from_spec(content_spec)
+                        content_spec.loader.exec_module(content_module)
+                        content_module.create_content_tables()
+                        print("✅ [STARTUP] Tabelas de Planejamento de Conteúdo verificadas/criadas")
+                    else:
+                        print(f"⚠️ [STARTUP] Script de conteúdo não encontrado. Tentou: {content_script_path}")
                     
                     # Adicionar coluna hide_product_data
                     print("🔒 [STARTUP] Verificando coluna hide_product_data...")
@@ -1175,6 +1193,7 @@ app.include_router(openai_chat_router)  # Para /ai/chat (HTML)
 app.include_router(support_router)  # Para /support (HTML) e /api/support (API)
 app.include_router(hr_router)  # Para /hr (HTML) e /api/hr (API)
 app.include_router(task_router)  # Para /tasks (HTML) e /api/tasks (API)
+app.include_router(content_router)  # Para /content (HTML) e /api/content (API)
 app.include_router(tools_router)  # Para /api/openai/tools
 app.include_router(stock_router, prefix="/api")  # Para /api/stock (API)
 app.include_router(stock_projection_router, prefix="/api")  # Para /api/stock/projections

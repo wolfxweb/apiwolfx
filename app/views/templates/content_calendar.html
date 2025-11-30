@@ -1,0 +1,108 @@
+{% extends "superadmin/base.html" if is_superadmin else "base.html" %}
+
+{% block title %}Planejamento de Conteúdo - Calendário{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Padrão do Sistema -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-calendar3"></i> Calendário de Conteúdo</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <select class="form-select form-select-sm" id="monthSelect" style="width: auto;">
+                <option value="01">Janeiro</option>
+                <option value="02">Fevereiro</option>
+                <option value="03">Março</option>
+                <option value="04">Abril</option>
+                <option value="05">Maio</option>
+                <option value="06">Junho</option>
+                <option value="07">Julho</option>
+                <option value="08">Agosto</option>
+                <option value="09">Setembro</option>
+                <option value="10">Outubro</option>
+                <option value="11">Novembro</option>
+                <option value="12">Dezembro</option>
+            </select>
+            <input type="number" class="form-control form-control-sm ms-2" id="yearSelect" style="width: 100px;" value="2025" min="2020" max="2030">
+        </div>
+    </div>
+
+    <!-- Calendário -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div id="calendarContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Carregando calendário...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Carregar eventos do calendário
+async function loadCalendarEvents() {
+    try {
+        const month = document.getElementById('monthSelect').value;
+        const year = document.getElementById('yearSelect').value;
+        
+        const response = await fetch(`/api/content/calendar?mes=${month}&ano=${year}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao carregar eventos');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            renderCalendar(result.data, month, year);
+        } else {
+            console.error('Erro ao carregar eventos:', result.error);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar eventos:', error);
+    }
+}
+
+// Renderizar calendário
+function renderCalendar(events, month, year) {
+    const container = document.getElementById('calendarContainer');
+    // Implementação básica do calendário (pode ser expandida com FullCalendar.js)
+    container.innerHTML = `
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Calendário em desenvolvimento. Eventos encontrados: ${events.length}
+        </div>
+        <div class="list-group">
+            ${events.map(event => `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">${event.titulo}</h6>
+                            <small class="text-muted">${event.tipo === 'social' ? '📱 Social' : '📝 Blog'} - ${event.data_publicacao ? new Date(event.data_publicacao).toLocaleDateString('pt-BR') : '-'}</small>
+                        </div>
+                        <span class="badge bg-${event.status === 'published' ? 'success' : 'secondary'}">${event.status}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Carregar ao iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    document.getElementById('monthSelect').value = String(now.getMonth() + 1).padStart(2, '0');
+    document.getElementById('yearSelect').value = now.getFullYear();
+    
+    document.getElementById('monthSelect').addEventListener('change', loadCalendarEvents);
+    document.getElementById('yearSelect').addEventListener('change', loadCalendarEvents);
+    
+    loadCalendarEvents();
+});
+</script>
+{% endblock %}
+
