@@ -8,7 +8,7 @@
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2"><i class="bi bi-shop"></i> Contas Mercado Livre</h1>
         <div class="btn-toolbar mb-2 mb-md-0">
-            <a href="/ml/connect" class="btn btn-primary" id="connectAccountBtn">
+            <a href="/ml/connect" class="btn btn-primary" id="connectAccountBtn" onclick="return handleConnectClick(event)">
                 <i class="bi bi-plus-circle"></i> Conectar Nova Conta
             </a>
         </div>
@@ -218,6 +218,19 @@ async function loadMLAccountsStats() {
     }
 }
 
+// Variável para controlar se o botão está habilitado
+let canConnectAccount = true;
+
+// Função para lidar com o clique no botão de conectar
+function handleConnectClick(event) {
+    if (!canConnectAccount) {
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+    }
+    return true;
+}
+
 // Atualizar estado do botão "Conectar Nova Conta" baseado no limite
 function updateConnectButton(stats) {
     const connectBtn = document.getElementById('connectAccountBtn');
@@ -227,24 +240,30 @@ function updateConnectButton(stats) {
     const activeAccounts = stats.active_accounts || 0;
     
     if (maxAccounts && maxAccounts > 0) {
-        if (activeAccounts >= maxAccounts) {
-            // Limite atingido - desabilitar botão
-            connectBtn.disabled = true;
-            connectBtn.classList.remove('btn-primary');
-            connectBtn.classList.add('btn-secondary');
-            connectBtn.title = `Limite máximo de contas ML atingido. O plano permite ${maxAccounts} contas e você já possui ${activeAccounts} contas ativas.`;
-        } else {
+        if (activeAccounts < maxAccounts) {
             // Pode conectar - habilitar botão
-            connectBtn.disabled = false;
-            connectBtn.classList.remove('btn-secondary');
+            canConnectAccount = true;
+            connectBtn.classList.remove('btn-secondary', 'disabled');
             connectBtn.classList.add('btn-primary');
+            connectBtn.style.pointerEvents = 'auto';
+            connectBtn.style.opacity = '1';
             connectBtn.title = '';
+        } else {
+            // Limite atingido - desabilitar botão
+            canConnectAccount = false;
+            connectBtn.classList.remove('btn-primary');
+            connectBtn.classList.add('btn-secondary', 'disabled');
+            connectBtn.style.pointerEvents = 'none';
+            connectBtn.style.opacity = '0.65';
+            connectBtn.title = `Limite máximo de contas ML atingido. O plano permite ${maxAccounts} conta(s) e você já possui ${activeAccounts} conta(s) ativa(s).`;
         }
     } else {
         // Sem limite - sempre habilitar
-        connectBtn.disabled = false;
-        connectBtn.classList.remove('btn-secondary');
+        canConnectAccount = true;
+        connectBtn.classList.remove('btn-secondary', 'disabled');
         connectBtn.classList.add('btn-primary');
+        connectBtn.style.pointerEvents = 'auto';
+        connectBtn.style.opacity = '1';
         connectBtn.title = '';
     }
 }
