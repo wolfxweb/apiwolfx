@@ -160,7 +160,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="submitMessageBtn">
                         <i class="bi bi-send"></i> Enviar Mensagem
                     </button>
                 </div>
@@ -424,10 +424,17 @@ async function addMessage(event) {
     
     const message = document.getElementById('newMessage').value.trim();
     const attachmentsInput = document.getElementById('messageAttachments');
+    const submitBtn = document.getElementById('submitMessageBtn');
     
     if (!message) {
         showError('Por favor, digite uma mensagem.');
         return;
+    }
+    
+    // Desabilitar botão para evitar duplo clique
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Enviando...';
     }
     
     try {
@@ -445,6 +452,11 @@ async function addMessage(event) {
         const data = await response.json();
         
         if (!data.success) {
+            // Reabilitar botão em caso de erro
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-send"></i> Enviar Mensagem';
+            }
             showError('Erro ao adicionar mensagem: ' + (data.error || 'Erro desconhecido'));
             return;
         }
@@ -480,6 +492,11 @@ async function addMessage(event) {
         window.location.reload();
     } catch (error) {
         console.error('Erro ao adicionar mensagem:', error);
+        // Reabilitar botão em caso de erro
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-send"></i> Enviar Mensagem';
+        }
         showError('Erro ao adicionar mensagem');
     }
 }

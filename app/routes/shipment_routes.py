@@ -606,12 +606,17 @@ async def sync_single_order(
 
 @router.get("/download-invoice/{order_id}")
 async def download_invoice(
+    request: Request,
     order_id: str,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
     """Download da nota fiscal do pedido"""
     try:
+        # Obter session_token do cookie - tentar Cookie primeiro, depois request.cookies
+        if not session_token:
+            session_token = request.cookies.get('session_token')
+        
         if not session_token:
             return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
         
@@ -621,6 +626,7 @@ async def download_invoice(
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]
+        user_id = user_data["id"]  # Usar o ID do usuário autenticado
         
         # Buscar pedido no banco
         from app.models.saas_models import MLOrder
@@ -635,20 +641,13 @@ async def download_invoice(
         if not order.invoice_pdf_url:
             return JSONResponse(content={"error": "Nota fiscal não disponível"}, status_code=404)
         
-        # Buscar token de acesso
+        # Buscar token de acesso usando o usuário autenticado
+        # get_valid_token já faz renovação automática se necessário
         token_manager = TokenManager(db)
-        from app.models.saas_models import User
-        user_db = db.query(User).filter(
-            User.company_id == company_id,
-            User.is_active == True
-        ).first()
+        access_token = token_manager.get_valid_token(user_id)
         
-        if not user_db:
-            return JSONResponse(content={"error": "Usuário não encontrado"}, status_code=404)
-        
-        access_token = token_manager.get_valid_token(user_db.id)
         if not access_token:
-            return JSONResponse(content={"error": "Token inválido"}, status_code=401)
+            return JSONResponse(content={"error": "Token inválido ou não disponível para este usuário"}, status_code=401)
         
         # Baixar PDF da API do Mercado Livre
         headers = {
@@ -688,6 +687,7 @@ async def download_invoice(
 
 @router.get("/download-label/{order_id}")
 async def download_shipping_label(
+        request: Request,
         order_id: str,
         format: str = Query("pdf", description="Formato da etiqueta: 'pdf' ou 'zpl2'"),
         session_token: Optional[str] = Cookie(None),
@@ -695,15 +695,32 @@ async def download_shipping_label(
     ):
     """Download da etiqueta de envio do pedido (para ponto de coleta)"""
     try:
+        # Obter session_token do cookie - tentar Cookie primeiro, depois request.cookies
         if not session_token:
+            session_token = request.cookies.get('session_token')
+        
+        # Debug: verificar cookies recebidos
+        all_cookies = list(request.cookies.keys())
+        cookie_token = request.cookies.get('session_token')
+        logger.info(f"🔍 [DOWNLOAD-LABEL] Cookies recebidos: {all_cookies}")
+        logger.info(f"🔍 [DOWNLOAD-LABEL] session_token via Cookie(): {bool(session_token and session_token != 'None')}")
+        logger.info(f"🔍 [DOWNLOAD-LABEL] session_token via request.cookies: {bool(cookie_token)}")
+        logger.info(f"🔍 [DOWNLOAD-LABEL] session_token final: {bool(session_token)}")
+        
+        if not session_token:
+            logger.warning(f"❌ [DOWNLOAD-LABEL] session_token não encontrado nos cookies. Headers: {dict(request.headers)}")
             return JSONResponse(content={"error": "Não autenticado"}, status_code=401)
         
         result = AuthController().get_user_by_session(session_token, db)
         if result.get("error"):
+            logger.warning(f"❌ [DOWNLOAD-LABEL] Erro na autenticação: {result.get('error')}")
             return JSONResponse(content={"error": "Sessão inválida"}, status_code=401)
+        
+        logger.info(f"✅ [DOWNLOAD-LABEL] Usuário autenticado: {result.get('user', {}).get('id')}")
         
         user_data = result["user"]
         company_id = user_data["company"]["id"]
+        user_id = user_data["id"]  # Usar o ID do usuário autenticado
         
         # Buscar pedido no banco
         from app.models.saas_models import MLOrder
@@ -743,20 +760,13 @@ async def download_shipping_label(
         if not is_supported:
             logger.warning(f"⚠️ Tipo de logística '{logistic_type}' pode não suportar etiquetas, mas tentando mesmo assim...")
         
-        # Buscar token de acesso
+        # Buscar token de acesso usando o usuário autenticado
+        # get_valid_token já faz renovação automática se necessário
         token_manager = TokenManager(db)
-        from app.models.saas_models import User
-        user_db = db.query(User).filter(
-            User.company_id == company_id,
-            User.is_active == True
-        ).first()
+        access_token = token_manager.get_valid_token(user_id)
         
-        if not user_db:
-            return JSONResponse(content={"error": "Usuário não encontrado"}, status_code=404)
-        
-        access_token = token_manager.get_valid_token(user_db.id)
         if not access_token:
-            return JSONResponse(content={"error": "Token inválido"}, status_code=401)
+            return JSONResponse(content={"error": "Token inválido ou não disponível para este usuário"}, status_code=401)
         
         # Buscar etiqueta na API do Mercado Livre
         # Endpoint correto: GET /shipment_labels?shipment_ids={shipping_id}&response_type=pdf
