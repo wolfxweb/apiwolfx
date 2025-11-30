@@ -1,144 +1,136 @@
 {% extends "base.html" %}
 
-{% block title %}Contas - GVMIA{% endblock %}
+{% block title %}Contas Mercado Livre - GVMIA{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-1">Contas Mercado Livre</h1>
-                    <p class="text-muted mb-0">
-                        Gerencie suas contas conectadas do Mercado Livre
-                        {% if total_accounts %}
-                            - {{ total_accounts }} conta(s) encontrada(s)
-                        {% else %}
-                            - Nenhuma conta conectada
-                        {% endif %}
-                    </p>
-                </div>
-                <div>
-                    <a href="/ml/connect" class="btn btn-success me-2">
-                        <i class="bi bi-plus-circle"></i> Conectar Nova Conta
-                    </a>
-                </div>
-            </div>
+    <!-- Header Padrão do Sistema -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-shop"></i> Contas Mercado Livre</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="/ml/connect" class="btn btn-primary" id="connectAccountBtn">
+                <i class="bi bi-plus-circle"></i> Conectar Nova Conta
+            </a>
         </div>
     </div>
-            
 
     <!-- Alertas -->
-    <div class="row mb-4" id="alerts-container">
-        {% if success %}
-        <div class="col-12">
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle-fill"></i>
-                Conta {{ success }} com sucesso!
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if error %}
-        <div class="col-12">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                {{ error }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-        {% endif %}
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill"></i>
+        Conta {{ success }} com sucesso!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-            
-    <!-- Contas -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Lista de Contas</h5>
-                    <span class="badge bg-primary" id="total-accounts">
-                        {% if total_accounts %}{{ total_accounts }} conta(s){% else %}0 conta(s){% endif %}
-                    </span>
+    {% endif %}
+    
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <!-- KPIs de Contas ML -->
+    <div class="row mb-4" id="mlAccountsStatsContainer">
+        <div class="col-md-6">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-muted mb-2">
+                        <i class="bi bi-shop-fill"></i> Limite do Plano
+                    </h5>
+                    <h2 class="mb-0" id="maxMLAccountsKPI">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    </h2>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-primary text-white">
-                                <tr>
-                                    <th width="50">
-                                        <input type="checkbox" id="select-all-accounts" onchange="toggleSelectAllAccounts()">
-                                    </th>
-                                    <th class="sortable" data-sort="nickname" onclick="sortTable('nickname')">
-                                        Conta <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable" data-sort="email" onclick="sortTable('email')">
-                                        Email <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable" data-sort="country_id" onclick="sortTable('country_id')">
-                                        País <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable" data-sort="status" onclick="sortTable('status')">
-                                        Status <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th class="sortable" data-sort="created_at" onclick="sortTable('created_at')">
-                                        Conectada em <i class="bi bi-arrow-down-up ms-1"></i>
-                                    </th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="accounts-table-body">
-                                {% if accounts %}
-                                    {% for account in accounts %}
-                                    <tr>
-                                        <td>
-                                            <input type="checkbox" class="account-checkbox" value="{{ account.id }}">
-                                        </td>
-                                        <td>
-                                            <div class="d-flex align-items-center">
-                                                <i class="bi bi-shop-fill text-success me-2"></i>
-                                                <strong>{{ account.nickname }}</strong>
-                                            </div>
-                                        </td>
-                                        <td>{{ account.email }}</td>
-                                        <td>
-                                            <span class="badge bg-info">{{ account.country_id }}</span>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-success">
-                                                <i class="bi bi-check-circle-fill"></i> {{ account.status }}
-                                            </span>
-                                        </td>
-                                        <td>{{ account.created_at }}</td>
-                                        <td>
-                                            <div class="btn-group" role="group">
-                                                <a href="/ml/sync/{{ account.id }}" class="btn btn-outline-primary btn-sm" title="Sincronizar">
-                                                    <i class="bi bi-arrow-clockwise"></i>
-                                                </a>
-                                                <a href="/ml/accounts/{{ account.id }}/settings" class="btn btn-outline-secondary btn-sm" title="Configurações">
-                                                    <i class="bi bi-gear"></i>
-                                                </a>
-                                                <form method="POST" action="/ml/disconnect/{{ account.id }}" style="display: inline;">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Desconectar" onclick="return confirm('Tem certeza que deseja desconectar esta conta?')">
-                                                        <i class="bi bi-x-circle"></i>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                {% else %}
-                                    <tr>
-                                        <td colspan="7" class="text-center text-muted py-4">
-                                            <i class="bi bi-info-circle"></i> Nenhuma conta conectada
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
-                    </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-success mb-2">
+                        <i class="bi bi-check-circle-fill"></i> Contas Cadastradas
+                    </h5>
+                    <h2 class="mb-0 text-success" id="activeMLAccountsKPI">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    </h2>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Contas -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar conta..." style="width: 250px;" onkeyup="handleSearch()">
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover" id="accountsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th width="50">
+                                <input type="checkbox" id="select-all-accounts" onchange="toggleSelectAllAccounts()">
+                            </th>
+                            <th>Conta</th>
+                            <th>Email</th>
+                            <th>País</th>
+                            <th>Status</th>
+                            <th>Conectada em</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accountsContainer">
+                        {% if accounts %}
+                            {% for account in accounts %}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" class="account-checkbox" value="{{ account.id }}">
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-shop-fill text-success me-2"></i>
+                                        <strong>{{ account.nickname }}</strong>
+                                    </div>
+                                </td>
+                                <td>{{ account.email }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ account.country_id }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle-fill"></i> {{ account.status }}
+                                    </span>
+                                </td>
+                                <td>{{ account.created_at }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="/ml/sync/{{ account.id }}" class="btn btn-outline-primary btn-sm" title="Sincronizar">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </a>
+                                        <a href="/ml/accounts/{{ account.id }}/settings" class="btn btn-outline-secondary btn-sm" title="Configurações">
+                                            <i class="bi bi-gear"></i>
+                                        </a>
+                                        <form method="POST" action="/ml/disconnect/{{ account.id }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Desconectar" onclick="return confirm('Tem certeza que deseja desconectar esta conta?')">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-info-circle"></i> Nenhuma conta conectada
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -155,44 +147,102 @@ function toggleSelectAllAccounts() {
     });
 }
 
-
-// Função para mostrar alertas
-function showAlert(type, message) {
-    const alertContainer = document.createElement('div');
-    alertContainer.className = `alert alert-${type} alert-dismissible fade show`;
-    alertContainer.innerHTML = `
-        <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+// Função para buscar contas
+let searchTimeout;
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     
-    const container = document.getElementById('alerts-container');
-    container.appendChild(alertContainer);
-    
-    setTimeout(() => {
-        if (alertContainer.parentNode) {
-            alertContainer.remove();
-        }
-    }, 5000);
+    searchTimeout = setTimeout(() => {
+        const rows = document.querySelectorAll('#accountsContainer tr');
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(searchTerm) ? '' : 'none';
+        });
+    }, 300);
 }
 
-// Adicionar CSS para animação de spin
-const style = document.createElement('style');
-style.textContent = `
-    .spin {
-        animation: spin 1s linear infinite;
+// Carregar estatísticas de contas ML
+async function loadMLAccountsStats() {
+    try {
+        const response = await fetch('/ml/accounts/stats', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.stats) {
+            const stats = data.stats;
+            
+            // Atualizar KPI de limite do plano
+            const maxMLAccountsEl = document.getElementById('maxMLAccountsKPI');
+            if (maxMLAccountsEl) {
+                maxMLAccountsEl.textContent = stats.max_ml_accounts !== null && stats.max_ml_accounts !== undefined 
+                    ? stats.max_ml_accounts 
+                    : 'Ilimitado';
+            }
+            
+            // Atualizar KPI de contas cadastradas
+            const activeMLAccountsEl = document.getElementById('activeMLAccountsKPI');
+            if (activeMLAccountsEl) {
+                activeMLAccountsEl.textContent = stats.active_accounts || 0;
+            }
+            
+            // Atualizar estado do botão "Conectar Nova Conta" baseado no limite
+            updateConnectButton(stats);
+        } else {
+            console.error('Erro ao carregar estatísticas de contas ML:', data.error);
+            // Exibir valores padrão em caso de erro
+            const maxMLAccountsEl = document.getElementById('maxMLAccountsKPI');
+            const activeMLAccountsEl = document.getElementById('activeMLAccountsKPI');
+            if (maxMLAccountsEl) maxMLAccountsEl.textContent = 'N/A';
+            if (activeMLAccountsEl) activeMLAccountsEl.textContent = '0';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar estatísticas de contas ML:', error);
+        // Exibir valores padrão em caso de erro
+        const maxMLAccountsEl = document.getElementById('maxMLAccountsKPI');
+        const activeMLAccountsEl = document.getElementById('activeMLAccountsKPI');
+        if (maxMLAccountsEl) maxMLAccountsEl.textContent = 'N/A';
+        if (activeMLAccountsEl) activeMLAccountsEl.textContent = '0';
     }
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+}
+
+// Atualizar estado do botão "Conectar Nova Conta" baseado no limite
+function updateConnectButton(stats) {
+    const connectBtn = document.getElementById('connectAccountBtn');
+    if (!connectBtn) return;
+    
+    const maxAccounts = stats.max_ml_accounts;
+    const activeAccounts = stats.active_accounts || 0;
+    
+    if (maxAccounts && maxAccounts > 0) {
+        if (activeAccounts >= maxAccounts) {
+            // Limite atingido - desabilitar botão
+            connectBtn.disabled = true;
+            connectBtn.classList.remove('btn-primary');
+            connectBtn.classList.add('btn-secondary');
+            connectBtn.title = `Limite máximo de contas ML atingido. O plano permite ${maxAccounts} contas e você já possui ${activeAccounts} contas ativas.`;
+        } else {
+            // Pode conectar - habilitar botão
+            connectBtn.disabled = false;
+            connectBtn.classList.remove('btn-secondary');
+            connectBtn.classList.add('btn-primary');
+            connectBtn.title = '';
+        }
+    } else {
+        // Sem limite - sempre habilitar
+        connectBtn.disabled = false;
+        connectBtn.classList.remove('btn-secondary');
+        connectBtn.classList.add('btn-primary');
+        connectBtn.title = '';
     }
-    .sortable {
-        cursor: pointer;
-    }
-    .sortable:hover {
-        background-color: rgba(255,255,255,0.1);
-    }
-`;
-document.head.appendChild(style);
+}
+
+// Carregar estatísticas ao carregar a página
+document.addEventListener('DOMContentLoaded', () => {
+    loadMLAccountsStats();
+});
 </script>
 {% endblock %}

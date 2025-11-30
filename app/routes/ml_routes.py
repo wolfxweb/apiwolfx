@@ -2,7 +2,7 @@
 Rotas para integração com Mercado Livre
 """
 from fastapi import APIRouter, Request, Depends, HTTPException, Cookie
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta
@@ -11,6 +11,8 @@ import logging
 from app.config.database import get_db
 from app.controllers.auth_controller import AuthController
 from app.controllers.ml_controller import MLController
+from app.models.saas_models import Subscription, MLAccount, MLAccountStatus
+from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
 
@@ -331,6 +333,107 @@ async def ml_disconnect(
         return RedirectResponse(url=f"/ml/accounts?error={disconnect_result['error']}", status_code=302)
     
     return RedirectResponse(url="/ml/accounts?success=disconnected", status_code=302)
+
+
+@ml_router.get("/accounts/stats", response_class=JSONResponse)
+async def get_ml_accounts_stats_api(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter estatísticas de contas ML do plano"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result["user"]
+    company_id = user_data.get("company", {}).get("id")
+    if not company_id:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Company ID não encontrado"}
+        )
+    
+    try:
+        logger.info(f"🔍 [ML ACCOUNTS STATS] Buscando estatísticas para Company ID: {company_id}")
+        
+        # Buscar assinatura ativa
+        subscription = db.query(Subscription).filter(
+            Subscription.company_id == company_id,
+            (Subscription.status == "active") | (Subscription.is_trial == True)
+        ).order_by(Subscription.created_at.desc()).first()
+        
+        if subscription:
+            logger.info(f"✅ [ML ACCOUNTS STATS] Assinatura ativa encontrada: ID={subscription.id}, Status={subscription.status}, Plan Name={subscription.plan_name}, Max ML Accounts (assinatura)={subscription.max_ml_accounts}")
+        else:
+            logger.warning(f"⚠️ [ML ACCOUNTS STATS] Nenhuma assinatura ativa encontrada para Company ID {company_id}")
+        
+        # Obter max_ml_accounts do plano
+        # SEMPRE buscar do template do plano, pois ele é a fonte da verdade
+        max_ml_accounts = None
+        if subscription:
+            logger.info(f"🔍 [ML ACCOUNTS STATS] Max ML Accounts da assinatura: {subscription.max_ml_accounts}")
+            
+            # SEMPRE buscar do template do plano (fonte da verdade)
+            if subscription.plan_name:
+                plan_template = db.query(Subscription).filter(
+                    Subscription.plan_name == subscription.plan_name,
+                    Subscription.status == "template"
+                ).first()
+                
+                if plan_template:
+                    logger.info(f"📋 [ML ACCOUNTS STATS] Template encontrado: ID={plan_template.id}, Plan Name={plan_template.plan_name}, Max ML Accounts={plan_template.max_ml_accounts}")
+                    if plan_template.max_ml_accounts and plan_template.max_ml_accounts > 0:
+                        max_ml_accounts = plan_template.max_ml_accounts
+                        logger.info(f"✅ [ML ACCOUNTS STATS] Usando max_ml_accounts do template (fonte da verdade): {max_ml_accounts}")
+                    else:
+                        logger.warning(f"⚠️ [ML ACCOUNTS STATS] Template encontrado mas sem max_ml_accounts válido, usando da assinatura")
+                        max_ml_accounts = subscription.max_ml_accounts
+                else:
+                    logger.warning(f"⚠️ [ML ACCOUNTS STATS] Template do plano '{subscription.plan_name}' não encontrado, usando da assinatura")
+                    max_ml_accounts = subscription.max_ml_accounts
+            else:
+                logger.warning(f"⚠️ [ML ACCOUNTS STATS] Assinatura sem plan_name, usando max_ml_accounts da assinatura")
+                max_ml_accounts = subscription.max_ml_accounts
+        
+        # Contar contas ML ativas cadastradas
+        active_accounts = db.query(MLAccount).filter(
+            and_(
+                MLAccount.company_id == company_id,
+                MLAccount.status == MLAccountStatus.ACTIVE
+            )
+        ).all()
+        active_accounts_count = len(active_accounts)
+        
+        # Log detalhado das contas encontradas
+        account_ids = [acc.id for acc in active_accounts]
+        account_nicknames = [acc.nickname for acc in active_accounts]
+        logger.info(f"📊 [ML ACCOUNTS STATS] Contas ML ativas encontradas para Company ID {company_id}: {active_accounts_count} contas (IDs: {account_ids}, Nicknames: {account_nicknames})")
+        
+        result = {
+            "success": True,
+            "stats": {
+                "max_ml_accounts": max_ml_accounts,
+                "active_accounts": active_accounts_count
+            }
+        }
+        logger.info(f"✅ [ML ACCOUNTS STATS] Retornando estatísticas: {result}")
+        
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Erro ao obter estatísticas de contas ML: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro ao obter estatísticas"}
+        )
 
 # Funções auxiliares para OAuth
 async def _exchange_code_for_token(code: str) -> dict:
