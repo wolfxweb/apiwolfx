@@ -113,11 +113,9 @@
                                         <a href="/ml/accounts/{{ account.id }}/settings" class="btn btn-outline-secondary btn-sm" title="Configurações">
                                             <i class="bi bi-gear"></i>
                                         </a>
-                                        <form method="POST" action="/ml/disconnect/{{ account.id }}" style="display: inline;">
-                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Desconectar" onclick="return confirm('Tem certeza que deseja desconectar esta conta?')">
-                                                <i class="bi bi-x-circle"></i>
-                                            </button>
-                                        </form>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" title="Desconectar" onclick="disconnectAccount({{ account.id }}, '{{ account.nickname }}')">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -248,6 +246,33 @@ function updateConnectButton(stats) {
         connectBtn.classList.remove('btn-secondary');
         connectBtn.classList.add('btn-primary');
         connectBtn.title = '';
+    }
+}
+
+// Função para desconectar conta
+async function disconnectAccount(accountId, accountName) {
+    if (!confirm(`Tem certeza que deseja desconectar a conta "${accountName}"?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/ml/disconnect/${accountId}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok || response.redirected) {
+            // Recarregar a página após desconectar
+            window.location.reload();
+        } else {
+            alert('Erro ao desconectar conta');
+        }
+    } catch (error) {
+        console.error('Erro ao desconectar conta:', error);
+        alert('Erro ao desconectar conta');
     }
 }
 
