@@ -50,6 +50,28 @@
             margin-top: auto !important;
         }
         
+        /* Paginação - Botão ativo com cor verde do sistema */
+        .pagination .page-item.active .page-link {
+            background-color: #02C47C !important;
+            border-color: #02C47C !important;
+            color: #ffffff !important;
+        }
+
+        .pagination .page-item.active .page-link:hover {
+            background-color: #00A86B !important;
+            border-color: #00A86B !important;
+            color: #ffffff !important;
+        }
+        
+        /* Paginação - Números não selecionados com cor verde do sistema */
+        .pagination .page-item:not(.active):not(.disabled) .page-link {
+            color: #02C47C !important;
+        }
+        
+        .pagination .page-item:not(.active):not(.disabled) .page-link:hover {
+            color: #00A86B !important;
+        }
+        
         /* Gradiente SELVEZ do navbar - aplicado globalmente */
         .navbar,
         nav.navbar,

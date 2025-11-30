@@ -667,10 +667,32 @@ async def create_cost_center(
     if not cost_center_data.get("name"):
         raise HTTPException(status_code=400, detail="Nome é obrigatório")
     
+    # Gerar código automaticamente se não fornecido
+    code = cost_center_data.get("code", "").strip()
+    if not code:
+        # Buscar o último código gerado para esta empresa
+        last_cost_center = db.query(CostCenter).filter(
+            CostCenter.company_id == company_id,
+            CostCenter.code.like("CC-%")
+        ).order_by(CostCenter.code.desc()).first()
+        
+        if last_cost_center and last_cost_center.code:
+            # Extrair número do último código e incrementar
+            try:
+                last_number = int(last_cost_center.code.split("-")[1])
+                next_number = last_number + 1
+            except (ValueError, IndexError):
+                next_number = 1
+        else:
+            next_number = 1
+        
+        # Gerar novo código no formato CC-001, CC-002, etc.
+        code = f"CC-{next_number:03d}"
+    
     # Criar novo centro de custo no banco
     new_cost_center = CostCenter(
         company_id=company_id,
-        code=cost_center_data.get("code", ""),
+        code=code,
         name=cost_center_data.get("name"),
         description=cost_center_data.get("description", ""),
         is_active=cost_center_data.get("is_active", True)
