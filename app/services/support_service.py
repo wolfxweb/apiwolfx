@@ -210,19 +210,25 @@ class SupportService:
     def add_message_to_ticket(
         self,
         ticket_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: Optional[int],
         message_content: str,
         is_from_support: bool = False
     ) -> Dict[str, Any]:
-        """Adiciona uma nova mensagem a um chamado de suporte existente"""
+        """Adiciona uma nova mensagem a um chamado de suporte existente (company_id opcional para superadmin)"""
         try:
-            ticket = self.db.query(SupportTicket).filter(
-                and_(
-                    SupportTicket.id == ticket_id,
-                    SupportTicket.company_id == company_id
-                )
-            ).first()
+            if company_id:
+                ticket = self.db.query(SupportTicket).filter(
+                    and_(
+                        SupportTicket.id == ticket_id,
+                        SupportTicket.company_id == company_id
+                    )
+                ).first()
+            else:
+                # Para superadmin, não filtrar por company_id
+                ticket = self.db.query(SupportTicket).filter(
+                    SupportTicket.id == ticket_id
+                ).first()
             
             if not ticket:
                 return {
@@ -272,24 +278,30 @@ class SupportService:
     def upload_attachment(
         self,
         ticket_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: Optional[int],
         filename: str,
         file_content: bytes,
         content_type: str,
         message_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Faz upload de um anexo para um chamado"""
+        """Faz upload de um anexo para um chamado (company_id opcional para superadmin)"""
         try:
             from uuid import uuid4
             
-            # Verificar se o ticket existe e pertence à empresa
-            ticket = self.db.query(SupportTicket).filter(
-                and_(
-                    SupportTicket.id == ticket_id,
-                    SupportTicket.company_id == company_id
-                )
-            ).first()
+            # Verificar se o ticket existe (e pertence à empresa se company_id fornecido)
+            if company_id:
+                ticket = self.db.query(SupportTicket).filter(
+                    and_(
+                        SupportTicket.id == ticket_id,
+                        SupportTicket.company_id == company_id
+                    )
+                ).first()
+            else:
+                # Para superadmin, não filtrar por company_id
+                ticket = self.db.query(SupportTicket).filter(
+                    SupportTicket.id == ticket_id
+                ).first()
             
             if not ticket:
                 return {
@@ -356,17 +368,23 @@ class SupportService:
     def get_ticket_attachments(
         self,
         ticket_id: int,
-        company_id: int
+        company_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Lista anexos de um chamado"""
+        """Lista anexos de um chamado (company_id opcional para superadmin)"""
         try:
-            # Verificar se o ticket existe e pertence à empresa
-            ticket = self.db.query(SupportTicket).filter(
-                and_(
-                    SupportTicket.id == ticket_id,
-                    SupportTicket.company_id == company_id
-                )
-            ).first()
+            # Verificar se o ticket existe (e pertence à empresa se company_id fornecido)
+            if company_id:
+                ticket = self.db.query(SupportTicket).filter(
+                    and_(
+                        SupportTicket.id == ticket_id,
+                        SupportTicket.company_id == company_id
+                    )
+                ).first()
+            else:
+                # Para superadmin, não filtrar por company_id
+                ticket = self.db.query(SupportTicket).filter(
+                    SupportTicket.id == ticket_id
+                ).first()
             
             if not ticket:
                 return {
@@ -468,15 +486,89 @@ class SupportService:
                 "error": str(e)
             }
     
-    def get_ticket(self, ticket_id: int, company_id: int) -> Dict[str, Any]:
-        """Obtém um chamado específico"""
+    def list_all_tickets(
+        self,
+        company_id: Optional[int] = None,
+        status: Optional[str] = None,
+        user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Lista chamados de suporte de TODAS as empresas (para superadmin)"""
         try:
-            ticket = self.db.query(SupportTicket).filter(
-                and_(
-                    SupportTicket.id == ticket_id,
-                    SupportTicket.company_id == company_id
-                )
-            ).first()
+            from app.models.saas_models import Company
+            
+            query = self.db.query(SupportTicket)
+            
+            # Filtrar por empresa se fornecido
+            if company_id:
+                query = query.filter(SupportTicket.company_id == company_id)
+            
+            # Filtrar por usuário se fornecido
+            if user_id:
+                query = query.filter(SupportTicket.user_id == user_id)
+            
+            # Filtrar por status se fornecido
+            if status:
+                query = query.filter(SupportTicket.status == status)
+            
+            tickets = query.order_by(desc(SupportTicket.created_at)).all()
+            
+            tickets_list = []
+            for ticket in tickets:
+                # Contar mensagens
+                message_count = len(ticket.messages) if ticket.messages else 0
+                
+                # Status pode ser string ou enum
+                status_value = ticket.status.value if hasattr(ticket.status, 'value') else ticket.status
+                
+                # Obter informações da empresa
+                company_name = "N/A"
+                if ticket.company:
+                    company_name = ticket.company.name or ticket.company.nome_fantasia or "Empresa"
+                
+                tickets_list.append({
+                    "id": ticket.id,
+                    "company_id": ticket.company_id,
+                    "company_name": company_name,
+                    "subject": ticket.subject,
+                    "description": ticket.description,
+                    "category": ticket.category,
+                    "priority": ticket.priority,
+                    "status": status_value,
+                    "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+                    "updated_at": ticket.updated_at.isoformat() if ticket.updated_at else None,
+                    "closed_at": ticket.closed_at.isoformat() if ticket.closed_at else None,
+                    "message_count": message_count,
+                    "user_name": f"{ticket.user.first_name} {ticket.user.last_name}" if ticket.user else "Usuário",
+                    "user_email": ticket.user.email if ticket.user else None
+                })
+            
+            return {
+                "success": True,
+                "tickets": tickets_list,
+                "total": len(tickets_list)
+            }
+        except Exception as e:
+            logger.error(f"Erro ao listar todos os chamados: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def get_ticket(self, ticket_id: int, company_id: Optional[int] = None) -> Dict[str, Any]:
+        """Obtém um chamado específico (company_id opcional para superadmin)"""
+        try:
+            if company_id:
+                ticket = self.db.query(SupportTicket).filter(
+                    and_(
+                        SupportTicket.id == ticket_id,
+                        SupportTicket.company_id == company_id
+                    )
+                ).first()
+            else:
+                # Para superadmin, não filtrar por company_id
+                ticket = self.db.query(SupportTicket).filter(
+                    SupportTicket.id == ticket_id
+                ).first()
             
             if not ticket:
                 return {
@@ -542,16 +634,21 @@ class SupportService:
                 "error": str(e)
             }
     
-    def update_ticket_status(self, ticket_id: int, company_id: int, status: str) -> Dict[str, Any]:
-        """Atualiza o status de um chamado"""
+    def update_ticket_status(self, ticket_id: int, company_id: Optional[int], status: str) -> Dict[str, Any]:
+        """Atualiza o status de um chamado (company_id opcional para superadmin)"""
         try:
-            
-            ticket = self.db.query(SupportTicket).filter(
-                and_(
-                    SupportTicket.id == ticket_id,
-                    SupportTicket.company_id == company_id
-                )
-            ).first()
+            if company_id:
+                ticket = self.db.query(SupportTicket).filter(
+                    and_(
+                        SupportTicket.id == ticket_id,
+                        SupportTicket.company_id == company_id
+                    )
+                ).first()
+            else:
+                # Para superadmin, não filtrar por company_id
+                ticket = self.db.query(SupportTicket).filter(
+                    SupportTicket.id == ticket_id
+                ).first()
             
             if not ticket:
                 return {

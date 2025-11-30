@@ -1,8 +1,8 @@
 """
 Rotas para SuperAdmin - Painel de administração do sistema
 """
-from fastapi import APIRouter, Request, Form, Depends, HTTPException, Cookie
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Request, Form, Depends, HTTPException, Cookie, Query, Body, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -11,6 +11,8 @@ import string
 
 from app.config.database import get_db
 from app.controllers.superadmin_controller import SuperAdminController
+from app.controllers.support_controller import SupportController
+from app.controllers.auth_controller import AuthController
 from app.views.template_renderer import render_template
 from app.models.saas_models import User, UserSession, Company, UserRole
 from app.config.settings import settings
@@ -18,8 +20,85 @@ from app.config.settings import settings
 # Router para superadmin
 superadmin_router = APIRouter()
 
+def get_superadmin_user(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Obtém usuário superadmin da sessão"""
+    from app.models.saas_models import SuperAdmin
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Primeiro, verificar se há cookie de sessão de superadmin
+    superadmin_session = request.cookies.get("superadmin_session")
+    superadmin_id = request.cookies.get("superadmin_id")
+    
+    logger.info(f"🔍 Verificando superadmin - session: {bool(superadmin_session)}, id: {superadmin_id}")
+    
+    if superadmin_session and superadmin_id:
+        # Buscar superadmin diretamente na tabela SuperAdmin
+        try:
+            superadmin = db.query(SuperAdmin).filter(
+                SuperAdmin.id == int(superadmin_id),
+                SuperAdmin.is_active == True
+            ).first()
+            
+            if superadmin:
+                logger.info(f"✅ Superadmin autenticado via cookie: {superadmin.email}")
+                # Retornar um dict compatível com o formato esperado
+                return {
+                    "id": superadmin.id,
+                    "email": superadmin.email,
+                    "first_name": superadmin.first_name,
+                    "last_name": superadmin.last_name,
+                    "role": "super_admin",  # Definir role como super_admin
+                    "company_id": None,  # Superadmin não tem company_id
+                    "company": None
+                }
+        except (ValueError, TypeError):
+            pass
+    
+    # Fallback: tentar verificar via sessão normal de usuário
+    try:
+        result = AuthController().get_user_by_session(request.cookies.get("session_token"), db)
+        if result.get("error"):
+            raise HTTPException(status_code=401, detail="Não autenticado")
+        
+        user = result.get("user", {})
+        logger.info(f"✅ Usuário autenticado: {user.get('email')} (role: {user.get('role')})")
+        
+        # Verificar se é superadmin de duas formas:
+        # 1. Se o role do usuário é super_admin
+        # 2. Se existe um registro na tabela SuperAdmin com o mesmo email
+        is_superadmin = False
+        
+        # Verificar role
+        if user.get("role") == "super_admin":
+            logger.info("✅ Usuário é superadmin por role")
+            is_superadmin = True
+        else:
+            # Verificar se existe SuperAdmin com o mesmo email
+            user_email = user.get("email")
+            if user_email:
+                superadmin = db.query(SuperAdmin).filter(
+                    SuperAdmin.email == user_email,
+                    SuperAdmin.is_active == True
+                ).first()
+                if superadmin:
+                    logger.info(f"✅ Usuário é superadmin por tabela SuperAdmin: {user_email}")
+                    is_superadmin = True
+        
+        if is_superadmin:
+            logger.info(f"✅ Acesso permitido para superadmin: {user.get('email')}")
+            return user
+    except HTTPException:
+        # Se não conseguir autenticar via usuário normal, continuar para verificar erro
+        pass
+    
+    # Se chegou aqui, não é superadmin
+    logger.warning(f"❌ Acesso negado - não é superadmin. Path: {request.url.path}")
+    raise HTTPException(status_code=403, detail="Acesso negado. Apenas superadmins podem acessar.")
+
 def get_superadmin_session(request: Request, session_token: Optional[str] = Cookie(None)) -> Optional[dict]:
-    """Verifica se o usuário está autenticado como superadmin"""
+    """Verifica se o usuário está autenticado como superadmin (deprecated - usar get_superadmin_user)"""
     if not session_token:
         return None
     
@@ -1097,3 +1176,245 @@ async def view_agente_ia_manual(filename: str):
     """
     
     return HTMLResponse(content=html_page)
+
+
+# ==================== ROTAS DE TICKETS DE SUPORTE ====================
+
+@superadmin_router.get("/superadmin/support/tickets", response_class=HTMLResponse)
+async def superadmin_support_tickets(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de listagem de tickets de suporte (superadmin)"""
+    # Verificar se é superadmin
+    user_data = get_superadmin_user(request, db)
+    
+    return render_template("superadmin/support_tickets.html", user=user_data, request=request)
+
+
+@superadmin_router.get("/superadmin/support/tickets/{ticket_id}", response_class=HTMLResponse)
+async def superadmin_support_ticket_view(
+    ticket_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de visualização de um ticket específico (superadmin)"""
+    # Verificar se é superadmin
+    user_data = get_superadmin_user(request, db)
+    
+    controller = SupportController(db)
+    ticket_result = controller.get_ticket(ticket_id, company_id=None)  # None para superadmin
+    
+    if not ticket_result.get("success"):
+        return RedirectResponse(url="/superadmin/support/tickets", status_code=302)
+    
+    return render_template(
+        "superadmin/support_ticket_view.html",
+        request=request,
+        user=user_data,
+        ticket=ticket_result.get("ticket")
+    )
+
+
+@superadmin_router.get("/api/superadmin/support/tickets", response_class=JSONResponse)
+async def superadmin_list_tickets_api(
+    request: Request,
+    status: Optional[str] = Query(None),
+    company_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """API para listar tickets de suporte de todas as empresas (superadmin)"""
+    # Verificar se é superadmin
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"success": False, "error": e.detail}
+        )
+    
+    controller = SupportController(db)
+    response = controller.list_all_tickets(
+        company_id=company_id,
+        status=status
+    )
+    
+    return JSONResponse(content=response)
+
+
+@superadmin_router.get("/api/superadmin/support/tickets/{ticket_id}", response_class=JSONResponse)
+async def superadmin_get_ticket_api(
+    ticket_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API para obter detalhes de um ticket (superadmin)"""
+    # Verificar se é superadmin
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"success": False, "error": e.detail}
+        )
+    
+    controller = SupportController(db)
+    response = controller.get_ticket(ticket_id, company_id=None)  # None para superadmin
+    
+    if response.get("success"):
+        return JSONResponse(content=response)
+    else:
+        return JSONResponse(
+            status_code=404,
+            content=response
+        )
+
+
+@superadmin_router.post("/api/superadmin/support/tickets/{ticket_id}/messages", response_class=JSONResponse)
+async def superadmin_add_message_api(
+    ticket_id: int,
+    request: Request,
+    message: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """API para adicionar mensagem do suporte a um ticket (superadmin)"""
+    # Verificar se é superadmin
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"success": False, "error": e.detail}
+        )
+    
+    # Superadmin não está na tabela users, então user_id deve ser None
+    # O campo is_from_support=True já indica que é do suporte
+    controller = SupportController(db)
+    response = controller.add_message_to_ticket(
+        ticket_id=ticket_id,
+        company_id=None,  # None para superadmin
+        user_id=None,  # None porque superadmin não está na tabela users
+        message_content=message,
+        is_from_support=True  # Sempre do suporte quando vem do superadmin
+    )
+    
+    if response.get("success"):
+        return JSONResponse(content=response)
+    else:
+        return JSONResponse(
+            status_code=400,
+            content=response
+        )
+
+
+@superadmin_router.post("/api/superadmin/support/tickets/{ticket_id}/attachments", response_class=JSONResponse)
+async def superadmin_upload_attachment_api(
+    ticket_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    message_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """API para fazer upload de anexo em um ticket (superadmin)"""
+    # Verificar se é superadmin
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"success": False, "error": e.detail}
+        )
+    
+    # Superadmin não está na tabela users, então uploaded_by deve ser None
+    # Ler conteúdo do arquivo
+    file_content = await file.read()
+    
+    controller = SupportController(db)
+    response = controller.upload_attachment(
+        ticket_id=ticket_id,
+        company_id=None,  # None para superadmin
+        user_id=None,  # None porque superadmin não está na tabela users
+        filename=file.filename,
+        file_content=file_content,
+        content_type=file.content_type or "application/octet-stream",
+        message_id=message_id
+    )
+    
+    if response.get("success"):
+        return JSONResponse(content=response)
+    else:
+        return JSONResponse(
+            status_code=400,
+            content=response
+        )
+
+
+@superadmin_router.patch("/api/superadmin/support/tickets/{ticket_id}/status", response_class=JSONResponse)
+async def superadmin_update_ticket_status_api(
+    ticket_id: int,
+    request: Request,
+    status_data: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    """API para atualizar status de um ticket (superadmin)"""
+    # Verificar se é superadmin
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"success": False, "error": e.detail}
+        )
+    
+    status = status_data.get("status")
+    if not status:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Status não fornecido"}
+        )
+    
+    controller = SupportController(db)
+    response = controller.update_ticket_status(
+        ticket_id=ticket_id,
+        company_id=None,  # None para superadmin
+        status=status
+    )
+    
+    if response.get("success"):
+        return JSONResponse(content=response)
+    else:
+        return JSONResponse(
+            status_code=400,
+            content=response
+        )
+
+
+@superadmin_router.get("/api/superadmin/support/tickets/{ticket_id}/attachments", response_class=JSONResponse)
+async def superadmin_get_ticket_attachments_api(
+    ticket_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API para listar anexos de um ticket (superadmin)"""
+    # Verificar se é superadmin
+    try:
+        user_data = get_superadmin_user(request, db)
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"success": False, "error": e.detail}
+        )
+    
+    controller = SupportController(db)
+    response = controller.get_ticket_attachments(
+        ticket_id=ticket_id,
+        company_id=None  # None para superadmin
+    )
+    
+    if response.get("success"):
+        return JSONResponse(content=response)
+    else:
+        return JSONResponse(
+            status_code=404,
+            content=response
+        )

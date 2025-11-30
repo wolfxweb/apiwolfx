@@ -134,21 +134,34 @@ class SupportController:
             status=status
         )
     
-    def get_ticket(self, ticket_id: int, company_id: int) -> Dict[str, Any]:
-        """Obtém um chamado específico"""
+    def list_all_tickets(
+        self,
+        company_id: Optional[int] = None,
+        status: Optional[str] = None,
+        user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Lista chamados de todas as empresas (para superadmin)"""
+        return self.support_service.list_all_tickets(
+            company_id=company_id,
+            status=status,
+            user_id=user_id
+        )
+    
+    def get_ticket(self, ticket_id: int, company_id: Optional[int] = None) -> Dict[str, Any]:
+        """Obtém um chamado específico (company_id opcional para superadmin)"""
         return self.support_service.get_ticket(ticket_id, company_id)
     
     def upload_attachment(
         self,
         ticket_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: Optional[int],
         filename: str,
         file_content: bytes,
         content_type: str,
         message_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Faz upload de um anexo"""
+        """Faz upload de um anexo (company_id opcional para superadmin)"""
         return self.support_service.upload_attachment(
             ticket_id=ticket_id,
             company_id=company_id,
@@ -162,20 +175,20 @@ class SupportController:
     def get_ticket_attachments(
         self,
         ticket_id: int,
-        company_id: int
+        company_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Lista anexos de um chamado"""
+        """Lista anexos de um chamado (company_id opcional para superadmin)"""
         return self.support_service.get_ticket_attachments(ticket_id, company_id)
     
     def add_message_to_ticket(
         self,
         ticket_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: Optional[int],
         message_content: str,
         is_from_support: bool = False
     ) -> Dict[str, Any]:
-        """Adiciona uma mensagem a um chamado"""
+        """Adiciona uma mensagem a um chamado (company_id opcional para superadmin)"""
         return self.support_service.add_message_to_ticket(
             ticket_id=ticket_id,
             company_id=company_id,
@@ -187,10 +200,10 @@ class SupportController:
     def update_ticket_status(
         self,
         ticket_id: int,
-        company_id: int,
+        company_id: Optional[int],
         status: str
     ) -> Dict[str, Any]:
-        """Atualiza o status de um chamado"""
+        """Atualiza o status de um chamado (company_id opcional para superadmin)"""
         return self.support_service.update_ticket_status(
             ticket_id=ticket_id,
             company_id=company_id,
