@@ -276,12 +276,20 @@ async def get_users_stats_api(
         total_users_all_companies = db.query(User).count()
         logger.info(f"📊 [USERS STATS] Total de usuários no sistema (todas as empresas): {total_users_all_companies}")
         
+        # Verificar se pode criar novo funcionário
+        # Se max_users for None ou 0, permitir criação (sem limite)
+        can_create_employee = True
+        if max_users and max_users > 0:
+            can_create_employee = active_users_count < max_users
+            logger.info(f"🔍 [USERS STATS] Verificação de limite: Ativos={active_users_count}, Limite={max_users}, Pode criar={can_create_employee}")
+        
         result = {
             "success": True,
             "stats": {
                 "max_users": max_users,
                 "active_users": active_users_count,
-                "inactive_users": inactive_users_count
+                "inactive_users": inactive_users_count,
+                "can_create_employee": can_create_employee
             }
         }
         logger.info(f"✅ [USERS STATS] Retornando estatísticas: {result}")

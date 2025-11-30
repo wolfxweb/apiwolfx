@@ -8,7 +8,7 @@
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2"><i class="bi bi-people"></i> Recursos Humanos</h1>
         <div class="btn-toolbar mb-2 mb-md-0">
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEmployeeModal">
+            <button type="button" class="btn btn-primary" id="newEmployeeBtn" data-bs-toggle="modal" data-bs-target="#createEmployeeModal">
                 <i class="bi bi-plus-circle"></i> Novo Funcionário
             </button>
         </div>
@@ -225,26 +225,6 @@
 </div>
 
 <!-- Modal Confirmar Exclusão -->
-<div class="modal fade" id="deleteEmployeeModal" tabindex="-1" aria-labelledby="deleteEmployeeModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteEmployeeModalLabel">Confirmar Exclusão</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Tem certeza que deseja remover o funcionário <strong id="deleteEmployeeName"></strong>?</p>
-                <p class="text-muted small">Esta ação irá desativar o funcionário e, se houver conta de usuário vinculada, ela também será inativada.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteEmployeeBtn">
-                    <i class="bi bi-trash"></i> Remover
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 
 {% endblock %}
 
@@ -252,6 +232,7 @@
 <script>
 let employees = [];
 let searchTimeout;
+let currentStats = null; // Armazenar estatísticas atuais para verificar limite
 
 // Carregar funcionários ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
@@ -273,6 +254,7 @@ async function loadUsersStats() {
         
         if (data.success && data.stats) {
             const stats = data.stats;
+            currentStats = stats; // Armazenar estatísticas para uso em outras funções
             
             // Atualizar KPI de limite do plano
             const maxUsersEl = document.getElementById('maxUsersKPI');
@@ -293,6 +275,12 @@ async function loadUsersStats() {
             if (inactiveUsersEl) {
                 inactiveUsersEl.textContent = stats.inactive_users || 0;
             }
+            
+            // Atualizar estado do botão "Novo Funcionário"
+            updateNewEmployeeButton(stats);
+            
+            // Atualizar botões de ativar/inativar na lista
+            updateActivateButtons(stats);
         } else {
             console.error('Erro ao carregar estatísticas de usuários:', data.error);
             // Exibir valores padrão em caso de erro
@@ -315,6 +303,38 @@ async function loadUsersStats() {
     }
 }
 
+// Atualizar estado do botão "Novo Funcionário" baseado no limite
+function updateNewEmployeeButton(stats) {
+    const newEmployeeBtn = document.getElementById('newEmployeeBtn');
+    if (!newEmployeeBtn) return;
+    
+    const maxUsers = stats.max_users;
+    const activeUsers = stats.active_users || 0;
+    const canCreate = stats.can_create_employee !== undefined ? stats.can_create_employee : true;
+    
+    if (maxUsers && maxUsers > 0) {
+        if (canCreate && activeUsers < maxUsers) {
+            // Pode criar - habilitar botão
+            newEmployeeBtn.disabled = false;
+            newEmployeeBtn.classList.remove('btn-secondary');
+            newEmployeeBtn.classList.add('btn-primary');
+            newEmployeeBtn.title = '';
+        } else {
+            // Limite atingido - desabilitar botão
+            newEmployeeBtn.disabled = true;
+            newEmployeeBtn.classList.remove('btn-primary');
+            newEmployeeBtn.classList.add('btn-secondary');
+            newEmployeeBtn.title = `Limite máximo de funcionários atingido. O plano permite ${maxUsers} funcionários e você já possui ${activeUsers} funcionários ativos.`;
+        }
+    } else {
+        // Sem limite - sempre habilitar
+        newEmployeeBtn.disabled = false;
+        newEmployeeBtn.classList.remove('btn-secondary');
+        newEmployeeBtn.classList.add('btn-primary');
+        newEmployeeBtn.title = '';
+    }
+}
+
 // Carregar funcionários
 async function loadEmployees() {
     const status = document.getElementById('statusFilter')?.value || '';
@@ -333,6 +353,8 @@ async function loadEmployees() {
         if (data.success) {
             employees = data.employees || [];
             renderEmployees();
+            // Atualizar estado do botão após carregar funcionários (pode ter mudado o status)
+            loadUsersStats();
         } else {
             showError('Erro ao carregar funcionários: ' + (data.error || 'Erro desconhecido'));
         }
@@ -377,12 +399,20 @@ function renderEmployees() {
                         <a href="/hr/employee/${employee.id}" class="btn btn-sm btn-outline-primary" title="Ver funcionário">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <button type="button" class="btn btn-sm btn-outline-danger delete-employee-btn" 
-                                data-employee-id="${employee.id}" 
-                                data-employee-name="${escapeHtml(employee.nome_completo || 'N/A')}"
-                                title="Remover funcionário">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                        ${employee.status === 'active' 
+                            ? `<button type="button" class="btn btn-sm btn-outline-warning deactivate-employee-btn" 
+                                      data-employee-id="${employee.id}" 
+                                      data-employee-name="${escapeHtml(employee.nome_completo || 'N/A')}"
+                                      title="Inativar funcionário">
+                                  <i class="bi bi-person-x"></i>
+                              </button>`
+                            : `<button type="button" class="btn btn-sm btn-outline-success activate-employee-btn" 
+                                      data-employee-id="${employee.id}" 
+                                      data-employee-name="${escapeHtml(employee.nome_completo || 'N/A')}"
+                                      title="Ativar funcionário">
+                                  <i class="bi bi-person-check"></i>
+                              </button>`
+                        }
                     </div>
                 </td>
             </tr>
@@ -391,17 +421,150 @@ function renderEmployees() {
     
     container.innerHTML = html;
     
-    // Configurar event listeners para botões de deletar
-    setupDeleteButtons();
+    // Configurar event listeners para botões de ativar/inativar
+    setupActivateButtons();
+    setupDeactivateButtons();
 }
 
-// Configurar event listeners para botões de deletar
-function setupDeleteButtons() {
-    document.querySelectorAll('.delete-employee-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+// Verificar se pode ativar funcionário (baseado no limite do plano)
+function canActivateEmployee() {
+    if (!currentStats) {
+        // Se não tiver estatísticas, permitir (será verificado no backend)
+        return true;
+    }
+    
+    const maxUsers = currentStats.max_users;
+    const activeUsers = currentStats.active_users || 0;
+    
+    // Se não houver limite ou se ainda não atingiu o limite, permitir
+    if (!maxUsers || maxUsers <= 0) {
+        return true;
+    }
+    
+    return activeUsers < maxUsers;
+}
+
+// Atualizar estado dos botões de ativar baseado no limite
+function updateActivateButtons(stats) {
+    if (!stats) return;
+    
+    const maxUsers = stats.max_users;
+    const activeUsers = stats.active_users || 0;
+    const canActivate = maxUsers && maxUsers > 0 ? activeUsers < maxUsers : true;
+    
+    document.querySelectorAll('.activate-employee-btn').forEach(btn => {
+        if (canActivate) {
+            btn.disabled = false;
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-outline-success');
+            btn.title = 'Ativar funcionário';
+        } else {
+            btn.disabled = true;
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-secondary');
+            btn.title = `Limite máximo de funcionários atingido. O plano permite ${maxUsers} funcionários e você já possui ${activeUsers} funcionários ativos.`;
+        }
+    });
+}
+
+// Configurar event listeners para botões de ativar
+function setupActivateButtons() {
+    document.querySelectorAll('.activate-employee-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            // Verificar limite antes de ativar
+            if (!canActivateEmployee()) {
+                const maxUsers = currentStats?.max_users || 'N/A';
+                const activeUsers = currentStats?.active_users || 0;
+                showError(`Limite máximo de funcionários atingido. O plano permite ${maxUsers} funcionários e você já possui ${activeUsers} funcionários ativos.`);
+                return;
+            }
+            
             const employeeId = parseInt(this.getAttribute('data-employee-id'));
             const employeeName = this.getAttribute('data-employee-name');
-            openDeleteEmployeeModal(employeeId, employeeName);
+            
+            // Desabilitar botão para evitar duplo clique
+            const originalHTML = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            
+            try {
+                const response = await fetch(`/api/hr/employees/${employeeId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        status: 'active'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Funcionário ativado com sucesso!');
+                    loadEmployees();
+                    loadUsersStats(); // Atualizar KPIs
+                } else {
+                    showError('Erro ao ativar funcionário: ' + (data.error || 'Erro desconhecido'));
+                    // Reabilitar botão em caso de erro
+                    this.disabled = false;
+                    this.innerHTML = originalHTML;
+                }
+            } catch (error) {
+                console.error('Erro ao ativar funcionário:', error);
+                showError('Erro ao ativar funcionário');
+                // Reabilitar botão em caso de erro
+                this.disabled = false;
+                this.innerHTML = originalHTML;
+            }
+        });
+    });
+}
+
+// Configurar event listeners para botões de inativar
+function setupDeactivateButtons() {
+    document.querySelectorAll('.deactivate-employee-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const employeeId = parseInt(this.getAttribute('data-employee-id'));
+            const employeeName = this.getAttribute('data-employee-name');
+            
+            // Desabilitar botão para evitar duplo clique
+            const originalHTML = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            
+            try {
+                const response = await fetch(`/api/hr/employees/${employeeId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        status: 'inactive'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Funcionário inativado com sucesso!');
+                    loadEmployees();
+                    loadUsersStats(); // Atualizar KPIs
+                } else {
+                    showError('Erro ao inativar funcionário: ' + (data.error || 'Erro desconhecido'));
+                    // Reabilitar botão em caso de erro
+                    this.disabled = false;
+                    this.innerHTML = originalHTML;
+                }
+            } catch (error) {
+                console.error('Erro ao inativar funcionário:', error);
+                showError('Erro ao inativar funcionário');
+                // Reabilitar botão em caso de erro
+                this.disabled = false;
+                this.innerHTML = originalHTML;
+            }
         });
     });
 }
@@ -603,50 +766,6 @@ function showSuccess(message) {
     showToast(message, 'success');
 }
 
-// Variável para armazenar ID do funcionário a ser deletado
-let currentDeleteEmployeeId = null;
-
-// Abrir modal de confirmação de exclusão
-function openDeleteEmployeeModal(employeeId, employeeName) {
-    currentDeleteEmployeeId = employeeId;
-    document.getElementById('deleteEmployeeName').textContent = employeeName;
-    const modal = new bootstrap.Modal(document.getElementById('deleteEmployeeModal'));
-    modal.show();
-}
-
-// Confirmar exclusão de funcionário
-document.addEventListener('DOMContentLoaded', function() {
-    const confirmDeleteBtn = document.getElementById('confirmDeleteEmployeeBtn');
-    if (confirmDeleteBtn) {
-        confirmDeleteBtn.addEventListener('click', async function() {
-            if (!currentDeleteEmployeeId) return;
-            
-            try {
-                const response = await fetch(`/api/hr/employees/${currentDeleteEmployeeId}`, {
-                    method: 'DELETE',
-                    credentials: 'include'
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showSuccess('Funcionário removido com sucesso!');
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteEmployeeModal'));
-                    modal.hide();
-                    loadEmployees();
-                    loadUsersStats(); // Atualizar KPIs
-                } else {
-                    showError('Erro ao remover funcionário: ' + (data.error || 'Erro desconhecido'));
-                }
-            } catch (error) {
-                console.error('Erro ao remover funcionário:', error);
-                showError('Erro ao remover funcionário');
-            } finally {
-                currentDeleteEmployeeId = null;
-            }
-        });
-    }
-});
 </script>
 {% endblock %}
 
