@@ -22,14 +22,15 @@ class ContentService:
     
     # ========== IDEIAS ==========
     
-    def create_idea(self, company_id: int, titulo: str, descricao: Optional[str] = None, tags: Optional[str] = None) -> Dict[str, Any]:
+    def create_idea(self, company_id: int, titulo: str, descricao: Optional[str] = None, tags: Optional[str] = None, is_ai_generated: int = 0) -> Dict[str, Any]:
         """Cria uma nova ideia"""
         try:
             idea = ContentIdea(
                 company_id=company_id,
                 titulo=titulo,
                 descricao=descricao,
-                tags=tags
+                tags=tags,
+                is_ai_generated=is_ai_generated
             )
             self.db.add(idea)
             self.db.commit()
@@ -50,10 +51,13 @@ class ContentService:
             logger.error(f"Erro ao criar ideia: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def list_ideas(self, company_id: int, search: Optional[str] = None) -> Dict[str, Any]:
+    def list_ideas(self, company_id: int, search: Optional[str] = None, is_ai_generated: Optional[int] = None) -> Dict[str, Any]:
         """Lista ideias da empresa"""
         try:
             query = self.db.query(ContentIdea).filter(ContentIdea.company_id == company_id)
+            
+            if is_ai_generated is not None:
+                query = query.filter(ContentIdea.is_ai_generated == is_ai_generated)
             
             if search:
                 search_term = f"%{search}%"
@@ -75,6 +79,7 @@ class ContentService:
                         "titulo": idea.titulo,
                         "descricao": idea.descricao,
                         "tags": idea.tags,
+                        "is_ai_generated": idea.is_ai_generated or 0,
                         "created_at": idea.created_at.isoformat() if idea.created_at else None,
                         "updated_at": idea.updated_at.isoformat() if idea.updated_at else None
                     }

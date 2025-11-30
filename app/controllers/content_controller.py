@@ -22,9 +22,9 @@ class ContentController:
         """Cria uma nova ideia"""
         return self.service.create_idea(company_id, titulo, descricao, tags)
     
-    def list_ideas(self, company_id: int, search: Optional[str] = None) -> Dict[str, Any]:
+    def list_ideas(self, company_id: int, search: Optional[str] = None, is_ai_generated: Optional[int] = None) -> Dict[str, Any]:
         """Lista ideias da empresa"""
-        return self.service.list_ideas(company_id, search)
+        return self.service.list_ideas(company_id, search, is_ai_generated)
     
     def get_idea(self, idea_id: int, company_id: int) -> Dict[str, Any]:
         """Obtém uma ideia específica"""

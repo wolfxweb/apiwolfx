@@ -19,6 +19,7 @@ class ContentIdea(Base):
     titulo = Column(String(255), nullable=False)
     descricao = Column(Text)
     tags = Column(String(500))  # tags separadas por vírgula
+    is_ai_generated = Column(Integer, default=0)  # 0 = manual, 1 = gerada por IA
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     

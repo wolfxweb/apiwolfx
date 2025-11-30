@@ -29,10 +29,24 @@ def create_content_tables():
                     titulo VARCHAR(255) NOT NULL,
                     descricao TEXT,
                     tags VARCHAR(500),
+                    is_ai_generated INTEGER DEFAULT 0,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     CONSTRAINT fk_content_ideas_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
                 )
+            """))
+            
+            # Adicionar coluna is_ai_generated se não existir (para tabelas já criadas)
+            conn.execute(text("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'content_ideas' AND column_name = 'is_ai_generated'
+                    ) THEN
+                        ALTER TABLE content_ideas ADD COLUMN is_ai_generated INTEGER DEFAULT 0;
+                    END IF;
+                END $$;
             """))
             
             # Criar índices para content_ideas

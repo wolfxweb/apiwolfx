@@ -2,6 +2,19 @@
 
 {% block title %}Planejamento de Conteúdo - Ideias{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Abas não selecionadas com texto verde do sistema */
+    .nav-tabs .nav-link:not(.active) {
+        color: #02C47C !important;
+    }
+    
+    .nav-tabs .nav-link:not(.active):hover {
+        color: #00A86B !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <!-- Header Padrão do Sistema -->
@@ -14,36 +27,91 @@
         </div>
     </div>
 
-    <!-- Filtros e Busca -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="d-flex gap-2">
-                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar ideias..." style="width: 250px;" onkeyup="handleSearch()">
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="ideasTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="manual-ideas-tab" data-bs-toggle="tab" data-bs-target="#manual-ideas" type="button" role="tab" onclick="switchTab(0)">
+                <i class="bi bi-lightbulb"></i> Ideias de Conteúdo
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="ai-ideas-tab" data-bs-toggle="tab" data-bs-target="#ai-ideas" type="button" role="tab" onclick="switchTab(1)">
+                <i class="bi bi-robot"></i> Ideias de Conteúdo do IA
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="ideasTabsContent">
+        <!-- Tab: Ideias Manuais -->
+        <div class="tab-pane fade show active" id="manual-ideas" role="tabpanel" aria-labelledby="manual-ideas-tab">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex gap-2">
+                            <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Buscar ideias..." style="width: 250px;" onkeyup="handleSearch()">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="ideasTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Título</th>
+                                    <th>Tags</th>
+                                    <th>Criado em</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ideasContainer">
+                                <tr>
+                                    <td colspan="5" class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Carregando ideias...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover" id="ideasTable">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>ID</th>
-                            <th>Título</th>
-                            <th>Tags</th>
-                            <th>Criado em</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ideasContainer">
-                        <tr>
-                            <td colspan="5" class="text-center py-5">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Carregando...</span>
-                                </div>
-                                <p class="mt-2 text-muted">Carregando ideias...</p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+        </div>
+
+        <!-- Tab: Ideias do IA -->
+        <div class="tab-pane fade" id="ai-ideas" role="tabpanel" aria-labelledby="ai-ideas-tab">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex gap-2">
+                            <input type="text" class="form-control form-control-sm" id="searchInputAI" placeholder="Buscar ideias..." style="width: 250px;" onkeyup="handleSearchAI()">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="ideasTableAI">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Título</th>
+                                    <th>Tags</th>
+                                    <th>Criado em</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ideasContainerAI">
+                                <tr>
+                                    <td colspan="5" class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Carregando ideias...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -84,13 +152,29 @@
 
 <script>
 let allIdeas = [];
+let allIdeasAI = [];
 let searchTimeout;
+let searchTimeoutAI;
+let currentTab = 0; // 0 = manual, 1 = AI
 
-// Carregar ideias
+// Alternar entre tabs
+function switchTab(tabIndex) {
+    currentTab = tabIndex;
+    if (tabIndex === 0) {
+        loadIdeas();
+    } else {
+        loadIdeasAI();
+    }
+}
+
+// Carregar ideias manuais
 async function loadIdeas() {
     try {
         const search = document.getElementById('searchInput').value.trim();
-        const url = `/api/content/ideas${search ? `?search=${encodeURIComponent(search)}` : ''}`;
+        let url = `/api/content/ideas?is_ai_generated=0`;
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
         
         const response = await fetch(url, {
             credentials: 'include'
@@ -113,7 +197,37 @@ async function loadIdeas() {
     }
 }
 
-// Renderizar ideias
+// Carregar ideias do IA
+async function loadIdeasAI() {
+    try {
+        const search = document.getElementById('searchInputAI').value.trim();
+        let url = `/api/content/ideas?is_ai_generated=1`;
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao carregar ideias do IA');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            allIdeasAI = result.data;
+            renderIdeasAI();
+        } else {
+            console.error('Erro ao carregar ideias do IA:', result.error);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar ideias do IA:', error);
+    }
+}
+
+// Renderizar ideias manuais
 function renderIdeas() {
     const container = document.getElementById('ideasContainer');
     
@@ -165,7 +279,7 @@ async function createIdea(event) {
     };
     
     if (!formData.titulo) {
-        alert('Por favor, preencha o título.');
+        showError('Por favor, preencha o título.');
         return;
     }
     
@@ -182,21 +296,62 @@ async function createIdea(event) {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            alert('Ideia criada com sucesso!');
+            showSuccess('Ideia criada com sucesso!');
             document.getElementById('createIdeaForm').reset();
             const modal = bootstrap.Modal.getInstance(document.getElementById('createIdeaModal'));
             modal.hide();
             loadIdeas();
         } else {
-            alert(data.error || 'Erro ao criar ideia');
+            showError(data.error || 'Erro ao criar ideia');
         }
     } catch (error) {
         console.error('Erro ao criar ideia:', error);
-        alert('Erro ao criar ideia. Verifique sua conexão e tente novamente.');
+        showError('Erro ao criar ideia. Verifique sua conexão e tente novamente.');
     }
 }
 
-// Buscar ideias
+// Renderizar ideias do IA
+function renderIdeasAI() {
+    const container = document.getElementById('ideasContainerAI');
+    
+    if (allIdeasAI.length === 0) {
+        container.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center py-5 text-muted">
+                    Nenhuma ideia do IA encontrada.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    container.innerHTML = allIdeasAI.map(idea => `
+        <tr>
+            <td>${idea.id}</td>
+            <td>${idea.titulo || '-'}</td>
+            <td>${idea.tags || '-'}</td>
+            <td>${idea.created_at ? new Date(idea.created_at).toLocaleDateString('pt-BR') : '-'}</td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="editIdea(${idea.id}, true)" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="convertToSocial(${idea.id}, true)" title="Converter em Social">
+                        <i class="bi bi-instagram"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="convertToBlog(${idea.id}, true)" title="Converter em Blog">
+                        <i class="bi bi-file-text"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteIdea(${idea.id}, true)" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Buscar ideias manuais
 function handleSearch() {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
@@ -204,54 +359,159 @@ function handleSearch() {
     }, 500);
 }
 
+// Buscar ideias do IA
+function handleSearchAI() {
+    clearTimeout(searchTimeoutAI);
+    searchTimeoutAI = setTimeout(() => {
+        loadIdeasAI();
+    }, 500);
+}
+
 // Editar ideia
-function editIdea(ideaId) {
-    const idea = allIdeas.find(i => i.id === ideaId);
+function editIdea(ideaId, isAI = false) {
+    const ideas = isAI ? allIdeasAI : allIdeas;
+    const idea = ideas.find(i => i.id === ideaId);
     if (!idea) return;
     
     // Preencher modal de edição (implementar modal de edição similar)
-    alert('Funcionalidade de edição em desenvolvimento');
+    showToast('Funcionalidade de edição em desenvolvimento', 'info');
 }
 
 // Converter para Social
-function convertToSocial(ideaId) {
-    alert('Funcionalidade de conversão para Social em desenvolvimento');
+function convertToSocial(ideaId, isAI = false) {
+    showToast('Funcionalidade de conversão para Social em desenvolvimento', 'info');
 }
 
 // Converter para Blog
-function convertToBlog(ideaId) {
-    alert('Funcionalidade de conversão para Blog em desenvolvimento');
+function convertToBlog(ideaId, isAI = false) {
+    showToast('Funcionalidade de conversão para Blog em desenvolvimento', 'info');
 }
 
 // Excluir ideia
-async function deleteIdea(ideaId) {
-    if (!confirm('Tem certeza que deseja excluir esta ideia?')) {
-        return;
+async function deleteIdea(ideaId, isAI = false) {
+    const ideas = isAI ? allIdeasAI : allIdeas;
+    const idea = ideas.find(i => i.id === ideaId);
+    if (!idea) return;
+    
+    // Criar modal de confirmação
+    const confirmModal = document.createElement('div');
+    confirmModal.className = 'modal fade';
+    confirmModal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar Exclusão</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Tem certeza que deseja excluir a ideia <strong>${escapeHtml(idea.titulo || '')}</strong>?</p>
+                    <p class="text-muted small">Esta ação não pode ser desfeita.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <i class="bi bi-trash"></i> Excluir
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(confirmModal);
+    
+    const modal = new bootstrap.Modal(confirmModal);
+    modal.show();
+    
+    document.getElementById('confirmDeleteBtn').onclick = async function() {
+        modal.hide();
+        try {
+            const response = await fetch(`/api/content/ideas/${ideaId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                showSuccess('Ideia excluída com sucesso!');
+                if (isAI) {
+                    loadIdeasAI();
+                } else {
+                    loadIdeas();
+                }
+            } else {
+                showError(data.error || 'Erro ao excluir ideia');
+            }
+        } catch (error) {
+            console.error('Erro ao excluir ideia:', error);
+            showError('Erro ao excluir ideia. Verifique sua conexão e tente novamente.');
+        }
+        
+        confirmModal.remove();
+    };
+    
+    confirmModal.addEventListener('hidden.bs.modal', function() {
+        confirmModal.remove();
+    });
+}
+
+// Funções de Toast
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
     }
     
-    try {
-        const response = await fetch(`/api/content/ideas/${ideaId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            alert('Ideia excluída com sucesso!');
-            loadIdeas();
-        } else {
-            alert(data.error || 'Erro ao excluir ideia');
-        }
-    } catch (error) {
-        console.error('Erro ao excluir ideia:', error);
-        alert('Erro ao excluir ideia. Verifique sua conexão e tente novamente.');
-    }
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    const title = type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : type === 'warning' ? 'Atenção' : 'Info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${escapeHtml(message)}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+function showError(message) {
+    showToast(message, 'error');
+}
+
+function showSuccess(message) {
+    showToast(message, 'success');
 }
 
 // Carregar ao iniciar
 document.addEventListener('DOMContentLoaded', function() {
     loadIdeas();
+    // Carregar ideias do IA também para ter dados prontos quando trocar de tab
+    loadIdeasAI();
 });
 </script>
 {% endblock %}

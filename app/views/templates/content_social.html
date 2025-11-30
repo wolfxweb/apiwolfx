@@ -220,7 +220,7 @@ async function createSocialPost(event) {
     };
     
     if (!formData.titulo) {
-        alert('Por favor, preencha o título.');
+        showError('Por favor, preencha o título.');
         return;
     }
     
@@ -237,17 +237,17 @@ async function createSocialPost(event) {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            alert('Post social criado com sucesso!');
+            showSuccess('Post social criado com sucesso!');
             document.getElementById('createSocialForm').reset();
             const modal = bootstrap.Modal.getInstance(document.getElementById('createSocialModal'));
             modal.hide();
             loadSocialPosts();
         } else {
-            alert(data.error || 'Erro ao criar post');
+            showError(data.error || 'Erro ao criar post');
         }
     } catch (error) {
         console.error('Erro ao criar post:', error);
-        alert('Erro ao criar post. Verifique sua conexão e tente novamente.');
+        showError('Erro ao criar post. Verifique sua conexão e tente novamente.');
     }
 }
 
@@ -261,33 +261,122 @@ function handleSearch() {
 
 // Editar post
 function editSocialPost(postId) {
-    alert('Funcionalidade de edição em desenvolvimento');
+    showToast('Funcionalidade de edição em desenvolvimento', 'info');
 }
 
 // Excluir post
 async function deleteSocialPost(postId) {
-    if (!confirm('Tem certeza que deseja excluir este post?')) {
-        return;
+    const post = allSocialPosts.find(p => p.id === postId);
+    if (!post) return;
+    
+    // Criar modal de confirmação
+    const confirmModal = document.createElement('div');
+    confirmModal.className = 'modal fade';
+    confirmModal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar Exclusão</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Tem certeza que deseja excluir o post <strong>${escapeHtml(post.titulo || '')}</strong>?</p>
+                    <p class="text-muted small">Esta ação não pode ser desfeita.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <i class="bi bi-trash"></i> Excluir
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(confirmModal);
+    
+    const modal = new bootstrap.Modal(confirmModal);
+    modal.show();
+    
+    document.getElementById('confirmDeleteBtn').onclick = async function() {
+        modal.hide();
+        try {
+            const response = await fetch(`/api/content/social/${postId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                showSuccess('Post excluído com sucesso!');
+                loadSocialPosts();
+            } else {
+                showError(data.error || 'Erro ao excluir post');
+            }
+        } catch (error) {
+            console.error('Erro ao excluir post:', error);
+            showError('Erro ao excluir post. Verifique sua conexão e tente novamente.');
+        }
+        
+        confirmModal.remove();
+    };
+    
+    confirmModal.addEventListener('hidden.bs.modal', function() {
+        confirmModal.remove();
+    });
+}
+
+// Funções de Toast
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
     }
     
-    try {
-        const response = await fetch(`/api/content/social/${postId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            alert('Post excluído com sucesso!');
-            loadSocialPosts();
-        } else {
-            alert(data.error || 'Erro ao excluir post');
-        }
-    } catch (error) {
-        console.error('Erro ao excluir post:', error);
-        alert('Erro ao excluir post. Verifique sua conexão e tente novamente.');
-    }
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    const title = type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : type === 'warning' ? 'Atenção' : 'Info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${escapeHtml(message)}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+function showError(message) {
+    showToast(message, 'error');
+}
+
+function showSuccess(message) {
+    showToast(message, 'success');
 }
 
 // Carregar ao iniciar

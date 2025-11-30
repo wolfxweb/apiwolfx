@@ -127,6 +127,7 @@ async def content_blog_page(
 async def list_ideas_api(
     request: Request,
     search: Optional[str] = Query(None),
+    is_ai_generated: Optional[int] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -145,7 +146,7 @@ async def list_ideas_api(
         return JSONResponse(status_code=400, content={"success": False, "error": "Company ID não encontrado"})
     
     controller = ContentController(db)
-    return JSONResponse(content=controller.list_ideas(company_id, search))
+    return JSONResponse(content=controller.list_ideas(company_id, search, is_ai_generated))
 
 
 @content_router.post("/api/content/ideas", response_class=JSONResponse)
