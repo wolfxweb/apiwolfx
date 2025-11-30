@@ -23,6 +23,154 @@ ml_router = APIRouter()
 auth_controller = AuthController()
 ml_controller = MLController()
 
+@ml_router.get("/accounts/stats", response_class=JSONResponse)
+async def get_ml_accounts_stats_api(
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para obter estatísticas de contas ML do plano"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Não autenticado"}
+        )
+    
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida"}
+        )
+    
+    user_data = result["user"]
+    company_id = user_data.get("company", {}).get("id")
+    if not company_id:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Company ID não encontrado"}
+        )
+    
+    try:
+        logger.info(f"🔍 [ML ACCOUNTS STATS] Buscando estatísticas para Company ID: {company_id}")
+        
+        # Buscar assinatura ativa
+        subscription = db.query(Subscription).filter(
+            Subscription.company_id == company_id,
+            (Subscription.status == "active") | (Subscription.is_trial == True)
+        ).order_by(Subscription.created_at.desc()).first()
+        
+        if subscription:
+            logger.info(f"✅ [ML ACCOUNTS STATS] Assinatura ativa encontrada: ID={subscription.id}, Status={subscription.status}, Plan Name={subscription.plan_name}, Max ML Accounts (assinatura)={subscription.max_ml_accounts}")
+        else:
+            logger.warning(f"⚠️ [ML ACCOUNTS STATS] Nenhuma assinatura ativa encontrada para Company ID {company_id}")
+        
+        # Obter max_ml_accounts do plano
+        # SEMPRE buscar do template do plano, pois ele é a fonte da verdade
+        max_ml_accounts = None
+        if subscription:
+            logger.info(f"🔍 [ML ACCOUNTS STATS] Max ML Accounts da assinatura: {subscription.max_ml_accounts}")
+            
+            # SEMPRE buscar do template do plano (fonte da verdade)
+            if subscription.plan_name:
+                plan_template = db.query(Subscription).filter(
+                    Subscription.plan_name == subscription.plan_name,
+                    Subscription.status == "template"
+                ).first()
+                
+                if plan_template:
+                    logger.info(f"📋 [ML ACCOUNTS STATS] Template encontrado: ID={plan_template.id}, Plan Name={plan_template.plan_name}, Max ML Accounts={plan_template.max_ml_accounts}")
+                    if plan_template.max_ml_accounts and plan_template.max_ml_accounts > 0:
+                        max_ml_accounts = plan_template.max_ml_accounts
+                        logger.info(f"✅ [ML ACCOUNTS STATS] Usando max_ml_accounts do template (fonte da verdade): {max_ml_accounts}")
+                    else:
+                        logger.warning(f"⚠️ [ML ACCOUNTS STATS] Template encontrado mas sem max_ml_accounts válido, usando da assinatura")
+                        max_ml_accounts = subscription.max_ml_accounts if subscription.max_ml_accounts else None
+                else:
+                    logger.warning(f"⚠️ [ML ACCOUNTS STATS] Template do plano '{subscription.plan_name}' não encontrado, usando da assinatura")
+                    max_ml_accounts = subscription.max_ml_accounts if subscription.max_ml_accounts else None
+            else:
+                logger.warning(f"⚠️ [ML ACCOUNTS STATS] Assinatura sem plan_name, usando max_ml_accounts da assinatura")
+                max_ml_accounts = subscription.max_ml_accounts if subscription.max_ml_accounts else None
+        else:
+            logger.warning(f"⚠️ [ML ACCOUNTS STATS] Nenhuma assinatura encontrada, max_ml_accounts será None")
+        
+        # Contar TODAS as contas ML da empresa (para debug)
+        all_accounts = db.query(MLAccount).filter(
+            MLAccount.company_id == company_id
+        ).all()
+        logger.info(f"🔍 [ML ACCOUNTS STATS] Total de contas ML (todas) para Company ID {company_id}: {len(all_accounts)} contas")
+        for acc in all_accounts:
+            status_value = acc.status.value if hasattr(acc.status, 'value') else str(acc.status)
+            logger.info(f"   - Account ID: {acc.id}, Nickname: {acc.nickname}, Status (tipo): {type(acc.status)}, Status (valor): {acc.status}, Status (value): {status_value}")
+        
+        # Contar contas ML ativas cadastradas
+        # Filtrar manualmente todas as contas
+        active_accounts = []
+        for acc in all_accounts:
+            try:
+                # Obter o valor do status de forma segura
+                status_value = None
+                if hasattr(acc.status, 'value'):
+                    status_value = acc.status.value
+                elif isinstance(acc.status, str):
+                    status_value = acc.status
+                else:
+                    status_value = str(acc.status)
+                
+                # Verificar se é ativa - múltiplas formas de comparação
+                is_active = False
+                
+                # Forma 1: Comparação direta do enum
+                if acc.status == MLAccountStatus.ACTIVE:
+                    is_active = True
+                    logger.info(f"   ✅ Account ID {acc.id} ({acc.nickname}): Ativa (comparação enum direta)")
+                
+                # Forma 2: Comparação do valor do enum
+                elif status_value and status_value.lower() == "active":
+                    is_active = True
+                    logger.info(f"   ✅ Account ID {acc.id} ({acc.nickname}): Ativa (valor do enum: {status_value})")
+                
+                # Forma 3: Verificar na string do status
+                elif "active" in str(acc.status).lower():
+                    is_active = True
+                    logger.info(f"   ✅ Account ID {acc.id} ({acc.nickname}): Ativa (string contém 'active')")
+                
+                if is_active:
+                    active_accounts.append(acc)
+                else:
+                    logger.warning(f"   ❌ Account ID {acc.id} ({acc.nickname}): NÃO é ativa - status={acc.status}, status_value={status_value}")
+                    
+            except Exception as e:
+                logger.error(f"   ❌ Erro ao verificar conta {acc.id}: {e}", exc_info=True)
+                # Em caso de erro, adicionar como ativa (fallback)
+                active_accounts.append(acc)
+                logger.info(f"   ✅ Conta {acc.id} ({acc.nickname}) adicionada como ativa (fallback por erro)")
+        
+        active_accounts_count = len(active_accounts)
+        logger.info(f"✅ [ML ACCOUNTS STATS] RESULTADO FINAL: {active_accounts_count} contas ativas de {len(all_accounts)} total para Company ID {company_id}")
+        
+        # Log detalhado das contas encontradas
+        account_ids = [acc.id for acc in active_accounts]
+        account_nicknames = [acc.nickname for acc in active_accounts]
+        logger.info(f"📊 [ML ACCOUNTS STATS] Contas ML ativas encontradas para Company ID {company_id}: {active_accounts_count} contas (IDs: {account_ids}, Nicknames: {account_nicknames})")
+        
+        result = {
+            "success": True,
+            "stats": {
+                "max_ml_accounts": max_ml_accounts,
+                "active_accounts": active_accounts_count
+            }
+        }
+        logger.info(f"✅ [ML ACCOUNTS STATS] Retornando estatísticas: {result}")
+        
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Erro ao obter estatísticas de contas ML: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erro ao obter estatísticas"}
+        )
+
 @ml_router.get("/accounts", response_class=HTMLResponse)
 async def ml_accounts(
     request: Request,
@@ -333,107 +481,6 @@ async def ml_disconnect(
         return RedirectResponse(url=f"/ml/accounts?error={disconnect_result['error']}", status_code=302)
     
     return RedirectResponse(url="/ml/accounts?success=disconnected", status_code=302)
-
-
-@ml_router.get("/accounts/stats", response_class=JSONResponse)
-async def get_ml_accounts_stats_api(
-    session_token: Optional[str] = Cookie(None),
-    db: Session = Depends(get_db)
-):
-    """API para obter estatísticas de contas ML do plano"""
-    if not session_token:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "error": "Não autenticado"}
-        )
-    
-    result = auth_controller.get_user_by_session(session_token, db)
-    if result.get("error"):
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "error": "Sessão inválida"}
-        )
-    
-    user_data = result["user"]
-    company_id = user_data.get("company", {}).get("id")
-    if not company_id:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "error": "Company ID não encontrado"}
-        )
-    
-    try:
-        logger.info(f"🔍 [ML ACCOUNTS STATS] Buscando estatísticas para Company ID: {company_id}")
-        
-        # Buscar assinatura ativa
-        subscription = db.query(Subscription).filter(
-            Subscription.company_id == company_id,
-            (Subscription.status == "active") | (Subscription.is_trial == True)
-        ).order_by(Subscription.created_at.desc()).first()
-        
-        if subscription:
-            logger.info(f"✅ [ML ACCOUNTS STATS] Assinatura ativa encontrada: ID={subscription.id}, Status={subscription.status}, Plan Name={subscription.plan_name}, Max ML Accounts (assinatura)={subscription.max_ml_accounts}")
-        else:
-            logger.warning(f"⚠️ [ML ACCOUNTS STATS] Nenhuma assinatura ativa encontrada para Company ID {company_id}")
-        
-        # Obter max_ml_accounts do plano
-        # SEMPRE buscar do template do plano, pois ele é a fonte da verdade
-        max_ml_accounts = None
-        if subscription:
-            logger.info(f"🔍 [ML ACCOUNTS STATS] Max ML Accounts da assinatura: {subscription.max_ml_accounts}")
-            
-            # SEMPRE buscar do template do plano (fonte da verdade)
-            if subscription.plan_name:
-                plan_template = db.query(Subscription).filter(
-                    Subscription.plan_name == subscription.plan_name,
-                    Subscription.status == "template"
-                ).first()
-                
-                if plan_template:
-                    logger.info(f"📋 [ML ACCOUNTS STATS] Template encontrado: ID={plan_template.id}, Plan Name={plan_template.plan_name}, Max ML Accounts={plan_template.max_ml_accounts}")
-                    if plan_template.max_ml_accounts and plan_template.max_ml_accounts > 0:
-                        max_ml_accounts = plan_template.max_ml_accounts
-                        logger.info(f"✅ [ML ACCOUNTS STATS] Usando max_ml_accounts do template (fonte da verdade): {max_ml_accounts}")
-                    else:
-                        logger.warning(f"⚠️ [ML ACCOUNTS STATS] Template encontrado mas sem max_ml_accounts válido, usando da assinatura")
-                        max_ml_accounts = subscription.max_ml_accounts
-                else:
-                    logger.warning(f"⚠️ [ML ACCOUNTS STATS] Template do plano '{subscription.plan_name}' não encontrado, usando da assinatura")
-                    max_ml_accounts = subscription.max_ml_accounts
-            else:
-                logger.warning(f"⚠️ [ML ACCOUNTS STATS] Assinatura sem plan_name, usando max_ml_accounts da assinatura")
-                max_ml_accounts = subscription.max_ml_accounts
-        
-        # Contar contas ML ativas cadastradas
-        active_accounts = db.query(MLAccount).filter(
-            and_(
-                MLAccount.company_id == company_id,
-                MLAccount.status == MLAccountStatus.ACTIVE
-            )
-        ).all()
-        active_accounts_count = len(active_accounts)
-        
-        # Log detalhado das contas encontradas
-        account_ids = [acc.id for acc in active_accounts]
-        account_nicknames = [acc.nickname for acc in active_accounts]
-        logger.info(f"📊 [ML ACCOUNTS STATS] Contas ML ativas encontradas para Company ID {company_id}: {active_accounts_count} contas (IDs: {account_ids}, Nicknames: {account_nicknames})")
-        
-        result = {
-            "success": True,
-            "stats": {
-                "max_ml_accounts": max_ml_accounts,
-                "active_accounts": active_accounts_count
-            }
-        }
-        logger.info(f"✅ [ML ACCOUNTS STATS] Retornando estatísticas: {result}")
-        
-        return JSONResponse(content=result)
-    except Exception as e:
-        logger.error(f"Erro ao obter estatísticas de contas ML: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "error": "Erro ao obter estatísticas"}
-        )
 
 # Funções auxiliares para OAuth
 async def _exchange_code_for_token(code: str) -> dict:

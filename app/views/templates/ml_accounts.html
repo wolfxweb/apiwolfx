@@ -165,34 +165,45 @@ function handleSearch() {
 // Carregar estatísticas de contas ML
 async function loadMLAccountsStats() {
     try {
+        console.log('🔍 [ML ACCOUNTS STATS] Iniciando busca de estatísticas...');
         const response = await fetch('/ml/accounts/stats', {
             method: 'GET',
             credentials: 'include'
         });
         
+        console.log('📡 [ML ACCOUNTS STATS] Resposta recebida:', response.status, response.statusText);
+        
         const data = await response.json();
+        console.log('📊 [ML ACCOUNTS STATS] Dados recebidos:', data);
         
         if (data.success && data.stats) {
             const stats = data.stats;
+            console.log('✅ [ML ACCOUNTS STATS] Estatísticas válidas:', stats);
             
             // Atualizar KPI de limite do plano
             const maxMLAccountsEl = document.getElementById('maxMLAccountsKPI');
             if (maxMLAccountsEl) {
-                maxMLAccountsEl.textContent = stats.max_ml_accounts !== null && stats.max_ml_accounts !== undefined 
+                const maxValue = stats.max_ml_accounts !== null && stats.max_ml_accounts !== undefined 
                     ? stats.max_ml_accounts 
                     : 'Ilimitado';
+                maxMLAccountsEl.textContent = maxValue;
+                console.log('📈 [ML ACCOUNTS STATS] Limite do plano atualizado:', maxValue);
             }
             
             // Atualizar KPI de contas cadastradas
             const activeMLAccountsEl = document.getElementById('activeMLAccountsKPI');
             if (activeMLAccountsEl) {
-                activeMLAccountsEl.textContent = stats.active_accounts || 0;
+                const activeValue = stats.active_accounts !== null && stats.active_accounts !== undefined 
+                    ? stats.active_accounts 
+                    : 0;
+                activeMLAccountsEl.textContent = activeValue;
+                console.log('📈 [ML ACCOUNTS STATS] Contas cadastradas atualizadas:', activeValue);
             }
             
             // Atualizar estado do botão "Conectar Nova Conta" baseado no limite
             updateConnectButton(stats);
         } else {
-            console.error('Erro ao carregar estatísticas de contas ML:', data.error);
+            console.error('❌ [ML ACCOUNTS STATS] Erro na resposta:', data);
             // Exibir valores padrão em caso de erro
             const maxMLAccountsEl = document.getElementById('maxMLAccountsKPI');
             const activeMLAccountsEl = document.getElementById('activeMLAccountsKPI');
@@ -200,7 +211,7 @@ async function loadMLAccountsStats() {
             if (activeMLAccountsEl) activeMLAccountsEl.textContent = '0';
         }
     } catch (error) {
-        console.error('Erro ao carregar estatísticas de contas ML:', error);
+        console.error('❌ [ML ACCOUNTS STATS] Erro ao carregar estatísticas:', error);
         // Exibir valores padrão em caso de erro
         const maxMLAccountsEl = document.getElementById('maxMLAccountsKPI');
         const activeMLAccountsEl = document.getElementById('activeMLAccountsKPI');
