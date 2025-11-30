@@ -254,16 +254,39 @@ function renderTaskData() {
         statusSelect.value = taskData.status;
     }
     
-    // Preencher modal de edição
-    if (document.getElementById('editTaskTitle')) {
-        document.getElementById('editTaskTitle').value = taskData.title || '';
-        document.getElementById('editTaskDescription').value = taskData.description || '';
-        document.getElementById('editTaskCategory').value = taskData.category || '';
-        document.getElementById('editTaskPriority').value = taskData.priority || 'medium';
-        document.getElementById('editTaskDueDate').value = taskData.due_date || '';
-        document.getElementById('editTaskAssignedTo').value = taskData.assigned_to || '';
-        document.getElementById('editTaskProduct').value = taskData.product_id || '';
+    // Preencher modal de edição será feito quando o modal abrir
+}
+
+// Preencher campos do modal de edição
+function populateEditModal() {
+    if (!document.getElementById('editTaskTitle')) return;
+    
+    document.getElementById('editTaskTitle').value = taskData.title || '';
+    document.getElementById('editTaskDescription').value = taskData.description || '';
+    document.getElementById('editTaskCategory').value = taskData.category || '';
+    document.getElementById('editTaskPriority').value = taskData.priority || 'medium';
+    
+    // Formatar data para input type="date" (YYYY-MM-DD)
+    if (taskData.due_date) {
+        const dueDate = new Date(taskData.due_date);
+        const formattedDate = dueDate.toISOString().split('T')[0];
+        document.getElementById('editTaskDueDate').value = formattedDate;
+    } else {
+        document.getElementById('editTaskDueDate').value = '';
     }
+    
+    // Preencher selects após serem populados
+    setTimeout(() => {
+        const assignedToSelect = document.getElementById('editTaskAssignedTo');
+        if (assignedToSelect && taskData.assigned_to) {
+            assignedToSelect.value = String(taskData.assigned_to);
+        }
+        
+        const productSelect = document.getElementById('editTaskProduct');
+        if (productSelect && taskData.product_id) {
+            productSelect.value = String(taskData.product_id);
+        }
+    }, 100);
 }
 
 // Carregar usuários e produtos
@@ -277,6 +300,11 @@ async function loadCompanyUsers() {
             option.textContent = user.name;
             assignedToSelect.appendChild(option);
         });
+        
+        // Após popular, definir o valor se houver
+        if (taskData.assigned_to) {
+            assignedToSelect.value = String(taskData.assigned_to);
+        }
     }
 }
 
@@ -304,6 +332,11 @@ async function loadInternalProducts() {
                         option.textContent = product.name;
                         productSelect.appendChild(option);
                     });
+                    
+                    // Após popular, definir o valor se houver
+                    if (taskData.product_id) {
+                        productSelect.value = String(taskData.product_id);
+                    }
                 }
             }
         }
@@ -562,6 +595,14 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTaskData();
     loadCompanyUsers();
     loadInternalProducts();
+    
+    // Preencher modal quando for aberto
+    const editModal = document.getElementById('editTaskModal');
+    if (editModal) {
+        editModal.addEventListener('show.bs.modal', () => {
+            populateEditModal();
+        });
+    }
 });
 </script>
 {% endblock %}

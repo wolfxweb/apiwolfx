@@ -184,6 +184,28 @@
     </div>
 </div>
 
+<!-- Modal Confirmar Exclusão -->
+<div class="modal fade" id="deleteEmployeeModal" tabindex="-1" aria-labelledby="deleteEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteEmployeeModalLabel">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja remover o funcionário <strong id="deleteEmployeeName"></strong>?</p>
+                <p class="text-muted small">Esta ação irá desativar o funcionário e, se houver conta de usuário vinculada, ela também será inativada.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteEmployeeBtn">
+                    <i class="bi bi-trash"></i> Remover
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -256,15 +278,37 @@ function renderEmployees() {
                 <td>R$ ${formatCurrency(employee.salario_base || 0)}</td>
                 <td>${statusBadge}</td>
                 <td>
-                    <a href="/hr/employee/${employee.id}" class="btn btn-sm btn-primary" title="Ver funcionário">
-                        <i class="bi bi-eye"></i>
-                    </a>
+                    <div class="btn-group" role="group">
+                        <a href="/hr/employee/${employee.id}" class="btn btn-sm btn-outline-primary" title="Ver funcionário">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-employee-btn" 
+                                data-employee-id="${employee.id}" 
+                                data-employee-name="${escapeHtml(employee.nome_completo || 'N/A')}"
+                                title="Remover funcionário">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
     });
     
     container.innerHTML = html;
+    
+    // Configurar event listeners para botões de deletar
+    setupDeleteButtons();
+}
+
+// Configurar event listeners para botões de deletar
+function setupDeleteButtons() {
+    document.querySelectorAll('.delete-employee-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const employeeId = parseInt(this.getAttribute('data-employee-id'));
+            const employeeName = this.getAttribute('data-employee-name');
+            openDeleteEmployeeModal(employeeId, employeeName);
+        });
+    });
 }
 
 // Criar funcionário
@@ -447,6 +491,50 @@ function showError(message) {
 function showSuccess(message) {
     showToast(message, 'success');
 }
+
+// Variável para armazenar ID do funcionário a ser deletado
+let currentDeleteEmployeeId = null;
+
+// Abrir modal de confirmação de exclusão
+function openDeleteEmployeeModal(employeeId, employeeName) {
+    currentDeleteEmployeeId = employeeId;
+    document.getElementById('deleteEmployeeName').textContent = employeeName;
+    const modal = new bootstrap.Modal(document.getElementById('deleteEmployeeModal'));
+    modal.show();
+}
+
+// Confirmar exclusão de funcionário
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmDeleteBtn = document.getElementById('confirmDeleteEmployeeBtn');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', async function() {
+            if (!currentDeleteEmployeeId) return;
+            
+            try {
+                const response = await fetch(`/api/hr/employees/${currentDeleteEmployeeId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Funcionário removido com sucesso!');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteEmployeeModal'));
+                    modal.hide();
+                    loadEmployees();
+                } else {
+                    showError('Erro ao remover funcionário: ' + (data.error || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                console.error('Erro ao remover funcionário:', error);
+                showError('Erro ao remover funcionário');
+            } finally {
+                currentDeleteEmployeeId = null;
+            }
+        });
+    }
+});
 </script>
 {% endblock %}
 

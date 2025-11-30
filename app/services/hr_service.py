@@ -11,7 +11,7 @@ from app.models.hr_models import (
     Employee, Payroll, PayrollItem, EmployeeVacation, EmployeeBenefit,
     EmployeeStatus, PayrollStatus, VacationStatus
 )
-from app.models.saas_models import User, UserRole
+from app.models.saas_models import User, UserRole, Subscription
 from app.models.financial_models import FinancialCategory, CostCenter
 from app.controllers.auth_controller import AuthController
 
@@ -23,6 +23,84 @@ class HRService:
     
     def __init__(self, db: Session):
         self.db = db
+    
+    # ========== VALIDAÇÕES DE LIMITE ==========
+    
+    def _get_active_subscription(self, company_id: int) -> Optional[Subscription]:
+        """Obtém a assinatura ativa da empresa"""
+        try:
+            subscription = self.db.query(Subscription).filter(
+                Subscription.company_id == company_id,
+                (Subscription.status == "active") | (Subscription.is_trial == True)
+            ).order_by(Subscription.created_at.desc()).first()
+            return subscription
+        except Exception as e:
+            logger.error(f"Erro ao buscar assinatura ativa: {e}", exc_info=True)
+            return None
+    
+    def _count_active_users(self, company_id: int) -> int:
+        """Conta usuários ativos da empresa"""
+        try:
+            count = self.db.query(User).filter(
+                User.company_id == company_id,
+                User.is_active == True
+            ).count()
+            return count
+        except Exception as e:
+            logger.error(f"Erro ao contar usuários ativos: {e}", exc_info=True)
+            return 0
+    
+    def _check_user_limit(self, company_id: int) -> Dict[str, Any]:
+        """Verifica se a empresa pode criar mais usuários"""
+        try:
+            subscription = self._get_active_subscription(company_id)
+            
+            # Se não houver assinatura, permitir criação (comportamento atual)
+            if not subscription:
+                return {
+                    "allowed": True,
+                    "max_users": None,
+                    "current_users": 0,
+                    "message": None
+                }
+            
+            # Se não houver limite definido, permitir
+            if not subscription.max_users or subscription.max_users <= 0:
+                return {
+                    "allowed": True,
+                    "max_users": None,
+                    "current_users": 0,
+                    "message": None
+                }
+            
+            # Contar usuários ativos
+            current_users = self._count_active_users(company_id)
+            max_users = subscription.max_users
+            
+            # Verificar se atingiu o limite
+            if current_users >= max_users:
+                return {
+                    "allowed": False,
+                    "max_users": max_users,
+                    "current_users": current_users,
+                    "message": f"Limite máximo de usuários atingido. O plano permite {max_users} usuários e você já possui {current_users} usuários ativos. Entre em contato para atualizar seu plano."
+                }
+            
+            return {
+                "allowed": True,
+                "max_users": max_users,
+                "current_users": current_users,
+                "message": None
+            }
+        except Exception as e:
+            logger.error(f"Erro ao verificar limite de usuários: {e}", exc_info=True)
+            # Em caso de erro, permitir criação (fail-safe)
+            return {
+                "allowed": True,
+                "max_users": None,
+                "current_users": 0,
+                "message": None
+            }
     
     # ========== FUNCIONÁRIOS ==========
     
@@ -58,6 +136,14 @@ class HRService:
             user = None
             # Se email e senha foram fornecidos, criar usuário
             if user_email and user_password:
+                # Verificar limite de usuários antes de criar
+                limit_check = self._check_user_limit(company_id)
+                if not limit_check["allowed"]:
+                    return {
+                        "success": False,
+                        "error": limit_check["message"]
+                    }
+                
                 # Verificar se email já existe
                 existing_user = self.db.query(User).filter(User.email == user_email).first()
                 if existing_user:
@@ -272,7 +358,15 @@ class HRService:
                         # Usuário não encontrado, criar novo
                         employee.user_id = None
                 else:
-                    # Não tem usuário, criar novo
+                    # Não tem usuário, criar novo - VERIFICAR LIMITE ANTES
+                    # Verificar limite de usuários antes de criar
+                    limit_check = self._check_user_limit(company_id)
+                    if not limit_check["allowed"]:
+                        return {
+                            "success": False,
+                            "error": limit_check["message"]
+                        }
+                    
                     existing_user = self.db.query(User).filter(User.email == user_email).first()
                     if existing_user:
                         return {
