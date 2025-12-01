@@ -13,6 +13,7 @@ from app.config.database import get_db
 from app.controllers.openai_assistant_controller import OpenAIAssistantController
 from app.controllers.auth_controller import AuthController
 from app.services.file_processor_service import FileProcessorService
+from app.services.agent_executor_service import AgentExecutorService
 
 logger = logging.getLogger(__name__)
 
@@ -498,10 +499,6 @@ async def use_assistant_report(
     db: Session = Depends(get_db)
 ):
     """Usa um assistente em modo relatório"""
-    company_id = user.get("company", {}).get("id")
-    if not company_id:
-        raise HTTPException(status_code=400, detail="Company ID não encontrado")
-    
     # Processar arquivos se fornecidos
     context_data = request_data.context_data or {}
     if request_data.files_data:
@@ -509,12 +506,12 @@ async def use_assistant_report(
         if files_context:
             context_data.update(files_context)
     
-    controller = OpenAIAssistantController(db)
-    result = controller.use_assistant_report(
-        assistant_id=request_data.assistant_id,
-        company_id=company_id,
-        user_id=user.get("id"),
-        prompt=request_data.prompt,
+    # Usar AgentExecutorService (detecta automaticamente o modo do agente)
+    executor = AgentExecutorService(db)
+    result = executor.execute(
+        agent_id=request_data.assistant_id,
+        user=user,
+        message=request_data.prompt,
         context_data=context_data,
         use_case=request_data.use_case
     )
@@ -533,35 +530,6 @@ async def use_assistant_chat(
 ):
     """Usa um assistente em modo chat"""
     try:
-        # Tentar diferentes formas de obter company_id
-        company_id = None
-        if isinstance(user, dict):
-            # Primeiro tentar user["company_id"] (mais direto)
-            if "company_id" in user:
-                company_id = user.get("company_id")
-            # Se não encontrou, tentar user["company"]["id"]
-            if not company_id and "company" in user:
-                if isinstance(user["company"], dict):
-                    company_id = user["company"].get("id")
-                elif hasattr(user["company"], "id"):
-                    company_id = user["company"].id
-        
-        if not company_id:
-            logger.error(f"❌ Company ID não encontrado. User object: {user}")
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "success": False,
-                    "error": "Company ID não encontrado",
-                    "debug": {
-                        "user_type": str(type(user)),
-                        "user_keys": list(user.keys()) if isinstance(user, dict) else None
-                    }
-                }
-            )
-        
-        logger.info(f"✅ Company ID obtido: {company_id}")
-        
         # Processar arquivos se fornecidos
         context_data = request_data.context_data or {}
         if request_data.files_data:
@@ -569,11 +537,11 @@ async def use_assistant_chat(
             if files_context:
                 context_data.update(files_context)
         
-        controller = OpenAIAssistantController(db)
-        result = controller.use_assistant_chat(
-            assistant_id=request_data.assistant_id,
-            company_id=company_id,
-            user_id=user.get("id"),
+        # Usar AgentExecutorService (detecta automaticamente o modo do agente)
+        executor = AgentExecutorService(db)
+        result = executor.execute(
+            agent_id=request_data.assistant_id,
+            user=user,
             message=request_data.message,
             thread_id=request_data.thread_id,
             context_data=context_data,

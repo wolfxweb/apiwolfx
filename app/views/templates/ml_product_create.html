@@ -473,6 +473,9 @@
                 <a href="/ml/products" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Cancelar
                 </a>
+                <button type="button" class="btn btn-outline-primary" id="analyzeRegistrationBtn" onclick="analyzeProductRegistration()">
+                    <i class="bi bi-magic"></i> Analisar Cadastro com IA
+                </button>
                 <button type="submit" class="btn btn-primary" id="submitBtn">
                     {% if editing %}
                     <i class="bi bi-check-circle"></i> Salvar alterações
@@ -2427,6 +2430,1675 @@ function prefillVariationsFromApi(apiVariations) {
     renderVariationsTable();
     updateVariationHiddenField();
     document.getElementById('duplicateVariationBtn').disabled = variationsList.length === 0;
+}
+
+// ========== FUNÇÕES PARA ANÁLISE DE CADASTRO COM IA ==========
+
+// Função para coletar todos os dados do formulário de forma organizada
+function collectAllProductData() {
+    // PRIMEIRO: Tentar usar dados já carregados (se estiver em modo edição)
+    let baseData = {};
+    if (typeof initialProductData !== 'undefined' && initialProductData) {
+        console.log('📦 Usando dados carregados do initialProductData:', initialProductData);
+        baseData = JSON.parse(JSON.stringify(initialProductData)); // Deep copy
+    }
+    
+    const form = document.getElementById('productForm');
+    const formData = new FormData(form);
+    
+    // Dados básicos - usar dados carregados como base, sobrescrever com valores do formulário
+    const productData = {
+        // Campos fixos - priorizar formulário, mas usar baseData como fallback
+        title: formData.get('title') || baseData.title || '',
+        subtitle: formData.get('subtitle') || baseData.subtitle || null,
+        category_id: formData.get('category_id') || baseData.category_id || '',
+        category_name: document.getElementById('selectedCategoryName')?.textContent || baseData.category_name || '',
+        price: formData.get('price') || baseData.price || '',
+        base_price: formData.get('base_price') || baseData.base_price || '',
+        available_quantity: formData.get('available_quantity') || baseData.available_quantity || 0,
+        condition: formData.get('condition') || baseData.condition || '',
+        listing_type_id: formData.get('listing_type_id') || baseData.listing_type_id || '',
+        description: formData.get('description') || baseData.description || '',
+        seller_custom_field: formData.get('seller_custom_field') || baseData.seller_custom_field || null,
+        gtin: formData.get('gtin') || baseData.gtin || null,
+        mpn: formData.get('mpn') || baseData.mpn || null,
+        status: formData.get('status') || baseData.status || '',
+        currency_id: baseData.currency_id || 'BRL',
+        
+        // IDs do ML (se estiver editando)
+        ml_item_id: formData.get('ml_item_id') || baseData.ml_item_id || '',
+        seller_sku: formData.get('seller_sku') || baseData.seller_sku || '',
+        
+        // Garantia
+        warranty: formData.get('warranty') || '',
+        warranty_type: formData.get('warranty_type') || '',
+        warranty_time_value: formData.get('warranty_duration_value') || '',
+        warranty_time_unit: formData.get('warranty_duration_unit') || '',
+        
+        // Envio
+        shipping_mode: formData.get('shipping_mode') || '',
+        free_shipping: formData.get('free_shipping') === 'on',
+        package_length: formData.get('package_length') || '',
+        package_width: formData.get('package_width') || '',
+        package_height: formData.get('package_height') || '',
+        package_weight: formData.get('package_weight') || '',
+        
+        // Variações
+        has_variations: document.getElementById('hasVariationsToggle')?.checked || baseData.has_variations || false,
+        variations: variationsList && variationsList.length > 0 ? variationsList : (baseData.variations || []),
+        
+        // Atributos dinâmicos (características da categoria) - PRIMEIRO usar os do initialProductData
+        attributes: baseData.attributes && baseData.attributes.length > 0 ? baseData.attributes : [],
+        
+        // Imagens - usar as do initialProductData se disponíveis
+        pictures: baseData.pictures && baseData.pictures.length > 0 ? baseData.pictures : []
+    };
+    
+    console.log('📦 Dados base coletados:', {
+        temInitialData: !!baseData && Object.keys(baseData).length > 0,
+        atributosDoBase: baseData.attributes ? baseData.attributes.length : 0,
+        imagensDoBase: baseData.pictures ? baseData.pictures.length : 0
+    });
+    
+    // Coletar imagens do formulário se disponíveis (sobrescrever se houver)
+    const imageInputs = document.querySelectorAll('input[name^="image_"]');
+    if (imageInputs.length > 0) {
+        productData.pictures = [];
+        imageInputs.forEach(input => {
+            const imageUrl = input.value;
+            if (imageUrl) {
+                productData.pictures.push({ url: imageUrl });
+            }
+        });
+    }
+    
+    // Coletar atributos dinâmicos
+    // PRIMEIRO: Se temos atributos do initialProductData, usar eles diretamente
+    if (baseData.attributes && baseData.attributes.length > 0) {
+        console.log(`✅ Usando ${baseData.attributes.length} atributos do initialProductData`);
+        // Converter formato do initialProductData para o formato esperado
+        productData.attributes = baseData.attributes.map(attr => {
+            // Determinar o valor correto
+            let finalValue = '';
+            let finalValueName = attr.value_name || '';
+            let finalValueId = attr.value_id || null;
+            
+            // Se tem value_id, usar ele como value (para atributos com opções pré-definidas)
+            if (finalValueId) {
+                finalValue = String(finalValueId);
+                // Se não tem value_name mas tem value_id, tentar manter o value_name original ou usar o value_id
+                if (!finalValueName || finalValueName === '') {
+                    // Se o value original não está vazio, usar ele como value_name
+                    if (attr.value && attr.value !== '' && attr.value !== finalValueId) {
+                        finalValueName = String(attr.value);
+                    } else {
+                        // Caso contrário, manter value_name vazio (será preenchido pelo backend se necessário)
+                        finalValueName = '';
+                    }
+                }
+            } 
+            // Se não tem value_id, é um atributo de texto livre
+            else {
+                // Se tem value (mesmo que vazio), usar value
+                if (attr.value !== undefined && attr.value !== null) {
+                    finalValue = String(attr.value);
+                }
+                // Se não tem value mas tem value_name, usar value_name como value
+                if ((!finalValue || finalValue === '') && finalValueName && finalValueName !== '') {
+                    finalValue = finalValueName;
+                }
+                // Se value_name está vazio mas temos um valor, usar o valor como value_name
+                if (!finalValueName && finalValue) {
+                    finalValueName = finalValue;
+                }
+            }
+            
+            return {
+                id: attr.id || attr.attribute_id,
+                name: attr.name || '',
+                value: finalValue,
+                value_name: finalValueName,
+                value_type: attr.value_type || '',
+                value_id: finalValueId
+            };
+        });
+        
+        // AGORA: Coletar TODOS os atributos do formulário (principalmente os secundários que podem não estar no initialProductData)
+        console.log('🔄 Coletando TODOS os atributos do formulário (incluindo secundários vazios)...');
+        const mainAttributesContainer = document.getElementById('mainAttributesFields');
+        const secondaryAttributesContainer = document.getElementById('secondaryAttributesFields');
+        const containers = [mainAttributesContainer, secondaryAttributesContainer].filter(c => c);
+        
+        // Set para rastrear quais atributos já estão no array
+        const existingAttributeIds = new Set(productData.attributes.map(a => a.id));
+        
+        // Primeiro, garantir que TODOS os atributos do formulário sejam coletados
+        containers.forEach(container => {
+            if (!container) {
+                console.log(`⚠️ Container não encontrado: ${container === mainAttributesContainer ? 'mainAttributesFields' : 'secondaryAttributesFields'}`);
+                return;
+            }
+            
+            // Buscar todos os inputs/selects de atributos
+            const attributeInputs = container.querySelectorAll('input[name^="attr_"], select[name^="attr_"]');
+            console.log(`📦 Container ${container === mainAttributesContainer ? 'mainAttributesFields' : 'secondaryAttributesFields'}: ${attributeInputs.length} inputs/selects encontrados`);
+            
+            attributeInputs.forEach(input => {
+                const name = input.name;
+                
+                // Ignorar campos de mode e type
+                if (name.includes('_mode_') || name.includes('_type_') || name.includes('_unit')) {
+                    return;
+                }
+                
+                // Extrair ID do atributo (pode ser numérico ou alfanumérico como EEPROM_CAPACITY)
+                const match = name.match(/^attr_(.+)$/);
+                if (!match) return;
+                
+                const attributeId = match[1];
+                
+                // Buscar label do atributo para ter o nome
+                let attributeName = '';
+                const label = input.closest('.mb-3')?.querySelector('label');
+                if (label) {
+                    attributeName = label.textContent.trim()
+                        .replace(/\s*\(.*?\)\s*/g, '')
+                        .replace(/\s*Ex:.*$/i, '')
+                        .replace(/\s*Por favor.*$/i, '')
+                        .trim();
+                }
+                
+                // Verificar se tem checkbox "Não se aplica"
+                const naCheckbox = input.closest('.mb-3')?.querySelector('input[type="checkbox"][id$="_na"]');
+                const isNotApplicable = naCheckbox && naCheckbox.checked;
+                
+                // Verificar se está desabilitado (não se aplica)
+                const isDisabled = input.disabled && isNotApplicable;
+                
+                // Encontrar o atributo correspondente no array
+                let attrIndex = productData.attributes.findIndex(a => a.id === attributeId);
+                
+                // Se não existe no array, adicionar (mesmo que vazio) - CRÍTICO para atributos secundários
+                if (attrIndex === -1) {
+                    // Buscar informações do atributo do DOM
+                    let newValue = '';
+                    let newValueName = '';
+                    let newValueId = null;
+                    
+                    if (!isDisabled) {
+                        if (input.tagName === 'SELECT') {
+                            const selectedOption = input.options[input.selectedIndex];
+                            newValue = input.value || '';
+                            // Ignorar valores como "Selecione..." ou vazios, mas ainda incluir o atributo
+                            if (newValue && newValue !== 'Selecione...' && newValue !== '') {
+                                newValueName = selectedOption ? selectedOption.textContent.trim() : '';
+                                if (newValue && /^\d+$/.test(newValue)) {
+                                    newValueId = newValue;
+                                }
+                            } else {
+                                // Atributo vazio - ainda incluir no array
+                                newValue = '';
+                                newValueName = '';
+                            }
+                        } else if (input.type === 'checkbox') {
+                            newValue = input.checked ? 'true' : 'false';
+                            newValueName = input.checked ? 'Sim' : 'Não';
+                        } else if (input.type === 'number' || input.type === 'text') {
+                            newValue = input.value || '';
+                            newValueName = input.value || '';
+                        }
+                    }
+                    
+                    // Adicionar atributo ao array (mesmo que vazio) - IMPORTANTE: sempre adicionar, mesmo vazio
+                    productData.attributes.push({
+                        id: attributeId,
+                        name: attributeName || `Atributo ${attributeId}`,
+                        value: newValue,
+                        value_name: newValueName,
+                        value_type: '',
+                        value_id: newValueId,
+                        is_empty: !newValue && !newValueName && !isDisabled,
+                        is_not_applicable: isDisabled
+                    });
+                    
+                    existingAttributeIds.add(attributeId); // Marcar como coletado
+                    console.log(`➕ Atributo ${attributeId} (${attributeName}) adicionado do formulário:`, {
+                        value: newValue || '(VAZIO)',
+                        value_name: newValueName || '(VAZIO)',
+                        is_empty: !newValue && !newValueName && !isDisabled,
+                        is_not_applicable: isDisabled,
+                        container: container === mainAttributesContainer ? 'PRINCIPAL' : 'SECUNDÁRIO'
+                    });
+                } else {
+                    // Atualizar atributo existente
+                    let newValue = '';
+                    let newValueName = '';
+                    let newValueId = productData.attributes[attrIndex].value_id; // Preservar value_id original
+                    
+                    if (!isDisabled) {
+                        if (input.tagName === 'SELECT') {
+                            const selectedOption = input.options[input.selectedIndex];
+                            newValue = input.value || '';
+                            // Ignorar valores como "Selecione..." ou vazios, mas ainda atualizar o atributo
+                            if (newValue && newValue !== 'Selecione...' && newValue !== '') {
+                                newValueName = selectedOption ? selectedOption.textContent.trim() : '';
+                                // Se o valor do select é um ID numérico, pode ser um value_id
+                                if (newValue && /^\d+$/.test(newValue) && !productData.attributes[attrIndex].value_id) {
+                                    newValueId = newValue;
+                                }
+                            } else {
+                                // Atributo vazio - manter vazio mas garantir que está no array
+                                newValue = '';
+                                newValueName = '';
+                            }
+                        } else if (input.type === 'checkbox') {
+                            newValue = input.checked ? 'true' : 'false';
+                            newValueName = input.checked ? 'Sim' : 'Não';
+                        } else if (input.type === 'number' || input.type === 'text') {
+                            newValue = input.value || '';
+                            newValueName = input.value || '';
+                        }
+                    }
+                    
+                    // Atualizar sempre (mesmo se vazio, para garantir que está no array)
+                    // Isso é importante para atributos secundários que podem não estar no initialProductData
+                    if (true) { // Sempre atualizar para garantir que está no array
+                        // Se o atributo tinha value_id mas agora temos um novo valor de texto, manter value_id se possível
+                        if (newValueId && newValue && newValue !== newValueId) {
+                            // Se o novo valor não é o value_id, usar como value_name e manter value_id
+                            productData.attributes[attrIndex].value = newValueId;
+                            productData.attributes[attrIndex].value_name = newValueName || newValue;
+                        } else {
+                            productData.attributes[attrIndex].value = newValue || productData.attributes[attrIndex].value;
+                            productData.attributes[attrIndex].value_name = newValueName || productData.attributes[attrIndex].value_name;
+                        }
+                        // Atualizar value_id se mudou
+                        if (newValueId) {
+                            productData.attributes[attrIndex].value_id = newValueId;
+                        }
+                        // Marcar se está vazio ou não se aplica
+                        productData.attributes[attrIndex].is_empty = !newValue && !newValueName && !isDisabled;
+                        productData.attributes[attrIndex].is_not_applicable = isDisabled;
+                        
+                        console.log(`✅ Atributo ${attributeId} atualizado do formulário:`, {
+                            value: productData.attributes[attrIndex].value,
+                            value_name: productData.attributes[attrIndex].value_name,
+                            value_id: productData.attributes[attrIndex].value_id,
+                            is_empty: productData.attributes[attrIndex].is_empty
+                        });
+                    }
+                }
+            });
+        });
+        
+        // Contar atributos vazios e não preenchidos
+        const emptyAttributes = productData.attributes.filter(a => a.is_empty && !a.is_not_applicable);
+        const notApplicableAttributes = productData.attributes.filter(a => a.is_not_applicable);
+        const filledAttributes = productData.attributes.filter(a => !a.is_empty && !a.is_not_applicable);
+        
+        console.log(`📊 Resumo de atributos após coleta do formulário:`);
+        console.log(`   Total: ${productData.attributes.length}`);
+        console.log(`   Preenchidos: ${filledAttributes.length}`);
+        console.log(`   Vazios: ${emptyAttributes.length}`);
+        console.log(`   Não se aplica: ${notApplicableAttributes.length}`);
+        console.log(`📋 Lista de atributos vazios (primeiros 10):`, emptyAttributes.slice(0, 10).map(a => `${a.name} (ID: ${a.id})`));
+        
+        // Verificar se há atributos no formulário que não foram coletados
+        const allFormAttributeIds = new Set();
+        containers.forEach(container => {
+            if (!container) return;
+            const inputs = container.querySelectorAll('input[name^="attr_"], select[name^="attr_"]');
+            inputs.forEach(input => {
+                const name = input.name;
+                if (!name.includes('_mode_') && !name.includes('_type_') && !name.includes('_unit')) {
+                    const match = name.match(/^attr_(.+)$/);
+                    if (match) {
+                        allFormAttributeIds.add(match[1]);
+                    }
+                }
+            });
+        });
+        
+        const collectedAttributeIds = new Set(productData.attributes.map(a => a.id));
+        const missingAttributeIds = Array.from(allFormAttributeIds).filter(id => !collectedAttributeIds.has(id));
+        
+        if (missingAttributeIds.length > 0) {
+            console.warn(`⚠️ ATENÇÃO: ${missingAttributeIds.length} atributos do formulário não foram coletados:`, missingAttributeIds);
+        } else {
+            console.log(`✅ Todos os ${allFormAttributeIds.size} atributos do formulário foram coletados`);
+        }
+    } else {
+        // Se não tem no initialProductData, coletar do formulário
+        console.log('⚠️ Não há atributos no initialProductData, coletando do formulário...');
+        
+        // Buscar especificamente dentro dos containers de atributos principais e secundários
+        const mainAttributesContainer = document.getElementById('mainAttributesFields');
+        const secondaryAttributesContainer = document.getElementById('secondaryAttributesFields');
+        
+        console.log('🔍 Containers encontrados:', {
+            main: !!mainAttributesContainer,
+            secondary: !!secondaryAttributesContainer
+        });
+        
+        const collectedAttributeIds = new Set();
+    
+    // Função auxiliar para coletar atributos de um container
+    const collectAttributesFromContainer = (container, containerName) => {
+        if (!container) {
+            console.log(`⚠️ Container ${containerName} não encontrado`);
+            return;
+        }
+        
+        // Buscar todos os inputs/selects dentro do container que começam com "attr_"
+        const attributeInputs = container.querySelectorAll('input[name^="attr_"], select[name^="attr_"]');
+        console.log(`📦 Container ${containerName}: ${attributeInputs.length} inputs/selects encontrados`);
+        
+        attributeInputs.forEach((input, index) => {
+            const name = input.name;
+            
+            // Ignorar campos hidden de mode e type
+            if (name.includes('_mode_') || name.includes('_type_')) {
+                return;
+            }
+            
+            // Extrair ID do atributo (formato: attr_123456, attr_EEPROM_CAPACITY, ou attr_123456_unit)
+            // Aceita tanto IDs numéricos quanto alfanuméricos
+            const match = name.match(/^attr_([^_]+(?:_[^_]+)*)(?:_unit)?$/);
+            if (!match) {
+                console.log(`⚠️ Nome não corresponde ao padrão: ${name}`);
+                return;
+            }
+            
+            const attributeId = match[1];
+            const isUnit = name.includes('_unit');
+            
+            // Se for unit, pular (será coletado junto com o campo principal)
+            if (isUnit) {
+                return;
+            }
+            
+            // Evitar duplicatas
+            if (collectedAttributeIds.has(attributeId)) {
+                return;
+            }
+            collectedAttributeIds.add(attributeId);
+            
+            let value = '';
+            let valueName = '';
+            
+            // Verificar se tem checkbox "Não se aplica"
+            const naCheckbox = input.closest('.mb-3')?.querySelector('input[type="checkbox"][id$="_na"]');
+            const isNotApplicable = naCheckbox && naCheckbox.checked;
+            const isDisabled = input.disabled && isNotApplicable;
+            
+            // Tratar diferentes tipos de campos
+            if (input.type === 'checkbox') {
+                // Checkbox (boolean) - verificar se está desabilitado (não se aplica)
+                if (isDisabled) {
+                    // Incluir mesmo desabilitado, marcando como não se aplica
+                    value = '';
+                    valueName = '';
+                    console.log(`📝 Atributo ${attributeId} (checkbox) marcado como "Não se aplica" - incluindo no array`);
+                } else {
+                    value = input.checked ? 'true' : 'false';
+                    valueName = input.checked ? 'Sim' : 'Não';
+                }
+            } else if (input.tagName === 'SELECT') {
+                // Select dropdown
+                if (input.disabled && isNotApplicable) {
+                    // Marcar como não se aplica, mas ainda incluir no array
+                    value = '';
+                    valueName = '';
+                    console.log(`📝 Atributo ${attributeId} (select) marcado como "Não se aplica" - incluindo no array`);
+                } else if (!input.value) {
+                    // Vazio mas não marcado como "não se aplica" - incluir como vazio
+                    value = '';
+                    valueName = '';
+                    console.log(`📝 Atributo ${attributeId} (select) vazio - incluindo no array para análise`);
+                } else {
+                    const selectedOption = input.options[input.selectedIndex];
+                    value = input.value || '';
+                    valueName = selectedOption ? selectedOption.textContent.trim() : '';
+                }
+            } else {
+                // Input de texto/número
+                if (input.disabled && isNotApplicable) {
+                    // Marcar como não se aplica, mas ainda incluir no array
+                    value = '';
+                    valueName = '';
+                    console.log(`📝 Atributo ${attributeId} (input) marcado como "Não se aplica" - incluindo no array`);
+                } else {
+                    value = input.value.trim();
+                    valueName = value;
+                    // Incluir mesmo se vazio - o agente precisa saber que está vazio
+                    if (!value) {
+                        console.log(`📝 Atributo ${attributeId} (input) vazio - incluindo no array para análise`);
+                    }
+                }
+                
+                // Se for number_unit, buscar a unidade também
+                const unitInput = container.querySelector(`input[name="attr_${attributeId}_unit"], select[name="attr_${attributeId}_unit"]`);
+                if (unitInput && value) {
+                    const unitValue = unitInput.value.trim();
+                    if (unitValue) {
+                        value = `${value} ${unitValue}`;
+                        valueName = value;
+                    }
+                }
+            }
+            
+            // Buscar nome do atributo no DOM
+            const label = input.closest('.mb-3')?.querySelector('label');
+            let attributeName = attributeId;
+            if (label) {
+                attributeName = label.textContent
+                    .replace(/\*/g, '')
+                    .replace(/\(obrigatório\)/gi, '')
+                    .trim();
+            }
+            
+            // Buscar tipo do atributo
+            const typeInput = container.querySelector(`input[name="attr_type_${attributeId}"]`);
+            const attributeType = typeInput ? typeInput.value : '';
+            
+            // isNotApplicable e isDisabled já foram declarados no início do loop
+            
+            console.log(`✅ Coletado atributo: ${attributeName} (ID: ${attributeId}) = "${value}" ${!value && !isDisabled ? '(VAZIO - precisa preencher)' : ''}`);
+            
+            productData.attributes.push({
+                id: attributeId,
+                name: attributeName,
+                value: value,
+                value_name: valueName,
+                value_type: attributeType,
+                is_empty: !value && !valueName && !isDisabled,
+                is_not_applicable: isDisabled
+            });
+        });
+    };
+    
+        // Coletar de ambos os containers
+        collectAttributesFromContainer(mainAttributesContainer, 'mainAttributesFields');
+        collectAttributesFromContainer(secondaryAttributesContainer, 'secondaryAttributesFields');
+    }
+    
+    console.log(`📋 Total de atributos coletados: ${productData.attributes.length}`, productData.attributes);
+    
+    // Informações de imagens
+    productData.images_count = getActiveImageCount();
+    productData.has_images = productData.images_count > 0;
+    
+    return productData;
+}
+
+// Função para analisar cadastro com IA
+async function analyzeProductRegistration() {
+    try {
+        // Coletar todos os dados
+        const productData = collectAllProductData();
+        
+        if (!productData.title || !productData.category_id) {
+            showAlert('warning', 'Preencha pelo menos o título e a categoria antes de analisar.');
+            return;
+        }
+        
+        // Mostrar loading
+        const analyzeBtn = document.getElementById('analyzeRegistrationBtn');
+        if (analyzeBtn) {
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Analisando...';
+        }
+        
+        // Log dos dados que serão enviados
+        console.log('📤 Dados do produto coletados:', productData);
+        console.log('📤 Enviando para análise...');
+        console.log('📝 Payload completo:', JSON.stringify({ product_data: productData }, null, 2));
+        
+        // Escolher qual endpoint usar (teste direto ou via agente)
+        const useDirectTest = false; // Mude para true para testar direto na OpenAI
+        const endpoint = useDirectTest 
+            ? '/ml/products/analyze-registration-direct'
+            : '/ml/products/analyze-registration';
+        
+        console.log(`🔗 Usando endpoint: ${endpoint} (teste direto: ${useDirectTest})`);
+        
+        // Chamar API
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ product_data: productData })
+        });
+        
+        const result = await response.json();
+        
+        console.log('📊 ========================================');
+        console.log('📊 RESULTADO COMPLETO DA ANÁLISE');
+        console.log('📊 ========================================');
+        console.log('📊 Resultado completo (JSON):', JSON.stringify(result, null, 2));
+        console.log('📊 result.success:', result.success);
+        console.log('📊 result.content:', result.content);
+        console.log('📊 result.content (tipo):', typeof result.content);
+        console.log('📊 result.content (tamanho):', result.content ? result.content.length : 0);
+        console.log('📊 result.raw_response:', result.raw_response);
+        console.log('📊 result.raw_response (tipo):', typeof result.raw_response);
+        console.log('📊 result.thread_id:', result.thread_id);
+        console.log('📊 result.usage:', result.usage);
+        console.log('📊 ========================================');
+        
+        if (result.success) {
+            // Extrair conteúdo da resposta
+            let content = '';
+            
+            // Tentar diferentes formatos de resposta
+            if (result.content) {
+                content = result.content;
+            } else if (result.raw_response) {
+                if (typeof result.raw_response === 'string') {
+                    content = result.raw_response;
+                } else if (result.raw_response.content) {
+                    content = result.raw_response.content;
+                } else {
+                    content = JSON.stringify(result.raw_response, null, 2);
+                }
+            } else {
+                content = 'Análise concluída, mas sem conteúdo retornado.';
+            }
+            
+            console.log('📝 Conteúdo extraído para exibição:', content.substring(0, 200) + '...');
+            showAnalysisResult(content);
+        } else {
+            const errorMsg = result.error || 'Erro ao analisar cadastro';
+            console.error('❌ Erro na análise:', errorMsg);
+            showAlert('danger', `Erro: ${errorMsg}`);
+        }
+        
+    } catch (error) {
+        console.error('Erro ao analisar cadastro:', error);
+        showAlert('danger', 'Erro ao analisar cadastro. Tente novamente.');
+    } finally {
+        const analyzeBtn = document.getElementById('analyzeRegistrationBtn');
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = '<i class="bi bi-magic"></i> Analisar Cadastro com IA';
+        }
+    }
+}
+
+// Função para mapear nomes de atributos para IDs reais no formulário
+function mapAttributeNameToId(attributeName, attributeId = null) {
+    // Buscar todos os atributos no formulário
+    const mainContainer = document.getElementById('mainAttributesFields');
+    const secondaryContainer = document.getElementById('secondaryAttributesFields');
+    const containers = [mainContainer, secondaryContainer].filter(c => c);
+    
+    // Se temos o ID do atributo, buscar diretamente por ele primeiro
+    if (attributeId) {
+        for (const container of containers) {
+            if (!container) continue;
+            const input = container.querySelector(`input[name="attr_${attributeId}"], select[name="attr_${attributeId}"]`);
+            if (input) {
+                console.log(`✅ Atributo encontrado por ID direto: ${attributeId}`);
+                return {
+                    attributeId: attributeId,
+                    fieldName: input.name,
+                    element: input
+                };
+            }
+        }
+    }
+    
+    // Buscar por nome do atributo (no label)
+    for (const container of containers) {
+        if (!container) continue;
+        const labels = container.querySelectorAll('label');
+        for (const label of labels) {
+            const labelText = label.textContent.trim()
+                .replace(/\*/g, '')
+                .replace(/\(obrigatório\)/gi, '')
+                .trim();
+            
+            // Comparar nome (case insensitive, removendo acentos básicos)
+            if (labelText.toLowerCase() === attributeName.toLowerCase() || 
+                labelText.toLowerCase().includes(attributeName.toLowerCase()) ||
+                attributeName.toLowerCase().includes(labelText.toLowerCase())) {
+                
+                // Encontrar o input/select associado
+                const fieldId = label.getAttribute('for');
+                if (fieldId) {
+                    const input = container.querySelector(`#${fieldId}`);
+                    if (input && input.name) {
+                        // Extrair ID do atributo (pode ser numérico ou alfanumérico)
+                        const match = input.name.match(/^attr_(.+)$/);
+                        if (match) {
+                            console.log(`✅ Atributo encontrado por nome: ${attributeName} -> ${match[1]}`);
+                            return {
+                                attributeId: match[1],
+                                fieldName: input.name,
+                                element: input
+                            };
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Se não encontrar por nome, tentar por ID conhecido (BRAND, MODEL, etc.)
+    const knownAttrMap = {
+        'BRAND': 'BRAND',
+        'Marca': 'BRAND',
+        'MODEL': 'MODEL',
+        'Modelo': 'MODEL',
+        'MPN': 'MPN',
+        'GTIN': 'GTIN',
+        'SELLER_SKU': 'SELLER_SKU',
+        'SKU': 'SELLER_SKU',
+        'ANALOG_INPUTS_NUMBER': 'ANALOG_INPUTS_NUMBER',
+        'Quantidade de entradas análogicas': 'ANALOG_INPUTS_NUMBER',
+        'DIGITAL_INPUT_OUTPUT_PINS_NUMBER': 'DIGITAL_INPUT_OUTPUT_PINS_NUMBER',
+        'Quantidade de pinos digitais': 'DIGITAL_INPUT_OUTPUT_PINS_NUMBER',
+        'MICROCONTROLLER': 'MICROCONTROLLER',
+        'Microcontrolador': 'MICROCONTROLLER',
+        'OPERATING_VOLTAGE': 'OPERATING_VOLTAGE',
+        'Tensão de operação': 'OPERATING_VOLTAGE',
+        'CLOCK_SPEED': 'CLOCK_SPEED',
+        'Frequência do relógio': 'CLOCK_SPEED',
+        'FLASH_MEMORY_CAPACITY': 'FLASH_MEMORY_CAPACITY',
+        'Capacidade da memória flash': 'FLASH_MEMORY_CAPACITY',
+        'SRAM_CAPACITY': 'SRAM_CAPACITY',
+        'Capacidade SRAM': 'SRAM_CAPACITY',
+        'EEPROM_CAPACITY': 'EEPROM_CAPACITY',
+        'Capacidade de EEPROM': 'EEPROM_CAPACITY',
+        'INCLUDES_USB_CABLE': 'INCLUDES_USB_CABLE',
+        'Inclui cabo USB': 'INCLUDES_USB_CABLE'
+    };
+    
+    const knownId = knownAttrMap[attributeName] || knownAttrMap[attributeName.toUpperCase()];
+    if (knownId) {
+        // Buscar por ID conhecido diretamente no formulário
+        for (const container of containers) {
+            if (!container) continue;
+            const input = container.querySelector(`input[name="attr_${knownId}"], select[name="attr_${knownId}"]`);
+            if (input) {
+                console.log(`✅ Atributo encontrado por ID conhecido: ${knownId}`);
+                return {
+                    attributeId: knownId,
+                    fieldName: input.name,
+                    element: input
+                };
+            }
+        }
+        
+        // Se não encontrou no formulário, tentar nos dados carregados
+        if (typeof initialProductData !== 'undefined' && initialProductData && initialProductData.attributes) {
+            const attr = initialProductData.attributes.find(a => a.id === knownId);
+            if (attr) {
+                // Buscar o campo no formulário pelo ID do atributo
+                for (const container of containers) {
+                    if (!container) continue;
+                    const input = container.querySelector(`input[name="attr_${attr.id}"], select[name="attr_${attr.id}"]`);
+                    if (input) {
+                        return {
+                            attributeId: attr.id,
+                            fieldName: input.name,
+                            element: input
+                        };
+                    }
+                }
+            }
+        }
+    }
+    
+    console.warn(`⚠️ Atributo não encontrado: ${attributeName} (ID: ${attributeId || 'N/A'})`);
+    return null;
+}
+
+// Função para parsear sugestões da resposta do agente
+function parseSuggestions(content) {
+    const suggestions = [];
+    const lines = content.split('\n');
+    
+    // Buscar sugestões específicas
+    let currentSection = '';
+    let inDescriptionSection = false;
+    let descriptionLines = [];
+    
+    lines.forEach((line, index) => {
+        const trimmed = line.trim();
+        
+        // Identificar seções
+        if (trimmed.match(/^(Título|Subtítulo|Descrição|Atributos|Preço|Recomendações)/i)) {
+            currentSection = trimmed;
+            inDescriptionSection = trimmed.toLowerCase().includes('descrição');
+            if (inDescriptionSection) {
+                descriptionLines = [];
+            }
+        }
+        
+        // Título - buscar padrões como "Título: atual → sugestão" ou "Título otimizado: sugestão"
+        const titleMatch1 = trimmed.match(/(?:Título|title).*?["']?([^"'\n]+)["']?\s*→\s*["']?([^"'\n]+)["']?/i);
+        const titleMatch2 = trimmed.match(/(?:Título otimizado|Título sugerido|Sugestão de título).*?:.*?["']?([^"'\n]+)["']?/i);
+        
+        if (titleMatch1 && !suggestions.find(s => s.field === 'title')) {
+            suggestions.push({
+                field: 'title',
+                fieldName: 'Título',
+                currentValue: titleMatch1[1].trim(),
+                suggestedValue: titleMatch1[2].trim(),
+                type: 'text',
+                section: 'Título'
+            });
+        } else if (titleMatch2 && !suggestions.find(s => s.field === 'title')) {
+            suggestions.push({
+                field: 'title',
+                fieldName: 'Título',
+                currentValue: '',
+                suggestedValue: titleMatch2[1].trim(),
+                type: 'text',
+                section: 'Título'
+            });
+        }
+        
+        // Subtítulo
+        const subtitleMatch = trimmed.match(/(?:Subtítulo|Subtitle).*?:.*?["']?([^"'\n]+)["']?/i);
+        if (subtitleMatch && !suggestions.find(s => s.field === 'subtitle')) {
+            const suggested = subtitleMatch[1].trim();
+            if (suggested && suggested !== 'null' && suggested.length > 0) {
+                suggestions.push({
+                    field: 'subtitle',
+                    fieldName: 'Subtítulo',
+                    currentValue: '',
+                    suggestedValue: suggested,
+                    type: 'text',
+                    section: 'Subtítulo'
+                });
+            }
+        }
+        
+        // Descrição - buscar padrões explícitos primeiro
+        const descMatch1 = trimmed.match(/(?:Descrição|Description).*?:.*?["']?([^"'\n]+)["']?/i);
+        const descMatch2 = trimmed.match(/(?:Sugestão de descrição|Descrição sugerida|Descrição otimizada|Descrição proposta).*?:/i);
+        
+        if (descMatch1 && !suggestions.find(s => s.field === 'description')) {
+            // Descrição em uma linha
+            const descText = descMatch1[1].trim();
+            if (descText.length > 20) {
+                suggestions.push({
+                    field: 'description',
+                    fieldName: 'Descrição',
+                    currentValue: '',
+                    suggestedValue: descText,
+                    type: 'textarea',
+                    section: 'Descrição'
+                });
+            }
+        } else if (descMatch2) {
+            // Início de seção de descrição sugerida - coletar próximas linhas
+            inDescriptionSection = true;
+            descriptionLines = [];
+        }
+        
+        // Descrição - coletar linhas da seção de descrição
+        if (inDescriptionSection) {
+            if (trimmed.match(/^(Especificações|Compatibilidade|Conteúdo|Garantia|Observações|Atributos|Palavras-chave|Preço|Precificação|Variações|Resumo Executivo)/i)) {
+                // Fim da seção de descrição
+                if (descriptionLines.length > 0) {
+                    const descText = descriptionLines.join('\n').trim();
+                    if (descText.length > 50 && !suggestions.find(s => s.field === 'description')) {
+                        suggestions.push({
+                            field: 'description',
+                            fieldName: 'Descrição',
+                            currentValue: '',
+                            suggestedValue: descText,
+                            type: 'textarea',
+                            section: 'Descrição'
+                        });
+                    }
+                }
+                inDescriptionSection = false;
+                descriptionLines = [];
+            } else if (trimmed && !trimmed.match(/^(Resumo|Especificações técnicas|Compatibilidade|Título|Subtítulo)/i)) {
+                // Adicionar linha à descrição, mas ignorar linhas muito curtas ou vazias
+                if (trimmed.length > 5) {
+                    descriptionLines.push(trimmed);
+                }
+            }
+        }
+        
+        // Atributos dinâmicos - buscar por padrão "Atributo 'NOME': atual → sugestão"
+        const attrMatch = trimmed.match(/(?:Atributo|Attribute)\s+['"]([^'"]+)['"].*?["']?([^"'\n→]+)["']?\s*→\s*["']?([^"'\n]+)["']?/i);
+        if (attrMatch) {
+            const attrName = attrMatch[1].trim();
+            const currentVal = attrMatch[2].trim();
+            const suggestedVal = attrMatch[3].trim();
+            
+            // Mapear nome do atributo para ID real no formulário
+            const attrMapping = mapAttributeNameToId(attrName);
+            
+            if (attrMapping) {
+                suggestions.push({
+                    field: attrMapping.fieldName,
+                    fieldName: attrName,
+                    currentValue: currentVal,
+                    suggestedValue: suggestedVal,
+                    type: 'attribute',
+                    attributeId: attrMapping.attributeId,
+                    attributeRealId: attrMapping.attributeId, // ID numérico real
+                    section: 'Atributos',
+                    element: attrMapping.element
+                });
+            } else {
+                // Se não encontrar, ainda adicionar mas marcar como não encontrado
+                suggestions.push({
+                    field: `attr_${attrName}`,
+                    fieldName: attrName,
+                    currentValue: currentVal,
+                    suggestedValue: suggestedVal,
+                    type: 'attribute',
+                    attributeId: attrName,
+                    section: 'Atributos',
+                    notFound: true
+                });
+            }
+        }
+        
+        // NOVO: Capturar formato de lista numerada de atributos vazios
+        // Formato: "1) Atributo: Nome (ID: ID_ATRIBUTO)" seguido de "- Valor atual: VAZIO" e "- Sugestão: valor"
+        const numberedAttrMatch = trimmed.match(/(?:\d+\)\s*)?Atributo:\s*([^(]+)\s*\(ID:\s*([^)]+)\)/i);
+        if (numberedAttrMatch) {
+            const attrName = numberedAttrMatch[1].trim();
+            const attrId = numberedAttrMatch[2].trim();
+            
+            // Buscar as próximas linhas para encontrar "Valor atual" e "Sugestão"
+            let currentVal = 'VAZIO';
+            let suggestedVal = '';
+            let justification = '';
+            
+            // Procurar nas próximas 10 linhas
+            for (let i = index + 1; i < Math.min(index + 10, lines.length); i++) {
+                const nextLine = lines[i].trim();
+                
+                // Capturar valor atual
+                const currentMatch = nextLine.match(/-?\s*Valor\s+atual:\s*(.+)/i);
+                if (currentMatch) {
+                    currentVal = currentMatch[1].trim();
+                }
+                
+                // Capturar sugestão
+                const suggestionMatch = nextLine.match(/-?\s*Sugestão:\s*(.+)/i);
+                if (suggestionMatch) {
+                    suggestedVal = suggestionMatch[1].trim();
+                }
+                
+                // Capturar justificativa
+                const justMatch = nextLine.match(/-?\s*Justificativa:\s*(.+)/i);
+                if (justMatch) {
+                    justification = justMatch[1].trim();
+                }
+                
+                // Se encontrou sugestão, pode parar (ou continuar para pegar justificativa)
+                if (suggestedVal && nextLine.match(/^\d+\)/)) {
+                    break; // Próximo item da lista
+                }
+            }
+            
+            if (suggestedVal && (currentVal.toUpperCase().includes('VAZIO') || !currentVal || currentVal === '')) {
+                // Primeiro tentar buscar pelo ID do atributo diretamente
+                let attrMapping = null;
+                const mainContainer = document.getElementById('mainAttributesFields');
+                const secondaryContainer = document.getElementById('secondaryAttributesFields');
+                const containers = [mainContainer, secondaryContainer].filter(c => c);
+                
+                // Buscar pelo ID do atributo (ex: MICROCONTROLLER, OPERATING_VOLTAGE)
+                for (const container of containers) {
+                    if (!container) continue;
+                    const input = container.querySelector(`input[name="attr_${attrId}"], select[name="attr_${attrId}"]`);
+                    if (input) {
+                        const label = input.closest('.mb-3')?.querySelector('label');
+                        attrMapping = {
+                            attributeId: attrId,
+                            fieldName: `attr_${attrId}`,
+                            element: input,
+                            label: label ? label.textContent.trim() : attrName
+                        };
+                        break;
+                    }
+                }
+                
+                // Se não encontrou pelo ID, tentar pelo nome
+                if (!attrMapping) {
+                    attrMapping = mapAttributeNameToId(attrName);
+                }
+                
+                const fieldName = attrMapping ? attrMapping.fieldName : `attr_${attrId}`;
+                const realAttributeId = attrMapping ? attrMapping.attributeId : attrId;
+                
+                // Verificar se já não foi adicionado
+                if (!suggestions.find(s => s.attributeId === realAttributeId && s.type === 'attribute')) {
+                    suggestions.push({
+                        field: fieldName,
+                        fieldName: attrName,
+                        currentValue: currentVal,
+                        suggestedValue: suggestedVal,
+                        type: 'attribute',
+                        attributeId: realAttributeId,
+                        attributeRealId: realAttributeId,
+                        section: 'Atributos Vazios',
+                        justification: justification,
+                        notFound: !attrMapping
+                    });
+                }
+            }
+        }
+        
+        // NOVO: Capturar formato de lista final de valores (ex: "MICROCONTROLLER: ATmega328P", "MPN: UNO-R3", "package_length: 21 cm")
+        // Formato: "- ID_ATRIBUTO: valor" ou "ID_ATRIBUTO: valor"
+        const finalListAttrMatch = trimmed.match(/^[-•]\s*([A-Z_][A-Z0-9_]*)\s*:\s*(.+)$/i);
+        if (finalListAttrMatch) {
+            const attrId = finalListAttrMatch[1].trim();
+            const suggestedVal = finalListAttrMatch[2].trim();
+            
+            // Verificar se é um campo fixo do formulário (não atributo dinâmico)
+            const fixedFieldMap = {
+                'MPN': { field: 'mpn', fieldName: 'MPN', type: 'text' },
+                'package_length': { field: 'package_length', fieldName: 'Comprimento do Pacote', type: 'number' },
+                'package_width': { field: 'package_width', fieldName: 'Largura do Pacote', type: 'number' },
+                'package_height': { field: 'package_height', fieldName: 'Altura do Pacote', type: 'number' },
+                'package_weight': { field: 'package_weight', fieldName: 'Peso do Pacote', type: 'number' }
+            };
+            
+            const fixedField = fixedFieldMap[attrId];
+            if (fixedField) {
+                // É um campo fixo do formulário
+                if (!suggestions.find(s => s.field === fixedField.field && s.type === fixedField.type)) {
+                    suggestions.push({
+                        field: fixedField.field,
+                        fieldName: fixedField.fieldName,
+                        currentValue: 'VAZIO',
+                        suggestedValue: suggestedVal.replace(/\s*(cm|g|kg|lb)\s*$/i, '').trim(), // Remover unidades
+                        type: fixedField.type,
+                        section: 'Campos Fixos'
+                    });
+                }
+            } else {
+                // É um atributo dinâmico
+                // Verificar se já não foi adicionado
+                if (!suggestions.find(s => (s.attributeId === attrId || s.attributeRealId === attrId) && s.type === 'attribute')) {
+                    // Buscar o campo no formulário pelo ID
+                    const mainContainer = document.getElementById('mainAttributesFields');
+                    const secondaryContainer = document.getElementById('secondaryAttributesFields');
+                    const containers = [mainContainer, secondaryContainer].filter(c => c);
+                    
+                    let attrMapping = null;
+                    for (const container of containers) {
+                        if (!container) continue;
+                        const input = container.querySelector(`input[name="attr_${attrId}"], select[name="attr_${attrId}"]`);
+                        if (input) {
+                            const label = input.closest('.mb-3')?.querySelector('label');
+                            attrMapping = {
+                                attributeId: attrId,
+                                fieldName: `attr_${attrId}`,
+                                element: input,
+                                label: label ? label.textContent.trim() : attrId
+                            };
+                            break;
+                        }
+                    }
+                    
+                    // Se não encontrou pelo ID, tentar pelo nome conhecido
+                    if (!attrMapping) {
+                        const knownNames = {
+                            'MICROCONTROLLER': 'Microcontrolador',
+                            'OPERATING_VOLTAGE': 'Tensão de operação',
+                            'MICROCONTROLLER_BOARD_RECOMMENDED_INPUT_VOLTAGE': 'Voltagem de entrada recomendado',
+                            'MICROCONTROLLER_BOARD_LIMIT_INPUT_VOLTAGE': 'Voltagem de entrada límite',
+                            'CLOCK_SPEED': 'Frequência do relógio',
+                            'FLASH_MEMORY_CAPACITY': 'Capacidade da memória flash',
+                            'SRAM_CAPACITY': 'Capacidade SRAM',
+                            'EEPROM_CAPACITY': 'Capacidade de EEPROM',
+                            'LENGTH': 'Comprimento',
+                            'WIDTH': 'Largura',
+                            'HEIGHT': 'Altura',
+                            'WEIGHT': 'Peso',
+                            'ANALOG_INPUTS_NUMBER': 'Quantidade de entradas análogicas',
+                            'DIGITAL_INPUT_OUTPUT_PINS_NUMBER': 'Quantidade de pinos digitais de entrada e saída',
+                            'INCLUDES_USB_CABLE': 'Inclui cabo USB'
+                        };
+                        const attrName = knownNames[attrId] || attrId;
+                        attrMapping = mapAttributeNameToId(attrName, attrId);
+                    }
+                    
+                    const fieldName = attrMapping ? attrMapping.fieldName : `attr_${attrId}`;
+                    const realAttributeId = attrMapping ? attrMapping.attributeId : attrId;
+                    
+                    suggestions.push({
+                        field: fieldName,
+                        fieldName: attrMapping?.label || attrId,
+                        currentValue: 'VAZIO',
+                        suggestedValue: suggestedVal,
+                        type: 'attribute',
+                        attributeId: realAttributeId,
+                        attributeRealId: realAttributeId,
+                        section: 'Atributos Vazios',
+                        notFound: !attrMapping
+                    });
+                }
+            }
+        }
+        
+        // Preço
+        const priceMatch = trimmed.match(/(?:Preço|Price).*?:.*?R?\s*\$?\s*(\d+[.,]\d+)/i);
+        if (priceMatch && !suggestions.find(s => s.field === 'price')) {
+            const priceValue = priceMatch[1].replace(',', '.');
+            suggestions.push({
+                field: 'price',
+                fieldName: 'Preço',
+                currentValue: '',
+                suggestedValue: priceValue,
+                type: 'number',
+                section: 'Precificação'
+            });
+        }
+        
+        // MPN - buscar padrões como "MPN: valor" ou "MPN ausente → sugestão"
+        const mpnMatch1 = trimmed.match(/MPN.*?:.*?["']?([^"'\n]+)["']?/i);
+        const mpnMatch2 = trimmed.match(/MPN.*?ausente.*?→.*?["']?([^"'\n]+)["']?/i);
+        if ((mpnMatch1 || mpnMatch2) && !suggestions.find(s => s.field === 'mpn')) {
+            const mpnValue = (mpnMatch1 || mpnMatch2)[1].trim();
+            if (mpnValue && mpnValue.toLowerCase() !== 'ausente' && mpnValue.toLowerCase() !== 'null') {
+                suggestions.push({
+                    field: 'mpn',
+                    fieldName: 'MPN (Código do Fabricante)',
+                    currentValue: '',
+                    suggestedValue: mpnValue,
+                    type: 'text',
+                    section: 'Códigos'
+                });
+            }
+        }
+        
+        // Package dimensions - buscar padrões como "package_length: 21 cm"
+        const packageLengthMatch = trimmed.match(/package_length.*?:.*?(\d+[.,]?\d*)\s*(?:cm)?/i);
+        if (packageLengthMatch && !suggestions.find(s => s.field === 'package_length')) {
+            suggestions.push({
+                field: 'package_length',
+                fieldName: 'Comprimento do Pacote',
+                currentValue: '',
+                suggestedValue: packageLengthMatch[1].replace(',', '.'),
+                type: 'number',
+                section: 'Dimensões'
+            });
+        }
+        
+        const packageWidthMatch = trimmed.match(/package_width.*?:.*?(\d+[.,]?\d*)\s*(?:cm)?/i);
+        if (packageWidthMatch && !suggestions.find(s => s.field === 'package_width')) {
+            suggestions.push({
+                field: 'package_width',
+                fieldName: 'Largura do Pacote',
+                currentValue: '',
+                suggestedValue: packageWidthMatch[1].replace(',', '.'),
+                type: 'number',
+                section: 'Dimensões'
+            });
+        }
+        
+        const packageHeightMatch = trimmed.match(/package_height.*?:.*?(\d+[.,]?\d*)\s*(?:cm)?/i);
+        if (packageHeightMatch && !suggestions.find(s => s.field === 'package_height')) {
+            suggestions.push({
+                field: 'package_height',
+                fieldName: 'Altura do Pacote',
+                currentValue: '',
+                suggestedValue: packageHeightMatch[1].replace(',', '.'),
+                type: 'number',
+                section: 'Dimensões'
+            });
+        }
+    });
+    
+    // Processar descrição final se ainda estiver coletando
+    if (descriptionLines.length > 0 && !suggestions.find(s => s.field === 'description')) {
+        const descText = descriptionLines.join('\n').trim();
+        if (descText.length > 50) {
+            console.log('📝 Descrição capturada do parsing:', descText.substring(0, 100) + '...');
+            suggestions.push({
+                field: 'description',
+                fieldName: 'Descrição',
+                currentValue: '',
+                suggestedValue: descText,
+                type: 'textarea',
+                section: 'Descrição'
+            });
+        }
+    }
+    
+    // Log final das sugestões encontradas
+    console.log('📋 Sugestões parseadas:', suggestions.map(s => ({
+        field: s.field,
+        fieldName: s.fieldName,
+        type: s.type,
+        hasValue: !!s.suggestedValue
+    })));
+    
+    return suggestions;
+}
+
+// Função auxiliar para aplicar sugestão via ID (para uso em onclick)
+function applySuggestionFromId(suggestionId) {
+    if (!window.productSuggestions || !window.productSuggestions[suggestionId]) {
+        showAlert('danger', 'Sugestão não encontrada');
+        return;
+    }
+    applySuggestion(window.productSuggestions[suggestionId]);
+}
+
+// Função para aplicar sugestão no formulário
+function applySuggestion(suggestion) {
+    console.log('✅ Aplicando sugestão:', suggestion);
+    
+    try {
+        if (suggestion.type === 'text' || suggestion.type === 'textarea' || suggestion.type === 'number') {
+            // Tentar buscar por ID primeiro
+            let field = document.getElementById(suggestion.field);
+            
+            // Se não encontrou por ID, tentar por name
+            if (!field) {
+                field = document.querySelector(`[name="${suggestion.field}"]`);
+            }
+            
+            console.log(`🔍 Buscando campo: ${suggestion.field} (tipo: ${suggestion.type})`);
+            console.log(`📝 Campo encontrado:`, field);
+            console.log(`📝 Valor sugerido:`, suggestion.suggestedValue?.substring(0, 100) + '...');
+            
+            if (field) {
+                const oldValue = field.value;
+                
+                // Para campos numéricos, remover unidades e converter para número
+                if (suggestion.type === 'number') {
+                    const numericValue = parseFloat(suggestion.suggestedValue.replace(/[^\d.,]/g, '').replace(',', '.'));
+                    if (!isNaN(numericValue)) {
+                        field.value = numericValue;
+                    } else {
+                        field.value = suggestion.suggestedValue;
+                    }
+                } else {
+                    field.value = suggestion.suggestedValue;
+                }
+                
+                console.log(`✅ Campo ${suggestion.field} atualizado:`, {
+                    antigo: oldValue?.substring(0, 50) + '...',
+                    novo: field.value?.substring(0, 50) + '...'
+                });
+                
+                // Trigger eventos se necessário
+                if (suggestion.field === 'title') {
+                    // Atualizar contador de caracteres do título
+                    const titleCount = document.getElementById('titleCount');
+                    if (titleCount) {
+                        titleCount.textContent = suggestion.suggestedValue.length;
+                    }
+                }
+                
+                // Disparar evento de input para validar
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // Para textarea, também disparar eventos específicos
+                if (suggestion.type === 'textarea') {
+                    field.dispatchEvent(new Event('keyup', { bubbles: true }));
+                }
+                
+                showAlert('success', `${suggestion.fieldName} atualizado com sucesso!`);
+                return true;
+            } else {
+                console.warn(`❌ Campo ${suggestion.field} não encontrado no DOM`);
+                console.warn(`📋 Tentando buscar por name:`, document.querySelectorAll(`[name="${suggestion.field}"]`));
+                console.warn(`📋 Tentando buscar por id:`, document.getElementById(suggestion.field));
+                showAlert('warning', `Campo ${suggestion.fieldName} não encontrado no formulário`);
+                return false;
+            }
+        } else if (suggestion.type === 'attribute') {
+            // Buscar campo de atributo dinâmico
+            let attrInput = null;
+            
+            // Se temos o elemento já mapeado, usar ele
+            if (suggestion.element) {
+                attrInput = suggestion.element;
+            } else if (suggestion.attributeRealId || suggestion.attributeId) {
+                // Buscar pelo ID do atributo (pode ser numérico ou alfanumérico como MICROCONTROLLER, OPERATING_VOLTAGE, ANALOG_INPUTS_NUMBER)
+                const attrId = suggestion.attributeRealId || suggestion.attributeId;
+                const mainContainer = document.getElementById('mainAttributesFields');
+                const secondaryContainer = document.getElementById('secondaryAttributesFields');
+                const containers = [mainContainer, secondaryContainer].filter(c => c);
+                
+                console.log(`🔍 Buscando atributo com ID: ${attrId}`);
+                
+                // Primeiro, buscar nos containers específicos
+                for (const container of containers) {
+                    if (!container) continue;
+                    // Tentar busca exata primeiro
+                    attrInput = container.querySelector(`input[name="attr_${attrId}"], select[name="attr_${attrId}"]`);
+                    if (attrInput) {
+                        console.log(`✅ Atributo encontrado no container: ${attrId}`);
+                        break;
+                    }
+                    
+                    // Se não encontrou, buscar todos os inputs e verificar o name
+                    const allInputs = container.querySelectorAll('input[name^="attr_"], select[name^="attr_"]');
+                    for (const input of allInputs) {
+                        if (input.name === `attr_${attrId}`) {
+                            attrInput = input;
+                            console.log(`✅ Atributo encontrado por busca manual: ${attrId}`);
+                            break;
+                        }
+                    }
+                    if (attrInput) break;
+                }
+                
+                // Se não encontrou nos containers, tentar globalmente
+                if (!attrInput) {
+                    console.log(`🔍 Buscando globalmente: attr_${attrId}`);
+                    attrInput = document.querySelector(`input[name="attr_${attrId}"], select[name="attr_${attrId}"]`);
+                    if (attrInput) {
+                        console.log(`✅ Atributo encontrado globalmente: ${attrId}`);
+                    }
+                }
+                
+                // Se ainda não encontrou, tentar buscar pelo nome do campo
+                if (!attrInput && suggestion.field) {
+                    console.log(`🔍 Tentando buscar pelo campo: ${suggestion.field}`);
+                    attrInput = document.querySelector(`input[name="${suggestion.field}"], select[name="${suggestion.field}"]`);
+                }
+                
+                // Última tentativa: buscar pelo nome do atributo (passando também o ID)
+                if (!attrInput && suggestion.fieldName) {
+                    console.log(`🔍 Tentando buscar pelo nome: ${suggestion.fieldName} (ID: ${attrId})`);
+                    const mapping = mapAttributeNameToId(suggestion.fieldName, attrId);
+                    if (mapping && mapping.element) {
+                        attrInput = mapping.element;
+                        console.log(`✅ Atributo encontrado pelo nome: ${suggestion.fieldName}`);
+                    }
+                }
+            } else if (suggestion.field) {
+                // Buscar pelo nome do campo
+                attrInput = document.querySelector(`input[name="${suggestion.field}"], select[name="${suggestion.field}"]`);
+            } else {
+                // Tentar mapear novamente
+                const mapping = mapAttributeNameToId(suggestion.fieldName);
+                if (mapping && mapping.element) {
+                    attrInput = mapping.element;
+                }
+            }
+            
+            if (!attrInput) {
+                console.error(`❌ Atributo não encontrado:`, {
+                    attributeId: suggestion.attributeRealId || suggestion.attributeId,
+                    fieldName: suggestion.fieldName,
+                    field: suggestion.field,
+                    suggestion: suggestion
+                });
+            }
+            
+            if (attrInput) {
+                // Se não tem sugestão do agente, apenas focar no campo para preenchimento manual
+                if (!suggestion.suggestedValue || suggestion.suggestedValue.trim() === '' || suggestion.hasSuggestion === false) {
+                    // Remover desabilitado se estiver
+                    attrInput.disabled = false;
+                    attrInput.removeAttribute('readonly');
+                    
+                    // Focar no campo e rolar até ele
+                    attrInput.focus();
+                    attrInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Destacar o campo visualmente
+                    attrInput.classList.add('border-primary', 'border-2');
+                    setTimeout(() => {
+                        attrInput.classList.remove('border-primary', 'border-2');
+                    }, 2000);
+                    
+                    showAlert('info', `Campo "${suggestion.fieldName}" focado. Preencha o valor manualmente.`);
+                    return true;
+                }
+                
+                // Se tem sugestão, aplicar o valor
+                if (attrInput.tagName === 'SELECT') {
+                    // Para select, buscar opção pelo texto ou valor
+                    const options = Array.from(attrInput.options);
+                    const matchingOption = options.find(opt => {
+                        const optText = opt.textContent.trim().toLowerCase();
+                        const optValue = opt.value.toLowerCase();
+                        const suggested = suggestion.suggestedValue.toLowerCase();
+                        return optText.includes(suggested) || 
+                               optValue === suggested ||
+                               optText === suggested ||
+                               (opt.dataset.valueName && opt.dataset.valueName.toLowerCase() === suggested);
+                    });
+                    
+                    if (matchingOption) {
+                        attrInput.value = matchingOption.value;
+                    } else {
+                        // Se não encontrar, tentar criar opção custom ou definir diretamente
+                        console.warn(`Opção não encontrada para "${suggestion.suggestedValue}", tentando definir diretamente`);
+                        attrInput.value = suggestion.suggestedValue;
+                    }
+                } else {
+                    // Para input de texto/número
+                    attrInput.value = suggestion.suggestedValue;
+                    
+                    // Se for number_unit, verificar se precisa atualizar unidade também
+                    const unitInput = document.querySelector(`input[name="${suggestion.field}_unit"], select[name="${suggestion.field}_unit"]`);
+                    if (unitInput && suggestion.suggestedValue.includes(' ')) {
+                        // Se o valor sugerido tem unidade (ex: "48 MHz"), separar
+                        const parts = suggestion.suggestedValue.split(' ');
+                        if (parts.length >= 2) {
+                            attrInput.value = parts[0];
+                            const unit = parts.slice(1).join(' ');
+                            // Tentar encontrar unidade no select
+                            if (unitInput.tagName === 'SELECT') {
+                                const unitOptions = Array.from(unitInput.options);
+                                const matchingUnit = unitOptions.find(opt => 
+                                    opt.textContent.trim().toLowerCase().includes(unit.toLowerCase())
+                                );
+                                if (matchingUnit) {
+                                    unitInput.value = matchingUnit.value;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Remover desabilitado se estiver
+                attrInput.disabled = false;
+                attrInput.removeAttribute('readonly');
+                
+                // Disparar eventos
+                attrInput.dispatchEvent(new Event('input', { bubbles: true }));
+                attrInput.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // Focar no campo após aplicar
+                attrInput.focus();
+                attrInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                showAlert('success', `Atributo "${suggestion.fieldName}" atualizado com sucesso!`);
+                return true;
+            } else {
+                console.warn(`Atributo ${suggestion.fieldName} (${suggestion.attributeId}) não encontrado no formulário`);
+                showAlert('warning', `Atributo "${suggestion.fieldName}" não encontrado no formulário. Pode não estar disponível para esta categoria.`);
+                return false;
+            }
+        } else if (suggestion.type === 'number') {
+            const field = document.getElementById(suggestion.field);
+            if (field) {
+                field.value = suggestion.suggestedValue;
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                showAlert('success', `${suggestion.fieldName} atualizado com sucesso!`);
+                return true;
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao aplicar sugestão:', error);
+        showAlert('danger', `Erro ao aplicar sugestão: ${error.message}`);
+        return false;
+    }
+    
+    return false;
+}
+
+// Função para mostrar resultado da análise com sugestões aplicáveis
+function showAnalysisResult(content) {
+    if (!content) {
+        showAlert('warning', 'Análise concluída, mas nenhum conteúdo foi retornado.');
+        return;
+    }
+    
+    console.log('📝 Exibindo análise:', content.substring(0, 100) + '...');
+    
+    // Parsear sugestões do agente
+    const agentSuggestions = parseSuggestions(content);
+    console.log('📋 Sugestões do agente encontradas:', agentSuggestions);
+    
+    // Buscar TODOS os atributos vazios do formulário e adicionar à lista
+    const allEmptyAttributes = [];
+    const mainContainer = document.getElementById('mainAttributesFields');
+    const secondaryContainer = document.getElementById('secondaryAttributesFields');
+    const containers = [mainContainer, secondaryContainer].filter(c => c);
+    
+    containers.forEach(container => {
+        if (!container) return;
+        
+        const attributeInputs = container.querySelectorAll('input[name^="attr_"], select[name^="attr_"]');
+        attributeInputs.forEach(input => {
+            const name = input.name;
+            
+            // Ignorar campos de mode, type e unit
+            if (name.includes('_mode_') || name.includes('_type_') || name.includes('_unit')) {
+                return;
+            }
+            
+            // Extrair ID do atributo
+            const match = name.match(/^attr_(.+)$/);
+            if (!match) return;
+            
+            const attributeId = match[1];
+            
+            // Verificar se está vazio e não marcado como "não se aplica"
+            const naCheckbox = input.closest('.mb-3')?.querySelector('input[type="checkbox"][id$="_na"]');
+            const isNotApplicable = naCheckbox && naCheckbox.checked;
+            const isDisabled = input.disabled && isNotApplicable;
+            
+            let isEmpty = false;
+            if (input.tagName === 'SELECT') {
+                isEmpty = !input.value || input.value === '' || input.value === 'Selecione...';
+            } else if (input.type === 'checkbox') {
+                isEmpty = false; // Checkbox sempre tem valor (true/false)
+            } else {
+                isEmpty = !input.value || input.value.trim() === '';
+            }
+            
+            // Se está vazio e não se aplica, adicionar à lista
+            if (isEmpty && !isDisabled) {
+                // Verificar se já existe uma sugestão do agente para este atributo
+                const existingSuggestion = agentSuggestions.find(s => 
+                    (s.attributeId === attributeId || s.attributeRealId === attributeId) && s.type === 'attribute'
+                );
+                
+                // Se não tem sugestão do agente, criar uma entrada vazia
+                if (!existingSuggestion) {
+                    const label = input.closest('.mb-3')?.querySelector('label');
+                    const attributeName = label ? label.textContent.trim()
+                        .replace(/\*/g, '')
+                        .replace(/\(obrigatório\)/gi, '')
+                        .trim() : attributeId;
+                    
+                    allEmptyAttributes.push({
+                        field: name,
+                        fieldName: attributeName,
+                        currentValue: 'VAZIO',
+                        suggestedValue: '', // Sem sugestão do agente
+                        type: 'attribute',
+                        attributeId: attributeId,
+                        attributeRealId: attributeId,
+                        section: 'Atributos Vazios',
+                        notFound: false,
+                        element: input,
+                        hasSuggestion: false // Indica que não tem sugestão do agente
+                    });
+                }
+            }
+        });
+    });
+    
+    console.log(`📋 Atributos vazios encontrados no formulário: ${allEmptyAttributes.length}`);
+    
+    // Combinar sugestões do agente com atributos vazios sem sugestão
+    let suggestions = [...agentSuggestions, ...allEmptyAttributes];
+    
+    // Filtrar campos não encontrados - não exibir na tela
+    suggestions = suggestions.filter(s => !s.notFound);
+    
+    console.log(`📋 Total de sugestões (agente + vazios): ${suggestions.length}`);
+    console.log(`📋 Sugestões filtradas (removidas ${agentSuggestions.length + allEmptyAttributes.length - suggestions.length} não encontradas)`);
+    
+    // Criar ou atualizar modal de análise
+    let modal = document.getElementById('analysisResultModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'analysisResultModal';
+        modal.className = 'modal fade';
+        modal.setAttribute('tabindex', '-1');
+        document.body.appendChild(modal);
+    }
+    
+    // Construir HTML do modal
+    let suggestionsHTML = '';
+    if (suggestions.length > 0) {
+        suggestionsHTML = `
+            <div class="mb-4">
+                <h6 class="text-primary mb-3">
+                    <i class="bi bi-lightbulb"></i> Sugestões Aplicáveis (${suggestions.length})
+                </h6>
+                <div class="row g-2">
+        `;
+        
+        suggestions.forEach((suggestion, index) => {
+            // Criar ID único para esta sugestão
+            const suggestionId = `suggestion_${index}_${Date.now()}`;
+            
+            // Armazenar sugestão globalmente para acesso via onclick
+            if (!window.productSuggestions) {
+                window.productSuggestions = {};
+            }
+            window.productSuggestions[suggestionId] = suggestion;
+            
+            const displayValue = suggestion.suggestedValue && suggestion.suggestedValue.length > 0
+                ? (suggestion.suggestedValue.length > 150 
+                    ? suggestion.suggestedValue.substring(0, 150) + '...' 
+                    : suggestion.suggestedValue)
+                : '<em class="text-muted">Sem sugestão do agente - preencha manualmente</em>';
+            
+            const hasSuggestion = suggestion.suggestedValue && suggestion.suggestedValue.length > 0;
+            const cardBorderClass = suggestion.notFound ? 'border-warning' : (hasSuggestion ? 'border-primary' : 'border-secondary');
+            
+            suggestionsHTML += `
+                <div class="col-12">
+                    <div class="card ${cardBorderClass} mb-2">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="card-title mb-1 ${hasSuggestion ? 'text-primary' : 'text-secondary'}">
+                                        ${suggestion.fieldName}
+                                        ${suggestion.notFound ? '<span class="badge bg-warning text-dark ms-2">Campo não encontrado</span>' : ''}
+                                        ${!hasSuggestion ? '<span class="badge bg-secondary ms-2">Sem sugestão</span>' : ''}
+                                    </h6>
+                                    ${suggestion.currentValue && !suggestion.currentValue.toUpperCase().includes('VAZIO') ? `<p class="mb-1 text-muted small"><strong>Atual:</strong> <code>${suggestion.currentValue.substring(0, 80)}${suggestion.currentValue.length > 80 ? '...' : ''}</code></p>` : ''}
+                                    ${hasSuggestion ? `
+                                        <p class="mb-1">
+                                            <strong>Sugestão:</strong> 
+                                            <span class="text-success fw-bold">${displayValue.replace(/\n/g, '<br>')}</span>
+                                        </p>
+                                    ` : `
+                                        <p class="mb-1 text-muted">
+                                            <i class="bi bi-exclamation-circle"></i> Este campo está vazio e precisa ser preenchido.
+                                        </p>
+                                    `}
+                                    ${suggestion.justification ? `<p class="mb-0 text-muted small"><em><i class="bi bi-info-circle"></i> ${suggestion.justification.substring(0, 200)}${suggestion.justification.length > 200 ? '...' : ''}</em></p>` : ''}
+                                </div>
+                                <button 
+                                    class="btn btn-sm ${hasSuggestion ? 'btn-primary' : 'btn-outline-secondary'} ms-2" 
+                                    onclick="applySuggestionFromId('${suggestionId}')"
+                                    title="${hasSuggestion ? 'Aplicar esta sugestão no formulário' : 'Abrir campo para preenchimento manual'}"
+                                    ${suggestion.notFound ? 'disabled' : ''}
+                                >
+                                    <i class="bi bi-check-circle"></i> ${hasSuggestion ? 'Aplicar' : 'Preencher'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        suggestionsHTML += `
+                </div>
+            </div>
+            <hr>
+        `;
+    }
+    
+    // Converter conteúdo para HTML formatado
+    let formattedContent = String(content);
+    
+    // Primeiro, converter <br> e <br/> para quebras de linha
+    formattedContent = formattedContent.replace(/<br\s*\/?>/gi, '\n');
+    
+    // Remover TODAS as tags HTML mas manter o conteúdo
+    formattedContent = formattedContent.replace(/<[^>]+>/g, '');
+    
+    // Decodificar entidades HTML comuns
+    formattedContent = formattedContent
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+    
+    // Formatação básica: **texto** para <strong>texto</strong>
+    formattedContent = formattedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Formatação: *texto* para <em>texto</em>
+    formattedContent = formattedContent.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
+    
+    // Converter quebras de linha múltiplas em parágrafos
+    const paragraphs = formattedContent.split(/\n\s*\n/);
+    formattedContent = paragraphs.map(para => {
+        const trimmed = para.trim();
+        if (!trimmed) return '';
+        const withBreaks = trimmed.replace(/\n/g, '<br>');
+        return '<p style="margin-bottom: 1rem; line-height: 1.7;">' + withBreaks + '</p>';
+    }).filter(p => p).join('');
+    
+    if (!formattedContent.includes('<p>')) {
+        formattedContent = formattedContent.replace(/\n/g, '<br>');
+    }
+    
+    modal.innerHTML = `
+        <div class="modal-dialog modal-dialog-scrollable" style="max-width: 95%; width: 95%;">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #02C47C 0%, #00A86B 100%);">
+                    <h5 class="modal-title"><i class="bi bi-magic"></i> Análise do Cadastro</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+                    ${suggestionsHTML}
+                    <div id="analysisContent" style="
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                        line-height: 1.7;
+                        color: #333;
+                        font-size: 14px;
+                    ">
+                        ${formattedContent}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Fechar
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Mostrar modal usando Bootstrap
+    const bsModal = new bootstrap.Modal(modal, {
+        backdrop: true,
+        keyboard: true
+    });
+    bsModal.show();
+    
+    console.log('✅ Modal de análise exibido com', suggestions.length, 'sugestões aplicáveis');
 }
 </script>
 {% endblock %}

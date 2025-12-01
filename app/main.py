@@ -774,6 +774,89 @@ async def startup_event():
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível criar agente 'Analise produto': {e}")
 
+                # 1.05.1 Criar agente "Analise cadastro produto" se não existir
+                try:
+                    import importlib.util
+                    import os
+                    agent_registration_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_12_01_create_product_registration_analysis_agent.py'
+                    )
+                    # Tentar caminho alternativo
+                    if not os.path.exists(agent_registration_path):
+                        agent_registration_path = os.path.join('/app', 'database', 'fixes', '2025_12_01_create_product_registration_analysis_agent.py')
+                    
+                    if os.path.exists(agent_registration_path):
+                        spec_registration = importlib.util.spec_from_file_location("create_product_registration_analysis_agent", agent_registration_path)
+                        registration_module = importlib.util.module_from_spec(spec_registration)
+                        spec_registration.loader.exec_module(registration_module)
+                        result = registration_module.run(db)
+                        if result.get("success"):
+                            print("✅ [STARTUP] Agente 'Analise cadastro produto' verificado/criado")
+                        else:
+                            print(f"ℹ️ [STARTUP] Agente 'Analise cadastro produto': {result.get('message', 'já existe ou erro')}")
+                    else:
+                        print(f"⚠️ [STARTUP] Script de criação do agente 'Analise cadastro produto' não encontrado em: {agent_registration_path}")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível criar agente 'Analise cadastro produto': {e}")
+                    import traceback
+                    traceback.print_exc()
+
+                # 1.05.2 Atualizar instructions e initial_prompt do agente "Analise cadastro produto"
+                # Este script atualiza tanto instructions quanto initial_prompt com todas as instruções completas
+                try:
+                    import importlib.util
+                    import os
+                    update_instructions_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_12_01_update_product_registration_analysis_agent_instructions.py'
+                    )
+                    # Tentar caminho alternativo
+                    if not os.path.exists(update_instructions_path):
+                        update_instructions_path = os.path.join('/app', 'database', 'fixes', '2025_12_01_update_product_registration_analysis_agent_instructions.py')
+                    
+                    if os.path.exists(update_instructions_path):
+                        spec_update = importlib.util.spec_from_file_location("update_product_registration_analysis_agent_instructions", update_instructions_path)
+                        update_module = importlib.util.module_from_spec(spec_update)
+                        spec_update.loader.exec_module(update_module)
+                        result = update_module.run(db)
+                        if result.get("success"):
+                            print("✅ [STARTUP] Instructions e initial_prompt do agente 'Analise cadastro produto' atualizados")
+                        else:
+                            print(f"⚠️ [STARTUP] Erro ao atualizar agente: {result.get('error', 'Erro desconhecido')}")
+                    else:
+                        print(f"⚠️ [STARTUP] Script de atualização do agente 'Analise cadastro produto' não encontrado em: {update_instructions_path}")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível atualizar instructions do agente 'Analise cadastro produto': {e}")
+                    import traceback
+                    traceback.print_exc()
+
+                # 1.05.3 Atualizar max_tokens do agente "Analise cadastro produto" (se necessário)
+                try:
+                    import importlib.util
+                    import os
+                    update_tokens_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_12_01_update_product_registration_analysis_agent_max_tokens.py'
+                    )
+                    # Tentar caminho alternativo
+                    if not os.path.exists(update_tokens_path):
+                        update_tokens_path = os.path.join('/app', 'database', 'fixes', '2025_12_01_update_product_registration_analysis_agent_max_tokens.py')
+                    
+                    if os.path.exists(update_tokens_path):
+                        spec_tokens = importlib.util.spec_from_file_location("update_product_registration_analysis_agent_max_tokens", update_tokens_path)
+                        tokens_module = importlib.util.module_from_spec(spec_tokens)
+                        spec_tokens.loader.exec_module(tokens_module)
+                        result = tokens_module.run(db)
+                        if result.get("success"):
+                            print("✅ [STARTUP] Max tokens do agente 'Analise cadastro produto' atualizado para 16000")
+                        else:
+                            print(f"ℹ️ [STARTUP] Max tokens: {result.get('message', 'já atualizado ou erro')}")
+                    else:
+                        print(f"⚠️ [STARTUP] Script de atualização de max_tokens não encontrado em: {update_tokens_path}")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível atualizar max_tokens do agente 'Analise cadastro produto': {e}")
+
                 # 1.06 Adicionar instrução de idioma português ao agente
                 try:
                     import importlib.util

@@ -3592,18 +3592,44 @@ class OpenAIAssistantService:
             
             # Verificar resultado
             if run.status == "completed":
-                # Buscar mensagens da thread
-                messages = self.client.beta.threads.messages.list(thread_id=openai_thread_id)
+                # Buscar mensagens da thread (ordenadas por mais recente primeiro)
+                messages = self.client.beta.threads.messages.list(thread_id=openai_thread_id, order="desc")
                 response_text = ""
                 
+                # Buscar a mensagem mais recente do assistente
                 for msg in messages.data:
                     if msg.role == "assistant" and msg.content:
                         if isinstance(msg.content, list):
+                            # Concatenar todo o conteúdo da mensagem (pode ter múltiplos blocos)
+                            text_parts = []
                             for content in msg.content:
-                                if hasattr(content, 'text'):
-                                    response_text = content.text.value
-                                    break
-                        break
+                                if hasattr(content, 'text') and hasattr(content.text, 'value'):
+                                    text_parts.append(content.text.value)
+                            if text_parts:
+                                response_text = "\n".join(text_parts)
+                                break
+                        elif hasattr(msg, 'content') and isinstance(msg.content, str):
+                            response_text = msg.content
+                            break
+                
+                # Log para debug
+                logger.info(f"📝 Resposta extraída (tamanho: {len(response_text)} caracteres)")
+                if response_text:
+                    logger.info(f"📝 Preview da resposta: {response_text[:200]}...")
+                else:
+                    logger.warning("⚠️ Resposta vazia! Verificando mensagens...")
+                    for i, msg in enumerate(messages.data[:5]):  # Primeiras 5 mensagens
+                        logger.info(f"   Mensagem {i}: role={msg.role}, content_type={type(msg.content)}")
+                        if hasattr(msg, 'content'):
+                            if isinstance(msg.content, list):
+                                logger.info(f"   Content é lista com {len(msg.content)} itens")
+                                for j, content_item in enumerate(msg.content):
+                                    logger.info(f"      Item {j}: type={type(content_item)}, attrs={dir(content_item)}")
+                                    if hasattr(content_item, 'text'):
+                                        logger.info(f"         text.value={getattr(content_item.text, 'value', 'N/A')[:200]}")
+                            else:
+                                content_str = str(msg.content)[:500] if msg.content else "None"
+                                logger.info(f"   Content preview: {content_str}")
                 
                 # Salvar resposta no banco
                 assistant_message = OpenAIAssistantMessage(
@@ -3813,18 +3839,35 @@ class OpenAIAssistantService:
             
             # Verificar resultado
             if run.status == "completed":
-                # Buscar mensagens da thread
-                messages = self.client.beta.threads.messages.list(thread_id=openai_thread_id)
+                # Buscar mensagens da thread (ordenadas por mais recente primeiro)
+                messages = self.client.beta.threads.messages.list(thread_id=openai_thread_id, order="desc")
                 response_text = ""
                 
+                # Buscar a mensagem mais recente do assistente
                 for msg in messages.data:
                     if msg.role == "assistant" and msg.content:
                         if isinstance(msg.content, list):
+                            # Concatenar todo o conteúdo da mensagem (pode ter múltiplos blocos)
+                            text_parts = []
                             for content in msg.content:
-                                if hasattr(content, 'text'):
-                                    response_text = content.text.value
-                                    break
-                        break
+                                if hasattr(content, 'text') and hasattr(content.text, 'value'):
+                                    text_parts.append(content.text.value)
+                            if text_parts:
+                                response_text = "\n".join(text_parts)
+                                break
+                        elif hasattr(msg, 'content') and isinstance(msg.content, str):
+                            response_text = msg.content
+                            break
+                
+                # Log para debug
+                logger.info(f"📝 Resposta extraída (tamanho: {len(response_text)} caracteres)")
+                if not response_text:
+                    logger.warning("⚠️ Resposta vazia no modo report! Verificando mensagens...")
+                    for i, msg in enumerate(messages.data[:5]):  # Primeiras 5 mensagens
+                        logger.info(f"   Mensagem {i}: role={msg.role}, content_type={type(msg.content)}")
+                        if hasattr(msg, 'content'):
+                            content_str = str(msg.content)[:500] if msg.content else "None"
+                            logger.info(f"   Content preview: {content_str}")
                 
                 # Obter uso de tokens
                 usage_info = None

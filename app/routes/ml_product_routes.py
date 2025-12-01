@@ -17,6 +17,8 @@ from app.controllers.ml_product_controller import MLProductController
 from app.controllers.auth_controller import AuthController
 from app.models.saas_models import MLProduct, CatalogParticipant
 from app.config.settings import settings
+import os
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -2431,8 +2433,12 @@ async def edit_ml_product_page(
     db: Session = Depends(get_db),
     user = Depends(get_current_user_or_redirect)
 ):
+    # Verificar se user é um RedirectResponse (redirecionamento)
+    from fastapi.responses import RedirectResponse
+    if isinstance(user, RedirectResponse):
+        return user
+    
     # A função get_current_user_or_redirect já faz o redirecionamento se necessário
-
     controller = MLProductController(db)
     return controller.get_product_edit_page(request, user, product_id)
 
@@ -2615,4 +2621,350 @@ async def update_ml_product(
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": f"Erro interno: {exc}"}
+        )
+
+
+@ml_product_router.post("/analyze-registration")
+async def analyze_product_registration(
+    request: Request,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Analisa cadastro de produto usando agente IA"""
+    try:
+        from app.services.agent_executor_service import AgentExecutorService
+        from app.models.saas_models import OpenAIAssistant
+        import re
+        
+        data = await request.json()
+        product_data = data.get("product_data", {})
+        
+        if not product_data:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Dados do produto não fornecidos"}
+            )
+        
+        # Buscar agente "Analise cadastro produto"
+        agent = db.query(OpenAIAssistant).filter(
+            OpenAIAssistant.name.ilike("%analise%cadastro%produto%"),
+            OpenAIAssistant.is_active == True
+        ).first()
+        
+        if not agent:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Agente 'Analise cadastro produto' não encontrado. Execute o script de criação do agente."}
+            )
+        
+        # Preparar mensagem usando initial_prompt do agente + dados do produto
+        # MANTER ESTRUTURA DINÂMICA - não reorganizar os dados, apenas formatar melhor o prompt
+        message = ""
+        
+        # Se o agente tem initial_prompt, usar como base
+        if agent.initial_prompt:
+            # Remover tags HTML se houver (do editor rich text)
+            initial_prompt_clean = re.sub(r'<[^>]+>', '', agent.initial_prompt).strip()
+            
+            # Substituir variáveis conhecidas
+            user_name = user.get('first_name', '') or user.get('email', 'Usuário')
+            initial_prompt_clean = initial_prompt_clean.replace('[[USUARIO]]', user_name)
+            
+            message = initial_prompt_clean
+        else:
+            # Se não tem initial_prompt, usar mensagem padrão
+            message = "Analise o seguinte cadastro de produto do Mercado Livre e forneça recomendações de otimização."
+        
+        # Contar atributos para informação
+        attributes_list = product_data.get("attributes", [])
+        attributes_count = len(attributes_list)
+        
+        # Contar atributos vazios e não preenchidos
+        empty_attributes = [attr for attr in attributes_list if attr.get('is_empty') or (not attr.get('value') and not attr.get('value_name') and not attr.get('is_not_applicable'))]
+        empty_count = len(empty_attributes)
+        filled_count = attributes_count - empty_count
+        
+        # Listar atributos vazios para destaque
+        empty_attributes_list = ""
+        if empty_attributes:
+            empty_attributes_list = "\n\n⚠️ LISTA DE ATRIBUTOS VAZIOS QUE PRECISAM SER PREENCHIDOS:\n"
+            for idx, attr in enumerate(empty_attributes[:20], 1):  # Limitar a 20 para não ficar muito longo
+                attr_name = attr.get('name', f"Atributo {attr.get('id', 'N/A')}")
+                attr_id = attr.get('id', 'N/A')
+                empty_attributes_list += f"  {idx}. {attr_name} (ID: {attr_id}) - ATUALMENTE VAZIO\n"
+            if len(empty_attributes) > 20:
+                empty_attributes_list += f"  ... e mais {len(empty_attributes) - 20} atributos vazios\n"
+            empty_attributes_list += "\n🔴 AÇÃO OBRIGATÓRIA: Para cada atributo vazio acima, você DEVE sugerir um valor apropriado!\n"
+        
+        # Adicionar dados do produto mantendo estrutura dinâmica original
+        # Formatar JSON de forma legível mas preservando toda a estrutura dinâmica
+        product_data_json = json.dumps(product_data, indent=2, ensure_ascii=False)
+        
+        # Preparar seção de dados do produto (as instruções completas já estão no campo 'instructions' do agente no banco)
+        data_section = f"""
+═══════════════════════════════════════════════════════════════
+DADOS COMPLETOS DO PRODUTO PARA ANÁLISE
+═══════════════════════════════════════════════════════════════
+
+CATEGORIA: {product_data.get('category_name', 'N/A')} (ID: {product_data.get('category_id', 'N/A')})
+TOTAL DE ATRIBUTOS DINÂMICOS: {attributes_count}
+  - Atributos PREENCHIDOS: {filled_count}
+  - Atributos VAZIOS/NÃO PREENCHIDOS: {empty_count} ⚠️ CRÍTICO: Estes PRECISAM ser preenchidos!
+{empty_attributes_list}
+═══════════════════════════════════════════════════════════════
+DADOS COMPLETOS DO PRODUTO (JSON):
+═══════════════════════════════════════════════════════════════
+
+{product_data_json}
+"""
+        
+        # Estimar tokens (aproximadamente 1 token = 4 caracteres em português)
+        # max_tokens do agente é para a RESPOSTA, não para o prompt
+        # O prompt pode ser grande, mas vamos limitar para evitar problemas
+        # Vamos usar 80% do contexto do modelo (gpt-5-nano tem ~128k tokens de contexto)
+        # Mas para segurança, vamos limitar o prompt a ~100k caracteres (~25k tokens)
+        agent_max_tokens = agent.max_tokens if agent.max_tokens else 16000
+        max_prompt_chars = 100000  # ~25k tokens
+        estimated_tokens = len(message + data_section) // 4
+        
+        logger.info(f"📊 Estimativa de tokens: {estimated_tokens} (limite de caracteres: {max_prompt_chars})")
+        logger.info(f"📊 Max tokens do agente (resposta): {agent_max_tokens}")
+        logger.info(f"ℹ️ Instruções completas estão no campo 'instructions' do agente no banco de dados")
+        
+        prompt_size = len(message + data_section)
+        if prompt_size > max_prompt_chars:
+            # Truncar dados do produto se necessário, mantendo informações essenciais
+            logger.warning(f"⚠️ Prompt muito grande ({estimated_tokens} tokens). Truncando dados do produto...")
+            
+            # Manter informações essenciais e resumir atributos
+            essential_data = {
+                "title": product_data.get("title", ""),
+                "category_id": product_data.get("category_id", ""),
+                "category_name": product_data.get("category_name", ""),
+                "price": product_data.get("price", ""),
+                "description": product_data.get("description", "")[:500] + "..." if len(product_data.get("description", "")) > 500 else product_data.get("description", ""),
+                "condition": product_data.get("condition", ""),
+                "available_quantity": product_data.get("available_quantity", 0),
+                "gtin": product_data.get("gtin", ""),
+                "mpn": product_data.get("mpn", ""),
+                "seller_custom_field": product_data.get("seller_custom_field", ""),
+                "attributes": []
+            }
+            
+            # Incluir apenas atributos principais (primeiros 20)
+            attributes_list = product_data.get("attributes", [])[:20]
+            essential_data["attributes"] = attributes_list
+            essential_data["attributes_total"] = len(product_data.get("attributes", []))
+            essential_data["attributes_included"] = len(attributes_list)
+            
+            product_data_json = json.dumps(essential_data, indent=2, ensure_ascii=False)
+            data_section = f"""
+═══════════════════════════════════════════════════════════════
+DADOS DO PRODUTO PARA ANÁLISE (RESUMIDO)
+═══════════════════════════════════════════════════════════════
+
+CATEGORIA: {product_data.get('category_name', 'N/A')} (ID: {product_data.get('category_id', 'N/A')})
+TOTAL DE ATRIBUTOS: {len(product_data.get('attributes', []))} (mostrando primeiros {len(attributes_list)})
+
+{product_data_json}
+
+NOTA: Alguns dados foram resumidos devido ao limite de tokens. Foque na análise dos atributos fornecidos.
+"""
+            
+            # Recalcular estimativa
+            estimated_tokens = len(message + data_section) // 4
+            logger.info(f"📊 Nova estimativa após truncamento: {estimated_tokens} tokens (~{len(message + data_section)} caracteres)")
+        
+        # Montar mensagem final: initial_prompt do banco + dados do produto
+        # As instruções completas já estão no campo 'instructions' do agente e serão usadas pela Assistants API
+        message += data_section
+        final_prompt_size = len(message)
+        final_estimated_tokens = final_prompt_size // 4
+        
+        # Log do prompt completo que será enviado
+        logger.info(f"📝 Prompt completo enviado ao agente (ID: {agent.id}, Nome: {agent.name})")
+        logger.info(f"📊 Tamanho final: {final_prompt_size} caracteres, ~{final_estimated_tokens} tokens estimados")
+        logger.info(f"📊 Max tokens do agente (para resposta): {agent_max_tokens}")
+        print(f"\n{'='*80}")
+        print(f"📝 PROMPT ENVIADO AO AGENTE '{agent.name}' (ID: {agent.id})")
+        print(f"{'='*80}")
+        print(f"Tamanho: {final_prompt_size} caracteres")
+        print(f"Tokens estimados (prompt): ~{final_estimated_tokens}")
+        print(f"Max tokens do agente (resposta): {agent_max_tokens}")
+        print(f"{'='*80}")
+        print(message[:2000] + "\n... [truncado para exibição] ..." if len(message) > 2000 else message)
+        print(f"{'='*80}\n")
+        
+        # Usar a classe padrão AgentExecutorService
+        executor = AgentExecutorService(db)
+        result = executor.execute(
+            agent_id=agent.id,
+            user=user,
+            message=message,
+            context_data={
+                "product_data": product_data,
+                "category_id": product_data.get("category_id"),
+                "category_name": product_data.get("category_name")
+            }
+        )
+        
+        return JSONResponse(status_code=200, content=result)
+        
+    except Exception as e:
+        logger.error(f"Erro ao analisar cadastro: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@ml_product_router.post("/analyze-registration-direct")
+async def analyze_product_registration_direct(
+    request: Request,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    TESTE: Analisa cadastro de produto enviando DIRETAMENTE para OpenAI (sem passar pelo sistema de agentes)
+    Use este endpoint para verificar se o problema está na nossa implementação ou na API da OpenAI
+    """
+    try:
+        import json
+        import re
+        
+        data = await request.json()
+        product_data = data.get("product_data", {})
+        
+        if not product_data:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Dados do produto não fornecidos"}
+            )
+        
+        # Buscar agente para pegar o initial_prompt e instructions
+        from app.models.saas_models import OpenAIAssistant
+        agent = db.query(OpenAIAssistant).filter(
+            OpenAIAssistant.name.ilike("%analise%cadastro%produto%"),
+            OpenAIAssistant.is_active == True
+        ).first()
+        
+        # Preparar mensagem
+        message = ""
+        if agent and agent.initial_prompt:
+            initial_prompt_clean = re.sub(r'<[^>]+>', '', agent.initial_prompt).strip()
+            user_name = user.get('first_name', '') or user.get('email', 'Usuário')
+            initial_prompt_clean = initial_prompt_clean.replace('[[USUARIO]]', user_name)
+            message = initial_prompt_clean
+        else:
+            message = "Analise o seguinte cadastro de produto do Mercado Livre e forneça recomendações de otimização."
+        
+        # Adicionar dados do produto
+        product_data_json = json.dumps(product_data, indent=2, ensure_ascii=False)
+        message += f"""
+
+DADOS DO PRODUTO PARA ANÁLISE:
+{product_data_json}
+
+Considere todos os campos acima, incluindo atributos específicos da categoria, variações (se houver) e todas as informações do cadastro."""
+        
+        # Preparar instructions do agente
+        instructions = ""
+        if agent and agent.instructions:
+            instructions = re.sub(r'<[^>]+>', '', agent.instructions).strip()
+        else:
+            instructions = """Você é um especialista em otimização de cadastros de produtos no Mercado Livre.
+Analise o cadastro completo de um produto e forneça recomendações específicas para otimização."""
+        
+        # Log do que será enviado
+        logger.info(f"🧪 TESTE DIRETO - Enviando para OpenAI:")
+        logger.info(f"   Modelo: gpt-4o (Chat Completions)")
+        logger.info(f"   Instructions: {instructions[:200]}...")
+        logger.info(f"   Message: {message[:500]}...")
+        print(f"\n{'='*80}")
+        print(f"🧪 TESTE DIRETO - ENVIANDO PARA OPENAI (Chat Completions)")
+        print(f"{'='*80}")
+        print(f"Modelo: gpt-4o")
+        print(f"\nInstructions:")
+        print(instructions)
+        print(f"\nMessage:")
+        print(message)
+        print(f"{'='*80}\n")
+        
+        # Inicializar cliente OpenAI diretamente
+        api_key = os.getenv("OPENAI_API_KEY", "")
+        if not api_key:
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": "OPENAI_API_KEY não configurada"}
+            )
+        
+        client = OpenAI(api_key=api_key)
+        
+        # Chamar OpenAI diretamente usando Chat Completions
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": instructions
+                },
+                {
+                    "role": "user",
+                    "content": message
+                }
+            ],
+            temperature=0.7,
+            max_tokens=4000
+        )
+        
+        # Extrair resposta
+        content = response.choices[0].message.content
+        usage = response.usage
+        
+        # Log da resposta completa
+        logger.info(f"✅ TESTE DIRETO - Resposta recebida da OpenAI:")
+        logger.info(f"   Conteúdo completo: {content}")
+        logger.info(f"   Tokens: {usage.prompt_tokens} input + {usage.completion_tokens} output = {usage.total_tokens} total")
+        print(f"\n{'='*80}")
+        print(f"✅ TESTE DIRETO - RESPOSTA COMPLETA DA OPENAI")
+        print(f"{'='*80}")
+        print(f"Tokens usados: {usage.prompt_tokens} input + {usage.completion_tokens} output = {usage.total_tokens} total")
+        print(f"\nConteúdo completo:")
+        print(content)
+        print(f"{'='*80}\n")
+        
+        return JSONResponse(status_code=200, content={
+            "success": True,
+            "content": content,
+            "raw_response": {
+                "model": response.model,
+                "choices": [{"message": {"role": "assistant", "content": content}}],
+                "usage": {
+                    "prompt_tokens": usage.prompt_tokens,
+                    "completion_tokens": usage.completion_tokens,
+                    "total_tokens": usage.total_tokens
+                }
+            },
+            "usage": {
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens
+            },
+            "test_mode": True,
+            "note": "Esta é uma chamada direta à OpenAI (Chat Completions) para teste"
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro no teste direto: {e}", exc_info=True)
+        import traceback
+        print(f"\n{'='*80}")
+        print(f"❌ ERRO NO TESTE DIRETO")
+        print(f"{'='*80}")
+        print(f"Erro: {str(e)}")
+        print(f"\nTraceback completo:")
+        print(traceback.format_exc())
+        print(f"{'='*80}\n")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e), "traceback": traceback.format_exc()}
         )
