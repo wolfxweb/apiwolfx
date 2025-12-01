@@ -3471,19 +3471,38 @@ function parseSuggestions(content) {
                         attrMapping = mapAttributeNameToId(attrName, attrId);
                     }
                     
+                    // Se ainda não encontrou, tentar buscar globalmente no documento
+                    if (!attrMapping) {
+                        const globalInput = document.querySelector(`input[name="attr_${attrId}"], select[name="attr_${attrId}"]`);
+                        if (globalInput) {
+                            const label = globalInput.closest('.mb-3')?.querySelector('label');
+                            attrMapping = {
+                                attributeId: attrId,
+                                fieldName: `attr_${attrId}`,
+                                element: globalInput,
+                                label: label ? label.textContent.trim() : attrId
+                            };
+                        }
+                    }
+                    
                     const fieldName = attrMapping ? attrMapping.fieldName : `attr_${attrId}`;
                     const realAttributeId = attrMapping ? attrMapping.attributeId : attrId;
+                    const fieldLabel = attrMapping?.label || attrId;
+                    
+                    // Só marcar como notFound se realmente não encontrou o campo no DOM
+                    const isFound = !!attrMapping && !!attrMapping.element;
                     
                     suggestions.push({
                         field: fieldName,
-                        fieldName: attrMapping?.label || attrId,
+                        fieldName: fieldLabel,
                         currentValue: 'VAZIO',
                         suggestedValue: suggestedVal,
                         type: 'attribute',
                         attributeId: realAttributeId,
                         attributeRealId: realAttributeId,
                         section: 'Atributos Vazios',
-                        notFound: !attrMapping
+                        notFound: !isFound,
+                        element: attrMapping?.element || null
                     });
                 }
             }
@@ -3935,11 +3954,77 @@ function showAnalysisResult(content) {
     // Combinar sugestões do agente com atributos vazios sem sugestão
     let suggestions = [...agentSuggestions, ...allEmptyAttributes];
     
-    // Filtrar campos não encontrados - não exibir na tela
-    suggestions = suggestions.filter(s => !s.notFound);
+    // Verificar novamente se os campos existem antes de filtrar
+    // Isso garante que atributos dinâmicos sejam encontrados mesmo se não foram encontrados no parsing inicial
+    suggestions = suggestions.map(suggestion => {
+        // Se já tem elemento, está OK
+        if (suggestion.element) {
+            return { ...suggestion, notFound: false };
+        }
+        
+        // Se é atributo dinâmico, tentar encontrar novamente
+        if (suggestion.type === 'attribute' && (suggestion.attributeId || suggestion.attributeRealId)) {
+            const attrId = suggestion.attributeRealId || suggestion.attributeId;
+            const mainContainer = document.getElementById('mainAttributesFields');
+            const secondaryContainer = document.getElementById('secondaryAttributesFields');
+            const containers = [mainContainer, secondaryContainer].filter(c => c);
+            
+            for (const container of containers) {
+                if (!container) continue;
+                const input = container.querySelector(`input[name="attr_${attrId}"], select[name="attr_${attrId}"]`);
+                if (input) {
+                    const label = input.closest('.mb-3')?.querySelector('label');
+                    return {
+                        ...suggestion,
+                        element: input,
+                        field: `attr_${attrId}`,
+                        fieldName: label ? label.textContent.trim() : suggestion.fieldName,
+                        notFound: false
+                    };
+                }
+            }
+            
+            // Tentar buscar globalmente
+            const globalInput = document.querySelector(`input[name="attr_${attrId}"], select[name="attr_${attrId}"]`);
+            if (globalInput) {
+                const label = globalInput.closest('.mb-3')?.querySelector('label');
+                return {
+                    ...suggestion,
+                    element: globalInput,
+                    field: `attr_${attrId}`,
+                    fieldName: label ? label.textContent.trim() : suggestion.fieldName,
+                    notFound: false
+                };
+            }
+        }
+        
+        // Se é campo fixo (text, textarea, number), verificar se existe
+        if (suggestion.type === 'text' || suggestion.type === 'textarea' || suggestion.type === 'number') {
+            const field = document.getElementById(suggestion.field) || document.querySelector(`[name="${suggestion.field}"]`);
+            if (field) {
+                return { ...suggestion, element: field, notFound: false };
+            }
+        }
+        
+        // Se chegou aqui e está marcado como notFound, manter
+        return suggestion;
+    });
+    
+    // Filtrar campos não encontrados e campos que não devem ser exibidos
+    suggestions = suggestions.filter(s => {
+        // Não exibir campos não encontrados
+        if (s.notFound) return false;
+        
+        // Não exibir MPN (campo não disponível no formulário)
+        if (s.field === 'mpn' || s.fieldName === 'MPN' || s.fieldName === 'MPN (Código do Fabricante)') {
+            return false;
+        }
+        
+        return true;
+    });
     
     console.log(`📋 Total de sugestões (agente + vazios): ${suggestions.length}`);
-    console.log(`📋 Sugestões filtradas (removidas ${agentSuggestions.length + allEmptyAttributes.length - suggestions.length} não encontradas)`);
+    console.log(`📋 Sugestões após verificação e filtro: ${suggestions.length}`);
     
     // Criar ou atualizar modal de análise
     let modal = document.getElementById('analysisResultModal');
