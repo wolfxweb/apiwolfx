@@ -474,10 +474,47 @@
                     <small class="text-muted d-block mb-2">
                         <i class="bi bi-info-circle"></i> Preview de como a descrição será exibida no Mercado Livre:
                     </small>
-                    <div id="descriptionPreviewContent" style="min-height: 100px;">
+                    <div id="descriptionPreviewContent" style="min-height: 100px; font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                         <p class="text-muted">Digite ou gere uma descrição para ver o preview...</p>
                     </div>
                 </div>
+                <style>
+                    /* Estilos para o preview da descrição */
+                    #descriptionPreviewContent h1,
+                    #descriptionPreviewContent h2,
+                    #descriptionPreviewContent h3,
+                    #descriptionPreviewContent h4,
+                    #descriptionPreviewContent h5,
+                    #descriptionPreviewContent h6 {
+                        margin-top: 1.5em;
+                        margin-bottom: 0.5em;
+                        font-weight: bold;
+                        color: #000;
+                    }
+                    #descriptionPreviewContent h1 { font-size: 1.8em; }
+                    #descriptionPreviewContent h2 { font-size: 1.5em; }
+                    #descriptionPreviewContent h3 { font-size: 1.3em; }
+                    #descriptionPreviewContent p {
+                        margin-bottom: 1em;
+                        line-height: 1.6;
+                    }
+                    #descriptionPreviewContent ul,
+                    #descriptionPreviewContent ol {
+                        margin-left: 1.5em;
+                        margin-bottom: 1em;
+                    }
+                    #descriptionPreviewContent li {
+                        margin-bottom: 0.5em;
+                    }
+                    #descriptionPreviewContent strong,
+                    #descriptionPreviewContent b {
+                        font-weight: bold;
+                    }
+                    #descriptionPreviewContent em,
+                    #descriptionPreviewContent i {
+                        font-style: italic;
+                    }
+                </style>
             </div>
             
             <!-- SKU e Garantia -->
@@ -3145,15 +3182,22 @@ async function generateProductDescription() {
                 
                 // Manter o HTML original - o Mercado Livre renderiza HTML corretamente
                 descriptionField.value = descriptionHtml;
+                
+                // Log para debug - verificar se há HTML
+                console.log('📝 HTML gerado (primeiros 500 chars):', descriptionHtml.substring(0, 500));
+                console.log('🔍 Contém tags HTML?', /<[^>]+>/.test(descriptionHtml));
+                
                 descriptionField.dispatchEvent(new Event('input', { bubbles: true }));
                 descriptionField.dispatchEvent(new Event('change', { bubbles: true }));
                 
                 // Atualizar e exibir preview automaticamente
-                updateDescriptionPreview();
-                const preview = document.getElementById('descriptionPreview');
-                if (preview) {
-                    preview.style.display = 'block';
-                }
+                setTimeout(() => {
+                    updateDescriptionPreview();
+                    const preview = document.getElementById('descriptionPreview');
+                    if (preview) {
+                        preview.style.display = 'block';
+                    }
+                }, 100);
                 
                 // Focar no campo e rolar até ele
                 descriptionField.focus();
@@ -3211,8 +3255,34 @@ function updateDescriptionPreview() {
     const htmlContent = descriptionField.value.trim();
     
     if (htmlContent) {
-        // Renderizar o HTML no preview
-        previewContent.innerHTML = htmlContent;
+        // Verificar se o conteúdo tem HTML ou é texto puro
+        const hasHtml = /<[^>]+>/.test(htmlContent);
+        console.log('🔍 Preview - Contém HTML?', hasHtml);
+        console.log('📝 Preview - Primeiros 200 chars:', htmlContent.substring(0, 200));
+        
+        if (hasHtml) {
+            // Renderizar o HTML no preview
+            previewContent.innerHTML = htmlContent;
+        } else {
+            // Se não tem HTML, converter quebras de linha para <br> e parágrafos
+            let formattedText = htmlContent
+                .replace(/\n\n+/g, '</p><p>')  // Duplas quebras = novo parágrafo
+                .replace(/\n/g, '<br>');      // Quebras simples = <br>
+            
+            // Adicionar tags de parágrafo no início e fim
+            if (!formattedText.startsWith('<p>')) {
+                formattedText = '<p>' + formattedText;
+            }
+            if (!formattedText.endsWith('</p>')) {
+                formattedText = formattedText + '</p>';
+            }
+            
+            // Converter listas com traços para <ul><li>
+            formattedText = formattedText.replace(/^- (.+)$/gm, '<li>$1</li>');
+            formattedText = formattedText.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+            
+            previewContent.innerHTML = formattedText;
+        }
     } else {
         previewContent.innerHTML = '<p class="text-muted">Digite ou gere uma descrição para ver o preview...</p>';
     }
