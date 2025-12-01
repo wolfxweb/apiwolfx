@@ -493,6 +493,19 @@ async def startup_event():
                         module.create_openai_assistants_tables()
                         print("✅ [STARTUP] Tabelas OpenAI Assistants verificadas/criadas")
                     
+                    # Adicionar suporte a múltiplos providers
+                    provider_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                                'database', 'fixes', 'add_provider_support_to_agents.py')
+                    if os.path.exists(provider_script_path):
+                        provider_spec = importlib.util.spec_from_file_location("add_provider_support_to_agents", provider_script_path)
+                        provider_module = importlib.util.module_from_spec(provider_spec)
+                        provider_spec.loader.exec_module(provider_module)
+                        result = provider_module.add_provider_support()
+                        if result.get("success"):
+                            print("✅ [STARTUP] Suporte a múltiplos providers adicionado")
+                        else:
+                            print(f"ℹ️ [STARTUP] Providers: {result.get('message', 'já configurado ou erro')}")
+                    
                     # Criar tabelas de suporte
                     support_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                                             'database', 'fixes', 'create_support_tickets_tables.py')

@@ -1,6 +1,7 @@
 """
 Serviço centralizado para execução de agentes IA
 Permite executar qualquer agente cadastrado no banco de dados em qualquer ponto do sistema
+Suporta múltiplos providers: OpenAI, Perplexity, Anthropic, Google
 """
 import logging
 from typing import Dict, Optional, Any, Tuple
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.controllers.openai_assistant_controller import OpenAIAssistantController
 from app.models.saas_models import OpenAIAssistant, InteractionMode
+from app.services.ai_provider_factory import AIProviderFactory
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +212,18 @@ class AgentExecutorService:
                 'error': f'Erro ao executar agente: {str(e)}'
             }
     
+    def _get_provider_service(self, agent: OpenAIAssistant):
+        """
+        Obtém o serviço apropriado baseado no provider do agente
+        
+        Args:
+            agent: Instância de OpenAIAssistant
+        
+        Returns:
+            Instância do serviço apropriado
+        """
+        return AIProviderFactory.get_service_from_agent(agent, self.db)
+    
     def _execute_chat(
         self,
         agent_id: int,
@@ -222,15 +236,66 @@ class AgentExecutorService:
     ) -> Dict[str, Any]:
         """Executa agente em modo chat"""
         try:
-            result = self.controller.use_assistant_chat(
-                assistant_id=agent_id,
-                company_id=company_id,
-                user_id=user_id,
-                message=message,
-                thread_id=thread_id,
-                context_data=context_data,
-                use_case=use_case
-            )
+            # Buscar agente novamente para ter acesso ao provider
+            agent = self._get_agent(agent_id)
+            if not agent:
+                return {
+                    'success': False,
+                    'error': f'Agente ID {agent_id} não encontrado ou inativo'
+                }
+            
+            # Verificar provider
+            provider = getattr(agent, 'provider', 'openai') or 'openai'
+            
+            # Se for OpenAI, usar o controller existente
+            if provider == 'openai':
+                result = self.controller.use_assistant_chat(
+                    assistant_id=agent_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    message=message,
+                    thread_id=thread_id,
+                    context_data=context_data,
+                    use_case=use_case
+                )
+            else:
+                # Para outros providers, usar o serviço diretamente
+                provider_service = self._get_provider_service(agent)
+                
+                # Preparar prompt com initial_prompt se disponível
+                final_prompt = message
+                if agent.initial_prompt:
+                    initial_prompt_clean = agent.initial_prompt
+                    # Substituir tags dinâmicas
+                    if '[[USUARIO]]' in initial_prompt_clean:
+                        # Tentar obter nome do usuário do contexto
+                        user_name = context_data.get('user_name', 'Usuário') if context_data else 'Usuário'
+                        initial_prompt_clean = initial_prompt_clean.replace('[[USUARIO]]', user_name)
+                    final_prompt = f"{initial_prompt_clean}\n\n{message}"
+                
+                # Chamar o serviço do provider
+                result = provider_service.generate_text(
+                    prompt=final_prompt,
+                    model=agent.model,
+                    temperature=float(agent.temperature) if agent.temperature else None,
+                    max_tokens=agent.max_tokens,
+                    instructions=agent.instructions,
+                    context_data=context_data
+                )
+                
+                # Formatar resultado no formato esperado
+                if result.get('success'):
+                    result = {
+                        'success': True,
+                        'response': result.get('content', ''),
+                        'usage': result.get('usage', {}),
+                        'thread_id': thread_id  # Manter thread_id se fornecido
+                    }
+                else:
+                    result = {
+                        'success': False,
+                        'error': result.get('error', 'Erro desconhecido')
+                    }
             
             if result.get('success'):
                 # O 'response' pode ser uma string diretamente ou um dict
@@ -302,14 +367,72 @@ class AgentExecutorService:
     ) -> Dict[str, Any]:
         """Executa agente em modo report"""
         try:
-            result = self.controller.use_assistant_report(
-                assistant_id=agent_id,
-                company_id=company_id,
-                user_id=user_id,
-                prompt=prompt,
-                context_data=context_data,
-                use_case=use_case
-            )
+            # Buscar agente novamente para ter acesso ao provider
+            agent = self._get_agent(agent_id)
+            if not agent:
+                return {
+                    'success': False,
+                    'error': f'Agente ID {agent_id} não encontrado ou inativo'
+                }
+            
+            # Verificar provider
+            provider = getattr(agent, 'provider', 'openai') or 'openai'
+            
+            # Se for OpenAI, usar o controller existente
+            if provider == 'openai':
+                result = self.controller.use_assistant_report(
+                    assistant_id=agent_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    prompt=prompt,
+                    context_data=context_data,
+                    use_case=use_case
+                )
+            else:
+                # Para outros providers, usar o serviço diretamente
+                provider_service = self._get_provider_service(agent)
+                
+                # Preparar prompt com initial_prompt se disponível
+                final_prompt = prompt
+                if agent.initial_prompt:
+                    initial_prompt_clean = agent.initial_prompt
+                    # Substituir tags dinâmicas
+                    if '[[USUARIO]]' in initial_prompt_clean:
+                        # Tentar obter nome do usuário do contexto
+                        user_name = context_data.get('user_name', 'Usuário') if context_data else 'Usuário'
+                        initial_prompt_clean = initial_prompt_clean.replace('[[USUARIO]]', user_name)
+                    final_prompt = f"{initial_prompt_clean}\n\n{prompt}"
+                
+                # Verificar se é pesquisa (Perplexity) ou geração de texto
+                if provider == 'perplexity':
+                    # Perplexity é especializado em pesquisa
+                    result = provider_service.search_research(
+                        query=final_prompt,
+                        model=agent.model
+                    )
+                else:
+                    # Outros providers usam generate_text
+                    result = provider_service.generate_text(
+                        prompt=final_prompt,
+                        model=agent.model,
+                        temperature=float(agent.temperature) if agent.temperature else None,
+                        max_tokens=agent.max_tokens,
+                        instructions=agent.instructions,
+                        context_data=context_data
+                    )
+                
+                # Formatar resultado no formato esperado
+                if result.get('success'):
+                    result = {
+                        'success': True,
+                        'response': result.get('content', ''),
+                        'usage': result.get('usage', {})
+                    }
+                else:
+                    result = {
+                        'success': False,
+                        'error': result.get('error', 'Erro desconhecido')
+                    }
             
             if result.get('success'):
                 response_data = result.get('response', '')
@@ -325,11 +448,14 @@ class AgentExecutorService:
                     content = str(response_data) if response_data else ''
                     raw_response = {'content': content}
                 
+                # Registrar uso se disponível
+                usage = result.get('usage', {})
+                
                 return {
                     'success': True,
                     'content': content,
                     'raw_response': raw_response,
-                    'usage': result.get('usage', {})
+                    'usage': usage
                 }
             else:
                 return {

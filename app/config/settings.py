@@ -142,6 +142,16 @@ class Settings:
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogInNlcnZpY2Vfcm9sZSIsCiAgImlzcyI6ICJzdXBhYmFzZSIsCiAgImlhdCI6IDE3MTUwNTA4MDAsCiAgImV4cCI6IDE4NzI4MTcyMDAKfQ.JkkevDN7zY6HpQ54lc9iETFihaZ5F1-aXhE46byNQ64"
         )
         self.supabase_bucket = os.getenv("SUPABASE_BUCKET", "ml-product-images")
+        
+        # API Keys para múltiplos providers de IA
+        # Perplexity API Key (pesquisa de conteúdo)
+        self.perplexity_api_key = os.getenv("VITE_PERPLEXITY_API_KEY") or os.getenv("PERPLEXITY_API_KEY", "")
+        
+        # Anthropic API Key (Claude - criação de texto)
+        self.anthropic_api_key = os.getenv("VITE_ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_API_KEY", "")
+        
+        # Google API Key (Gemini, Imagen, VEO - texto, imagem, vídeo)
+        self.google_api_key = os.getenv("VITE_GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
     
     def update_redirect_uri(self, new_uri: str):
         """Atualiza a URL de redirecionamento"""

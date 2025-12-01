@@ -1402,6 +1402,14 @@ class UsageStatus(enum.Enum):
     CANCELLED = "cancelled"
 
 
+class AIProvider(enum.Enum):
+    """Provedor de IA"""
+    OPENAI = "openai"
+    PERPLEXITY = "perplexity"
+    ANTHROPIC = "anthropic"
+    GOOGLE = "google"
+
+
 class OpenAIAssistant(Base):
     """Assistente OpenAI criado no painel superadmin"""
     __tablename__ = "openai_assistants"
@@ -1437,6 +1445,10 @@ class OpenAIAssistant(Base):
     welcome_message = Column(Text, nullable=True)
     welcome_enabled = Column(Boolean, default=False, nullable=False)
     welcome_use_model = Column(Boolean, default=False, nullable=False)
+    
+    # Provider de IA (multi-provider support)
+    provider = Column(String(50), default="openai", nullable=False, index=True)
+    api_config = Column(JSON, nullable=True)  # Configurações específicas do provider
     
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
@@ -1545,6 +1557,9 @@ class OpenAIAssistantUsage(Base):
     # Modo de uso
     interaction_mode = Column(String(50), nullable=False)
     use_case = Column(String(100), nullable=True)
+    
+    # Provider de IA usado nesta execução
+    provider = Column(String(50), default="openai", nullable=True, index=True)
     
     # Tokens utilizados
     prompt_tokens = Column(Integer, default=0, nullable=False)

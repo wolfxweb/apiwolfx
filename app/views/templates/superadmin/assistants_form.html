@@ -67,6 +67,17 @@
                             </div>
                             
                             <div class="mb-3">
+                                <label for="assistantProvider" class="form-label">Provider de IA *</label>
+                                <select class="form-select" id="assistantProvider" name="provider" required onchange="handleProviderChange()">
+                                    <option value="openai">OpenAI (GPT-4, GPT-5, O1, O3)</option>
+                                    <option value="perplexity">Perplexity (Pesquisa e busca)</option>
+                                    <option value="anthropic">Anthropic (Claude - Texto)</option>
+                                    <option value="google">Google (Gemini, Imagen, VEO)</option>
+                                </select>
+                                <small class="form-text text-muted">Escolha o provedor de IA para este agente</small>
+                            </div>
+                            
+                            <div class="mb-3">
                                 <label for="assistantModel" class="form-label">
                                     Modelo *
                                     <i class="bi bi-info-circle text-info ms-1" 
