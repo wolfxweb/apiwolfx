@@ -2818,6 +2818,110 @@ NOTA: Alguns dados foram resumidos devido ao limite de tokens. Foque na análise
         )
 
 
+@ml_product_router.post("/generate-description")
+async def generate_product_description(
+    request: Request,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Gera descrição otimizada de produto usando agente IA"""
+    try:
+        from app.services.agent_executor_service import AgentExecutorService
+        from app.models.saas_models import OpenAIAssistant
+        import re
+        import json
+        
+        data = await request.json()
+        product_data = data.get("product_data", {})
+        
+        if not product_data:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Dados do produto não fornecidos"}
+            )
+        
+        # Buscar agente "Criar Descrição de Produto"
+        agent = db.query(OpenAIAssistant).filter(
+            (
+                OpenAIAssistant.name.ilike("%criar%descrição%produto%") |
+                OpenAIAssistant.name.ilike("%criar%descricao%produto%") |
+                OpenAIAssistant.name.ilike("%descrição%otimizada%") |
+                OpenAIAssistant.name.ilike("%descricao%otimizada%")
+            ),
+            OpenAIAssistant.is_active == True
+        ).first()
+        
+        if not agent:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Agente 'Criar Descrição de Produto' não encontrado. Execute o script de criação do agente."}
+            )
+        
+        # Preparar mensagem usando initial_prompt do agente + dados do produto
+        message = ""
+        if agent.initial_prompt:
+            initial_prompt_clean = re.sub(r'<[^>]+>', '', agent.initial_prompt).strip()
+            user_name = user.get('first_name', '') or user.get('email', 'Usuário')
+            initial_prompt_clean = initial_prompt_clean.replace('[[USUARIO]]', user_name)
+            message = initial_prompt_clean
+        else:
+            message = "Crie uma descrição otimizada para o produto abaixo, aplicando técnicas de SEO e foco em conversão."
+        
+        # Destacar o título do produto no início da mensagem
+        product_title = product_data.get('title', '')
+        category_name = product_data.get('category_name', '')
+        existing_description = product_data.get('description', '').strip()
+        
+        if product_title:
+            message += f"\n\n═══════════════════════════════════════════════════════════════"
+            message += f"\nTÍTULO DO PRODUTO: {product_title}"
+            if category_name:
+                message += f"\nCATEGORIA: {category_name}"
+            message += f"\n═══════════════════════════════════════════════════════════════"
+            
+            # Se já existe descrição, incluir para otimização
+            if existing_description:
+                message += f"\n\n📝 DESCRIÇÃO ATUAL DO PRODUTO (OTIMIZAR):"
+                message += f"\n{existing_description}"
+                message += f"\n\n⚠️ IMPORTANTE:"
+                message += f"\n- Use o título acima como base principal"
+                message += f"\n- OTIMIZE a descrição atual acima, melhorando SEO, conversão e clareza"
+                message += f"\n- Mantenha informações relevantes da descrição atual"
+                message += f"\n- Expanda e detalhe as informações do título"
+                message += f"\n- Aplique técnicas avançadas de SEO e conversão"
+                message += f"\n- Mantenha consistência e relevância"
+            else:
+                message += f"\n\n⚠️ IMPORTANTE: Use o título acima como base principal para criar a descrição."
+                message += f"\nA descrição deve expandir e detalhar as informações do título, mantendo consistência e relevância."
+            message += f"\n\n"
+        
+        # Adicionar dados do produto em formato JSON
+        product_data_json = json.dumps(product_data, indent=2, ensure_ascii=False)
+        message += f"DADOS COMPLETOS DO PRODUTO:\n\n{product_data_json}"
+        
+        # Usar a classe padrão AgentExecutorService
+        executor = AgentExecutorService(db)
+        result = executor.execute(
+            agent_id=agent.id,
+            user=user,
+            message=message,
+            context_data={
+                "product_data": product_data,
+                "category_id": product_data.get("category_id"),
+                "category_name": product_data.get("category_name")
+            }
+        )
+        
+        return JSONResponse(status_code=200, content=result)
+        
+    except Exception as e:
+        logger.error(f"Erro ao gerar descrição: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
 @ml_product_router.post("/analyze-registration-direct")
 async def analyze_product_registration_direct(
     request: Request,

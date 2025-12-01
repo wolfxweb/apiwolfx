@@ -58,6 +58,72 @@
         content: " *";
         color: #dc3545;
     }
+    
+    /* Radios de garantia - cor verde do sistema quando selecionados */
+    input[type="radio"][name="warranty_type"]:checked {
+        background-color: #02C47C !important;
+        border-color: #02C47C !important;
+        box-shadow: 0 0 0 0.25rem rgba(2, 196, 124, 0.25) !important;
+    }
+    
+    input[type="radio"][name="warranty_type"]:checked:focus {
+        background-color: #02C47C !important;
+        border-color: #02C47C !important;
+        box-shadow: 0 0 0 0.25rem rgba(2, 196, 124, 0.35) !important;
+    }
+    
+    input[type="radio"][name="warranty_type"]:hover:not(:checked) {
+        border-color: #02C47C !important;
+    }
+    
+    /* Checkbox de Frete Grátis - cor verde do sistema quando marcado */
+    input[type="checkbox"][id="free_shipping"]:checked {
+        background-color: #02C47C !important;
+        border-color: #02C47C !important;
+        box-shadow: 0 0 0 0.25rem rgba(2, 196, 124, 0.25) !important;
+    }
+    
+    input[type="checkbox"][id="free_shipping"]:checked:focus {
+        background-color: #02C47C !important;
+        border-color: #02C47C !important;
+        box-shadow: 0 0 0 0.25rem rgba(2, 196, 124, 0.35) !important;
+    }
+    
+    input[type="checkbox"][id="free_shipping"]:hover:not(:checked) {
+        border-color: #02C47C !important;
+    }
+    
+    /* Texto "Frete Grátis" em verde */
+    label[for="free_shipping"] {
+        color: #02C47C !important;
+        font-weight: 600;
+    }
+    
+    label[for="free_shipping"] strong {
+        color: #02C47C !important;
+    }
+    
+    /* Labels dos radios de garantia em verde quando selecionados */
+    input[type="radio"][name="warranty_type"]:checked + label {
+        color: #02C47C !important;
+        font-weight: 600;
+    }
+    
+    /* Links do breadcrumb de categorias - cor verde do sistema */
+    #categoryBreadcrumb .breadcrumb-item a {
+        color: #02C47C !important;
+        text-decoration: none;
+        transition: color 0.3s ease;
+    }
+    
+    #categoryBreadcrumb .breadcrumb-item a:hover {
+        color: #00A86B !important;
+        text-decoration: underline;
+    }
+    
+    #categoryBreadcrumb .breadcrumb-item.active {
+        color: #00A86B !important;
+    }
 </style>
 {% endblock %}
 
@@ -395,7 +461,12 @@
             
             <!-- Descrição -->
             <div class="mb-3">
-                <label for="description" class="form-label">Descrição do Produto</label>
+                <label for="description" class="form-label">
+                    Descrição do Produto
+                    <button type="button" class="btn btn-sm btn-primary ms-2" id="generateDescriptionBtn" onclick="generateProductDescription()" title="Gerar descrição otimizada com IA">
+                        <i class="bi bi-robot"></i> Criar Descrição
+                    </button>
+                </label>
                 <textarea class="form-control" id="description" name="description" 
                           rows="6" placeholder="Descreva as características do produto..."></textarea>
             </div>
@@ -1909,7 +1980,55 @@ document.getElementById('productForm').addEventListener('submit', async function
 });
 
 // Função auxiliar para exibir alertas
+// Função para mostrar toast (substitui alerts de sucesso)
+function showToast(message, type = 'info') {
+    // Criar container de toasts se não existir
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+    const title = type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : type === 'warning' ? 'Atenção' : 'Info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    // Remover elemento após esconder
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
 function showAlert(type, message) {
+    // Se for sucesso, usar toast
+    if (type === 'success') {
+        showToast(message, 'success');
+        return;
+    }
+    
+    // Para outros tipos, manter o alert tradicional
     const alertContainer = document.getElementById('alertContainer');
     const alert = document.createElement('div');
     alert.className = `alert alert-${type} alert-dismissible fade show`;
@@ -2929,6 +3048,114 @@ function collectAllProductData() {
     productData.has_images = productData.images_count > 0;
     
     return productData;
+}
+
+// Função para gerar descrição otimizada com IA
+async function generateProductDescription() {
+    try {
+        // Coletar dados básicos do produto
+        const productData = collectAllProductData();
+        
+        if (!productData.title || !productData.category_id) {
+            showAlert('warning', 'Preencha pelo menos o título e a categoria antes de gerar a descrição.');
+            return;
+        }
+        
+        // Mostrar loading
+        const generateBtn = document.getElementById('generateDescriptionBtn');
+        const descriptionField = document.getElementById('description');
+        
+        if (generateBtn) {
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gerando...';
+        }
+        
+        if (descriptionField) {
+            descriptionField.disabled = true;
+            descriptionField.value = 'Gerando descrição otimizada com IA...';
+        }
+        
+        console.log('📤 Gerando descrição para produto:', productData.title);
+        
+        // Chamar API
+        const response = await fetch('/ml/products/generate-description', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ product_data: productData })
+        });
+        
+        const result = await response.json();
+        
+        // Restaurar botão
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="bi bi-robot"></i> Criar Descrição';
+        }
+        
+        if (descriptionField) {
+            descriptionField.disabled = false;
+        }
+        
+        if (result.success && result.content) {
+            // Preencher campo de descrição com a descrição gerada
+            // O Mercado Livre aceita HTML na descrição, então mantemos o HTML original
+            if (descriptionField) {
+                // Corrigir HTML malformado (remover espaços dentro de tags)
+                let descriptionHtml = result.content.trim();
+                // Corrigir tags com espaços: < strong> -> <strong>, </ strong> -> </strong>
+                descriptionHtml = descriptionHtml.replace(/<\s+(\/?)(\w+)\s*>/g, '<$1$2>');
+                descriptionHtml = descriptionHtml.replace(/<\s*(\/?)(\w+)\s+>/g, '<$1$2>');
+                
+                // Manter o HTML original - o Mercado Livre renderiza HTML corretamente
+                descriptionField.value = descriptionHtml;
+                descriptionField.dispatchEvent(new Event('input', { bubbles: true }));
+                descriptionField.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // Focar no campo e rolar até ele
+                descriptionField.focus();
+                descriptionField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Destacar o campo visualmente
+                descriptionField.classList.add('border-success', 'border-2');
+                setTimeout(() => {
+                    descriptionField.classList.remove('border-success', 'border-2');
+                }, 2000);
+            }
+            
+            showAlert('success', 'Descrição otimizada gerada com sucesso! O HTML será renderizado corretamente no Mercado Livre.');
+            console.log('✅ Descrição gerada (com HTML):', result.content.substring(0, 200) + '...');
+        } else {
+            const errorMsg = result.error || 'Erro ao gerar descrição';
+            showAlert('danger', `Erro ao gerar descrição: ${errorMsg}`);
+            if (descriptionField) {
+                descriptionField.value = '';
+            }
+            console.error('❌ Erro ao gerar descrição:', result);
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao gerar descrição:', error);
+        showAlert('danger', `Erro ao gerar descrição: ${error.message}`);
+        
+        // Restaurar botão e campo
+        const generateBtn = document.getElementById('generateDescriptionBtn');
+        const descriptionField = document.getElementById('description');
+        
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="bi bi-robot"></i> Criar Descrição';
+        }
+        
+        if (descriptionField) {
+            descriptionField.disabled = false;
+            if (descriptionField.value === 'Gerando descrição otimizada com IA...') {
+                descriptionField.value = '';
+            }
+        }
+    }
 }
 
 // Função para analisar cadastro com IA

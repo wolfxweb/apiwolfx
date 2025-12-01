@@ -857,7 +857,34 @@ async def startup_event():
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível atualizar max_tokens do agente 'Analise cadastro produto': {e}")
 
-                # 1.06 Adicionar instrução de idioma português ao agente
+                # 1.06 Criar agente "Criar Descrição de Produto" se não existir
+                try:
+                    import importlib.util
+                    import os
+                    agent_description_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                        'database', 'fixes', '2025_12_01_create_product_description_agent.py'
+                    )
+                    if not os.path.exists(agent_description_path):
+                        agent_description_path = os.path.join('/app', 'database', 'fixes', '2025_12_01_create_product_description_agent.py')
+                    
+                    if os.path.exists(agent_description_path):
+                        spec_description = importlib.util.spec_from_file_location("create_product_description_agent", agent_description_path)
+                        description_module = importlib.util.module_from_spec(spec_description)
+                        spec_description.loader.exec_module(description_module)
+                        result = description_module.run(db)
+                        if result.get("success"):
+                            print("✅ [STARTUP] Agente 'Criar Descrição de Produto' verificado/criado")
+                        else:
+                            print(f"ℹ️ [STARTUP] Agente 'Criar Descrição de Produto': {result.get('message', 'já existe ou erro')}")
+                    else:
+                        print(f"⚠️ [STARTUP] Script de criação do agente 'Criar Descrição de Produto' não encontrado")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível criar agente 'Criar Descrição de Produto': {e}")
+                    import traceback
+                    traceback.print_exc()
+
+                # 1.07 Adicionar instrução de idioma português ao agente
                 try:
                     import importlib.util
                     import os
