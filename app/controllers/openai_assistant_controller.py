@@ -126,7 +126,8 @@ class OpenAIAssistantController:
                     "created_at": a.created_at.isoformat() if a.created_at else None,
                     "updated_at": a.updated_at.isoformat() if a.updated_at else None,
                     "last_used_at": a.last_used_at.isoformat() if a.last_used_at else None,
-                    "is_reasoning_model": is_reasoning
+                    "is_reasoning_model": is_reasoning,
+                    "provider": getattr(a, "provider", "openai") or "openai"
                 })
             
             return {
@@ -155,7 +156,9 @@ class OpenAIAssistantController:
         initial_prompt: Optional[str] = None,
         welcome_enabled: Optional[bool] = False,
         welcome_use_model: Optional[bool] = False,
-        welcome_message: Optional[str] = None
+        welcome_message: Optional[str] = None,
+        provider: str = "openai",
+        api_config: Optional[Dict] = None
     ) -> Dict:
         """Cria um novo assistente"""
         try:
@@ -236,7 +239,9 @@ class OpenAIAssistantController:
                     "created_at": assistant.created_at.isoformat() if assistant.created_at else None,
                     "updated_at": assistant.updated_at.isoformat() if assistant.updated_at else None,
                     "last_used_at": assistant.last_used_at.isoformat() if assistant.last_used_at else None,
-                    "is_reasoning_model": assistant.is_reasoning_model()
+                    "is_reasoning_model": assistant.is_reasoning_model(),
+                    "provider": getattr(assistant, "provider", "openai") or "openai",
+                    "api_config": getattr(assistant, "api_config", None)
                 }
             }
         except Exception as e:
@@ -263,7 +268,9 @@ class OpenAIAssistantController:
         initial_prompt: Optional[str] = None,
         welcome_enabled: Optional[bool] = None,
         welcome_use_model: Optional[bool] = None,
-        welcome_message: Optional[str] = None
+        welcome_message: Optional[str] = None,
+        provider: Optional[str] = None,
+        api_config: Optional[Dict] = None
     ) -> Dict:
         """Atualiza um assistente existente"""
         try:
@@ -286,7 +293,9 @@ class OpenAIAssistantController:
                 initial_prompt=initial_prompt,
                 welcome_enabled=welcome_enabled,
                 welcome_use_model=welcome_use_model,
-                welcome_message=welcome_message
+                welcome_message=welcome_message,
+                provider=provider,
+                api_config=api_config
             )
         except Exception as e:
             logger.error(f"❌ Erro ao atualizar assistente: {e}", exc_info=True)

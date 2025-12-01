@@ -283,6 +283,29 @@ class AgentExecutorService:
                     context_data=context_data
                 )
                 
+                # Registrar uso (para novos providers)
+                from app.models.saas_models import OpenAIAssistantUsage, UsageStatus
+                from datetime import datetime
+                
+                usage_record = OpenAIAssistantUsage(
+                    assistant_id=agent_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    thread_id=thread_id,
+                    interaction_mode="chat",
+                    use_case=use_case,
+                    provider=provider,
+                    status=UsageStatus.COMPLETED if result.get('success') else UsageStatus.FAILED,
+                    prompt_tokens=result.get('usage', {}).get('prompt_tokens', 0),
+                    completion_tokens=result.get('usage', {}).get('completion_tokens', 0),
+                    total_tokens=result.get('usage', {}).get('total_tokens', 0),
+                    error_message=result.get('error') if not result.get('success') else None,
+                    created_at=datetime.utcnow(),
+                    completed_at=datetime.utcnow()
+                )
+                self.db.add(usage_record)
+                self.db.commit()
+                
                 # Formatar resultado no formato esperado
                 if result.get('success'):
                     result = {
@@ -420,6 +443,29 @@ class AgentExecutorService:
                         instructions=agent.instructions,
                         context_data=context_data
                     )
+                
+                # Registrar uso (para novos providers)
+                from app.models.saas_models import OpenAIAssistantUsage, UsageStatus
+                from datetime import datetime
+                
+                usage_record = OpenAIAssistantUsage(
+                    assistant_id=agent_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    thread_id=None,
+                    interaction_mode="report",
+                    use_case=use_case,
+                    provider=provider,
+                    status=UsageStatus.COMPLETED if result.get('success') else UsageStatus.FAILED,
+                    prompt_tokens=result.get('usage', {}).get('prompt_tokens', 0),
+                    completion_tokens=result.get('usage', {}).get('completion_tokens', 0),
+                    total_tokens=result.get('usage', {}).get('total_tokens', 0),
+                    error_message=result.get('error') if not result.get('success') else None,
+                    created_at=datetime.utcnow(),
+                    completed_at=datetime.utcnow()
+                )
+                self.db.add(usage_record)
+                self.db.commit()
                 
                 # Formatar resultado no formato esperado
                 if result.get('success'):

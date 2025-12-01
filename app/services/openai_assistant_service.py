@@ -141,7 +141,9 @@ class OpenAIAssistantService:
         initial_prompt: Optional[str] = None,
         welcome_enabled: Optional[bool] = False,
         welcome_use_model: Optional[bool] = False,
-        welcome_message: Optional[str] = None
+        welcome_message: Optional[str] = None,
+        provider: str = "openai",
+        api_config: Optional[Dict] = None
     ) -> Dict:
         """Cria um novo assistente na OpenAI e salva no banco de dados"""
         if not self.client:
@@ -243,6 +245,8 @@ class OpenAIAssistantService:
                 welcome_enabled=bool(welcome_enabled),
                 welcome_use_model=bool(welcome_use_model),
                 welcome_message=welcome_message,
+                provider=provider,
+                api_config=api_config,
                 is_active=True
             )
             
@@ -299,7 +303,9 @@ class OpenAIAssistantService:
         initial_prompt: Optional[str] = None,
         welcome_enabled: Optional[bool] = None,
         welcome_use_model: Optional[bool] = None,
-        welcome_message: Optional[str] = None
+        welcome_message: Optional[str] = None,
+        provider: Optional[str] = None,
+        api_config: Optional[Dict] = None
     ) -> Dict:
         """Atualiza um assistente existente"""
         if not self.client:
@@ -415,6 +421,10 @@ class OpenAIAssistantService:
                 db_assistant.welcome_use_model = bool(welcome_use_model)
             if welcome_message is not None:
                 db_assistant.welcome_message = welcome_message
+            if provider is not None:
+                db_assistant.provider = provider
+            if api_config is not None:
+                db_assistant.api_config = api_config
             
             db_assistant.updated_at = datetime.utcnow()
             
@@ -516,6 +526,12 @@ class OpenAIAssistantService:
         if not self.client:
             return {"success": False, "error": "OpenAI API key não configurada."}
         
+        # Buscar agente para obter provider
+        db_assistant_for_provider = self.db.query(OpenAIAssistant).filter(
+            OpenAIAssistant.id == assistant_id
+        ).first()
+        provider = getattr(db_assistant_for_provider, 'provider', 'openai') or 'openai' if db_assistant_for_provider else 'openai'
+        
         # Criar registro de uso
         usage_record = OpenAIAssistantUsage(
             assistant_id=assistant_id,
@@ -523,6 +539,7 @@ class OpenAIAssistantService:
             user_id=user_id,
             interaction_mode="report",
             use_case=use_case,
+            provider=provider,
             status=UsageStatus.PENDING,
             created_at=datetime.utcnow()
         )
@@ -751,6 +768,12 @@ class OpenAIAssistantService:
             logger.info(f"🚫 Retornando erro de saldo insuficiente: {error_response}")
             return error_response
         
+        # Obter provider do agente (buscar novamente para ter acesso ao provider)
+        db_assistant_for_provider = self.db.query(OpenAIAssistant).filter(
+            OpenAIAssistant.id == assistant_id
+        ).first()
+        provider = getattr(db_assistant_for_provider, 'provider', 'openai') or 'openai' if db_assistant_for_provider else 'openai'
+        
         # Criar registro de uso
         usage_record = OpenAIAssistantUsage(
             assistant_id=assistant_id,
@@ -759,6 +782,7 @@ class OpenAIAssistantService:
             thread_id=thread_id,
             interaction_mode="chat",
             use_case=use_case,
+            provider=provider,
             status=UsageStatus.PENDING,
             created_at=datetime.utcnow()
         )

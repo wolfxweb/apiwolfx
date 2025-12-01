@@ -896,6 +896,72 @@ async def startup_event():
                     print(f"⚠️ [STARTUP] Não foi possível criar agente 'Criar Descrição de Produto': {e}")
                     import traceback
                     traceback.print_exc()
+                
+                # Criar agentes multi-provider
+                try:
+                    # Perplexity - Pesquisa
+                    perplexity_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                        'database', 'fixes', 'create_perplexity_research_agent.py')
+                    if not os.path.exists(perplexity_path):
+                        perplexity_path = os.path.join('/app', 'database', 'fixes', 'create_perplexity_research_agent.py')
+                    if os.path.exists(perplexity_path):
+                        spec_perplexity = importlib.util.spec_from_file_location("create_perplexity_research_agent", perplexity_path)
+                        perplexity_module = importlib.util.module_from_spec(spec_perplexity)
+                        spec_perplexity.loader.exec_module(perplexity_module)
+                        result = perplexity_module.run(db)
+                        if result.get("success"):
+                            print("✅ [STARTUP] Agente 'Pesquisa de Conteúdo' (Perplexity) verificado/criado")
+                        else:
+                            print(f"ℹ️ [STARTUP] Agente 'Pesquisa de Conteúdo': {result.get('message', 'já existe ou erro')}")
+                    
+                    # Anthropic - Texto
+                    anthropic_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                        'database', 'fixes', 'create_anthropic_text_agent.py')
+                    if not os.path.exists(anthropic_path):
+                        anthropic_path = os.path.join('/app', 'database', 'fixes', 'create_anthropic_text_agent.py')
+                    if os.path.exists(anthropic_path):
+                        spec_anthropic = importlib.util.spec_from_file_location("create_anthropic_text_agent", anthropic_path)
+                        anthropic_module = importlib.util.module_from_spec(spec_anthropic)
+                        spec_anthropic.loader.exec_module(anthropic_module)
+                        result = anthropic_module.run(db)
+                        if result.get("success"):
+                            print("✅ [STARTUP] Agente 'Criação de Texto' (Anthropic) verificado/criado")
+                        else:
+                            print(f"ℹ️ [STARTUP] Agente 'Criação de Texto': {result.get('message', 'já existe ou erro')}")
+                    
+                    # Google - Vídeo
+                    google_video_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                        'database', 'fixes', 'create_google_video_agent.py')
+                    if not os.path.exists(google_video_path):
+                        google_video_path = os.path.join('/app', 'database', 'fixes', 'create_google_video_agent.py')
+                    if os.path.exists(google_video_path):
+                        spec_google_video = importlib.util.spec_from_file_location("create_google_video_agent", google_video_path)
+                        google_video_module = importlib.util.module_from_spec(spec_google_video)
+                        spec_google_video.loader.exec_module(google_video_module)
+                        result = google_video_module.run(db)
+                        if result.get("success"):
+                            print("✅ [STARTUP] Agente 'Geração de Vídeo' (Google VEO) verificado/criado")
+                        else:
+                            print(f"ℹ️ [STARTUP] Agente 'Geração de Vídeo': {result.get('message', 'já existe ou erro')}")
+                    
+                    # Google - Imagem
+                    google_image_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                        'database', 'fixes', 'create_google_image_agent.py')
+                    if not os.path.exists(google_image_path):
+                        google_image_path = os.path.join('/app', 'database', 'fixes', 'create_google_image_agent.py')
+                    if os.path.exists(google_image_path):
+                        spec_google_image = importlib.util.spec_from_file_location("create_google_image_agent", google_image_path)
+                        google_image_module = importlib.util.module_from_spec(spec_google_image)
+                        spec_google_image.loader.exec_module(google_image_module)
+                        result = google_image_module.run(db)
+                        if result.get("success"):
+                            print("✅ [STARTUP] Agente 'Geração de Imagem' (Google Imagen) verificado/criado")
+                        else:
+                            print(f"ℹ️ [STARTUP] Agente 'Geração de Imagem': {result.get('message', 'já existe ou erro')}")
+                except Exception as e:
+                    print(f"⚠️ [STARTUP] Não foi possível criar agentes multi-provider: {e}")
+                    import traceback
+                    traceback.print_exc()
 
                 # 1.07 Adicionar instrução de idioma português ao agente
                 try:

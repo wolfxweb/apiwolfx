@@ -516,6 +516,19 @@ async function loadAssistantData(id) {
                 
                 document.getElementById('assistantName').value = assistant.name || '';
                 document.getElementById('assistantDescription').value = assistant.description || '';
+                
+                // Carregar provider primeiro (para atualizar modelos disponíveis)
+                const providerSelect = document.getElementById('assistantProvider');
+                if (providerSelect) {
+                    if (assistant.provider) {
+                        providerSelect.value = assistant.provider;
+                    } else {
+                        // Default para OpenAI se não especificado
+                        providerSelect.value = 'openai';
+                    }
+                    // Atualizar modelos baseado no provider
+                    handleProviderChange();
+                }
                 document.getElementById('assistantModel').value = assistant.model || 'gpt-5.1';
                 
                 // Definir conteúdo no editor Quill
@@ -828,6 +841,116 @@ function checkAssistantsAPISupport() {
     }
 }
 
+// Manipular mudança de provider
+function handleProviderChange() {
+    const providerSelect = document.getElementById('assistantProvider');
+    const modelSelect = document.getElementById('assistantModel');
+    
+    if (!providerSelect || !modelSelect) {
+        console.warn('⚠️ Campos assistantProvider ou assistantModel não encontrados');
+        return;
+    }
+    
+    const provider = providerSelect.value;
+    
+    // Limpar modelos existentes
+    modelSelect.innerHTML = '';
+    
+    // Adicionar modelos baseado no provider
+    if (provider === 'openai') {
+        // OpenAI - modelos existentes
+        const gpt5Group = document.createElement('optgroup');
+        gpt5Group.label = 'GPT-5 (Mais Recente)';
+        gpt5Group.innerHTML = `
+            <option value="gpt-5.1">GPT-5.1 (Melhor para coding e tarefas agentic)</option>
+            <option value="gpt-5">GPT-5 (Raciocínio inteligente)</option>
+            <option value="gpt-5-pro">GPT-5 Pro (Mais inteligente e preciso)</option>
+            <option value="gpt-5-mini">GPT-5 Mini (Rápido e econômico)</option>
+            <option value="gpt-5-nano">GPT-5 Nano (Mais rápido e econômico)</option>
+        `;
+        modelSelect.appendChild(gpt5Group);
+        
+        const codexGroup = document.createElement('optgroup');
+        codexGroup.label = 'GPT-5 Codex (Otimizado para Coding)';
+        codexGroup.innerHTML = `
+            <option value="gpt-5.1-codex">GPT-5.1 Codex (Coding agentic)</option>
+            <option value="gpt-5-codex">GPT-5 Codex (Coding agentic)</option>
+        `;
+        modelSelect.appendChild(codexGroup);
+        
+        const gpt4Group = document.createElement('optgroup');
+        gpt4Group.label = 'GPT-4 (Anteriores)';
+        gpt4Group.innerHTML = `
+            <option value="gpt-4-turbo-preview">GPT-4 Turbo Preview</option>
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+        `;
+        modelSelect.appendChild(gpt4Group);
+        
+        const reasoningGroup = document.createElement('optgroup');
+        reasoningGroup.label = 'Modelos de Raciocínio (Sem temperature/tools)';
+        reasoningGroup.innerHTML = `
+            <option value="o1-preview">O1 Preview (Raciocínio)</option>
+            <option value="o1-mini">O1 Mini (Raciocínio)</option>
+            <option value="o3-preview">O3 Preview (Raciocínio)</option>
+            <option value="o3-mini">O3 Mini (Raciocínio)</option>
+        `;
+        modelSelect.appendChild(reasoningGroup);
+        
+    } else if (provider === 'perplexity') {
+        // Perplexity - modelos de pesquisa
+        const perplexityGroup = document.createElement('optgroup');
+        perplexityGroup.label = 'Perplexity (Pesquisa)';
+        perplexityGroup.innerHTML = `
+            <option value="sonar-pro" selected>Sonar Pro (Melhor qualidade)</option>
+            <option value="sonar">Sonar (Equilíbrio)</option>
+            <option value="sonar-reasoning">Sonar Reasoning (Raciocínio profundo)</option>
+        `;
+        modelSelect.appendChild(perplexityGroup);
+        
+    } else if (provider === 'anthropic') {
+        // Anthropic - modelos Claude
+        const claudeGroup = document.createElement('optgroup');
+        claudeGroup.label = 'Claude (Anthropic)';
+        claudeGroup.innerHTML = `
+            <option value="claude-3-5-sonnet-20241022" selected>Claude 3.5 Sonnet (Recomendado)</option>
+            <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+            <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Rápido)</option>
+            <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+        `;
+        modelSelect.appendChild(claudeGroup);
+        
+    } else if (provider === 'google') {
+        // Google - Gemini, Imagen, VEO
+        const geminiGroup = document.createElement('optgroup');
+        geminiGroup.label = 'Gemini (Texto)';
+        geminiGroup.innerHTML = `
+            <option value="gemini-2.0-flash-exp" selected>Gemini 2.0 Flash (Experimental)</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+        `;
+        modelSelect.appendChild(geminiGroup);
+        
+        const imagenGroup = document.createElement('optgroup');
+        imagenGroup.label = 'Imagen (Imagem)';
+        imagenGroup.innerHTML = `
+            <option value="imagen-3.0-generate-001">Imagen 3.0</option>
+        `;
+        modelSelect.appendChild(imagenGroup);
+        
+        const veoGroup = document.createElement('optgroup');
+        veoGroup.label = 'VEO (Vídeo)';
+        veoGroup.innerHTML = `
+            <option value="veo-3">VEO 3</option>
+        `;
+        modelSelect.appendChild(veoGroup);
+    }
+    
+    // Disparar mudança de modelo para atualizar campos
+    handleModelChange();
+}
+
 // Manipular mudança de modelo
 function handleModelChange() {
     const modelSelect = document.getElementById('assistantModel');
@@ -837,10 +960,16 @@ function handleModelChange() {
     }
     
     const model = modelSelect.value;
+    const providerSelect = document.getElementById('assistantProvider');
+    const provider = providerSelect ? providerSelect.value : 'openai';
+    
     // Modelos de raciocínio: o1, o3, o4 (não suportam temperature nem tools)
     const isReasoning = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4');
     // Modelos GPT-5: usam reasoning_effort e verbosity ao invés de temperature
     const isGPT5 = model.startsWith('gpt-5');
+    
+    // Para providers não-OpenAI, ocultar campos específicos do OpenAI
+    const isNonOpenAI = provider !== 'openai';
     
     const temperatureGroup = document.getElementById('temperatureGroup');
     const gpt5ParamsGroup = document.getElementById('gpt5ParamsGroup');
@@ -926,9 +1055,13 @@ async function saveAssistant(event) {
         hasQuill: !!quillEditor 
     });
     
+    const providerSelect = document.getElementById('assistantProvider');
+    const provider = providerSelect ? providerSelect.value : 'openai';
+    
     const formData = {
         name: document.getElementById('assistantName').value,
         description: document.getElementById('assistantDescription').value,
+        provider: provider,
         model: model,
         instructions: instructions,  // HTML formatado do editor
         max_tokens: parseInt(document.getElementById('assistantMaxTokens').value) || 4000,

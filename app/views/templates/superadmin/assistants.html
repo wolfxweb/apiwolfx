@@ -90,6 +90,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Nome</th>
+                        <th>Provider</th>
                         <th>Modelo</th>
                         <th>Modo</th>
                         <th>Execuções</th>
@@ -101,7 +102,7 @@
                 </thead>
                 <tbody id="assistantsTableBody">
                     <tr>
-                        <td colspan="9" class="text-center">
+                        <td colspan="10" class="text-center">
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">Carregando...</span>
                             </div>
@@ -174,16 +175,36 @@ function renderAssistants() {
     const tbody = document.getElementById('assistantsTableBody');
     
     if (assistants.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center">Nenhum agente encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center">Nenhum agente encontrado</td></tr>';
         return;
     }
     
-    tbody.innerHTML = assistants.map(assistant => `
+    tbody.innerHTML = assistants.map(assistant => {
+        const provider = assistant.provider || 'openai';
+        const providerBadges = {
+            'openai': 'bg-primary',
+            'perplexity': 'bg-info',
+            'anthropic': 'bg-success',
+            'google': 'bg-warning'
+        };
+        const providerNames = {
+            'openai': 'OpenAI',
+            'perplexity': 'Perplexity',
+            'anthropic': 'Anthropic',
+            'google': 'Google'
+        };
+        const providerBadge = providerBadges[provider] || 'bg-secondary';
+        const providerName = providerNames[provider] || provider;
+        
+        return `
         <tr>
             <td>${assistant.id}</td>
             <td>
                 <strong>${escapeHtml(assistant.name)}</strong>
                 ${assistant.description ? '<br><small class="text-muted">' + escapeHtml(assistant.description.substring(0, 50)) + '...</small>' : ''}
+            </td>
+            <td>
+                <span class="badge ${providerBadge}">${providerName}</span>
             </td>
             <td>
                 <span class="badge bg-secondary">${escapeHtml(assistant.model)}</span>

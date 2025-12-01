@@ -132,6 +132,8 @@ class CreateAssistantRequest(BaseModel):
     welcome_enabled: Optional[bool] = False
     welcome_use_model: Optional[bool] = False
     welcome_message: Optional[str] = None
+    provider: Optional[str] = "openai"  # Provider de IA: openai, perplexity, anthropic, google
+    api_config: Optional[Dict] = None  # Configurações específicas do provider
 
 
 class UpdateAssistantRequest(BaseModel):
@@ -153,6 +155,8 @@ class UpdateAssistantRequest(BaseModel):
     welcome_enabled: Optional[bool] = None
     welcome_use_model: Optional[bool] = None
     welcome_message: Optional[str] = None
+    provider: Optional[str] = None  # Provider de IA: openai, perplexity, anthropic, google
+    api_config: Optional[Dict] = None  # Configurações específicas do provider
 
 
 class UseAssistantReportRequest(BaseModel):
@@ -466,7 +470,9 @@ async def update_assistant(
         initial_prompt=request_data.initial_prompt,
         welcome_enabled=request_data.welcome_enabled,
         welcome_use_model=request_data.welcome_use_model,
-        welcome_message=request_data.welcome_message
+        welcome_message=request_data.welcome_message,
+        provider=request_data.provider,
+        api_config=request_data.api_config
     )
     
     if not result.get("success"):
