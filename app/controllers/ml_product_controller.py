@@ -1056,8 +1056,23 @@ class MLProductController:
             
             # Adicionar descrição se fornecida
             if product_data.get("description"):
+                # Mercado Livre aceita HTML no campo plain_text, mas remove tags perigosas
+                # Remover apenas tags não permitidas: iframe, script, form, input, meta, object, embed
+                description_text = product_data.get("description")
+                # Remover tags perigosas e seu conteúdo
+                text = re.sub(r'<iframe[^>]*>.*?</iframe>', '', description_text, flags=re.IGNORECASE | re.DOTALL)
+                text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                text = re.sub(r'<form[^>]*>.*?</form>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                text = re.sub(r'<input[^>]*>', '', text, flags=re.IGNORECASE)
+                text = re.sub(r'<meta[^>]*>', '', text, flags=re.IGNORECASE)
+                text = re.sub(r'<object[^>]*>.*?</object>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                text = re.sub(r'<embed[^>]*>', '', text, flags=re.IGNORECASE)
+                # Limpar espaços em branco extras
+                text = re.sub(r'\n{3,}', '\n\n', text)
+                text = text.strip()
+                
                 item_payload["description"] = {
-                    "plain_text": product_data.get("description")
+                    "plain_text": text
                 }
             
             # Adicionar imagens se houver
@@ -1254,7 +1269,22 @@ class MLProductController:
                             "Authorization": f"Bearer {access_token}",
                             "Content-Type": "application/json",
                         }
-                        description_payload = {"plain_text": description_text}
+                        # Mercado Livre aceita HTML no campo plain_text, mas remove tags perigosas
+                        # Remover apenas tags não permitidas: iframe, script, form, input, meta, object, embed
+                        text = description_text
+                        # Remover tags perigosas e seu conteúdo
+                        text = re.sub(r'<iframe[^>]*>.*?</iframe>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                        text = re.sub(r'<form[^>]*>.*?</form>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                        text = re.sub(r'<input[^>]*>', '', text, flags=re.IGNORECASE)
+                        text = re.sub(r'<meta[^>]*>', '', text, flags=re.IGNORECASE)
+                        text = re.sub(r'<object[^>]*>.*?</object>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                        text = re.sub(r'<embed[^>]*>', '', text, flags=re.IGNORECASE)
+                        # Limpar espaços em branco extras
+                        text = re.sub(r'\n{3,}', '\n\n', text)
+                        text = text.strip()
+                        
+                        description_payload = {"plain_text": text}
                         desc_response = requests.post(
                             description_url,
                             headers=description_headers,
@@ -1639,10 +1669,26 @@ class MLProductController:
             description_text = product_data.get("description")
             if description_text is not None:
                 try:
+                    # Mercado Livre aceita HTML no campo plain_text, mas remove tags perigosas
+                    # Remover apenas tags não permitidas: iframe, script, form, input, meta, object, embed
+                    import re
+                    text = description_text
+                    # Remover tags perigosas e seu conteúdo
+                    text = re.sub(r'<iframe[^>]*>.*?</iframe>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                    text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                    text = re.sub(r'<form[^>]*>.*?</form>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                    text = re.sub(r'<input[^>]*>', '', text, flags=re.IGNORECASE)
+                    text = re.sub(r'<meta[^>]*>', '', text, flags=re.IGNORECASE)
+                    text = re.sub(r'<object[^>]*>.*?</object>', '', text, flags=re.IGNORECASE | re.DOTALL)
+                    text = re.sub(r'<embed[^>]*>', '', text, flags=re.IGNORECASE)
+                    # Limpar espaços em branco extras
+                    text = re.sub(r'\n{3,}', '\n\n', text)
+                    text = text.strip()
+                    
                     desc_response = requests.put(
                         f"https://api.mercadolibre.com/items/{ml_product.ml_item_id}/description",
                         headers=headers,
-                        json={"plain_text": description_text},
+                        json={"plain_text": text},
                         timeout=30,
                     )
                     if desc_response.status_code not in (200, 201):

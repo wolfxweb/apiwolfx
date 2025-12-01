@@ -469,6 +469,15 @@
                 </label>
                 <textarea class="form-control" id="description" name="description" 
                           rows="6" placeholder="Descreva as características do produto..."></textarea>
+                <!-- Preview do HTML renderizado (exibido automaticamente quando há conteúdo) -->
+                <div id="descriptionPreview" class="mt-3 p-3 border rounded bg-light" style="display: none; max-height: 400px; overflow-y: auto;">
+                    <small class="text-muted d-block mb-2">
+                        <i class="bi bi-info-circle"></i> Preview de como a descrição será exibida no Mercado Livre:
+                    </small>
+                    <div id="descriptionPreviewContent" style="min-height: 100px;">
+                        <p class="text-muted">Digite ou gere uma descrição para ver o preview...</p>
+                    </div>
+                </div>
             </div>
             
             <!-- SKU e Garantia -->
@@ -878,6 +887,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('duplicateVariationBtn')?.addEventListener('click', duplicateLastVariation);
     document.getElementById('saveVariationBtn')?.addEventListener('click', saveVariationFromModal);
 
+    // Adicionar listener para preview da descrição (mesmo quando não está em modo edição)
+    const descriptionField = document.getElementById('description');
+    if (descriptionField) {
+        descriptionField.addEventListener('input', updateDescriptionPreview);
+        descriptionField.addEventListener('change', updateDescriptionPreview);
+    }
 
 }); // Fecha o DOMContentLoaded
 
@@ -912,6 +927,19 @@ async function initializeEditMode() {
     const descriptionInput = document.getElementById('description');
     if (descriptionInput) {
         descriptionInput.value = initialProductData.description || '';
+        // Adicionar listener para atualizar preview em tempo real
+        descriptionInput.addEventListener('input', updateDescriptionPreview);
+        descriptionInput.addEventListener('change', updateDescriptionPreview);
+        // Atualizar preview inicial se houver conteúdo
+        if (initialProductData.description) {
+            setTimeout(() => {
+                updateDescriptionPreview();
+                const preview = document.getElementById('descriptionPreview');
+                if (preview && initialProductData.description) {
+                    preview.style.display = 'block';
+                }
+            }, 100);
+        }
     }
 
     const listingTypeSelect = document.getElementById('listing_type_id');
@@ -3120,6 +3148,13 @@ async function generateProductDescription() {
                 descriptionField.dispatchEvent(new Event('input', { bubbles: true }));
                 descriptionField.dispatchEvent(new Event('change', { bubbles: true }));
                 
+                // Atualizar e exibir preview automaticamente
+                updateDescriptionPreview();
+                const preview = document.getElementById('descriptionPreview');
+                if (preview) {
+                    preview.style.display = 'block';
+                }
+                
                 // Focar no campo e rolar até ele
                 descriptionField.focus();
                 descriptionField.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3161,6 +3196,25 @@ async function generateProductDescription() {
                 descriptionField.value = '';
             }
         }
+    }
+}
+
+// Função para atualizar o preview da descrição
+function updateDescriptionPreview() {
+    const descriptionField = document.getElementById('description');
+    const previewContent = document.getElementById('descriptionPreviewContent');
+    
+    if (!descriptionField || !previewContent) {
+        return;
+    }
+    
+    const htmlContent = descriptionField.value.trim();
+    
+    if (htmlContent) {
+        // Renderizar o HTML no preview
+        previewContent.innerHTML = htmlContent;
+    } else {
+        previewContent.innerHTML = '<p class="text-muted">Digite ou gere uma descrição para ver o preview...</p>';
     }
 }
 
