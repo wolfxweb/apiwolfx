@@ -195,6 +195,103 @@ async def get_my_payments(
         else:
             logger.warning(f"⚠️ Nenhum pagamento encontrado para empresa {user['company_id']}")
         
+        # Verificar e processar automaticamente pagamentos confirmados que ainda não foram processados
+        from app.models.saas_models import Subscription
+        from app.controllers.asaas_controller import AsaasController
+        
+        subscription = db.query(Subscription).filter(
+            Subscription.company_id == user["company_id"],
+            Subscription.asaas_subscription_id.isnot(None)
+        ).order_by(Subscription.created_at.desc()).first()
+        
+        if subscription:
+            logger.info(f"🔍 Verificando pagamentos confirmados para processamento automático...")
+            logger.info(f"   - Assinatura ID: {subscription.id}, Status: {subscription.status}")
+            
+            from app.models.saas_models import Company, CompanyStatus
+            company = db.query(Company).filter(Company.id == user["company_id"]).first()
+            if company:
+                logger.info(f"   - Empresa ID: {company.id}, Status: {company.status}, Tokens mensais: {company.ai_tokens_monthly}")
+            
+            for payment in payments:
+                payment_id = payment.get("id")
+                payment_status = payment.get("status", "").upper()
+                confirmed_date = payment.get("confirmedDate")
+                payment_date = payment.get("paymentDate")
+                net_value = payment.get("netValue")
+                value = payment.get("value", 0)
+                billing_type = payment.get("billingType", "")
+                external_ref = payment.get("externalReference", "")
+                
+                logger.info(f"   - Pagamento {payment_id}: status={payment_status}, confirmedDate={confirmed_date}, paymentDate={payment_date}, netValue={net_value}, value={value}, billingType={billing_type}")
+                
+                # Verificar se o pagamento está confirmado
+                is_confirmed = (
+                    payment_status in ["CONFIRMED", "RECEIVED"] or
+                    confirmed_date or
+                    payment_date or
+                    (net_value and float(net_value) != float(value) and billing_type == "CREDIT_CARD")
+                )
+                
+                logger.info(f"   - Pagamento {payment_id} está confirmado? {is_confirmed}")
+                
+                if is_confirmed:
+                    # Verificar se precisa processar: assinatura pendente OU empresa ainda em trial OU tokens mensais não atualizados
+                    from app.models.saas_models import Company, CompanyStatus
+                    company = db.query(Company).filter(Company.id == user["company_id"]).first()
+                    
+                    needs_processing = False
+                    reason = ""
+                    
+                    if subscription.status == "pending":
+                        needs_processing = True
+                        reason = "assinatura pendente"
+                    elif company and company.status == CompanyStatus.TRIAL:
+                        needs_processing = True
+                        reason = "empresa ainda em trial"
+                    elif company and subscription.ai_analysis_monthly and (not company.ai_tokens_monthly or company.ai_tokens_monthly != subscription.ai_analysis_monthly):
+                        needs_processing = True
+                        reason = f"tokens mensais não atualizados (empresa: {company.ai_tokens_monthly}, plano: {subscription.ai_analysis_monthly})"
+                    
+                    if needs_processing:
+                        logger.info(f"🔄 Pagamento {payment_id} confirmado mas {reason} - processando webhook automaticamente...")
+                        logger.info(f"   - Status assinatura: {subscription.status}")
+                        logger.info(f"   - Status empresa: {company.status if company else 'N/A'}")
+                        logger.info(f"   - Tokens mensais empresa: {company.ai_tokens_monthly if company else 'N/A'}")
+                        logger.info(f"   - Tokens mensais plano: {subscription.ai_analysis_monthly}")
+                        try:
+                            # Determinar status final
+                            final_status = payment_status
+                            if confirmed_date or payment_date:
+                                final_status = "CONFIRMED"
+                            elif net_value and float(net_value) != float(value) and billing_type == "CREDIT_CARD":
+                                final_status = "CONFIRMED"
+                            
+                            notification_data = {
+                                "event": "PAYMENT_CONFIRMED",
+                                "payment": {
+                                    "id": payment_id,
+                                    "status": final_status,
+                                    "paymentDate": payment_date or confirmed_date,
+                                    "externalReference": external_ref
+                                }
+                            }
+                            
+                            controller = AsaasController(db)
+                            result = controller.process_webhook_notification(notification_data)
+                            logger.info(f"✅ Webhook processado automaticamente para pagamento {payment_id}: {result}")
+                            
+                            # Recarregar assinatura e empresa após processamento
+                            db.refresh(subscription)
+                            if company:
+                                db.refresh(company)
+                        except Exception as e:
+                            logger.warning(f"⚠️ Erro ao processar webhook automaticamente para pagamento {payment_id}: {e}")
+                            import traceback
+                            logger.warning(traceback.format_exc())
+                    else:
+                        logger.info(f"ℹ️ Pagamento {payment_id} confirmado mas já foi processado (assinatura: {subscription.status}, empresa: {company.status if company else 'N/A'})")
+        
         # Buscar também compras de pacotes de tokens do banco local
         from app.models.saas_models import TokenPackagePurchase, TokenPackage
         package_purchases = db.query(TokenPackagePurchase).filter(
@@ -202,6 +299,84 @@ async def get_my_payments(
         ).order_by(TokenPackagePurchase.purchased_at.desc()).all()
         
         logger.info(f"📦 Total de {len(package_purchases)} compras de pacotes encontradas")
+        
+        # Verificar e processar automaticamente compras de pacotes confirmadas que ainda não foram processadas
+        if package_purchases:
+            logger.info(f"🔍 Verificando compras de pacotes confirmadas para processamento automático...")
+            for payment in payments:
+                payment_id = payment.get("id")
+                payment_status = payment.get("status", "").upper()
+                confirmed_date = payment.get("confirmedDate")
+                payment_date = payment.get("paymentDate")
+                net_value = payment.get("netValue")
+                value = payment.get("value", 0)
+                billing_type = payment.get("billingType", "")
+                external_ref = payment.get("externalReference", "")
+                
+                # Verificar se o pagamento está confirmado
+                is_confirmed = (
+                    payment_status in ["CONFIRMED", "RECEIVED"] or
+                    confirmed_date or
+                    payment_date or
+                    (net_value and float(net_value) != float(value) and billing_type == "CREDIT_CARD")
+                )
+                
+                if is_confirmed:
+                    # Buscar compra de pacote pendente relacionada a este pagamento
+                    purchase = None
+                    
+                    # Tentar buscar pelo asaas_payment_id
+                    if payment_id:
+                        purchase = db.query(TokenPackagePurchase).filter(
+                            TokenPackagePurchase.asaas_payment_id == payment_id,
+                            TokenPackagePurchase.payment_status == "pending",
+                            TokenPackagePurchase.company_id == user["company_id"]
+                        ).first()
+                    
+                    # Se não encontrou, tentar pelo externalReference
+                    if not purchase and external_ref and "package_" in external_ref:
+                        parts = external_ref.split("_")
+                        if len(parts) >= 2:
+                            try:
+                                purchase_id = int(parts[1])
+                                purchase = db.query(TokenPackagePurchase).filter(
+                                    TokenPackagePurchase.id == purchase_id,
+                                    TokenPackagePurchase.payment_status == "pending",
+                                    TokenPackagePurchase.company_id == user["company_id"]
+                                ).first()
+                            except (ValueError, IndexError):
+                                pass
+                    
+                    if purchase:
+                        logger.info(f"🔄 Compra de pacote {purchase.id} confirmada mas ainda pendente - processando webhook automaticamente...")
+                        try:
+                            # Determinar status final
+                            final_status = payment_status
+                            if confirmed_date or payment_date:
+                                final_status = "CONFIRMED"
+                            elif net_value and float(net_value) != float(value) and billing_type == "CREDIT_CARD":
+                                final_status = "CONFIRMED"
+                            
+                            notification_data = {
+                                "event": "PAYMENT_CONFIRMED",
+                                "payment": {
+                                    "id": payment_id,
+                                    "status": final_status,
+                                    "paymentDate": payment_date or confirmed_date,
+                                    "externalReference": external_ref
+                                }
+                            }
+                            
+                            controller = AsaasController(db)
+                            result = controller.process_webhook_notification(notification_data)
+                            logger.info(f"✅ Webhook processado automaticamente para compra de pacote {purchase.id}: {result}")
+                            
+                            # Recarregar compra após processamento
+                            db.refresh(purchase)
+                        except Exception as e:
+                            logger.warning(f"⚠️ Erro ao processar webhook automaticamente para compra de pacote {purchase.id}: {e}")
+                            import traceback
+                            logger.warning(traceback.format_exc())
         
         # Formatar pagamentos para o frontend
         formatted_payments = []

@@ -2051,6 +2051,87 @@ async def api_purchase_plan(
             asaas_result.get("invoiceURL")
         )
         
+        # Verificar e processar automaticamente o pagamento inicial da assinatura
+        asaas_subscription_id = asaas_result.get("id") or asaas_result.get("subscription_id")
+        if asaas_subscription_id:
+            logger.info(f"🔍 Verificando pagamento inicial da assinatura {asaas_subscription_id}...")
+            
+            def check_and_process_subscription_payment():
+                """Função helper para verificar e processar pagamento da assinatura"""
+                try:
+                    from app.services.asaas_service import asaas_service, is_payment_confirmed
+                    
+                    # Buscar pagamentos da assinatura
+                    subscription_payments = asaas_service.get_subscription_payments(asaas_subscription_id)
+                    
+                    if subscription_payments and len(subscription_payments) > 0:
+                        # Verificar o primeiro pagamento (pagamento inicial)
+                        first_payment = subscription_payments[0]
+                        payment_id = first_payment.get("id")
+                        
+                        # Buscar detalhes completos do pagamento
+                        payment_info = asaas_service._make_request("GET", f"/payments/{payment_id}")
+                        
+                        # Usar função helper para verificar se está confirmado
+                        is_confirmed, final_status = is_payment_confirmed(payment_info)
+                        
+                        logger.info(f"📊 Verificação do pagamento inicial {payment_id}:")
+                        logger.info(f"   - status: {payment_info.get('status')}")
+                        logger.info(f"   - confirmedDate: {payment_info.get('confirmedDate')}")
+                        logger.info(f"   - paymentDate: {payment_info.get('paymentDate')}")
+                        logger.info(f"   - netValue: {payment_info.get('netValue')}")
+                        logger.info(f"   - value: {payment_info.get('value')}")
+                        logger.info(f"   - billingType: {payment_info.get('billingType')}")
+                        logger.info(f"   - Está confirmado? {is_confirmed}, Status final: {final_status}")
+                        
+                        if is_confirmed:
+                            logger.info(f"✅ Pagamento inicial confirmado! Processando assinatura automaticamente...")
+                            
+                            # Processar como webhook
+                            notification_data = {
+                                "event": "PAYMENT_CONFIRMED",
+                                "payment": {
+                                    "id": payment_id,
+                                    "status": final_status,
+                                    "paymentDate": payment_info.get("paymentDate") or payment_info.get("confirmedDate"),
+                                    "externalReference": payment_info.get("externalReference", "")
+                                },
+                                "subscription": {
+                                    "id": asaas_subscription_id
+                                }
+                            }
+                            
+                            webhook_result = asaas_controller.process_webhook_notification(notification_data)
+                            logger.info(f"✅ Webhook processado automaticamente: {webhook_result}")
+                            return True
+                        else:
+                            logger.info(f"ℹ️ Pagamento inicial ainda não confirmado, aguardando webhook do Asaas...")
+                            return False
+                    else:
+                        logger.info(f"ℹ️ Nenhum pagamento encontrado na assinatura ainda")
+                        return False
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao verificar pagamento inicial: {e}")
+                    import traceback
+                    logger.warning(traceback.format_exc())
+                    return False
+            
+            # Verificação imediata
+            processed = check_and_process_subscription_payment()
+            
+            # Se não foi processado, fazer retry após 3 segundos (para sandbox)
+            if not processed:
+                import time
+                import threading
+                
+                def delayed_check():
+                    time.sleep(3)
+                    logger.info(f"🔄 Retry: Verificando novamente pagamento inicial da assinatura {asaas_subscription_id}...")
+                    check_and_process_subscription_payment()
+                
+                # Executar retry em thread separada para não bloquear resposta
+                threading.Thread(target=delayed_check, daemon=True).start()
+        
         return {
             "success": True,
             "message": "Plano contratado com sucesso",
@@ -2200,34 +2281,67 @@ async def api_purchase_package(
             
             db.commit()
             
-            # Verificar status do pagamento após alguns segundos (para sandbox)
+            # Verificar status do pagamento imediatamente e após alguns segundos (para sandbox)
             # No sandbox, pagamentos podem ser confirmados automaticamente
             logger.info(f"🔍 Verificando status do pagamento {payment_id_from_asaas}...")
             
-            # Verificar status do pagamento no Asaas (pode estar confirmado no sandbox)
-            try:
-                payment_status_info = asaas_service._make_request("GET", f"/payments/{payment_id_from_asaas}")
-                payment_status = payment_status_info.get("status", "").upper()
-                logger.info(f"📊 Status do pagamento no Asaas: {payment_status}")
-                
-                # Se o pagamento já estiver confirmado (sandbox), processar imediatamente
-                if payment_status in ["CONFIRMED", "RECEIVED"]:
-                    logger.info(f"✅ Pagamento já confirmado! Processando tokens...")
+            def check_and_process_payment():
+                """Função helper para verificar e processar pagamento"""
+                try:
+                    payment_info = asaas_service._make_request("GET", f"/payments/{payment_id_from_asaas}")
                     
-                    # Processar como webhook
-                    notification_data = {
-                        "event": "PAYMENT_CONFIRMED",
-                        "payment": {
-                            "id": payment_id_from_asaas,
-                            "status": payment_status,
-                            "externalReference": f"package_{purchase.id}_company_{company_id}"
+                    # Usar função helper para verificar se está confirmado
+                    from app.services.asaas_service import is_payment_confirmed
+                    is_confirmed, final_status = is_payment_confirmed(payment_info)
+                    
+                    logger.info(f"📊 Verificação do pagamento {payment_id_from_asaas}:")
+                    logger.info(f"   - status: {payment_info.get('status')}")
+                    logger.info(f"   - confirmedDate: {payment_info.get('confirmedDate')}")
+                    logger.info(f"   - paymentDate: {payment_info.get('paymentDate')}")
+                    logger.info(f"   - netValue: {payment_info.get('netValue')}")
+                    logger.info(f"   - value: {payment_info.get('value')}")
+                    logger.info(f"   - billingType: {payment_info.get('billingType')}")
+                    logger.info(f"   - Está confirmado? {is_confirmed}, Status final: {final_status}")
+                    
+                    if is_confirmed:
+                        logger.info(f"✅ Pagamento confirmado! Processando tokens automaticamente...")
+                        
+                        # Processar como webhook
+                        notification_data = {
+                            "event": "PAYMENT_CONFIRMED",
+                            "payment": {
+                                "id": payment_id_from_asaas,
+                                "status": final_status,
+                                "paymentDate": payment_info.get("paymentDate") or payment_info.get("confirmedDate"),
+                                "externalReference": f"package_{purchase.id}_company_{company_id}"
+                            }
                         }
-                    }
-                    
-                    webhook_result = asaas_controller.process_webhook_notification(notification_data)
-                    logger.info(f"✅ Webhook processado: {webhook_result}")
-            except Exception as e:
-                logger.warning(f"⚠️ Erro ao verificar status do pagamento: {e}")
+                        
+                        webhook_result = asaas_controller.process_webhook_notification(notification_data)
+                        logger.info(f"✅ Webhook processado automaticamente: {webhook_result}")
+                        return True
+                    else:
+                        logger.info(f"ℹ️ Pagamento ainda não confirmado, aguardando webhook do Asaas...")
+                        return False
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao verificar status do pagamento: {e}")
+                    return False
+            
+            # Verificação imediata
+            processed = check_and_process_payment()
+            
+            # Se não foi processado, fazer retry após 3 segundos (para sandbox)
+            if not processed:
+                import time
+                import threading
+                
+                def delayed_check():
+                    time.sleep(3)
+                    logger.info(f"🔄 Retry: Verificando novamente status do pagamento {payment_id_from_asaas}...")
+                    check_and_process_payment()
+                
+                # Executar retry em thread separada para não bloquear resposta
+                threading.Thread(target=delayed_check, daemon=True).start()
             
             return {
                 "success": True,

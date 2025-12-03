@@ -567,6 +567,46 @@ class AsaasService:
             raise e
 
 
+def is_payment_confirmed(payment: Dict[str, Any]):
+    """
+    Verifica se um pagamento está confirmado usando múltiplos indicadores
+    
+    Args:
+        payment: Dados do pagamento retornados pela API do Asaas
+        
+    Returns:
+        Tuple (is_confirmed: bool, final_status: str)
+    """
+    payment_status = payment.get("status", "").upper()
+    confirmed_date = payment.get("confirmedDate")
+    payment_date = payment.get("paymentDate")
+    net_value = payment.get("netValue")
+    value = payment.get("value", 0)
+    billing_type = payment.get("billingType", "")
+    
+    # Verificar múltiplos indicadores de pagamento confirmado
+    is_confirmed = False
+    final_status = payment_status
+    
+    if payment_status in ["CONFIRMED", "RECEIVED"]:
+        is_confirmed = True
+        final_status = payment_status
+    elif confirmed_date:
+        # confirmedDate indica que o pagamento foi confirmado
+        is_confirmed = True
+        final_status = "CONFIRMED"
+    elif payment_date:
+        # paymentDate indica que o pagamento foi efetivado
+        is_confirmed = True
+        final_status = "CONFIRMED" if payment_status == "PENDING" else payment_status
+    elif net_value and float(net_value) != float(value) and billing_type == "CREDIT_CARD":
+        # Para cartão de crédito, se tem netValue diferente de value, foi processado (taxas descontadas)
+        is_confirmed = True
+        final_status = "CONFIRMED"
+    
+    return is_confirmed, final_status
+
+
 # Instância global do serviço
 asaas_service = AsaasService()
 
