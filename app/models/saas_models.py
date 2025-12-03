@@ -613,6 +613,18 @@ class MLMessageThreadStatus(enum.Enum):
     OPEN = "open"
     CLOSED = "closed"
 
+class MLClaimStatus(enum.Enum):
+    """Status de um claim"""
+    OPENED = "opened"
+    CLOSED = "closed"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+
+class MLClaimType(enum.Enum):
+    """Tipo de claim"""
+    MEDIATIONS = "mediations"
+    RETURNS = "returns"
+
 class MLMessageType(enum.Enum):
     """Tipo de mensagem"""
     TEXT = "text"
@@ -2002,5 +2014,123 @@ class SupportTicketAttachment(Base):
         Index('ix_support_ticket_attachments_ticket', 'ticket_id'),
         Index('ix_support_ticket_attachments_message', 'message_id'),
         Index('ix_support_ticket_attachments_user', 'uploaded_by'),
+    )
+
+class MLClaim(Base):
+    """Modelo de Claims (Reclamações e Devoluções) do Mercado Livre"""
+    __tablename__ = "ml_claims"
+    
+    # IDs
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    ml_account_id = Column(Integer, ForeignKey("ml_accounts.id"), nullable=False, index=True)
+    
+    # Identificadores ML
+    ml_claim_id = Column(String(50), unique=True, nullable=False, index=True)
+    ml_order_id = Column(String(50), index=True)
+    ml_buyer_id = Column(String(50), index=True)
+    ml_seller_id = Column(String(50), nullable=False, index=True)
+    
+    # Tipo e Status
+    claim_type = Column(Enum(MLClaimType), nullable=False, index=True)  # 'mediations' ou 'returns'
+    status = Column(Enum(MLClaimStatus), nullable=False, index=True)  # 'opened', 'closed', 'cancelled', 'expired'
+    
+    # Resolução
+    resolution_reason = Column(String(50))
+    resolution_status = Column(String(50))
+    resolution_date = Column(DateTime)
+    
+    # Datas
+    date_created = Column(DateTime, nullable=False, index=True)
+    date_updated = Column(DateTime)
+    date_closed = Column(DateTime)
+    
+    # Dados do comprador
+    buyer_nickname = Column(String(255))
+    
+    # Dados completos (JSON)
+    claim_data = Column(JSON)  # Dados completos da API
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    last_sync = Column(DateTime)  # Última sincronização com ML
+    
+    # Relacionamentos
+    company = relationship("Company")
+    ml_account = relationship("MLAccount")
+    messages = relationship("MLClaimMessage", back_populates="claim", cascade="all, delete-orphan")
+    evidences = relationship("MLClaimEvidence", back_populates="claim", cascade="all, delete-orphan")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ml_claims_company_status', 'company_id', 'status'),
+        Index('ix_ml_claims_company_type', 'company_id', 'claim_type'),
+        Index('ix_ml_claims_date_created', 'date_created'),
+        Index('ix_ml_claims_ml_claim_id', 'ml_claim_id'),
+        Index('ix_ml_claims_ml_order_id', 'ml_order_id'),
+    )
+
+class MLClaimMessage(Base):
+    """Modelo de Mensagens de Claims"""
+    __tablename__ = "ml_claim_messages"
+    
+    # IDs
+    id = Column(Integer, primary_key=True, index=True)
+    claim_id = Column(Integer, ForeignKey("ml_claims.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Identificadores ML
+    ml_message_id = Column(String(50), unique=True, nullable=False, index=True)
+    
+    # Dados da mensagem
+    from_type = Column(String(20), nullable=False)  # 'buyer', 'seller', 'system'
+    message_text = Column(Text, nullable=False)
+    
+    # Datas
+    date_created = Column(DateTime, nullable=False, index=True)
+    
+    # Dados completos (JSON)
+    message_data = Column(JSON)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relacionamentos
+    claim = relationship("MLClaim", back_populates="messages")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ml_claim_messages_claim_id', 'claim_id'),
+        Index('ix_ml_claim_messages_ml_message_id', 'ml_message_id'),
+        Index('ix_ml_claim_messages_date_created', 'date_created'),
+    )
+
+class MLClaimEvidence(Base):
+    """Modelo de Evidências de Claims (imagens, vídeos, documentos)"""
+    __tablename__ = "ml_claim_evidences"
+    
+    # IDs
+    id = Column(Integer, primary_key=True, index=True)
+    claim_id = Column(Integer, ForeignKey("ml_claims.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Identificadores ML
+    ml_evidence_id = Column(String(50), unique=True, nullable=False, index=True)
+    
+    # Dados da evidência
+    evidence_type = Column(String(20))  # 'image', 'video', 'document'
+    evidence_url = Column(String(500))
+    
+    # Dados completos (JSON)
+    evidence_data = Column(JSON)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relacionamentos
+    claim = relationship("MLClaim", back_populates="evidences")
+    
+    # Índices
+    __table_args__ = (
+        Index('ix_ml_claim_evidences_claim_id', 'claim_id'),
     )
 

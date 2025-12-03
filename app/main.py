@@ -36,6 +36,7 @@ from app.routes.shipment_routes import router as shipment_router
 from app.routes.highlights_routes import highlights_router
 from app.routes.ml_questions_routes import ml_questions_router
 from app.routes.ml_messages_routes import ml_messages_router
+from app.routes.ml_claims_routes import ml_claims_router
 from app.routes.activity_routes import activity_router
 from app.routes.openai_assistant_routes import openai_assistant_router, openai_chat_router, tools_router
 from app.routes.stock_routes import stock_router
@@ -1488,6 +1489,100 @@ async def startup_event():
                         db.commit()
                         print("✅ [STARTUP] Tabela token_package_purchases criada")
                     
+                    # Verificar e criar tabelas de claims (pós-venda)
+                    check_claims_query = text("""
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name IN ('ml_claims', 'ml_claim_messages', 'ml_claim_evidences')
+                    """)
+                    existing_claims_tables = [row[0] for row in db.execute(check_claims_query).fetchall()]
+                    
+                    if 'ml_claims' not in existing_claims_tables:
+                        print("📋 [STARTUP] Criando tabela ml_claims...")
+                        create_ml_claims_sql = text("""
+                            CREATE TABLE ml_claims (
+                                id SERIAL PRIMARY KEY,
+                                company_id INTEGER NOT NULL,
+                                ml_account_id INTEGER NOT NULL,
+                                ml_claim_id VARCHAR(50) UNIQUE NOT NULL,
+                                ml_order_id VARCHAR(50),
+                                ml_buyer_id VARCHAR(50),
+                                ml_seller_id VARCHAR(50) NOT NULL,
+                                claim_type VARCHAR(20) NOT NULL,
+                                status VARCHAR(20) NOT NULL,
+                                resolution_reason VARCHAR(50),
+                                resolution_status VARCHAR(50),
+                                resolution_date TIMESTAMP WITH TIME ZONE,
+                                date_created TIMESTAMP WITH TIME ZONE NOT NULL,
+                                date_updated TIMESTAMP WITH TIME ZONE,
+                                date_closed TIMESTAMP WITH TIME ZONE,
+                                buyer_nickname VARCHAR(255),
+                                claim_data JSONB,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                last_sync TIMESTAMP WITH TIME ZONE,
+                                CONSTRAINT fk_ml_claims_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_ml_claims_ml_account FOREIGN KEY (ml_account_id) REFERENCES ml_accounts(id) ON DELETE CASCADE
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_company_id ON ml_claims(company_id);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_ml_account_id ON ml_claims(ml_account_id);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_ml_claim_id ON ml_claims(ml_claim_id);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_status ON ml_claims(status);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_claim_type ON ml_claims(claim_type);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_date_created ON ml_claims(date_created);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_ml_order_id ON ml_claims(ml_order_id);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_company_status ON ml_claims(company_id, status);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claims_company_type ON ml_claims(company_id, claim_type);
+                        """)
+                        db.execute(create_ml_claims_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela ml_claims criada")
+                    
+                    if 'ml_claim_messages' not in existing_claims_tables:
+                        print("📋 [STARTUP] Criando tabela ml_claim_messages...")
+                        create_ml_claim_messages_sql = text("""
+                            CREATE TABLE ml_claim_messages (
+                                id SERIAL PRIMARY KEY,
+                                claim_id INTEGER NOT NULL,
+                                ml_message_id VARCHAR(50) UNIQUE NOT NULL,
+                                from_type VARCHAR(20) NOT NULL,
+                                message_text TEXT NOT NULL,
+                                date_created TIMESTAMP WITH TIME ZONE NOT NULL,
+                                message_data JSONB,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                CONSTRAINT fk_ml_claim_messages_claim FOREIGN KEY (claim_id) REFERENCES ml_claims(id) ON DELETE CASCADE
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_ml_claim_messages_claim_id ON ml_claim_messages(claim_id);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claim_messages_ml_message_id ON ml_claim_messages(ml_message_id);
+                            CREATE INDEX IF NOT EXISTS ix_ml_claim_messages_date_created ON ml_claim_messages(date_created);
+                        """)
+                        db.execute(create_ml_claim_messages_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela ml_claim_messages criada")
+                    
+                    if 'ml_claim_evidences' not in existing_claims_tables:
+                        print("📋 [STARTUP] Criando tabela ml_claim_evidences...")
+                        create_ml_claim_evidences_sql = text("""
+                            CREATE TABLE ml_claim_evidences (
+                                id SERIAL PRIMARY KEY,
+                                claim_id INTEGER NOT NULL,
+                                ml_evidence_id VARCHAR(50) UNIQUE NOT NULL,
+                                evidence_type VARCHAR(20),
+                                evidence_url VARCHAR(500),
+                                evidence_data JSONB,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                CONSTRAINT fk_ml_claim_evidences_claim FOREIGN KEY (claim_id) REFERENCES ml_claims(id) ON DELETE CASCADE
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_ml_claim_evidences_claim_id ON ml_claim_evidences(claim_id);
+                        """)
+                        db.execute(create_ml_claim_evidences_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela ml_claim_evidences criada")
+                    
                     print("✅ [STARTUP] Tabelas de estoque verificadas/criadas")
                     
                 except Exception as e:
@@ -1573,6 +1668,7 @@ app.include_router(shipment_router, prefix="/api")  # Para /api/shipments
 app.include_router(highlights_router)  # Para /ml/highlights e /api/ml/highlights
 app.include_router(ml_questions_router)  # Para /questions (HTML) e /api/questions (API)
 app.include_router(ml_messages_router)  # Para /messages (HTML) e /api/messages (API)
+app.include_router(ml_claims_router)  # Para /api/ml/claims (API)
 app.include_router(activity_router)  # Para /api/activity/summary
 app.include_router(openai_assistant_router)  # Para /api/openai/assistants
 app.include_router(openai_chat_router)  # Para /ai/chat (HTML)

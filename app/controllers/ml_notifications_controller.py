@@ -93,6 +93,17 @@ class MLNotificationsController:
                     logger.error(f"❌ Não foi possível extrair seller_id do pedido {order_id}")
                     logger.error(f"❌ Isso pode indicar que nenhum token ativo está disponível")
             
+            # Fallback para perguntas: se user_id não vier, buscar seller_id da pergunta via API
+            if not ml_user_id and topic == "questions" and resource:
+                logger.info(f"🔍 user_id não veio na notificação de pergunta, buscando seller_id da pergunta via API...")
+                question_id = resource.split("/")[-1]
+                ml_user_id = await self._extract_ml_user_id_from_question(question_id, db)
+                if ml_user_id:
+                    logger.info(f"✅ seller_id extraído da pergunta {question_id}: {ml_user_id}")
+                else:
+                    logger.error(f"❌ Não foi possível extrair seller_id da pergunta {question_id}")
+                    logger.error(f"❌ Isso pode indicar que nenhum token ativo está disponível")
+            
             # 1. Determinar company_id a partir do ml_user_id
             if ml_user_id:
                 logger.info(f"🔍 Iniciando busca de company_id para ml_user_id: {ml_user_id}")
@@ -545,7 +556,55 @@ class MLNotificationsController:
     async def _process_claim_notification(self, resource: str, ml_user_id: int, company_id: int, db: Session):
         """Processa notificação de reclamação"""
         logger.info(f"⚠️ Notificação de reclamação recebida: {resource} para company_id: {company_id}")
-        # TODO: Implementar processamento de reclamações
+        
+        try:
+            from app.controllers.ml_claims_controller import MLClaimsController
+            
+            controller = MLClaimsController(db)
+            
+            logger.info(f"🔄 Iniciando processamento da notificação de claim via MLClaimsController...")
+            success = controller.process_notification(resource, ml_user_id, company_id)
+            
+            if success:
+                logger.info(f"✅ Notificação de claim processada com sucesso para company_id: {company_id}")
+                global_logger.log_event(
+                    event_type="claim_notification_success",
+                    data={
+                        "resource": resource,
+                        "ml_user_id": ml_user_id,
+                        "description": f"Notificação de claim processada com sucesso"
+                    },
+                    company_id=company_id,
+                    success=True
+                )
+            else:
+                logger.warning(f"⚠️ Falha ao processar notificação de claim para company_id: {company_id}")
+                global_logger.log_event(
+                    event_type="claim_notification_error",
+                    data={
+                        "resource": resource,
+                        "ml_user_id": ml_user_id,
+                        "description": f"Falha ao processar notificação de claim"
+                    },
+                    company_id=company_id,
+                    success=False,
+                    error_message="Processamento falhou (ver logs detalhados)"
+                )
+                
+        except Exception as e:
+            error_msg = f"Erro ao processar notificação de claim: {str(e)}"
+            logger.error(f"❌ {error_msg}", exc_info=True)
+            global_logger.log_event(
+                event_type="claim_notification_exception",
+                data={
+                    "resource": resource,
+                    "ml_user_id": ml_user_id,
+                    "description": f"Exceção ao processar notificação de claim"
+                },
+                company_id=company_id,
+                success=False,
+                error_message=error_msg
+            )
     
     def _get_company_id_from_ml_user(self, ml_user_id: int, db: Session) -> int:
         """Busca company_id a partir do ml_user_id do Mercado Livre"""
@@ -967,6 +1026,66 @@ class MLNotificationsController:
                 exc_info=True,
             )
             return None
+    
+    async def _extract_ml_user_id_from_question(self, question_id: str, db: Session) -> Optional[int]:
+        """Extrai seller_id de uma pergunta (fallback quando user_id não vem na notificação)."""
+        try:
+            from app.services.token_manager import TokenManager
+
+            token_manager = TokenManager(db)
+            token_record = token_manager.get_any_active_token()
+
+            if not token_record or not token_record.access_token:
+                logger.error("❌ Nenhum token ativo disponível para buscar pergunta %s", question_id)
+                return None
+
+            question_data = await self._fetch_question_details(question_id, token_record.access_token)
+            if not question_data:
+                logger.error(
+                    "❌ Não foi possível buscar pergunta %s para extrair seller_id",
+                    question_id,
+                )
+                return None
+
+            seller_id = question_data.get("seller_id") or question_data.get("sellerId")
+            if seller_id:
+                logger.info("✅ seller_id extraído da pergunta %s: %s", question_id, seller_id)
+                return int(seller_id)
+
+            logger.error("❌ seller_id não encontrado nos dados da pergunta %s", question_id)
+            logger.error("📋 Campos disponíveis: %s", list(question_data.keys()))
+            return None
+
+        except Exception as e:
+            logger.error(
+                "❌ Erro ao extrair ml_user_id da pergunta %s: %s",
+                question_id,
+                e,
+                exc_info=True,
+            )
+            return None
+    
+    async def _fetch_question_details(self, question_id: str, access_token: str) -> Dict[str, Any]:
+        """Busca detalhes de uma pergunta na API do Mercado Livre"""
+        try:
+            async with httpx.AsyncClient() as client:
+                headers = {"Authorization": f"Bearer {access_token}"}
+                response = await client.get(
+                    f"{self.api_base_url}/questions/{question_id}",
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.error(f"❌ Erro ao buscar pergunta {question_id}: {response.status_code}")
+                    logger.error(f"❌ Response: {response.text if hasattr(response, 'text') else 'N/A'}")
+                    return {}
+                    
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar detalhes da pergunta {question_id}: {e}", exc_info=True)
+            return {}
     
     async def _fetch_order_details(self, order_id: str, access_token: str) -> Dict[str, Any]:
         """Busca detalhes do pedido na API do ML"""

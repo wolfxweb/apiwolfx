@@ -153,4 +153,189 @@ class MLClaimsService:
             import traceback
             traceback.print_exc()
             return {"returns_count": 0, "returns_value": 0}
+    
+    def get_claims(self, access_token: str, claim_type: Optional[str] = None, status: Optional[str] = None, 
+                   limit: int = 100, offset: int = 0, order_id: Optional[str] = None) -> Dict:
+        """
+        Busca lista de claims com filtros
+        
+        Args:
+            access_token: Token de acesso
+            claim_type: 'mediations' ou 'returns' (opcional)
+            status: 'opened', 'closed', 'cancelled', 'expired' (opcional)
+            limit: Número de resultados (padrão: 100, máximo: 100)
+            offset: Paginação
+            order_id: Filtrar por pedido específico (opcional)
+            
+        Returns:
+            Dict com lista de claims e paginação
+        """
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            claims_url = f"{self.base_url}/post-purchase/v1/claims/search"
+            
+            params = {
+                "limit": min(limit, 100),
+                "offset": offset,
+                "sort": "date_created:desc"
+            }
+            
+            if claim_type:
+                params["type"] = claim_type
+            
+            if status:
+                params["status"] = status
+            
+            if order_id:
+                params["order_id"] = order_id
+            
+            response = requests.get(claims_url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Erro ao buscar claims: {response.status_code} - {response.text[:200]}")
+                return {"data": [], "paging": {"total": 0, "offset": 0, "limit": limit}}
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar claims: {e}", exc_info=True)
+            return {"data": [], "paging": {"total": 0, "offset": 0, "limit": limit}}
+    
+    def get_claim_details(self, claim_id: str, access_token: str) -> Optional[Dict]:
+        """
+        Busca detalhes completos de um claim específico
+        
+        Args:
+            claim_id: ID do claim no ML
+            access_token: Token de acesso
+            
+        Returns:
+            Dict com detalhes do claim ou None se erro
+        """
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            url = f"{self.base_url}/post-purchase/v1/claims/{claim_id}"
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Erro ao buscar detalhes do claim {claim_id}: {response.status_code} - {response.text[:200]}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar detalhes do claim {claim_id}: {e}", exc_info=True)
+            return None
+    
+    def accept_claim(self, claim_id: str, access_token: str, message: Optional[str] = None) -> bool:
+        """
+        Aceita um claim
+        
+        Args:
+            claim_id: ID do claim no ML
+            access_token: Token de acesso
+            message: Mensagem opcional para o comprador
+            
+        Returns:
+            True se sucesso, False caso contrário
+        """
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            url = f"{self.base_url}/post-purchase/v1/claims/{claim_id}/accept"
+            data = {}
+            if message:
+                data["message"] = message
+            
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            
+            if response.status_code in [200, 204]:
+                logger.info(f"✅ Claim {claim_id} aceito com sucesso")
+                return True
+            else:
+                logger.error(f"Erro ao aceitar claim {claim_id}: {response.status_code} - {response.text[:200]}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Erro ao aceitar claim {claim_id}: {e}", exc_info=True)
+            return False
+    
+    def reject_claim(self, claim_id: str, access_token: str, message: str) -> bool:
+        """
+        Rejeita um claim
+        
+        Args:
+            claim_id: ID do claim no ML
+            access_token: Token de acesso
+            message: Mensagem obrigatória explicando a rejeição
+            
+        Returns:
+            True se sucesso, False caso contrário
+        """
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            url = f"{self.base_url}/post-purchase/v1/claims/{claim_id}/reject"
+            data = {"message": message}
+            
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            
+            if response.status_code in [200, 204]:
+                logger.info(f"✅ Claim {claim_id} rejeitado com sucesso")
+                return True
+            else:
+                logger.error(f"Erro ao rejeitar claim {claim_id}: {response.status_code} - {response.text[:200]}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Erro ao rejeitar claim {claim_id}: {e}", exc_info=True)
+            return False
+    
+    def send_message(self, claim_id: str, access_token: str, message: str) -> bool:
+        """
+        Envia mensagem em um claim
+        
+        Args:
+            claim_id: ID do claim no ML
+            access_token: Token de acesso
+            message: Texto da mensagem
+            
+        Returns:
+            True se sucesso, False caso contrário
+        """
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            url = f"{self.base_url}/post-purchase/v1/claims/{claim_id}/messages"
+            data = {"message": message}
+            
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            
+            if response.status_code in [200, 201, 204]:
+                logger.info(f"✅ Mensagem enviada no claim {claim_id}")
+                return True
+            else:
+                logger.error(f"Erro ao enviar mensagem no claim {claim_id}: {response.status_code} - {response.text[:200]}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Erro ao enviar mensagem no claim {claim_id}: {e}", exc_info=True)
+            return False
 

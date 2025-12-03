@@ -1,0 +1,739 @@
+{% extends "base.html" %}
+
+{% block title %}Pós-venda - Reclamações e Devoluções{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="bi bi-exclamation-triangle"></i> Pós-venda - Reclamações e Devoluções</h2>
+                    <p class="text-muted mb-0">Gerencie reclamações e devoluções do Mercado Livre</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="syncClaims()">
+                        <i class="bi bi-arrow-clockwise"></i> Sincronizar Claims
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Tipo</label>
+                            <select class="form-select" id="filter_type" onchange="loadClaims()">
+                                <option value="">Todos</option>
+                                <option value="mediations">Mediações</option>
+                                <option value="returns">Devoluções</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="filter_status" onchange="loadClaims()">
+                                <option value="">Todos</option>
+                                <option value="opened">Aberto</option>
+                                <option value="closed">Fechado</option>
+                                <option value="cancelled">Cancelado</option>
+                                <option value="expired">Expirado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Conta ML</label>
+                            <select class="form-select" id="filter_account" onchange="loadClaims()">
+                                <option value="">Todas as contas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Buscar</label>
+                            <input type="text" class="form-control" id="filter_search" placeholder="ID do pedido, comprador..." onkeyup="debounceSearch()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Claims -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Tipo</th>
+                                    <th>Status</th>
+                                    <th>Pedido</th>
+                                    <th>Comprador</th>
+                                    <th>Data Criação</th>
+                                    <th>Última Atualização</th>
+                                    <th>Resolução</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="claims-table-body">
+                                <tr>
+                                    <td colspan="9" class="text-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                            <span id="claims-total" class="text-muted">Total: 0</span>
+                        </div>
+                        <nav>
+                            <ul class="pagination mb-0" id="claims-pagination">
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes do Claim -->
+<div class="modal fade" id="claimDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Detalhes do Claim</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="claim-details-content">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Aceitar Claim -->
+<div class="modal fade" id="acceptClaimModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check-circle"></i> Aceitar Claim</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Deseja aceitar este claim?</p>
+                <div class="mb-3">
+                    <label class="form-label">Mensagem (opcional)</label>
+                    <textarea class="form-control" id="accept-message" rows="3" placeholder="Mensagem para o comprador..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="confirmAcceptClaim()">Aceitar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Rejeitar Claim -->
+<div class="modal fade" id="rejectClaimModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-x-circle"></i> Rejeitar Claim</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Deseja rejeitar este claim?</p>
+                <div class="mb-3">
+                    <label class="form-label">Motivo da rejeição <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="reject-message" rows="3" placeholder="Explique o motivo da rejeição..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmRejectClaim()">Rejeitar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Enviar Mensagem -->
+<div class="modal fade" id="sendMessageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-chat-dots"></i> Enviar Mensagem</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Mensagem <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="message-text" rows="4" placeholder="Digite sua mensagem..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="confirmSendMessage()">Enviar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Notificação/Feedback -->
+<div class="modal fade" id="notificationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" id="notification-header">
+                <h5 class="modal-title" id="notification-title"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="notification-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentClaimId = null;
+let currentPage = 0;
+let pageSize = 50;
+let searchTimeout = null;
+
+// Carregar claims ao iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    loadClaims();
+    loadMLAccounts();
+});
+
+function debounceSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        currentPage = 0;
+        loadClaims();
+    }, 500);
+}
+
+function loadMLAccounts() {
+    fetch('/api/ml/claims/accounts')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('filter_account');
+            select.innerHTML = '<option value="">Todas as contas</option>';
+            
+            if (data.accounts && data.accounts.length > 0) {
+                data.accounts.forEach(account => {
+                    const option = document.createElement('option');
+                    option.value = account.id;
+                    option.textContent = account.nickname || `Conta ${account.id}`;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar contas ML:', error);
+        });
+}
+
+function loadClaims() {
+    const type = document.getElementById('filter_type').value;
+    const status = document.getElementById('filter_status').value;
+    const account = document.getElementById('filter_account').value;
+    const search = document.getElementById('filter_search').value;
+    
+    const params = new URLSearchParams({
+        limit: pageSize,
+        offset: currentPage * pageSize
+    });
+    
+    if (type) params.append('claim_type', type);
+    if (status) params.append('status', status);
+    if (account) params.append('ml_account_id', account);
+    
+    const tbody = document.getElementById('claims-table-body');
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></td></tr>';
+    
+    fetch(`/api/ml/claims?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Erro ao carregar claims');
+            }
+            
+            const claims = data.claims || [];
+            const total = data.total || 0;
+            
+            document.getElementById('claims-total').textContent = `Total: ${total}`;
+            
+            if (claims.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhum claim encontrado</td></tr>';
+                document.getElementById('claims-pagination').innerHTML = '';
+                return;
+            }
+            
+            // Filtrar por busca local se necessário
+            let filteredClaims = claims;
+            if (search) {
+                const searchLower = search.toLowerCase();
+                filteredClaims = claims.filter(claim => 
+                    (claim.ml_order_id && claim.ml_order_id.toLowerCase().includes(searchLower)) ||
+                    (claim.buyer_nickname && claim.buyer_nickname.toLowerCase().includes(searchLower)) ||
+                    (claim.ml_claim_id && claim.ml_claim_id.toLowerCase().includes(searchLower))
+                );
+            }
+            
+            tbody.innerHTML = '';
+            filteredClaims.forEach(claim => {
+                const row = document.createElement('tr');
+                
+                const typeBadge = claim.claim_type === 'mediations' 
+                    ? '<span class="badge bg-warning">Mediação</span>'
+                    : '<span class="badge bg-info">Devolução</span>';
+                
+                const statusBadge = getStatusBadge(claim.status);
+                
+                const resolutionInfo = claim.resolution_reason 
+                    ? `<small class="text-muted">${claim.resolution_reason}</small>`
+                    : '<span class="text-muted">-</span>';
+                
+                row.innerHTML = `
+                    <td><code>${claim.ml_claim_id || '-'}</code></td>
+                    <td>${typeBadge}</td>
+                    <td>${statusBadge}</td>
+                    <td>${claim.ml_order_id ? `<a href="/ml/orders/${claim.ml_order_id}" target="_blank">${claim.ml_order_id}</a>` : '-'}</td>
+                    <td>${claim.buyer_nickname || '-'}</td>
+                    <td>${formatDate(claim.date_created)}</td>
+                    <td>${formatDate(claim.date_updated)}</td>
+                    <td>${resolutionInfo}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewClaimDetails(${claim.id})" title="Ver detalhes">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        ${claim.status === 'opened' ? `
+                            <button class="btn btn-sm btn-outline-success" onclick="openAcceptModal(${claim.id})" title="Aceitar">
+                                <i class="bi bi-check-circle"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="openRejectModal(${claim.id})" title="Rejeitar">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="openSendMessageModal(${claim.id})" title="Enviar mensagem">
+                                <i class="bi bi-chat-dots"></i>
+                            </button>
+                        ` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Paginação
+            updatePagination(total);
+        })
+        .catch(error => {
+            console.error('Erro ao carregar claims:', error);
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Erro ao carregar claims: ${error.message}</td></tr>`;
+        });
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'opened': '<span class="badge bg-warning">Aberto</span>',
+        'closed': '<span class="badge bg-success">Fechado</span>',
+        'cancelled': '<span class="badge bg-secondary">Cancelado</span>',
+        'expired': '<span class="badge bg-danger">Expirado</span>'
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleString('pt-BR');
+    } catch {
+        return dateStr;
+    }
+}
+
+function updatePagination(total) {
+    const totalPages = Math.ceil(total / pageSize);
+    const pagination = document.getElementById('claims-pagination');
+    pagination.innerHTML = '';
+    
+    if (totalPages <= 1) return;
+    
+    // Botão anterior
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 0 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">Anterior</a>`;
+    pagination.appendChild(prevLi);
+    
+    // Páginas
+    for (let i = 0; i < totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i}); return false;">${i + 1}</a>`;
+        pagination.appendChild(li);
+    }
+    
+    // Botão próximo
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage >= totalPages - 1 ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">Próximo</a>`;
+    pagination.appendChild(nextLi);
+}
+
+function changePage(page) {
+    currentPage = page;
+    loadClaims();
+}
+
+function syncClaims() {
+    const account = document.getElementById('filter_account').value;
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    
+    const params = account ? `?ml_account_id=${account}` : '';
+    
+    fetch(`/api/ml/claims/sync${params}`, {
+        method: 'POST'
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(
+                    'Sincronização Concluída',
+                    `${data.created} claims criados, ${data.updated} atualizados`,
+                    'success'
+                );
+                loadClaims();
+            } else {
+                showNotification(
+                    'Erro na Sincronização',
+                    data.error || 'Erro ao sincronizar claims',
+                    'error'
+                );
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao sincronizar:', error);
+            showNotification(
+                'Erro na Sincronização',
+                'Erro ao sincronizar claims. Tente novamente.',
+                'error'
+            );
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+}
+
+function viewClaimDetails(claimId) {
+    currentClaimId = claimId;
+    const modal = new bootstrap.Modal(document.getElementById('claimDetailsModal'));
+    const content = document.getElementById('claim-details-content');
+    
+    content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+    modal.show();
+    
+    fetch(`/api/ml/claims/${claimId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                content.innerHTML = `<div class="alert alert-danger">${data.error || 'Erro ao carregar detalhes'}</div>`;
+                return;
+            }
+            
+            const claim = data.claim;
+            const messages = claim.messages || [];
+            const evidences = claim.evidences || [];
+            
+            let messagesHtml = '';
+            if (messages.length > 0) {
+                messagesHtml = '<div class="mb-3"><h6>Mensagens:</h6><div class="list-group">';
+                messages.forEach(msg => {
+                    const fromBadge = msg.from_type === 'buyer' 
+                        ? '<span class="badge bg-primary">Comprador</span>'
+                        : '<span class="badge bg-success">Vendedor</span>';
+                    messagesHtml += `
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    ${fromBadge}
+                                    <p class="mb-1 mt-2">${escapeHtml(msg.message_text)}</p>
+                                </div>
+                                <small class="text-muted">${formatDate(msg.date_created)}</small>
+                            </div>
+                        </div>
+                    `;
+                });
+                messagesHtml += '</div></div>';
+            }
+            
+            let evidencesHtml = '';
+            if (evidences.length > 0) {
+                evidencesHtml = '<div class="mb-3"><h6>Evidências:</h6><div class="row g-2">';
+                evidences.forEach(evid => {
+                    if (evid.evidence_type === 'image' && evid.evidence_url) {
+                        evidencesHtml += `
+                            <div class="col-md-3">
+                                <img src="${evid.evidence_url}" class="img-thumbnail" style="max-height: 150px; cursor: pointer;" onclick="window.open('${evid.evidence_url}', '_blank')">
+                            </div>
+                        `;
+                    }
+                });
+                evidencesHtml += '</div></div>';
+            }
+            
+            content.innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Tipo:</strong> ${claim.claim_type === 'mediations' ? '<span class="badge bg-warning">Mediação</span>' : '<span class="badge bg-info">Devolução</span>'}<br>
+                        <strong>Status:</strong> ${getStatusBadge(claim.status)}<br>
+                        <strong>Pedido:</strong> ${claim.ml_order_id ? `<a href="/ml/orders/${claim.ml_order_id}" target="_blank">${claim.ml_order_id}</a>` : '-'}<br>
+                        <strong>Comprador:</strong> ${claim.buyer_nickname || '-'}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Data Criação:</strong> ${formatDate(claim.date_created)}<br>
+                        <strong>Última Atualização:</strong> ${formatDate(claim.date_updated)}<br>
+                        <strong>Data Fechamento:</strong> ${formatDate(claim.date_closed) || '-'}<br>
+                        <strong>Resolução:</strong> ${claim.resolution_reason || '-'}
+                    </div>
+                </div>
+                ${messagesHtml}
+                ${evidencesHtml}
+                ${claim.status === 'opened' ? `
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-success" onclick="openAcceptModal(${claim.id})">
+                            <i class="bi bi-check-circle"></i> Aceitar
+                        </button>
+                        <button class="btn btn-danger" onclick="openRejectModal(${claim.id})">
+                            <i class="bi bi-x-circle"></i> Rejeitar
+                        </button>
+                        <button class="btn btn-primary" onclick="openSendMessageModal(${claim.id})">
+                            <i class="bi bi-chat-dots"></i> Enviar Mensagem
+                        </button>
+                    </div>
+                ` : ''}
+            `;
+        })
+        .catch(error => {
+            console.error('Erro ao carregar detalhes:', error);
+            content.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhes: ${error.message}</div>`;
+        });
+}
+
+function openAcceptModal(claimId) {
+    currentClaimId = claimId;
+    document.getElementById('accept-message').value = '';
+    const modal = new bootstrap.Modal(document.getElementById('acceptClaimModal'));
+    modal.show();
+}
+
+function confirmAcceptClaim() {
+    const message = document.getElementById('accept-message').value;
+    
+    fetch(`/api/ml/claims/${currentClaimId}/accept`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: message || null })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('acceptClaimModal')).hide();
+                showNotification(
+                    'Sucesso',
+                    'Claim aceito com sucesso!',
+                    'success'
+                );
+                loadClaims();
+                if (currentClaimId) {
+                    viewClaimDetails(currentClaimId);
+                }
+            } else {
+                showNotification(
+                    'Erro',
+                    data.error || 'Erro ao aceitar claim',
+                    'error'
+                );
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao aceitar claim:', error);
+            showNotification(
+                'Erro',
+                'Erro ao aceitar claim. Tente novamente.',
+                'error'
+            );
+        });
+}
+
+function openRejectModal(claimId) {
+    currentClaimId = claimId;
+    document.getElementById('reject-message').value = '';
+    const modal = new bootstrap.Modal(document.getElementById('rejectClaimModal'));
+    modal.show();
+}
+
+function confirmRejectClaim() {
+    const message = document.getElementById('reject-message').value;
+    
+    if (!message.trim()) {
+        showNotification(
+            'Atenção',
+            'Por favor, informe o motivo da rejeição',
+            'warning'
+        );
+        return;
+    }
+    
+    fetch(`/api/ml/claims/${currentClaimId}/reject`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: message })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('rejectClaimModal')).hide();
+                showNotification(
+                    'Sucesso',
+                    'Claim rejeitado com sucesso!',
+                    'success'
+                );
+                loadClaims();
+                if (currentClaimId) {
+                    viewClaimDetails(currentClaimId);
+                }
+            } else {
+                showNotification(
+                    'Erro',
+                    data.error || 'Erro ao rejeitar claim',
+                    'error'
+                );
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao rejeitar claim:', error);
+            showNotification(
+                'Erro',
+                'Erro ao rejeitar claim. Tente novamente.',
+                'error'
+            );
+        });
+}
+
+function openSendMessageModal(claimId) {
+    currentClaimId = claimId;
+    document.getElementById('message-text').value = '';
+    const modal = new bootstrap.Modal(document.getElementById('sendMessageModal'));
+    modal.show();
+}
+
+function confirmSendMessage() {
+    const message = document.getElementById('message-text').value;
+    
+    if (!message.trim()) {
+        showNotification(
+            'Atenção',
+            'Por favor, digite uma mensagem',
+            'warning'
+        );
+        return;
+    }
+    
+    fetch(`/api/ml/claims/${currentClaimId}/messages`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: message })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('sendMessageModal')).hide();
+                showNotification(
+                    'Sucesso',
+                    'Mensagem enviada com sucesso!',
+                    'success'
+                );
+                if (currentClaimId) {
+                    viewClaimDetails(currentClaimId);
+                }
+            } else {
+                showNotification(
+                    'Erro',
+                    data.error || 'Erro ao enviar mensagem',
+                    'error'
+                );
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao enviar mensagem:', error);
+            showNotification(
+                'Erro',
+                'Erro ao enviar mensagem. Tente novamente.',
+                'error'
+            );
+        });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showNotification(title, message, type = 'info') {
+    const modal = document.getElementById('notificationModal');
+    const header = document.getElementById('notification-header');
+    const titleEl = document.getElementById('notification-title');
+    const messageEl = document.getElementById('notification-message');
+    
+    // Definir cores baseadas no tipo
+    const colors = {
+        'success': 'bg-success text-white',
+        'error': 'bg-danger text-white',
+        'warning': 'bg-warning text-dark',
+        'info': 'bg-info text-white'
+    };
+    
+    header.className = `modal-header ${colors[type] || colors.info}`;
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+</script>
+{% endblock %}
+
