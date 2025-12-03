@@ -112,8 +112,21 @@ class MLClaimsController:
                 "offset": offset
             }
             
+        except (ProgrammingError, OperationalError) as e:
+            error_msg = str(e)
+            if "does not exist" in error_msg or "relation" in error_msg.lower() or "ml_claims" in error_msg:
+                logger.error(f"❌ Tabela ml_claims não existe no banco de dados: {e}")
+                self.db.rollback()  # Rollback explícito para limpar transação
+                return {
+                    "success": False,
+                    "error": "Tabela de claims não está configurada. Entre em contato com o suporte técnico.",
+                    "claims": [],
+                    "total": 0
+                }
+            raise
         except Exception as e:
             logger.error(f"Erro ao listar claims: {e}", exc_info=True)
+            self.db.rollback()  # Rollback explícito em caso de erro
             return {
                 "success": False,
                 "error": str(e),
@@ -248,8 +261,19 @@ class MLClaimsController:
                 }
             }
             
+        except (ProgrammingError, OperationalError) as e:
+            error_msg = str(e)
+            if "does not exist" in error_msg or "relation" in error_msg.lower() or "ml_claims" in error_msg:
+                logger.error(f"❌ Tabela ml_claims não existe no banco de dados: {e}")
+                self.db.rollback()
+                return {
+                    "success": False,
+                    "error": "Tabela de claims não está configurada. Entre em contato com o suporte técnico."
+                }
+            raise
         except Exception as e:
             logger.error(f"Erro ao buscar detalhes do claim: {e}", exc_info=True)
+            self.db.rollback()
             return {
                 "success": False,
                 "error": str(e)
@@ -460,11 +484,25 @@ class MLClaimsController:
                             self.db.add(new_claim)
                             total_created += 1
                         
-                        total_synced += 1
-                        
-                    except Exception as e:
-                        logger.error(f"Erro ao processar claim {claim_data.get('id')}: {e}", exc_info=True)
-                        continue
+                    total_synced += 1
+                    
+                except (ProgrammingError, OperationalError) as e:
+                    error_msg = str(e)
+                    if "does not exist" in error_msg or "relation" in error_msg.lower() or "ml_claims" in error_msg:
+                        logger.error(f"❌ Tabela ml_claims não existe no banco de dados. Interrompendo sincronização.")
+                        self.db.rollback()
+                        return {
+                            "success": False,
+                            "error": "Tabela de claims não está configurada. Execute o script create_ml_claims_tables.sql no banco de dados.",
+                            "created": total_created,
+                            "updated": total_updated,
+                            "total": total_synced
+                        }
+                    raise
+                except Exception as e:
+                    logger.error(f"Erro ao processar claim {claim_data.get('id')}: {e}", exc_info=True)
+                    self.db.rollback()
+                    continue
                 
                 self.db.commit()
             
@@ -478,6 +516,19 @@ class MLClaimsController:
                 "total": total_synced
             }
             
+        except (ProgrammingError, OperationalError) as e:
+            error_msg = str(e)
+            if "does not exist" in error_msg or "relation" in error_msg.lower() or "ml_claims" in error_msg:
+                logger.error(f"❌ Tabela ml_claims não existe no banco de dados: {e}")
+                self.db.rollback()
+                return {
+                    "success": False,
+                    "error": "Tabela de claims não está configurada. Execute o script create_ml_claims_tables.sql no banco de dados.",
+                    "created": 0,
+                    "updated": 0,
+                    "total": 0
+                }
+            raise
         except Exception as e:
             self.db.rollback()
             logger.error(f"Erro ao sincronizar claims: {e}", exc_info=True)

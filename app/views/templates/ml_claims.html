@@ -280,11 +280,32 @@ function loadClaims() {
     tbody.innerHTML = '<tr><td colspan="9" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></td></tr>';
     
     fetch(`/api/ml/claims?${params}`)
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                throw new Error(data.error || 'Erro ao carregar claims');
+        .then(async response => {
+            // Tentar parsear JSON mesmo se status não for OK
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                const text = await response.text();
+                throw new Error(`Erro ao parsear resposta: ${text.substring(0, 200)}`);
             }
+            
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            // Verificar se data é válido
+            if (!data) {
+                throw new Error('Resposta vazia da API');
+            }
+            
+            if (!data.success) {
+                throw new Error(data.error || data.detail || 'Erro ao carregar claims');
+            }
+            
+            return data;
+        })
+        .then(data => {
             
             const claims = data.claims || [];
             const total = data.total || 0;
@@ -345,7 +366,26 @@ function loadClaims() {
         })
         .catch(error => {
             console.error('Erro ao carregar claims:', error);
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Erro ao carregar claims: ${error.message}</td></tr>`;
+            console.error('Stack trace:', error.stack);
+            
+            let errorMessage = 'Erro ao carregar claims';
+            if (error.message) {
+                errorMessage = error.message;
+            } else if (error.toString) {
+                errorMessage = error.toString();
+            }
+            
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center text-danger">
+                        <div class="alert alert-danger">
+                            <strong>Erro ao carregar claims:</strong><br>
+                            ${escapeHtml(errorMessage)}
+                            <br><small class="text-muted">Verifique o console para mais detalhes</small>
+                        </div>
+                    </td>
+                </tr>
+            `;
         });
 }
 
