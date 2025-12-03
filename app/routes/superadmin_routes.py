@@ -1389,6 +1389,77 @@ async def superadmin_update_ticket_status_api(
         )
 
 
+# ========== ROTAS DE PACOTES DE TOKENS ==========
+
+@superadmin_router.get("/superadmin/token-packages", response_class=HTMLResponse)
+async def superadmin_token_packages(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Página de gerenciamento de pacotes de tokens"""
+    return render_template("superadmin/token_packages.html", request=request)
+
+@superadmin_router.get("/api/superadmin/token-packages")
+async def api_get_token_packages(
+    active_only: bool = Query(False, description="Listar apenas pacotes ativos"),
+    db: Session = Depends(get_db)
+):
+    """API: Lista pacotes de tokens"""
+    controller = SuperAdminController(db)
+    packages = controller.list_token_packages(active_only=active_only)
+    return {"success": True, "packages": packages}
+
+@superadmin_router.post("/api/superadmin/token-packages")
+async def api_create_token_package(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API: Cria um novo pacote de tokens"""
+    controller = SuperAdminController(db)
+    
+    try:
+        package_data = await request.json()
+        result = controller.create_token_package(package_data)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@superadmin_router.put("/api/superadmin/token-packages/{package_id}")
+async def api_update_token_package(
+    package_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API: Atualiza um pacote de tokens"""
+    controller = SuperAdminController(db)
+    
+    try:
+        package_data = await request.json()
+        result = controller.update_token_package(package_id, package_data)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@superadmin_router.delete("/api/superadmin/token-packages/{package_id}")
+async def api_delete_token_package(
+    package_id: int,
+    db: Session = Depends(get_db)
+):
+    """API: Deleta um pacote de tokens"""
+    controller = SuperAdminController(db)
+    
+    try:
+        result = controller.delete_token_package(package_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
 @superadmin_router.get("/api/superadmin/support/tickets/{ticket_id}/attachments", response_class=JSONResponse)
 async def superadmin_get_ticket_attachments_api(
     ticket_id: int,
@@ -1419,56 +1490,3 @@ async def superadmin_get_ticket_attachments_api(
             content=response
         )
 
-# ========== ROTAS DE MARKETING (PLANEJAMENTO DE CONTEÚDO) ==========
-
-@superadmin_router.get("/superadmin/content/calendar", response_class=HTMLResponse)
-async def superadmin_content_calendar(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Página de calendário de conteúdo - SuperAdmin"""
-    try:
-        user_data = get_superadmin_user(request, db)
-    except HTTPException as e:
-        return RedirectResponse(url="/superadmin/login", status_code=302)
-    
-    return render_template("content_calendar.html", request=request, user=user_data, is_superadmin=True)
-
-@superadmin_router.get("/superadmin/content/ideas", response_class=HTMLResponse)
-async def superadmin_content_ideas(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Página de ideias - SuperAdmin"""
-    try:
-        user_data = get_superadmin_user(request, db)
-    except HTTPException as e:
-        return RedirectResponse(url="/superadmin/login", status_code=302)
-    
-    return render_template("content_ideas.html", request=request, user=user_data, is_superadmin=True)
-
-@superadmin_router.get("/superadmin/content/social", response_class=HTMLResponse)
-async def superadmin_content_social(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Página de posts sociais - SuperAdmin"""
-    try:
-        user_data = get_superadmin_user(request, db)
-    except HTTPException as e:
-        return RedirectResponse(url="/superadmin/login", status_code=302)
-    
-    return render_template("content_social.html", request=request, user=user_data, is_superadmin=True)
-
-@superadmin_router.get("/superadmin/content/blog", response_class=HTMLResponse)
-async def superadmin_content_blog(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Página de posts do blog - SuperAdmin"""
-    try:
-        user_data = get_superadmin_user(request, db)
-    except HTTPException as e:
-        return RedirectResponse(url="/superadmin/login", status_code=302)
-    
-    return render_template("content_blog.html", request=request, user=user_data, is_superadmin=True)

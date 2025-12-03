@@ -212,6 +212,23 @@
                         {% endif %}
                         
                         <div class="row mt-3 pt-3 border-top">
+                            <div class="col-md-6 mb-3">
+                                <p class="mb-1 text-muted small">Tokens de IA Comprados</p>
+                                <p class="mb-0">
+                                    <strong id="tokensPurchased">{{ company.ai_tokens_purchased or 0 }}</strong>
+                                    <span class="text-muted small"> tokens</span>
+                                </p>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <p class="mb-1 text-muted small">Tokens Mensais (Plano)</p>
+                                <p class="mb-0">
+                                    <strong>{{ company.ai_tokens_monthly or 0 }}</strong>
+                                    <span class="text-muted small"> tokens/mês</span>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3 pt-3 border-top">
                             <div class="col-md-12">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
@@ -285,6 +302,9 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     loadUserPayments();
+    loadCompanyTokens(); // Carregar tokens da empresa
+    // Atualizar tokens a cada 30 segundos
+    setInterval(loadCompanyTokens, 30000);
 });
 
 async function loadUserPayments() {
@@ -314,6 +334,26 @@ async function loadUserPayments() {
     }
 }
 
+async function loadCompanyTokens() {
+    try {
+        const response = await fetch('/api/company/tokens', {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.ai_tokens_purchased !== undefined) {
+                const tokensElement = document.getElementById('tokensPurchased');
+                if (tokensElement) {
+                    tokensElement.textContent = data.ai_tokens_purchased || 0;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar tokens:', error);
+    }
+}
+
 function displayPaymentsTable(payments) {
     const container = document.getElementById('payments-content');
     
@@ -325,6 +365,7 @@ function displayPaymentsTable(payments) {
                         <th>Data</th>
                         <th>Descrição</th>
                         <th>Valor</th>
+                        <th>Tipo</th>
                         <th>Status</th>
                         <th>Forma de Pagamento</th>
                         <th>Ações</th>
@@ -334,32 +375,41 @@ function displayPaymentsTable(payments) {
     `;
     
     payments.forEach(payment => {
-        const date = payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('pt-BR') : 
+        const date = payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString('pt-BR') :
+                     payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('pt-BR') : 
                      payment.created_at ? new Date(payment.created_at).toLocaleDateString('pt-BR') : 'N/A';
         const statusClass = getStatusClass(payment.status);
         const statusIcon = getStatusIcon(payment.status);
         const value = payment.value ? parseFloat(payment.value).toFixed(2) : '0.00';
         const billingType = getBillingTypeLabel(payment.billingType);
+        const paymentType = payment.type === 'package' ? 
+            `<span class="badge bg-info">Pacote de Tokens</span>` : 
+            `<span class="badge bg-secondary">Assinatura</span>`;
+        
+        // Se for pacote, mostrar quantidade de tokens
+        const description = payment.type === 'package' && payment.tokens_amount ?
+            `${payment.description || 'Pacote de Tokens'} <span class="badge bg-primary">${payment.tokens_amount.toLocaleString('pt-BR')} tokens</span>` :
+            payment.description || 'Pagamento de assinatura';
         
         html += `
             <tr>
                 <td>${date}</td>
-                <td><small>${payment.description || 'Pagamento de assinatura'}</small></td>
+                <td><small>${description}</small></td>
                 <td><strong>R$ ${value}</strong></td>
+                <td>${paymentType}</td>
                 <td><span class="badge bg-${statusClass}">${statusIcon} ${getStatusLabel(payment.status)}</span></td>
                 <td><small class="text-muted">${billingType}</small></td>
                 <td>
-                    ${payment.invoiceUrl ? `
-                        <a href="${payment.invoiceUrl}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver boleto/recibo">
-                            <i class="bi bi-receipt"></i>
-                        </a>
-                    ` : ''}
-                    ${payment.status === 'confirmed' || payment.status === 'received' ? `
-                        <button class="btn btn-sm btn-outline-success ${payment.invoiceUrl ? 'ms-1' : ''}" onclick="updateSubscriptionFromPayment('${payment.id}')" title="Atualizar cadastro com este pagamento">
-                            <i class="bi bi-arrow-clockwise"></i> Atualizar
+                    <div class="btn-group" role="group">
+                        ${payment.invoiceUrl ? `
+                            <a href="${payment.invoiceUrl}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver boleto/recibo">
+                                <i class="bi bi-receipt"></i>
+                            </a>
+                        ` : ''}
+                        <button class="btn btn-sm btn-outline-info ${payment.invoiceUrl ? 'ms-1' : ''}" onclick="syncPaymentStatus('${payment.id}')" title="Sincronizar status com Asaas e atualizar empresa">
+                            <i class="bi bi-arrow-repeat"></i> Sincronizar
                         </button>
-                    ` : ''}
-                    ${!payment.invoiceUrl && payment.status !== 'confirmed' && payment.status !== 'received' ? '<span class="text-muted">-</span>' : ''}
+                    </div>
                 </td>
             </tr>
         `;
@@ -531,6 +581,45 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+async function syncPaymentStatus(paymentId) {
+    const button = event.target.closest('button');
+    const originalHtml = button.innerHTML;
+    
+    // Desabilitar botão e mostrar loading
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    
+    try {
+        const response = await fetch(`/api/asaas/payments/${paymentId}/sync`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification(data.message || 'Status sincronizado com sucesso!', 'success');
+            // Recarregar pagamentos e tokens da empresa após 1 segundo
+            setTimeout(() => {
+                loadUserPayments();
+                loadCompanyTokens(); // Recarregar tokens da empresa
+            }, 1000);
+        } else {
+            showNotification('Erro ao sincronizar: ' + (data.message || 'Erro desconhecido'), 'error');
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    } catch (error) {
+        console.error('Erro ao sincronizar pagamento:', error);
+        showNotification('Erro de conexão. Tente novamente.', 'error');
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
 
 function showNotification(message, type = 'info') {
     if (window.MLAPI && window.MLAPI.showNotification) {

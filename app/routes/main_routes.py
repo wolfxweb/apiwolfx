@@ -39,7 +39,60 @@ async def products_imported_page(request: Request, session_token: str = Cookie(N
         # Se token expirado ou inválido, redirecionar para login
         return RedirectResponse(url="/auth/login", status_code=302)
 
-@main_router.post("/company/toggle-ml-orders-receivables")
+@main_router.get("/company/tokens")
+async def get_company_tokens(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Retorna informações de tokens da empresa"""
+    if not session_token:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Token de sessão necessário"}
+        )
+    
+    from app.controllers.auth_controller import AuthController
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Sessão inválida ou expirada"}
+        )
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    
+    if not company_id:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Usuário não possui empresa associada"}
+        )
+    
+    try:
+        from app.models.saas_models import Company
+        company = db.query(Company).filter(Company.id == company_id).first()
+        
+        if not company:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Empresa não encontrada"}
+            )
+        
+        return {
+            "success": True,
+            "ai_tokens_purchased": company.ai_tokens_purchased or 0,
+            "ai_tokens_monthly": company.ai_tokens_monthly or 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar tokens da empresa: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
 async def toggle_ml_orders_receivables(
     request: Request,
     session_token: Optional[str] = Cookie(None),

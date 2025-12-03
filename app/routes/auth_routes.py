@@ -521,6 +521,7 @@ async def profile(
                 is_cancelled = True
                 from datetime import datetime
                 cancellation_date = datetime.strptime(asaas_subscription["endDate"], "%Y-%m-%d")
+            
         except Exception as e:
             logger.warning(f"⚠️ Erro ao verificar status de cancelamento no Asaas: {e}")
     

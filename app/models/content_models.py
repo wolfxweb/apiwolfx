@@ -1,11 +1,13 @@
 """
 Modelos de Planejamento de Conteúdo
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, UniqueConstraint, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -93,4 +95,65 @@ class ContentCalendar(Base):
     
     # Relacionamento
     company = relationship("Company")
+
+
+class ContentBriefing(Base):
+    """Modelo para briefings de marketing"""
+    __tablename__ = "content_briefings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)  # Nullable para superadmin
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    
+    # Informações Gerais
+    nome_empresa_produto = Column(String(255))
+    publico_alvo = Column(Text)
+    objetivo_conteudo = Column(JSONB)  # array de objetivos selecionados
+    estagio_funil = Column(String(20))  # topo, meio, fundo
+    linha_editorial = Column(String(20))  # educacional, informativo, vendas, bastidores, prova_social
+    
+    # Redes Sociais
+    redes_sociais = Column(JSONB)  # objeto com plataformas e formatos
+    
+    # Blog/Artigos
+    blog_config = Column(JSONB)  # objeto com palavras-chave, SEO, tamanho
+    
+    # Material Complementar
+    material_complementar = Column(JSONB)  # array de tipos selecionados
+    
+    # Processamento
+    pesquisa_resultado = Column(Text)
+    agentes_identificados = Column(JSONB)  # array de IDs/nomes de agentes a executar
+    conteudo_gerado = Column(JSONB)  # objeto com todo conteúdo gerado
+    status = Column(String(20), default="draft")  # draft, researching, generating, completed, error
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    company = relationship("Company")
+    user = relationship("User", foreign_keys=[user_id])
+    
+    def to_dict(self):
+        """Converte o briefing para dicionário"""
+        return {
+            "id": self.id,
+            "company_id": self.company_id,
+            "user_id": self.user_id,
+            "nome_empresa_produto": self.nome_empresa_produto,
+            "publico_alvo": self.publico_alvo,
+            "objetivo_conteudo": json.loads(json.dumps(self.objetivo_conteudo)) if self.objetivo_conteudo else None,
+            "estagio_funil": self.estagio_funil,
+            "linha_editorial": self.linha_editorial,
+            "redes_sociais": json.loads(json.dumps(self.redes_sociais)) if self.redes_sociais else None,
+            "blog_config": json.loads(json.dumps(self.blog_config)) if self.blog_config else None,
+            "material_complementar": json.loads(json.dumps(self.material_complementar)) if self.material_complementar else None,
+            "pesquisa_resultado": self.pesquisa_resultado,
+            "agentes_identificados": json.loads(json.dumps(self.agentes_identificados)) if self.agentes_identificados else None,
+            "conteudo_gerado": json.loads(json.dumps(self.conteudo_gerado)) if self.conteudo_gerado else None,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
 

@@ -349,6 +349,52 @@ class Subscription(Base):
     # Relacionamentos
     company = relationship("Company", back_populates="subscriptions")
 
+class TokenPackage(Base):
+    """Pacotes de tokens de IA para venda avulsa"""
+    __tablename__ = "token_packages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    tokens_amount = Column(Integer, nullable=False)  # Quantidade de tokens
+    price = Column(String(50), nullable=False)  # Preço em string para suportar valores como "R$ 50,00"
+    currency = Column(String(10), default="BRL")
+    is_active = Column(Boolean, default=True, index=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relacionamentos
+    purchases = relationship("TokenPackagePurchase", back_populates="package")
+
+class TokenPackagePurchase(Base):
+    """Histórico de compras de pacotes de tokens"""
+    __tablename__ = "token_package_purchases"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    package_id = Column(Integer, ForeignKey("token_packages.id"), nullable=False, index=True)
+    
+    # Dados da compra
+    tokens_amount = Column(Integer, nullable=False)
+    price = Column(String(50), nullable=False)
+    currency = Column(String(10), default="BRL")
+    
+    # Pagamento
+    payment_method = Column(String(50))  # PIX, BOLETO, CREDIT_CARD
+    payment_status = Column(String(50), default="pending", index=True)  # pending, confirmed, cancelled
+    asaas_payment_id = Column(String(100), nullable=True, index=True)  # ID do pagamento no Asaas
+    invoice_url = Column(String(500))  # URL do boleto/PIX para pagamento
+    
+    # Timestamps
+    purchased_at = Column(DateTime, default=func.now(), index=True)
+    confirmed_at = Column(DateTime, nullable=True)
+    
+    # Relacionamentos
+    company = relationship("Company")
+    package = relationship("TokenPackage", back_populates="purchases")
+
 class MLProductStatus(enum.Enum):
     """Status do produto ML"""
     ACTIVE = "active"
@@ -1484,8 +1530,8 @@ class OpenAIAssistantThread(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     assistant_id = Column(Integer, ForeignKey("openai_assistants.id"), nullable=False, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)  # Nullable para superadmin
+    user_id = Column(Integer, nullable=True, index=True)  # Pode ser ID do superadmin ou usuário (sem FK para permitir superadmin)
     
     # ID da thread na OpenAI
     thread_id = Column(String(255), nullable=False, unique=True, index=True)
@@ -1507,7 +1553,7 @@ class OpenAIAssistantThread(Base):
     # Relacionamentos
     assistant = relationship("OpenAIAssistant", back_populates="threads")
     company = relationship("Company")
-    user = relationship("User")
+    # user relationship removido - user_id pode ser de superadmin (não está na tabela users)
     messages = relationship("OpenAIAssistantMessage", back_populates="thread", cascade="all, delete-orphan", order_by="OpenAIAssistantMessage.created_at")
     
     # Índices (criados via script SQL, não precisam ser recriados aqui)
@@ -1548,8 +1594,8 @@ class OpenAIAssistantUsage(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     assistant_id = Column(Integer, ForeignKey("openai_assistants.id"), nullable=False, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)  # Nullable para superadmin
+    user_id = Column(Integer, nullable=True, index=True)  # Pode ser ID do superadmin ou usuário (sem FK para permitir superadmin)
     
     # Thread (para modo chat)
     thread_id = Column(String(255), nullable=True, index=True)
@@ -1582,7 +1628,7 @@ class OpenAIAssistantUsage(Base):
     # Relacionamentos
     assistant = relationship("OpenAIAssistant", back_populates="usage_records")
     company = relationship("Company")
-    user = relationship("User")
+    # user relationship removido - user_id pode ser de superadmin (não está na tabela users)
     
     # Índices (criados via script SQL, não precisam ser recriados aqui)
     # __table_args__ = (

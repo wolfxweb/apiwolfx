@@ -1,32 +1,29 @@
+#!/usr/bin/env python3
 """
 Script para criar o agente "Analise cadastro produto"
+Execute este script para criar o agente "Analise cadastro produto"
 """
-import logging
-from sqlalchemy import text
+import sys
+import os
+import uuid
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from app.config.database import SessionLocal
+from app.models.saas_models import OpenAIAssistant, InteractionMode
+import logging
+
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-def run(db=None):
-    """
-    Cria o agente "Analise cadastro produto" se ainda não existir.
-    """
+def run(db):
+    """Cria o agente 'Analise cadastro produto' se não existir"""
     try:
-        if db is None:
-            from app.config.database import get_db
-            db = next(get_db())
+        # Verificar se já existe
+        existing = db.query(OpenAIAssistant).filter(
+            OpenAIAssistant.name == "Analise cadastro produto"
+        ).first()
         
-        # Verificar se o agente já existe
-        check_query = text("""
-            SELECT EXISTS(
-                SELECT 1 FROM openai_assistants 
-                WHERE LOWER(name) LIKE LOWER('%analise%cadastro%produto%')
-            )
-        """)
-        result = db.execute(check_query).fetchone()
-        agent_exists = result[0] if result else False
-        
-        if agent_exists:
+        if existing:
             logger.info("ℹ️ Agente 'Analise cadastro produto' já existe. Nada a fazer.")
             return {"success": True, "message": "Agente já existe"}
         
@@ -72,58 +69,6 @@ Forneça uma análise estruturada com:
 - Priorize atributos obrigatórios e importantes para SEO
 - Sugira melhorias práticas e implementáveis"""
 
-        welcome_message = "Olá! Vou analisar o cadastro do seu produto e fornecer recomendações específicas para otimização. Os dados do cadastro serão fornecidos abaixo."
-        
-        # Criar o agente
-        insert_query = text("""
-            INSERT INTO openai_assistants (
-                name,
-                description,
-                assistant_id,
-                model,
-                instructions,
-                temperature,
-                max_tokens,
-                tools_config,
-                interaction_mode,
-                use_case,
-                memory_enabled,
-                memory_data,
-                initial_prompt,
-                welcome_enabled,
-                welcome_use_model,
-                welcome_message,
-                is_active,
-                total_runs,
-                total_tokens_used,
-                created_at,
-                updated_at
-            ) VALUES (
-                'Analise cadastro produto',
-                'Agente especializado em análise e otimização de cadastros de produtos do Mercado Livre',
-                'local_analise_cadastro_' || extract(epoch from now())::bigint,
-                'gpt-5-nano',
-                :instructions,
-                NULL,
-                16000,
-                '{"reasoning_effort": "low", "verbosity": "medium", "tools": []}'::jsonb,
-                'chat',
-                'Análise de cadastro de produto',
-                TRUE,
-                NULL,
-                :initial_prompt,
-                TRUE,
-                FALSE,
-                :welcome_message,
-                TRUE,
-                0,
-                0,
-                NOW(),
-                NOW()
-            )
-            RETURNING id
-        """)
-        
         initial_prompt = """Analise o cadastro de produto do Mercado Livre abaixo e forneça recomendações específicas de otimização.
 
 Considere:
@@ -137,21 +82,52 @@ Considere:
 - Códigos (GTIN, SKU, MPN)
 
 Os dados completos do produto serão fornecidos abaixo."""
+
+        welcome_message = "Olá! Vou analisar o cadastro do seu produto e fornecer recomendações específicas para otimização. Os dados do cadastro serão fornecidos abaixo."
         
-        with db.begin():
-            result = db.execute(insert_query, {
-                "instructions": instructions,
-                "initial_prompt": initial_prompt,
-                "welcome_message": welcome_message
-            })
-            agent_id = result.fetchone()[0]
+        # Criar agente
+        agent = OpenAIAssistant(
+            name="Analise cadastro produto",
+            description="Agente especializado em análise e otimização de cadastros de produtos do Mercado Livre",
+            assistant_id=f"local_analise_cadastro_{uuid.uuid4().hex[:16]}",
+            model="gpt-5-nano",
+            instructions=instructions,
+            temperature=None,
+            max_tokens=16000,
+            tools_config={"reasoning_effort": "low", "verbosity": "medium", "tools": []},
+            interaction_mode=InteractionMode.CHAT,
+            use_case="Análise de cadastro de produto",
+            memory_enabled=True,
+            initial_prompt=initial_prompt,
+            welcome_enabled=True,
+            welcome_use_model=False,
+            welcome_message=welcome_message,
+            provider="openai",
+            is_active=True
+        )
         
-        logger.info(f"✅ Agente 'Analise cadastro produto' criado com sucesso (ID: {agent_id})")
-        return {"success": True, "agent_id": agent_id}
+        db.add(agent)
+        db.commit()
+        db.refresh(agent)
+        
+        logger.info(f"✅ Agente 'Analise cadastro produto' criado com sucesso (ID: {agent.id})")
+        return {"success": True, "agent_id": agent.id}
         
     except Exception as e:
         logger.error(f"❌ Erro ao criar agente: {e}", exc_info=True)
-        if db:
-            db.rollback()
+        db.rollback()
         return {"success": False, "error": str(e)}
+
+if __name__ == "__main__":
+    db = SessionLocal()
+    try:
+        result = run(db)
+        if result.get("success"):
+            print("✅ Agente criado com sucesso!")
+            sys.exit(0)
+        else:
+            print(f"❌ Erro: {result.get('error')}")
+            sys.exit(1)
+    finally:
+        db.close()
 

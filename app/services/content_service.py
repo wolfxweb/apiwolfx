@@ -51,10 +51,14 @@ class ContentService:
             logger.error(f"Erro ao criar ideia: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def list_ideas(self, company_id: int, search: Optional[str] = None, is_ai_generated: Optional[int] = None) -> Dict[str, Any]:
-        """Lista ideias da empresa"""
+    def list_ideas(self, company_id: Optional[int], search: Optional[str] = None, is_ai_generated: Optional[int] = None) -> Dict[str, Any]:
+        """Lista ideias da empresa (ou todas se company_id for None para superadmin)"""
         try:
-            query = self.db.query(ContentIdea).filter(ContentIdea.company_id == company_id)
+            query = self.db.query(ContentIdea)
+            
+            # Filtrar por company_id apenas se fornecido (superadmin pode passar None)
+            if company_id is not None:
+                query = query.filter(ContentIdea.company_id == company_id)
             
             if is_ai_generated is not None:
                 query = query.filter(ContentIdea.is_ai_generated == is_ai_generated)
@@ -76,6 +80,7 @@ class ContentService:
                 "data": [
                     {
                         "id": idea.id,
+                        "company_id": idea.company_id,
                         "titulo": idea.titulo,
                         "descricao": idea.descricao,
                         "tags": idea.tags,

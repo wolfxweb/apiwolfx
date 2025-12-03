@@ -493,18 +493,54 @@ async def startup_event():
                         module.create_openai_assistants_tables()
                         print("✅ [STARTUP] Tabelas OpenAI Assistants verificadas/criadas")
                     
-                    # Adicionar suporte a múltiplos providers
+                    # Adicionar suporte a múltiplos providers (CRÍTICO - deve ser antes de criar agentes)
+                    print("📋 [STARTUP] Adicionando suporte a múltiplos providers...")
                     provider_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
                                                 'database', 'fixes', 'add_provider_support_to_agents.py')
+                    # Tentar caminho alternativo
+                    if not os.path.exists(provider_script_path):
+                        provider_script_path = os.path.join('/app', 'database', 'fixes', 'add_provider_support_to_agents.py')
+                    
                     if os.path.exists(provider_script_path):
-                        provider_spec = importlib.util.spec_from_file_location("add_provider_support_to_agents", provider_script_path)
-                        provider_module = importlib.util.module_from_spec(provider_spec)
-                        provider_spec.loader.exec_module(provider_module)
-                        result = provider_module.add_provider_support()
-                        if result.get("success"):
-                            print("✅ [STARTUP] Suporte a múltiplos providers adicionado")
-                        else:
-                            print(f"ℹ️ [STARTUP] Providers: {result.get('message', 'já configurado ou erro')}")
+                        try:
+                            provider_spec = importlib.util.spec_from_file_location("add_provider_support_to_agents", provider_script_path)
+                            provider_module = importlib.util.module_from_spec(provider_spec)
+                            provider_spec.loader.exec_module(provider_module)
+                            # Passar a sessão db atual para o script
+                            result = provider_module.add_provider_support(db)
+                            if result.get("success"):
+                                print("✅ [STARTUP] Suporte a múltiplos providers adicionado")
+                            else:
+                                print(f"⚠️ [STARTUP] Providers: {result.get('message', 'já configurado ou erro')}")
+                                if result.get("error"):
+                                    print(f"❌ [STARTUP] Erro ao adicionar providers: {result.get('error')}")
+                                    import traceback
+                                    traceback.print_exc()
+                        except Exception as e:
+                            print(f"❌ [STARTUP] Erro ao executar script de providers: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    else:
+                        print(f"⚠️ [STARTUP] Script de providers não encontrado. Tentou: {provider_script_path}")
+                    
+                    # Tornar company_id nullable em briefings (para superadmin)
+                    briefing_nullable_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                                'database', 'fixes', 'make_company_id_nullable_in_briefings.py')
+                    if not os.path.exists(briefing_nullable_path):
+                        briefing_nullable_path = os.path.join('/app', 'database', 'fixes', 'make_company_id_nullable_in_briefings.py')
+                    
+                    if os.path.exists(briefing_nullable_path):
+                        try:
+                            nullable_spec = importlib.util.spec_from_file_location("make_company_id_nullable_in_briefings", briefing_nullable_path)
+                            nullable_module = importlib.util.module_from_spec(nullable_spec)
+                            nullable_spec.loader.exec_module(nullable_module)
+                            result = nullable_module.make_company_id_nullable()
+                            if result.get("success"):
+                                print("✅ [STARTUP] company_id nullable em briefings configurado")
+                            else:
+                                print(f"ℹ️ [STARTUP] company_id nullable: {result.get('message', 'já configurado ou erro')}")
+                        except Exception as e:
+                            print(f"⚠️ [STARTUP] Erro ao tornar company_id nullable: {e}")
                     
                     # Criar tabelas de suporte
                     support_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
@@ -566,6 +602,70 @@ async def startup_event():
                         print("✅ [STARTUP] Tabelas de Planejamento de Conteúdo verificadas/criadas")
                     else:
                         print(f"⚠️ [STARTUP] Script de conteúdo não encontrado. Tentou: {content_script_path}")
+                    
+                    # Criar tabela de Briefings de Marketing
+                    print("📋 [STARTUP] Verificando tabela de Briefings...")
+                    briefing_script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                            'database', 'fixes', 'create_content_briefings_table.py')
+                    # Tentar caminho alternativo se não encontrar
+                    if not os.path.exists(briefing_script_path):
+                        briefing_script_path = os.path.join('/app', 'database', 'fixes', 'create_content_briefings_table.py')
+                    if os.path.exists(briefing_script_path):
+                        print(f"📋 [STARTUP] Script encontrado: {briefing_script_path}")
+                        try:
+                            briefing_spec = importlib.util.spec_from_file_location("create_content_briefings_table", briefing_script_path)
+                            briefing_module = importlib.util.module_from_spec(briefing_spec)
+                            briefing_spec.loader.exec_module(briefing_module)
+                            briefing_module.create_content_briefings_table()
+                            print("✅ [STARTUP] Tabela de Briefings verificada/criada")
+                        except Exception as e:
+                            print(f"⚠️ [STARTUP] Erro ao criar tabela de Briefings: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    else:
+                        print(f"⚠️ [STARTUP] Script de briefings não encontrado. Tentou: {briefing_script_path}")
+                    
+                    # Tornar company_id nullable em openai_assistant_usage (para superadmin)
+                    print("🔓 [STARTUP] Verificando company_id nullable em openai_assistant_usage...")
+                    usage_nullable_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                            'database', 'fixes', 'make_company_id_nullable_in_openai_assistant_usage.py')
+                    if not os.path.exists(usage_nullable_path):
+                        usage_nullable_path = os.path.join('/app', 'database', 'fixes', 'make_company_id_nullable_in_openai_assistant_usage.py')
+                    
+                    if os.path.exists(usage_nullable_path):
+                        try:
+                            usage_nullable_spec = importlib.util.spec_from_file_location("make_company_id_nullable_in_openai_assistant_usage", usage_nullable_path)
+                            usage_nullable_module = importlib.util.module_from_spec(usage_nullable_spec)
+                            usage_nullable_spec.loader.exec_module(usage_nullable_module)
+                            usage_nullable_module.run(db)
+                            print("✅ [STARTUP] company_id nullable em openai_assistant_usage configurado")
+                        except Exception as e:
+                            print(f"⚠️ [STARTUP] Erro ao tornar company_id nullable em openai_assistant_usage: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    else:
+                        print(f"⚠️ [STARTUP] Script de usage nullable não encontrado. Tentou: {usage_nullable_path}")
+                    
+                    # Tornar company_id nullable em openai_assistant_threads (para superadmin)
+                    print("🔓 [STARTUP] Verificando company_id nullable em openai_assistant_threads...")
+                    threads_nullable_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                            'database', 'fixes', 'make_company_id_nullable_in_openai_assistant_threads.py')
+                    if not os.path.exists(threads_nullable_path):
+                        threads_nullable_path = os.path.join('/app', 'database', 'fixes', 'make_company_id_nullable_in_openai_assistant_threads.py')
+                    
+                    if os.path.exists(threads_nullable_path):
+                        try:
+                            threads_nullable_spec = importlib.util.spec_from_file_location("make_company_id_nullable_in_openai_assistant_threads", threads_nullable_path)
+                            threads_nullable_module = importlib.util.module_from_spec(threads_nullable_spec)
+                            threads_nullable_spec.loader.exec_module(threads_nullable_module)
+                            threads_nullable_module.run(db)
+                            print("✅ [STARTUP] company_id nullable em openai_assistant_threads configurado")
+                        except Exception as e:
+                            print(f"⚠️ [STARTUP] Erro ao tornar company_id nullable em openai_assistant_threads: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    else:
+                        print(f"⚠️ [STARTUP] Script de threads nullable não encontrado. Tentou: {threads_nullable_path}")
                     
                     # Adicionar coluna hide_product_data
                     print("🔒 [STARTUP] Verificando coluna hide_product_data...")
@@ -958,6 +1058,43 @@ async def startup_event():
                             print("✅ [STARTUP] Agente 'Geração de Imagem' (Google Imagen) verificado/criado")
                         else:
                             print(f"ℹ️ [STARTUP] Agente 'Geração de Imagem': {result.get('message', 'já existe ou erro')}")
+                    
+                    # Agentes de Briefing de Marketing
+                    briefing_agents = [
+                        ('create_briefing_generator_agent.py', 'Gerador de Briefing'),
+                        ('create_briefing_orchestrator_agent.py', 'Orquestrador de Briefing'),
+                        ('create_seo_optimization_agent.py', 'Otimização SEO'),
+                        ('create_social_copy_agent.py', 'Copy para Redes Sociais'),
+                        ('create_email_marketing_agent.py', 'Email Marketing'),
+                        ('create_video_script_agent.py', 'Scripts de Vídeo')
+                    ]
+                    
+                    for script_name, agent_name in briefing_agents:
+                        try:
+                            agent_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                            'database', 'fixes', script_name)
+                            if not os.path.exists(agent_path):
+                                agent_path = os.path.join('/app', 'database', 'fixes', script_name)
+                            if os.path.exists(agent_path):
+                                print(f"📋 [STARTUP] Executando script: {script_name}")
+                                module_name = script_name.replace('.py', '')
+                                spec_agent = importlib.util.spec_from_file_location(module_name, agent_path)
+                                agent_module = importlib.util.module_from_spec(spec_agent)
+                                spec_agent.loader.exec_module(agent_module)
+                                result = agent_module.run(db)
+                                if result.get("success"):
+                                    print(f"✅ [STARTUP] Agente '{agent_name}' verificado/criado")
+                                else:
+                                    print(f"ℹ️ [STARTUP] Agente '{agent_name}': {result.get('message', 'já existe ou erro')}")
+                                    if result.get("error"):
+                                        print(f"❌ [STARTUP] Erro detalhado: {result.get('error')}")
+                            else:
+                                print(f"⚠️ [STARTUP] Script não encontrado: {script_name} (tentou: {agent_path})")
+                        except Exception as e:
+                            print(f"❌ [STARTUP] Erro ao criar agente '{agent_name}': {e}")
+                            import traceback
+                            traceback.print_exc()
+                            
                 except Exception as e:
                     print(f"⚠️ [STARTUP] Não foi possível criar agentes multi-provider: {e}")
                     import traceback
@@ -1290,6 +1427,66 @@ async def startup_event():
                         db.execute(create_stock_projections_sql)
                         db.commit()
                         print("✅ [STARTUP] Tabela stock_projections criada")
+                    
+                    # Verificar e criar tabelas de pacotes de tokens
+                    check_token_packages_query = text("""
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name IN ('token_packages', 'token_package_purchases')
+                    """)
+                    existing_token_tables = [row[0] for row in db.execute(check_token_packages_query).fetchall()]
+                    
+                    if 'token_packages' not in existing_token_tables:
+                        print("📋 [STARTUP] Criando tabela token_packages...")
+                        create_token_packages_sql = text("""
+                            CREATE TABLE token_packages (
+                                id SERIAL PRIMARY KEY,
+                                name VARCHAR(255) NOT NULL,
+                                description TEXT,
+                                tokens_amount INTEGER NOT NULL,
+                                price VARCHAR(50) NOT NULL,
+                                currency VARCHAR(10) DEFAULT 'BRL',
+                                is_active BOOLEAN DEFAULT TRUE,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_token_packages_is_active ON token_packages(is_active);
+                        """)
+                        db.execute(create_token_packages_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela token_packages criada")
+                    
+                    if 'token_package_purchases' not in existing_token_tables:
+                        print("📋 [STARTUP] Criando tabela token_package_purchases...")
+                        create_token_package_purchases_sql = text("""
+                            CREATE TABLE token_package_purchases (
+                                id SERIAL PRIMARY KEY,
+                                company_id INTEGER NOT NULL,
+                                package_id INTEGER NOT NULL,
+                                tokens_amount INTEGER NOT NULL,
+                                price VARCHAR(50) NOT NULL,
+                                currency VARCHAR(10) DEFAULT 'BRL',
+                                payment_method VARCHAR(50),
+                                payment_status VARCHAR(50) DEFAULT 'pending',
+                                asaas_payment_id VARCHAR(100),
+                                invoice_url VARCHAR(500),
+                                purchased_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                confirmed_at TIMESTAMP WITH TIME ZONE,
+                                CONSTRAINT fk_token_package_purchases_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_token_package_purchases_package FOREIGN KEY (package_id) REFERENCES token_packages(id) ON DELETE CASCADE
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ix_token_package_purchases_company_id ON token_package_purchases(company_id);
+                            CREATE INDEX IF NOT EXISTS ix_token_package_purchases_package_id ON token_package_purchases(package_id);
+                            CREATE INDEX IF NOT EXISTS ix_token_package_purchases_payment_status ON token_package_purchases(payment_status);
+                            CREATE INDEX IF NOT EXISTS ix_token_package_purchases_asaas_payment_id ON token_package_purchases(asaas_payment_id);
+                            CREATE INDEX IF NOT EXISTS ix_token_package_purchases_purchased_at ON token_package_purchases(purchased_at);
+                        """)
+                        db.execute(create_token_package_purchases_sql)
+                        db.commit()
+                        print("✅ [STARTUP] Tabela token_package_purchases criada")
                     
                     print("✅ [STARTUP] Tabelas de estoque verificadas/criadas")
                     
@@ -1767,6 +1964,356 @@ async def api_update_company(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao atualizar empresa: {str(e)}")
+
+# Endpoint para comprar plano
+@app.post("/api/company/purchase-plan")
+async def api_purchase_plan(
+    purchase_data: dict,
+    session_token: str = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para empresa comprar um plano de assinatura"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    from app.controllers.auth_controller import AuthController
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    user_id = user_data.get("id")
+    
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Usuário não possui empresa associada")
+    
+    plan_id = purchase_data.get("plan_id")
+    payment_method = purchase_data.get("payment_method", "PIX")
+    
+    if not plan_id:
+        raise HTTPException(status_code=400, detail="ID do plano é obrigatório")
+    
+    try:
+        from app.models.saas_models import Company, Subscription, User
+        from app.controllers.asaas_controller import AsaasController
+        
+        # Buscar empresa e usuário
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa não encontrada")
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        
+        # Buscar plano template
+        plan = db.query(Subscription).filter(
+            Subscription.id == plan_id,
+            Subscription.company_id.is_(None),
+            Subscription.status == "template"
+        ).first()
+        
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plano não encontrado")
+        
+        # Criar assinatura via Asaas
+        asaas_controller = AsaasController(db)
+        
+        # Mapear método de pagamento
+        billing_type_map = {
+            "PIX": "PIX",
+            "BOLETO": "BOLETO",
+            "CREDIT_CARD": "CREDIT_CARD"
+        }
+        billing_type = billing_type_map.get(payment_method, "PIX")
+        
+        # Preparar dados do assinante
+        subscriber_data = {
+            "name": f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email,
+            "email": user.email,
+            "cpf": company.cnpj if company.cnpj and len(company.cnpj) == 11 else None,
+            "billing_type": billing_type
+        }
+        
+        # Criar assinatura no Asaas
+        asaas_result = asaas_controller.create_subscription(
+            plan_id=str(plan_id),
+            company_id=company_id,
+            user_id=user_id,
+            subscriber_data=subscriber_data
+        )
+        
+        invoice_url = (
+            asaas_result.get("invoice_url") or 
+            asaas_result.get("invoiceUrl") or 
+            asaas_result.get("invoiceURL")
+        )
+        
+        return {
+            "success": True,
+            "message": "Plano contratado com sucesso",
+            "invoice_url": invoice_url
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro ao comprar plano: {str(e)}")
+
+# Endpoint para comprar pacote de tokens
+@app.post("/api/company/purchase-package")
+async def api_purchase_package(
+    purchase_data: dict,
+    session_token: str = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """API para empresa comprar um pacote de tokens"""
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Token de sessão necessário")
+    
+    from app.controllers.auth_controller import AuthController
+    auth_controller = AuthController()
+    result = auth_controller.get_user_by_session(session_token, db)
+    if result.get("error"):
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
+    
+    user_data = result["user"]
+    company_id = user_data.get("company_id")
+    user_id = user_data.get("id")
+    
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Usuário não possui empresa associada")
+    
+    package_id = purchase_data.get("package_id")
+    payment_method = purchase_data.get("payment_method", "PIX")
+    
+    if not package_id:
+        raise HTTPException(status_code=400, detail="ID do pacote é obrigatório")
+    
+    try:
+        from app.models.saas_models import Company, TokenPackage, TokenPackagePurchase, User
+        from app.controllers.asaas_controller import AsaasController
+        from app.services.asaas_service import AsaasService
+        from app.config.settings import settings
+        from datetime import datetime as dt
+        
+        # Buscar empresa e usuário
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa não encontrada")
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        
+        # Buscar pacote
+        package = db.query(TokenPackage).filter(
+            TokenPackage.id == package_id,
+            TokenPackage.is_active == True
+        ).first()
+        
+        if not package:
+            raise HTTPException(status_code=404, detail="Pacote não encontrado ou inativo")
+        
+        # Criar registro de compra
+        purchase = TokenPackagePurchase(
+            company_id=company_id,
+            package_id=package.id,
+            tokens_amount=package.tokens_amount,
+            price=package.price,
+            currency=package.currency,
+            payment_method=payment_method,
+            payment_status="pending",
+            purchased_at=dt.now()
+        )
+        db.add(purchase)
+        db.flush()  # Para obter o ID
+        
+        # Criar pagamento no Asaas
+        asaas_service = AsaasService()
+        asaas_controller = AsaasController(db)
+        
+        # Buscar ou criar cliente no Asaas
+        subscriber_data = {
+            "name": f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email,
+            "email": user.email,
+            "cpf": company.cnpj if company.cnpj and len(company.cnpj) == 11 else None
+        }
+        
+        asaas_customer_id = asaas_controller._get_or_create_customer(
+            company_id=company_id,
+            user_id=user_id,
+            subscriber_data=subscriber_data
+        )
+        
+        if asaas_customer_id:
+            # Mapear método de pagamento
+            billing_type_map = {
+                "PIX": "PIX",
+                "BOLETO": "BOLETO",
+                "CREDIT_CARD": "CREDIT_CARD"
+            }
+            billing_type = billing_type_map.get(payment_method, "PIX")
+            
+            # Converter preço para float
+            price_str = package.price.replace("R$", "").replace(" ", "").replace(",", ".")
+            try:
+                price_float = float(price_str)
+            except:
+                price_float = 0.0
+            
+            # Criar pagamento único
+            payment_data = {
+                "customer": asaas_customer_id,
+                "billingType": billing_type,
+                "value": price_float,
+                "dueDate": dt.now().strftime("%Y-%m-%d"),
+                "description": f"Pacote de Tokens: {package.name} ({package.tokens_amount} tokens)",
+                "externalReference": f"package_{purchase.id}_company_{company_id}"
+            }
+            
+            payment_result = asaas_service.create_payment(payment_data)
+            
+            # Atualizar compra com dados do pagamento
+            payment_id_from_asaas = payment_result.get("id")
+            purchase.asaas_payment_id = payment_id_from_asaas
+            purchase.invoice_url = (
+                payment_result.get("invoiceUrl") or 
+                payment_result.get("invoice_url") or 
+                payment_result.get("invoiceURL")
+            )
+            
+            # Log para debug
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"📦 Compra de pacote criada:")
+            logger.info(f"   - Purchase ID: {purchase.id}")
+            logger.info(f"   - Company ID: {company_id}")
+            logger.info(f"   - Package ID: {package.id}")
+            logger.info(f"   - Asaas Payment ID: {payment_id_from_asaas}")
+            logger.info(f"   - External Reference: package_{purchase.id}_company_{company_id}")
+            logger.info(f"   - Payment Status: {purchase.payment_status}")
+            
+            db.commit()
+            
+            # Verificar status do pagamento após alguns segundos (para sandbox)
+            # No sandbox, pagamentos podem ser confirmados automaticamente
+            logger.info(f"🔍 Verificando status do pagamento {payment_id_from_asaas}...")
+            
+            # Verificar status do pagamento no Asaas (pode estar confirmado no sandbox)
+            try:
+                payment_status_info = asaas_service._make_request("GET", f"/payments/{payment_id_from_asaas}")
+                payment_status = payment_status_info.get("status", "").upper()
+                logger.info(f"📊 Status do pagamento no Asaas: {payment_status}")
+                
+                # Se o pagamento já estiver confirmado (sandbox), processar imediatamente
+                if payment_status in ["CONFIRMED", "RECEIVED"]:
+                    logger.info(f"✅ Pagamento já confirmado! Processando tokens...")
+                    
+                    # Processar como webhook
+                    notification_data = {
+                        "event": "PAYMENT_CONFIRMED",
+                        "payment": {
+                            "id": payment_id_from_asaas,
+                            "status": payment_status,
+                            "externalReference": f"package_{purchase.id}_company_{company_id}"
+                        }
+                    }
+                    
+                    webhook_result = asaas_controller.process_webhook_notification(notification_data)
+                    logger.info(f"✅ Webhook processado: {webhook_result}")
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao verificar status do pagamento: {e}")
+            
+            return {
+                "success": True,
+                "message": "Pacote selecionado com sucesso",
+                "invoice_url": purchase.invoice_url,
+                "package_purchase": {
+                    "id": purchase.id,
+                    "package_name": package.name,
+                    "tokens_amount": package.tokens_amount,
+                    "price": package.price
+                }
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Erro ao criar cliente no Asaas")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro ao comprar pacote: {str(e)}")
+
+# Endpoint público para listar planos disponíveis
+@app.get("/api/plans")
+async def api_list_plans(db: Session = Depends(get_db)):
+    """API pública: Lista planos disponíveis (templates)"""
+    try:
+        from app.models.saas_models import Subscription
+        
+        plans = db.query(Subscription).filter(
+            Subscription.company_id.is_(None),
+            Subscription.status == "template"
+        ).all()
+        
+        plans_data = []
+        for plan in plans:
+            plans_data.append({
+                "id": plan.id,
+                "plan_name": plan.plan_name,
+                "price": plan.price,
+                "currency": plan.currency,
+                "billing_cycle": plan.billing_cycle,
+                "ai_tokens_monthly": plan.ai_tokens_monthly,
+                "description": plan.description
+            })
+        
+        return {
+            "success": True,
+            "plans": plans_data
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro ao listar planos: {str(e)}")
+
+# Endpoint público para listar pacotes de tokens disponíveis
+@app.get("/api/token-packages")
+async def api_list_token_packages(db: Session = Depends(get_db)):
+    """API pública: Lista pacotes de tokens disponíveis"""
+    try:
+        from app.models.saas_models import TokenPackage
+        
+        packages = db.query(TokenPackage).filter(
+            TokenPackage.is_active == True
+        ).all()
+        
+        packages_data = []
+        for package in packages:
+            packages_data.append({
+                "id": package.id,
+                "name": package.name,
+                "description": package.description,
+                "tokens_amount": package.tokens_amount,
+                "price": package.price,
+                "currency": package.currency
+            })
+        
+        return {
+            "success": True,
+            "packages": packages_data
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro ao listar pacotes: {str(e)}")
 
 # Rotas principais (sem prefixo para compatibilidade)
 @app.get("/")

@@ -1,0 +1,309 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Pacotes de Tokens - SuperAdmin SELVEZ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-box-seam"></i> Gerenciar Pacotes de Tokens</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadPackages()">
+            <i class="bi bi-arrow-clockwise"></i> Atualizar
+        </button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="showCreatePackageModal()">
+            <i class="bi bi-plus-circle"></i> Novo Pacote
+        </button>
+    </div>
+</div>
+
+<!-- Tabela de Pacotes -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="packagesTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Descrição</th>
+                        <th>Tokens</th>
+                        <th>Preço</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="packagesTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Criar/Editar Pacote -->
+<div class="modal fade" id="packageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="packageModalTitle">Novo Pacote</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="packageForm">
+                    <input type="hidden" id="packageId">
+                    <div class="mb-3">
+                        <label for="packageName" class="form-label">Nome do Pacote *</label>
+                        <input type="text" class="form-control" id="packageName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="packageDescription" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="packageDescription" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="packageTokensAmount" class="form-label">Quantidade de Tokens *</label>
+                                <input type="number" class="form-control" id="packageTokensAmount" required min="1">
+                                <div class="form-text">Ex: 10000, 50000, 100000</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="packagePrice" class="form-label">Preço *</label>
+                                <input type="text" class="form-control" id="packagePrice" required placeholder="R$ 50,00">
+                                <div class="form-text">Ex: R$ 50,00 ou 50.00</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="packageIsActive" class="form-label">Status</label>
+                        <select class="form-select" id="packageIsActive">
+                            <option value="true">Ativo</option>
+                            <option value="false">Inativo</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="savePackage()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let packages = [];
+
+// Carregar pacotes ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadPackages();
+});
+
+// Carregar lista de pacotes
+async function loadPackages() {
+    try {
+        const tbody = document.getElementById('packagesTableBody');
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></td></tr>';
+        
+        const response = await fetch('/api/superadmin/token-packages?active_only=false', {
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            packages = data.packages || [];
+            renderPackages();
+        } else {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Erro ao carregar pacotes</td></tr>';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar pacotes:', error);
+        const tbody = document.getElementById('packagesTableBody');
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Erro ao carregar pacotes: ' + error.message + '</td></tr>';
+    }
+}
+
+// Renderizar tabela de pacotes
+function renderPackages() {
+    const tbody = document.getElementById('packagesTableBody');
+    
+    if (packages.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhum pacote encontrado</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = packages.map(pkg => {
+        return `
+        <tr>
+            <td>${pkg.id}</td>
+            <td><strong>${escapeHtml(pkg.name)}</strong></td>
+            <td>${escapeHtml(pkg.description || '-')}</td>
+            <td>${formatNumber(pkg.tokens_amount)} tokens</td>
+            <td>${pkg.price}</td>
+            <td>
+                <span class="badge ${pkg.is_active ? 'bg-success' : 'bg-secondary'}">
+                    ${pkg.is_active ? 'Ativo' : 'Inativo'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="editPackage(${pkg.id})" title="Editar">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deletePackage(${pkg.id})" title="Deletar">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+    }).join('');
+}
+
+// Mostrar modal de criação
+function showCreatePackageModal() {
+    document.getElementById('packageModalTitle').textContent = 'Novo Pacote';
+    document.getElementById('packageForm').reset();
+    document.getElementById('packageId').value = '';
+    document.getElementById('packageIsActive').value = 'true';
+    
+    const modal = new bootstrap.Modal(document.getElementById('packageModal'));
+    modal.show();
+}
+
+// Editar pacote
+function editPackage(id) {
+    const pkg = packages.find(p => p.id === id);
+    if (!pkg) return;
+    
+    document.getElementById('packageModalTitle').textContent = 'Editar Pacote';
+    document.getElementById('packageId').value = pkg.id;
+    document.getElementById('packageName').value = pkg.name;
+    document.getElementById('packageDescription').value = pkg.description || '';
+    document.getElementById('packageTokensAmount').value = pkg.tokens_amount;
+    document.getElementById('packagePrice').value = pkg.price;
+    document.getElementById('packageIsActive').value = pkg.is_active ? 'true' : 'false';
+    
+    const modal = new bootstrap.Modal(document.getElementById('packageModal'));
+    modal.show();
+}
+
+// Salvar pacote
+async function savePackage() {
+    const form = document.getElementById('packageForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const packageId = document.getElementById('packageId').value;
+    const packageData = {
+        name: document.getElementById('packageName').value,
+        description: document.getElementById('packageDescription').value,
+        tokens_amount: parseInt(document.getElementById('packageTokensAmount').value),
+        price: document.getElementById('packagePrice').value,
+        is_active: document.getElementById('packageIsActive').value === 'true'
+    };
+    
+    try {
+        const url = packageId 
+            ? `/api/superadmin/token-packages/${packageId}`
+            : '/api/superadmin/token-packages';
+        const method = packageId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(packageData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erro ao salvar pacote');
+        }
+        
+        const result = await response.json();
+        showNotification('Pacote salvo com sucesso!', 'success');
+        
+        bootstrap.Modal.getInstance(document.getElementById('packageModal')).hide();
+        loadPackages();
+    } catch (error) {
+        console.error('Erro ao salvar pacote:', error);
+        showNotification('Erro ao salvar pacote: ' + error.message, 'error');
+    }
+}
+
+// Deletar pacote
+async function deletePackage(id) {
+    if (!confirm('Tem certeza que deseja deletar este pacote?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/superadmin/token-packages/${id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erro ao deletar pacote');
+        }
+        
+        showNotification('Pacote deletado com sucesso!', 'success');
+        loadPackages();
+    } catch (error) {
+        console.error('Erro ao deletar pacote:', error);
+        showNotification('Erro ao deletar pacote: ' + error.message, 'error');
+    }
+}
+
+// Funções auxiliares
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatNumber(num) {
+    return new Intl.NumberFormat('pt-BR').format(num);
+}
+
+function showNotification(message, type) {
+    if (window.MLAPI && window.MLAPI.showNotification) {
+        window.MLAPI.showNotification(message, type);
+    } else {
+        alert(message);
+    }
+}
+</script>
+
+<style>
+.stats-card {
+    border-radius: 0.5rem;
+    transition: transform 0.2s;
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+}
+</style>
+{% endblock %}
+

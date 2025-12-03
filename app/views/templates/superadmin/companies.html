@@ -240,7 +240,7 @@
                     </div>
                     
                     <hr class="my-4">
-                    <h6 class="mb-3"><i class="bi bi-calendar-check"></i> Configurações do Plano</h6>
+                    <h6 class="mb-3"><i class="bi bi-calendar-check"></i> Configurações do Plano (Assinatura)</h6>
                     
                     <div class="row">
                         <div class="col-md-6">
@@ -257,7 +257,7 @@
                                     <option value="">Sem plano</option>
                                     <!-- Planos carregados via JavaScript -->
                                 </select>
-                                <div class="form-text">Plano de assinatura da empresa</div>
+                                <div class="form-text">Plano de assinatura recorrente da empresa</div>
                             </div>
                         </div>
                     </div>
@@ -281,6 +281,54 @@
                                     <option value="pending">Pendente</option>
                                 </select>
                                 <div class="form-text">Status da subscription no sistema</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h6 class="mb-3"><i class="bi bi-box-seam"></i> Comprar Pacote de Tokens (Venda Avulsa)</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="packageId" class="form-label">Pacote de Tokens</label>
+                                <select class="form-select" id="packageId" onchange="updatePackageInfo()">
+                                    <option value="">Sem pacote</option>
+                                    <!-- Pacotes carregados via JavaScript -->
+                                </select>
+                                <div class="form-text">Pacote de tokens para compra avulsa</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="packagePaymentMethod" class="form-label">Método de Pagamento</label>
+                                <select class="form-select" id="packagePaymentMethod">
+                                    <option value="PIX">PIX</option>
+                                    <option value="BOLETO">Boleto</option>
+                                    <option value="CREDIT_CARD">Cartão de Crédito</option>
+                                </select>
+                                <div class="form-text">Método de pagamento do pacote</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="createPackagePayment" class="form-label">Criar Pagamento no Asaas</label>
+                                <select class="form-select" id="createPackagePayment">
+                                    <option value="true">Sim - Criar pagamento e aguardar confirmação</option>
+                                    <option value="false">Não - Registrar como pago manualmente</option>
+                                </select>
+                                <div class="form-text">Se "Não", os tokens serão adicionados imediatamente</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div id="packageInfo" class="alert alert-info" style="display: none;">
+                                    <strong>Pacote selecionado:</strong><br>
+                                    <span id="packageTokensInfo"></span><br>
+                                    <span id="packagePriceInfo"></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -323,11 +371,13 @@ let currentCompanyId = null;
 // Carregar dados iniciais
 document.addEventListener('DOMContentLoaded', function() {
     loadPlans();
+    loadPackages();
     loadCompanies();
 });
 
 // Carregar empresas
 let availablePlans = [];
+let availablePackages = [];
 
 // Carregar planos disponíveis
 async function loadPlans() {
@@ -340,6 +390,62 @@ async function loadPlans() {
         }
     } catch (error) {
         console.error('Erro ao carregar planos:', error);
+    }
+}
+
+// Carregar pacotes disponíveis
+async function loadPackages() {
+    try {
+        const response = await fetch('/api/superadmin/token-packages?active_only=true');
+        if (response.ok) {
+            const data = await response.json();
+            availablePackages = data.packages || [];
+            updatePackageSelect();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar pacotes:', error);
+    }
+}
+
+// Atualizar select de pacotes
+function updatePackageSelect() {
+    const select = document.getElementById('packageId');
+    if (!select) return;
+    
+    // Limpar opções existentes (exceto a primeira)
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+    
+    // Adicionar pacotes
+    availablePackages.forEach(pkg => {
+        const option = document.createElement('option');
+        option.value = pkg.id;
+        option.textContent = `${pkg.name} - ${pkg.tokens_amount.toLocaleString('pt-BR')} tokens - ${pkg.price}`;
+        option.dataset.tokens = pkg.tokens_amount;
+        option.dataset.price = pkg.price;
+        select.appendChild(option);
+    });
+}
+
+// Atualizar informações do pacote selecionado
+function updatePackageInfo() {
+    const select = document.getElementById('packageId');
+    const infoDiv = document.getElementById('packageInfo');
+    const tokensInfo = document.getElementById('packageTokensInfo');
+    const priceInfo = document.getElementById('packagePriceInfo');
+    
+    if (!select || !infoDiv) return;
+    
+    const selectedOption = select.options[select.selectedIndex];
+    if (selectedOption.value) {
+        const tokens = selectedOption.dataset.tokens;
+        const price = selectedOption.dataset.price;
+        tokensInfo.textContent = `Tokens: ${parseInt(tokens).toLocaleString('pt-BR')}`;
+        priceInfo.textContent = `Preço: ${price}`;
+        infoDiv.style.display = 'block';
+    } else {
+        infoDiv.style.display = 'none';
     }
 }
 
@@ -577,8 +683,21 @@ function showCreateCompanyModal() {
     document.getElementById('companyForm').reset();
     document.getElementById('companyId').value = '';
     
-    // Atualizar lista de planos
+    // Limpar campos de pacote
+    document.getElementById('packageId').value = '';
+    document.getElementById('packagePaymentMethod').value = 'PIX';
+    document.getElementById('createPackagePayment').value = 'true';
+    document.getElementById('packageInfo').style.display = 'none';
+    
+    // Atualizar lista de planos e pacotes
     updatePlanSelect();
+    updatePackageSelect();
+    
+    // Limpar campos de pacote
+    document.getElementById('packageId').value = '';
+    document.getElementById('packagePaymentMethod').value = 'PIX';
+    document.getElementById('createPackagePayment').value = 'true';
+    document.getElementById('packageInfo').style.display = 'none';
     
     const modal = new bootstrap.Modal(document.getElementById('companyModal'));
     modal.show();
@@ -664,6 +783,10 @@ async function saveCompany() {
     
     const planId = document.getElementById('planId').value;
     
+    const packageId = document.getElementById('packageId').value;
+    const packagePaymentMethod = document.getElementById('packagePaymentMethod').value;
+    const createPackagePayment = document.getElementById('createPackagePayment').value === 'true';
+    
     const companyData = {
         name: document.getElementById('companyName').value,
         slug: document.getElementById('companySlug').value,
@@ -675,7 +798,11 @@ async function saveCompany() {
         plan_id: planId ? parseInt(planId) : null,
         // Campos da subscription
         subscription_is_trial: document.getElementById('subscriptionIsTrial').value === 'true',
-        subscription_status: document.getElementById('subscriptionStatus').value
+        subscription_status: document.getElementById('subscriptionStatus').value,
+        // Campos de pacote
+        package_id: packageId ? parseInt(packageId) : null,
+        package_payment_method: packagePaymentMethod,
+        create_package_payment: createPackagePayment
     };
     
     const companyId = document.getElementById('companyId').value;
@@ -703,6 +830,17 @@ async function saveCompany() {
         const result = await response.json();
         
         showAlert(isEdit ? 'Empresa atualizada com sucesso!' : 'Empresa criada com sucesso!', 'success');
+        
+        // Se houver compra de pacote com pagamento, mostrar invoice_url
+        if (result.package_purchase && result.package_purchase.invoice_url) {
+            const invoiceUrl = result.package_purchase.invoice_url;
+            const packageName = result.package_purchase.package_name;
+            const tokensAmount = result.package_purchase.tokens_amount;
+            
+            if (confirm(`Pacote "${packageName}" (${tokensAmount.toLocaleString('pt-BR')} tokens) criado!\n\nDeseja abrir o link de pagamento?`)) {
+                window.open(invoiceUrl, '_blank');
+            }
+        }
         
         // Fechar modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('companyModal'));

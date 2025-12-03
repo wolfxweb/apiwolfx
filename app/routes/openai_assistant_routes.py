@@ -184,10 +184,23 @@ async def list_assistants(
     db: Session = Depends(get_db)
 ):
     """Lista todos os assistentes (superadmin)"""
+    # Verificar autenticação (superadmin ou usuário normal)
+    try:
+        user = get_superadmin_user(request, db)
+    except HTTPException:
+        # Se não for superadmin, tentar como usuário normal
+        try:
+            user = get_current_user(request, db)
+        except HTTPException:
+            raise HTTPException(status_code=401, detail="Não autenticado")
+    
     controller = OpenAIAssistantController(db)
     try:
+        logger.info(f"📋 Listando assistentes (active_only={active_only})")
         result = controller.list_assistants(active_only=active_only)
+        logger.info(f"✅ Listagem concluída: {len(result.get('assistants', []))} assistentes encontrados")
     except Exception as e:
+        logger.error(f"❌ Erro ao listar assistentes: {e}", exc_info=True)
         # Fallback para colunas ausentes (welcome_*), tentar migração e repetir
         msg = str(e)
         if "welcome_message does not exist" in msg or "welcome_enabled" in msg or "welcome_use_model" in msg:
@@ -196,6 +209,7 @@ async def list_assistants(
                 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
                 welcome_path = os.path.join(base_dir, 'database', 'fixes', '2025_11_16_add_welcome_fields_openai_assistants.py')
                 if os.path.exists(welcome_path):
+                    logger.info("🔄 Tentando executar migração welcome_fields...")
                     specw = importlib.util.spec_from_file_location("add_welcome_fields_openai_assistants", welcome_path)
                     welcome_module = importlib.util.module_from_spec(specw)
                     specw.loader.exec_module(welcome_module)
@@ -210,16 +224,22 @@ async def list_assistants(
                     except Exception:
                         pass
                     # Tentar novamente
+                    logger.info("🔄 Tentando listar novamente após migração...")
                     result = controller.list_assistants(active_only=active_only)
                 else:
                     raise
-            except Exception:
-                raise
+            except Exception as e2:
+                logger.error(f"❌ Erro ao executar migração: {e2}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"Erro ao listar agentes: {str(e)}")
         else:
-            raise
+            # Retornar erro detalhado
+            logger.error(f"❌ Erro não tratado: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Erro ao listar agentes: {str(e)}")
     
     if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao listar agentes"))
+        error_msg = result.get("error", "Erro ao listar agentes")
+        logger.error(f"❌ Erro na resposta do controller: {error_msg}")
+        raise HTTPException(status_code=400, detail=error_msg)
     
     return result
 

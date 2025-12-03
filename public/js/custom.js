@@ -339,10 +339,10 @@ if (!document.getElementById('custom-animations-style')) {
             position: absolute;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.6);
-        transform: scale(0);
-        animation: ripple-animation 0.6s linear;
-        pointer-events: none;
-    }
+            transform: scale(0);
+            animation: ripple-animation 0.6s linear;
+            pointer-events: none;
+        }
     
     @keyframes ripple-animation {
         to {

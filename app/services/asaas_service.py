@@ -408,11 +408,22 @@ class AsaasService:
             endpoint = f"/subscriptions/{subscription_id}/payments"
             result = self._make_request("GET", endpoint)
             # Asaas retorna {"data": [...]} ou lista direta
+            payments = []
             if isinstance(result, dict) and "data" in result:
-                return result["data"]
+                payments = result["data"]
             elif isinstance(result, list):
-                return result
-            return []
+                payments = result
+            
+            # Log dos campos para verificar estrutura
+            if payments and len(payments) > 0:
+                first_payment = payments[0]
+                logger.info(f"📋 Pagamentos da assinatura {subscription_id}: {len(payments)} encontrados")
+                logger.info(f"📋 Campos do primeiro pagamento: {list(first_payment.keys()) if isinstance(first_payment, dict) else 'N/A'}")
+                logger.info(f"   - status: {first_payment.get('status') if isinstance(first_payment, dict) else 'N/A'}")
+                logger.info(f"   - paymentDate: {first_payment.get('paymentDate') if isinstance(first_payment, dict) else 'N/A'}")
+                logger.info(f"   - clientPaymentDate: {first_payment.get('clientPaymentDate') if isinstance(first_payment, dict) else 'N/A'}")
+            
+            return payments
         except Exception as e:
             logger.error(f"❌ Erro ao buscar pagamentos da assinatura {subscription_id}: {e}")
             raise e
@@ -455,6 +466,13 @@ class AsaasService:
                 if payments:
                     all_payments.extend(payments)
                     logger.info(f"📄 Buscados {len(payments)} pagamentos (offset: {offset}, total: {len(all_payments)})")
+                    # Log dos campos do primeiro pagamento para verificar estrutura
+                    if len(payments) > 0 and offset == 0:
+                        first_payment = payments[0]
+                        logger.info(f"📋 Campos do primeiro pagamento: {list(first_payment.keys()) if isinstance(first_payment, dict) else 'N/A'}")
+                        logger.info(f"   - status: {first_payment.get('status') if isinstance(first_payment, dict) else 'N/A'}")
+                        logger.info(f"   - paymentDate: {first_payment.get('paymentDate') if isinstance(first_payment, dict) else 'N/A'}")
+                        logger.info(f"   - clientPaymentDate: {first_payment.get('clientPaymentDate') if isinstance(first_payment, dict) else 'N/A'}")
                 
                 # Se não há mais páginas ou atingiu o limite, parar
                 if not has_more or len(all_payments) >= limit:
@@ -517,6 +535,7 @@ class AsaasService:
                 payment_data = {}
             
             logger.info(f"📨 Webhook Asaas recebido: {event}")
+            logger.info(f"📋 Payment data keys: {list(payment_data.keys()) if isinstance(payment_data, dict) else 'N/A'}")
             
             # O Asaas pode enviar subscription diretamente no webhook
             subscription_data = notification_data.get("subscription", {}) or {}
@@ -524,6 +543,11 @@ class AsaasService:
                 subscription_data = {}
             
             subscription_id = subscription_data.get("id") or payment_data.get("subscription")
+            
+            # Extrair externalReference - pode estar em diferentes lugares
+            external_ref = payment_data.get("externalReference", "") or payment_data.get("external_reference", "")
+            
+            logger.info(f"📋 ExternalReference extraído: {external_ref}")
             
             return {
                 "event": event,
@@ -533,6 +557,7 @@ class AsaasService:
                 "value": payment_data.get("value"),
                 "dueDate": payment_data.get("dueDate"),
                 "paymentDate": payment_data.get("paymentDate"),
+                "externalReference": external_ref,  # Incluir externalReference
                 "data": notification_data
             }
         except Exception as e:

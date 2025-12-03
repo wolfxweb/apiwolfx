@@ -63,73 +63,100 @@ class OpenAIAssistantController:
     def list_assistants(self, active_only: bool = True) -> Dict:
         """Lista todos os assistentes"""
         try:
+            logger.info(f"🔍 Buscando assistentes (active_only={active_only})")
             query = self.db.query(OpenAIAssistant)
             
             if active_only:
                 query = query.filter(OpenAIAssistant.is_active == True)
             
             assistants = query.order_by(desc(OpenAIAssistant.created_at)).all()
+            logger.info(f"📊 {len(assistants)} assistentes encontrados no banco")
             
             assistants_list = []
-            for a in assistants:
-                # Extrair reasoning_effort e verbosity do tools_config se for GPT-5
-                reasoning_effort = None
-                verbosity = None
-                tools_config_clean = a.tools_config
-                
-                if a.model.startswith("gpt-5") and isinstance(a.tools_config, dict):
-                    reasoning_effort = a.tools_config.get("reasoning_effort")
-                    verbosity = a.tools_config.get("verbosity")
-                    # Remover reasoning_effort e verbosity do tools_config para retornar apenas tools
-                    tools_config_clean = {
-                        "tools": a.tools_config.get("tools", [])
-                    } if a.tools_config.get("tools") else None
-                elif isinstance(a.tools_config, list):
-                    # Para modelos não-GPT-5, tools_config pode ser uma lista direta
+            for idx, a in enumerate(assistants):
+                try:
+                    # Extrair reasoning_effort e verbosity do tools_config se for GPT-5
+                    reasoning_effort = None
+                    verbosity = None
                     tools_config_clean = a.tools_config
                 
-                # Verificar se é modelo de raciocínio (com fallback seguro)
-                is_reasoning = False
-                if hasattr(a, 'is_reasoning_model') and callable(getattr(a, 'is_reasoning_model', None)):
-                    try:
-                        is_reasoning = a.is_reasoning_model()
-                    except:
+                    if a.model.startswith("gpt-5") and isinstance(a.tools_config, dict):
+                        reasoning_effort = a.tools_config.get("reasoning_effort")
+                        verbosity = a.tools_config.get("verbosity")
+                        # Remover reasoning_effort e verbosity do tools_config para retornar apenas tools
+                        tools_config_clean = {
+                            "tools": a.tools_config.get("tools", [])
+                        } if a.tools_config.get("tools") else None
+                    elif isinstance(a.tools_config, list):
+                        # Para modelos não-GPT-5, tools_config pode ser uma lista direta
+                        tools_config_clean = a.tools_config
+                    
+                    # Verificar se é modelo de raciocínio (com fallback seguro)
+                    is_reasoning = False
+                    if hasattr(a, 'is_reasoning_model') and callable(getattr(a, 'is_reasoning_model', None)):
+                        try:
+                            is_reasoning = a.is_reasoning_model()
+                        except:
+                            # Fallback: verificar pelo nome do modelo
+                            is_reasoning = a.model.startswith("o1") or a.model.startswith("o3") or a.model.startswith("o4")
+                    else:
                         # Fallback: verificar pelo nome do modelo
                         is_reasoning = a.model.startswith("o1") or a.model.startswith("o3") or a.model.startswith("o4")
-                else:
-                    # Fallback: verificar pelo nome do modelo
-                    is_reasoning = a.model.startswith("o1") or a.model.startswith("o3") or a.model.startswith("o4")
-                
-                assistants_list.append({
-                    "id": a.id,
-                    "name": a.name,
-                    "description": a.description,
-                    "assistant_id": a.assistant_id,
-                    "model": a.model,
-                    "instructions": a.instructions[:200] + "..." if len(a.instructions) > 200 else a.instructions,
-                    "temperature": float(a.temperature) if a.temperature else None,
-                    "reasoning_effort": reasoning_effort,
-                    "verbosity": verbosity,
-                    "max_tokens": a.max_tokens,
-                    "tools_config": tools_config_clean,
-                    "interaction_mode": a.interaction_mode.value if hasattr(a.interaction_mode, 'value') else str(a.interaction_mode),
-                    "use_case": a.use_case,
-                    "memory_enabled": getattr(a, "memory_enabled", None),
-                    "memory_data": getattr(a, "memory_data", None),
-                    "initial_prompt": getattr(a, "initial_prompt", None),
-                    "welcome_enabled": getattr(a, "welcome_enabled", None),
-                    "welcome_use_model": getattr(a, "welcome_use_model", None),
-                    "welcome_message": getattr(a, "welcome_message", None),
-                    "is_active": a.is_active,
-                    "total_runs": getattr(a, "total_runs", 0),
-                    "total_tokens_used": getattr(a, "total_tokens_used", 0),
-                    "created_at": a.created_at.isoformat() if a.created_at else None,
-                    "updated_at": a.updated_at.isoformat() if a.updated_at else None,
-                    "last_used_at": a.last_used_at.isoformat() if a.last_used_at else None,
-                    "is_reasoning_model": is_reasoning,
-                    "provider": getattr(a, "provider", "openai") or "openai"
-                })
+                    
+                    # Tratar instruções com segurança
+                    instructions_text = ""
+                    try:
+                        if a.instructions:
+                            instructions_text = a.instructions[:200] + "..." if len(a.instructions) > 200 else a.instructions
+                    except Exception:
+                        instructions_text = str(a.instructions)[:200] if a.instructions else ""
+                    
+                    # Tratar interaction_mode com segurança
+                    interaction_mode_value = "report"
+                    try:
+                        if hasattr(a.interaction_mode, 'value'):
+                            interaction_mode_value = a.interaction_mode.value
+                        else:
+                            interaction_mode_value = str(a.interaction_mode)
+                    except Exception:
+                        interaction_mode_value = "report"
+                    
+                    assistants_list.append({
+                        "id": a.id,
+                        "name": a.name or "",
+                        "description": a.description or "",
+                        "assistant_id": a.assistant_id or "",
+                        "model": a.model or "",
+                        "instructions": instructions_text,
+                        "temperature": float(a.temperature) if a.temperature is not None else None,
+                        "reasoning_effort": reasoning_effort,
+                        "verbosity": verbosity,
+                        "max_tokens": a.max_tokens or 4000,
+                        "tools_config": tools_config_clean,
+                        "interaction_mode": interaction_mode_value,
+                        "use_case": a.use_case,
+                        "memory_enabled": getattr(a, "memory_enabled", None),
+                        "memory_data": getattr(a, "memory_data", None),
+                        "initial_prompt": getattr(a, "initial_prompt", None),
+                        "welcome_enabled": getattr(a, "welcome_enabled", None),
+                        "welcome_use_model": getattr(a, "welcome_use_model", None),
+                        "welcome_message": getattr(a, "welcome_message", None),
+                        "is_active": a.is_active if hasattr(a, "is_active") else True,
+                        "total_runs": getattr(a, "total_runs", 0) or 0,
+                        "total_tokens_used": getattr(a, "total_tokens_used", 0) or 0,
+                        "created_at": a.created_at.isoformat() if a.created_at else None,
+                        "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+                        "last_used_at": a.last_used_at.isoformat() if a.last_used_at else None,
+                        "is_reasoning_model": is_reasoning,
+                        "provider": getattr(a, "provider", "openai") or "openai",
+                        "api_config": getattr(a, "api_config", None)
+                    })
+                except Exception as e_item:
+                    logger.error(f"❌ Erro ao processar assistente ID {a.id} (índice {idx}): {e_item}", exc_info=True)
+                    # Continuar com próximo assistente mesmo se houver erro em um
+                    continue
             
+            logger.info(f"✅ {len(assistants_list)} assistentes processados com sucesso")
             return {
                 "success": True,
                 "assistants": assistants_list
@@ -312,7 +339,7 @@ class OpenAIAssistantController:
     def use_assistant_report(
         self,
         assistant_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: Optional[int],
         prompt: str,
         context_data: Optional[Dict] = None,
@@ -335,7 +362,7 @@ class OpenAIAssistantController:
     def use_assistant_chat(
         self,
         assistant_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: Optional[int],
         message: str,
         thread_id: Optional[str] = None,

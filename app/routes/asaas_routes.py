@@ -1,10 +1,11 @@
 """
 Rotas para integração com Asaas
 """
+import json
 import logging
 from typing import Dict, Any
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -113,6 +114,7 @@ async def get_my_payments(
 ):
     """
     Busca pagamentos do cliente atual no Asaas usando CPF/CNPJ
+    Também verifica e processa pagamentos confirmados que ainda não foram atualizados
     """
     try:
         user = get_current_user(request, db)
@@ -143,37 +145,199 @@ async def get_my_payments(
         from app.services.asaas_service import asaas_service
         customer = asaas_service.find_customer_by_cpf_cnpj(cpf_cnpj)
         
-        if not customer or not customer.get("id"):
+        payments = []
+        customer_id = None
+        
+        # Buscar pagamentos pelo cliente se encontrado
+        if customer and customer.get("id"):
+            customer_id = customer["id"]
+            logger.info(f"✅ Cliente encontrado no Asaas: {customer_id} (CPF/CNPJ: {cpf_cnpj})")
+            
+            # Buscar TODOS os pagamentos do cliente no Asaas (todos os status)
+            try:
+                payments = asaas_service.get_customer_payments(customer_id, limit=500)
+                logger.info(f"📊 Total de {len(payments)} pagamentos encontrados via cliente no Asaas")
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao buscar pagamentos do cliente: {e}")
+        else:
             logger.warning(f"⚠️ Cliente não encontrado no Asaas para CPF/CNPJ: {cpf_cnpj}")
-            return {
-                "success": True,
-                "payments": [],
-                "message": "Cliente não encontrado no Asaas"
-            }
         
-        customer_id = customer["id"]
-        logger.info(f"✅ Cliente encontrado no Asaas: {customer_id} (CPF/CNPJ: {cpf_cnpj})")
+        # SEMPRE tentar buscar pagamentos da assinatura também (pode ter mais pagamentos)
+        from app.models.saas_models import Subscription
+        subscription = db.query(Subscription).filter(
+            Subscription.company_id == user["company_id"],
+            Subscription.asaas_subscription_id.isnot(None)
+        ).order_by(Subscription.created_at.desc()).first()
         
-        # Buscar TODOS os pagamentos do cliente no Asaas (todos os status)
-        payments = asaas_service.get_customer_payments(customer_id, limit=500)
+        if subscription and subscription.asaas_subscription_id:
+            logger.info(f"🔍 Buscando pagamentos da assinatura {subscription.asaas_subscription_id}...")
+            try:
+                subscription_payments = asaas_service.get_subscription_payments(subscription.asaas_subscription_id)
+                logger.info(f"📦 Encontrados {len(subscription_payments)} pagamentos da assinatura")
+                
+                # Combinar pagamentos (evitar duplicatas)
+                if subscription_payments:
+                    payment_ids = {p.get("id") for p in payments}
+                    for sp in subscription_payments:
+                        if sp.get("id") not in payment_ids:
+                            payments.append(sp)
+                    logger.info(f"✅ Total de {len(payments)} pagamentos após combinar (cliente + assinatura)")
+            except Exception as e:
+                logger.error(f"❌ Erro ao buscar pagamentos da assinatura: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
         
-        logger.info(f"📊 Total de {len(payments)} pagamentos encontrados para cliente {customer_id} (CPF/CNPJ: {cpf_cnpj})")
+        # Log detalhado dos primeiros pagamentos para debug
+        if payments:
+            logger.info(f"📋 Primeiros 3 pagamentos encontrados:")
+            for i, payment in enumerate(payments[:3], 1):
+                logger.info(f"   {i}. ID: {payment.get('id')}, Status: {payment.get('status')}, Valor: {payment.get('value')}, Data: {payment.get('dueDate')}")
+        else:
+            logger.warning(f"⚠️ Nenhum pagamento encontrado para empresa {user['company_id']}")
+        
+        # Buscar também compras de pacotes de tokens do banco local
+        from app.models.saas_models import TokenPackagePurchase, TokenPackage
+        package_purchases = db.query(TokenPackagePurchase).filter(
+            TokenPackagePurchase.company_id == user["company_id"]
+        ).order_by(TokenPackagePurchase.purchased_at.desc()).all()
+        
+        logger.info(f"📦 Total de {len(package_purchases)} compras de pacotes encontradas")
         
         # Formatar pagamentos para o frontend
         formatted_payments = []
+        
+        # Adicionar pagamentos do Asaas
         for payment in payments:
+            payment_id = payment.get("id")
             status = payment.get("status", "PENDING")
+            
+            # Log detalhado de todos os campos retornados pela API para debug
+            logger.info(f"📋 Pagamento {payment_id} - Campos retornados pela API:")
+            logger.info(f"   - status: {payment.get('status')}")
+            logger.info(f"   - paymentDate: {payment.get('paymentDate')}")
+            logger.info(f"   - clientPaymentDate: {payment.get('clientPaymentDate')}")
+            logger.info(f"   - confirmedDate: {payment.get('confirmedDate')}")
+            logger.info(f"   - creditDate: {payment.get('creditDate')}")
+            logger.info(f"   - value: {payment.get('value')}")
+            logger.info(f"   - netValue: {payment.get('netValue')}")
+            logger.info(f"   - dueDate: {payment.get('dueDate')}")
+            logger.info(f"   - billingType: {payment.get('billingType')}")
+            logger.info(f"   - description: {payment.get('description')}")
+            logger.info(f"   - Todos os campos: {list(payment.keys())}")
+            
+            # Verificar diferentes possíveis nomes do campo (conforme documentação é paymentDate)
+            # IMPORTANTE: confirmedDate também indica confirmação de pagamento
+            payment_date = payment.get("paymentDate") or payment.get("payment_date") or payment.get("datePayment")
+            confirmed_date = payment.get("confirmedDate") or payment.get("confirmed_date")
+            client_payment_date = payment.get("clientPaymentDate") or payment.get("client_payment_date")
+            credit_date = payment.get("creditDate") or payment.get("credit_date")
+            net_value = payment.get("netValue") or payment.get("net_value")
+            value = payment.get("value", 0)
+            billing_type = payment.get("billingType", "")
+            
+            # Se tem confirmedDate, o pagamento foi confirmado (mesmo que status seja PENDING)
+            if confirmed_date:
+                payment_date = confirmed_date  # Usar confirmedDate como paymentDate
+                logger.info(f"✅ Pagamento {payment_id} tem confirmedDate ({confirmed_date}) - considerando como confirmado")
+            
+            # IMPORTANTE: Segundo a documentação do Asaas, se há paymentDate, o pagamento foi pago
+            # Mesmo que o status ainda seja PENDING, devemos considerar como CONFIRMED
+            # Isso é especialmente importante para pagamentos recentes que ainda não foram atualizados
+            if status.upper() in ["CONFIRMED", "RECEIVED"]:
+                # Status já está confirmado
+                logger.info(f"✅ Pagamento {payment_id} já está {status.upper()} no Asaas")
+            elif payment_date:
+                # Se tem paymentDate, o pagamento foi efetivado, então é CONFIRMED
+                if status.upper() == "PENDING":
+                    logger.info(f"✅ Pagamento {payment_id} tem paymentDate ({payment_date}) mas status é PENDING - considerando como CONFIRMED")
+                    status = "CONFIRMED"
+                elif status.upper() not in ["CONFIRMED", "RECEIVED"]:
+                    logger.info(f"✅ Pagamento {payment_id} tem paymentDate ({payment_date}) - considerando como CONFIRMED")
+                    status = "CONFIRMED"
+            # Se não tem paymentDate mas tem clientPaymentDate e status não é OVERDUE/CANCELLED, pode estar confirmado
+            elif client_payment_date and status.upper() not in ["OVERDUE", "CANCELLED", "REFUNDED"]:
+                logger.info(f"⚠️ Pagamento {payment_id} tem clientPaymentDate ({client_payment_date}) mas não tem paymentDate - status: {status}")
+                # Para assinaturas, se tem clientPaymentDate pode indicar que foi informado pelo cliente
+                # Não alterar status automaticamente, mas logar para análise
+            # Se tem creditDate, o pagamento foi creditado (confirmado)
+            elif credit_date:
+                logger.info(f"✅ Pagamento {payment_id} tem creditDate ({credit_date}) - considerando como confirmado")
+                payment_date = credit_date
+                if status.upper() == "PENDING":
+                    status = "CONFIRMED"
+            # Se tem netValue diferente de value, pode indicar processamento (taxas descontadas)
+            # Para cartão de crédito, isso geralmente indica que foi processado
+            elif net_value and float(net_value) != float(value) and billing_type == "CREDIT_CARD":
+                logger.info(f"✅ Pagamento {payment_id} tem netValue ({net_value}) diferente de value ({value}) - Cartão processado, considerando como confirmado")
+                if status.upper() == "PENDING":
+                    status = "CONFIRMED"
+            elif net_value and float(net_value) != float(value):
+                logger.info(f"⚠️ Pagamento {payment_id} tem netValue ({net_value}) diferente de value ({value}) - pode indicar processamento")
+            
+            # Normalizar status para minúsculas conforme documentação do Asaas
+            # Status possíveis: PENDING, CONFIRMED, RECEIVED, OVERDUE, REFUNDED, CANCELLED
+            status_normalized = status.upper() if status else "PENDING"
+            
+            if status_normalized in ["CONFIRMED", "RECEIVED"]:
+                status_lower = "confirmed"
+            elif status_normalized == "OVERDUE":
+                status_lower = "overdue"
+            elif status_normalized == "REFUNDED":
+                status_lower = "refunded"
+            elif status_normalized == "CANCELLED":
+                status_lower = "cancelled"
+            else:
+                status_lower = "pending"
+            
             formatted_payments.append({
-                "id": payment.get("id"),
+                "id": payment_id,
                 "value": payment.get("value", 0),
-                "status": status.lower(),
+                "status": status_lower,
                 "billingType": payment.get("billingType", ""),
                 "dueDate": payment.get("dueDate"),
-                "paymentDate": payment.get("paymentDate"),
+                "paymentDate": payment_date,
                 "description": payment.get("description", ""),
                 "invoiceUrl": payment.get("invoiceUrl"),
                 "created_at": payment.get("dateCreated") or payment.get("dueDate"),
-                "originalStatus": status  # Manter status original para referência
+                "originalStatus": status,  # Manter status original para referência
+                "type": "subscription"  # Tipo de pagamento
+            })
+        
+        # Adicionar compras de pacotes de tokens
+        for purchase in package_purchases:
+            package = db.query(TokenPackage).filter(TokenPackage.id == purchase.package_id).first()
+            package_name = package.name if package else "Pacote de Tokens"
+            
+            # Mapear status
+            status_map = {
+                "pending": "pending",
+                "confirmed": "confirmed",
+                "cancelled": "cancelled"
+            }
+            status = status_map.get(purchase.payment_status, "pending")
+            
+            # Converter preço se for string
+            price_value = 0
+            if purchase.price:
+                if isinstance(purchase.price, str):
+                    price_value = float(purchase.price.replace("R$", "").replace(",", ".").strip())
+                else:
+                    price_value = float(purchase.price)
+            
+            formatted_payments.append({
+                "id": purchase.asaas_payment_id or f"package_{purchase.id}",
+                "value": price_value,
+                "status": status,
+                "billingType": purchase.payment_method or "CREDIT_CARD",
+                "dueDate": purchase.purchased_at.strftime("%Y-%m-%d") if purchase.purchased_at else None,
+                "paymentDate": purchase.confirmed_at.strftime("%Y-%m-%d") if purchase.confirmed_at else None,
+                "description": f"Pacote de Tokens: {package_name} ({purchase.tokens_amount} tokens)",
+                "invoiceUrl": purchase.invoice_url,
+                "created_at": purchase.purchased_at.strftime("%Y-%m-%d") if purchase.purchased_at else None,
+                "originalStatus": purchase.payment_status.upper(),
+                "type": "package",  # Tipo de pagamento
+                "tokens_amount": purchase.tokens_amount,
+                "package_name": package_name
             })
         
         # Ordenar por data mais recente primeiro (usando paymentDate se disponível, senão dueDate)
@@ -462,21 +626,28 @@ async def update_subscription_from_payment(
         # Atualizar empresa usando ORM
         company_obj = db.query(Company).filter(Company.id == user["company_id"]).first()
         if company_obj:
+            # SEMPRE atualizar status para ACTIVE quando pagamento confirmado
+            old_status = company_obj.status
             company_obj.status = CompanyStatus.ACTIVE
+            if old_status != CompanyStatus.ACTIVE:
+                logger.info(f"✅ Empresa {company_obj.id} status atualizado: {old_status} → ACTIVE")
+            
             company_obj.plan_expires_at = next_due
             company_obj.trial_ends_at = None
             company_obj.updated_at = datetime.now()
             
-            # Adicionar tokens mensais do plano
-            # Os dados do plano estão na própria subscription (ai_analysis_monthly)
+            # Atualizar tokens mensais do plano
+            # ai_tokens_monthly = quantidade de tokens mensais do plano (atualizar, não somar)
+            # ai_tokens_purchased = tokens comprados avulsos (não alterar aqui, só quando compra pacotes)
             subscription_ai_tokens = subscription.get("ai_analysis_monthly")
             if subscription_ai_tokens:
-                tokens_to_add = subscription_ai_tokens
-                # Adicionar tokens mensais (não substituir, somar)
-                if not company_obj.ai_tokens_monthly:
-                    company_obj.ai_tokens_monthly = 0
-                company_obj.ai_tokens_monthly += tokens_to_add
-                logger.info(f"✅ Tokens mensais adicionados: +{tokens_to_add} tokens (total: {company_obj.ai_tokens_monthly})")
+                tokens_from_plan = subscription_ai_tokens
+                current_monthly = company_obj.ai_tokens_monthly if company_obj.ai_tokens_monthly else 0
+                
+                # Atualizar ai_tokens_monthly com o valor do plano (não somar, apenas atualizar)
+                company_obj.ai_tokens_monthly = tokens_from_plan
+                logger.info(f"✅ Tokens mensais atualizados: {current_monthly} → {tokens_from_plan} (plano: {subscription.get('plan_name')})")
+                logger.info(f"✅ Empresa {company_obj.id} atualizada: status=ACTIVE, ai_tokens_monthly={tokens_from_plan}")
             else:
                 logger.warning(f"⚠️ Assinatura '{subscription.get('plan_name')}' não tem ai_analysis_monthly definido")
         
@@ -500,6 +671,173 @@ async def update_subscription_from_payment(
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=400, detail=f"Erro ao atualizar cadastro: {str(e)}")
+
+
+@router.post("/payments/{payment_id}/sync", response_model=Dict[str, Any])
+async def sync_payment_status(
+    payment_id: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Sincroniza o status de um pagamento com o Asaas
+    Busca o status atual no Asaas e atualiza no sistema se necessário
+    """
+    try:
+        user = get_current_user(request, db)
+        
+        # Buscar o pagamento no Asaas
+        from app.services.asaas_service import asaas_service
+        from app.controllers.asaas_controller import AsaasController
+        
+        logger.info(f"🔄 Sincronizando status do pagamento {payment_id} com Asaas...")
+        
+        payment = asaas_service._make_request("GET", f"/payments/{payment_id}")
+        
+        if not payment:
+            logger.warning(f"⚠️ Pagamento {payment_id} não encontrado no Asaas")
+            raise HTTPException(
+                status_code=404,
+                detail="Pagamento não encontrado no Asaas"
+            )
+        
+        # Log completo da resposta para debug
+        logger.info(f"📋 Resposta completa do pagamento {payment_id}: {json.dumps(payment, indent=2, default=str)}")
+        
+        # Extrair todos os campos relevantes
+        payment_status = payment.get("status", "").upper()
+        payment_date = payment.get("paymentDate") or payment.get("payment_date") or payment.get("datePayment")
+        confirmed_date = payment.get("confirmedDate") or payment.get("confirmed_date")
+        client_payment_date = payment.get("clientPaymentDate") or payment.get("client_payment_date")
+        credit_date = payment.get("creditDate") or payment.get("credit_date")
+        external_ref = payment.get("externalReference", "") or payment.get("external_reference", "")
+        value = payment.get("value", 0)
+        net_value = payment.get("netValue") or payment.get("net_value")
+        billing_type = payment.get("billingType", "")
+        
+        # Se tem confirmedDate, usar como paymentDate (indica confirmação)
+        if confirmed_date:
+            payment_date = confirmed_date
+            logger.info(f"✅ Pagamento {payment_id} tem confirmedDate ({confirmed_date}) - usando como paymentDate")
+        
+        # Log detalhado de todos os campos relevantes
+        logger.info(f"📊 Status do pagamento {payment_id} no Asaas:")
+        logger.info(f"   - status: {payment_status}")
+        logger.info(f"   - paymentDate: {payment.get('paymentDate')}")
+        logger.info(f"   - confirmedDate: {confirmed_date}")
+        logger.info(f"   - creditDate: {credit_date}")
+        logger.info(f"   - clientPaymentDate: {client_payment_date}")
+        logger.info(f"   - value: {value}")
+        logger.info(f"   - netValue: {net_value}")
+        logger.info(f"   - billingType: {billing_type}")
+        logger.info(f"   - dueDate: {payment.get('dueDate')}")
+        logger.info(f"   - externalReference: {external_ref}")
+        logger.info(f"   - Todos os campos disponíveis: {list(payment.keys())}")
+        
+        # IMPORTANTE: Segundo a documentação do Asaas, se há paymentDate ou confirmedDate, o pagamento foi pago
+        # Mesmo que o status ainda seja PENDING, devemos considerar como CONFIRMED
+        final_status = payment_status
+        payment_confirmed = False
+        
+        # Verificar múltiplos indicadores de pagamento confirmado
+        if payment_status in ["CONFIRMED", "RECEIVED"]:
+            payment_confirmed = True
+            logger.info(f"✅ Pagamento {payment_id} está {payment_status} no Asaas")
+        elif confirmed_date:
+            # confirmedDate indica que o pagamento foi confirmado
+            final_status = "CONFIRMED"
+            payment_confirmed = True
+            logger.info(f"✅ Pagamento {payment_id} tem confirmedDate ({confirmed_date}) - considerando como CONFIRMED")
+        elif payment_date:
+            # Se tem paymentDate, o pagamento foi efetivado
+            if payment_status == "PENDING":
+                logger.info(f"✅ Pagamento {payment_id} tem paymentDate ({payment_date}) mas status é PENDING - considerando como CONFIRMED")
+                final_status = "CONFIRMED"
+                payment_confirmed = True
+            elif payment_status not in ["CONFIRMED", "RECEIVED"]:
+                logger.info(f"✅ Pagamento {payment_id} tem paymentDate ({payment_date}) - considerando como CONFIRMED")
+                final_status = "CONFIRMED"
+                payment_confirmed = True
+        elif client_payment_date and payment_status not in ["OVERDUE", "CANCELLED"]:
+            # Se tem clientPaymentDate e não está vencido/cancelado, pode estar confirmado
+            logger.info(f"⚠️ Pagamento {payment_id} tem clientPaymentDate ({client_payment_date}) mas não tem paymentDate - status: {payment_status}")
+            # Fazer verificação adicional: buscar novamente após alguns segundos
+            import time
+            time.sleep(2)
+            try:
+                payment_retry = asaas_service._make_request("GET", f"/payments/{payment_id}")
+                retry_status = payment_retry.get("status", "").upper()
+                retry_payment_date = payment_retry.get("paymentDate")
+                if retry_status in ["CONFIRMED", "RECEIVED"] or retry_payment_date:
+                    logger.info(f"✅ Após verificação adicional, pagamento {payment_id} está confirmado")
+                    final_status = retry_status if retry_status in ["CONFIRMED", "RECEIVED"] else "CONFIRMED"
+                    payment_date = retry_payment_date or client_payment_date
+                    payment_confirmed = True
+                else:
+                    logger.info(f"⚠️ Após verificação adicional, pagamento {payment_id} ainda está {retry_status}")
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao fazer verificação adicional: {e}")
+        elif credit_date:
+            # creditDate indica que o pagamento foi creditado (confirmado)
+            final_status = "CONFIRMED"
+            payment_confirmed = True
+            payment_date = credit_date
+            logger.info(f"✅ Pagamento {payment_id} tem creditDate ({credit_date}) - considerando como CONFIRMED")
+        elif net_value and float(net_value) != float(value) and billing_type == "CREDIT_CARD":
+            # Para cartão de crédito, se tem netValue diferente de value, foi processado (taxas descontadas)
+            final_status = "CONFIRMED"
+            payment_confirmed = True
+            logger.info(f"✅ Pagamento {payment_id} tem netValue ({net_value}) diferente de value ({value}) - Cartão processado, considerando como CONFIRMED")
+        elif net_value and float(net_value) != float(value):
+            # Se tem netValue diferente de value, pode indicar processamento
+            logger.info(f"⚠️ Pagamento {payment_id} tem netValue ({net_value}) diferente de value ({value}) - pode indicar processamento")
+            # Não confirmar automaticamente, mas logar para análise
+        
+        # Se o pagamento está confirmado/recebido ou tem paymentDate, processar como webhook
+        if payment_confirmed or final_status in ["CONFIRMED", "RECEIVED"] or payment_date:
+            logger.info(f"✅ Pagamento {payment_id} está confirmado no Asaas (status: {final_status}), processando webhook...")
+            
+            # Criar notificação simulando webhook
+            notification_data = {
+                "event": "PAYMENT_CONFIRMED",
+                "payment": {
+                    "id": payment_id,
+                    "status": final_status,
+                    "paymentDate": payment_date,
+                    "externalReference": external_ref
+                }
+            }
+            
+            # Processar webhook
+            controller = AsaasController(db)
+            result = controller.process_webhook_notification(notification_data)
+            
+            return {
+                "success": True,
+                "message": "Status sincronizado com sucesso e webhook processado",
+                "payment_status": "confirmed",  # Sempre retornar como confirmed se foi processado
+                "payment_date": payment_date,
+                "original_status": payment_status.lower(),
+                "final_status": final_status.lower(),
+                "result": result
+            }
+        else:
+            return {
+                "success": True,
+                "message": f"Status sincronizado: {payment_status.lower()}",
+                "payment_status": payment_status.lower(),
+                "payment_date": payment_date,
+                "note": "Pagamento ainda não confirmado no Asaas"
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Erro ao sincronizar pagamento: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Erro ao sincronizar pagamento: {str(e)}")
 
 
 @router.post("/webhooks")
@@ -540,17 +878,20 @@ async def receive_asaas_webhook(
             logger.error(f"❌ Erro ao ler body do webhook: {e}")
             raise HTTPException(status_code=400, detail=f"Erro ao ler requisição: {str(e)}")
         
-        logger.info(f"📨 Webhook parseado: {json.dumps(notification, indent=2, default=str)[:500]}")
+        logger.info(f"📨 Webhook parseado completo: {json.dumps(notification, indent=2, default=str)}")
         
         # Validar que tem pelo menos um campo básico
         if not isinstance(notification, dict):
             logger.error(f"❌ Webhook não é um dicionário: {type(notification)}")
             raise HTTPException(status_code=400, detail="Webhook deve ser um objeto JSON")
         
-        # Validar webhook (se necessário)
-        # signature = request.headers.get("asaas-signature")
-        # if not asaas_service.validate_webhook(str(notification), signature):
-        #     raise HTTPException(status_code=401, detail="Webhook inválido")
+        # Validar token do webhook (se configurado)
+        from app.config.settings import settings
+        if settings.asaas_webhook_token:
+            webhook_token = request.headers.get("asaas-access-token")
+            if webhook_token != settings.asaas_webhook_token:
+                logger.warning(f"⚠️ Token do webhook inválido ou não fornecido")
+                # Não bloquear, apenas logar (pode ser que não esteja configurado)
         
         controller = AsaasController(db)
         result = controller.process_webhook_notification(notification)
@@ -568,6 +909,90 @@ async def receive_asaas_webhook(
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=400, detail=f"Erro ao processar webhook: {str(e)}")
+
+
+@router.get("/webhooks/test")
+async def test_webhook_endpoint():
+    """
+    Endpoint de teste para verificar se o webhook está acessível
+    """
+    return {
+        "success": True,
+        "message": "Webhook endpoint está funcionando!",
+        "endpoint": "/api/asaas/webhooks",
+        "method": "POST",
+        "example_payload": {
+            "event": "PAYMENT_CONFIRMED",
+            "payment": {
+                "id": "pay_test_123",
+                "subscription": "sub_test_123",
+                "status": "CONFIRMED",
+                "value": 99.90,
+                "dueDate": "2024-02-01",
+                "paymentDate": "2024-02-01",
+                "externalReference": "package_1_company_1"
+            }
+        }
+    }
+
+
+@router.post("/webhooks/test")
+async def test_webhook_with_sample_data(
+    event_type: str = Query("PAYMENT_CONFIRMED", description="Tipo de evento"),
+    payment_id: str = Query(None, description="ID do pagamento"),
+    subscription_id: str = Query(None, description="ID da assinatura"),
+    external_reference: str = Query(None, description="Referência externa (formato: package_{id}_company_{id})"),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint de teste para enviar uma notificação de webhook simulada
+    
+    Parâmetros:
+    - event_type: Tipo de evento (PAYMENT_CONFIRMED, PAYMENT_RECEIVED, etc.)
+    - payment_id: ID do pagamento (opcional)
+    - subscription_id: ID da assinatura (opcional)
+    - external_reference: Referência externa (opcional, formato: package_{id}_company_{id})
+    """
+    try:
+        # Criar payload de teste baseado no formato do Asaas
+        test_notification = {
+            "event": event_type,
+            "payment": {
+                "id": payment_id or f"pay_test_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "subscription": subscription_id,
+                "status": "CONFIRMED" if event_type in ["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"] else "PENDING",
+                "value": 99.90,
+                "dueDate": datetime.now().strftime("%Y-%m-%d"),
+                "paymentDate": datetime.now().strftime("%Y-%m-%d") if event_type in ["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"] else None,
+                "externalReference": external_reference or f"company_1_user_1_initial"
+            }
+        }
+        
+        if subscription_id:
+            test_notification["subscription"] = {
+                "id": subscription_id
+            }
+        
+        logger.info(f"🧪 Teste de webhook - Enviando notificação: {json.dumps(test_notification, indent=2)}")
+        
+        # Processar webhook
+        controller = AsaasController(db)
+        result = controller.process_webhook_notification(test_notification)
+        
+        logger.info(f"✅ Teste de webhook processado: {result}")
+        
+        return {
+            "success": True,
+            "message": "Webhook de teste processado com sucesso",
+            "test_notification": test_notification,
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar webhook de teste: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Erro ao processar webhook de teste: {str(e)}")
 
 
 @router.post("/subscriptions/cancel", response_model=Dict[str, Any])

@@ -146,27 +146,91 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Carregar lista de agentes
 async function loadAssistants() {
+    const tbody = document.getElementById('assistantsTableBody');
+    let timeoutId = null;
+    
     try {
-        const response = await fetch('/api/openai/assistants/?active_only=false', {
-            credentials: 'include'
+        console.log('📋 Carregando agentes...');
+        
+        // Mostrar loading
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></td></tr>';
+        
+        // Criar AbortController para timeout
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+        
+        const response = await fetch('/api/openai/assistants?active_only=false', {
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            signal: controller.signal
         });
         
+        clearTimeout(timeoutId);
+        
+        console.log('📥 Resposta recebida:', response.status, response.statusText);
+        
         if (!response.ok) {
-            throw new Error('Erro ao carregar agentes');
+            let errorText = '';
+            try {
+                errorText = await response.text();
+                console.error('❌ Erro na resposta:', errorText);
+            } catch (e) {
+                errorText = `Erro ${response.status}: ${response.statusText}`;
+            }
+            
+            // Se for erro de autenticação, redirecionar para login
+            if (response.status === 401 || response.status === 403) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Erro de autenticação. Redirecionando para login...</td></tr>';
+                setTimeout(() => {
+                    window.location.href = '/superadmin';
+                }, 2000);
+                return;
+            }
+            
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Erro ao carregar: ${errorText}</td></tr>`;
+            showNotification('Erro ao carregar agentes: ' + errorText, 'error');
+            return;
         }
         
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+            console.log('📊 Dados recebidos:', data);
+        } catch (jsonError) {
+            console.error('❌ Erro ao fazer parse do JSON:', jsonError);
+            const text = await response.text();
+            console.error('📄 Resposta recebida (texto):', text);
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Erro: Resposta inválida do servidor</td></tr>';
+            showNotification('Erro: Resposta inválida do servidor', 'error');
+            return;
+        }
         
         if (data.success) {
-            assistants = data.assistants;
+            assistants = data.assistants || [];
+            console.log(`✅ ${assistants.length} agentes carregados`);
             renderAssistants();
             updateStats();
         } else {
+            console.error('❌ Erro no resultado:', data.error);
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Erro: ${data.error || 'Erro desconhecido'}</td></tr>`;
             showNotification('Erro ao carregar agentes: ' + (data.error || 'Erro desconhecido'), 'error');
         }
     } catch (error) {
-        console.error('Erro:', error);
-        showNotification('Erro ao carregar agentes: ' + error.message, 'error');
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+        console.error('❌ Erro ao carregar agentes:', error);
+        
+        if (error.name === 'AbortError') {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-warning">Timeout: A requisição demorou muito. Tente novamente.</td></tr>';
+            showNotification('Timeout: A requisição demorou muito. Tente novamente.', 'error');
+        } else {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Erro: ${error.message}</td></tr>`;
+            showNotification('Erro ao carregar agentes: ' + error.message, 'error');
+        }
     }
 }
 
@@ -196,43 +260,63 @@ function renderAssistants() {
         const providerBadge = providerBadges[provider] || 'bg-secondary';
         const providerName = providerNames[provider] || provider;
         
+        // Preparar valores com segurança
+        const assistantId = Number(assistant.id) || 0;
+        const assistantName = escapeHtml(assistant.name || '');
+        const assistantModel = escapeHtml(assistant.model || '');
+        const descriptionText = assistant.description 
+            ? escapeHtml(String(assistant.description).substring(0, 50)) 
+            : '';
+        const descriptionHtml = descriptionText 
+            ? `<br><small class="text-muted">${descriptionText}...</small>` 
+            : '';
+        const reasoningHtml = assistant.is_reasoning_model 
+            ? '<br><small class="text-muted">Raciocínio</small>' 
+            : '';
+        const interactionModeClass = assistant.interaction_mode === 'chat' ? 'bg-info' : 'bg-primary';
+        const interactionModeText = assistant.interaction_mode === 'chat' ? 'Chat' : 'Relatório';
+        const statusClass = assistant.is_active ? 'bg-success' : 'bg-secondary';
+        const statusText = assistant.is_active ? 'Ativo' : 'Inativo';
+        const lastUsed = assistant.last_used_at ? formatDate(assistant.last_used_at) : 'Nunca';
+        
         return `
         <tr>
-            <td>${assistant.id}</td>
+            <td>${assistantId}</td>
             <td>
-                <strong>${escapeHtml(assistant.name)}</strong>
-                ${assistant.description ? '<br><small class="text-muted">' + escapeHtml(assistant.description.substring(0, 50)) + '...</small>' : ''}
+                <strong>${assistantName}</strong>
+                ${descriptionHtml}
             </td>
             <td>
                 <span class="badge ${providerBadge}">${providerName}</span>
             </td>
             <td>
-                <span class="badge bg-secondary">${escapeHtml(assistant.model)}</span>
-                ${assistant.is_reasoning_model ? '<br><small class="text-muted">Raciocínio</small>' : ''}
+                <span class="badge bg-secondary">${assistantModel}</span>
+                ${reasoningHtml}
             </td>
             <td>
-                <span class="badge ${assistant.interaction_mode === 'chat' ? 'bg-info' : 'bg-primary'}">
-                    ${assistant.interaction_mode === 'chat' ? 'Chat' : 'Relatório'}
+                <span class="badge ${interactionModeClass}">
+                    ${interactionModeText}
                 </span>
             </td>
             <td>${assistant.total_runs || 0}</td>
             <td>${formatNumber(assistant.total_tokens_used || 0)}</td>
             <td>
-                <span class="badge ${assistant.is_active ? 'bg-success' : 'bg-secondary'}">
-                    ${assistant.is_active ? 'Ativo' : 'Inativo'}
+                <span class="badge ${statusClass}">
+                    ${statusText}
                 </span>
             </td>
-            <td>${assistant.last_used_at ? formatDate(assistant.last_used_at) : 'Nunca'}</td>
+            <td>${lastUsed}</td>
             <td>
-                <a href="/superadmin/assistants/${assistant.id}/edit" class="btn btn-sm btn-outline-primary" title="Editar">
+                <a href="/superadmin/assistants/${assistantId}/edit" class="btn btn-sm btn-outline-primary" title="Editar">
                     <i class="bi bi-pencil"></i>
                 </a>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteAssistant(${assistant.id})" title="Deletar">
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteAssistant(${assistantId})" title="Deletar">
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // Atualizar estatísticas
@@ -297,18 +381,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Funções auxiliares
 function escapeHtml(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = String(text);
     return div.innerHTML;
 }
 
 function formatNumber(num) {
+    if (num === null || num === undefined || isNaN(num)) {
+        return '0';
+    }
     return new Intl.NumberFormat('pt-BR').format(num);
 }
 
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('pt-BR');
+    if (!dateString) {
+        return 'Nunca';
+    }
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            return 'Data inválida';
+        }
+        return date.toLocaleString('pt-BR');
+    } catch (e) {
+        return 'Data inválida';
+    }
 }
 
 function showNotification(message, type) {

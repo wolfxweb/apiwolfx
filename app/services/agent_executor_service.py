@@ -89,8 +89,16 @@ class AgentExecutorService:
         company_id = None
         
         if isinstance(user, dict):
-            # Extrair user_id
+            # Extrair user_id (pode ser ID do superadmin ou usuário normal)
             user_id = user.get("id")
+            
+            # Verificar se é superadmin - se for, company_id deve ser None
+            # mas user_id pode ser o ID do superadmin (para rastreamento)
+            is_superadmin = user.get("role") == "super_admin"
+            if is_superadmin:
+                # Superadmin não tem company_id, mas pode ter user_id (ID do superadmin)
+                logger.info(f"🔓 Superadmin detectado - company_id será None, user_id será {user_id}")
+                return None, user_id
             
             # Extrair company_id (tentar diferentes formatos)
             if "company_id" in user:
@@ -152,14 +160,19 @@ class AgentExecutorService:
             
             # Extrair company_id e user_id
             company_id, user_id = self._extract_company_and_user_id(user)
+            is_superadmin = user.get("role") == "super_admin"
             
-            if not company_id:
+            # Para superadmin, company_id e user_id podem ser None
+            # Para usuários do SaaS, company_id é obrigatório
+            if not company_id and not is_superadmin:
                 return {
                     'success': False,
                     'error': 'Company ID não encontrado no contexto do usuário'
                 }
             
-            if not user_id:
+            # user_id pode ser None para superadmin (não está na tabela users)
+            # Para usuários normais, user_id é obrigatório
+            if not user_id and not is_superadmin:
                 return {
                     'success': False,
                     'error': 'User ID não encontrado no contexto do usuário'
@@ -227,7 +240,7 @@ class AgentExecutorService:
     def _execute_chat(
         self,
         agent_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: int,
         message: str,
         thread_id: Optional[str],
@@ -382,7 +395,7 @@ class AgentExecutorService:
     def _execute_report(
         self,
         agent_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: int,
         prompt: str,
         context_data: Dict[str, Any],

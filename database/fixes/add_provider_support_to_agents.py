@@ -17,10 +17,15 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def add_provider_support():
+def add_provider_support(db=None):
     """Adiciona campos provider e api_config às tabelas de agentes"""
     
-    db = SessionLocal()
+    if db is None:
+        db = SessionLocal()
+        should_close = True
+    else:
+        should_close = False
+    
     try:
         logger.info("🔄 Adicionando suporte a múltiplos providers de IA...")
         
@@ -53,8 +58,12 @@ def add_provider_support():
                 logger.info("ℹ️ Campo 'provider' já existe na tabela openai_assistants")
         except Exception as e:
             db.rollback()
-            if 'already exists' not in str(e).lower() and 'duplicate' not in str(e).lower():
-                logger.warning(f"⚠️ Aviso ao adicionar campo provider: {e}")
+            error_str = str(e).lower()
+            if 'already exists' not in error_str and 'duplicate' not in error_str and 'column.*already exists' not in error_str:
+                logger.error(f"❌ Erro ao adicionar campo provider: {e}", exc_info=True)
+                raise
+            else:
+                logger.info("ℹ️ Campo 'provider' já existe (erro esperado)")
         
         # Adicionar campo api_config na tabela openai_assistants
         try:
@@ -78,8 +87,12 @@ def add_provider_support():
                 logger.info("ℹ️ Campo 'api_config' já existe na tabela openai_assistants")
         except Exception as e:
             db.rollback()
-            if 'already exists' not in str(e).lower() and 'duplicate' not in str(e).lower():
-                logger.warning(f"⚠️ Aviso ao adicionar campo api_config: {e}")
+            error_str = str(e).lower()
+            if 'already exists' not in error_str and 'duplicate' not in error_str and 'column.*already exists' not in error_str:
+                logger.error(f"❌ Erro ao adicionar campo api_config: {e}", exc_info=True)
+                raise
+            else:
+                logger.info("ℹ️ Campo 'api_config' já existe (erro esperado)")
         
         # Adicionar campo provider na tabela openai_assistant_usage
         try:
@@ -110,8 +123,12 @@ def add_provider_support():
                 logger.info("ℹ️ Campo 'provider' já existe na tabela openai_assistant_usage")
         except Exception as e:
             db.rollback()
-            if 'already exists' not in str(e).lower() and 'duplicate' not in str(e).lower():
-                logger.warning(f"⚠️ Aviso ao adicionar campo provider em usage: {e}")
+            error_str = str(e).lower()
+            if 'already exists' not in error_str and 'duplicate' not in error_str and 'column.*already exists' not in error_str:
+                logger.error(f"❌ Erro ao adicionar campo provider em usage: {e}", exc_info=True)
+                raise
+            else:
+                logger.info("ℹ️ Campo 'provider' já existe em usage (erro esperado)")
         
         # Atualizar registros existentes para ter provider = 'openai'
         try:
@@ -138,10 +155,15 @@ def add_provider_support():
         
     except Exception as e:
         logger.error(f"❌ Erro ao adicionar suporte a providers: {e}", exc_info=True)
-        db.rollback()
+        if db:
+            try:
+                db.rollback()
+            except:
+                pass
         return {"success": False, "error": str(e)}
     finally:
-        db.close()
+        if should_close and db:
+            db.close()
 
 if __name__ == "__main__":
     result = add_provider_support()

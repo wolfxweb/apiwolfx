@@ -13,7 +13,7 @@ from app.models.asaas_models import (
     AsaasCreateCustomerRequest,
     AsaasCreateSubscriptionRequest
 )
-from app.models.saas_models import Subscription, Company, User, CompanyStatus
+from app.models.saas_models import Subscription, Company, User, CompanyStatus, TokenPackage, TokenPackagePurchase
 
 logger = logging.getLogger(__name__)
 
@@ -192,13 +192,6 @@ class AsaasController:
                 # Remover emojis da descrição (Asaas não permite emojis)
                 payment_description = _remove_emojis(f"{plan.plan_name} - Primeiro pagamento")
                 
-                # Obter URL de callback do settings
-                from app.config.settings import settings
-                # URL de callback após pagamento bem-sucedido
-                # O Asaas pode redirecionar para esta URL após o pagamento ser confirmado
-                # Tentar múltiplos campos possíveis conforme documentação do Asaas
-                callback_url = f"{settings.base_url}/auth/payment-success"
-                
                 payment_data = {
                     "customer": asaas_customer_id,
                     "billingType": billing_type,
@@ -207,17 +200,10 @@ class AsaasController:
                     "description": payment_description,
                     "externalReference": f"company_{company_id}_user_{user_id}_initial"
                     # NÃO incluir "subscription" aqui - igual ao teste que funcionou
+                    # NÃO incluir "callback" - campo não é válido na API do Asaas
                 }
                 
-                # Adicionar URL de callback/retorno (tentar múltiplos campos possíveis)
-                # O Asaas pode usar diferentes campos dependendo da versão da API
-                # Tentar callback primeiro (mais comum)
-                payment_data["callback"] = callback_url
-                # Também tentar returnUrl (algumas versões do Asaas usam este)
-                # payment_data["returnUrl"] = callback_url
-                
-                logger.info(f"🔗 URL de callback configurada: {callback_url}")
-                logger.info(f"📋 Dados do pagamento com callback: {json.dumps(payment_data, indent=2, default=str)}")
+                logger.info(f"📋 Dados do pagamento: {json.dumps(payment_data, indent=2, default=str)}")
                 
                 # Adicionar parcelamento se for cartão de crédito parcelado
                 if billing_type == "CREDIT_CARD":
@@ -604,8 +590,201 @@ class AsaasController:
             payment_id = processed.get("payment_id")
             subscription_id = processed.get("subscription_id")
             status = processed.get("status")
+            external_ref = processed.get("externalReference", "")  # Obter externalReference dos dados processados
             
             logger.info(f"🔍 Buscando assinatura - event: {event}, payment_id: {payment_id}, subscription_id: {subscription_id}")
+            logger.info(f"🔍 ExternalReference processado: {external_ref}")
+            
+            # PRIMEIRO: Verificar se é pagamento de pacote de tokens
+            if payment_id and event in ["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]:
+                try:
+                    logger.info(f"🔍 Verificando se pagamento {payment_id} é de pacote de tokens...")
+                    
+                    # Se não tiver externalReference nos dados processados, tentar do webhook original
+                    if not external_ref:
+                        payment_data_from_webhook = processed.get("data", {}).get("payment", {})
+                        external_ref = payment_data_from_webhook.get("externalReference", "")
+                    
+                    logger.info(f"📋 ExternalReference do webhook: {external_ref}")
+                    
+                    # Tentar buscar pelo payment_id diretamente primeiro (mais rápido)
+                    purchase_by_payment = self.db.query(TokenPackagePurchase).filter(
+                        TokenPackagePurchase.asaas_payment_id == payment_id,
+                        TokenPackagePurchase.payment_status == "pending"
+                    ).first()
+                    
+                    if purchase_by_payment:
+                        logger.info(f"📦 Compra de pacote encontrada pelo asaas_payment_id: {purchase_by_payment.id}")
+                        purchase = purchase_by_payment
+                    elif external_ref and "package_" in external_ref:
+                        # Se não encontrou pelo payment_id, usar externalReference do webhook
+                        logger.info(f"📦 Pagamento de pacote detectado pelo externalReference do webhook: {external_ref}")
+                        
+                        # Extrair purchase_id do externalReference (formato: package_{purchase_id}_company_{company_id})
+                        parts = external_ref.split("_")
+                        logger.info(f"🔍 Partes do externalReference: {parts}")
+                        
+                        if len(parts) >= 2:
+                            try:
+                                purchase_id = int(parts[1])
+                                logger.info(f"🔍 Buscando compra de pacote com ID: {purchase_id}")
+                                
+                                # Primeiro, buscar sem filtro de status para ver se existe
+                                purchase_check = self.db.query(TokenPackagePurchase).filter(
+                                    TokenPackagePurchase.id == purchase_id
+                                ).first()
+                                
+                                if purchase_check:
+                                    logger.info(f"📦 Compra encontrada: ID={purchase_check.id}, Status={purchase_check.payment_status}, AsaasPaymentID={purchase_check.asaas_payment_id}")
+                                    
+                                    # Se estiver pending, usar ela
+                                    if purchase_check.payment_status == "pending":
+                                        purchase = purchase_check
+                                        # Atualizar o asaas_payment_id se ainda não estiver salvo
+                                        if not purchase.asaas_payment_id:
+                                            purchase.asaas_payment_id = payment_id
+                                            logger.info(f"✅ Atualizado asaas_payment_id para compra {purchase.id}")
+                                    else:
+                                        logger.warning(f"⚠️ Compra {purchase_id} existe mas status é '{purchase_check.payment_status}', não 'pending'")
+                                        purchase = None
+                                else:
+                                    logger.warning(f"⚠️ Compra de pacote com ID {purchase_id} não encontrada no banco")
+                                    purchase = None
+                            except (ValueError, IndexError) as e:
+                                logger.warning(f"⚠️ Erro ao extrair purchase_id de {external_ref}: {e}")
+                                logger.warning(f"   - Parts: {parts}")
+                                purchase = None
+                        else:
+                            logger.warning(f"⚠️ ExternalReference não tem formato esperado: {external_ref}")
+                            purchase = None
+                    else:
+                        # Se não encontrou e não tem externalReference no webhook, buscar via API
+                        logger.info(f"🔍 ExternalReference não encontrado no webhook, buscando pagamento no Asaas...")
+                        try:
+                            payment_info = self.asaas_service._make_request("GET", f"/payments/{payment_id}")
+                            external_ref = payment_info.get("externalReference", "")
+                            
+                            logger.info(f"📋 ExternalReference obtido da API: {external_ref}")
+                            
+                            if external_ref and "package_" in external_ref:
+                                logger.info(f"📦 Pagamento de pacote detectado pelo externalReference da API: {external_ref}")
+                                
+                                parts = external_ref.split("_")
+                                if len(parts) >= 2:
+                                    try:
+                                        purchase_id = int(parts[1])
+                                        purchase = self.db.query(TokenPackagePurchase).filter(
+                                            TokenPackagePurchase.id == purchase_id,
+                                            TokenPackagePurchase.payment_status == "pending"
+                                        ).first()
+                                        
+                                        if purchase and not purchase.asaas_payment_id:
+                                            purchase.asaas_payment_id = payment_id
+                                            logger.info(f"✅ Atualizado asaas_payment_id para compra {purchase.id}")
+                                    except (ValueError, IndexError) as e:
+                                        logger.warning(f"⚠️ Erro ao extrair purchase_id de {external_ref}: {e}")
+                                        purchase = None
+                                else:
+                                    purchase = None
+                            else:
+                                purchase = None
+                        except Exception as api_error:
+                            logger.warning(f"⚠️ Erro ao buscar pagamento na API do Asaas: {api_error}")
+                            purchase = None
+                    
+                    # Processar compra se encontrada
+                    if purchase and purchase.payment_status == "pending":
+                        # Buscar pacote e empresa
+                        package = self.db.query(TokenPackage).filter(
+                            TokenPackage.id == purchase.package_id
+                        ).first()
+                        company = self.db.query(Company).filter(
+                            Company.id == purchase.company_id
+                        ).first()
+                        
+                        if package and company:
+                            logger.info(f"📦 Processando compra de pacote:")
+                            logger.info(f"   - Purchase ID: {purchase.id}")
+                            logger.info(f"   - Package: {package.name} ({package.tokens_amount} tokens)")
+                            logger.info(f"   - Company ID: {company.id}")
+                            logger.info(f"   - Tokens atuais (ai_tokens_purchased): {company.ai_tokens_purchased}")
+                            
+                            # Adicionar tokens ao ai_tokens_purchased
+                            if company.ai_tokens_purchased is None:
+                                company.ai_tokens_purchased = 0
+                            
+                            tokens_antes = company.ai_tokens_purchased
+                            company.ai_tokens_purchased += package.tokens_amount
+                            tokens_depois = company.ai_tokens_purchased
+                            
+                            # Atualizar status da compra
+                            purchase.payment_status = "confirmed"
+                            purchase.confirmed_at = datetime.now()
+                            
+                            # Garantir que o asaas_payment_id está salvo
+                            if not purchase.asaas_payment_id:
+                                purchase.asaas_payment_id = payment_id
+                            
+                            # Fazer flush antes do commit para garantir que as alterações estão na sessão
+                            self.db.flush()
+                            
+                            # Commit explícito
+                            self.db.commit()
+                            
+                            # Refresh para garantir que os dados foram persistidos
+                            self.db.refresh(company)
+                            self.db.refresh(purchase)
+                            
+                            logger.info(f"✅ Pacote de tokens adicionado à empresa {company.id}")
+                            logger.info(f"   - Pacote: {package.name} ({package.tokens_amount} tokens)")
+                            logger.info(f"   - Tokens antes: {tokens_antes}")
+                            logger.info(f"   - Tokens adicionados: {package.tokens_amount}")
+                            logger.info(f"   - Tokens depois: {tokens_depois}")
+                            logger.info(f"   - Total de tokens comprados (após refresh): {company.ai_tokens_purchased}")
+                            logger.info(f"   - Purchase status (após refresh): {purchase.payment_status}")
+                            logger.info(f"   - Purchase confirmed_at: {purchase.confirmed_at}")
+                            
+                            return {
+                                "success": True,
+                                "message": "Pacote de tokens processado com sucesso",
+                                "type": "package_purchase",
+                                "company_id": company.id,
+                                "package_id": package.id,
+                                "tokens_added": package.tokens_amount,
+                                "tokens_before": tokens_antes,
+                                "tokens_after": tokens_depois
+                            }
+                        else:
+                            logger.warning(f"⚠️ Pacote ou empresa não encontrados para purchase_id {purchase.id}")
+                            if not package:
+                                logger.warning(f"   - Package ID {purchase.package_id} não encontrado")
+                            if not company:
+                                logger.warning(f"   - Company ID {purchase.company_id} não encontrado")
+                    elif purchase and purchase.payment_status == "confirmed":
+                        logger.info(f"ℹ️ Compra de pacote {purchase.id} já foi confirmada anteriormente em {purchase.confirmed_at}")
+                        return {
+                            "success": True,
+                            "message": "Pacote já foi processado anteriormente",
+                            "type": "package_purchase",
+                            "already_processed": True
+                        }
+                    else:
+                        logger.warning(f"⚠️ Compra de pacote não encontrada para payment_id {payment_id}")
+                        logger.warning(f"   - Tentou buscar por asaas_payment_id: {payment_id}")
+                        if external_ref:
+                            logger.warning(f"   - ExternalReference: {external_ref}")
+                        
+                        # Tentar buscar todas as compras pendentes para debug
+                        all_pending = self.db.query(TokenPackagePurchase).filter(
+                            TokenPackagePurchase.payment_status == "pending"
+                        ).all()
+                        logger.warning(f"   - Total de compras pendentes no banco: {len(all_pending)}")
+                        for p in all_pending:
+                            logger.warning(f"     * Purchase ID: {p.id}, Company: {p.company_id}, Payment ID: {p.asaas_payment_id}")
+                except Exception as e:
+                    logger.error(f"❌ Erro ao processar pagamento de pacote: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
             
             subscription = None
             
@@ -662,18 +841,34 @@ class AsaasController:
                     try:
                         payment_info = self.asaas_service._make_request("GET", f"/payments/{payment_id}")
                         payment_status_from_api = payment_info.get("status", "").upper()
-                        logger.info(f"🔍 Status do pagamento {payment_id} no Asaas: {payment_status_from_api}")
+                        payment_date_from_api = payment_info.get("paymentDate")
+                        client_payment_date_from_api = payment_info.get("clientPaymentDate")
+                        
+                        logger.info(f"🔍 Verificação de status do pagamento {payment_id} no Asaas:")
+                        logger.info(f"   - status: {payment_status_from_api}")
+                        logger.info(f"   - paymentDate: {payment_date_from_api}")
+                        logger.info(f"   - clientPaymentDate: {client_payment_date_from_api}")
+                        logger.info(f"   - value: {payment_info.get('value')}")
+                        logger.info(f"   - netValue: {payment_info.get('netValue')}")
                         
                         # Se o pagamento está confirmado/recebido no Asaas, tratar como confirmado
-                        if payment_status_from_api in ["CONFIRMED", "RECEIVED"]:
-                            logger.info(f"✅ Pagamento {payment_id} está CONFIRMED/RECEIVED no Asaas, processando como confirmado")
+                        # OU se tem paymentDate (significa que foi pago), tratar como confirmado
+                        if payment_status_from_api in ["CONFIRMED", "RECEIVED"] or payment_date_from_api:
+                            if payment_date_from_api and payment_status_from_api not in ["CONFIRMED", "RECEIVED"]:
+                                logger.info(f"✅ Pagamento {payment_id} tem paymentDate ({payment_date_from_api}), considerando como CONFIRMED")
+                            else:
+                                logger.info(f"✅ Pagamento {payment_id} está CONFIRMED/RECEIVED no Asaas, processando como confirmado")
                             event = "PAYMENT_CONFIRMED"  # Forçar evento como confirmado
                             payment_status_checked = True
+                        elif client_payment_date_from_api and payment_status_from_api not in ["OVERDUE", "CANCELLED", "REFUNDED"]:
+                            logger.info(f"⚠️ Pagamento {payment_id} tem clientPaymentDate ({client_payment_date_from_api}) mas não tem paymentDate - status: {payment_status_from_api}")
+                            # Não confirmar automaticamente, mas logar para análise
                     except Exception as e:
                         logger.warning(f"⚠️ Erro ao verificar status do pagamento {payment_id} no Asaas: {e}")
                 
                 # Atualizar status baseado no evento
-                if event == "PAYMENT_CONFIRMED" or event == "PAYMENT_RECEIVED":
+                # Processar se for PAYMENT_CONFIRMED, PAYMENT_RECEIVED, ou se o status foi verificado como confirmado
+                if event == "PAYMENT_CONFIRMED" or event == "PAYMENT_RECEIVED" or payment_status_checked:
                     subscription.status = "active"
                     subscription.is_trial = False  # Remover trial
                     
@@ -703,10 +898,11 @@ class AsaasController:
                     if subscription.company_id:
                         company = self.db.query(Company).filter(Company.id == subscription.company_id).first()
                         if company:
-                            # Remover status de trial
-                            if company.status == CompanyStatus.TRIAL:
-                                company.status = CompanyStatus.ACTIVE
-                                logger.info(f"✅ Empresa {company.id} removida do trial")
+                            # SEMPRE atualizar status para ACTIVE quando pagamento confirmado
+                            old_status = company.status
+                            company.status = CompanyStatus.ACTIVE
+                            if old_status != CompanyStatus.ACTIVE:
+                                logger.info(f"✅ Empresa {company.id} status atualizado: {old_status} → ACTIVE")
                             
                             # Atualizar data de expiração do plano
                             company.plan_expires_at = subscription.ends_at
@@ -714,30 +910,26 @@ class AsaasController:
                             # Remover trial_ends_at
                             company.trial_ends_at = None
                             
-                            # Atualizar tokens comprados do plano ao campo ai_tokens_purchased
-                            # Pegar o valor de ai_analysis_monthly do plano e usar o maior valor
+                            # Atualizar tokens mensais do plano
+                            # ai_tokens_monthly = quantidade de tokens mensais do plano (atualizar, não somar)
+                            # ai_tokens_purchased = tokens comprados avulsos (não alterar aqui, só quando compra pacotes)
                             if subscription.ai_analysis_monthly:
                                 tokens_from_plan = subscription.ai_analysis_monthly
-                                current_tokens = company.ai_tokens_purchased if company.ai_tokens_purchased else 0
+                                current_monthly_tokens = company.ai_tokens_monthly if company.ai_tokens_monthly else 0
                                 
-                                # Usar o maior valor entre o atual e o do plano
-                                new_tokens_value = max(current_tokens, tokens_from_plan)
+                                # Atualizar ai_tokens_monthly com o valor do plano (não somar, apenas atualizar)
+                                company.ai_tokens_monthly = tokens_from_plan
                                 
-                                # Se o valor do plano for maior, atualizar
-                                if tokens_from_plan > current_tokens:
-                                    company.ai_tokens_purchased = new_tokens_value
-                                    logger.info(f"✅ Tokens comprados atualizados para empresa {company.id}: {current_tokens} → {new_tokens_value}")
-                                    logger.info(f"   - Valor do plano '{subscription.plan_name}': {tokens_from_plan}")
-                                    logger.info(f"   - Valor anterior: {current_tokens}")
-                                    logger.info(f"   - Novo valor (maior): {new_tokens_value}")
-                                else:
-                                    logger.info(f"ℹ️ Tokens comprados mantidos para empresa {company.id}: {current_tokens} (plano tem {tokens_from_plan}, menor que atual)")
+                                logger.info(f"✅ Tokens mensais atualizados para empresa {company.id}")
+                                logger.info(f"   - Valor do plano '{subscription.plan_name}': {tokens_from_plan}")
+                                logger.info(f"   - ai_tokens_monthly: {current_monthly_tokens} → {tokens_from_plan}")
+                                logger.info(f"   - ai_tokens_purchased: {company.ai_tokens_purchased or 0} (não alterado - apenas pacotes alteram)")
                             else:
                                 logger.warning(f"⚠️ Assinatura '{subscription.plan_name}' não tem ai_analysis_monthly definido")
                             
                             # Fazer flush das alterações da empresa antes do commit da assinatura
                             self.db.flush()
-                            logger.info(f"✅ Empresa {company.id} atualizada: status={company.status}, plan_expires_at={company.plan_expires_at}, ai_tokens_purchased={company.ai_tokens_purchased}")
+                            logger.info(f"✅ Empresa {company.id} atualizada: status={company.status}, plan_expires_at={company.plan_expires_at}, ai_tokens_monthly={company.ai_tokens_monthly}, ai_tokens_purchased={company.ai_tokens_purchased}")
                     
                     # Fazer commit das alterações da assinatura e empresa
                     subscription.updated_at = datetime.now()

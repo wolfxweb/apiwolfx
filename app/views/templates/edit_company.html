@@ -364,6 +364,87 @@
             </div>
         </div>
         
+        <!-- Comprar Plano -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="mb-3"><i class="bi bi-calendar-check"></i> Assinatura de Plano</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="purchasePlanId" class="form-label">Selecione um Plano</label>
+                            <select class="form-select" id="purchasePlanId" onchange="updatePlanInfo()">
+                                <option value="">Selecione um plano...</option>
+                                <!-- Planos carregados via JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="planPaymentMethod" class="form-label">Método de Pagamento</label>
+                            <select class="form-select" id="planPaymentMethod">
+                                <option value="CREDIT_CARD" selected>Cartão de Crédito</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div id="planInfo" class="alert alert-info" style="display: none;">
+                            <strong>Plano selecionado:</strong><br>
+                            <span id="planNameInfo"></span><br>
+                            <span id="planPriceInfo"></span><br>
+                            <span id="planTokensInfo"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="button" class="btn btn-success" onclick="purchasePlan()" id="purchasePlanBtn">
+                        <i class="bi bi-credit-card"></i> Comprar Plano
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Comprar Pacote de Tokens -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="mb-3"><i class="bi bi-box-seam"></i> Pacote de Tokens</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="purchasePackageId" class="form-label">Selecione um Pacote</label>
+                            <select class="form-select" id="purchasePackageId" onchange="updatePackageInfo()">
+                                <option value="">Selecione um pacote...</option>
+                                <!-- Pacotes carregados via JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="packagePaymentMethod" class="form-label">Método de Pagamento</label>
+                            <select class="form-select" id="packagePaymentMethod">
+                                <option value="CREDIT_CARD" selected>Cartão de Crédito</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div id="packageInfo" class="alert alert-info" style="display: none;">
+                            <strong>Pacote selecionado:</strong><br>
+                            <span id="packageTokensInfo"></span><br>
+                            <span id="packagePriceInfo"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="button" class="btn btn-primary" onclick="purchasePackage()" id="purchasePackageBtn">
+                        <i class="bi bi-cart"></i> Comprar Pacote
+                    </button>
+                </div>
+            </div>
+        </div>
+        
         <!-- Botões de Ação -->
         <div class="d-flex justify-content-between">
             <a href="/auth/profile" class="btn btn-secondary">Cancelar</a>
@@ -398,9 +479,231 @@ function toggleImpostos() {
     }
 }
 
+let availablePlans = [];
+let availablePackages = [];
+
 document.addEventListener('DOMContentLoaded', function() {
     toggleImpostos();
+    loadPlans();
+    loadPackages();
 });
+
+// Carregar planos disponíveis
+async function loadPlans() {
+    try {
+        const response = await fetch('/api/plans', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            availablePlans = data.plans || [];
+            updatePlanSelect();
+        } else {
+            console.error('Erro ao carregar planos:', response.status, response.statusText);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar planos:', error);
+    }
+}
+
+// Carregar pacotes disponíveis
+async function loadPackages() {
+    try {
+        const response = await fetch('/api/token-packages', {
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            availablePackages = data.packages || [];
+            updatePackageSelect();
+        } else {
+            console.error('Erro ao carregar pacotes:', response.status, response.statusText);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar pacotes:', error);
+    }
+}
+
+// Atualizar select de planos
+function updatePlanSelect() {
+    const select = document.getElementById('purchasePlanId');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Selecione um plano...</option>';
+    availablePlans.forEach(plan => {
+        const option = document.createElement('option');
+        option.value = plan.id;
+        option.textContent = `${plan.plan_name} - ${plan.price}`;
+        option.dataset.price = plan.price;
+        option.dataset.tokens = plan.ai_tokens_monthly || 0;
+        select.appendChild(option);
+    });
+}
+
+// Atualizar select de pacotes
+function updatePackageSelect() {
+    const select = document.getElementById('purchasePackageId');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Selecione um pacote...</option>';
+    availablePackages.forEach(pkg => {
+        const option = document.createElement('option');
+        option.value = pkg.id;
+        option.textContent = `${pkg.name} - ${pkg.price}`;
+        option.dataset.price = pkg.price;
+        option.dataset.tokens = pkg.tokens_amount || 0;
+        select.appendChild(option);
+    });
+}
+
+// Atualizar informações do plano selecionado
+function updatePlanInfo() {
+    const select = document.getElementById('purchasePlanId');
+    const infoDiv = document.getElementById('planInfo');
+    const nameInfo = document.getElementById('planNameInfo');
+    const priceInfo = document.getElementById('planPriceInfo');
+    const tokensInfo = document.getElementById('planTokensInfo');
+    
+    if (!select || !infoDiv) return;
+    
+    const selectedOption = select.options[select.selectedIndex];
+    if (selectedOption.value) {
+        const plan = availablePlans.find(p => p.id == selectedOption.value);
+        if (plan) {
+            nameInfo.textContent = `Nome: ${plan.plan_name}`;
+            priceInfo.textContent = `Preço: ${plan.price}`;
+            tokensInfo.textContent = `Tokens mensais: ${(plan.ai_tokens_monthly || 0).toLocaleString('pt-BR')}`;
+            infoDiv.style.display = 'block';
+        }
+    } else {
+        infoDiv.style.display = 'none';
+    }
+}
+
+// Atualizar informações do pacote selecionado
+function updatePackageInfo() {
+    const select = document.getElementById('purchasePackageId');
+    const infoDiv = document.getElementById('packageInfo');
+    const tokensInfo = document.getElementById('packageTokensInfo');
+    const priceInfo = document.getElementById('packagePriceInfo');
+    
+    if (!select || !infoDiv) return;
+    
+    const selectedOption = select.options[select.selectedIndex];
+    if (selectedOption.value) {
+        const tokens = selectedOption.dataset.tokens;
+        const price = selectedOption.dataset.price;
+        tokensInfo.textContent = `Tokens: ${parseInt(tokens).toLocaleString('pt-BR')}`;
+        priceInfo.textContent = `Preço: ${price}`;
+        infoDiv.style.display = 'block';
+    } else {
+        infoDiv.style.display = 'none';
+    }
+}
+
+// Comprar plano
+async function purchasePlan() {
+    const planId = document.getElementById('purchasePlanId').value;
+    const paymentMethod = document.getElementById('planPaymentMethod').value;
+    const btn = document.getElementById('purchasePlanBtn');
+    
+    if (!planId) {
+        showNotification('Selecione um plano primeiro!', 'error');
+        return;
+    }
+    
+    try {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processando...';
+        
+        const response = await fetch('/api/company/purchase-plan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'include',
+            body: JSON.stringify({
+                plan_id: parseInt(planId),
+                payment_method: paymentMethod
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            if (data.invoice_url) {
+                // Redirecionar automaticamente para o checkout
+                showNotification('Redirecionando para o pagamento...', 'info');
+                window.location.href = data.invoice_url;
+            } else {
+                showNotification('Plano contratado com sucesso!', 'success');
+                // Limpar formulário apenas se não houver redirecionamento
+                document.getElementById('purchasePlanId').value = '';
+                document.getElementById('planInfo').style.display = 'none';
+            }
+        } else {
+            showNotification(data.error || 'Erro ao comprar plano', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-credit-card"></i> Comprar Plano';
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro de conexão. Tente novamente.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-credit-card"></i> Comprar Plano';
+    }
+}
+
+// Comprar pacote de tokens
+async function purchasePackage() {
+    const packageId = document.getElementById('purchasePackageId').value;
+    const paymentMethod = document.getElementById('packagePaymentMethod').value;
+    const btn = document.getElementById('purchasePackageBtn');
+    
+    if (!packageId) {
+        showNotification('Selecione um pacote primeiro!', 'error');
+        return;
+    }
+    
+    try {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processando...';
+        
+        const response = await fetch('/api/company/purchase-package', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'include',
+            body: JSON.stringify({
+                package_id: parseInt(packageId),
+                payment_method: paymentMethod
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            if (data.invoice_url) {
+                // Redirecionar automaticamente para o checkout
+                showNotification('Redirecionando para o pagamento...', 'info');
+                window.location.href = data.invoice_url;
+            } else {
+                showNotification('Pacote comprado com sucesso!', 'success');
+                // Limpar formulário apenas se não houver redirecionamento
+                document.getElementById('purchasePackageId').value = '';
+                document.getElementById('packageInfo').style.display = 'none';
+            }
+        } else {
+            showNotification(data.error || 'Erro ao comprar pacote', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cart"></i> Comprar Pacote';
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro de conexão. Tente novamente.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cart"></i> Comprar Pacote';
+    }
+}
 
 async function saveCompany() {
     const saveButton = document.querySelector('button[onclick="saveCompany()"]');

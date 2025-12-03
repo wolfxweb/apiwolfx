@@ -516,7 +516,7 @@ class OpenAIAssistantService:
     def use_assistant_report_mode(
         self,
         assistant_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: Optional[int],
         prompt: str,
         context_data: Optional[Dict] = None,
@@ -731,7 +731,7 @@ class OpenAIAssistantService:
     def use_assistant_chat_mode(
         self,
         assistant_id: int,
-        company_id: int,
+        company_id: Optional[int],
         user_id: Optional[int],
         message: str,
         thread_id: Optional[str] = None,
@@ -742,31 +742,42 @@ class OpenAIAssistantService:
         if not self.client:
             return {"success": False, "error": "OpenAI API key não configurada."}
         
-        # Verificar saldo de tokens antes de processar
-        from app.services.token_balance_service import TokenBalanceService
-        token_service = TokenBalanceService(self.db)
-        
-        # Verificar saldo disponível (estimativa conservadora: verificar se há pelo menos 100 tokens)
-        # O débito real será feito após obter o total_tokens real
-        logger.info(f"🔍 Verificando saldo de tokens para company_id: {company_id}")
-        balance_check = token_service.check_balance(company_id, 100)
-        logger.info(f"📊 Resultado da verificação de saldo: {balance_check}")
-        
-        if not balance_check.get("success"):
-            # Retornar erro com informações de saldo - NÃO fazer chamada à API
-            logger.warning(f"⚠️ Saldo insuficiente de tokens. Bloqueando chamada à API.")
-            balance_info = token_service.get_balance(company_id)
-            error_response = {
-                "success": False,
-                "error": balance_check.get("error", "Saldo insuficiente de tokens"),
-                "tokens_balance": {
-                    "monthly": balance_info.get("monthly", 0),
-                    "purchased": balance_info.get("purchased", 0),
-                    "total": balance_info.get("total", 0)
-                } if balance_info.get("success") else None
-            }
-            logger.info(f"🚫 Retornando erro de saldo insuficiente: {error_response}")
-            return error_response
+        # Verificar saldo de tokens apenas se houver company_id (usuários do SaaS)
+        # Superadmin (company_id=None) não precisa verificar saldo
+        if company_id is not None:
+            from app.services.token_balance_service import TokenBalanceService
+            token_service = TokenBalanceService(self.db)
+            
+            # Verificar saldo disponível (estimativa conservadora: verificar se há pelo menos 100 tokens)
+            # O débito real será feito após obter o total_tokens real
+            logger.info(f"🔍 Verificando saldo de tokens para company_id: {company_id}")
+            balance_check = token_service.check_balance(company_id, 100)
+            logger.info(f"📊 Resultado da verificação de saldo: {balance_check}")
+            
+            if not balance_check.get("success"):
+                # Retornar erro com informações de saldo - NÃO fazer chamada à API
+                logger.warning(f"⚠️ Saldo insuficiente de tokens. Bloqueando chamada à API.")
+                if company_id is not None:
+                    balance_info = token_service.get_balance(company_id)
+                    error_response = {
+                        "success": False,
+                        "error": balance_check.get("error", "Saldo insuficiente de tokens"),
+                        "tokens_balance": {
+                            "monthly": balance_info.get("monthly", 0),
+                            "purchased": balance_info.get("purchased", 0),
+                            "total": balance_info.get("total", 0)
+                        } if balance_info.get("success") else None
+                    }
+                else:
+                    error_response = {
+                        "success": False,
+                        "error": balance_check.get("error", "Saldo insuficiente de tokens"),
+                        "tokens_balance": None
+                    }
+                logger.info(f"🚫 Retornando erro de saldo insuficiente: {error_response}")
+                return error_response
+        else:
+            logger.info("🔓 Superadmin detectado - pulando verificação de saldo de tokens")
         
         # Obter provider do agente (buscar novamente para ter acesso ao provider)
         db_assistant_for_provider = self.db.query(OpenAIAssistant).filter(
@@ -1328,53 +1339,61 @@ class OpenAIAssistantService:
                     usage_record.completion_tokens = usage_info.completion_tokens
                     usage_record.total_tokens = usage_info.total_tokens
                     
-                    # Debitar tokens após obter o total real
-                    total_tokens_to_debit = usage_info.total_tokens
-                    
-                    # Log detalhado antes do débito
-                    logger.info(f"💰 [DÉBITO TOKENS] Iniciando débito para company_id={company_id}, thread_id={openai_thread_id}")
-                    logger.info(f"💰 [DÉBITO TOKENS] Tokens a debitar: {total_tokens_to_debit} (prompt: {usage_info.prompt_tokens}, completion: {usage_info.completion_tokens})")
-                    logger.info(f"💰 [DÉBITO TOKENS] Assistente: {db_assistant.name} (ID: {assistant_id})")
-                    logger.info(f"💰 [DÉBITO TOKENS] Usuário: {user_id}, Mensagem: {message[:100] if message else 'N/A'}...")
-                    
-                    # Obter saldo antes do débito
-                    balance_before = token_service.get_balance(company_id)
-                    if balance_before.get("success"):
-                        logger.info(f"💰 [DÉBITO TOKENS] Saldo ANTES: monthly={balance_before.get('monthly', 0)}, purchased={balance_before.get('purchased', 0)}, total={balance_before.get('total', 0)}")
-                    
-                    debit_result = token_service.debit_tokens(company_id, total_tokens_to_debit)
-                    
-                    if not debit_result.get("success"):
-                        # Se débito falhar, fazer rollback
-                        self.db.rollback()
-                        logger.error(f"❌ [DÉBITO TOKENS] Falha ao debitar tokens: {debit_result.get('error')}")
-                        logger.error(f"❌ [DÉBITO TOKENS] Company ID: {company_id}, Thread ID: {openai_thread_id}, Tokens tentados: {total_tokens_to_debit}")
-                        return {
-                            "success": False,
-                            "error": f"Erro ao debitar tokens: {debit_result.get('error')}",
-                            "tokens_balance": None
-                        }
-                    
-                    # Log após débito bem-sucedido
-                    logger.info(f"✅ [DÉBITO TOKENS] Débito realizado com sucesso: {total_tokens_to_debit} tokens")
-                    logger.info(f"✅ [DÉBITO TOKENS] Saldo DEPOIS: monthly={debit_result.get('monthly', 0)}, purchased={debit_result.get('purchased', 0)}, total={debit_result.get('total', 0)}")
-                    logger.info(f"✅ [DÉBITO TOKENS] Company ID: {company_id}, Thread ID: {openai_thread_id}, Usage Record ID: {usage_record.id}")
-                    
-                    # Obter saldo atualizado após débito
-                    updated_balance = token_service.get_balance(company_id)
-                    tokens_balance = {
+                    # Debitar tokens apenas se houver company_id (usuários do SaaS)
+                    # Superadmin (company_id=None) não é cobrado
+                    if company_id is not None:
+                        # Debitar tokens após obter o total real
+                        total_tokens_to_debit = usage_info.total_tokens
+                        
+                        # Log detalhado antes do débito
+                        logger.info(f"💰 [DÉBITO TOKENS] Iniciando débito para company_id={company_id}, thread_id={openai_thread_id}")
+                        logger.info(f"💰 [DÉBITO TOKENS] Tokens a debitar: {total_tokens_to_debit} (prompt: {usage_info.prompt_tokens}, completion: {usage_info.completion_tokens})")
+                        logger.info(f"💰 [DÉBITO TOKENS] Assistente: {db_assistant.name} (ID: {assistant_id})")
+                        logger.info(f"💰 [DÉBITO TOKENS] Usuário: {user_id}, Mensagem: {message[:100] if message else 'N/A'}...")
+                        
+                        # Obter saldo antes do débito
+                        balance_before = token_service.get_balance(company_id)
+                        if balance_before.get("success"):
+                            logger.info(f"💰 [DÉBITO TOKENS] Saldo ANTES: monthly={balance_before.get('monthly', 0)}, purchased={balance_before.get('purchased', 0)}, total={balance_before.get('total', 0)}")
+                        
+                        debit_result = token_service.debit_tokens(company_id, total_tokens_to_debit)
+                        
+                        if not debit_result.get("success"):
+                            # Se débito falhar, fazer rollback
+                            self.db.rollback()
+                            logger.error(f"❌ [DÉBITO TOKENS] Falha ao debitar tokens: {debit_result.get('error')}")
+                            logger.error(f"❌ [DÉBITO TOKENS] Company ID: {company_id}, Thread ID: {openai_thread_id}, Tokens tentados: {total_tokens_to_debit}")
+                            return {
+                                "success": False,
+                                "error": f"Erro ao debitar tokens: {debit_result.get('error')}",
+                                "tokens_balance": None
+                            }
+                        
+                        # Log após débito bem-sucedido
+                        logger.info(f"✅ [DÉBITO TOKENS] Débito realizado com sucesso: {total_tokens_to_debit} tokens")
+                        logger.info(f"✅ [DÉBITO TOKENS] Saldo DEPOIS: monthly={debit_result.get('monthly', 0)}, purchased={debit_result.get('purchased', 0)}, total={debit_result.get('total', 0)}")
+                        logger.info(f"✅ [DÉBITO TOKENS] Company ID: {company_id}, Thread ID: {openai_thread_id}, Usage Record ID: {usage_record.id}")
+                        
+                        # Obter saldo atualizado após débito
+                        updated_balance = token_service.get_balance(company_id)
+                        tokens_balance = {
                         "monthly": updated_balance.get("monthly", 0),
                         "purchased": updated_balance.get("purchased", 0),
                         "total": updated_balance.get("total", 0)
                     } if updated_balance.get("success") else None
                 else:
-                    # Se não houver usage_info, obter saldo atual sem debitar
-                    balance_info = token_service.get_balance(company_id)
-                    tokens_balance = {
-                        "monthly": balance_info.get("monthly", 0),
-                        "purchased": balance_info.get("purchased", 0),
-                        "total": balance_info.get("total", 0)
-                    } if balance_info.get("success") else None
+                    # Se não houver usage_info, obter saldo atual sem debitar (apenas se houver company_id)
+                    if company_id is not None:
+                        balance_info = token_service.get_balance(company_id)
+                        tokens_balance = {
+                            "monthly": balance_info.get("monthly", 0),
+                            "purchased": balance_info.get("purchased", 0),
+                            "total": balance_info.get("total", 0)
+                        } if balance_info.get("success") else None
+                    else:
+                        # Superadmin não tem saldo de tokens
+                        tokens_balance = None
+                        logger.info("🔓 Superadmin - não há saldo de tokens para verificar")
                 
                 self.db.commit()
                 
@@ -1416,13 +1435,16 @@ class OpenAIAssistantService:
                 usage_record.duration_seconds = time.time() - start_time
                 self.db.commit()
                 
-                # Obter saldo atual (mesmo em caso de erro, não debitamos)
-                balance_info = token_service.get_balance(company_id)
-                tokens_balance = {
-                    "monthly": balance_info.get("monthly", 0),
-                    "purchased": balance_info.get("purchased", 0),
-                    "total": balance_info.get("total", 0)
-                } if balance_info.get("success") else None
+                # Obter saldo atual (mesmo em caso de erro, não debitamos) - apenas se houver company_id
+                if company_id is not None:
+                    balance_info = token_service.get_balance(company_id)
+                    tokens_balance = {
+                        "monthly": balance_info.get("monthly", 0),
+                        "purchased": balance_info.get("purchased", 0),
+                        "total": balance_info.get("total", 0)
+                    } if balance_info.get("success") else None
+                else:
+                    tokens_balance = None
                 
                 return {
                     "success": True,
@@ -1444,14 +1466,17 @@ class OpenAIAssistantService:
             # Verificar se é erro de autenticação
             error_str = str(e).lower()
             if "authentication" in error_str or "unauthorized" in error_str or "session" in error_str or "login" in error_str or "pendingrollback" in error_str:
-                # Obter saldo atual para retornar na resposta
+                # Obter saldo atual para retornar na resposta - apenas se houver company_id
                 try:
-                    balance_info = token_service.get_balance(company_id)
-                    tokens_balance = {
-                        "monthly": balance_info.get("monthly", 0),
-                        "purchased": balance_info.get("purchased", 0),
-                        "total": balance_info.get("total", 0)
-                    } if balance_info.get("success") else None
+                    if company_id is not None:
+                        balance_info = token_service.get_balance(company_id)
+                        tokens_balance = {
+                            "monthly": balance_info.get("monthly", 0),
+                            "purchased": balance_info.get("purchased", 0),
+                            "total": balance_info.get("total", 0)
+                        } if balance_info.get("success") else None
+                    else:
+                        tokens_balance = None
                 except:
                     tokens_balance = None
                 
@@ -1476,14 +1501,17 @@ class OpenAIAssistantService:
                 except:
                     pass
             
-            # Obter saldo atual para retornar na resposta de erro
+            # Obter saldo atual para retornar na resposta de erro - apenas se houver company_id
             try:
-                balance_info = token_service.get_balance(company_id)
-                tokens_balance = {
-                    "monthly": balance_info.get("monthly", 0),
-                    "purchased": balance_info.get("purchased", 0),
-                    "total": balance_info.get("total", 0)
-                } if balance_info.get("success") else None
+                if company_id is not None:
+                    balance_info = token_service.get_balance(company_id)
+                    tokens_balance = {
+                        "monthly": balance_info.get("monthly", 0),
+                        "purchased": balance_info.get("purchased", 0),
+                        "total": balance_info.get("total", 0)
+                    } if balance_info.get("success") else None
+                else:
+                    tokens_balance = None
             except:
                 tokens_balance = None
             

@@ -4,12 +4,12 @@ Controller para SuperAdmin - Gerenciamento do sistema SaaS
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func, desc
 from passlib.context import CryptContext
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import secrets
 import string
 
-from app.models.saas_models import SuperAdmin, Company, User, Subscription, MLAccount
+from app.models.saas_models import SuperAdmin, Company, User, Subscription, MLAccount, TokenPackage, TokenPackagePurchase
 
 # Configuração para hash de senhas
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -443,12 +443,124 @@ class SuperAdminController:
                     )
                     self.db.add(subscription)
             
+            # Processar compra de pacote de tokens se package_id foi fornecido
+            package_purchase_result = None
+            if company_data.get("package_id"):
+                package = self.db.query(TokenPackage).filter(
+                    TokenPackage.id == company_data["package_id"],
+                    TokenPackage.is_active == True
+                ).first()
+                
+                if package:
+                    payment_method = company_data.get("package_payment_method", "PIX")
+                    create_payment = company_data.get("create_package_payment", False)
+                    
+                    # Criar registro de compra
+                    purchase = TokenPackagePurchase(
+                        company_id=company.id,
+                        package_id=package.id,
+                        tokens_amount=package.tokens_amount,
+                        price=package.price,
+                        currency=package.currency,
+                        payment_method=payment_method,
+                        payment_status="pending" if create_payment else "confirmed",
+                        purchased_at=datetime.utcnow()
+                    )
+                    self.db.add(purchase)
+                    self.db.flush()  # Para obter o ID
+                    
+                    # Se for registro manual, adicionar tokens imediatamente
+                    if not create_payment:
+                        if company.ai_tokens_purchased is None:
+                            company.ai_tokens_purchased = 0
+                        company.ai_tokens_purchased += package.tokens_amount
+                        purchase.payment_status = "confirmed"
+                        purchase.confirmed_at = datetime.utcnow()
+                    else:
+                        # Criar pagamento no Asaas
+                        try:
+                            from app.services.asaas_service import asaas_service
+                            from datetime import datetime as dt
+                            
+                            # Buscar ou criar cliente no Asaas
+                            asaas_customer_id = None
+                            if company.cnpj:
+                                customer = asaas_service.find_customer_by_cpf_cnpj(company.cnpj)
+                                if customer and customer.get("id"):
+                                    asaas_customer_id = customer["id"]
+                                else:
+                                    # Criar cliente no Asaas
+                                    # Buscar email do primeiro usuário da empresa ou usar padrão
+                                    first_user = self.db.query(User).filter(
+                                        User.company_id == company.id
+                                    ).first()
+                                    
+                                    email = first_user.email if first_user and first_user.email else f"empresa{company.id}@selvez.com.br"
+                                    
+                                    customer_data = {
+                                        "name": company.name,
+                                        "cpfCnpj": company.cnpj,
+                                        "email": email
+                                    }
+                                    customer_result = asaas_service.create_customer(customer_data)
+                                    if customer_result and customer_result.get("id"):
+                                        asaas_customer_id = customer_result["id"]
+                            
+                            if asaas_customer_id:
+                                # Mapear método de pagamento
+                                billing_type_map = {
+                                    "PIX": "PIX",
+                                    "BOLETO": "BOLETO",
+                                    "CREDIT_CARD": "CREDIT_CARD"
+                                }
+                                billing_type = billing_type_map.get(payment_method, "PIX")
+                                
+                                # Converter preço para float (remover R$ e vírgulas)
+                                price_str = package.price.replace("R$", "").replace(" ", "").replace(",", ".")
+                                try:
+                                    price_float = float(price_str)
+                                except:
+                                    price_float = 0.0
+                                
+                                # Criar pagamento único
+                                payment_data = {
+                                    "customer": asaas_customer_id,
+                                    "billingType": billing_type,
+                                    "value": price_float,
+                                    "dueDate": dt.now().strftime("%Y-%m-%d"),
+                                    "description": f"Pacote de Tokens: {package.name} ({package.tokens_amount} tokens)",
+                                    "externalReference": f"package_{purchase.id}_company_{company.id}"
+                                }
+                                
+                                payment_result = asaas_service.create_payment(payment_data)
+                                
+                                if payment_result and payment_result.get("id"):
+                                    purchase.asaas_payment_id = payment_result["id"]
+                                    purchase.invoice_url = payment_result.get("invoiceUrl") or payment_result.get("invoice_url")
+                                    package_purchase_result = {
+                                        "package_id": package.id,
+                                        "package_name": package.name,
+                                        "tokens_amount": package.tokens_amount,
+                                        "price": package.price,
+                                        "payment_id": payment_result["id"],
+                                        "invoice_url": purchase.invoice_url,
+                                        "status": "pending"
+                                    }
+                        except Exception as e:
+                            print(f"Erro ao criar pagamento no Asaas: {e}")
+                            # Continuar mesmo se falhar - o registro de compra já foi criado
+            
             self.db.commit()
             
-            return {
+            result = {
                 "id": company.id,
                 "message": "Empresa criada com sucesso"
             }
+            
+            if package_purchase_result:
+                result["package_purchase"] = package_purchase_result
+            
+            return result
         except Exception as e:
             self.db.rollback()
             raise e
@@ -764,6 +876,7 @@ class SuperAdminController:
                 "ordem_compra",                 # FK: companies, fornecedores
                 "products",                     # FK: companies
                 "subscriptions",                # FK: companies
+                "token_package_purchases",      # FK: companies, token_packages (deletar antes de companies)
                 "catalog_participants",         # FK: companies
                 "payment_methods",              # FK: companies (se existir)
                 "payments",                     # FK: subscriptions (se existir)
@@ -1383,6 +1496,115 @@ class SuperAdminController:
             
             return {
                 "message": "Plano excluído com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e
+    
+    # ========== MÉTODOS DE PACOTES DE TOKENS ==========
+    
+    def create_token_package(self, package_data: Dict) -> Dict:
+        """Cria um novo pacote de tokens"""
+        try:
+            package = TokenPackage(
+                name=package_data["name"],
+                description=package_data.get("description"),
+                tokens_amount=package_data["tokens_amount"],
+                price=str(package_data["price"]),
+                currency=package_data.get("currency", "BRL"),
+                is_active=package_data.get("is_active", True)
+            )
+            
+            self.db.add(package)
+            self.db.commit()
+            
+            return {
+                "id": package.id,
+                "message": "Pacote criado com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e
+    
+    def list_token_packages(self, active_only: bool = False) -> List[Dict]:
+        """Lista pacotes de tokens"""
+        try:
+            query = self.db.query(TokenPackage)
+            
+            if active_only:
+                query = query.filter(TokenPackage.is_active == True)
+            
+            packages = query.order_by(desc(TokenPackage.created_at)).all()
+            
+            return [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "description": p.description,
+                    "tokens_amount": p.tokens_amount,
+                    "price": p.price,
+                    "currency": p.currency,
+                    "is_active": p.is_active,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                    "updated_at": p.updated_at.isoformat() if p.updated_at else None
+                }
+                for p in packages
+            ]
+        except Exception as e:
+            print(f"Erro ao listar pacotes: {e}")
+            return []
+    
+    def update_token_package(self, package_id: int, package_data: Dict) -> Dict:
+        """Atualiza um pacote de tokens"""
+        try:
+            package = self.db.query(TokenPackage).filter(TokenPackage.id == package_id).first()
+            
+            if not package:
+                raise ValueError("Pacote não encontrado")
+            
+            package.name = package_data.get("name", package.name)
+            package.description = package_data.get("description", package.description)
+            package.tokens_amount = package_data.get("tokens_amount", package.tokens_amount)
+            package.price = str(package_data.get("price", package.price))
+            package.currency = package_data.get("currency", package.currency)
+            package.is_active = package_data.get("is_active", package.is_active)
+            package.updated_at = datetime.utcnow()
+            
+            self.db.commit()
+            
+            return {
+                "id": package.id,
+                "message": "Pacote atualizado com sucesso"
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise e
+    
+    def delete_token_package(self, package_id: int) -> Dict:
+        """Deleta um pacote de tokens (soft delete - marca como inativo)"""
+        try:
+            package = self.db.query(TokenPackage).filter(TokenPackage.id == package_id).first()
+            
+            if not package:
+                raise ValueError("Pacote não encontrado")
+            
+            # Verificar se há compras pendentes deste pacote
+            pending_purchases = self.db.query(TokenPackagePurchase).filter(
+                TokenPackagePurchase.package_id == package_id,
+                TokenPackagePurchase.payment_status == "pending"
+            ).count()
+            
+            if pending_purchases > 0:
+                raise ValueError(f"Não é possível excluir pacote com {pending_purchases} compra(s) pendente(s)")
+            
+            # Soft delete - marcar como inativo
+            package.is_active = False
+            package.updated_at = datetime.utcnow()
+            
+            self.db.commit()
+            
+            return {
+                "message": "Pacote excluído com sucesso"
             }
         except Exception as e:
             self.db.rollback()

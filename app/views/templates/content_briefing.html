@@ -1,0 +1,772 @@
+{% extends "superadmin/base.html" if is_superadmin else "base.html" %}
+
+{% block title %}Briefing de Marketing{% endblock %}
+
+{% block extra_css %}
+<style>
+    .briefing-section {
+        margin-bottom: 2rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        background: #fff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .briefing-section h3 {
+        color: #02C47C;
+        margin-bottom: 1.5rem;
+        font-size: 1.25rem;
+        font-weight: 600;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    .form-check-input:checked {
+        background-color: #02C47C;
+        border-color: #02C47C;
+    }
+    
+    .btn-primary {
+        background-color: #02C47C;
+        border-color: #02C47C;
+    }
+    
+    .btn-primary:hover {
+        background-color: #00A86B;
+        border-color: #00A86B;
+    }
+    
+    .progress-container {
+        display: none;
+        margin-top: 2rem;
+    }
+    
+    .result-container {
+        display: none;
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background: #f8f9fa;
+        border-radius: 0.5rem;
+    }
+    
+    /* Layout em colunas para checkboxes e radios */
+    .checkbox-group, .radio-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+    }
+    
+    .checkbox-group .form-check, .radio-group .form-check {
+        margin-bottom: 0;
+        padding: 0.5rem;
+        background: #f8f9fa;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s;
+    }
+    
+    .checkbox-group .form-check:hover, .radio-group .form-check:hover {
+        background: #e9ecef;
+    }
+    
+    /* Campos lado a lado */
+    .row-cols-2 .col {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    
+    /* Espaçamento melhorado */
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: #495057;
+    }
+    
+    .mb-3 {
+        margin-bottom: 1.25rem !important;
+    }
+    
+    /* Botão de gerar briefing */
+    #btnGerarBriefing {
+        white-space: nowrap;
+        min-width: 200px;
+    }
+    
+    /* Seções com melhor espaçamento */
+    .briefing-section > div:last-child {
+        margin-bottom: 0 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-file-text"></i> Briefing de Marketing</h1>
+    </div>
+
+    <!-- Formulário de Briefing -->
+    <form id="briefingForm">
+        <!-- 1. Informações Gerais -->
+        <div class="briefing-section">
+            <h3>1. Informações Gerais do Projeto</h3>
+            
+            <div class="mb-3">
+                <label for="nome_empresa_produto" class="form-label">Nome da empresa/produto <span class="text-danger">*</span></label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="nome_empresa_produto" required placeholder="Digite o nome da empresa ou produto">
+                    <button type="button" class="btn btn-success" id="btnGerarBriefing" style="background-color: #02C47C; border-color: #02C47C;">
+                        <i class="bi bi-robot"></i> Gerar Briefing com IA
+                    </button>
+                </div>
+                <small class="form-text text-muted">Digite o nome e clique no botão para gerar um briefing completo automaticamente</small>
+            </div>
+            
+            <div class="mb-3">
+                <label for="publico_alvo" class="form-label">Público-alvo principal <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="publico_alvo" rows="3" required></textarea>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Objetivo do conteúdo <span class="text-danger">*</span></label>
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="alcance" id="obj_alcance" name="objetivo_conteudo">
+                            <label class="form-check-label" for="obj_alcance">Alcance</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="engajamento" id="obj_engajamento" name="objetivo_conteudo">
+                            <label class="form-check-label" for="obj_engajamento">Engajamento</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="conversao" id="obj_conversao" name="objetivo_conteudo">
+                            <label class="form-check-label" for="obj_conversao">Conversão</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="autoridade" id="obj_autoridade" name="objetivo_conteudo">
+                            <label class="form-check-label" for="obj_autoridade">Autoridade</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="trafego" id="obj_trafego" name="objetivo_conteudo">
+                            <label class="form-check-label" for="obj_trafego">Tráfego</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Estágio do funil <span class="text-danger">*</span></label>
+                    <div class="radio-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="estagio_funil" id="funil_topo" value="topo" required>
+                            <label class="form-check-label" for="funil_topo">Topo – Descoberta</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="estagio_funil" id="funil_meio" value="meio">
+                            <label class="form-check-label" for="funil_meio">Meio – Consideração</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="estagio_funil" id="funil_fundo" value="fundo">
+                            <label class="form-check-label" for="funil_fundo">Fundo – Decisão</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Linha editorial <span class="text-danger">*</span></label>
+                <div class="radio-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="linha_editorial" id="editorial_educacional" value="educacional" required>
+                        <label class="form-check-label" for="editorial_educacional">Educacional</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="linha_editorial" id="editorial_informativo" value="informativo">
+                        <label class="form-check-label" for="editorial_informativo">Informativo</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="linha_editorial" id="editorial_vendas" value="vendas">
+                        <label class="form-check-label" for="editorial_vendas">Vendas</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="linha_editorial" id="editorial_bastidores" value="bastidores">
+                        <label class="form-check-label" for="editorial_bastidores">Bastidores</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="linha_editorial" id="editorial_prova_social" value="prova_social">
+                        <label class="form-check-label" for="editorial_prova_social">Prova social</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Redes Sociais -->
+        <div class="briefing-section">
+            <h3>2. Redes Sociais</h3>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Plataformas</label>
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="instagram" id="plataforma_instagram" name="plataformas">
+                            <label class="form-check-label" for="plataforma_instagram">Instagram</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="facebook" id="plataforma_facebook" name="plataformas">
+                            <label class="form-check-label" for="plataforma_facebook">Facebook</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="tiktok" id="plataforma_tiktok" name="plataformas">
+                            <label class="form-check-label" for="plataforma_tiktok">TikTok</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="youtube" id="plataforma_youtube" name="plataformas">
+                            <label class="form-check-label" for="plataforma_youtube">YouTube</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="linkedin" id="plataforma_linkedin" name="plataformas">
+                            <label class="form-check-label" for="plataforma_linkedin">LinkedIn</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Formato</label>
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="feed" id="formato_feed" name="formatos">
+                            <label class="form-check-label" for="formato_feed">Feed</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="reels" id="formato_reels" name="formatos">
+                            <label class="form-check-label" for="formato_reels">Reels</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="stories" id="formato_stories" name="formatos">
+                            <label class="form-check-label" for="formato_stories">Stories</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="carrossel" id="formato_carrossel" name="formatos">
+                            <label class="form-check-label" for="formato_carrossel">Carrossel</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="video_longo" id="formato_video_longo" name="formatos">
+                            <label class="form-check-label" for="formato_video_longo">Vídeo Longo</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Blog / Artigos -->
+        <div class="briefing-section">
+            <h3>3. Blog / Artigos</h3>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="blog_objetivo" class="form-label">Objetivo do artigo</label>
+                    <textarea class="form-control" id="blog_objetivo" rows="3"></textarea>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Tamanho desejado</label>
+                    <div class="radio-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="tamanho_artigo" id="tamanho_600" value="600">
+                            <label class="form-check-label" for="tamanho_600">600 palavras</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="tamanho_artigo" id="tamanho_1000" value="1000">
+                            <label class="form-check-label" for="tamanho_1000">1000 palavras</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="tamanho_artigo" id="tamanho_1500" value="1500">
+                            <label class="form-check-label" for="tamanho_1500">1500+ palavras</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="palavra_chave_principal" class="form-label">Palavra-chave principal</label>
+                    <input type="text" class="form-control" id="palavra_chave_principal" placeholder="Ex: marketing digital">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="palavras_secundarias" class="form-label">Palavras secundárias</label>
+                    <input type="text" class="form-control" id="palavras_secundarias" placeholder="Separadas por vírgula">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">SEO obrigatório</label>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="meta_titulo" id="seo_meta_titulo" name="seo_obrigatorio" checked>
+                        <label class="form-check-label" for="seo_meta_titulo">Meta título</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="meta_descricao" id="seo_meta_descricao" name="seo_obrigatorio" checked>
+                        <label class="form-check-label" for="seo_meta_descricao">Meta descrição</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="h1_h2_h3" id="seo_h1_h2_h3" name="seo_obrigatorio" checked>
+                        <label class="form-check-label" for="seo_h1_h2_h3">H1, H2, H3</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="links" id="seo_links" name="seo_obrigatorio" checked>
+                        <label class="form-check-label" for="seo_links">Links internos e externos</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="cta" id="seo_cta" name="seo_obrigatorio" checked>
+                        <label class="form-check-label" for="seo_cta">CTA do texto</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Material Complementar -->
+        <div class="briefing-section">
+            <h3>4. Material Complementar</h3>
+            
+            <div class="checkbox-group">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="email_marketing" id="material_email" name="material_complementar">
+                    <label class="form-check-label" for="material_email">Email marketing</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="pdf_lead_magnet" id="material_pdf" name="material_complementar">
+                    <label class="form-check-label" for="material_pdf">PDF / Lead magnet</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="scripts_video" id="material_scripts" name="material_complementar">
+                    <label class="form-check-label" for="material_scripts">Scripts para vídeo</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="copy_anuncio" id="material_copy" name="material_complementar">
+                    <label class="form-check-label" for="material_copy">Copy para anúncio</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botões de Ação -->
+        <div class="d-flex gap-2 mb-4">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-search"></i> Pesquisar e Gerar Conteúdo
+            </button>
+            <button type="button" class="btn btn-secondary btn-lg" onclick="saveDraft()">
+                <i class="bi bi-save"></i> Salvar Rascunho
+            </button>
+        </div>
+    </form>
+
+    <!-- Progress Container -->
+    <div class="progress-container" id="progressContainer">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Gerando Conteúdo...</h5>
+                <div class="progress mb-3">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" id="progressBar"></div>
+                </div>
+                <p class="mb-0" id="progressText">Iniciando...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Result Container -->
+    <div class="result-container" id="resultContainer">
+        <h3>Conteúdo Gerado</h3>
+        <div id="resultContent"></div>
+    </div>
+</div>
+
+<script>
+let currentBriefingId = null;
+
+// Gerar briefing a partir do nome
+async function gerarBriefingComIA() {
+    const nome = document.getElementById('nome_empresa_produto').value.trim();
+    
+    if (!nome) {
+        showToast('Digite o nome da empresa/produto primeiro', 'warning');
+        return;
+    }
+    
+    const btn = document.getElementById('btnGerarBriefing');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Gerando...';
+    
+    try {
+        const response = await fetch('/api/content/briefings/generate-from-name', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ nome_empresa_produto: nome })
+        });
+        
+        if (!response.ok) {
+            let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.detail || errorMessage;
+            } catch (e) {
+                // Se não conseguir parsear JSON, usar mensagem padrão
+            }
+            showToast(errorMessage, 'error');
+            console.error('Erro na resposta:', response.status, response.statusText);
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Preencher formulário com os dados gerados
+            preencherFormularioComBriefing(data.data);
+            currentBriefingId = data.data.id;
+            showToast('Briefing gerado com sucesso! Você pode ajustar os campos e depois pesquisar/gerar conteúdo.', 'success');
+        } else {
+            showToast(data.error || 'Erro ao gerar briefing', 'error');
+            console.error('Erro:', data);
+        }
+    } catch (error) {
+        console.error('Erro ao gerar briefing:', error);
+        showToast(`Erro ao gerar briefing: ${error.message || 'Erro de conexão'}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// Preencher formulário com dados do briefing
+function preencherFormularioComBriefing(briefing) {
+    // Nome da empresa/produto
+    document.getElementById('nome_empresa_produto').value = briefing.nome_empresa_produto || '';
+    
+    // Público-alvo
+    document.getElementById('publico_alvo').value = briefing.publico_alvo || '';
+    
+    // Objetivos do conteúdo
+    document.querySelectorAll('input[name="objetivo_conteudo"]').forEach(cb => {
+        cb.checked = briefing.objetivo_conteudo && briefing.objetivo_conteudo.includes(cb.value);
+    });
+    
+    // Estágio do funil
+    if (briefing.estagio_funil) {
+        const funilRadio = document.querySelector(`input[name="estagio_funil"][value="${briefing.estagio_funil}"]`);
+        if (funilRadio) funilRadio.checked = true;
+    }
+    
+    // Linha editorial
+    if (briefing.linha_editorial) {
+        const editorialRadio = document.querySelector(`input[name="linha_editorial"][value="${briefing.linha_editorial}"]`);
+        if (editorialRadio) editorialRadio.checked = true;
+    }
+    
+    // Redes sociais
+    if (briefing.redes_sociais) {
+        const redes = briefing.redes_sociais;
+        
+        // Plataformas
+        if (redes.plataformas) {
+            redes.plataformas.forEach(plataforma => {
+                const cb = document.querySelector(`input[name="plataformas"][value="${plataforma}"]`);
+                if (cb) cb.checked = true;
+            });
+        }
+        
+        // Formatos
+        if (redes.formatos) {
+            redes.formatos.forEach(formato => {
+                const cb = document.querySelector(`input[name="formatos"][value="${formato}"]`);
+                if (cb) cb.checked = true;
+            });
+        }
+    }
+    
+    // Blog config
+    if (briefing.blog_config) {
+        const blog = briefing.blog_config;
+        
+        if (blog.objetivo || blog.objetivo_artigo) {
+            document.getElementById('blog_objetivo').value = blog.objetivo || blog.objetivo_artigo || '';
+        }
+        
+        if (blog.palavra_chave_principal) {
+            document.getElementById('palavra_chave_principal').value = blog.palavra_chave_principal;
+        }
+        
+        if (blog.palavras_secundarias) {
+            document.getElementById('palavras_secundarias').value = Array.isArray(blog.palavras_secundarias) 
+                ? blog.palavras_secundarias.join(', ') 
+                : blog.palavras_secundarias;
+        }
+        
+        if (blog.seo_obrigatorio) {
+            document.querySelectorAll('input[name="seo_obrigatorio"]').forEach(cb => {
+                cb.checked = true;
+            });
+        }
+        
+        if (blog.tamanho_desejado || blog.tamanho) {
+            let tamanho = blog.tamanho_desejado || blog.tamanho;
+            // Converter "1500+" para "1500"
+            if (tamanho && typeof tamanho === 'string' && tamanho.includes('+')) {
+                tamanho = tamanho.replace('+', '');
+            }
+            const tamanhoRadio = document.querySelector(`input[name="tamanho_artigo"][value="${tamanho}"]`);
+            if (tamanhoRadio) tamanhoRadio.checked = true;
+        }
+    }
+    
+    // Material complementar
+    if (briefing.material_complementar) {
+        briefing.material_complementar.forEach(material => {
+            const cb = document.querySelector(`input[name="material_complementar"][value="${material}"]`);
+            if (cb) cb.checked = true;
+        });
+    }
+}
+
+// Event listener para o botão de gerar briefing
+document.addEventListener('DOMContentLoaded', function() {
+    const btnGerar = document.getElementById('btnGerarBriefing');
+    if (btnGerar) {
+        btnGerar.addEventListener('click', gerarBriefingComIA);
+    }
+    
+    // Permitir gerar com Enter no campo nome
+    const nomeInput = document.getElementById('nome_empresa_produto');
+    if (nomeInput) {
+        nomeInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                gerarBriefingComIA();
+            }
+        });
+    }
+});
+
+// Salvar rascunho
+async function saveDraft() {
+    const formData = collectFormData();
+    
+    try {
+        const response = await fetch('/api/content/briefings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            currentBriefingId = data.data.id;
+            showToast('Rascunho salvo com sucesso!', 'success');
+        } else {
+            showToast(data.error || 'Erro ao salvar rascunho', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar rascunho:', error);
+        showToast('Erro ao salvar rascunho', 'error');
+    }
+}
+
+// Coletar dados do formulário
+function collectFormData() {
+    const objetivos = Array.from(document.querySelectorAll('input[name="objetivo_conteudo"]:checked')).map(cb => cb.value);
+    const plataformas = Array.from(document.querySelectorAll('input[name="plataformas"]:checked')).map(cb => cb.value);
+    const formatos = Array.from(document.querySelectorAll('input[name="formatos"]:checked')).map(cb => cb.value);
+    const seoObrigatorio = Array.from(document.querySelectorAll('input[name="seo_obrigatorio"]:checked')).map(cb => cb.value);
+    const materialComplementar = Array.from(document.querySelectorAll('input[name="material_complementar"]:checked')).map(cb => cb.value);
+    
+    const palavrasSecundarias = document.getElementById('palavras_secundarias').value
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+    
+    return {
+        nome_empresa_produto: document.getElementById('nome_empresa_produto').value,
+        publico_alvo: document.getElementById('publico_alvo').value,
+        objetivo_conteudo: objetivos,
+        estagio_funil: document.querySelector('input[name="estagio_funil"]:checked')?.value,
+        linha_editorial: document.querySelector('input[name="linha_editorial"]:checked')?.value,
+        redes_sociais: {
+            plataformas: plataformas,
+            formatos: formatos
+        },
+        blog_config: {
+            objetivo: document.getElementById('blog_objetivo').value,
+            palavra_chave_principal: document.getElementById('palavra_chave_principal').value,
+            palavras_secundarias: palavrasSecundarias,
+            seo_obrigatorio: seoObrigatorio,
+            tamanho: document.querySelector('input[name="tamanho_artigo"]:checked')?.value
+        },
+        material_complementar: materialComplementar
+    };
+}
+
+// Submeter formulário
+document.getElementById('briefingForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = collectFormData();
+    
+    // Validar campos obrigatórios
+    if (!formData.nome_empresa_produto || !formData.publico_alvo || 
+        formData.objetivo_conteudo.length === 0 || !formData.estagio_funil || !formData.linha_editorial) {
+        showToast('Preencha todos os campos obrigatórios', 'error');
+        return;
+    }
+    
+    // Mostrar progresso
+    document.getElementById('progressContainer').style.display = 'block';
+    document.getElementById('resultContainer').style.display = 'none';
+    updateProgress(0, 'Criando briefing...');
+    
+    try {
+        // 1. Criar briefing
+        let response = await fetch('/api/content/briefings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        let data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Erro ao criar briefing');
+        }
+        
+        currentBriefingId = data.data.id;
+        updateProgress(20, 'Pesquisando informações...');
+        
+        // 2. Executar pesquisa + identificação + geração
+        response = await fetch(`/api/content/briefings/${currentBriefingId}/generate`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Erro ao gerar conteúdo');
+        }
+        
+        updateProgress(100, 'Conteúdo gerado com sucesso!');
+        
+        // Mostrar resultados
+        displayResults(data.data.conteudo_gerado);
+        
+    } catch (error) {
+        console.error('Erro ao gerar conteúdo:', error);
+        showToast(error.message || 'Erro ao gerar conteúdo', 'error');
+        document.getElementById('progressContainer').style.display = 'none';
+    }
+});
+
+// Atualizar progresso
+function updateProgress(percent, text) {
+    document.getElementById('progressBar').style.width = percent + '%';
+    document.getElementById('progressText').textContent = text;
+}
+
+// Exibir resultados
+function displayResults(content) {
+    const container = document.getElementById('resultContent');
+    let html = '';
+    
+    if (content.texto_completo) {
+        html += '<div class="mb-4"><h4>Texto Completo</h4><div class="p-3 bg-white border rounded">' + 
+                escapeHtml(content.texto_completo) + '</div></div>';
+    }
+    
+    if (content.seo) {
+        html += '<div class="mb-4"><h4>Otimização SEO</h4><div class="p-3 bg-white border rounded">' + 
+                escapeHtml(JSON.stringify(content.seo, null, 2)) + '</div></div>';
+    }
+    
+    if (content.redes_sociais_copy) {
+        html += '<div class="mb-4"><h4>Copy para Redes Sociais</h4><div class="p-3 bg-white border rounded">' + 
+                escapeHtml(content.redes_sociais_copy) + '</div></div>';
+    }
+    
+    if (content.email_marketing) {
+        html += '<div class="mb-4"><h4>Email Marketing</h4><div class="p-3 bg-white border rounded">' + 
+                escapeHtml(content.email_marketing) + '</div></div>';
+    }
+    
+    if (content.video_script) {
+        html += '<div class="mb-4"><h4>Script de Vídeo</h4><div class="p-3 bg-white border rounded">' + 
+                escapeHtml(content.video_script) + '</div></div>';
+    }
+    
+    if (content.ad_copy) {
+        html += '<div class="mb-4"><h4>Copy para Anúncios</h4><div class="p-3 bg-white border rounded">' + 
+                escapeHtml(content.ad_copy) + '</div></div>';
+    }
+    
+    container.innerHTML = html || '<p class="text-muted">Nenhum conteúdo gerado ainda.</p>';
+    document.getElementById('resultContainer').style.display = 'block';
+}
+
+// Funções auxiliares
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-circle' : 'bi-info-circle';
+    const title = type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : 'Info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header ${bgClass} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${escapeHtml(message)}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+</script>
+{% endblock %}
+
