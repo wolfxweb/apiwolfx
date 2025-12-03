@@ -226,7 +226,14 @@ class MLClaimsService:
             response = requests.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                # Log detalhado das mensagens para debug
+                messages = data.get("messages", [])
+                if messages:
+                    logger.info(f"📨 API retornou {len(messages)} mensagens para claim {claim_id}")
+                    for i, msg in enumerate(messages[:3]):  # Logar apenas as 3 primeiras para não poluir
+                        logger.debug(f"  Mensagem {i+1}: from={msg.get('from')}, id={msg.get('id')}, text={str(msg.get('text', ''))[:50]}")
+                return data
             else:
                 logger.error(f"Erro ao buscar detalhes do claim {claim_id}: {response.status_code} - {response.text[:200]}")
                 return None

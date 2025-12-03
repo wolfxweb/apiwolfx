@@ -121,13 +121,14 @@ class MLClaimsController:
                 "total": 0
             }
     
-    def get_claim_details(self, claim_id: int, company_id: int) -> Dict:
+    def get_claim_details(self, claim_id: int, company_id: int, refresh_from_api: bool = True) -> Dict:
         """
         Busca detalhes completos de um claim específico
         
         Args:
             claim_id: ID do claim no banco local
             company_id: ID da empresa (para validação de segurança)
+            refresh_from_api: Se True, busca dados atualizados da API do ML antes de retornar
             
         Returns:
             Dict com detalhes do claim
@@ -143,6 +144,26 @@ class MLClaimsController:
                     "success": False,
                     "error": "Claim não encontrado ou não pertence à sua empresa"
                 }
+            
+            # Se refresh_from_api=True, buscar dados atualizados da API
+            if refresh_from_api:
+                try:
+                    from app.services.token_manager import TokenManager
+                    token_manager = TokenManager(self.db)
+                    token_record = token_manager.get_token_record_for_company(company_id)
+                    
+                    if token_record and token_record.access_token:
+                        logger.info(f"🔄 Buscando dados atualizados do claim {claim.ml_claim_id} na API do ML...")
+                        claim_data = self.service.get_claim_details(claim.ml_claim_id, token_record.access_token)
+                        
+                        if claim_data:
+                            # Processar e salvar dados atualizados
+                            self._save_claim_from_api(claim_data, company_id, claim.ml_account_id)
+                            # Recarregar do banco para ter dados atualizados
+                            self.db.refresh(claim)
+                            logger.info(f"✅ Dados do claim {claim.ml_claim_id} atualizados com sucesso")
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao buscar dados atualizados da API (continuando com dados locais): {e}")
             
             # Buscar mensagens
             messages = self.db.query(MLClaimMessage).filter(
@@ -173,6 +194,36 @@ class MLClaimsController:
                     "evidence_url": evid.evidence_url
                 })
             
+            # Buscar dados do claim_data (JSON completo) como fallback se campos estiverem vazios
+            claim_data_json = claim.claim_data or {}
+            
+            # Fallback para buyer_nickname
+            buyer_nickname = claim.buyer_nickname
+            if not buyer_nickname and claim_data_json:
+                buyer_info = claim_data_json.get("buyer", {})
+                if isinstance(buyer_info, dict):
+                    buyer_nickname = buyer_info.get("nickname") or buyer_info.get("name")
+            
+            # Fallback para date_updated
+            date_updated = claim.date_updated
+            if not date_updated and claim_data_json:
+                date_updated_str = claim_data_json.get("date_updated")
+                if date_updated_str:
+                    try:
+                        date_updated = datetime.fromisoformat(date_updated_str.replace("Z", "+00:00"))
+                    except:
+                        pass
+            
+            # Fallback para date_closed
+            date_closed = claim.date_closed
+            if not date_closed and claim_data_json:
+                date_closed_str = claim_data_json.get("date_closed")
+                if date_closed_str:
+                    try:
+                        date_closed = datetime.fromisoformat(date_closed_str.replace("Z", "+00:00"))
+                    except:
+                        pass
+            
             return {
                 "success": True,
                 "claim": {
@@ -183,10 +234,10 @@ class MLClaimsController:
                     "ml_seller_id": claim.ml_seller_id,
                     "claim_type": claim.claim_type.value if claim.claim_type else None,
                     "status": claim.status.value if claim.status else None,
-                    "buyer_nickname": claim.buyer_nickname,
+                    "buyer_nickname": buyer_nickname,
                     "date_created": claim.date_created.isoformat() if claim.date_created else None,
-                    "date_updated": claim.date_updated.isoformat() if claim.date_updated else None,
-                    "date_closed": claim.date_closed.isoformat() if claim.date_closed else None,
+                    "date_updated": date_updated.isoformat() if date_updated else None,
+                    "date_closed": date_closed.isoformat() if date_closed else None,
                     "resolution_reason": claim.resolution_reason,
                     "resolution_status": claim.resolution_status,
                     "resolution_date": claim.resolution_date.isoformat() if claim.resolution_date else None,
@@ -345,12 +396,14 @@ class MLClaimsController:
                             except:
                                 pass
                         
-                        resolution = claim_data.get("resolution", {})
-                        if resolution.get("date"):
-                            try:
-                                resolution_date = datetime.fromisoformat(resolution["date"].replace("Z", "+00:00"))
-                            except:
-                                pass
+                        resolution = claim_data.get("resolution")
+                        resolution_date = None
+                        if resolution and isinstance(resolution, dict):
+                            if resolution.get("date"):
+                                try:
+                                    resolution_date = datetime.fromisoformat(resolution["date"].replace("Z", "+00:00"))
+                                except:
+                                    pass
                         
                         # Parsear enums
                         claim_type_enum = MLClaimType.MEDIATIONS if claim_type == "mediations" else MLClaimType.RETURNS
@@ -361,14 +414,25 @@ class MLClaimsController:
                         except:
                             pass
                         
+                        # Extrair buyer_nickname
+                        buyer_info = claim_data.get("buyer", {})
+                        buyer_nickname = None
+                        if isinstance(buyer_info, dict):
+                            buyer_nickname = buyer_info.get("nickname") or buyer_info.get("name")
+                        
                         if existing_claim:
                             # Atualizar claim existente
                             existing_claim.status = status_enum
-                            existing_claim.date_updated = date_updated
-                            existing_claim.date_closed = date_closed
-                            existing_claim.resolution_reason = resolution.get("reason")
-                            existing_claim.resolution_status = resolution.get("status")
-                            existing_claim.resolution_date = resolution_date
+                            if date_updated:
+                                existing_claim.date_updated = date_updated
+                            if date_closed:
+                                existing_claim.date_closed = date_closed
+                            if buyer_nickname and not existing_claim.buyer_nickname:
+                                existing_claim.buyer_nickname = buyer_nickname
+                            existing_claim.resolution_reason = resolution.get("reason") if resolution and isinstance(resolution, dict) else None
+                            existing_claim.resolution_status = resolution.get("status") if resolution and isinstance(resolution, dict) else None
+                            if resolution_date:
+                                existing_claim.resolution_date = resolution_date
                             existing_claim.claim_data = claim_data
                             existing_claim.last_sync = datetime.now()
                             total_updated += 1
@@ -383,13 +447,13 @@ class MLClaimsController:
                                 ml_seller_id=ml_seller_id,
                                 claim_type=claim_type_enum,
                                 status=status_enum,
-                                resolution_reason=resolution.get("reason"),
-                                resolution_status=resolution.get("status"),
+                                resolution_reason=resolution.get("reason") if resolution and isinstance(resolution, dict) else None,
+                                resolution_status=resolution.get("status") if resolution and isinstance(resolution, dict) else None,
                                 resolution_date=resolution_date,
                                 date_created=date_created or datetime.now(),
                                 date_updated=date_updated,
                                 date_closed=date_closed,
-                                buyer_nickname=claim_data.get("buyer", {}).get("nickname"),
+                                buyer_nickname=buyer_nickname,
                                 claim_data=claim_data,
                                 last_sync=datetime.now()
                             )
@@ -548,12 +612,14 @@ class MLClaimsController:
                 except:
                     pass
             
-            resolution = claim_data.get("resolution", {})
-            if resolution.get("date"):
-                try:
-                    resolution_date = datetime.fromisoformat(resolution["date"].replace("Z", "+00:00"))
-                except:
-                    pass
+            resolution = claim_data.get("resolution")
+            resolution_date = None
+            if resolution and isinstance(resolution, dict):
+                if resolution.get("date"):
+                    try:
+                        resolution_date = datetime.fromisoformat(resolution["date"].replace("Z", "+00:00"))
+                    except:
+                        pass
             
             # Parsear enums
             claim_type_str = claim_data.get("type", "returns")
@@ -566,18 +632,32 @@ class MLClaimsController:
             except:
                 pass
             
+            # Extrair buyer_nickname
+            buyer_info = claim_data.get("buyer", {})
+            buyer_nickname = None
+            if isinstance(buyer_info, dict):
+                buyer_nickname = buyer_info.get("nickname") or buyer_info.get("name")
+            
             if existing_claim:
-                # Atualizar
+                # Atualizar claim existente - sempre atualizar campos se disponíveis na API
                 existing_claim.status = status_enum
-                existing_claim.date_updated = date_updated
-                existing_claim.date_closed = date_closed
-                existing_claim.resolution_reason = resolution.get("reason")
-                existing_claim.resolution_status = resolution.get("status")
-                existing_claim.resolution_date = resolution_date
+                if date_created:
+                    existing_claim.date_created = date_created
+                if date_updated:
+                    existing_claim.date_updated = date_updated
+                if date_closed:
+                    existing_claim.date_closed = date_closed
+                if buyer_nickname:
+                    existing_claim.buyer_nickname = buyer_nickname
+                existing_claim.resolution_reason = resolution.get("reason") if resolution and isinstance(resolution, dict) else None
+                existing_claim.resolution_status = resolution.get("status") if resolution and isinstance(resolution, dict) else None
+                if resolution_date:
+                    existing_claim.resolution_date = resolution_date
                 existing_claim.claim_data = claim_data
                 existing_claim.last_sync = datetime.now()
+                claim_to_use = existing_claim
             else:
-                # Criar novo
+                # Criar novo claim
                 new_claim = MLClaim(
                     company_id=company_id,
                     ml_account_id=ml_account_id,
@@ -587,30 +667,37 @@ class MLClaimsController:
                     ml_seller_id=str(claim_data.get("seller", {}).get("id", "")),
                     claim_type=claim_type_enum,
                     status=status_enum,
-                    resolution_reason=resolution.get("reason"),
-                    resolution_status=resolution.get("status"),
+                    resolution_reason=resolution.get("reason") if resolution and isinstance(resolution, dict) else None,
+                    resolution_status=resolution.get("status") if resolution and isinstance(resolution, dict) else None,
                     resolution_date=resolution_date,
                     date_created=date_created or datetime.now(),
                     date_updated=date_updated,
                     date_closed=date_closed,
-                    buyer_nickname=claim_data.get("buyer", {}).get("nickname"),
+                    buyer_nickname=buyer_nickname,
                     claim_data=claim_data,
                     last_sync=datetime.now()
                 )
                 self.db.add(new_claim)
+                self.db.flush()  # Para obter o ID do claim
+                claim_to_use = new_claim
             
-            # Processar mensagens
+            # Processar mensagens - garantir que todas sejam salvas (buyer, seller, system)
             messages = claim_data.get("messages", [])
+            logger.info(f"📨 Processando {len(messages)} mensagens do claim {ml_claim_id}")
+            
             for msg_data in messages:
                 ml_message_id = str(msg_data.get("id", ""))
                 if not ml_message_id:
+                    logger.warning(f"⚠️ Mensagem sem ID, pulando: {msg_data}")
                     continue
                 
+                # Verificar se mensagem já existe
                 existing_msg = self.db.query(MLClaimMessage).filter(
-                    MLClaimMessage.ml_message_id == ml_message_id
+                    MLClaimMessage.ml_message_id == ml_message_id,
+                    MLClaimMessage.claim_id == claim_to_use.id
                 ).first()
                 
-                if not existing_msg and existing_claim:
+                if not existing_msg:
                     msg_date = None
                     if msg_data.get("date"):
                         try:
@@ -618,15 +705,66 @@ class MLClaimsController:
                         except:
                             pass
                     
-                    new_msg = MLClaimMessage(
-                        claim_id=existing_claim.id,
-                        ml_message_id=ml_message_id,
-                        from_type=msg_data.get("from", "buyer"),
-                        message_text=msg_data.get("text", ""),
-                        date_created=msg_date or datetime.now(),
-                        message_data=msg_data
-                    )
-                    self.db.add(new_msg)
+                    # Extrair from_type - verificar múltiplos campos possíveis
+                    from_type = msg_data.get("from") or msg_data.get("from_type") or msg_data.get("sender_type")
+                    
+                    # Se não encontrou, tentar inferir de outros campos
+                    if not from_type or from_type not in ["buyer", "seller", "system"]:
+                        # Verificar se é mensagem do sistema (Mercado Livre)
+                        # Pode vir como "system", "ml", "mercado_livre", ou sem campo "from" mas com indicadores
+                        sender_id = msg_data.get("sender_id") or msg_data.get("from_id", "")
+                        sender_nickname = msg_data.get("sender_nickname") or msg_data.get("from_nickname", "")
+                        message_text_lower = str(msg_data.get("text", "") + " " + msg_data.get("message", "")).lower()
+                        
+                        # Indicadores de mensagem do sistema
+                        is_system = (
+                            from_type in ["system", "ml", "mercado_livre", "mercadolivre"] or
+                            "system" in str(msg_data).lower() or
+                            "mercado livre" in message_text_lower or
+                            "mercadolivre" in message_text_lower or
+                            (not sender_id and not sender_nickname) or  # Mensagens sem remetente geralmente são do sistema
+                            msg_data.get("is_system", False) or
+                            msg_data.get("is_ml", False)
+                        )
+                        
+                        if is_system:
+                            from_type = "system"
+                        elif from_type == "seller" or msg_data.get("is_seller", False):
+                            from_type = "seller"
+                        else:
+                            from_type = "buyer"
+                    
+                    # Log para debug
+                    logger.debug(f"📝 Mensagem {ml_message_id}: from_type={from_type}, text={str(msg_data.get('text', ''))[:50]}")
+                    
+                    # Extrair texto da mensagem
+                    message_text = msg_data.get("text", "") or msg_data.get("message", "") or msg_data.get("content", "") or ""
+                    
+                    if message_text:  # Só salvar se tiver texto
+                        new_msg = MLClaimMessage(
+                            claim_id=claim_to_use.id,
+                            ml_message_id=ml_message_id,
+                            from_type=from_type,
+                            message_text=message_text,
+                            date_created=msg_date or datetime.now(),
+                            message_data=msg_data
+                        )
+                        self.db.add(new_msg)
+                        logger.info(f"✅ Mensagem {ml_message_id} salva como {from_type}")
+                    else:
+                        logger.warning(f"⚠️ Mensagem {ml_message_id} sem texto, pulando")
+                else:
+                    # Atualizar mensagem existente se necessário
+                    if msg_data.get("text") and existing_msg.message_text != msg_data.get("text"):
+                        existing_msg.message_text = msg_data.get("text", "")
+                        existing_msg.message_data = msg_data
+                        # Atualizar from_type se mudou
+                        from_type = msg_data.get("from") or msg_data.get("from_type")
+                        if from_type and from_type in ["buyer", "seller", "system"]:
+                            existing_msg.from_type = from_type
+            
+            # Commit todas as alterações
+            self.db.commit()
             
             # Processar evidências
             evidences = claim_data.get("evidences", [])
@@ -680,9 +818,10 @@ class MLClaimsController:
             
             # Obter token - usar qualquer token ativo da empresa
             token_manager = TokenManager(self.db)
-            access_token = token_manager.get_any_active_token(company_id)
-            if not access_token:
+            token_record = token_manager.get_token_record_for_company(company_id)
+            if not token_record or not token_record.access_token:
                 return {"success": False, "error": "Token não encontrado"}
+            access_token = token_record.access_token
             
             # Aceitar no ML
             success = self.service.accept_claim(claim.ml_claim_id, access_token, message)
@@ -726,9 +865,10 @@ class MLClaimsController:
             
             # Obter token - usar qualquer token ativo da empresa
             token_manager = TokenManager(self.db)
-            access_token = token_manager.get_any_active_token(company_id)
-            if not access_token:
+            token_record = token_manager.get_token_record_for_company(company_id)
+            if not token_record or not token_record.access_token:
                 return {"success": False, "error": "Token não encontrado"}
+            access_token = token_record.access_token
             
             # Rejeitar no ML
             success = self.service.reject_claim(claim.ml_claim_id, access_token, message)
@@ -759,7 +899,7 @@ class MLClaimsController:
             message: Texto da mensagem
             
         Returns:
-            Dict com resultado
+            Dict com resultado e dados atualizados do claim
         """
         try:
             claim = self.db.query(MLClaim).filter(
@@ -770,22 +910,40 @@ class MLClaimsController:
             if not claim:
                 return {"success": False, "error": "Claim não encontrado"}
             
+            # Verificar se claim ainda está aberto
+            if claim.status != MLClaimStatus.OPENED:
+                return {"success": False, "error": "Este claim não está mais aberto. Não é possível enviar mensagens."}
+            
             # Obter token - usar qualquer token ativo da empresa
             token_manager = TokenManager(self.db)
-            access_token = token_manager.get_any_active_token(company_id)
-            if not access_token:
+            token_record = token_manager.get_token_record_for_company(company_id)
+            if not token_record or not token_record.access_token:
                 return {"success": False, "error": "Token não encontrado"}
             
+            access_token = token_record.access_token
+            
             # Enviar mensagem no ML
+            logger.info(f"📤 Enviando mensagem no claim {claim.ml_claim_id}...")
             success = self.service.send_message(claim.ml_claim_id, access_token, message)
             
             if success:
+                # Aguardar um pouco para garantir que a API processou
+                import time
+                time.sleep(1)
+                
                 # Buscar detalhes atualizados para sincronizar mensagens
+                logger.info(f"🔄 Buscando dados atualizados do claim {claim.ml_claim_id} após envio de mensagem...")
                 claim_data = self.service.get_claim_details(claim.ml_claim_id, access_token)
                 if claim_data:
                     self._save_claim_from_api(claim_data, company_id, claim.ml_account_id)
+                    self.db.commit()
+                    logger.info(f"✅ Mensagem enviada e dados sincronizados com sucesso")
                 
-                return {"success": True, "message": "Mensagem enviada com sucesso"}
+                return {
+                    "success": True, 
+                    "message": "Mensagem enviada com sucesso",
+                    "claim_id": claim_id
+                }
             else:
                 return {"success": False, "error": "Erro ao enviar mensagem no Mercado Livre"}
                 

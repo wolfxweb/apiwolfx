@@ -1,7 +1,7 @@
 """
 Rotas para gerenciar Claims (Reclamações e Devoluções) do Mercado Livre
 """
-from fastapi import APIRouter, Depends, HTTPException, Cookie, Request
+from fastapi import APIRouter, Depends, HTTPException, Cookie, Request, Body, Query
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -95,11 +95,16 @@ async def get_claims(
 @ml_claims_router.get("/api/ml/claims/{claim_id}")
 async def get_claim_details(
     claim_id: int,
+    refresh: bool = Query(True, description="Buscar dados atualizados da API do ML"),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
     """
     Busca detalhes completos de um claim específico
+    
+    Args:
+        claim_id: ID do claim no banco local
+        refresh: Se True, busca dados atualizados da API do ML antes de retornar
     """
     try:
         if not session_token:
@@ -117,7 +122,7 @@ async def get_claim_details(
             raise HTTPException(status_code=400, detail="Company ID não encontrado")
         
         controller = MLClaimsController(db)
-        result = controller.get_claim_details(claim_id, company_id)
+        result = controller.get_claim_details(claim_id, company_id, refresh_from_api=refresh)
         
         if not result.get("success"):
             raise HTTPException(status_code=404, detail=result.get("error", "Claim não encontrado"))
@@ -172,7 +177,7 @@ async def sync_claims(
 @ml_claims_router.post("/api/ml/claims/{claim_id}/accept")
 async def accept_claim(
     claim_id: int,
-    message: Optional[str] = None,
+    body_data: dict = Body(...),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -195,6 +200,7 @@ async def accept_claim(
         if not company_id:
             raise HTTPException(status_code=400, detail="Company ID não encontrado")
         
+        message = body_data.get("message")
         controller = MLClaimsController(db)
         result = controller.accept_claim(claim_id, company_id, user_id, message)
         
@@ -212,7 +218,7 @@ async def accept_claim(
 @ml_claims_router.post("/api/ml/claims/{claim_id}/reject")
 async def reject_claim(
     claim_id: int,
-    message: str,
+    body_data: dict = Body(...),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -235,6 +241,10 @@ async def reject_claim(
         if not company_id:
             raise HTTPException(status_code=400, detail="Company ID não encontrado")
         
+        message = body_data.get("message", "")
+        if not message:
+            raise HTTPException(status_code=400, detail="Mensagem é obrigatória para rejeitar claim")
+        
         controller = MLClaimsController(db)
         result = controller.reject_claim(claim_id, company_id, user_id, message)
         
@@ -252,7 +262,7 @@ async def reject_claim(
 @ml_claims_router.post("/api/ml/claims/{claim_id}/messages")
 async def send_message(
     claim_id: int,
-    message: str,
+    body_data: dict = Body(...),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -274,6 +284,10 @@ async def send_message(
         
         if not company_id:
             raise HTTPException(status_code=400, detail="Company ID não encontrado")
+        
+        message = body_data.get("message", "")
+        if not message:
+            raise HTTPException(status_code=400, detail="Mensagem é obrigatória")
         
         controller = MLClaimsController(db)
         result = controller.send_message(claim_id, company_id, user_id, message)
