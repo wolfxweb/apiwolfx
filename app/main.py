@@ -2087,13 +2087,29 @@ async def api_purchase_plan(
                         if is_confirmed:
                             logger.info(f"✅ Pagamento inicial confirmado! Processando assinatura automaticamente...")
                             
+                            # Se não tem paymentDate do Asaas, usar data atual de São Paulo
+                            payment_date = payment_info.get("paymentDate") or payment_info.get("confirmedDate")
+                            if not payment_date:
+                                try:
+                                    from zoneinfo import ZoneInfo
+                                    sao_paulo_tz = ZoneInfo('America/Sao_Paulo')
+                                    now_sp = dt.now(sao_paulo_tz)
+                                except ImportError:
+                                    # Fallback para Python < 3.9
+                                    from datetime import timedelta
+                                    offset_hours = -3
+                                    now_utc = dt.utcnow()
+                                    now_sp = now_utc + timedelta(hours=offset_hours)
+                                payment_date = now_sp.strftime("%Y-%m-%d")
+                                logger.info(f"📅 Usando data atual de São Paulo para pagamento confirmado: {payment_date}")
+                            
                             # Processar como webhook
                             notification_data = {
                                 "event": "PAYMENT_CONFIRMED",
                                 "payment": {
                                     "id": payment_id,
                                     "status": final_status,
-                                    "paymentDate": payment_info.get("paymentDate") or payment_info.get("confirmedDate"),
+                                    "paymentDate": payment_date,
                                     "externalReference": payment_info.get("externalReference", "")
                                 },
                                 "subscription": {
@@ -2306,13 +2322,29 @@ async def api_purchase_package(
                     if is_confirmed:
                         logger.info(f"✅ Pagamento confirmado! Processando tokens automaticamente...")
                         
+                        # Se não tem paymentDate do Asaas, usar data atual de São Paulo
+                        payment_date = payment_info.get("paymentDate") or payment_info.get("confirmedDate")
+                        if not payment_date:
+                            try:
+                                from zoneinfo import ZoneInfo
+                                sao_paulo_tz = ZoneInfo('America/Sao_Paulo')
+                                now_sp = dt.now(sao_paulo_tz)
+                            except ImportError:
+                                # Fallback para Python < 3.9
+                                from datetime import timedelta
+                                offset_hours = -3
+                                now_utc = dt.utcnow()
+                                now_sp = now_utc + timedelta(hours=offset_hours)
+                            payment_date = now_sp.strftime("%Y-%m-%d")
+                            logger.info(f"📅 Usando data atual de São Paulo para pagamento confirmado: {payment_date}")
+                        
                         # Processar como webhook
                         notification_data = {
                             "event": "PAYMENT_CONFIRMED",
                             "payment": {
                                 "id": payment_id_from_asaas,
                                 "status": final_status,
-                                "paymentDate": payment_info.get("paymentDate") or payment_info.get("confirmedDate"),
+                                "paymentDate": payment_date,
                                 "externalReference": f"package_{purchase.id}_company_{company_id}"
                             }
                         }

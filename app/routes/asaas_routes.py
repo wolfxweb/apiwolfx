@@ -464,16 +464,50 @@ async def get_my_payments(
             else:
                 status_lower = "pending"
             
+            # Garantir que as datas sejam retornadas no formato ISO completo
+            # Se a data vier apenas como YYYY-MM-DD, adicionar hora local para evitar problemas de timezone
+            def format_date_iso(date_str):
+                """Formata data para ISO completo, evitando problemas de timezone"""
+                if not date_str:
+                    return None
+                try:
+                    # Se já está no formato ISO completo, retornar como está
+                    if 'T' in str(date_str) or '+' in str(date_str) or 'Z' in str(date_str):
+                        return str(date_str)
+                    # Se está no formato YYYY-MM-DD, adicionar hora local (meio-dia para evitar problemas de timezone)
+                    if len(str(date_str)) == 10:
+                        return f"{date_str}T12:00:00"
+                    return str(date_str)
+                except:
+                    return str(date_str) if date_str else None
+            
+            # Se o pagamento está confirmado mas não tem paymentDate do Asaas, usar data atual no horário de São Paulo
+            if status_lower in ["confirmed", "received"] and not payment_date:
+                try:
+                    from zoneinfo import ZoneInfo
+                    sao_paulo_tz = ZoneInfo('America/Sao_Paulo')
+                    now_sp = datetime.now(sao_paulo_tz)
+                except ImportError:
+                    # Fallback para Python < 3.9 ou sistemas sem zoneinfo
+                    import time
+                    # UTC-3 para São Paulo (considerando horário padrão)
+                    offset_hours = -3
+                    now_utc = datetime.utcnow()
+                    now_sp = now_utc + timedelta(hours=offset_hours)
+                
+                payment_date = now_sp.strftime("%Y-%m-%d")
+                logger.info(f"📅 Pagamento {payment_id} confirmado sem paymentDate do Asaas - usando data atual de São Paulo: {payment_date}")
+            
             formatted_payments.append({
                 "id": payment_id,
                 "value": payment.get("value", 0),
                 "status": status_lower,
                 "billingType": payment.get("billingType", ""),
-                "dueDate": payment.get("dueDate"),
-                "paymentDate": payment_date,
+                "dueDate": format_date_iso(payment.get("dueDate")),
+                "paymentDate": format_date_iso(payment_date),
                 "description": payment.get("description", ""),
                 "invoiceUrl": payment.get("invoiceUrl"),
-                "created_at": payment.get("dateCreated") or payment.get("dueDate"),
+                "created_at": format_date_iso(payment.get("dateCreated") or payment.get("dueDate")),
                 "originalStatus": status,  # Manter status original para referência
                 "type": "subscription"  # Tipo de pagamento
             })
@@ -499,16 +533,35 @@ async def get_my_payments(
                 else:
                     price_value = float(purchase.price)
             
+            # Formatar datas no formato ISO completo para evitar problemas de timezone
+            due_date_iso = None
+            payment_date_iso = None
+            created_at_iso = None
+            
+            if purchase.purchased_at:
+                if isinstance(purchase.purchased_at, datetime):
+                    due_date_iso = purchase.purchased_at.isoformat()
+                    created_at_iso = purchase.purchased_at.isoformat()
+                else:
+                    due_date_iso = str(purchase.purchased_at)
+                    created_at_iso = str(purchase.purchased_at)
+            
+            if purchase.confirmed_at:
+                if isinstance(purchase.confirmed_at, datetime):
+                    payment_date_iso = purchase.confirmed_at.isoformat()
+                else:
+                    payment_date_iso = str(purchase.confirmed_at)
+            
             formatted_payments.append({
                 "id": purchase.asaas_payment_id or f"package_{purchase.id}",
                 "value": price_value,
                 "status": status,
                 "billingType": purchase.payment_method or "CREDIT_CARD",
-                "dueDate": purchase.purchased_at.strftime("%Y-%m-%d") if purchase.purchased_at else None,
-                "paymentDate": purchase.confirmed_at.strftime("%Y-%m-%d") if purchase.confirmed_at else None,
+                "dueDate": due_date_iso,
+                "paymentDate": payment_date_iso,
                 "description": f"Pacote de Tokens: {package_name} ({purchase.tokens_amount} tokens)",
                 "invoiceUrl": purchase.invoice_url,
-                "created_at": purchase.purchased_at.strftime("%Y-%m-%d") if purchase.purchased_at else None,
+                "created_at": created_at_iso,
                 "originalStatus": purchase.payment_status.upper(),
                 "type": "package",  # Tipo de pagamento
                 "tokens_amount": purchase.tokens_amount,

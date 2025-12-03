@@ -375,9 +375,38 @@ function displayPaymentsTable(payments) {
     `;
     
     payments.forEach(payment => {
-        const date = payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString('pt-BR') :
-                     payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('pt-BR') : 
-                     payment.created_at ? new Date(payment.created_at).toLocaleDateString('pt-BR') : 'N/A';
+        // Função helper para formatar data corretamente, evitando problemas de timezone
+        const formatPaymentDate = (dateStr) => {
+            if (!dateStr) return 'N/A';
+            try {
+                // Se a data está no formato YYYY-MM-DD sem hora, adicionar hora local
+                let dateToParse = dateStr;
+                if (dateStr.length === 10 && !dateStr.includes('T')) {
+                    // Adicionar hora local (meio-dia) para evitar problemas de timezone
+                    dateToParse = `${dateStr}T12:00:00`;
+                }
+                const date = new Date(dateToParse);
+                // Verificar se a data é válida
+                if (isNaN(date.getTime())) {
+                    return dateStr; // Retornar string original se não conseguir parsear
+                }
+                // Usar toLocaleDateString com timezone local
+                return date.toLocaleDateString('pt-BR', {
+                    timeZone: 'America/Sao_Paulo',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            } catch (e) {
+                console.warn('Erro ao formatar data:', dateStr, e);
+                return dateStr;
+            }
+        };
+        
+        const date = formatPaymentDate(payment.paymentDate) || 
+                     formatPaymentDate(payment.dueDate) || 
+                     formatPaymentDate(payment.created_at) || 
+                     'N/A';
         const statusClass = getStatusClass(payment.status);
         const statusIcon = getStatusIcon(payment.status);
         const value = payment.value ? parseFloat(payment.value).toFixed(2) : '0.00';
