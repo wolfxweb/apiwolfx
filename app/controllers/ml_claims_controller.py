@@ -684,12 +684,21 @@ class MLClaimsController:
             # Processar mensagens - garantir que todas sejam salvas (buyer, seller, system)
             messages = claim_data.get("messages", [])
             logger.info(f"📨 Processando {len(messages)} mensagens do claim {ml_claim_id}")
+            logger.info(f"  Estrutura de mensagens: {type(messages)}")
             
-            for msg_data in messages:
-                ml_message_id = str(msg_data.get("id", ""))
-                if not ml_message_id:
-                    logger.warning(f"⚠️ Mensagem sem ID, pulando: {msg_data}")
+            if not messages:
+                logger.warning(f"⚠️ Nenhuma mensagem encontrada no claim_data para {ml_claim_id}")
+                logger.info(f"  Keys disponíveis no claim_data: {list(claim_data.keys())}")
+            
+            for idx, msg_data in enumerate(messages):
+                logger.info(f"📝 Processando mensagem {idx + 1}/{len(messages)}")
+                logger.info(f"  Dados da mensagem: {msg_data}")
+                ml_message_id = str(msg_data.get("id", "") or msg_data.get("message_id", "") or "")
+                if not ml_message_id or ml_message_id == "None":
+                    logger.warning(f"⚠️ Mensagem {idx + 1} sem ID válido, pulando: {msg_data}")
                     continue
+                
+                logger.info(f"  ✅ Mensagem ID: {ml_message_id}")
                 
                 # Verificar se mensagem já existe
                 existing_msg = self.db.query(MLClaimMessage).filter(
@@ -737,22 +746,30 @@ class MLClaimsController:
                     # Log para debug
                     logger.debug(f"📝 Mensagem {ml_message_id}: from_type={from_type}, text={str(msg_data.get('text', ''))[:50]}")
                     
-                    # Extrair texto da mensagem
-                    message_text = msg_data.get("text", "") or msg_data.get("message", "") or msg_data.get("content", "") or ""
+                    # Extrair texto da mensagem - verificar múltiplos campos
+                    message_text = (
+                        msg_data.get("text", "") or 
+                        msg_data.get("message", "") or 
+                        msg_data.get("content", "") or 
+                        msg_data.get("body", "") or
+                        ""
+                    )
                     
-                    if message_text:  # Só salvar se tiver texto
+                    logger.info(f"  message_text extraído: {str(message_text)[:100]}")
+                    
+                    if message_text and message_text.strip():  # Só salvar se tiver texto
                         new_msg = MLClaimMessage(
                             claim_id=claim_to_use.id,
                             ml_message_id=ml_message_id,
                             from_type=from_type,
-                            message_text=message_text,
+                            message_text=str(message_text).strip(),
                             date_created=msg_date or datetime.now(),
                             message_data=msg_data
                         )
                         self.db.add(new_msg)
-                        logger.info(f"✅ Mensagem {ml_message_id} salva como {from_type}")
+                        logger.info(f"✅ Mensagem {ml_message_id} salva como {from_type} com {len(str(message_text))} caracteres")
                     else:
-                        logger.warning(f"⚠️ Mensagem {ml_message_id} sem texto, pulando")
+                        logger.warning(f"⚠️ Mensagem {ml_message_id} sem texto válido, pulando. Dados: {msg_data}")
                 else:
                     # Atualizar mensagem existente se necessário
                     if msg_data.get("text") and existing_msg.message_text != msg_data.get("text"):

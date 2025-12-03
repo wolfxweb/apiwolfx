@@ -201,73 +201,6 @@
     </div>
 </div>
 
-<!-- Modal de Aceitar Claim -->
-<div class="modal fade" id="acceptClaimModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-check-circle"></i> Aceitar Claim</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Deseja aceitar este claim?</p>
-                <div class="mb-3">
-                    <label class="form-label">Mensagem (opcional)</label>
-                    <textarea class="form-control" id="accept-message" rows="3" placeholder="Mensagem para o comprador..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-success" onclick="confirmAcceptClaim()">Aceitar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal de Rejeitar Claim -->
-<div class="modal fade" id="rejectClaimModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="bi bi-x-circle"></i> Rejeitar Claim</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Deseja rejeitar este claim?</p>
-                <div class="mb-3">
-                    <label class="form-label">Motivo da rejeição <span class="text-danger">*</span></label>
-                    <textarea class="form-control" id="reject-message" rows="3" placeholder="Explique o motivo da rejeição..." required></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-danger" onclick="confirmRejectClaim()">Rejeitar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal de Enviar Mensagem -->
-<div class="modal fade" id="sendMessageModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-chat-dots"></i> Enviar Mensagem</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">Mensagem <span class="text-danger">*</span></label>
-                    <textarea class="form-control" id="message-text" rows="4" placeholder="Digite sua mensagem..." required></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="confirmSendMessage()">Enviar</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Modal de Notificação/Feedback -->
 <div class="modal fade" id="notificationModal" tabindex="-1">
@@ -560,51 +493,119 @@ function syncClaims() {
 function viewClaimDetails(claimId) {
     currentClaimId = claimId;
     const modal = new bootstrap.Modal(document.getElementById('claimDetailsModal'));
-    const content = document.getElementById('claim-details-content');
     
-    content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+    // Resetar abas
+    document.getElementById('claim-modal-id').textContent = '';
+    document.getElementById('claim-info-content').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+    document.getElementById('claim-conversa-content').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+    document.getElementById('claim-acoes-content').innerHTML = '';
+    document.getElementById('claim-evidencias-content').innerHTML = '';
+    
+    // Ativar aba Informações por padrão
+    const infoTab = new bootstrap.Tab(document.getElementById('info-tab'));
+    infoTab.show();
+    
     modal.show();
     
     fetch(`/api/ml/claims/${claimId}?refresh=true`)
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                content.innerHTML = `<div class="alert alert-danger">${data.error || 'Erro ao carregar detalhes'}</div>`;
+                document.getElementById('claim-info-content').innerHTML = `<div class="alert alert-danger">${data.error || 'Erro ao carregar detalhes'}</div>`;
                 return;
             }
             
             const claim = data.claim;
             const messages = claim.messages || [];
             const evidences = claim.evidences || [];
-            
-            // Buscar dados do claim_data como fallback se campos estiverem vazios
             const claimData = claim.claim_data || {};
             
-            // Fallback para buyer_nickname
+            // Atualizar título
+            document.getElementById('claim-modal-id').textContent = `#${claim.ml_claim_id || claim.id}`;
+            
+            // Fallback para campos
             let buyerNickname = claim.buyer_nickname;
             if (!buyerNickname && claimData.buyer) {
                 buyerNickname = claimData.buyer.nickname || claimData.buyer.name || null;
             }
             
-            // Fallback para date_updated
             let dateUpdated = claim.date_updated;
             if (!dateUpdated && claimData.date_updated) {
                 dateUpdated = claimData.date_updated;
             }
             
-            // Fallback para date_closed
             let dateClosed = claim.date_closed;
             if (!dateClosed && claimData.date_closed) {
                 dateClosed = claimData.date_closed;
             }
             
-            let messagesHtml = '';
+            // Verificar impacto na reputação
+            const reputationImpact = claimData.reputation_impact || claimData.reputation || null;
+            let reputationHtml = '';
+            if (reputationImpact) {
+                const impactType = typeof reputationImpact === 'object' ? reputationImpact.type || reputationImpact.status : reputationImpact;
+                const impactText = typeof reputationImpact === 'object' ? reputationImpact.message || '' : '';
+                const badgeClass = impactType === 'negative' || impactType === 'affected' ? 'bg-danger' : 
+                                  impactType === 'positive' ? 'bg-success' : 'bg-secondary';
+                reputationHtml = `<br><strong>Impacto na Reputação:</strong> <span class="badge ${badgeClass}">${impactText || (impactType === 'negative' || impactType === 'affected' ? 'Afetou Reputação' : 'Não Afetou')}</span>`;
+            }
+            
+            // ========== ABA INFORMAÇÕES ==========
+            const infoHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="mb-3"><i class="bi bi-info-circle"></i> Informações Gerais</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Tipo:</strong></td>
+                                <td>${claim.claim_type === 'mediations' ? '<span class="badge bg-warning">Mediação</span>' : '<span class="badge bg-info">Devolução</span>'}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Status:</strong></td>
+                                <td>${getStatusBadge(claim.status)}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Pedido:</strong></td>
+                                <td>${claim.ml_order_id ? `<a href="/ml/orders/${claim.ml_order_id}" target="_blank">${claim.ml_order_id}</a>` : '-'}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Comprador:</strong></td>
+                                <td>${buyerNickname || '-'}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ID Comprador ML:</strong></td>
+                                <td><code>${claim.ml_buyer_id || '-'}</code></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="mb-3"><i class="bi bi-calendar"></i> Datas e Resolução</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Data Criação:</strong></td>
+                                <td>${formatDate(claim.date_created)}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Última Atualização:</strong></td>
+                                <td>${formatDate(dateUpdated)}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Data Fechamento:</strong></td>
+                                <td>${formatDate(dateClosed) || '-'}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Resolução:</strong></td>
+                                <td>${translateResolutionReason(claim.resolution_reason)}${reputationHtml}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+            document.getElementById('claim-info-content').innerHTML = infoHtml;
+            
+            // ========== ABA CONVERSA ==========
+            let conversaHtml = '';
             if (messages.length > 0) {
-                messagesHtml = `
-                    <div class="mb-3">
-                        <h6><i class="bi bi-chat-dots"></i> Conversa da Mediação/Devolução</h6>
-                        <div class="border rounded p-3" style="background-color: #f8f9fa; max-height: 400px; overflow-y: auto;">
-                `;
                 messages.forEach(msg => {
                     const fromType = msg.from_type || 'buyer';
                     let alignClass, bgClass, fromLabel, icon;
@@ -620,14 +621,13 @@ function viewClaimDetails(claimId) {
                         fromLabel = 'Mercado Livre';
                         icon = '<i class="bi bi-shield-check"></i>';
                     } else {
-                        // seller
                         alignClass = 'text-end';
                         bgClass = 'bg-primary text-white';
                         fromLabel = 'Você';
                         icon = '<i class="bi bi-person-check"></i>';
                     }
                     
-                    messagesHtml += `
+                    conversaHtml += `
                         <div class="mb-3 ${alignClass}">
                             <div class="d-inline-block p-2 rounded ${bgClass}" style="max-width: 70%;">
                                 <small class="d-block mb-1 fw-bold">${icon} ${fromLabel}</small>
@@ -637,91 +637,121 @@ function viewClaimDetails(claimId) {
                         </div>
                     `;
                 });
-                messagesHtml += '</div></div>';
+                
+                // Scroll para última mensagem
+                setTimeout(() => {
+                    const conversaContent = document.getElementById('claim-conversa-content');
+                    conversaContent.scrollTop = conversaContent.scrollHeight;
+                }, 100);
             } else {
-                messagesHtml = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhuma mensagem ainda nesta conversa.</div>';
+                conversaHtml = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhuma mensagem ainda nesta conversa.</div>';
+            }
+            document.getElementById('claim-conversa-content').innerHTML = conversaHtml;
+            
+            // Atualizar badge de mensagens
+            const conversaBadge = document.getElementById('conversa-badge');
+            if (messages.length > 0) {
+                conversaBadge.textContent = messages.length;
+                conversaBadge.style.display = 'inline-block';
+            } else {
+                conversaBadge.style.display = 'none';
             }
             
-            let evidencesHtml = '';
+            // Mostrar/ocultar campo de resposta
+            const conversaFooter = document.getElementById('conversa-footer');
+            if (claim.status === 'opened') {
+                conversaFooter.style.display = 'block';
+                document.getElementById('claim-chat-message').value = '';
+            } else {
+                conversaFooter.style.display = 'none';
+            }
+            
+            // ========== ABA AÇÕES ==========
+            if (claim.status === 'opened') {
+                const acoesHtml = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="bi bi-check-circle"></i> Aceitar Claim</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p>Deseja aceitar este claim?</p>
+                                    <form id="accept-claim-form" onsubmit="handleAcceptClaim(event)">
+                                        <div class="mb-3">
+                                            <label class="form-label">Mensagem (opcional)</label>
+                                            <textarea class="form-control" id="accept-message" rows="3" placeholder="Mensagem para o comprador..."></textarea>
+                                        </div>
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="bi bi-check-circle"></i> Aceitar
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-danger">
+                                <div class="card-header bg-danger text-white">
+                                    <h6 class="mb-0"><i class="bi bi-x-circle"></i> Rejeitar Claim</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p>Deseja rejeitar este claim?</p>
+                                    <form id="reject-claim-form" onsubmit="handleRejectClaim(event)">
+                                        <div class="mb-3">
+                                            <label class="form-label">Motivo da rejeição <span class="text-danger">*</span></label>
+                                            <textarea class="form-control" id="reject-message" rows="3" placeholder="Explique o motivo da rejeição..." required></textarea>
+                                        </div>
+                                        <button type="submit" class="btn btn-danger">
+                                            <i class="bi bi-x-circle"></i> Rejeitar
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('claim-acoes-content').innerHTML = acoesHtml;
+                document.getElementById('acoes-tab-item').style.display = 'block';
+            } else {
+                document.getElementById('claim-acoes-content').innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Esta claim está fechada. Não é possível realizar ações.</div>';
+                document.getElementById('acoes-tab-item').style.display = 'none';
+            }
+            
+            // ========== ABA EVIDÊNCIAS ==========
             if (evidences.length > 0) {
-                evidencesHtml = '<div class="mb-3"><h6>Evidências:</h6><div class="row g-2">';
+                let evidenciasHtml = '<div class="row g-2">';
                 evidences.forEach(evid => {
                     if (evid.evidence_type === 'image' && evid.evidence_url) {
-                        evidencesHtml += `
+                        evidenciasHtml += `
                             <div class="col-md-3">
-                                <img src="${evid.evidence_url}" class="img-thumbnail" style="max-height: 150px; cursor: pointer;" onclick="window.open('${evid.evidence_url}', '_blank')">
+                                <img src="${evid.evidence_url}" class="img-thumbnail w-100" style="max-height: 200px; cursor: pointer;" onclick="window.open('${evid.evidence_url}', '_blank')" title="Clique para ampliar">
                             </div>
                         `;
                     }
                 });
-                evidencesHtml += '</div></div>';
-            }
-            
-            // Verificar impacto na reputação do claim_data
-            const reputationImpact = claimData.reputation_impact || claimData.reputation || null;
-            let reputationHtml = '';
-            if (reputationImpact) {
-                const impactType = typeof reputationImpact === 'object' ? reputationImpact.type || reputationImpact.status : reputationImpact;
-                const impactText = typeof reputationImpact === 'object' ? reputationImpact.message || '' : '';
-                const badgeClass = impactType === 'negative' || impactType === 'affected' ? 'bg-danger' : 
-                                  impactType === 'positive' ? 'bg-success' : 'bg-secondary';
-                reputationHtml = `<br><strong>Impacto na Reputação:</strong> <span class="badge ${badgeClass}">${impactText || (impactType === 'negative' || impactType === 'affected' ? 'Afetou Reputação' : 'Não Afetou')}</span>`;
-            }
-            
-            content.innerHTML = `
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Tipo:</strong> ${claim.claim_type === 'mediations' ? '<span class="badge bg-warning">Mediação</span>' : '<span class="badge bg-info">Devolução</span>'}<br>
-                        <strong>Status:</strong> ${getStatusBadge(claim.status)}<br>
-                        <strong>Pedido:</strong> ${claim.ml_order_id ? `<a href="/ml/orders/${claim.ml_order_id}" target="_blank">${claim.ml_order_id}</a>` : '-'}<br>
-                        <strong>Comprador:</strong> ${buyerNickname || '-'}<br>
-                        <strong>ID Comprador ML:</strong> ${claim.ml_buyer_id || '-'}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Data Criação:</strong> ${formatDate(claim.date_created)}<br>
-                        <strong>Última Atualização:</strong> ${formatDate(dateUpdated)}<br>
-                        <strong>Data Fechamento:</strong> ${formatDate(dateClosed) || '-'}<br>
-                        <strong>Resolução:</strong> ${translateResolutionReason(claim.resolution_reason)}${reputationHtml}
-                    </div>
-                </div>
-                ${evidencesHtml}
-                ${messagesHtml}
-                ${claim.status === 'opened' ? `
-                    <div class="d-flex gap-2 mt-3 flex-wrap">
-                        <button class="btn btn-success" onclick="openAcceptModal(${claim.id})">
-                            <i class="bi bi-check-circle"></i> Aceitar
-                        </button>
-                        <button class="btn btn-danger" onclick="openRejectModal(${claim.id})">
-                            <i class="bi bi-x-circle"></i> Rejeitar
-                        </button>
-                    </div>
-                ` : ''}
-            `;
-            
-            // Mostrar área de resposta se o claim estiver aberto
-            const chatFooter = document.getElementById('claim-chat-footer');
-            if (claim.status === 'opened') {
-                chatFooter.style.display = 'block';
-                document.getElementById('claim-chat-message').value = '';
+                evidenciasHtml += '</div>';
+                document.getElementById('claim-evidencias-content').innerHTML = evidenciasHtml;
+                document.getElementById('evidencias-tab-item').style.display = 'block';
             } else {
-                chatFooter.style.display = 'none';
+                document.getElementById('claim-evidencias-content').innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhuma evidência disponível.</div>';
+                document.getElementById('evidencias-tab-item').style.display = 'none';
             }
         })
         .catch(error => {
             console.error('Erro ao carregar detalhes:', error);
-            content.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhes: ${error.message}</div>`;
+            document.getElementById('claim-info-content').innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhes: ${error.message}</div>`;
         });
 }
 
-function openAcceptModal(claimId) {
-    currentClaimId = claimId;
-    document.getElementById('accept-message').value = '';
-    const modal = new bootstrap.Modal(document.getElementById('acceptClaimModal'));
-    modal.show();
-}
-
-function confirmAcceptClaim() {
+function handleAcceptClaim(event) {
+    event.preventDefault();
     const message = document.getElementById('accept-message').value;
+    const form = event.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Aceitando...';
     
     fetch(`/api/ml/claims/${currentClaimId}/accept`, {
         method: 'POST',
@@ -733,52 +763,42 @@ function confirmAcceptClaim() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                bootstrap.Modal.getInstance(document.getElementById('acceptClaimModal')).hide();
-                showNotification(
-                    'Sucesso',
-                    'Claim aceito com sucesso!',
-                    'success'
-                );
+                showNotification('Sucesso', 'Claim aceito com sucesso!', 'success');
                 loadClaims();
-                if (currentClaimId) {
-                    viewClaimDetails(currentClaimId);
-                }
+                // Recarregar detalhes para atualizar abas
+                viewClaimDetails(currentClaimId);
+                // Ativar aba Informações
+                const infoTab = new bootstrap.Tab(document.getElementById('info-tab'));
+                infoTab.show();
             } else {
-                showNotification(
-                    'Erro',
-                    data.error || 'Erro ao aceitar claim',
-                    'error'
-                );
+                showNotification('Erro', data.error || 'Erro ao aceitar claim', 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
             }
         })
         .catch(error => {
             console.error('Erro ao aceitar claim:', error);
-            showNotification(
-                'Erro',
-                'Erro ao aceitar claim. Tente novamente.',
-                'error'
-            );
+            showNotification('Erro', 'Erro ao aceitar claim. Tente novamente.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
         });
 }
 
-function openRejectModal(claimId) {
-    currentClaimId = claimId;
-    document.getElementById('reject-message').value = '';
-    const modal = new bootstrap.Modal(document.getElementById('rejectClaimModal'));
-    modal.show();
-}
-
-function confirmRejectClaim() {
+function handleRejectClaim(event) {
+    event.preventDefault();
     const message = document.getElementById('reject-message').value;
     
     if (!message.trim()) {
-        showNotification(
-            'Atenção',
-            'Por favor, informe o motivo da rejeição',
-            'warning'
-        );
+        showNotification('Atenção', 'Por favor, informe o motivo da rejeição', 'warning');
         return;
     }
+    
+    const form = event.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Rejeitando...';
     
     fetch(`/api/ml/claims/${currentClaimId}/reject`, {
         method: 'POST',
@@ -790,87 +810,24 @@ function confirmRejectClaim() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                bootstrap.Modal.getInstance(document.getElementById('rejectClaimModal')).hide();
-                showNotification(
-                    'Sucesso',
-                    'Claim rejeitado com sucesso!',
-                    'success'
-                );
+                showNotification('Sucesso', 'Claim rejeitado com sucesso!', 'success');
                 loadClaims();
-                if (currentClaimId) {
-                    viewClaimDetails(currentClaimId);
-                }
+                // Recarregar detalhes para atualizar abas
+                viewClaimDetails(currentClaimId);
+                // Ativar aba Informações
+                const infoTab = new bootstrap.Tab(document.getElementById('info-tab'));
+                infoTab.show();
             } else {
-                showNotification(
-                    'Erro',
-                    data.error || 'Erro ao rejeitar claim',
-                    'error'
-                );
+                showNotification('Erro', data.error || 'Erro ao rejeitar claim', 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
             }
         })
         .catch(error => {
             console.error('Erro ao rejeitar claim:', error);
-            showNotification(
-                'Erro',
-                'Erro ao rejeitar claim. Tente novamente.',
-                'error'
-            );
-        });
-}
-
-function openSendMessageModal(claimId) {
-    currentClaimId = claimId;
-    document.getElementById('message-text').value = '';
-    const modal = new bootstrap.Modal(document.getElementById('sendMessageModal'));
-    modal.show();
-}
-
-function confirmSendMessage() {
-    const message = document.getElementById('message-text').value;
-    
-    if (!message.trim()) {
-        showNotification(
-            'Atenção',
-            'Por favor, digite uma mensagem',
-            'warning'
-        );
-        return;
-    }
-    
-    fetch(`/api/ml/claims/${currentClaimId}/messages`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ message: message })
-    })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                bootstrap.Modal.getInstance(document.getElementById('sendMessageModal')).hide();
-                showNotification(
-                    'Sucesso',
-                    'Mensagem enviada com sucesso!',
-                    'success'
-                );
-                if (currentClaimId) {
-                    viewClaimDetails(currentClaimId);
-                }
-            } else {
-                showNotification(
-                    'Erro',
-                    data.error || 'Erro ao enviar mensagem',
-                    'error'
-                );
-            }
-        })
-        .catch(error => {
-            console.error('Erro ao enviar mensagem:', error);
-            showNotification(
-                'Erro',
-                'Erro ao enviar mensagem. Tente novamente.',
-                'error'
-            );
+            showNotification('Erro', 'Erro ao rejeitar claim. Tente novamente.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
         });
 }
 
@@ -887,11 +844,7 @@ function sendMessageFromDetails(event) {
     const submitBtn = event.target.querySelector('button[type="submit"]') || event.target;
     
     if (!message) {
-        showNotification(
-            'Atenção',
-            'Por favor, digite uma mensagem',
-            'warning'
-        );
+        showNotification('Atenção', 'Por favor, digite uma mensagem', 'warning');
         return;
     }
     
@@ -911,32 +864,77 @@ function sendMessageFromDetails(event) {
         .then(data => {
             if (data.success) {
                 messageInput.value = '';
-                showNotification(
-                    'Sucesso',
-                    'Mensagem enviada com sucesso!',
-                    'success'
-                );
-                // Aguardar um pouco e recarregar detalhes para mostrar a nova mensagem
-                setTimeout(() => {
-                    viewClaimDetails(currentClaimId);
-                }, 500);
+                showNotification('Sucesso', 'Mensagem enviada com sucesso!', 'success');
+                
+                // Recarregar apenas a aba Conversa
+                fetch(`/api/ml/claims/${currentClaimId}?refresh=true`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const messages = data.claim.messages || [];
+                            let conversaHtml = '';
+                            
+                            if (messages.length > 0) {
+                                messages.forEach(msg => {
+                                    const fromType = msg.from_type || 'buyer';
+                                    let alignClass, bgClass, fromLabel, icon;
+                                    
+                                    if (fromType === 'buyer') {
+                                        alignClass = 'text-start';
+                                        bgClass = 'bg-light';
+                                        fromLabel = 'Comprador';
+                                        icon = '<i class="bi bi-person"></i>';
+                                    } else if (fromType === 'system') {
+                                        alignClass = 'text-center';
+                                        bgClass = 'bg-warning text-dark';
+                                        fromLabel = 'Mercado Livre';
+                                        icon = '<i class="bi bi-shield-check"></i>';
+                                    } else {
+                                        alignClass = 'text-end';
+                                        bgClass = 'bg-primary text-white';
+                                        fromLabel = 'Você';
+                                        icon = '<i class="bi bi-person-check"></i>';
+                                    }
+                                    
+                                    conversaHtml += `
+                                        <div class="mb-3 ${alignClass}">
+                                            <div class="d-inline-block p-2 rounded ${bgClass}" style="max-width: 70%;">
+                                                <small class="d-block mb-1 fw-bold">${icon} ${fromLabel}</small>
+                                                <div>${escapeHtml(msg.message_text)}</div>
+                                                <small class="d-block mt-1" style="opacity: 0.7;">${formatDate(msg.date_created)}</small>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                
+                                // Scroll para última mensagem
+                                setTimeout(() => {
+                                    const conversaContent = document.getElementById('claim-conversa-content');
+                                    conversaContent.scrollTop = conversaContent.scrollHeight;
+                                }, 100);
+                            } else {
+                                conversaHtml = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhuma mensagem ainda nesta conversa.</div>';
+                            }
+                            
+                            document.getElementById('claim-conversa-content').innerHTML = conversaHtml;
+                            
+                            // Atualizar badge
+                            const conversaBadge = document.getElementById('conversa-badge');
+                            if (messages.length > 0) {
+                                conversaBadge.textContent = messages.length;
+                                conversaBadge.style.display = 'inline-block';
+                            }
+                        }
+                    });
             } else {
-                showNotification(
-                    'Erro',
-                    data.error || 'Erro ao enviar mensagem',
-                    'error'
-                );
+                showNotification('Erro', data.error || 'Erro ao enviar mensagem', 'error');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalBtnText;
             }
         })
         .catch(error => {
             console.error('Erro ao enviar mensagem:', error);
-            showNotification(
-                'Erro',
-                'Erro ao enviar mensagem. Tente novamente.',
-                'error'
-            );
+            showNotification('Erro', 'Erro ao enviar mensagem. Tente novamente.', 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalBtnText;
         });

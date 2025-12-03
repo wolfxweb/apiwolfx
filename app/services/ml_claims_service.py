@@ -227,12 +227,31 @@ class MLClaimsService:
             
             if response.status_code == 200:
                 data = response.json()
-                # Log detalhado das mensagens para debug
+                # Log detalhado completo da resposta para debug
+                logger.info(f"📨 Resposta completa da API para claim {claim_id}:")
+                logger.info(f"  Keys disponíveis: {list(data.keys())}")
+                
+                # Log detalhado das mensagens
                 messages = data.get("messages", [])
+                logger.info(f"📨 API retornou {len(messages)} mensagens para claim {claim_id}")
+                
                 if messages:
-                    logger.info(f"📨 API retornou {len(messages)} mensagens para claim {claim_id}")
-                    for i, msg in enumerate(messages[:3]):  # Logar apenas as 3 primeiras para não poluir
-                        logger.debug(f"  Mensagem {i+1}: from={msg.get('from')}, id={msg.get('id')}, text={str(msg.get('text', ''))[:50]}")
+                    for i, msg in enumerate(messages):
+                        logger.info(f"  Mensagem {i+1}:")
+                        logger.info(f"    - ID: {msg.get('id')}")
+                        logger.info(f"    - Keys: {list(msg.keys())}")
+                        logger.info(f"    - from: {msg.get('from')}")
+                        logger.info(f"    - from_type: {msg.get('from_type')}")
+                        logger.info(f"    - sender: {msg.get('sender')}")
+                        logger.info(f"    - text: {str(msg.get('text', ''))[:100]}")
+                        logger.info(f"    - message: {str(msg.get('message', ''))[:100]}")
+                        logger.info(f"    - content: {str(msg.get('content', ''))[:100]}")
+                        logger.info(f"    - date: {msg.get('date')}")
+                        logger.info(f"    - Dados completos: {msg}")
+                else:
+                    logger.warning(f"⚠️ Nenhuma mensagem encontrada na resposta da API para claim {claim_id}")
+                    logger.info(f"  Estrutura completa da resposta: {data}")
+                
                 return data
             else:
                 logger.error(f"Erro ao buscar detalhes do claim {claim_id}: {response.status_code} - {response.text[:200]}")
