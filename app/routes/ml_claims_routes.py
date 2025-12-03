@@ -305,6 +305,7 @@ async def send_message(
 
 @ml_claims_router.get("/api/ml/claims/accounts")
 async def get_ml_accounts(
+    request: Request,
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -312,6 +313,10 @@ async def get_ml_accounts(
     Lista contas ML do usuário logado para filtro
     """
     try:
+        # Tentar obter session_token do cookie se não vier como parâmetro
+        if not session_token:
+            session_token = request.cookies.get("session_token")
+        
         if not session_token:
             raise HTTPException(status_code=401, detail="Token de sessão necessário")
         
