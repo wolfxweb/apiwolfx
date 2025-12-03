@@ -484,27 +484,26 @@ class MLClaimsController:
                             self.db.add(new_claim)
                             total_created += 1
                         
-                    total_synced += 1
+                        total_synced += 1
+                        self.db.commit()
                     
-                except (ProgrammingError, OperationalError) as e:
-                    error_msg = str(e)
-                    if "does not exist" in error_msg or "relation" in error_msg.lower() or "ml_claims" in error_msg:
-                        logger.error(f"❌ Tabela ml_claims não existe no banco de dados. Interrompendo sincronização.")
+                    except (ProgrammingError, OperationalError) as e:
+                        error_msg = str(e)
+                        if "does not exist" in error_msg or "relation" in error_msg.lower() or "ml_claims" in error_msg:
+                            logger.error(f"❌ Tabela ml_claims não existe no banco de dados. Interrompendo sincronização.")
+                            self.db.rollback()
+                            return {
+                                "success": False,
+                                "error": "Tabela de claims não está configurada. Execute o script create_ml_claims_tables.sql no banco de dados.",
+                                "created": total_created,
+                                "updated": total_updated,
+                                "total": total_synced
+                            }
+                        raise
+                    except Exception as e:
+                        logger.error(f"Erro ao processar claim {claim_data.get('id')}: {e}", exc_info=True)
                         self.db.rollback()
-                        return {
-                            "success": False,
-                            "error": "Tabela de claims não está configurada. Execute o script create_ml_claims_tables.sql no banco de dados.",
-                            "created": total_created,
-                            "updated": total_updated,
-                            "total": total_synced
-                        }
-                    raise
-                except Exception as e:
-                    logger.error(f"Erro ao processar claim {claim_data.get('id')}: {e}", exc_info=True)
-                    self.db.rollback()
-                    continue
-                
-                self.db.commit()
+                        continue
             
             logger.info(f"✅ Sincronização concluída: {total_created} criados, {total_updated} atualizados, {total_synced} total")
             
