@@ -1234,8 +1234,12 @@ async def startup_event():
                     END IF;
                 END $$;
                 """
-                with db.begin():
+                try:
                     db.execute(text(sql_memory))
+                    db.commit()
+                except Exception as e:
+                    db.rollback()
+                    print(f"⚠️ [STARTUP] Erro ao adicionar colunas de memória (podem já existir): {e}")
                 print("✅ [STARTUP] Colunas de memória verificadas/adicionadas")
                 
                 # 3. Adicionar coluna initial_prompt (se não existir)
@@ -1252,12 +1256,18 @@ async def startup_event():
                     END IF;
                 END $$;
                 """
-                with db.begin():
+                try:
                     db.execute(text(sql_initial_prompt))
+                    db.commit()
+                except Exception as e:
+                    db.rollback()
+                    print(f"⚠️ [STARTUP] Erro ao adicionar coluna initial_prompt (pode já existir): {e}")
                 print("✅ [STARTUP] Coluna initial_prompt verificada/adicionada")
                 
                 # 4. Criar ENUMs e tabelas de estoque
+                print("📋 [STARTUP] ========== INICIANDO CRIAÇÃO DE TABELAS DE ESTOQUE E CLAIMS ==========")
                 print("📋 [STARTUP] Verificando tabelas de estoque...")
+                print(f"📋 [STARTUP] DEBUG: db session status - {db.is_active if hasattr(db, 'is_active') else 'N/A'}")
                 try:
                     # Criar ENUMs se não existirem
                     create_stock_enums_sql = text("""
@@ -1272,9 +1282,13 @@ async def startup_event():
                             END IF;
                         END $$;
                     """)
-                    db.execute(create_stock_enums_sql)
-                    db.commit()
-                    print("✅ [STARTUP] ENUMs de estoque verificados/criados")
+                    try:
+                        db.execute(create_stock_enums_sql)
+                        db.commit()
+                        print("✅ [STARTUP] ENUMs de estoque verificados/criados")
+                    except Exception as e:
+                        db.rollback()
+                        print(f"⚠️ [STARTUP] Erro ao criar ENUMs de estoque (podem já existir): {e}")
                     
                     # Verificar se as tabelas já existem
                     check_tables_query = text("""
@@ -1490,6 +1504,7 @@ async def startup_event():
                         print("✅ [STARTUP] Tabela token_package_purchases criada")
                     
                     # Verificar e criar tabelas de claims (pós-venda)
+                    print("📋 [STARTUP] ========== INICIANDO CRIAÇÃO DE TABELAS DE CLAIMS ==========")
                     print("📋 [STARTUP] Verificando tabelas de claims (pós-venda)...")
                     try:
                         check_claims_query = text("""
