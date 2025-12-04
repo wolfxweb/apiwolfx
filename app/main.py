@@ -1490,16 +1490,23 @@ async def startup_event():
                         print("✅ [STARTUP] Tabela token_package_purchases criada")
                     
                     # Verificar e criar tabelas de claims (pós-venda)
-                    check_claims_query = text("""
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_schema = 'public' 
-                        AND table_name IN ('ml_claims', 'ml_claim_messages', 'ml_claim_evidences')
-                    """)
-                    existing_claims_tables = [row[0] for row in db.execute(check_claims_query).fetchall()]
+                    print("📋 [STARTUP] Verificando tabelas de claims (pós-venda)...")
+                    try:
+                        check_claims_query = text("""
+                            SELECT table_name 
+                            FROM information_schema.tables 
+                            WHERE table_schema = 'public' 
+                            AND table_name IN ('ml_claims', 'ml_claim_messages', 'ml_claim_evidences')
+                        """)
+                        existing_claims_tables = [row[0] for row in db.execute(check_claims_query).fetchall()]
+                        print(f"📋 [STARTUP] Tabelas de claims existentes: {existing_claims_tables}")
+                    except Exception as e:
+                        print(f"⚠️ [STARTUP] Erro ao verificar tabelas de claims: {e}")
+                        existing_claims_tables = []
                     
                     if 'ml_claims' not in existing_claims_tables:
                         print("📋 [STARTUP] Criando tabela ml_claims...")
+                        print(f"📋 [STARTUP] DEBUG: existing_claims_tables = {existing_claims_tables}")
                         try:
                             create_ml_claims_sql = text("""
                                 CREATE TABLE ml_claims (
@@ -1540,12 +1547,19 @@ async def startup_event():
                             db.execute(create_ml_claims_sql)
                             db.commit()
                             print("✅ [STARTUP] Tabela ml_claims criada com sucesso")
+                            # Verificar se foi criada
+                            verify_query = text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ml_claims'")
+                            verify_result = db.execute(verify_query).fetchall()
+                            if verify_result:
+                                print("✅ [STARTUP] CONFIRMADO: Tabela ml_claims existe no banco")
+                            else:
+                                print("⚠️ [STARTUP] AVISO: Tabela ml_claims não foi encontrada após criação")
                         except Exception as e:
                             db.rollback()
-                            print(f"❌ [STARTUP] ERRO ao criar tabela ml_claims: {e}")
+                            print(f"❌ [STARTUP] ERRO CRÍTICO ao criar tabela ml_claims: {e}")
                             import traceback
                             traceback.print_exc()
-                            # Não re-raise aqui para não bloquear startup, mas loga o erro
+                            # Não re-raise para não bloquear startup, mas loga o erro detalhadamente
                     
                     if 'ml_claim_messages' not in existing_claims_tables:
                         print("📋 [STARTUP] Criando tabela ml_claim_messages...")
@@ -1602,6 +1616,7 @@ async def startup_event():
                             import traceback
                             traceback.print_exc()
                     
+                    print("✅ [STARTUP] Tabelas de claims verificadas/criadas")
                     print("✅ [STARTUP] Tabelas de estoque verificadas/criadas")
                     
                 except Exception as e:
