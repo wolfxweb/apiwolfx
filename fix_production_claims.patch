@@ -1,0 +1,17 @@
+# Patch para corrigir erro em produção
+# Aplicar em: app/controllers/ml_claims_controller.py
+
+# LINHA 10: Adicionar após "from sqlalchemy import and_, or_,"
+from sqlalchemy.exc import ProgrammingError, OperationalError
+
+# O arquivo deve ter esta estrutura no início:
+"""
+import logging
+import requests
+from datetime import datetime
+from typing import Dict, List, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
+from sqlalchemy.exc import ProgrammingError, OperationalError  # <-- ADICIONAR ESTA LINHA
+"""
+
