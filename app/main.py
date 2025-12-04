@@ -1238,8 +1238,14 @@ async def startup_event():
                     db.execute(text(sql_memory))
                     db.commit()
                 except Exception as e:
-                    db.rollback()
-                    print(f"⚠️ [STARTUP] Erro ao adicionar colunas de memória (podem já existir): {e}")
+                    error_msg = str(e)
+                    # Tentar rollback apenas se não houver erro de transação
+                    if "transaction is already begun" not in error_msg.lower():
+                        try:
+                            db.rollback()
+                        except:
+                            pass
+                    print(f"⚠️ [STARTUP] Erro ao adicionar colunas de memória (podem já existir): {error_msg}")
                 print("✅ [STARTUP] Colunas de memória verificadas/adicionadas")
                 
                 # 3. Adicionar coluna initial_prompt (se não existir)
@@ -1260,8 +1266,14 @@ async def startup_event():
                     db.execute(text(sql_initial_prompt))
                     db.commit()
                 except Exception as e:
-                    db.rollback()
-                    print(f"⚠️ [STARTUP] Erro ao adicionar coluna initial_prompt (pode já existir): {e}")
+                    error_msg = str(e)
+                    # Tentar rollback apenas se não houver erro de transação
+                    if "transaction is already begun" not in error_msg.lower():
+                        try:
+                            db.rollback()
+                        except:
+                            pass
+                    print(f"⚠️ [STARTUP] Erro ao adicionar coluna initial_prompt (pode já existir): {error_msg}")
                 print("✅ [STARTUP] Coluna initial_prompt verificada/adicionada")
                 
                 # 4. Criar ENUMs e tabelas de estoque
@@ -1287,8 +1299,14 @@ async def startup_event():
                         db.commit()
                         print("✅ [STARTUP] ENUMs de estoque verificados/criados")
                     except Exception as e:
-                        db.rollback()
-                        print(f"⚠️ [STARTUP] Erro ao criar ENUMs de estoque (podem já existir): {e}")
+                        error_msg = str(e)
+                        # Tentar rollback apenas se não houver erro de transação
+                        if "transaction is already begun" not in error_msg.lower():
+                            try:
+                                db.rollback()
+                            except:
+                                pass
+                        print(f"⚠️ [STARTUP] Erro ao criar ENUMs de estoque (podem já existir): {error_msg}")
                     
                     # Verificar se as tabelas já existem
                     check_tables_query = text("""
@@ -1635,15 +1653,31 @@ async def startup_event():
                     print("✅ [STARTUP] Tabelas de estoque verificadas/criadas")
                     
                 except Exception as e:
-                    db.rollback()
-                    print(f"⚠️ [STARTUP] Erro ao criar tabelas de estoque (podem já existir): {e}")
+                    error_msg = str(e)
+                    print(f"⚠️ [STARTUP] Erro ao criar tabelas de estoque/claims: {error_msg}")
+                    # Tentar fazer rollback apenas se não houver erro de transação
+                    if "transaction is already begun" not in error_msg.lower():
+                        try:
+                            db.rollback()
+                        except:
+                            pass  # Ignorar erro de rollback se já houver problema de transação
                     import traceback
                     traceback.print_exc()
+                    # Continuar mesmo com erro - as tabelas podem já existir
+                    print("ℹ️ [STARTUP] Continuando inicialização apesar do erro (tabelas podem já existir)...")
                 
                 print("✅ [STARTUP] Todas as migrações concluídas!")
                 
             except Exception as e:
-                print(f"⚠️ [STARTUP] Erro ao executar migrações (podem já estar aplicadas): {e}")
+                error_msg = str(e)
+                print(f"⚠️ [STARTUP] Erro ao executar migrações: {error_msg}")
+                # Tentar fazer rollback apenas se não houver erro de transação
+                if "transaction is already begun" not in error_msg.lower():
+                    try:
+                        db.rollback()
+                    except:
+                        pass  # Ignorar erro de rollback se já houver problema de transação
+                print("ℹ️ [STARTUP] Continuando inicialização apesar do erro...")
             finally:
                 db.close()
                 
