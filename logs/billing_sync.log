@@ -1,0 +1,26 @@
+2025-10-25 11:20:49,276 - INFO - Iniciando sincronização de billing para empresa 15
+2025-10-25 11:20:52,139 - INFO - Processando conta ML ID: 14
+2025-10-25 11:20:52,605 - INFO - Encontrados 3 períodos para conta 14
+2025-10-25 11:20:52,606 - INFO - Processando período: 2025-10-01
+2025-10-25 11:20:53,094 - ERROR - Erro ao salvar período de billing: Mapper 'Mapper[Company(companies)]' has no property 'billing_periods'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-10-25 11:20:53,094 - ERROR - Erro ao salvar período 2025-10-01: Mapper 'Mapper[Company(companies)]' has no property 'billing_periods'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-10-25 11:20:53,094 - INFO - Processando período: 2025-09-01
+2025-10-25 11:20:53,409 - ERROR - Erro ao salvar período de billing: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[MLBillingPeriod(ml_billing_periods)]'. Original exception was: Mapper 'Mapper[Company(companies)]' has no property 'billing_periods'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-10-25 11:20:53,409 - ERROR - Erro ao salvar período 2025-09-01: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[MLBillingPeriod(ml_billing_periods)]'. Original exception was: Mapper 'Mapper[Company(companies)]' has no property 'billing_periods'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-10-25 11:20:53,410 - INFO - Processando período: 2025-08-01
+2025-10-25 11:20:53,733 - ERROR - Erro ao salvar período de billing: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[MLBillingPeriod(ml_billing_periods)]'. Original exception was: Mapper 'Mapper[Company(companies)]' has no property 'billing_periods'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-10-25 11:20:53,734 - ERROR - Erro ao salvar período 2025-08-01: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[MLBillingPeriod(ml_billing_periods)]'. Original exception was: Mapper 'Mapper[Company(companies)]' has no property 'billing_periods'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-10-25 11:20:53,734 - INFO - Sincronização concluída: 0 períodos, R$ 0.00 em ads
+2025-10-25 11:21:37,656 - INFO - Iniciando sincronização de billing para empresa 15
+2025-10-25 11:21:40,422 - INFO - Processando conta ML ID: 14
+2025-10-25 11:21:40,835 - INFO - Encontrados 3 períodos para conta 14
+2025-10-25 11:21:40,835 - INFO - Processando período: 2025-10-01
+2025-10-25 11:21:41,600 - INFO - Período 2025-10-01 atualizado
+2025-10-25 11:21:41,760 - INFO - Período 2025-10-01 processado - Ads: R$ 680.41
+2025-10-25 11:21:41,760 - INFO - Processando período: 2025-09-01
+2025-10-25 11:21:42,777 - INFO - Período 2025-09-01 atualizado
+2025-10-25 11:21:42,942 - INFO - Período 2025-09-01 processado - Ads: R$ 1162.99
+2025-10-25 11:21:42,943 - INFO - Processando período: 2025-08-01
+2025-10-25 11:21:43,889 - INFO - Período 2025-08-01 atualizado
+2025-10-25 11:21:44,054 - INFO - Período 2025-08-01 processado - Ads: R$ 1444.50
+2025-10-25 11:21:44,055 - INFO - Sincronização concluída: 0 períodos, R$ 3287.90 em ads

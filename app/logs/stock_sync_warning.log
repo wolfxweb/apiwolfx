@@ -1,0 +1,1 @@
+{"timestamp": "2025-12-03T16:16:55.547280", "event_type": "stock_sync/warning", "company_id": 27, "success": false, "error_message": "internal_product_id não encontrado", "data": {"message": "internal_product_id não encontrado", "ml_item_id": "MLB5440673878", "ml_order_id": "2000014086202944"}}
