@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
+from sqlalchemy.exc import ProgrammingError, OperationalError
 
 from app.services.ml_claims_service import MLClaimsService
 from app.models.saas_models import (
