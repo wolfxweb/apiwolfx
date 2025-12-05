@@ -52,11 +52,12 @@ export PGPASSWORD="$DB_PASSWORD"
 echo -e "${GREEN}🔄 Iniciando backup...${NC}"
 
 # Fazer backup usando pg_dump
+# Removido --create e --clean para permitir restauração em outros bancos
+# Adicionado --no-owner e --no-acl para evitar problemas de permissões
 if pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
     --verbose \
-    --clean \
-    --if-exists \
-    --create \
+    --no-owner \
+    --no-acl \
     --format=plain \
     --file="$BACKUP_FILE" 2>&1; then
     
