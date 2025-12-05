@@ -21,7 +21,7 @@ services:
       - /root/.ssh:/root/.ssh:ro
     environment:
       # Database
-      - DATABASE_URL=postgresql://api_user:@Wolfx20202025@207.231.108.38:5432/selvez
+      - DATABASE_URL=postgresql://api_user:%40Wolfx20202025@207.231.108.38:5432/selvez
 
       
       # Mercado Livre API
