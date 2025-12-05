@@ -1265,7 +1265,32 @@ class MLOrdersService:
                 return {"action": "created", "order": new_order, "needs_stock_sync": True}
                 
         except Exception as e:
+            # Tratar erros de duplicata que possam escapar do tratamento interno
+            from sqlalchemy.exc import IntegrityError
+            
+            if isinstance(e, IntegrityError) and "duplicate key" in str(e).lower():
+                logger.warning(f"⚠️ Pedido {order_data.get('id', 'unknown')} já existe (duplicata detectada no nível superior), fazendo rollback...")
+                try:
+                    self.db.rollback()
+                    # Tentar buscar o pedido existente
+                    ml_order_id = order_data.get("id")
+                    if ml_order_id:
+                        existing_order = self.db.query(MLOrder).filter(
+                            MLOrder.ml_order_id == ml_order_id,
+                            MLOrder.company_id == company_id
+                        ).first()
+                        if existing_order:
+                            logger.info(f"✅ Pedido {ml_order_id} encontrado após rollback, retornando como atualizado")
+                            return {"action": "updated", "order": existing_order}
+                except Exception as rollback_error:
+                    logger.error(f"Erro ao fazer rollback: {rollback_error}")
+            
             logger.error(f"Erro ao salvar order no banco: {e}", exc_info=True)
+            # Fazer rollback antes de relançar o erro
+            try:
+                self.db.rollback()
+            except:
+                pass
             raise e
     
     def _extract_shipping_cost(self, order_data: Dict) -> float:
