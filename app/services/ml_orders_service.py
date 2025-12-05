@@ -1182,8 +1182,35 @@ class MLOrdersService:
                 new_order = MLOrder(**order_dict)
                 logger.info(f"✅ Objeto MLOrder criado: company_id={new_order.company_id}, ml_order_id={new_order.ml_order_id}")
                 self.db.add(new_order)
-                self.db.flush()  # Garantir que o ID seja gerado antes de criar o status interno
-                logger.info(f"✅ Pedido adicionado à sessão do banco")
+                try:
+                    self.db.flush()  # Garantir que o ID seja gerado antes de criar o status interno
+                    logger.info(f"✅ Pedido adicionado à sessão do banco")
+                except Exception as flush_error:
+                    # Tratar erro de duplicata durante flush
+                    from sqlalchemy.exc import IntegrityError
+                    if isinstance(flush_error, IntegrityError) and "duplicate key" in str(flush_error).lower():
+                        logger.warning(f"⚠️ Pedido {ml_order_id} já existe (duplicata detectada durante flush), fazendo rollback e tentando atualizar...")
+                        self.db.rollback()
+                        # Tentar buscar o pedido existente e atualizar
+                        existing_order = self.db.query(MLOrder).filter(
+                            MLOrder.ml_order_id == ml_order_id,
+                            MLOrder.company_id == company_id
+                        ).first()
+                        if existing_order:
+                            # Atualizar pedido existente
+                            excluded_fields = ["id", "ml_order_id", "created_at", "processing_status"]
+                            for key, value in order_dict.items():
+                                if key not in excluded_fields and hasattr(existing_order, key):
+                                    setattr(existing_order, key, value)
+                            existing_order.updated_at = datetime.now(SAO_PAULO_TZ).replace(tzinfo=None)
+                            logger.info(f"✅ Pedido {ml_order_id} atualizado após detectar duplicata")
+                            return {"action": "updated", "order": existing_order}
+                        else:
+                            # Se não encontrou, re-lançar o erro
+                            raise flush_error
+                    else:
+                        # Re-lançar outros erros
+                        raise flush_error
                 
                 # Criar status interno automaticamente se não for fulfillment
                 # IMPORTANTE: Pedidos de fulfillment NÃO devem ter status interno
