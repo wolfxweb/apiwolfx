@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Any
 import logging
 import requests
+import time
 from datetime import datetime, timedelta
 import pytz
 
@@ -1067,6 +1068,8 @@ class MLOrdersService:
             logger.info(f"💾 Company ID: {company_id}")
             
             # Verificar se a order já existe (filtrando por company_id para evitar conflitos entre empresas)
+            # IMPORTANTE: Esta verificação não previne race conditions completamente,
+            # mas o tratamento de erro no flush() e no except principal garante que duplicatas sejam tratadas
             logger.info(f"🔍 Verificando se pedido já existe: ml_order_id={ml_order_id}, company_id={company_id}")
             existing_order = self.db.query(MLOrder).filter(
                 MLOrder.ml_order_id == ml_order_id,
@@ -1077,6 +1080,7 @@ class MLOrdersService:
                 logger.info(f"✅ Pedido EXISTENTE encontrado: ID={existing_order.id}, company_id={existing_order.company_id}")
             else:
                 logger.info(f"✨ Novo pedido - será criado com company_id={company_id}")
+                # Nota: Race conditions podem ocorrer aqui, mas serão tratadas no flush() e no except principal
             
             # Usar token fornecido ou buscar um novo
             if not access_token:
@@ -1191,22 +1195,34 @@ class MLOrdersService:
                     if isinstance(flush_error, IntegrityError) and "duplicate key" in str(flush_error).lower():
                         logger.warning(f"⚠️ Pedido {ml_order_id} já existe (duplicata detectada durante flush), fazendo rollback e tentando atualizar...")
                         self.db.rollback()
-                        # Tentar buscar o pedido existente e atualizar
+                        # VERIFICAÇÃO DUPLA: Tentar buscar o pedido existente após rollback
                         existing_order = self.db.query(MLOrder).filter(
                             MLOrder.ml_order_id == ml_order_id,
                             MLOrder.company_id == company_id
                         ).first()
                         if existing_order:
-                            # Atualizar pedido existente
+                            # Atualizar pedido existente com dados mais recentes
                             excluded_fields = ["id", "ml_order_id", "created_at", "processing_status"]
                             for key, value in order_dict.items():
                                 if key not in excluded_fields and hasattr(existing_order, key):
                                     setattr(existing_order, key, value)
                             existing_order.updated_at = datetime.now(SAO_PAULO_TZ).replace(tzinfo=None)
-                            logger.info(f"✅ Pedido {ml_order_id} atualizado após detectar duplicata")
+                            logger.info(f"✅ Pedido {ml_order_id} atualizado após detectar duplicata (verificação dupla)")
                             return {"action": "updated", "order": existing_order}
                         else:
-                            # Se não encontrou, re-lançar o erro
+                            # Caso raro: erro de duplicata mas pedido não encontrado após rollback
+                            # Pode ser race condition extrema ou pedido foi deletado
+                            logger.warning(f"⚠️ Erro de duplicata, mas pedido {ml_order_id} não encontrado após rollback (race condition?)")
+                            # Tentar novamente após pequeno delay (não ideal, mas melhor que falhar)
+                            time.sleep(0.1)  # 100ms delay
+                            existing_order = self.db.query(MLOrder).filter(
+                                MLOrder.ml_order_id == ml_order_id,
+                                MLOrder.company_id == company_id
+                            ).first()
+                            if existing_order:
+                                logger.info(f"✅ Pedido {ml_order_id} encontrado após retry")
+                                return {"action": "updated", "order": existing_order}
+                            # Se ainda não encontrou, re-lançar o erro
                             raise flush_error
                     else:
                         # Re-lançar outros erros
@@ -1272,7 +1288,7 @@ class MLOrdersService:
                 logger.warning(f"⚠️ Pedido {order_data.get('id', 'unknown')} já existe (duplicata detectada no nível superior), fazendo rollback...")
                 try:
                     self.db.rollback()
-                    # Tentar buscar o pedido existente
+                    # VERIFICAÇÃO DUPLA: Tentar buscar o pedido existente após rollback
                     ml_order_id = order_data.get("id")
                     if ml_order_id:
                         existing_order = self.db.query(MLOrder).filter(
@@ -1280,11 +1296,33 @@ class MLOrdersService:
                             MLOrder.company_id == company_id
                         ).first()
                         if existing_order:
-                            logger.info(f"✅ Pedido {ml_order_id} encontrado após rollback, retornando como atualizado")
-                            return {"action": "updated", "order": existing_order}
+                            # Tentar atualizar pedido existente com dados mais recentes
+                            # Nota: order_dict pode não estar disponível se erro ocorreu antes de sua criação
+                            try:
+                                # Tentar obter order_dict se disponível no escopo local
+                                if 'order_dict' in locals():
+                                    excluded_fields = ["id", "ml_order_id", "created_at", "processing_status"]
+                                    for key, value in order_dict.items():
+                                        if key not in excluded_fields and hasattr(existing_order, key):
+                                            setattr(existing_order, key, value)
+                                    existing_order.updated_at = datetime.now(SAO_PAULO_TZ).replace(tzinfo=None)
+                                    logger.info(f"✅ Pedido {ml_order_id} encontrado após rollback e atualizado")
+                                else:
+                                    # Se order_dict não está disponível, apenas atualizar updated_at
+                                    existing_order.updated_at = datetime.now(SAO_PAULO_TZ).replace(tzinfo=None)
+                                    logger.info(f"✅ Pedido {ml_order_id} encontrado após rollback (atualizado apenas timestamp)")
+                                return {"action": "updated", "order": existing_order}
+                            except Exception as update_error:
+                                logger.warning(f"⚠️ Erro ao atualizar pedido existente: {update_error}")
+                                # Retornar mesmo assim, pois o pedido já existe
+                                return {"action": "updated", "order": existing_order}
                 except Exception as rollback_error:
-                    logger.error(f"Erro ao fazer rollback: {rollback_error}")
+                    logger.error(f"Erro ao fazer rollback: {rollback_error}", exc_info=False)
+                # Se chegou aqui, o erro foi tratado mas não encontrou o pedido (caso raro)
+                logger.warning(f"⚠️ Erro de duplicata tratado, mas pedido não encontrado após rollback (pode ter sido deletado)")
+                return {"action": "skipped", "order": None}
             
+            # Para outros erros, logar com traceback completo
             logger.error(f"Erro ao salvar order no banco: {e}", exc_info=True)
             # Fazer rollback antes de relançar o erro
             try:

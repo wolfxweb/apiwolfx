@@ -181,7 +181,14 @@ if docker network ls | grep -q "server"; then
         echo -e "${GREEN}✅ Serviço está na rede 'server'${NC}"
     else
         echo -e "${RED}❌ Serviço NÃO está na rede 'server'${NC}"
-        echo -e "${YELLOW}💡 Isso pode causar 404. Verifique o ${COMPOSE_FILE}${NC}"
+        echo -e "${YELLOW}💡 Adicionando serviço à rede 'server'...${NC}"
+        if docker service update --network-add server "${STACK_NAME}_api" 2>/dev/null; then
+            echo -e "${GREEN}✅ Serviço adicionado à rede 'server'${NC}"
+            echo -e "${BLUE}⏳ Aguardando atualização do serviço...${NC}"
+            sleep 5
+        else
+            echo -e "${YELLOW}⚠️  Não foi possível adicionar à rede automaticamente. Verifique o ${COMPOSE_FILE}${NC}"
+        fi
     fi
 else
     echo -e "${RED}❌ Rede 'server' não encontrada!${NC}"
