@@ -1247,7 +1247,23 @@ class MLOrdersController:
                     logger.info(f"Pedido {idx + 1}/{len(orders_data)} processado: {order_data.get('id')}")
                         
                 except Exception as e:
-                    logger.error(f"Erro ao processar pedido {order_data.get('id')}: {e}")
+                    # IMPORTANTE: Fazer rollback se houver erro de integridade (duplicata)
+                    from sqlalchemy.exc import IntegrityError
+                    
+                    if isinstance(e, IntegrityError) and "duplicate key" in str(e).lower():
+                        logger.warning(f"⚠️ Pedido {order_data.get('id')} já existe (duplicata), fazendo rollback e pulando...")
+                        try:
+                            self.db.rollback()  # ✅ CRÍTICO: Fazer rollback para limpar a sessão
+                        except Exception as rollback_error:
+                            logger.error(f"Erro ao fazer rollback: {rollback_error}")
+                        updated_count += 1  # Contar como atualizado (já existe)
+                    else:
+                        logger.error(f"Erro ao processar pedido {order_data.get('id')}: {e}")
+                        # Fazer rollback para qualquer outro erro também
+                        try:
+                            self.db.rollback()
+                        except Exception as rollback_error:
+                            logger.error(f"Erro ao fazer rollback: {rollback_error}")
                     continue
             
             self.db.commit()

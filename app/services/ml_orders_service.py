@@ -245,7 +245,23 @@ class MLOrdersService:
                         logger.info(f"✅ Novo pedido {ml_order_id} salvo com sucesso")
                     
                 except Exception as e:
-                    logger.error(f"❌ Erro ao processar pedido {order_data.get('id', 'unknown')}: {e}")
+                    # IMPORTANTE: Fazer rollback se houver erro de integridade (duplicata)
+                    from sqlalchemy.exc import IntegrityError
+                    
+                    if isinstance(e, IntegrityError) and "duplicate key" in str(e).lower():
+                        logger.warning(f"⚠️ Pedido {order_data.get('id', 'unknown')} já existe (duplicata), fazendo rollback e pulando...")
+                        try:
+                            self.db.rollback()  # ✅ CRÍTICO: Fazer rollback para limpar a sessão
+                        except Exception as rollback_error:
+                            logger.error(f"Erro ao fazer rollback: {rollback_error}")
+                        existing_orders_count += 1  # Contar como existente
+                    else:
+                        logger.error(f"❌ Erro ao processar pedido {order_data.get('id', 'unknown')}: {e}")
+                        # Fazer rollback para qualquer outro erro também
+                        try:
+                            self.db.rollback()
+                        except Exception as rollback_error:
+                            logger.error(f"Erro ao fazer rollback: {rollback_error}")
                     continue
             
             self.db.commit()
@@ -391,7 +407,23 @@ class MLOrdersService:
                             # Não falhar a sincronização se houver erro na verificação de NF
                             logger.warning(f"⚠️ Erro ao verificar NF do pedido {order_id}: {invoice_error}")
                 except Exception as e:
-                    logger.error(f"Erro ao salvar order {order_data.get('id')}: {e}")
+                    # IMPORTANTE: Fazer rollback se houver erro de integridade (duplicata)
+                    from sqlalchemy.exc import IntegrityError
+                    
+                    if isinstance(e, IntegrityError) and "duplicate key" in str(e).lower():
+                        logger.warning(f"⚠️ Pedido {order_data.get('id')} já existe (duplicata), fazendo rollback e pulando...")
+                        try:
+                            self.db.rollback()  # ✅ CRÍTICO: Fazer rollback para limpar a sessão
+                        except Exception as rollback_error:
+                            logger.error(f"Erro ao fazer rollback: {rollback_error}")
+                        updated_count += 1  # Contar como atualizado (já existe)
+                    else:
+                        logger.error(f"Erro ao salvar order {order_data.get('id')}: {e}")
+                        # Fazer rollback para qualquer outro erro também
+                        try:
+                            self.db.rollback()
+                        except Exception as rollback_error:
+                            logger.error(f"Erro ao fazer rollback: {rollback_error}")
                     continue
             
             self.db.commit()
