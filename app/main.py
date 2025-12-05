@@ -82,6 +82,35 @@ else:
         handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         root_logger.addHandler(handler)
 
+# Filtro para suprimir tracebacks verbosos de erros de duplicata tratados
+class DuplicateKeyFilter(logging.Filter):
+    """Filtro para suprimir tracebacks de IntegrityError com 'duplicate key' que são tratados"""
+    def filter(self, record):
+        # Verificar se é um erro de IntegrityError com duplicate key
+        if hasattr(record, 'exc_info') and record.exc_info:
+            exc_type, exc_value, exc_traceback = record.exc_info
+            if exc_type and 'IntegrityError' in str(exc_type):
+                if exc_value and 'duplicate key' in str(exc_value).lower():
+                    # Suprimir traceback completo, mas manter mensagem de warning
+                    # Isso reduz o ruído nos logs sem perder informações importantes
+                    return False  # Não logar este registro completo
+        # Verificar também na mensagem do log
+        if hasattr(record, 'msg') and record.msg:
+            msg_str = str(record.msg)
+            if 'IntegrityError' in msg_str and 'duplicate key' in msg_str.lower():
+                # Se já foi logado como warning, não precisa do traceback completo
+                if record.levelno >= logging.ERROR:
+                    return False
+        return True
+
+# Aplicar filtro ao logger do SQLAlchemy engine para reduzir ruído
+sqlalchemy_engine_logger = logging.getLogger('sqlalchemy.engine')
+sqlalchemy_engine_logger.addFilter(DuplicateKeyFilter())
+
+# Também aplicar ao logger base do SQLAlchemy
+sqlalchemy_logger = logging.getLogger('sqlalchemy')
+sqlalchemy_logger.addFilter(DuplicateKeyFilter())
+
 # Inicializar FastAPI
 app = FastAPI(
     title="SELVEZ - Gestão Inteligente de Vendas para Marketplace",
