@@ -25,8 +25,8 @@ services:
 
       
       # Mercado Livre API
-      - ML_APP_ID=6987936494418444
-      - ML_CLIENT_SECRET=puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
+      - ML_APP_ID=63963006174181
+      - ML_CLIENT_SECRET=SWOjuUL7k5dsAna4wrKrDMQzFjbMzk0n
       - ML_REDIRECT_URI=https://www.selvez.com.br/api/callback
       - ML_NOTIFICATION_URL=https://www.selvez.com.br/api/notifications
       
