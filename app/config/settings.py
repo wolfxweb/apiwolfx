@@ -6,13 +6,21 @@ class Settings:
     """Configurações da aplicação"""
     
     def __init__(self):
-        # Detecta ambiente (produção ou desenvolvimento)
+        # Detecta ambiente (development, homologation, production)
         self.environment = os.getenv("ENVIRONMENT", "development").lower()
         self.is_production = self.environment == "production"
-        
+        self.is_homologation = self.environment == "homologation"
+        self.is_development = self.environment == "development"
+
         # Define domínio base conforme ambiente
         if self.is_production:
-            # Produção: usa domínio real
+            # Produção: usa domínio selvez.com.br
+            default_domain = os.getenv("DOMAIN", "www.selvez.com.br")
+            default_base_url = f"https://{default_domain}"
+            self.ml_app_id = os.getenv("ML_APP_ID")
+            self.ml_client_secret = os.getenv("ML_CLIENT_SECRET")
+        elif self.is_homologation:
+            # Homologação: usa domínio celx.com.br
             default_domain = os.getenv("DOMAIN", "celx.com.br")
             default_base_url = f"https://{default_domain}"
             self.ml_app_id = os.getenv("ML_APP_ID")
@@ -58,10 +66,10 @@ class Settings:
         
         # Mercado Pago Configuration
         # IMPORTANTE: Mercado Pago NÃO tem sandbox separado!
-        # Em produção, usa credenciais de produção
+        # Em produção e homologação, usa credenciais de produção (compartilhadas)
         # Em desenvolvimento, pode usar credenciais de teste
-        if self.is_production:
-            # Produção - credenciais de produção
+        if self.is_production or self.is_homologation:
+            # Produção e Homologação - credenciais de produção (compartilhadas)
             self.mp_access_token = os.getenv(
                 "MP_ACCESS_TOKEN",
                 "APP_USR-6987936494418444-101415-df063090488cd09fd99bb0e75ba91dc5-534913383560219"
@@ -111,9 +119,9 @@ class Settings:
         )
         
         # Asaas Configuration
-        # IMPORTANTE: Usar chave de sandbox para desenvolvimento e produção para produção
-        if self.is_production:
-            # Produção: usa ASAAS_API_KEY (chave de produção)
+        # IMPORTANTE: Usar chave de sandbox para desenvolvimento e produção para produção/homologação
+        if self.is_production or self.is_homologation:
+            # Produção e Homologação: usa ASAAS_API_KEY (chave de produção)
             self.asaas_api_key = os.getenv("ASAAS_API_KEY", "")
         else:
             # Desenvolvimento: usa ASAAS_API_KEY_SANDBOX se disponível, senão ASAAS_API_KEY
@@ -129,7 +137,7 @@ class Settings:
         # Validar credenciais Asaas
         if not self.asaas_api_key:
             import logging
-            env_name = "ASAAS_API_KEY" if self.is_production else "ASAAS_API_KEY_SANDBOX (ou ASAAS_API_KEY)"
+            env_name = "ASAAS_API_KEY" if (self.is_production or self.is_homologation) else "ASAAS_API_KEY_SANDBOX (ou ASAAS_API_KEY)"
             logging.warning(
                 f"⚠️ AVISO: {env_name} deve ser definido! "
                 f"ASAAS_API_KEY: {'✅' if self.asaas_api_key else '❌ FALTANDO'}"

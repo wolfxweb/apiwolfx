@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Script de Deploy para VPS em Produção
+# Script de Deploy para VPS
 # Atualiza código do GitHub e faz deploy no Docker Swarm
+# Uso: ./deploy.sh [homologation|production]
 
 set -e  # Parar em caso de erro
 
@@ -12,22 +13,51 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Validar parâmetro obrigatório
+if [ -z "$1" ]; then
+    echo -e "${RED}❌ Erro: Ambiente não especificado!${NC}"
+    echo -e "${YELLOW}Uso: ./deploy.sh [homologation|production]${NC}"
+    echo ""
+    echo -e "${YELLOW}Exemplos:${NC}"
+    echo -e "  ${GREEN}./deploy.sh homologation${NC}  - Deploy em homologação (celx.com.br)"
+    echo -e "  ${GREEN}./deploy.sh production${NC}   - Deploy em produção (www.selvez.com.br)"
+    exit 1
+fi
+
+ENVIRONMENT="$1"
+if [ "$ENVIRONMENT" != "homologation" ] && [ "$ENVIRONMENT" != "production" ]; then
+    echo -e "${RED}❌ Erro: Ambiente inválido!${NC}"
+    echo -e "${YELLOW}Use: homologation ou production${NC}"
+    exit 1
+fi
+
+# Configurar arquivos baseado no ambiente
+if [ "$ENVIRONMENT" = "homologation" ]; then
+    ENV_FILE="hdeploy.env"
+    COMPOSE_FILE="docker-compose.homologation.yml"
+    STACK_NAME="celx_ml_api"
+    ENV_DISPLAY="Homologação (celx.com.br)"
+else
+    ENV_FILE="pdeploy.env"
+    COMPOSE_FILE="docker-compose.production.yml"
+    STACK_NAME="selvez_ml_api"
+    ENV_DISPLAY="Produção (www.selvez.com.br)"
+fi
+
 # Diretório do projeto
 PROJECT_DIR="/root/apiwolfx"
-COMPOSE_FILE="docker-compose.prod.yml"
-STACK_NAME="celx_ml_api"
 
-# Carregar variáveis de ambiente do portainer.env se existir
-if [ -f "portainer.env" ]; then
-    echo -e "${GREEN}✅ Carregando variáveis de ambiente de portainer.env${NC}"
+# Carregar variáveis de ambiente do arquivo correto
+if [ -f "$ENV_FILE" ]; then
+    echo -e "${GREEN}✅ Carregando variáveis de ambiente de ${ENV_FILE}${NC}"
     set -a
-    source portainer.env
+    source "$ENV_FILE"
     set +a
     
     # Verificar se OPENAI_API_KEY foi carregada
     if [ -z "$OPENAI_API_KEY" ] || [ "$OPENAI_API_KEY" = "" ]; then
-        echo -e "${RED}❌ ERRO: OPENAI_API_KEY não está definida ou está vazia no portainer.env${NC}"
-        echo -e "${YELLOW}💡 Adicione a chave no arquivo portainer.env antes de fazer deploy${NC}"
+        echo -e "${RED}❌ ERRO: OPENAI_API_KEY não está definida ou está vazia no ${ENV_FILE}${NC}"
+        echo -e "${YELLOW}💡 Adicione a chave no arquivo ${ENV_FILE} antes de fazer deploy${NC}"
         echo -e "${YELLOW}   Exemplo: OPENAI_API_KEY=sk-proj-sua-chave-aqui${NC}"
         read -p "Deseja continuar mesmo assim? (s/N): " -n 1 -r
         echo
@@ -41,11 +71,13 @@ if [ -f "portainer.env" ]; then
         export OPENAI_API_KEY
     fi
 else
-    echo -e "${YELLOW}⚠️  Arquivo portainer.env não encontrado - usando variáveis do sistema${NC}"
+    echo -e "${RED}❌ ERRO: Arquivo ${ENV_FILE} não encontrado!${NC}"
+    echo -e "${YELLOW}💡 Certifique-se de que o arquivo existe antes de fazer deploy${NC}"
+    exit 1
 fi
 
 echo -e "${BLUE}════════════════════════════════════════${NC}"
-echo -e "${GREEN}🚀 Deploy em Produção - Iniciando...${NC}"
+echo -e "${GREEN}🚀 Deploy em ${ENV_DISPLAY} - Iniciando...${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 
 # Verificar se está no diretório correto
@@ -149,7 +181,7 @@ if docker network ls | grep -q "server"; then
         echo -e "${GREEN}✅ Serviço está na rede 'server'${NC}"
     else
         echo -e "${RED}❌ Serviço NÃO está na rede 'server'${NC}"
-        echo -e "${YELLOW}💡 Isso pode causar 404. Verifique o docker-compose.prod.yml${NC}"
+        echo -e "${YELLOW}💡 Isso pode causar 404. Verifique o ${COMPOSE_FILE}${NC}"
     fi
 else
     echo -e "${RED}❌ Rede 'server' não encontrada!${NC}"
@@ -165,5 +197,9 @@ echo -e "   1. Verifique os logs: docker service logs ${STACK_NAME}_api -f"
 echo -e "   2. Teste a aplicação: curl http://localhost:8000"
 echo -e "   3. Monitore os serviços: docker service ps ${STACK_NAME}_api"
 echo -e "   4. Se ainda der 404, reinicie o Traefik: docker service update --force traefik_traefik"
-echo -e "   5. Verifique logs do Traefik: docker service logs traefik_traefik --tail=50 | grep celx"
+    if [ "$ENVIRONMENT" = "homologation" ]; then
+        echo -e "   5. Verifique logs do Traefik: docker service logs traefik_traefik --tail=50 | grep celx"
+    else
+        echo -e "   5. Verifique logs do Traefik: docker service logs traefik_traefik --tail=50 | grep selvez"
+    fi
 echo -e "${BLUE}════════════════════════════════════════${NC}"
