@@ -20,8 +20,8 @@ if not DATABASE_URL:
         # Nota: @ na senha precisa ser codificado como %40
         DATABASE_URL = "postgresql://api_user:%40Wolfx20202025@207.231.108.38:5432/selvez"
     elif environment == "homologation":
-        # Banco de homologação (comercial)
-        DATABASE_URL = "postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial"
+        # Banco de homologação (celx_prod)
+        DATABASE_URL = "postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/celx_prod"
     else:
         # Banco local/desenvolvimento (comercial)
         DATABASE_URL = "postgresql://postgres:97452c28f62db6d77be083917b698660@pgadmin.wolfx.com.br:5432/comercial"
