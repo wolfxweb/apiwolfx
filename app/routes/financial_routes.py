@@ -1996,16 +1996,25 @@ async def create_account_payable(
         
         # Se for cartão de crédito, diminuir saldo imediatamente (valor total de uma vez)
         # Buscar account novamente após commit para garantir dados atualizados
+        account = None
         account_id = payable_data.get("account_id")
         # Converter string vazia para None
-        if account_id == "":
+        if account_id == "" or account_id is None:
             account_id = None
+        else:
+            # Converter para int se for string
+            try:
+                account_id = int(account_id)
+            except (ValueError, TypeError):
+                account_id = None
+        
         logger.info(f"🔍 DEBUG: account_id recebido (parcelamento): {account_id} (tipo: {type(account_id)})")
         if account_id:
             account = db.query(FinancialAccount).filter(
                 FinancialAccount.id == account_id,
                 FinancialAccount.company_id == company_id
             ).first()
+            logger.info(f"🔍 DEBUG: Account buscado (parcelamento) - encontrado: {account is not None}")
             
         if account:
             logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: '{account.account_type}', Nome: {account.account_name}")
@@ -2073,16 +2082,25 @@ async def create_account_payable(
         
         # Se for cartão de crédito, diminuir saldo imediatamente
         # Buscar account novamente após commit para garantir dados atualizados
+        account = None
         account_id = payable_data.get("account_id")
         # Converter string vazia para None
-        if account_id == "":
+        if account_id == "" or account_id is None:
             account_id = None
+        else:
+            # Converter para int se for string
+            try:
+                account_id = int(account_id)
+            except (ValueError, TypeError):
+                account_id = None
+        
         logger.info(f"🔍 DEBUG: account_id recebido: {account_id} (tipo: {type(account_id)})")
         if account_id:
             account = db.query(FinancialAccount).filter(
                 FinancialAccount.id == account_id,
                 FinancialAccount.company_id == company_id
             ).first()
+            logger.info(f"🔍 DEBUG: Account buscado - encontrado: {account is not None}")
             
         if account:
             logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: '{account.account_type}', Nome: {account.account_name}")
