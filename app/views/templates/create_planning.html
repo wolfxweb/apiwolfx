@@ -583,17 +583,6 @@ function copyValuesToAllMonths() {
     const sourceMarginPercent = parseFloat(document.getElementById('margin-percent-1')?.value || 0);
     const sourceMarginValue = parseFloat(document.getElementById('margin-value-1')?.value || 0);
     
-    // Verificar se há valores para copiar
-    if (sourceRevenue === 0 && sourceMarginPercent === 0 && sourceMarginValue === 0) {
-        alert('Por favor, preencha os valores do primeiro mês antes de copiar.');
-        return;
-    }
-    
-    // Confirmar ação
-    if (!confirm('Deseja copiar os valores do primeiro mês para todos os outros meses?')) {
-        return;
-    }
-    
     // Copiar valores para os meses 2 a 12
     for (let i = 2; i <= 12; i++) {
         const revenueField = document.getElementById(`revenue-${i}`);
