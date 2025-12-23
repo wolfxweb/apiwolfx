@@ -536,7 +536,10 @@
                                     <th>Mês</th>
                                     <th class="text-end">Planejado</th>
                                     <th class="text-end">Mercado Livre</th>
-                                    <th class="text-end">Contas a Receber</th>
+                                    <th class="text-end">
+                                        Contas a Receber
+                                        <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Refere-se às contas lançadas manualmente no sistema"></i>
+                                    </th>
                                     <th class="text-end">Total Real</th>
                                     <th class="text-end">Diferença</th>
                                     <th class="text-end">% Atingido</th>
@@ -2131,7 +2134,10 @@ function renderPlanningSummary(summary) {
             <div class="col-md-4">
                 <div class="card border-warning">
                     <div class="card-body text-center">
-                        <h6 class="card-title text-warning">Contas a Receber</h6>
+                        <h6 class="card-title text-warning">
+                            Contas a Receber
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" title="Refere-se às contas lançadas manualmente no sistema"></i>
+                        </h6>
                         <h4 class="text-warning">${formatCurrency(summary.total_receivables)}</h4>
                     </div>
                 </div>
@@ -2202,6 +2208,12 @@ function renderPlanningSummary(summary) {
     }
     
     summaryContainer.innerHTML = summaryHtml;
+    
+    // Inicializar tooltips após inserir conteúdo dinâmico
+    var tooltipTriggerList = [].slice.call(summaryContainer.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 }
 
 // Função para renderizar gráfico de comparação
