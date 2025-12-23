@@ -53,20 +53,12 @@
 
 <!-- Resumo Financeiro -->
 <div class="row mb-4">
-    <!-- Texto informativo sobre Fluxo de Caixa -->
-    <div class="col-12">
-        <div class="alert alert-info mb-3" id="cashflow-info" style="cursor: pointer;" onclick="this.style.display='none'">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <i class="bi bi-info-circle"></i>
-                    <strong>Fluxo de Caixa:</strong> Estes indicadores representam o movimento real de dinheiro (entradas e saídas) no período selecionado. 
-                    <strong>Receitas Recebidas</strong>: valores que realmente entraram no caixa. 
-                    <strong>Despesas Pagas</strong>: valores que realmente saíram do caixa.
-                </div>
-                
-                <i class="bi bi-x-circle ms-2"></i>
-            </div>
-        </div>
+    <div class="col-12 mb-3">
+        <h5 class="mb-0">
+            <i class="bi bi-cash-coin"></i> Fluxo de Caixa
+            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" title="<strong>Fluxo de Caixa:</strong> Estes indicadores representam o movimento real de dinheiro (entradas e saídas) no período selecionado.<br><br><strong>Receitas Recebidas:</strong> valores que realmente entraram no caixa.<br><br><strong>Despesas Pagas:</strong> valores que realmente saíram do caixa."></i>
+        </h5>
+        <small class="text-muted">Movimento real de dinheiro no período</small>
     </div>
 </div>
 
@@ -210,20 +202,6 @@
         <div class="card">
   
             <div class="card-body">
-                <!-- Texto informativo sobre DRE -->
-                <div class="alert alert-success mb-3" id="dre-info" style="cursor: pointer;" onclick="this.style.display='none'">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="bi bi-graph-up"></i>
-                            <strong>Demonstração de Resultados:</strong> Apresenta o <strong>faturamento</strong> com base nas datas de vencimento das contas a receber e na <strong>data de emissão dos pedidos do Mercado Livre</strong>. 
-                            As <strong>despesas</strong> são consideradas de acordo com suas datas de vencimento (quando deveriam ser pagas). 
-                            Esta é uma visão contábil do negócio, diferente do fluxo de caixa.
-                        </div>
-                        
-                        <i class="bi bi-x-circle ms-2"></i>
-                    </div>
-                </div>
-                
                 <!-- Gráfico de linha -->
                 <div class="row mb-4">
                     <div class="col-12">
@@ -245,7 +223,10 @@
                 
                 <div id="dre-content" style="display: none;">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="mb-0"><i class="bi bi-graph-up"></i> Demonstração de Resultados</h6>
+                        <h6 class="mb-0">
+                            <i class="bi bi-graph-up"></i> Demonstração de Resultados
+                            <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" title="<strong>Demonstração de Resultados:</strong> Apresenta o <strong>faturamento</strong> com base nas datas de vencimento das contas a receber e na <strong>data de emissão dos pedidos do Mercado Livre</strong>.<br><br>As <strong>despesas</strong> são consideradas de acordo com suas datas de vencimento (quando deveriam ser pagas).<br><br>Esta é uma visão contábil do negócio, diferente do fluxo de caixa."></i>
+                        </h6>
                         <small class="text-muted">Receitas e despesas por período</small>
                     </div>
                     <div class="table-responsive">
