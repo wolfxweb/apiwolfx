@@ -358,11 +358,20 @@ function renderMonthPlanning(month) {
                 </div>
             </div>
         </div>
+        ${month.month === 1 ? `
+        <div class="row mb-3">
+            <div class="col-12">
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="copyValuesToAllMonths()">
+                    <i class="bi bi-copy"></i> Copiar valores para todos os meses
+                </button>
+            </div>
+        </div>
+        ` : ''}
     `;
     
-    // Renderizar centros de custo com flexibilidade (iniciar vazio)
+    // Renderizar centros de custo com flexibilidade (iniciar vazio) - OCULTO POR ENQUANTO
     html += `
-        <div class="mt-4">
+        <div class="mt-4" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="mb-0">Centros de Custo:</h6>
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCostCenter(${month.month})">
@@ -565,6 +574,44 @@ function calculateMarginValue(month) {
 // Funções de atualização
 async function updateMonthlyPlanning(month, field, value) {
     console.log(`Atualizando mês ${month}, campo ${field}, valor ${value}`);
+}
+
+// Função para copiar valores do primeiro mês para todos os outros meses
+function copyValuesToAllMonths() {
+    // Obter valores do primeiro mês (mês 1)
+    const sourceRevenue = parseFloat(document.getElementById('revenue-1')?.value || 0);
+    const sourceMarginPercent = parseFloat(document.getElementById('margin-percent-1')?.value || 0);
+    const sourceMarginValue = parseFloat(document.getElementById('margin-value-1')?.value || 0);
+    
+    // Verificar se há valores para copiar
+    if (sourceRevenue === 0 && sourceMarginPercent === 0 && sourceMarginValue === 0) {
+        alert('Por favor, preencha os valores do primeiro mês antes de copiar.');
+        return;
+    }
+    
+    // Confirmar ação
+    if (!confirm('Deseja copiar os valores do primeiro mês para todos os outros meses?')) {
+        return;
+    }
+    
+    // Copiar valores para os meses 2 a 12
+    for (let i = 2; i <= 12; i++) {
+        const revenueField = document.getElementById(`revenue-${i}`);
+        const marginPercentField = document.getElementById(`margin-percent-${i}`);
+        const marginValueField = document.getElementById(`margin-value-${i}`);
+        
+        if (revenueField) {
+            revenueField.value = sourceRevenue;
+        }
+        if (marginPercentField) {
+            marginPercentField.value = sourceMarginPercent;
+        }
+        if (marginValueField) {
+            marginValueField.value = sourceMarginValue;
+        }
+    }
+    
+    showToast('Valores copiados com sucesso para todos os meses!', 'success');
 }
 
 // Função para adicionar centro de custo
