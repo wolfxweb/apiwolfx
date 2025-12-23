@@ -334,8 +334,10 @@ function renderMonthPlanning(month) {
                 <label class="form-label">Faturamento Esperado:</label>
                 <div class="input-group">
                     <span class="input-group-text">R$</span>
-                    <input type="number" class="form-control" id="revenue-${month.month}" 
-                           value="${month.expected_revenue || 0}" step="0.01" 
+                    <input type="text" class="form-control" id="revenue-${month.month}" 
+                           value="${month.expected_revenue ? formatarValorReais(month.expected_revenue) : '0,00'}" 
+                           onblur="aplicarFormataçãoReais(this); calculateMarginValue(${month.month})"
+                           onfocus="removerFormataçãoReais(this)"
                            onchange="calculateMarginValue(${month.month})">
                 </div>
             </div>
@@ -352,9 +354,11 @@ function renderMonthPlanning(month) {
                 <label class="form-label">Margem Esperada (R$):</label>
                 <div class="input-group">
                     <span class="input-group-text">R$</span>
-                    <input type="number" class="form-control" id="margin-value-${month.month}" 
-                           value="${month.expected_margin_value || 0}" step="0.01" 
-                           onchange="updateMonthlyPlanning(${month.month}, 'expected_margin_value', this.value)">
+                    <input type="text" class="form-control" id="margin-value-${month.month}" 
+                           value="${month.expected_margin_value ? formatarValorReais(month.expected_margin_value) : '0,00'}" 
+                           onblur="aplicarFormataçãoReais(this)"
+                           onfocus="removerFormataçãoReais(this)"
+                           onchange="updateMonthlyPlanning(${month.month}, 'expected_margin_value', desformatarValorReais(this.value))">
                 </div>
             </div>
         </div>
@@ -428,18 +432,23 @@ async function savePlanning() {
             }
         }
         
-        // Coletar dados de todos os meses
+        // Coletar dados de todos os meses (removendo formatação)
         const monthsData = [];
         for (let i = 1; i <= 12; i++) {
-            const revenue = document.getElementById(`revenue-${i}`)?.value || 0;
-            const marginPercent = document.getElementById(`margin-percent-${i}`)?.value || 0;
-            const marginValue = document.getElementById(`margin-value-${i}`)?.value || 0;
+            const revenueField = document.getElementById(`revenue-${i}`);
+            const marginPercentField = document.getElementById(`margin-percent-${i}`);
+            const marginValueField = document.getElementById(`margin-value-${i}`);
+            
+            // Remover formatação dos valores em reais antes de salvar
+            const revenue = revenueField ? desformatarValorReais(revenueField.value) : '0';
+            const marginPercent = marginPercentField ? marginPercentField.value : '0';
+            const marginValue = marginValueField ? desformatarValorReais(marginValueField.value) : '0';
             
             monthsData.push({
                 month: i,
-                expected_revenue: parseFloat(revenue),
-                expected_margin_percent: parseFloat(marginPercent),
-                expected_margin_value: parseFloat(marginValue)
+                expected_revenue: parseFloat(revenue) || 0,
+                expected_margin_percent: parseFloat(marginPercent) || 0,
+                expected_margin_value: parseFloat(marginValue) || 0
             });
         }
         
@@ -505,6 +514,39 @@ function formatCurrency(value) {
     }).format(value);
 }
 
+// Função para formatar valor em reais (apenas número, sem símbolo R$)
+function formatarValorReais(valor) {
+    if (!valor || valor === '' || valor === 0 || valor === '0') return '0,00';
+    const num = parseFloat(valor.toString().replace(/\./g, '').replace(',', '.'));
+    if (isNaN(num)) return '0,00';
+    return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Função para desformatar valor em reais (remover formatação brasileira)
+function desformatarValorReais(valor) {
+    if (!valor) return '0';
+    // Remove tudo exceto números, vírgula e ponto
+    const limpo = valor.toString().replace(/[^\d,.-]/g, '');
+    // Substitui vírgula por ponto para parseFloat
+    return limpo.replace(/\./g, '').replace(',', '.');
+}
+
+// Função para aplicar formatação quando campo perde foco
+function aplicarFormataçãoReais(input) {
+    const valor = desformatarValorReais(input.value);
+    if (valor && valor !== '0' && valor !== '') {
+        input.value = formatarValorReais(valor);
+    } else {
+        input.value = '0,00';
+    }
+}
+
+// Função para remover formatação quando campo ganha foco
+function removerFormataçãoReais(input) {
+    const valor = desformatarValorReais(input.value);
+    input.value = valor === '0' ? '' : valor;
+}
+
 // Função para mostrar toast
 function showToast(message, type = 'info') {
     // Remover toasts existentes
@@ -557,18 +599,22 @@ function reenableSaveButton() {
 
 // Função para calcular margem em reais automaticamente
 function calculateMarginValue(month) {
-    const revenue = parseFloat(document.getElementById(`revenue-${month}`)?.value || 0);
-    const marginPercent = parseFloat(document.getElementById(`margin-percent-${month}`)?.value || 0);
+    const revenueField = document.getElementById(`revenue-${month}`);
+    const marginPercentField = document.getElementById(`margin-percent-${month}`);
+    const marginValueField = document.getElementById(`margin-value-${month}`);
+    
+    if (!revenueField || !marginPercentField || !marginValueField) return;
+    
+    // Obter valores numéricos (removendo formatação se houver)
+    const revenue = parseFloat(desformatarValorReais(revenueField.value) || 0);
+    const marginPercent = parseFloat(marginPercentField.value || 0);
     
     // Calcular margem em reais: (faturamento * margem%) / 100
     const marginValue = (revenue * marginPercent) / 100;
     
-    // Atualizar o campo de margem em reais
-    const marginValueField = document.getElementById(`margin-value-${month}`);
-    if (marginValueField) {
-        marginValueField.value = marginValue.toFixed(2);
-        console.log(`💰 Mês ${month}: Faturamento R$ ${revenue} × ${marginPercent}% = Margem R$ ${marginValue.toFixed(2)}`);
-    }
+    // Atualizar o campo de margem em reais com formatação
+    marginValueField.value = formatarValorReais(marginValue);
+    console.log(`💰 Mês ${month}: Faturamento R$ ${revenue} × ${marginPercent}% = Margem R$ ${marginValue.toFixed(2)}`);
 }
 
 // Funções de atualização
@@ -578,10 +624,14 @@ async function updateMonthlyPlanning(month, field, value) {
 
 // Função para copiar valores do primeiro mês para todos os outros meses
 function copyValuesToAllMonths() {
-    // Obter valores do primeiro mês (mês 1)
-    const sourceRevenue = parseFloat(document.getElementById('revenue-1')?.value || 0);
-    const sourceMarginPercent = parseFloat(document.getElementById('margin-percent-1')?.value || 0);
-    const sourceMarginValue = parseFloat(document.getElementById('margin-value-1')?.value || 0);
+    // Obter valores do primeiro mês (mês 1) - remover formatação para obter valores numéricos
+    const sourceRevenueField = document.getElementById('revenue-1');
+    const sourceMarginPercentField = document.getElementById('margin-percent-1');
+    const sourceMarginValueField = document.getElementById('margin-value-1');
+    
+    const sourceRevenue = sourceRevenueField ? formatarValorReais(desformatarValorReais(sourceRevenueField.value)) : '0,00';
+    const sourceMarginPercent = sourceMarginPercentField ? sourceMarginPercentField.value : '0';
+    const sourceMarginValue = sourceMarginValueField ? formatarValorReais(desformatarValorReais(sourceMarginValueField.value)) : '0,00';
     
     // Copiar valores para os meses 2 a 12
     for (let i = 2; i <= 12; i++) {
