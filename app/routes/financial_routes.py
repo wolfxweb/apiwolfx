@@ -1890,6 +1890,9 @@ async def create_account_payable(
         
         # Se for cartão de crédito, diminuir saldo para cada entrada recorrente criada
         if account and account.account_type == "credit":
+            # Fazer refresh do account para garantir dados atualizados
+            db.refresh(account)
+            
             total_amount = 0
             for entry in created_entries:
                 total_amount += float(entry.amount)
@@ -1981,6 +1984,9 @@ async def create_account_payable(
         
         # Se for cartão de crédito, diminuir saldo imediatamente (valor total de uma vez)
         if account and account.account_type == "credit":
+            # Fazer refresh do account para garantir dados atualizados
+            db.refresh(account)
+            
             total_amount = base_amount if value_type == "total" else (base_amount * total_installments)
             current_balance = float(account.current_balance or 0)
             # Para cartão de crédito, crédito aumenta dívida (diminui saldo disponível)
@@ -2033,6 +2039,9 @@ async def create_account_payable(
         
         # Se for cartão de crédito, diminuir saldo imediatamente
         if account and account.account_type == "credit":
+            # Fazer refresh do account para garantir dados atualizados
+            db.refresh(account)
+            
             amount_value = float(new_payable.amount)
             current_balance = float(account.current_balance or 0)
             # Para cartão de crédito, crédito aumenta dívida (diminui saldo disponível)
