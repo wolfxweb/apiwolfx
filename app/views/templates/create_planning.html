@@ -517,18 +517,58 @@ function formatCurrency(value) {
 // Função para formatar valor em reais (apenas número, sem símbolo R$)
 function formatarValorReais(valor) {
     if (!valor || valor === '' || valor === 0 || valor === '0') return '0,00';
-    const num = parseFloat(valor.toString().replace(/\./g, '').replace(',', '.'));
+    const num = typeof valor === 'string' ? parseFloat(desformatarValorReais(valor)) : parseFloat(valor);
     if (isNaN(num)) return '0,00';
     return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // Função para desformatar valor em reais (remover formatação brasileira)
 function desformatarValorReais(valor) {
-    if (!valor) return '0';
-    // Remove tudo exceto números, vírgula e ponto
-    const limpo = valor.toString().replace(/[^\d,.-]/g, '');
-    // Substitui vírgula por ponto para parseFloat
-    return limpo.replace(/\./g, '').replace(',', '.');
+    if (!valor || valor === '') return '0';
+    
+    let str = valor.toString().trim();
+    
+    // Remove caracteres não numéricos exceto ponto e vírgula
+    str = str.replace(/[^\d,.-]/g, '');
+    
+    // Se não há vírgula nem ponto, retorna o número
+    if (!str.includes(',') && !str.includes('.')) {
+        return str || '0';
+    }
+    
+    // Se tem vírgula mas não tem ponto, vírgula é decimal (formato BR)
+    if (str.includes(',') && !str.includes('.')) {
+        return str.replace(',', '.');
+    }
+    
+    // Se tem ponto mas não tem vírgula, ponto pode ser decimal (formato US) ou separador de milhares (formato BR)
+    if (str.includes('.') && !str.includes(',')) {
+        // Se tem apenas um ponto e há mais de 3 dígitos após o ponto, provavelmente é separador de milhares (ex: 50.000)
+        const parts = str.split('.');
+        if (parts.length === 2 && parts[1].length <= 2) {
+            // Formato US: ponto é decimal (ex: 50000.00)
+            return str;
+        } else if (parts.length === 2 && parts[1].length > 2) {
+            // Formato BR: ponto é separador de milhares (ex: 50.00000)
+            return str.replace(/\./g, '');
+        } else {
+            // Múltiplos pontos: separadores de milhares BR
+            return str.replace(/\./g, '');
+        }
+    }
+    
+    // Se tem ambos vírgula e ponto
+    // Último caractere define qual é o decimal
+    const lastComma = str.lastIndexOf(',');
+    const lastDot = str.lastIndexOf('.');
+    
+    if (lastComma > lastDot) {
+        // Vírgula é decimal (formato BR: 50.000,00)
+        return str.replace(/\./g, '').replace(',', '.');
+    } else {
+        // Ponto é decimal (formato US: 50,000.00 - não comum, mas possível)
+        return str.replace(/,/g, '');
+    }
 }
 
 // Função para aplicar formatação quando campo perde foco
