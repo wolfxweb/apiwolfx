@@ -787,11 +787,26 @@ class AuthController:
             total_receivables_pending = float(receivables_pending) + ml_pending_revenue
             
             # 2. VALOR A PAGAR (Pendentes)
-            # Não filtrar por data, pois são pendentes
-            payables_pending = db.query(func.sum(AccountPayable.amount)).filter(
+            # Filtrar por data de VENCIMENTO (due_date), não por data de lançamento
+            payables_pending_query = db.query(func.sum(AccountPayable.amount)).filter(
                 AccountPayable.company_id == company_id,
                 AccountPayable.status.in_(['pending', 'overdue', 'unpaid'])
-            ).scalar() or 0
+            )
+            # Filtrar por data de vencimento conforme o período selecionado
+            if start_date and end_date:
+                if period == "today":
+                    # Para hoje, apenas contas que vencem hoje
+                    today_date = start_date.date()
+                    payables_pending_query = payables_pending_query.filter(
+                        AccountPayable.due_date == today_date
+                    )
+                else:
+                    # Para outros períodos, contas que vencem dentro do período
+                    payables_pending_query = payables_pending_query.filter(
+                        AccountPayable.due_date >= start_date.date(),
+                        AccountPayable.due_date <= end_date.date()
+                    )
+            payables_pending = payables_pending_query.scalar() or 0
             
             # 3. VALOR RECEBIDO
             receivables_paid_query = db.query(func.sum(AccountReceivable.paid_amount)).filter(
