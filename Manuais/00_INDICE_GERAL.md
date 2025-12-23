@@ -1,8 +1,8 @@
-# Manual do Usuário - Sistema CELX
+# Manual do Usuário - Sistema SELVEZ
 
 ## Índice Geral de Funcionalidades
 
-Bem-vindo ao manual do sistema CELX! Este documento lista todas as funcionalidades disponíveis no sistema, organizadas por módulos. Cada funcionalidade possui um manual detalhado explicando como utilizá-la.
+Bem-vindo ao manual do sistema SELVEZ! Este documento lista todas as funcionalidades disponíveis no sistema, organizadas por módulos. Cada funcionalidade possui um manual detalhado explicando como utilizá-la.
 
 ---
 

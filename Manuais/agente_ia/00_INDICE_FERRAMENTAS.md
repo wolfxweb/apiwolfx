@@ -2,7 +2,7 @@
 
 ## Sobre este Documento
 
-Este documento lista todas as ferramentas (tools) disponíveis para o agente de IA do sistema CELX. As ferramentas permitem que o agente de IA interaja com o sistema, consultando dados, realizando análises e executando operações.
+Este documento lista todas as ferramentas (tools) disponíveis para o agente de IA do sistema SELVEZ. As ferramentas permitem que o agente de IA interaja com o sistema, consultando dados, realizando análises e executando operações.
 
 ## Estrutura
 

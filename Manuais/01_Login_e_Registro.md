@@ -2,7 +2,7 @@
 
 ## O que é esta funcionalidade?
 
-Esta funcionalidade permite que você faça login no sistema CELX ou crie uma nova conta para começar a usar a plataforma.
+Esta funcionalidade permite que você faça login no sistema SELVEZ ou crie uma nova conta para começar a usar a plataforma.
 
 ## Como Acessar
 

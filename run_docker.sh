@@ -52,3 +52,35 @@ echo ""
 echo "🛑 Para parar:"
 echo "   docker-compose down"
 echo ""
+
+# Configurar MCP no Cursor (apenas se executado localmente)
+if [ -d "$HOME/.cursor" ]; then
+    echo "🔧 Configurando MCP no Cursor para ambiente local..."
+    
+    # Obter diretório do script
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    MCP_SCRIPT="$SCRIPT_DIR/add_mcp_to_cursor.py"
+    
+    # Verificar se o script existe
+    if [ -f "$MCP_SCRIPT" ]; then
+        # Executar script de configuração do MCP para development
+        if command -v python3 &> /dev/null; then
+            (cd "$SCRIPT_DIR" && python3 add_mcp_to_cursor.py development 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                echo "✅ MCP configurado no Cursor para ambiente: development (local)"
+                echo "   Reinicie o Cursor para aplicar as mudanças"
+                echo "   URL da API: http://localhost:8000"
+            else
+                echo "⚠️  Não foi possível configurar o MCP automaticamente"
+                echo "💡 Execute manualmente: python3 add_mcp_to_cursor.py development"
+            fi
+        else
+            echo "⚠️  Python3 não encontrado - pulando configuração do MCP"
+            echo "💡 Execute manualmente: python3 add_mcp_to_cursor.py development"
+        fi
+    else
+        echo "⚠️  Script add_mcp_to_cursor.py não encontrado em $SCRIPT_DIR"
+        echo "💡 Execute manualmente: python3 add_mcp_to_cursor.py development"
+    fi
+    echo ""
+fi

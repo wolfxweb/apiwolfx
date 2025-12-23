@@ -44,8 +44,13 @@ else
     ENV_DISPLAY="Produção (www.selvez.com.br)"
 fi
 
-# Diretório do projeto
-PROJECT_DIR="/root/apiwolfx"
+# Diretório do projeto (será detectado automaticamente ou usar padrão)
+if [ -d "/root/apiwolfx" ]; then
+    PROJECT_DIR="/root/apiwolfx"
+else
+    # Tentar detectar diretório atual se não estiver no servidor
+    PROJECT_DIR=$(pwd)
+fi
 
 # Carregar variáveis de ambiente do arquivo correto
 if [ -f "$ENV_FILE" ]; then
@@ -199,6 +204,50 @@ fi
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${GREEN}✅ Deploy concluído!${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
+
+# Configurar MCP no Cursor (apenas se executado localmente, não no servidor)
+# Detectar se estamos em ambiente local (Mac/Windows com Cursor) ou servidor
+IS_LOCAL=false
+if [ -d "$HOME/.cursor" ] && [ "$USER" != "root" ]; then
+    IS_LOCAL=true
+elif [ -d "$HOME/.cursor" ]; then
+    # Mesmo sendo root, se tem .cursor pode ser local
+    IS_LOCAL=true
+fi
+
+if [ "$IS_LOCAL" = true ]; then
+    echo -e "${YELLOW}🔧 Configurando MCP no Cursor...${NC}"
+    
+    # Obter diretório do script deploy.sh
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    MCP_SCRIPT="$SCRIPT_DIR/add_mcp_to_cursor.py"
+    
+    # Verificar se o script existe
+    if [ -f "$MCP_SCRIPT" ]; then
+        # Executar script de configuração do MCP no diretório do script
+        if command -v python3 &> /dev/null; then
+            echo -e "${BLUE}⏳ Configurando MCP para ambiente: ${ENVIRONMENT}...${NC}"
+            (cd "$SCRIPT_DIR" && python3 add_mcp_to_cursor.py "$ENVIRONMENT" 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✅ MCP configurado no Cursor para ambiente: ${ENVIRONMENT}${NC}"
+                echo -e "${GREEN}   Reinicie o Cursor para aplicar as mudanças${NC}"
+            else
+                echo -e "${YELLOW}⚠️  Não foi possível configurar o MCP automaticamente${NC}"
+                echo -e "${YELLOW}💡 Execute manualmente: cd $(dirname "$SCRIPT_DIR") && python3 add_mcp_to_cursor.py ${ENVIRONMENT}${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Python3 não encontrado - pulando configuração do MCP${NC}"
+            echo -e "${YELLOW}💡 Execute manualmente: python3 add_mcp_to_cursor.py ${ENVIRONMENT}${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Script add_mcp_to_cursor.py não encontrado em ${SCRIPT_DIR}${NC}"
+        echo -e "${YELLOW}💡 Execute manualmente: python3 add_mcp_to_cursor.py ${ENVIRONMENT}${NC}"
+    fi
+else
+    echo -e "${YELLOW}💡 Para configurar MCP no Cursor localmente, execute:${NC}"
+    echo -e "   ${GREEN}python3 add_mcp_to_cursor.py ${ENVIRONMENT}${NC}"
+fi
+
 echo -e "${YELLOW}💡 Próximos passos:${NC}"
 echo -e "   1. Verifique os logs: docker service logs ${STACK_NAME}_api -f"
 echo -e "   2. Teste a aplicação: curl http://localhost:8000"
@@ -206,7 +255,11 @@ echo -e "   3. Monitore os serviços: docker service ps ${STACK_NAME}_api"
 echo -e "   4. Se ainda der 404, reinicie o Traefik: docker service update --force traefik_traefik"
     if [ "$ENVIRONMENT" = "homologation" ]; then
         echo -e "   5. Verifique logs do Traefik: docker service logs traefik_traefik --tail=50 | grep celx"
+        echo -e "   6. Configure MCP: python3 add_mcp_to_cursor.py homologation"
+        echo -e "      URL da API: https://celx.com.br"
     else
         echo -e "   5. Verifique logs do Traefik: docker service logs traefik_traefik --tail=50 | grep selvez"
+        echo -e "   6. Configure MCP: python3 add_mcp_to_cursor.py production"
+        echo -e "      URL da API: https://www.selvez.com.br"
     fi
 echo -e "${BLUE}════════════════════════════════════════${NC}"
