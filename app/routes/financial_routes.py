@@ -1996,7 +1996,10 @@ async def create_account_payable(
         # Se for cartão de crédito, diminuir saldo imediatamente (valor total de uma vez)
         # Buscar account novamente após commit para garantir dados atualizados
         account_id = payable_data.get("account_id")
-        logger.info(f"🔍 DEBUG: account_id recebido (parcelamento): {account_id}")
+        # Converter string vazia para None
+        if account_id == "":
+            account_id = None
+        logger.info(f"🔍 DEBUG: account_id recebido (parcelamento): {account_id} (tipo: {type(account_id)})")
         if account_id:
             account = db.query(FinancialAccount).filter(
                 FinancialAccount.id == account_id,
@@ -2070,7 +2073,10 @@ async def create_account_payable(
         # Se for cartão de crédito, diminuir saldo imediatamente
         # Buscar account novamente após commit para garantir dados atualizados
         account_id = payable_data.get("account_id")
-        logger.info(f"🔍 DEBUG: account_id recebido: {account_id}")
+        # Converter string vazia para None
+        if account_id == "":
+            account_id = None
+        logger.info(f"🔍 DEBUG: account_id recebido: {account_id} (tipo: {type(account_id)})")
         if account_id:
             account = db.query(FinancialAccount).filter(
                 FinancialAccount.id == account_id,
