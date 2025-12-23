@@ -9,11 +9,12 @@ services:
       sh -c "
         apt-get update && 
         apt-get install -y git gcc default-libmysqlclient-dev pkg-config curl unzip openssh-client &&
-        rm -rf /tmp/cel /app/* &&
+        rm -rf /tmp/cel /app/* /app/.[!.]* /app/..?* 2>/dev/null || true &&
         GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' git clone git@github.com:wolfxweb/apiwolfx.git /tmp/cel &&
-        cp -r /tmp/cel/* /app/ &&
+        cp -r /tmp/cel/. /app/ &&
         rm -rf /tmp/cel &&
         cd /app &&
+        if [ ! -f requirements.txt ]; then echo 'ERROR: requirements.txt not found!' && ls -la /app/ | head -20 && exit 1; fi &&
         pip install --no-cache-dir -r requirements.txt &&
         python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
