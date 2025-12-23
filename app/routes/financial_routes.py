@@ -1983,30 +1983,39 @@ async def create_account_payable(
         db.commit()
         
         # Se for cartão de crédito, diminuir saldo imediatamente (valor total de uma vez)
-        if account and account.account_type == "credit":
-            # Fazer refresh do account para garantir dados atualizados
-            db.refresh(account)
-            
-            total_amount = base_amount if value_type == "total" else (base_amount * total_installments)
-            current_balance = float(account.current_balance or 0)
-            # Para cartão de crédito, crédito aumenta dívida (diminui saldo disponível)
-            account.current_balance = current_balance - total_amount
-            
-            # Criar transação para registrar a movimentação
-            transaction = FinancialTransaction(
-                company_id=company_id,
-                account_id=account.id,
-                transaction_type="credit",  # Crédito aumenta dívida no cartão
-                amount=total_amount,
-                description=f"{payable_data.get('description')} - Parcelamento {total_installments}x (Criação)",
-                transaction_date=datetime.now().date(),
-                reference_type="payable_creation",
-                reference_id=f"payable_installment_{first_installment_id}"
-            )
-            db.add(transaction)
-            db.commit()
-            
-            logger.info(f"💳 Saldo do cartão atualizado: -R$ {total_amount:.2f} (Parcelamento {total_installments}x)")
+        if account:
+            logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: {account.account_type}, Nome: {account.account_name}")
+            if account.account_type == "credit":
+                logger.info(f"💳 Cartão de crédito detectado! Atualizando saldo...")
+                # Fazer refresh do account para garantir dados atualizados
+                db.refresh(account)
+                
+                total_amount = base_amount if value_type == "total" else (base_amount * total_installments)
+                current_balance = float(account.current_balance or 0)
+                logger.info(f"💳 Saldo atual: R$ {current_balance:.2f}, Valor a deduzir: R$ {total_amount:.2f}")
+                
+                # Para cartão de crédito, crédito aumenta dívida (diminui saldo disponível)
+                account.current_balance = current_balance - total_amount
+                
+                # Criar transação para registrar a movimentação
+                transaction = FinancialTransaction(
+                    company_id=company_id,
+                    account_id=account.id,
+                    transaction_type="credit",  # Crédito aumenta dívida no cartão
+                    amount=total_amount,
+                    description=f"{payable_data.get('description')} - Parcelamento {total_installments}x (Criação)",
+                    transaction_date=datetime.now().date(),
+                    reference_type="payable_creation",
+                    reference_id=f"payable_installment_{first_installment_id}"
+                )
+                db.add(transaction)
+                db.commit()
+                
+                logger.info(f"💳 Saldo do cartão atualizado: -R$ {total_amount:.2f} (Novo saldo: R$ {account.current_balance:.2f}) (Parcelamento {total_installments}x)")
+            else:
+                logger.info(f"⚠️ Conta não é cartão de crédito. Tipo: {account.account_type}")
+        else:
+            logger.warning(f"⚠️ Account não encontrado para account_id: {payable_data.get('account_id')}")
         
         logger.info(f"✅ Parcelamento criado: {payable_data.get('description')} - {total_installments} parcelas")
         return {"message": f"Parcelamento criado com sucesso - {total_installments} parcelas", "id": first_installment_id}
