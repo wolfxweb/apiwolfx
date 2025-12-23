@@ -1901,8 +1901,9 @@ async def create_account_payable(
             logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: '{account.account_type}', Nome: {account.account_name}")
             logger.info(f"🔍 DEBUG: Comparando account_type: '{account.account_type}' == 'credit' ? {account.account_type == 'credit'}")
             if account.account_type == "credit":
-            # Fazer refresh do account para garantir dados atualizados
-            db.refresh(account)
+                logger.info(f"💳 Cartão de crédito detectado! Atualizando saldo...")
+                # Fazer refresh do account para garantir dados atualizados
+                db.refresh(account)
             
             total_amount = 0
             for entry in created_entries:
