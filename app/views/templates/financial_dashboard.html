@@ -2380,18 +2380,18 @@ function renderPlanningChart(chartData) {
         // Adicionar linha de totais
         if (hasDetailedData) {
             tableHtml += `
-                <tr class="table-dark fw-bold">
+                <tr class="table-light fw-bold">
                     <td><strong>TOTAL</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalPlanned)}</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalML)}</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalReceivables)}</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalReal)}</strong></td>
-                    <td class="text-end text-white">
+                    <td class="text-end ${totalDifference >= 0 ? 'text-success' : 'text-danger'}">
                         <strong>${formatCurrency(totalDifference)}</strong>
                     </td>
                     <td class="text-end"><strong>${totalPercentage.toFixed(1)}%</strong></td>
                     <td class="text-center">
-                        <span class="badge bg-dark">
+                        <span class="badge bg-secondary">
                             <i class="bi bi-calculator"></i>
                         </span>
                     </td>
@@ -2399,16 +2399,16 @@ function renderPlanningChart(chartData) {
             `;
         } else {
             tableHtml += `
-                <tr class="table-dark fw-bold">
+                <tr class="table-light fw-bold">
                     <td><strong>TOTAL</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalPlanned)}</strong></td>
                     <td class="text-end"><strong>${formatCurrency(totalReal)}</strong></td>
-                    <td class="text-end text-white">
+                    <td class="text-end ${totalDifference >= 0 ? 'text-success' : 'text-danger'}">
                         <strong>${formatCurrency(totalDifference)}</strong>
                     </td>
                     <td class="text-end"><strong>${totalPercentage.toFixed(1)}%</strong></td>
                     <td class="text-center">
-                        <span class="badge bg-dark">
+                        <span class="badge bg-secondary">
                             <i class="bi bi-calculator"></i>
                         </span>
                     </td>
