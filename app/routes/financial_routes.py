@@ -2038,30 +2038,39 @@ async def create_account_payable(
         db.refresh(new_payable)
         
         # Se for cartão de crédito, diminuir saldo imediatamente
-        if account and account.account_type == "credit":
-            # Fazer refresh do account para garantir dados atualizados
-            db.refresh(account)
-            
-            amount_value = float(new_payable.amount)
-            current_balance = float(account.current_balance or 0)
-            # Para cartão de crédito, crédito aumenta dívida (diminui saldo disponível)
-            account.current_balance = current_balance - amount_value
-            
-            # Criar transação para registrar a movimentação
-            transaction = FinancialTransaction(
-                company_id=company_id,
-                account_id=account.id,
-                transaction_type="credit",  # Crédito aumenta dívida no cartão
-                amount=amount_value,
-                description=f"{new_payable.description} (Criação)",
-                transaction_date=datetime.now().date(),
-                reference_type="payable_creation",
-                reference_id=f"payable_{new_payable.id}"
-            )
-            db.add(transaction)
-            db.commit()
-            
-            logger.info(f"💳 Saldo do cartão atualizado: -R$ {amount_value:.2f}")
+        if account:
+            logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: {account.account_type}, Nome: {account.account_name}")
+            if account.account_type == "credit":
+                logger.info(f"💳 Cartão de crédito detectado! Atualizando saldo...")
+                # Fazer refresh do account para garantir dados atualizados
+                db.refresh(account)
+                
+                amount_value = float(new_payable.amount)
+                current_balance = float(account.current_balance or 0)
+                logger.info(f"💳 Saldo atual: R$ {current_balance:.2f}, Valor a deduzir: R$ {amount_value:.2f}")
+                
+                # Para cartão de crédito, crédito aumenta dívida (diminui saldo disponível)
+                account.current_balance = current_balance - amount_value
+                
+                # Criar transação para registrar a movimentação
+                transaction = FinancialTransaction(
+                    company_id=company_id,
+                    account_id=account.id,
+                    transaction_type="credit",  # Crédito aumenta dívida no cartão
+                    amount=amount_value,
+                    description=f"{new_payable.description} (Criação)",
+                    transaction_date=datetime.now().date(),
+                    reference_type="payable_creation",
+                    reference_id=f"payable_{new_payable.id}"
+                )
+                db.add(transaction)
+                db.commit()
+                
+                logger.info(f"💳 Saldo do cartão atualizado: -R$ {amount_value:.2f} (Novo saldo: R$ {account.current_balance:.2f})")
+            else:
+                logger.info(f"⚠️ Conta não é cartão de crédito. Tipo: {account.account_type}")
+        else:
+            logger.warning(f"⚠️ Account não encontrado para account_id: {payable_data.get('account_id')}")
         
         logger.info(f"✅ Conta a pagar criada: {new_payable.description} (ID: {new_payable.id})")
         return {"message": "Conta a pagar criada com sucesso", "id": new_payable.id}
