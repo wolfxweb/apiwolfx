@@ -1889,7 +1889,18 @@ async def create_account_payable(
             db.refresh(entry)
         
         # Se for cartão de crédito, diminuir saldo para cada entrada recorrente criada
-        if account and account.account_type == "credit":
+        # Buscar account novamente após commit para garantir dados atualizados
+        account_id = payable_data.get("account_id")
+        if account_id:
+            account = db.query(FinancialAccount).filter(
+                FinancialAccount.id == account_id,
+                FinancialAccount.company_id == company_id
+            ).first()
+            
+        if account:
+            logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: '{account.account_type}', Nome: {account.account_name}")
+            logger.info(f"🔍 DEBUG: Comparando account_type: '{account.account_type}' == 'credit' ? {account.account_type == 'credit'}")
+            if account.account_type == "credit":
             # Fazer refresh do account para garantir dados atualizados
             db.refresh(account)
             
@@ -1983,8 +1994,17 @@ async def create_account_payable(
         db.commit()
         
         # Se for cartão de crédito, diminuir saldo imediatamente (valor total de uma vez)
+        # Buscar account novamente após commit para garantir dados atualizados
+        account_id = payable_data.get("account_id")
+        if account_id:
+            account = db.query(FinancialAccount).filter(
+                FinancialAccount.id == account_id,
+                FinancialAccount.company_id == company_id
+            ).first()
+            
         if account:
-            logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: {account.account_type}, Nome: {account.account_name}")
+            logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: '{account.account_type}', Nome: {account.account_name}")
+            logger.info(f"🔍 DEBUG: Comparando account_type: '{account.account_type}' == 'credit' ? {account.account_type == 'credit'}")
             if account.account_type == "credit":
                 logger.info(f"💳 Cartão de crédito detectado! Atualizando saldo...")
                 # Fazer refresh do account para garantir dados atualizados
@@ -2047,8 +2067,17 @@ async def create_account_payable(
         db.refresh(new_payable)
         
         # Se for cartão de crédito, diminuir saldo imediatamente
+        # Buscar account novamente após commit para garantir dados atualizados
+        account_id = payable_data.get("account_id")
+        if account_id:
+            account = db.query(FinancialAccount).filter(
+                FinancialAccount.id == account_id,
+                FinancialAccount.company_id == company_id
+            ).first()
+            
         if account:
-            logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: {account.account_type}, Nome: {account.account_name}")
+            logger.info(f"🔍 DEBUG: Account encontrado - ID: {account.id}, Tipo: '{account.account_type}', Nome: {account.account_name}")
+            logger.info(f"🔍 DEBUG: Comparando account_type: '{account.account_type}' == 'credit' ? {account.account_type == 'credit'}")
             if account.account_type == "credit":
                 logger.info(f"💳 Cartão de crédito detectado! Atualizando saldo...")
                 # Fazer refresh do account para garantir dados atualizados
