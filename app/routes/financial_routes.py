@@ -1938,9 +1938,12 @@ async def create_account_payable(
                 reference_id=f"payable_recurring_{created_entries[0].id}"
             )
             db.add(transaction)
+            # Garantir que a conta também será salva
+            db.add(account)
             db.commit()
+            db.refresh(account)  # Atualizar objeto com dados do banco
             
-            logger.info(f"💳 Saldo do cartão atualizado: -R$ {total_amount:.2f} ({len(created_entries)} recorrências)")
+            logger.info(f"💳 Saldo do cartão atualizado: -R$ {total_amount:.2f} (Novo saldo: R$ {account.current_balance:.2f}) ({len(created_entries)} recorrências)")
         
         logger.info(f"✅ {len(created_entries)} despesas recorrentes criadas: {base_description}")
         return {"message": f"{len(created_entries)} despesas recorrentes criadas com sucesso", "count": len(created_entries)}
@@ -2056,7 +2059,10 @@ async def create_account_payable(
                     reference_id=f"payable_installment_{first_installment_id}"
                 )
                 db.add(transaction)
+                # Garantir que a conta também será salva
+                db.add(account)
                 db.commit()
+                db.refresh(account)  # Atualizar objeto com dados do banco
                 
                 logger.info(f"💳 Saldo do cartão atualizado: -R$ {total_amount:.2f} (Novo saldo: R$ {account.current_balance:.2f}) (Parcelamento {total_installments}x)")
             else:
@@ -2142,7 +2148,10 @@ async def create_account_payable(
                     reference_id=f"payable_{new_payable.id}"
                 )
                 db.add(transaction)
+                # Garantir que a conta também será salva
+                db.add(account)
                 db.commit()
+                db.refresh(account)  # Atualizar objeto com dados do banco
                 
                 logger.info(f"💳 Saldo do cartão atualizado: -R$ {amount_value:.2f} (Novo saldo: R$ {account.current_balance:.2f})")
             else:
