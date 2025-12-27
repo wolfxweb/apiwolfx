@@ -29,6 +29,7 @@ class MLOrdersController:
                        internal_status_filter: Optional[str] = None,
                        date_from: Optional[str] = None,
                        date_to: Optional[str] = None,
+                       buffering_date: Optional[str] = None,
                        search_query: Optional[str] = None) -> Dict:
         """Busca lista de orders para exibição"""
         try:
@@ -160,6 +161,52 @@ class MLOrdersController:
                             cast(MLOrder.order_items, Text).ilike(search_term)
                         )
                     )
+            
+            # Filtro por data de buffering (ponto de coleta)
+            if buffering_date:
+                try:
+                    from datetime import datetime, time
+                    from sqlalchemy import text
+                    buffering_date_obj = datetime.fromisoformat(buffering_date)
+                    # Se não tem hora, usar início do dia (00:00:00)
+                    if buffering_date_obj.time() == time(0, 0, 0):
+                        buffering_date_start = buffering_date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
+                        buffering_date_end = buffering_date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    else:
+                        buffering_date_start = buffering_date_obj
+                        buffering_date_end = buffering_date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    
+                    # Buscar IDs dos pedidos que têm a data de buffering dentro do intervalo
+                    # Usar SQL direto para buscar no JSON
+                    buffering_ids_query = text("""
+                        SELECT id FROM ml_orders
+                        WHERE company_id = :company_id
+                        AND shipping_details IS NOT NULL
+                        AND (
+                            (shipping_details->'lead_time'->'buffering'->>'date')::timestamp BETWEEN :date_start AND :date_end
+                            OR (shipping_details->'lead_time'->'estimated_schedule_limit'->>'date')::timestamp BETWEEN :date_start AND :date_end
+                            OR (shipping_details->'lead_time'->'estimated_delivery_time'->>'pay_before')::timestamp BETWEEN :date_start AND :date_end
+                            OR (shipping_details->'shipping_option'->'buffering'->>'date')::timestamp BETWEEN :date_start AND :date_end
+                            OR (shipping_details->'lead_time'->'pickup_promise'->>'from')::timestamp BETWEEN :date_start AND :date_end
+                        )
+                    """)
+                    
+                    result = self.db.execute(buffering_ids_query, {
+                        "company_id": company_id,
+                        "date_start": buffering_date_start,
+                        "date_end": buffering_date_end
+                    })
+                    buffering_order_ids = [row[0] for row in result]
+                    
+                    if buffering_order_ids:
+                        query = query.filter(MLOrder.id.in_(buffering_order_ids))
+                    else:
+                        # Se não há pedidos com essa data de buffering, retornar query vazia
+                        query = query.filter(MLOrder.id.in_([]))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Data de buffering inválida: {buffering_date} - {e}")
+                except Exception as e:
+                    logger.error(f"Erro ao filtrar por buffering_date: {e}")
             
             # Ordenar por data de criação (mais recentes primeiro)
             query = query.order_by(MLOrder.date_created.desc())

@@ -109,6 +109,7 @@ async def get_orders_api(
     search_query: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    buffering_date: Optional[str] = Query(None),
     session_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -135,6 +136,7 @@ async def get_orders_api(
             internal_status_filter=internal_status_filter,
             date_from=date_from,
             date_to=date_to,
+            buffering_date=buffering_date,
             search_query=search_query
         )
         

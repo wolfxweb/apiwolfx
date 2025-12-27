@@ -87,6 +87,15 @@
                             </select>
                         </div>
                         
+                        <!-- Filtro por data de buffering (ponto de coleta) -->
+                        <div class="col-12">
+                            <label for="bufferingDateFilter" class="form-label small text-uppercase text-muted">
+                                <i class="bi bi-calendar-event"></i> Data "Leve ao ponto de coleta"
+                            </label>
+                            <input type="date" class="form-control" id="bufferingDateFilter" onchange="applyFilters()" placeholder="Filtrar por data de buffering">
+                            <small class="text-muted">Filtra pedidos que devem ser levados ao ponto de coleta nesta data</small>
+                        </div>
+                        
                         <!-- Status interno -->
                         <div class="col-12">
                             <label class="form-label small text-uppercase text-muted d-block mb-2">Status interno</label>
@@ -995,6 +1004,11 @@ function syncFiltersWithUrl() {
         if (customFromInput) customFromInput.value = '';
         if (customToInput) customToInput.value = '';
     }
+    
+    // Sincronizar filtro de buffering_date
+    const bufferingDateValue = params.get('buffering_date') || '';
+    const bufferingDateInput = document.getElementById('bufferingDateFilter');
+    if (bufferingDateInput) bufferingDateInput.value = bufferingDateValue;
 
     if (paramsChanged) {
         const newQuery = params.toString();
@@ -1054,6 +1068,10 @@ function applyFilters() {
         if (customFromValue) params.set('date_from', customFromValue);
         if (customToValue) params.set('date_to', customToValue);
     }
+    
+    // Filtro por data de buffering
+    const bufferingDateValue = document.getElementById('bufferingDateFilter')?.value || '';
+    if (bufferingDateValue) params.set('buffering_date', bufferingDateValue);
 
     const newQuery = params.toString();
     const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
@@ -1094,6 +1112,7 @@ function collectFilterValues() {
         period_filter: document.getElementById('period_filter')?.value || '',
         customDateFrom: document.getElementById('customDateFrom')?.value || '',
         customDateTo: document.getElementById('customDateTo')?.value || '',
+        buffering_date: document.getElementById('bufferingDateFilter')?.value || '',
         internal_status_filter: Array.from(document.querySelectorAll('input[name="internal_status_filter"]:checked')).map(cb => cb.value),
         logistic_filter: Array.from(document.querySelectorAll('input[name="logistic_filter"]:checked')).map(cb => cb.value),
         status_filter: Array.from(document.querySelectorAll('input[name="status_filter"]:checked')).map(cb => cb.value)
@@ -1131,6 +1150,12 @@ function loadFiltersFromLocalStorage() {
         if (filters.search_query) {
             const searchInput = document.getElementById('search_query');
             if (searchInput) searchInput.value = filters.search_query;
+        }
+        
+        // Restaurar filtro de buffering_date
+        if (filters.buffering_date) {
+            const bufferingDateInput = document.getElementById('bufferingDateFilter');
+            if (bufferingDateInput) bufferingDateInput.value = filters.buffering_date;
         }
 
         // Restaurar conta (será aplicado após loadAccountsFilter ser chamado)
@@ -1551,6 +1576,7 @@ function loadOrders(page = 1) {
         internal_status_filter: internalStatusForApi,
         date_from: urlParams.get('date_from') || '',
         date_to: urlParams.get('date_to') || '',
+        buffering_date: urlParams.get('buffering_date') || '',
         period_filter: urlParams.get('period_filter') || '',
         search_query: (urlParams.get('search_query') || '').trim(),
         limit: selectedLimit,
@@ -1566,6 +1592,7 @@ function loadOrders(page = 1) {
     if (filters.internal_status_filter) apiUrl += `&internal_status_filter=${encodeURIComponent(filters.internal_status_filter)}`;
     if (filters.date_from) apiUrl += `&date_from=${encodeURIComponent(filters.date_from)}`;
     if (filters.date_to) apiUrl += `&date_to=${encodeURIComponent(filters.date_to)}`;
+    if (filters.buffering_date) apiUrl += `&buffering_date=${encodeURIComponent(filters.buffering_date)}`;
     if (filters.period_filter) apiUrl += `&period_filter=${encodeURIComponent(filters.period_filter)}`;
     if (filters.search_query) apiUrl += `&search_query=${encodeURIComponent(filters.search_query)}`;
     
@@ -2834,7 +2861,7 @@ function renderShippingSummary(order) {
                     bufferingDateUsed = bufferingDateFormatted;
                 }
             }
-            segments.push(`<span class="text-warning small">${bufferingMessage}</span>`);
+            segments.push(`<span class="small" style="color: #000 !important;">${bufferingMessage}</span>`);
         } else if (bufferingDateRaw) {
             const bufferingDateFormatted = formatDateOnly(bufferingDateRaw);
             if (bufferingDateFormatted) {
