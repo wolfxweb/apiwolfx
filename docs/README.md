@@ -209,13 +209,13 @@ Dominio do Supabase: supabase.wolfx.com.br
 
 Usuario: wolfx
 
-Senha: @Wolfx2020
+Senha: *******
 
-JWT_Key: dc8d97c3591638e5157c79073d2c1aa2b2e61d2a
+JWT_Key: *******
 
-Anon Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.lwJ6DOlWntSiaCw8_I_m3YHKSn8wKlL_wjwWod67jQY
+Anon Key:*******
 
-Service Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogInNlcnZpY2Vfcm9sZSIsCiAgImlzcyI6ICJzdXBhYmFzZSIsCiAgImlhdCI6IDE3MTUwNTA4MDAsCiAgImV4cCI6IDE4NzI4MTcyMDAKfQ.JkkevDN7zY6HpQ54lc9iETFihaZ5F1-aXhE46byNQ64
+Service Key: *******
 
 As respostas estão corretas? (Y/N): 
 **Desenvolvido com ❤️ para integração com Mercado Livre**
